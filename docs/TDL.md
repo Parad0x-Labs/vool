@@ -537,7 +537,7 @@ already in this branch.
   desktop wrapper, and feature branches are different realities until this gate
   proves otherwise.
 - Build a **self-contained macOS VOOL.app from the exact integrated SHA**. The
-  checkout-dependent wrapper in `Desktop/OX-VOOL/VOOL.app` is not a distributable
+  checkout-dependent wrapper in `Desktop/vool-checkout/VOOL.app` is not a distributable
   demo artifact and must not be used as evidence: it launches a different checkout.
 - From a fresh install, mechanically prove app launch -> owned daemon -> `/healthz`
   exact commit/build id -> native window -> real chat. Then cumulatively drive the

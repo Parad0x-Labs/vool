@@ -38,7 +38,7 @@ Both sizes are printed.  Neither is asserted to equal 114.
 USAGE
 -----
     PYTHONDONTWRITEBYTECODE=1 <tree>/.venv/bin/python \
-        tests/red_a_reroute_census.py --tree /Users/example-user/Desktop/OX-VOOL/code \
+        tests/red_a_reroute_census.py --tree /Users/example-user/Desktop/vool-checkout \
         --out <path>.json
 
     # after the fix lands, against the repair worktree, then diff:
@@ -362,7 +362,7 @@ def _git(tree: str, *args: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--tree", default="/Users/example-user/Desktop/OX-VOOL/code")
+    ap.add_argument("--tree", default="/Users/example-user/Desktop/vool-checkout")
     ap.add_argument("--out", default="")
     ap.add_argument("--baseline", default="", help="a prior --out json to diff against")
     ap.add_argument("--limit", type=int, default=0)

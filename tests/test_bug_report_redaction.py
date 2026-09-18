@@ -40,7 +40,7 @@ HEADERS = [
 
 # --- home path / username family ----------------------------------------------
 PATHS = [
-    "/Users/fixtureuser/Desktop/OX-VOOL/code/core/foo.py",
+    "/Users/fixtureuser/Desktop/vool-checkout/core/foo.py",
     "/home/alice/projects/runner.log",
     "C:\\Users\\bob\\AppData\\Local\\VOOL\\vool.db",
     "C:/Users/carol/Documents/settings.yaml",

@@ -20,8 +20,8 @@ from core.operator.parser import parse_operator_action_intent
 _DISK_REQUESTS = [
     pytest.param('find disk bloat in "/tmp/review/notes"', "/tmp/review/notes", id="review-probe-review-notes"),
     pytest.param('find disk bloat in "/tmp/draft/docs"', "/tmp/draft/docs", id="review-probe-draft-docs"),
-    pytest.param('find disk bloat in "/Users/ops/mission-packs/review/02-calendar-notes/revision-6/tmp/operator-case"',
-                 "/Users/ops/mission-packs/review/02-calendar-notes/revision-6/tmp/operator-case", id="review-segment-working-directory"),
+    pytest.param('find disk bloat in "/Users/ops/review/02-calendar-notes/revision-6/tmp/operator-case"',
+                 "/Users/ops/review/02-calendar-notes/revision-6/tmp/operator-case", id="review-segment-working-directory"),
     pytest.param("find disk bloat in /srv/review/notes-archive", "/srv/review/notes-archive", id="unquoted-posix-review-notes"),
     pytest.param('what is eating space in "~/drafts/explain the docs"', "~/drafts/explain the docs", id="home-path-with-authoring-words"),
     pytest.param(r"find large files in C:\Users\ops\Review\Notes", r"C:\Users\ops\Review\Notes", id="windows-review-notes"),

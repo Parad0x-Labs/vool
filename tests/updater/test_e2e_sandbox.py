@@ -409,7 +409,7 @@ def sandbox(tmp_path: Path):
 class TestEndToEnd:
     def test_paths_stay_inside_the_sandbox(self, sandbox):
         """The boundary assertion: nothing in this e2e ever references the installed app."""
-        installed = Path("/Users/example-user/Desktop/OX-VOOL/VOOL.app")
+        installed = Path("/Users/example-user/Desktop/vool-checkout/VOOL.app")
         everything = [sandbox.app_path, sandbox.data_dir, sandbox.tmp]
         for path in everything:
             assert installed not in path.parents
