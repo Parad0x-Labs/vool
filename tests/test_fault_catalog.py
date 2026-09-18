@@ -205,7 +205,7 @@ def test_the_exception_type_owns_the_mapping_not_its_message():
 def test_an_unknown_exception_maps_to_typed_unknown_without_leaking_secrets():
     secret = "sk-live-abcdef0123456789abcdef"
     try:
-        raise RuntimeError(f"boom at /Users/sls_0x/desktop/secret_loader.py key={secret}")
+        raise RuntimeError(f"boom at /Users/example-user/desktop/secret_loader.py key={secret}")
     except RuntimeError as exc:
         record = map_exception(exc, authority="test-boundary", dedupe="u1")
     assert record.code == FAULT_UNKNOWN
@@ -332,7 +332,7 @@ def test_context_is_allowlisted_redacted_and_truncated():
             "provider_id": "openrouter",
             "api_key": "sk-live-abcdef0123456789abcdef",
             "authorization": "Bearer abc.def.ghi",
-            "home_path": "/Users/sls_0x/secret-folder/creds.txt",
+            "home_path": "/Users/example-user/secret-folder/creds.txt",
             "password": "hunter2",
             "target": "/home/alice/whatever",
         }
@@ -354,7 +354,7 @@ def test_unknown_context_keys_are_dropped_not_guessed():
 
 
 def test_redaction_is_idempotent():
-    once = redact_text("Bearer abc123def456 at /Users/sls_0x/x/y.py")
+    once = redact_text("Bearer abc123def456 at /Users/example-user/x/y.py")
     twice = redact_text(once)
     assert once == twice
 
@@ -390,7 +390,7 @@ def test_record_construction_itself_redacts_the_context():
         context={
             "tool_name": "web.fetch",
             "api_key": "sk-live-abcdef0123456789abcdef",
-            "home": "/Users/sls_0x/secret-folder/creds.txt",
+            "home": "/Users/example-user/secret-folder/creds.txt",
             "future_unknown_key": "value",
         },
     )

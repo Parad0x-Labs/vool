@@ -402,7 +402,7 @@ def test_the_bug_report_export_carries_safe_fault_evidence_and_nothing_else():
             turn_key=turn_id,
             session_id=SESSION,
             dedupe="bug-1",
-            context={"api_key": "sk-live-abcdef0123456789abcdef", "home": "/Users/sls_0x/secret"},
+            context={"api_key": "sk-live-abcdef0123456789abcdef", "home": "/Users/example-user/secret"},
         )
     )
 
