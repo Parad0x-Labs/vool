@@ -413,7 +413,7 @@ def test_the_bug_report_export_carries_safe_fault_evidence_and_nothing_else():
     assert entry["operator_action"]
     raw = json.dumps(export, sort_keys=True)
     assert "sk-live" not in raw, "the export leaked context material"
-    assert "/Users/saulius" not in raw, "the export leaked a personal path"
+    assert "/Users/example-user" not in raw, "the export leaked a personal path"
     assert "context" not in entry, "the bug-report export carries codes, never internal context"
     assert not scan_text(raw), "the export must pass the bug-report outbound scanner"
 

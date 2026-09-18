@@ -212,7 +212,7 @@ def test_an_unknown_exception_maps_to_typed_unknown_without_leaking_secrets():
     assert record.category == "internal"
     rendered = json.dumps(record.to_dict())
     assert secret not in rendered, "the raw exception text leaked into the fault record"
-    assert "/Users/saulius" not in rendered, "a personal path leaked into the fault record"
+    assert "/Users/example-user" not in rendered, "a personal path leaked into the fault record"
     assert "RuntimeError" in rendered, "the honest class name is kept"
 
 
@@ -396,7 +396,7 @@ def test_record_construction_itself_redacts_the_context():
     )
     rendered = json.dumps(record.to_dict())
     assert "sk-live" not in rendered, "the record stored an unmasked credential"
-    assert "/Users/saulius" not in rendered, "the record stored an unmasked home path"
+    assert "/Users/example-user" not in rendered, "the record stored an unmasked home path"
     assert "future_unknown_key" not in record.context, "an unallowlisted key rode the record"
     assert record.context.get("tool_name") == "web.fetch"
 
