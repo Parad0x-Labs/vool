@@ -77,7 +77,7 @@ class _WeirdInternalError(RuntimeError):
 _RUN_RAISERS: dict[str, Exception] = {
     "importerror_with_symbol_and_path": ImportError(
         "cannot import name '_weather_subtask' from 'core.agent_runtime.live_data_plan' "
-        "(/Users/operator/Desktop/OX-VOOL/code/core/agent_runtime/live_data_plan.py)"
+        "(/Users/operator/Desktop/vool-checkout/core/agent_runtime/live_data_plan.py)"
     ),
     "attributeerror_with_dotted_module": AttributeError(
         "module 'core.conductor.registry' has no attribute '_internal_table'"
@@ -304,7 +304,7 @@ def test_unresolved_and_dependency_failed_codes_show_their_safe_detail():
     [
         # No leading exception-class prefix (so the old prefix-strip never touched it) and no
         # marker-table hit -- the shape this function had no defense against before R3.
-        "lookup failed at /Users/operator/Desktop/OX-VOOL/code/core/agent_runtime/live_data_plan.py",
+        "lookup failed at /Users/operator/Desktop/vool-checkout/core/agent_runtime/live_data_plan.py",
         "handler bound to core.agent_runtime.live_data_plan._weather_subtask could not resolve",
         "traceback frame in /private/tmp/build/.venv/lib/python3.11/site-packages/httpx/_client.py",
         # An exception-class shape embedded mid-string, unprefixed at position 0.

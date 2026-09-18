@@ -1253,7 +1253,7 @@ def main() -> int:
     ap.add_argument("--entrance", default="api_chat",
                     choices=["api_chat", "api_generate", "frontdoor"])
     ap.add_argument("--base-url", default="http://127.0.0.1:11435")
-    ap.add_argument("--tree", default="/Users/example-user/Desktop/OX-VOOL/code")
+    ap.add_argument("--tree", default="/Users/example-user/Desktop/vool-checkout")
     ap.add_argument("--prompt", default="canonical",
                     choices=["canonical", "operator_evening", "both"])
     ap.add_argument("--no-singletons", action="store_true")

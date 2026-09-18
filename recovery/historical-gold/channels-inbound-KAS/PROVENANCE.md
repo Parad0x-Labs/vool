@@ -1,6 +1,6 @@
 # PROVENANCE — channels-inbound-KAS
 
-- **Source:** dangling KAS-049 lane 175d378d (pre-rebase b708fd38) in OX-VOOL/code
+- **Source:** dangling KAS-049 lane 175d378d (pre-rebase b708fd38) in vool-checkout
 - **Historical path:** core/external_ingress.py, connector_awareness*.py, discord_recent_*.py + relay/bridge_workers/* (discord_gateway_ingress/state, discord_command_parser, telegram bridges, webhook_ingress)
 - **Maturity:** SUBSTANTIAL (46-commit real-time websocket Discord Gateway + governed connectors; canonical is polling-only)
 - **Historically wired:** lane only, never merged

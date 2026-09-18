@@ -14,7 +14,7 @@ ingress, ~1,417 files) and `.../A3/gold-repo-snapshots/` (nullcap 8.6M, jury-con
 ## Recovered families (in-tree vault: `recovery/historical-gold/`)
 
 ### kernel-laws-enforcement
-- **Source:** dangling commits 32c7740f (+ e288f48a, 819cd464) in OX-VOOL/code; also on-disk at-risk-recovery-20260829/vool-engine-kernel
+- **Source:** dangling commits 32c7740f (+ e288f48a, 819cd464) in vool-checkout; also on-disk at-risk-recovery-20260829/vool-engine-kernel
 - **Historical path:** core/kernel/* (wasm_sandbox, broker, compartments, counterfactual, plugin_contract, plugin_lifecycle, envelope, flow, boundary, continuation, stability, composition, council_flow)
 - **Maturity:** SUBSTANTIAL + TESTED (dedicated test_kernel_* + compiled vool_plugin.wasm fixture)
 - **Historically wired:** experimental lab only (never on the served path)
@@ -104,7 +104,7 @@ ingress, ~1,417 files) and `.../A3/gold-repo-snapshots/` (nullcap 8.6M, jury-con
 - **Recovery recommendation:** VAULT-ONLY for now (net-new product; still live on its branch). Later product branch decision.
 
 ### channels-inbound-KAS
-- **Source:** dangling KAS-049 lane 175d378d (pre-rebase b708fd38) in OX-VOOL/code
+- **Source:** dangling KAS-049 lane 175d378d (pre-rebase b708fd38) in vool-checkout
 - **Historical path:** core/external_ingress.py, connector_awareness*.py, discord_recent_*.py + relay/bridge_workers/* (discord_gateway_ingress/state, discord_command_parser, telegram bridges, webhook_ingress)
 - **Maturity:** SUBSTANTIAL (46-commit real-time websocket Discord Gateway + governed connectors; canonical is polling-only)
 - **Historically wired:** lane only, never merged

@@ -1,7 +1,7 @@
 # RED-1 baseline captures — AUD-20260829-003 round 2
 
 Captured 2026-08-29 by RED-1 against the FROZEN served checkout
-`/Users/example-user/Desktop/OX-VOOL/code` @ 0b4c2eb4 (clean tree),
+`/Users/example-user/Desktop/vool-checkout` @ 0b4c2eb4 (clean tree),
 serving daemon PID 25223 (booted 2026-08-29 21:39:06 local).
 
 These are the BEFORE picture. They were produced in an ephemeral session

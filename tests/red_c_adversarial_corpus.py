@@ -29,7 +29,7 @@ other column is measured.
 
 USAGE
     PYTHONDONTWRITEBYTECODE=1 .venv/bin/python tests/red_c_adversarial_corpus.py \
-        --tree /Users/example-user/Desktop/OX-VOOL/code --out corpus.json
+        --tree /Users/example-user/Desktop/vool-checkout --out corpus.json
     ... --serve --base-url http://127.0.0.1:11435      # add live served accounting
 """
 from __future__ import annotations
@@ -513,7 +513,7 @@ def _git(tree: str, *args: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--tree", default="/Users/example-user/Desktop/OX-VOOL/code")
+    ap.add_argument("--tree", default="/Users/example-user/Desktop/vool-checkout")
     ap.add_argument("--mint", default="auto", choices=["auto", "rules"])
     ap.add_argument("--serve", action="store_true", help="also drive /api/chat")
     ap.add_argument("--base-url", default="http://127.0.0.1:11435")
