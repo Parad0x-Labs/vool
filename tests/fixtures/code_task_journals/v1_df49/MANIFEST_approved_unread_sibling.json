@@ -1,0 +1,89 @@
+{
+  "label": "v1_df49",
+  "runtime_head": "df49f096cce927c830f8b68f12727a5d944cf3f2",
+  "runtime_repo": "/sanitized/revision-3/base-df49/repo",
+  "scenarios": {
+    "approved_unread_sibling": {
+      "calls": [
+        {
+          "arguments": {
+            "objective": "legacy scenario approved_unread_sibling"
+          },
+          "intent": "code.task.open",
+          "ok": true,
+          "stage": "reproduce",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "repro",
+            "task_id": "ct-2bbc7a725945"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "identify",
+          "status": "command_failed"
+        },
+        {
+          "arguments": {
+            "line": 1,
+            "path": "math.js",
+            "reason": "subtracts",
+            "task_id": "ct-2bbc7a725945"
+          },
+          "intent": "code.task.identify",
+          "ok": true,
+          "stage": "propose",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "path": "math.js"
+            },
+            "intent": "workspace.read_file",
+            "step_id": "read",
+            "task_id": "ct-2bbc7a725945"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "propose",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.label = (parts) => parts.join(',');\n",
+              "path": "labels.js"
+            },
+            "intent": "workspace.write_file",
+            "proposal_id": "sibling",
+            "rationale": "Owner labels.js: join with a comma.",
+            "task_id": "ct-2bbc7a725945"
+          },
+          "intent": "code.task.propose",
+          "ok": true,
+          "stage": "approve",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "proposal_id": "sibling",
+            "task_id": "ct-2bbc7a725945"
+          },
+          "intent": "code.task.approve",
+          "ok": true,
+          "stage": "mutate",
+          "status": "ok"
+        }
+      ],
+      "journal_sha256": "c6d75a6e87409e02a84a73b404275a6961f33e5515043d76be262a00bdd90f8e",
+      "task_id": "ct-2bbc7a725945",
+      "workspace_root_recorded": "/sanitized/revision-3/fixtures-legacy/v1_df49_extra/_scratch/ws/approved_unread_sibling"
+    }
+  }
+}

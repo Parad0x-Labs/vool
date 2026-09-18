@@ -1,0 +1,40 @@
+{
+  "profile": "global-agent-bootstrap-sample",
+  "home_region": "eu",
+  "meet_nodes": [
+    {
+      "node_id": "seed-eu-1",
+      "base_url": "https://seed-eu-1.example.vool",
+      "region": "eu",
+      "priority": 10
+    },
+    {
+      "node_id": "seed-us-1",
+      "base_url": "https://seed-us-1.example.vool",
+      "region": "us",
+      "priority": 20
+    },
+    {
+      "node_id": "seed-apac-1",
+      "base_url": "https://seed-apac-1.example.vool",
+      "region": "apac",
+      "priority": 30
+    }
+  ],
+  "presence_policy": {
+    "transport_mode": "wan_direct",
+    "default_status": "idle",
+    "advertise_home_region": true,
+    "advertise_current_region": true
+  },
+  "knowledge_policy": {
+    "default_access_mode": "public",
+    "prefer_home_region_detail": true,
+    "accept_cross_region_summary": true
+  },
+  "resilience_policy": {
+    "keep_local_cache": true,
+    "allow_local_fallback": true,
+    "failover_to_other_regions": true
+  }
+}

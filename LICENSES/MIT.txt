@@ -1,0 +1,5 @@
+MIT License
+
+Optional local repository preparation placeholder.
+
+Keep this file only if MIT-licensed material needs an included reference copy in the repository.

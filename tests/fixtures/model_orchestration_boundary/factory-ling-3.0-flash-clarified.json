@@ -1,0 +1,143 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "factory",
+  "calls": [
+    {
+      "system": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- A percentage listed as a fact may be written as its decimal share, 1 + share or 1 - share.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.\nInterface semantics: fact_N variables contain the displayed numeric magnitude, not a unit conversion. A fact with unit % must be divided by 100 when used as a fractional multiplier. step_N references use the integer position in the original steps array (step_1, step_2, etc.). Labels are display text, NOT variable identifiers. Invalid steps leave their position unavailable; do not renumber later steps. Unit conversion constants must come from supplied symbols.",
+      "prompt": "The user's full message:\nA factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.\n\nThe part of it you are answering:\nA factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 960  (written '960')\n  fact_2 = 30%  (written '30%')\n  fact_3 = 40%  (written '40%')\n  fact_4 = 2%  (written '2%')\n  fact_5 = 5%  (written '5%')\n  fact_6 = 3%  (written '3%')",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000324891",
+      "http_status": 200,
+      "output": "{\n  \"steps\": [\n    {\n      \"label\": \"North initial allocation\",\n      \"expression\": \"fact_1 * fact_2 / 100\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"Remainder after north\",\n      \"expression\": \"fact_1 - step_1\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"West initial allocation\",\n      \"expression\": \"step_2 * fact_3 / 100\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"South initial allocation\",\n      \"expression\": \"step_2 - step_3\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"North discarded volume\",\n      \"expression\": \"step_1 * fact_4 / 100\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"North usable volume\",\n      \"expression\": \"step_1 - step_5\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"West discarded volume\",\n      \"expression\": \"step_3 * fact_5 / 100\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"West usable volume\",\n      \"expression\": \"step_3 - step_7\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"South discarded volume\",\n      \"expression\": \"step_4 * fact_6 / 100\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"South usable volume\",\n      \"expression\": \"step_4 - step_9\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"Combined discarded volume\",\n      \"expression\": \"step_5 + step_7 + step_9\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"Combined discarded percentage\",\n      \"expression\": \"step_11 / fact_1 * 100\",\n      \"unit\": \"%\"\n    }\n  ],\n  \"cannot_determine\": [\n    \"The message does not provide the individual loss percentages as a combined rate that applies to the total initial volume, so the overall loss cannot be determined by simply adding the three loss percentages together.\"\n  ]\n}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 757,
+        "completion_tokens": 567,
+        "total_tokens": 1324,
+        "cost": 5.1618e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 5.1618e-05,
+          "upstream_inference_prompt_cost": 1.5897e-05,
+          "upstream_inference_completions_cost": 3.5721e-05
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789106053-TEWKnR1bx0H8rDBiKGRD",
+      "seconds": 13.157
+    }
+  ],
+  "source": "2c5050b6e8e1827753f782b0ab8434b384cad4ba",
+  "kind": "component comparison, NOT native acceptance",
+  "operations_source_sha256": "40b9e331c0c961f776497eca3f076c2a0d8e0b25cd9e248fc9213ebe9fe7347b",
+  "clarified_interface_counterfactual": true,
+  "counterfactual_evaluator": {
+    "steps": [
+      {
+        "label": "North initial allocation",
+        "expression": "fact_1 * fact_2 / 100",
+        "value": 288.0,
+        "unit": "litres"
+      },
+      {
+        "label": "Remainder after north",
+        "expression": "fact_1 - step_1",
+        "value": 672.0,
+        "unit": "litres"
+      },
+      {
+        "label": "West initial allocation",
+        "expression": "step_2 * fact_3 / 100",
+        "value": 268.8,
+        "unit": "litres"
+      },
+      {
+        "label": "South initial allocation",
+        "expression": "step_2 - step_3",
+        "value": 403.2,
+        "unit": "litres"
+      },
+      {
+        "label": "North discarded volume",
+        "expression": "step_1 * fact_4 / 100",
+        "value": 5.76,
+        "unit": "litres"
+      },
+      {
+        "label": "North usable volume",
+        "expression": "step_1 - step_5",
+        "value": 282.24,
+        "unit": "litres"
+      },
+      {
+        "label": "West discarded volume",
+        "expression": "step_3 * fact_5 / 100",
+        "value": 13.44,
+        "unit": "litres"
+      },
+      {
+        "label": "West usable volume",
+        "expression": "step_3 - step_7",
+        "value": 255.36,
+        "unit": "litres"
+      },
+      {
+        "label": "South discarded volume",
+        "expression": "step_4 * fact_6 / 100",
+        "value": 12.095999999999998,
+        "unit": "litres"
+      },
+      {
+        "label": "South usable volume",
+        "expression": "step_4 - step_9",
+        "value": 391.104,
+        "unit": "litres"
+      },
+      {
+        "label": "Combined discarded volume",
+        "expression": "step_5 + step_7 + step_9",
+        "value": 31.296,
+        "unit": "litres"
+      },
+      {
+        "label": "Combined discarded percentage",
+        "expression": "step_11 / fact_1 * 100",
+        "value": 3.26,
+        "unit": "%"
+      }
+    ],
+    "values": {
+      "North initial allocation": 288.0,
+      "Remainder after north": 672.0,
+      "West initial allocation": 268.8,
+      "South initial allocation": 403.2,
+      "North discarded volume": 5.76,
+      "North usable volume": 282.24,
+      "West discarded volume": 13.44,
+      "West usable volume": 255.36,
+      "South discarded volume": 12.095999999999998,
+      "South usable volume": 391.104,
+      "Combined discarded volume": 31.296,
+      "Combined discarded percentage": 3.26
+    },
+    "cannot_determine": [
+      "The message does not provide the individual loss percentages as a combined rate that applies to the total initial volume, so the overall loss cannot be determined by simply adding the three loss percentages together."
+    ]
+  }
+}

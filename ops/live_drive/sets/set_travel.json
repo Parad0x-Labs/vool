@@ -1,0 +1,14 @@
+[
+ {"id":"T1.1","lane":"travel: flight price","prompt":"How much is a flight from Vilnius to Rome next weekend?","expect":"real prices w/ source, or honest decline"},
+ {"id":"T1.2","lane":"travel: flight price","prompt":"Find me the cheapest return ticket Vilnius to London in October and tell me the airline and price."},
+ {"id":"T1.3","lane":"travel: train","prompt":"What does a train ticket from Berlin to Prague cost and how long does it take?"},
+ {"id":"T2.1","lane":"travel: places","prompt":"What are the top 5 things to see in Rome? Give me a short list."},
+ {"id":"T2.2","lane":"travel: places","prompt":"I have one day in Vilnius. Plan me an itinerary with 4 stops and rough timings."},
+ {"id":"T2.3","lane":"travel: places","prompt":"Best museums in Berlin and what they cost to enter?"},
+ {"id":"T3.1","lane":"travel: drive A to B","prompt":"How long is the drive from Vilnius to Riga and what route should I take?"},
+ {"id":"T3.2","lane":"travel: drive A to B","prompt":"Plan a drive from Berlin to Prague: distance, driving time, and one good stop on the way."},
+ {"id":"T3.3","lane":"travel: drive A to B","prompt":"Is it faster to fly or drive from Vilnius to Warsaw? Give me both times."},
+ {"id":"T4.1","lane":"travel: multi-factor","prompt":"I want a 3 day trip to Rome in October. Give me flight cost from Vilnius, one hotel area to stay, and 3 things to do."},
+ {"id":"T4.2","lane":"travel: weather+plan","prompt":"What's the weather in Rome right now, and based on that what should I pack for 3 days?"},
+ {"id":"T4.3","lane":"travel: currency","prompt":"How much is 500 EUR in Polish zloty right now, and is that enough for a weekend in Krakow?"}
+]

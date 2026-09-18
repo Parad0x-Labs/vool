@@ -1,0 +1,431 @@
+{
+ "blackbox_turn_ids": [
+  "code-task:ct-6b74a798b45b"
+ ],
+ "cancelled_reason": "",
+ "created_at": "2026-09-14T13:11:52.831303+00:00",
+ "cumulative": null,
+ "defect": {
+  "at": "2026-09-14T13:11:53.206106+00:00",
+  "line": 1,
+  "path": "math.js",
+  "reason": "subtracts"
+ },
+ "fault_ids": [],
+ "git_diff_paths": [],
+ "narrow": {
+  "command": "node check.js",
+  "returncode": 0,
+  "step_id": "narrow",
+  "success": true
+ },
+ "objective": "legacy scenario narrow_passed",
+ "pr_description": {},
+ "proposals": {
+  "p1": {
+   "approved": true,
+   "approved_at": "2026-09-14T13:11:53.252926+00:00",
+   "arguments": {
+    "content": "exports.add = (a, b) => a + b;\n",
+    "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "path": "math.js"
+   },
+   "consumed_by": "mut",
+   "created_at": "2026-09-14T13:11:53.243225+00:00",
+   "intent": "workspace.write_file",
+   "preview": {
+    "arguments_sha256": "30d6e998e911769977e492da06899fff1459cfe9d77171621e843d3d0b20e61c",
+    "content_sha256": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+    "intent": "workspace.write_file",
+    "paths": [
+     "math.js"
+    ],
+    "side_effect_class": "workspace_write"
+   },
+   "proposal_id": "p1",
+   "rationale": "Owner math.js: restore addition."
+  }
+ },
+ "read_paths": [
+  "math.js"
+ ],
+ "reproduced_failure": {
+  "command": "node check.js",
+  "returncode": 1,
+  "step_id": "repro",
+  "success": false
+ },
+ "rollback": {
+  "restored": false,
+  "restored_paths": []
+ },
+ "session_id": "legacy-narrow_passed",
+ "stage": "cumulative",
+ "step_order": [
+  "repro",
+  "read",
+  "mut",
+  "narrow"
+ ],
+ "steps": {
+  "mut": {
+   "arguments": {
+    "content": "exports.add = (a, b) => a + b;\n",
+    "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": true,
+   "completed_at": "2026-09-14T13:11:53.382865+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.write_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "p1",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "action": "updated",
+    "after_hash": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+    "after_mode": 420,
+    "artifacts": [
+     {
+      "action": "updated",
+      "after_hash": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+      "artifact_type": "file_diff",
+      "before_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+      "diff_preview": "--- a/math.js\n+++ b/math.js\n@@ -1 +1 @@\n-exports.add = (a, b) => a - b;\n+exports.add = (a, b) => a + b;",
+      "line_count": 1,
+      "path": "math.js"
+     }
+    ],
+    "before_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "before_mode": 420,
+    "blackbox": {
+     "bytes_captured": true,
+     "coverage_gap": [],
+     "effect_ids": [
+      "effect-dd06c6a662a341f895a024a504b4e55c"
+     ],
+     "outcomes": {
+      "effect-dd06c6a662a341f895a024a504b4e55c": "succeeded"
+     },
+     "recovery_error": "",
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-6b74a798b45b"
+    },
+    "line_count": 1,
+    "mutation_record": {
+     "mutation_id": "mutation-79f29e04d80840868c921441c82fa30c",
+     "session_key": "legacy-narrow_passed"
+    },
+    "path": "math.js"
+   },
+   "stage_at": "mutate",
+   "started_at": "2026-09-14T13:11:53.266374+00:00",
+   "status": "executed",
+   "step_id": "mut"
+  },
+  "narrow": {
+   "arguments": {
+    "command": "node check.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T13:11:53.515721+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.run_tests",
+   "ok": true,
+   "paths": [],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [
+    {
+     "attempt": 0,
+     "decided_by": "execution_gate.evaluate_command",
+     "decision": "allowed",
+     "effect_class": "command",
+     "effect_id": "eff:034fb837-0001",
+     "host": "",
+     "identity_note": "",
+     "keyed_or_keyless": "",
+     "lifecycle": "authorized",
+     "mode": "auto",
+     "policy_id": "tp:9da3e35e6c359aca",
+     "provider_id": "",
+     "reason": "Sandbox execution allowed.",
+     "recorded_at": "2026-09-14T13:11:53.451+00:00",
+     "request_id": "",
+     "scope_name": "runtime_tool.direct_call",
+     "turn_id": ""
+    }
+   ],
+   "result": {
+    "artifacts": [
+     {
+      "artifact_type": "validation_output",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 0,
+      "status": "executed",
+      "stderr": "",
+      "stdout": ""
+     }
+    ],
+    "blackbox": {
+     "coverage": {
+      "degraded": false,
+      "downgraded_to_irreversible": false,
+      "drift_count": 0,
+      "drift_paths": [],
+      "high_risk": {},
+      "rollback_capable": true,
+      "strategy": "workspace_scan"
+     },
+     "effect_ids": [
+      "effect-612af88f94374d02ab5b6fb482b68100"
+     ],
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-6b74a798b45b"
+    },
+    "command": "node check.js",
+    "cwd": ".",
+    "diagnostic_query": "",
+    "error_line": 0,
+    "error_path": "",
+    "failure_summary": "",
+    "procedure_reuse": {
+     "procedure_id": "procedure-a04f8df05fd3f4115c8077161e76b98e",
+     "task_class": "unknown",
+     "title": "unknown: validate math.js with workspace.run_tests"
+    },
+    "procedure_shard": {
+     "consecutive_failures": 0,
+     "consecutive_unverified_reuses": 0,
+     "corrections": [],
+     "created_at": "2026-09-14T13:11:53.512450+00:00",
+     "demoted_at": "",
+     "demoted_reason": "",
+     "estimated_cost_usd": null,
+     "evidence": [
+      {
+       "cost": {
+        "basis": "unknown",
+        "estimated_cost_usd": null
+       },
+       "intents": [
+        "workspace.write_file",
+        "workspace.run_tests"
+       ],
+       "mutation_id": "mutation-79f29e04d80840868c921441c82fa30c",
+       "recorded_at": "2026-09-14T13:11:53.511725+00:00",
+       "session_id": "",
+       "source_digests": {
+        "liquefy_bundle_ref": ""
+       },
+       "validation_command_digest": "sha256:2a6e749e73344a15181e57862f3a7c0e41d2789fca5ea83f36c15a06a299161a",
+       "validation_returncode": 0,
+       "validation_tool": "workspace.run_tests"
+      }
+     ],
+     "expires_at": "",
+     "failure_count": 0,
+     "last_reuse_outcome": "",
+     "last_reuse_task_class": "",
+     "last_reused_at": "",
+     "last_terminal_at": "",
+     "last_terminal_detail": "",
+     "last_terminal_outcome": "",
+     "liquefy_bundle_ref": "",
+     "migrated_from": "",
+     "origin_session_id": "",
+     "owner_scope": "local_operator",
+     "preconditions": [
+      "workspace is writable",
+      "VOOL tracked a mutation in the active session"
+     ],
+     "privacy_class": "local_private",
+     "procedure_id": "procedure-a04f8df05fd3f4115c8077161e76b98e",
+     "promoted_at": "",
+     "reuse_count": 0,
+     "rollback": {
+      "intent": "workspace.rollback_last_change",
+      "mutation_id": "mutation-79f29e04d80840868c921441c82fa30c"
+     },
+     "schema": "vool.procedure_shard.v3",
+     "schema_version": 3,
+     "shareability": "local_only",
+     "status": "candidate",
+     "steps": [
+      "write the target file",
+      "run the bounded test command"
+     ],
+     "success_signal": "verified_success",
+     "task_class": "unknown",
+     "title": "unknown: validate math.js with workspace.run_tests",
+     "tool_receipts": [
+      {
+       "intent": "workspace.write_file",
+       "mutation_id": "mutation-79f29e04d80840868c921441c82fa30c",
+       "paths": [
+        "math.js"
+       ]
+      },
+      {
+       "command": "node check.js",
+       "intent": "workspace.run_tests",
+       "returncode": 0
+      }
+     ],
+     "validation": {
+      "command": "node check.js",
+      "lesson_signature": "lesson-036dae5b4cb209b505bb757697d211128df2a1879ae318fcc73506a1b46bd4db",
+      "ok": true,
+      "returncode": 0,
+      "tool": "workspace.run_tests"
+     },
+     "verified_reuse_count": 0
+    },
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "",
+    "success": true
+   },
+   "stage_at": "narrow_test",
+   "started_at": "2026-09-14T13:11:53.423940+00:00",
+   "status": "executed",
+   "step_id": "narrow"
+  },
+  "read": {
+   "arguments": {
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T13:11:53.225857+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.read_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "decode_lossy": false,
+    "hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "line_count": 1,
+    "lines": [
+     {
+      "line_number": 1,
+      "text": "exports.add = (a, b) => a - b;"
+     }
+    ],
+    "path": "math.js",
+    "start_line": 1,
+    "total_lines": 1,
+    "truncated": false,
+    "verbatim": false
+   },
+   "stage_at": "propose",
+   "started_at": "2026-09-14T13:11:53.220416+00:00",
+   "status": "executed",
+   "step_id": "read"
+  },
+  "repro": {
+   "arguments": {
+    "command": "node check.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T13:11:53.195016+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.run_tests",
+   "ok": true,
+   "paths": [],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [
+    {
+     "attempt": 0,
+     "decided_by": "execution_gate.evaluate_command",
+     "decision": "allowed",
+     "effect_class": "command",
+     "effect_id": "eff:96eefb75-0001",
+     "host": "",
+     "identity_note": "",
+     "keyed_or_keyless": "",
+     "lifecycle": "authorized",
+     "mode": "auto",
+     "policy_id": "tp:fae6b1510cc41ba1",
+     "provider_id": "",
+     "reason": "Sandbox execution allowed.",
+     "recorded_at": "2026-09-14T13:11:53.118+00:00",
+     "request_id": "",
+     "scope_name": "runtime_tool.direct_call",
+     "turn_id": ""
+    }
+   ],
+   "result": {
+    "artifacts": [
+     {
+      "artifact_type": "validation_output",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "status": "command_failed",
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/narrow_passed-v1_df49/_scratch/ws/narrow_passed/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": ""
+     },
+     {
+      "artifact_type": "failure",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/narrow_passed-v1_df49/_scratch/ws/narrow_passed/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": "",
+      "summary": "node:assert:150"
+     }
+    ],
+    "blackbox": {
+     "coverage": {
+      "degraded": false,
+      "downgraded_to_irreversible": false,
+      "drift_count": 0,
+      "drift_paths": [],
+      "high_risk": {},
+      "rollback_capable": true,
+      "strategy": "workspace_scan"
+     },
+     "effect_ids": [
+      "effect-6c0dd35401ce4a5190c034dcc37284fc"
+     ],
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-6b74a798b45b"
+    },
+    "command": "node check.js",
+    "cwd": ".",
+    "diagnostic_query": ":150",
+    "error_line": 1,
+    "error_path": "/sanitized/revision-3/fixtures-legacy/narrow_passed-v1_df49/_scratch/ws/narrow_passed/check.js",
+    "failure_summary": "node:assert:150",
+    "returncode": 1,
+    "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/narrow_passed-v1_df49/_scratch/ws/narrow_passed/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+    "stdout": "",
+    "success": false
+   },
+   "stage_at": "reproduce",
+   "started_at": "2026-09-14T13:11:52.863999+00:00",
+   "status": "command_failed",
+   "step_id": "repro"
+  }
+ },
+ "task_id": "ct-6b74a798b45b",
+ "turn_id": "code-task:ct-6b74a798b45b",
+ "turn_key": "code-task:ct-6b74a798b45b",
+ "updated_at": "2026-09-14T13:11:53.515887+00:00",
+ "workspace_root": "/sanitized/revision-3/fixtures-legacy/narrow_passed-v1_df49/_scratch/ws/narrow_passed"
+}

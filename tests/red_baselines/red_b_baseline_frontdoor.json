@@ -1,0 +1,230 @@
+{
+ "instrument": "RED-B",
+ "runs": [
+  {
+   "tag": "canonical",
+   "entrance": "frontdoor",
+   "prompt": "What is 1000 EUR to RUB, how much gold can I buy with it, what is the weather in Rome, and what is the water temperature in the Baltic Sea?",
+   "chat_id": "audit-AUD-20260829-003-RED1-canonical-224101",
+   "served_text": "",
+   "closure_verdict": {},
+   "provenance": {},
+   "latency_s": 0.1591629981994629,
+   "transport_error": "",
+   "slot_states": {
+    "fx": "SILENTLY_DROPPED",
+    "gold": "SILENTLY_DROPPED",
+    "weather": "SILENTLY_DROPPED",
+    "water": "SILENTLY_DROPPED"
+   },
+   "failure_rows": [],
+   "singleton_states": {},
+   "singleton_texts": {},
+   "followups": {
+    "why": null,
+    "retry": null,
+    "restart": null,
+    "control_sea": null
+   },
+   "checks": [
+    {
+     "cid": "C1",
+     "title": "conversion slot uses current FX",
+     "status": "FAIL",
+     "evidence": "slot fx state=SILENTLY_DROPPED; not answered, so there is no FX value to judge"
+    },
+    {
+     "cid": "C2",
+     "title": "gold amount, current price, unit/assumption stated",
+     "status": "FAIL",
+     "evidence": "slot state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C3",
+     "title": "weather slot from a current source",
+     "status": "FAIL",
+     "evidence": "slot weather state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C4",
+     "title": "Baltic water temp: caveated, not an air reading, not universal",
+     "status": "FAIL",
+     "evidence": "slot state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C5",
+     "title": "all 4 requested slots preserved",
+     "status": "FAIL",
+     "evidence": "states={'fx': 'SILENTLY_DROPPED', 'gold': 'SILENTLY_DROPPED', 'weather': 'SILENTLY_DROPPED', 'water': 'SILENTLY_DROPPED'}; SILENTLY DROPPED: ['fx', 'gold', 'weather', 'water']"
+    },
+    {
+     "cid": "C5b",
+     "title": "closure verdict tracks unanswered slots",
+     "status": "INCONCLUSIVE",
+     "evidence": "no closure_verdict on the served commit"
+    },
+    {
+     "cid": "C6",
+     "title": "one slot failing does not stop the others",
+     "status": "INCONCLUSIVE",
+     "evidence": "singleton controls not run"
+    },
+    {
+     "cid": "C7",
+     "title": "failed slot named unavailable WITH a reason, never silently dropped",
+     "status": "FAIL",
+     "evidence": "fx: dropped with no failure row; gold: dropped with no failure row; weather: dropped with no failure row; water: dropped with no failure row"
+    },
+    {
+     "cid": "C7b",
+     "title": "one failed slot -> one row -> one reason",
+     "status": "PASS",
+     "evidence": "no failure rows"
+    },
+    {
+     "cid": "C8",
+     "title": "no slot listed unanswered when it was answered",
+     "status": "PASS",
+     "evidence": "no slot both answered and listed failed"
+    },
+    {
+     "cid": "C9",
+     "title": "'why did that fail?' names the exact failed slot/tool",
+     "status": "INCONCLUSIVE",
+     "evidence": "follow-up not run"
+    },
+    {
+     "cid": "C10",
+     "title": "'retry that exact failed request' retries that slot, not a fresh search",
+     "status": "INCONCLUSIVE",
+     "evidence": "follow-up not run"
+    },
+    {
+     "cid": "C11",
+     "title": "served receipts show tool/source/model per slot",
+     "status": "FAIL",
+     "evidence": "no provenance block on the served commit"
+    },
+    {
+     "cid": "C12",
+     "title": "restart/retry never converts prior failed state into content",
+     "status": "INCONCLUSIVE",
+     "evidence": "no follow-up turns run"
+    }
+   ]
+  },
+  {
+   "tag": "operator-evening",
+   "entrance": "frontdoor",
+   "prompt": "ok so u think u so cool heh? ok what about 1500 eur to usd? then how much and how much  god i can buy iwth it? and thne tell me the water tempperature in baltc sea and in  berling now :D",
+   "chat_id": "audit-AUD-20260829-003-RED1-operator-evening-224102",
+   "served_text": "I didn't run any live lookup on this turn, so I can't verify current price figures \u2014 any specific numbers I gave would be invented, and I'm not going to state them. Ask again and I'll fetch the real data first.",
+   "closure_verdict": {},
+   "provenance": {},
+   "latency_s": 0.04219985008239746,
+   "transport_error": "",
+   "slot_states": {
+    "fx_usd": "SILENTLY_DROPPED",
+    "gold": "SILENTLY_DROPPED",
+    "water": "SILENTLY_DROPPED",
+    "berlin": "SILENTLY_DROPPED"
+   },
+   "failure_rows": [],
+   "singleton_states": {},
+   "singleton_texts": {},
+   "followups": {
+    "why": null,
+    "retry": null,
+    "restart": null,
+    "control_sea": null
+   },
+   "checks": [
+    {
+     "cid": "C1",
+     "title": "conversion slot uses current FX",
+     "status": "FAIL",
+     "evidence": "slot fx_usd state=SILENTLY_DROPPED; not answered, so there is no FX value to judge"
+    },
+    {
+     "cid": "C2",
+     "title": "gold amount, current price, unit/assumption stated",
+     "status": "FAIL",
+     "evidence": "slot state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C3",
+     "title": "weather slot from a current source",
+     "status": "FAIL",
+     "evidence": "slot berlin state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C4",
+     "title": "Baltic water temp: caveated, not an air reading, not universal",
+     "status": "FAIL",
+     "evidence": "slot state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C5",
+     "title": "all 4 requested slots preserved",
+     "status": "FAIL",
+     "evidence": "states={'fx_usd': 'SILENTLY_DROPPED', 'gold': 'SILENTLY_DROPPED', 'water': 'SILENTLY_DROPPED', 'berlin': 'SILENTLY_DROPPED'}; SILENTLY DROPPED: ['fx_usd', 'gold', 'water', 'berlin']"
+    },
+    {
+     "cid": "C5b",
+     "title": "closure verdict tracks unanswered slots",
+     "status": "INCONCLUSIVE",
+     "evidence": "no closure_verdict on the served commit"
+    },
+    {
+     "cid": "C6",
+     "title": "one slot failing does not stop the others",
+     "status": "INCONCLUSIVE",
+     "evidence": "singleton controls not run"
+    },
+    {
+     "cid": "C7",
+     "title": "failed slot named unavailable WITH a reason, never silently dropped",
+     "status": "FAIL",
+     "evidence": "fx_usd: dropped with no failure row; gold: dropped with no failure row; water: dropped with no failure row; berlin: dropped with no failure row"
+    },
+    {
+     "cid": "C7b",
+     "title": "one failed slot -> one row -> one reason",
+     "status": "PASS",
+     "evidence": "no failure rows"
+    },
+    {
+     "cid": "C8",
+     "title": "no slot listed unanswered when it was answered",
+     "status": "PASS",
+     "evidence": "no slot both answered and listed failed"
+    },
+    {
+     "cid": "C9",
+     "title": "'why did that fail?' names the exact failed slot/tool",
+     "status": "INCONCLUSIVE",
+     "evidence": "follow-up not run"
+    },
+    {
+     "cid": "C10",
+     "title": "'retry that exact failed request' retries that slot, not a fresh search",
+     "status": "INCONCLUSIVE",
+     "evidence": "follow-up not run"
+    },
+    {
+     "cid": "C11",
+     "title": "served receipts show tool/source/model per slot",
+     "status": "FAIL",
+     "evidence": "no provenance block on the served commit"
+    },
+    {
+     "cid": "C12",
+     "title": "restart/retry never converts prior failed state into content",
+     "status": "INCONCLUSIVE",
+     "evidence": "no follow-up turns run"
+    }
+   ]
+  }
+ ],
+ "captured_at": "2026-08-29T19:41:02Z"
+}

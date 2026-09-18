@@ -1,0 +1,475 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "tank",
+  "calls": [
+    {
+      "system": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]\nSource-reference contract for this turn (replaces request-text instructions above):\nThe runtime has already located the source clauses below. Name their IDs in source_clause_ids instead of rewriting them; set request to an empty string for all entries. The runtime substitutes their original text. Every listed ID must occur once across the plan. You still choose operation and depends_on; references do not authorize an operation or prove it answered anything. Context and assumptions remain available from the original message. Do not turn response-format instructions into separate work. Group them with the work they modify. Do not invent intermediate request text. Each entry has exactly request:\"\", source_clause_ids:[IDs], operation, depends_on.\n[{\"id\": \"clause-1\", \"text\": \"The initial volume for each line.\"}, {\"id\": \"clause-2\", \"text\": \"The retained volume on line A after filtering.\"}, {\"id\": \"clause-3\", \"text\": \"What percentage of the original volume remains on line A.\"}]",
+      "prompt": "A tank holds 960 litres. Split it 35% to line A and 65% to line B.\nLine A loses 8% during filtering. Calculate:\n1. The initial volume for each line.\n2. The retained volume on line A after filtering.\n3. What percentage of the original volume remains on line A.",
+      "max_tokens": 950,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000195594",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]\nSource-reference contract for this turn (replaces request-text instructions above):\nThe runtime has already located the source clauses below. Name their IDs in source_clause_ids instead of rewriting them; set request to an empty string for all entries. The runtime substitutes their original text. Every listed ID must occur once across the plan. You still choose operation and depends_on; references do not authorize an operation or prove it answered anything. Context and assumptions remain available from the original message. Do not turn response-format instructions into separate work. Group them with the work they modify. Do not invent intermediate request text. Each entry has exactly request:\"\", source_clause_ids:[IDs], operation, depends_on.\n[{\"id\": \"clause-1\", \"text\": \"The initial volume for each line.\"}, {\"id\": \"clause-2\", \"text\": \"The retained volume on line A after filtering.\"}, {\"id\": \"clause-3\", \"text\": \"What percentage of the original volume remains on line A.\"}]"
+          },
+          {
+            "role": "user",
+            "content": "A tank holds 960 litres. Split it 35% to line A and 65% to line B.\nLine A loses 8% during filtering. Calculate:\n1. The initial volume for each line.\n2. The retained volume on line A after filtering.\n3. What percentage of the original volume remains on line A."
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 950,
+        "reasoning": {
+          "enabled": false
+        },
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "vool_json_object",
+            "strict": false,
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "request": {
+                    "type": "string",
+                    "enum": [
+                      ""
+                    ]
+                  },
+                  "operation": {
+                    "type": "string"
+                  },
+                  "depends_on": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "source_clause_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "clause-1",
+                        "clause-2",
+                        "clause-3"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "request",
+                  "operation",
+                  "depends_on",
+                  "source_clause_ids"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "[{\"request\":\"\",\"operation\":\"calculation\",\"depends_on\":[],\"source_clause_ids\":[\"clause-1\"]},{\"request\":\"\",\"operation\":\"calculation\",\"depends_on\":[0],\"source_clause_ids\":[\"clause-2\"]},{\"request\":\"\",\"operation\":\"calculation\",\"depends_on\":[0,1],\"source_clause_ids\":[\"clause-3\"]}]",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1230,
+        "completion_tokens": 82,
+        "total_tokens": 1312,
+        "cost": 8.856e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 8.856e-05,
+          "upstream_inference_prompt_cost": 7.38e-05,
+          "upstream_inference_completions_cost": 1.476e-05
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "DeepInfra",
+      "generation_id": "gen-1789122347-X6PxocN0gtru8zvVRVhp",
+      "seconds": 1.078
+    },
+    {
+      "system": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.",
+      "prompt": "The user's full message:\nA tank holds 960 litres. Split it 35% to line A and 65% to line B.\nLine A loses 8% during filtering. Calculate:\n1. The initial volume for each line.\n2. The retained volume on line A after filtering.\n3. What percentage of the original volume remains on line A.\n\nThe part of it you are answering:\nThe initial volume for each line.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 960  (written '960')\n  fact_2 = 35%  (written '35%')\n  fact_3 = 65%  (written '65%')\n  fact_4 = 8%  (written '8%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.35\n  fact_3_share = 0.65\n  fact_4_share = 0.08\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\nUnits established by the supplied quantities:\n  fact_1: litre\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n  fact_4: ratio\n  fact_4_share: ratio",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000318486",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object."
+          },
+          {
+            "role": "user",
+            "content": "The user's full message:\nA tank holds 960 litres. Split it 35% to line A and 65% to line B.\nLine A loses 8% during filtering. Calculate:\n1. The initial volume for each line.\n2. The retained volume on line A after filtering.\n3. What percentage of the original volume remains on line A.\n\nThe part of it you are answering:\nThe initial volume for each line.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 960  (written '960')\n  fact_2 = 35%  (written '35%')\n  fact_3 = 65%  (written '65%')\n  fact_4 = 8%  (written '8%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.35\n  fact_3_share = 0.65\n  fact_4_share = 0.08\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\nUnits established by the supplied quantities:\n  fact_1: litre\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n  fact_4: ratio\n  fact_4_share: ratio"
+          }
+        ],
+        "max_tokens": 4096,
+        "temperature": 0,
+        "reasoning": {
+          "enabled": false
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "{\n  \"steps\": [\n    {\n      \"label\": \"Initial volume for line A\",\n      \"expression\": \"fact_1 * fact_2_share\",\n      \"unit\": \"litre\"\n    },\n    {\n      \"label\": \"Initial volume for line B\",\n      \"expression\": \"fact_1 * fact_3_share\",\n      \"unit\": \"litre\"\n    }\n  ],\n  \"cannot_determine\": []\n}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 695,
+        "completion_tokens": 106,
+        "total_tokens": 801,
+        "cost": 2.1273e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 2.1273e-05,
+          "upstream_inference_prompt_cost": 1.4595e-05,
+          "upstream_inference_completions_cost": 6.678e-06
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789122349-EaqyiHwwVy2YAHtTOLmc",
+      "seconds": 1.242
+    },
+    {
+      "system": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.",
+      "prompt": "The user's full message:\nA tank holds 960 litres. Split it 35% to line A and 65% to line B.\nLine A loses 8% during filtering. Calculate:\n1. The initial volume for each line.\n2. The retained volume on line A after filtering.\n3. What percentage of the original volume remains on line A.\n\nThe part of it you are answering:\nThe retained volume on line A after filtering.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 960  (written '960')\n  fact_2 = 35%  (written '35%')\n  fact_3 = 65%  (written '65%')\n  fact_4 = 8%  (written '8%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.35\n  fact_3_share = 0.65\n  fact_4_share = 0.08\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\n\nValues already computed by earlier steps of this same answer:\n  Initial volume for line A = 336.0\n  Initial volume for line B = 624.0\nUnits established by the supplied quantities:\n  fact_1: litre\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n  fact_4: ratio\n  fact_4_share: ratio",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000321678",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object."
+          },
+          {
+            "role": "user",
+            "content": "The user's full message:\nA tank holds 960 litres. Split it 35% to line A and 65% to line B.\nLine A loses 8% during filtering. Calculate:\n1. The initial volume for each line.\n2. The retained volume on line A after filtering.\n3. What percentage of the original volume remains on line A.\n\nThe part of it you are answering:\nThe retained volume on line A after filtering.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 960  (written '960')\n  fact_2 = 35%  (written '35%')\n  fact_3 = 65%  (written '65%')\n  fact_4 = 8%  (written '8%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.35\n  fact_3_share = 0.65\n  fact_4_share = 0.08\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\n\nValues already computed by earlier steps of this same answer:\n  Initial volume for line A = 336.0\n  Initial volume for line B = 624.0\nUnits established by the supplied quantities:\n  fact_1: litre\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n  fact_4: ratio\n  fact_4_share: ratio"
+          }
+        ],
+        "max_tokens": 4096,
+        "temperature": 0,
+        "reasoning": {
+          "enabled": false
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "{\"steps\": [{\"label\": \"Retained volume on line A after filtering\", \"expression\": \"step_1 * (1 - fact_4_share)\", \"unit\": \"litre\"}], \"cannot_determine\": []}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 738,
+        "completion_tokens": 50,
+        "total_tokens": 788,
+        "cost": 1.3272e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 320,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 1.3272e-05,
+          "upstream_inference_prompt_cost": 1.0122e-05,
+          "upstream_inference_completions_cost": 3.15e-06
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789122350-3updPzb6mN3iystjSGVb",
+      "seconds": 1.004
+    },
+    {
+      "system": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.",
+      "prompt": "The user's full message:\nA tank holds 960 litres. Split it 35% to line A and 65% to line B.\nLine A loses 8% during filtering. Calculate:\n1. The initial volume for each line.\n2. The retained volume on line A after filtering.\n3. What percentage of the original volume remains on line A.\n\nThe part of it you are answering:\nWhat percentage of the original volume remains on line A.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 960  (written '960')\n  fact_2 = 35%  (written '35%')\n  fact_3 = 65%  (written '65%')\n  fact_4 = 8%  (written '8%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.35\n  fact_3_share = 0.65\n  fact_4_share = 0.08\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\n\nValues already computed by earlier steps of this same answer:\n  Initial volume for line A = 336.0\n  Initial volume for line B = 624.0\nUnits established by the supplied quantities:\n  fact_1: litre\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n  fact_4: ratio\n  fact_4_share: ratio",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000321909",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object."
+          },
+          {
+            "role": "user",
+            "content": "The user's full message:\nA tank holds 960 litres. Split it 35% to line A and 65% to line B.\nLine A loses 8% during filtering. Calculate:\n1. The initial volume for each line.\n2. The retained volume on line A after filtering.\n3. What percentage of the original volume remains on line A.\n\nThe part of it you are answering:\nWhat percentage of the original volume remains on line A.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 960  (written '960')\n  fact_2 = 35%  (written '35%')\n  fact_3 = 65%  (written '65%')\n  fact_4 = 8%  (written '8%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.35\n  fact_3_share = 0.65\n  fact_4_share = 0.08\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\n\nValues already computed by earlier steps of this same answer:\n  Initial volume for line A = 336.0\n  Initial volume for line B = 624.0\nUnits established by the supplied quantities:\n  fact_1: litre\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n  fact_4: ratio\n  fact_4_share: ratio"
+          }
+        ],
+        "max_tokens": 4096,
+        "temperature": 0,
+        "reasoning": {
+          "enabled": false
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "{\"steps\": [{\"label\": \"Line A retained volume\", \"expression\": \"step_1 * (1 - fact_4_share)\", \"unit\": \"litre\"}, {\"label\": \"Percentage of original volume remaining on line A\", \"expression\": \"(step_2 / fact_1) * 100\", \"unit\": \"percent\"}], \"cannot_determine\": []}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 740,
+        "completion_tokens": 83,
+        "total_tokens": 823,
+        "cost": 2.0769e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 2.0769e-05,
+          "upstream_inference_prompt_cost": 1.554e-05,
+          "upstream_inference_completions_cost": 5.229e-06
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789122351-agsCJyeLHHyuPP38nkmV",
+      "seconds": 0.951
+    }
+  ],
+  "source": "5d5de4e0081e84ca56cfd5a06f884f425697a79f",
+  "kind": "component comparison, NOT native acceptance",
+  "operations_source_sha256": "07c4a04872a9f6cf983882c9afbe0e83f4311ee2447851e2dd591b51d936457d",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": true,
+  "bound_source_plan": "[{\"request\": \"The initial volume for each line.\", \"operation\": \"calculation\", \"depends_on\": []}, {\"request\": \"The retained volume on line A after filtering.\", \"operation\": \"calculation\", \"depends_on\": [0]}, {\"request\": \"What percentage of the original volume remains on line A.\", \"operation\": \"calculation\", \"depends_on\": [0, 1]}]",
+  "component_plan": [
+    {
+      "operation": "quantitative_reasoning",
+      "arguments": {
+        "entity": "the_initial_volume_for_each_line",
+        "clause": "The initial volume for each line.",
+        "fact_labels": [
+          "fact_1",
+          "fact_2",
+          "fact_3",
+          "fact_4"
+        ],
+        "fact_values": {
+          "fact_1": 960.0,
+          "fact_2": 35.0,
+          "fact_3": 65.0,
+          "fact_4": 8.0
+        }
+      },
+      "depends_on": []
+    },
+    {
+      "operation": "quantitative_reasoning",
+      "arguments": {
+        "entity": "the_retained_volume_on_line_a_af",
+        "clause": "The retained volume on line A after filtering.",
+        "fact_labels": [
+          "fact_1",
+          "fact_2",
+          "fact_3",
+          "fact_4"
+        ],
+        "fact_values": {
+          "fact_1": 960.0,
+          "fact_2": 35.0,
+          "fact_3": 65.0,
+          "fact_4": 8.0
+        }
+      },
+      "depends_on": [
+        "conductor-6576b123a315:quantitative_reasoning:the_initial_volume_for_each_line"
+      ]
+    },
+    {
+      "operation": "quantitative_reasoning",
+      "arguments": {
+        "entity": "what_percentage_of_the_original_",
+        "clause": "What percentage of the original volume remains on line A.",
+        "fact_labels": [
+          "fact_1",
+          "fact_2",
+          "fact_3",
+          "fact_4"
+        ],
+        "fact_values": {
+          "fact_1": 960.0,
+          "fact_2": 35.0,
+          "fact_3": 65.0,
+          "fact_4": 8.0
+        }
+      },
+      "depends_on": [
+        "conductor-6576b123a315:quantitative_reasoning:the_initial_volume_for_each_line",
+        "conductor-6576b123a315:quantitative_reasoning:the_retained_volume_on_line_a_af"
+      ]
+    }
+  ],
+  "outcomes": [
+    {
+      "node_id": "conductor-6576b123a315:quantitative_reasoning:the_initial_volume_for_each_line",
+      "operation": "quantitative_reasoning",
+      "state": "succeeded",
+      "result": {
+        "steps": [
+          {
+            "step_id": "step_1",
+            "label": "Initial volume for line A",
+            "expression": "fact_1 * fact_2_share",
+            "value": 336.0,
+            "unit": "litre",
+            "unit_dimensions": {
+              "litre": 1
+            },
+            "unit_authority": "source_expression"
+          },
+          {
+            "step_id": "step_2",
+            "label": "Initial volume for line B",
+            "expression": "fact_1 * fact_3_share",
+            "value": 624.0,
+            "unit": "litre",
+            "unit_dimensions": {
+              "litre": 1
+            },
+            "unit_authority": "source_expression"
+          }
+        ],
+        "values": {
+          "Initial volume for line A": 336.0,
+          "Initial volume for line B": 624.0
+        },
+        "cannot_determine": [],
+        "expression_bindings": {
+          "fact_2_share": 0.35,
+          "fact_3_share": 0.65,
+          "fact_4_share": 0.08
+        },
+        "conversion_provenance": {}
+      },
+      "rendered": "| Result | Calculation | Value |\n| --- | --- | --- |\n| Initial volume for line A | `960 * 0.35` | 336 litre |\n| Initial volume for line B | `960 * 0.65` | 624 litre |",
+      "failure_reason": ""
+    },
+    {
+      "node_id": "conductor-6576b123a315:quantitative_reasoning:the_retained_volume_on_line_a_af",
+      "operation": "quantitative_reasoning",
+      "state": "succeeded",
+      "result": {
+        "steps": [],
+        "values": {},
+        "cannot_determine": [
+          "Retained volume on line A after filtering: 'step_1' is not a fact this message established"
+        ]
+      },
+      "rendered": "not determined: Retained volume on line A after filtering: 'step_1' is not a fact this message established",
+      "failure_reason": ""
+    },
+    {
+      "node_id": "conductor-6576b123a315:quantitative_reasoning:what_percentage_of_the_original",
+      "operation": "quantitative_reasoning",
+      "state": "succeeded",
+      "result": {
+        "steps": [],
+        "values": {},
+        "cannot_determine": [
+          "Line A retained volume: 'step_1' is not a fact this message established; Percentage of original volume remaining on line A: 'step_2' is not a fact this message established"
+        ]
+      },
+      "rendered": "not determined: Line A retained volume: 'step_1' is not a fact this message established; Percentage of original volume remaining on line A: 'step_2' is not a fact this message established",
+      "failure_reason": ""
+    }
+  ],
+  "decision": {
+    "disposition": "fulfilled",
+    "claim": "claimed_success",
+    "runtime_task_outcome": {
+      "fulfillment_status": "fulfilled",
+      "failure_stage": "",
+      "failure_codes": [],
+      "retryable": false,
+      "origin_task_id": "",
+      "origin_checkpoint_id": "",
+      "original_request_hash": ""
+    },
+    "failure_lines": [],
+    "integrity_codes": [],
+    "outcome_set": {
+      "outcomes": []
+    }
+  },
+  "composed_answer": "| Result | Calculation | Value |\n| --- | --- | --- |\n| Initial volume for line A | `960 * 0.35` | 336 litre |\n| Initial volume for line B | `960 * 0.65` | 624 litre |\nnot determined: Retained volume on line A after filtering: 'step_1' is not a fact this message established\nnot determined: Line A retained volume: 'step_1' is not a fact this message established; Percentage of original volume remaining on line A: 'step_2' is not a fact this message established"
+}

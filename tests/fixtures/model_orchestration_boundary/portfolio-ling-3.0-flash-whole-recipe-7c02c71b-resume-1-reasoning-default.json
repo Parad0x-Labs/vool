@@ -1,0 +1,77 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "portfolio",
+  "calls": [
+    {
+      "system": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- Earlier nodes' results use the listed dependency symbols, such as dependency_1_value_1.\n  Use their exact symbol, not their display label or an earlier node's step_N.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.",
+      "prompt": "The user's full message:\nI have $12,500 USD and want to diversify it across British pounds, silver, and platinum.\n\nAllocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.\n\nAssume:\n\n* GBP/USD = 1.312\n* Silver = $41.80 per troy ounce\n* Platinum = $1,485.00 per troy ounce\n* Currency conversion fee = 0.8%\n* Silver purchase premium = 3.0%\n* Platinum purchase premium = 2.2%\n\nCalculate:\n\n1. How many British pounds I receive after the FX fee.\n2. How many troy ounces and grams of silver I can buy after the premium.\n3. How many troy ounces and grams of platinum I can buy after the premium.\n4. The exact USD amount allocated to each asset.\n5. The dollar amount paid in each fee/premium and their combined total.\n6. What percentage of the original $12,500 is lost to fees/premiums.\n7. Present the result in a compact table and finish with a short explanation of the final portfolio.\n\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read.\n\nThe part of it you are answering:\nI have $12,500 USD and want to diversify it across British pounds, silver, and platinum.\n\nAllocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.\n\nAssume:\n\n* GBP/USD = 1.312\n* Silver = $41.80 per troy ounce\n* Platinum = $1,485.00 per troy ounce\n* Currency conversion fee = 0.8%\n* Silver purchase premium = 3.0%\n* Platinum purchase premium = 2.2%\n\nCalculate:\n\n1. How many British pounds I receive after the FX fee.\n2. How many troy ounces and grams of silver I can buy after the premium.\n3. How many troy ounces and grams of platinum I can buy after the premium.\n4. The exact USD amount allocated to each asset.\n5. The dollar amount paid in each fee/premium and their combined total.\n6. What percentage of the original $12,500 is lost to fees/premiums.\n7. Present the result in a compact table and finish with a short explanation of the final portfolio.\n\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 12500 $  (written '$12,500 USD')\n  fact_2 = 25%  (written '25%')\n  fact_3 = 75%  (written '75%')\n  fact_4 = 55%  (written '55%')\n  fact_5 = 45%  (written '45%')\n  fact_6 = 1.312  (written '1.312')\n  fact_7 = 41.8 $  (written '$41.80')\n  fact_8 = 1485 $  (written '$1,485.00')\n  fact_9 = 0.8%  (written '0.8%')\n  fact_10 = 3%  (written '3.0%')\n  fact_11 = 2.2%  (written '2.2%')\n  fact_12 = 12500 $  (written '$12,500')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.25\n  fact_3_share = 0.75\n  fact_4_share = 0.55\n  fact_5_share = 0.45\n  fact_9_share = 0.008\n  fact_10_share = 0.03\n  fact_11_share = 0.022\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\n\nUnits that are NOT determined by the message:\n  '$' = USD (the message names USD)\nUnits established by the supplied quantities:\n  fact_1: USD\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n  fact_4: ratio\n  fact_4_share: ratio\n  fact_5: ratio\n  fact_5_share: ratio\n  fact_6: USD/GBP\n  fact_7: USD/troy oz\n  fact_8: USD/troy oz\n  fact_9: ratio\n  fact_9_share: ratio\n  fact_10: ratio\n  fact_10_share: ratio\n  fact_11: ratio\n  fact_11_share: ratio\n  fact_12: USD\nRuntime unit-table conversions (multiply by the named factor):\n  unit_g_to_troy_oz = 0.032150746568628 (g to troy oz)\n  unit_troy_oz_to_g = 31.1034768 (troy oz to g)",
+      "max_tokens": 4096,
+      "reasoning": null,
+      "temperature": 0,
+      "reserved_usd": "0.000376992",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- Earlier nodes' results use the listed dependency symbols, such as dependency_1_value_1.\n  Use their exact symbol, not their display label or an earlier node's step_N.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object."
+          },
+          {
+            "role": "user",
+            "content": "The user's full message:\nI have $12,500 USD and want to diversify it across British pounds, silver, and platinum.\n\nAllocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.\n\nAssume:\n\n* GBP/USD = 1.312\n* Silver = $41.80 per troy ounce\n* Platinum = $1,485.00 per troy ounce\n* Currency conversion fee = 0.8%\n* Silver purchase premium = 3.0%\n* Platinum purchase premium = 2.2%\n\nCalculate:\n\n1. How many British pounds I receive after the FX fee.\n2. How many troy ounces and grams of silver I can buy after the premium.\n3. How many troy ounces and grams of platinum I can buy after the premium.\n4. The exact USD amount allocated to each asset.\n5. The dollar amount paid in each fee/premium and their combined total.\n6. What percentage of the original $12,500 is lost to fees/premiums.\n7. Present the result in a compact table and finish with a short explanation of the final portfolio.\n\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read.\n\nThe part of it you are answering:\nI have $12,500 USD and want to diversify it across British pounds, silver, and platinum.\n\nAllocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.\n\nAssume:\n\n* GBP/USD = 1.312\n* Silver = $41.80 per troy ounce\n* Platinum = $1,485.00 per troy ounce\n* Currency conversion fee = 0.8%\n* Silver purchase premium = 3.0%\n* Platinum purchase premium = 2.2%\n\nCalculate:\n\n1. How many British pounds I receive after the FX fee.\n2. How many troy ounces and grams of silver I can buy after the premium.\n3. How many troy ounces and grams of platinum I can buy after the premium.\n4. The exact USD amount allocated to each asset.\n5. The dollar amount paid in each fee/premium and their combined total.\n6. What percentage of the original $12,500 is lost to fees/premiums.\n7. Present the result in a compact table and finish with a short explanation of the final portfolio.\n\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 12500 $  (written '$12,500 USD')\n  fact_2 = 25%  (written '25%')\n  fact_3 = 75%  (written '75%')\n  fact_4 = 55%  (written '55%')\n  fact_5 = 45%  (written '45%')\n  fact_6 = 1.312  (written '1.312')\n  fact_7 = 41.8 $  (written '$41.80')\n  fact_8 = 1485 $  (written '$1,485.00')\n  fact_9 = 0.8%  (written '0.8%')\n  fact_10 = 3%  (written '3.0%')\n  fact_11 = 2.2%  (written '2.2%')\n  fact_12 = 12500 $  (written '$12,500')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.25\n  fact_3_share = 0.75\n  fact_4_share = 0.55\n  fact_5_share = 0.45\n  fact_9_share = 0.008\n  fact_10_share = 0.03\n  fact_11_share = 0.022\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\n\nUnits that are NOT determined by the message:\n  '$' = USD (the message names USD)\nUnits established by the supplied quantities:\n  fact_1: USD\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n  fact_4: ratio\n  fact_4_share: ratio\n  fact_5: ratio\n  fact_5_share: ratio\n  fact_6: USD/GBP\n  fact_7: USD/troy oz\n  fact_8: USD/troy oz\n  fact_9: ratio\n  fact_9_share: ratio\n  fact_10: ratio\n  fact_10_share: ratio\n  fact_11: ratio\n  fact_11_share: ratio\n  fact_12: USD\nRuntime unit-table conversions (multiply by the named factor):\n  unit_g_to_troy_oz = 0.032150746568628 (g to troy oz)\n  unit_troy_oz_to_g = 31.1034768 (troy oz to g)"
+          }
+        ],
+        "max_tokens": 4096,
+        "temperature": 0
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 1666,
+        "completion_tokens": 4096,
+        "total_tokens": 5762,
+        "cost": 0.000293034,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.000293034,
+          "upstream_inference_prompt_cost": 3.4986e-05,
+          "upstream_inference_completions_cost": 0.000258048
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 3472,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789144212-DcAMBRh2EDRCe3HFVONJ",
+      "seconds": 26.494
+    }
+  ],
+  "source": "7c02c71b567500ccff12d0eebe1126f79e234e47",
+  "kind": "component comparison, NOT native acceptance",
+  "operations_source_sha256": "36df4c68077f98157c114f3a8190935557fcefaffaeac07cf28cc48b3b107e93",
+  "planner_sources_sha256": "fd1e3f6db11f2ee462966a84965a5abed09ed2648475d856307cda67120d605a",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": false,
+  "counterfactual_evaluator": {
+    "steps": [],
+    "values": {},
+    "cannot_determine": [
+      "the model returned no arithmetic plan for this clause (empty or unreadable reply)"
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+Build a small but complete Telegram bot called **PingKeeper** and get it into a runnable state.
+
+Requirements:
+
+* Python 3.
+* Use `python-telegram-bot`.
+* Telegram token must come from the `TELEGRAM_BOT_TOKEN` environment variable. Never hard-code or invent a token.
+* Commands:
+
+  * `/start` — short welcome message.
+  * `/add <name>` — save a name.
+  * `/list` — show all saved names.
+  * `/remove <name>` — remove a saved name.
+  * `/stats` — show uptime, number of commands handled, and number of saved names.
+  * `/health` — return `OK` plus current process uptime.
+* Persist the saved names and command counter across restarts using SQLite.
+* Add a background job that runs every 60 seconds and records a heartbeat timestamp in the database.
+* Handle malformed commands cleanly without crashing.
+* Handle Telegram/API/network errors without terminating the process.
+* Support graceful shutdown on SIGINT/SIGTERM.
+* Include a `requirements.txt`, README, and a small automated test suite.
+
+Runtime validation is part of the task, not optional:
+
+1. Inspect the environment first.
+2. Create the project.
+3. Install only the required dependencies.
+4. Run the automated tests.
+5. Start the bot if a real `TELEGRAM_BOT_TOKEN` is available.
+6. If no token is available, **do not stop and ask me for one**. Instead run a local/mock runtime validation that exercises command handling, SQLite persistence, heartbeat execution, restart persistence, and graceful shutdown.
+7. Prove that data survives a simulated restart.
+8. Report exactly what was actually executed versus what could not be executed.
+9. Do not claim the Telegram connection worked unless it genuinely connected.
+10. Do not leave unnecessary background processes running after validation.
+
+At the end give me a compact production-readiness report with:
+
+* files created
+* tests passed/failed
+* runtime checks performed
+* persistence result
+* heartbeat result
+* shutdown result
+* Telegram connectivity status
+* any unresolved issue
+
+Do not merely provide code snippets. Actually build and validate the runnable project using the available runtime.

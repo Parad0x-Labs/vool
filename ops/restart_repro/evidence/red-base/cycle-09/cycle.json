@@ -1,0 +1,580 @@
+{
+ "cycle": 9,
+ "ok_first_turn": false,
+ "ok_second_turn": false,
+ "stub_host": "192.168.1.73",
+ "boot1_ready_at": "2026-09-02T17:38:45.397107Z",
+ "turn1": {
+  "status": 200,
+  "content": "Locked in. I\u2019ll remember that."
+ },
+ "boot2_ready_at": "2026-09-02T17:38:47.561628Z",
+ "first_turn_after_restart": {
+  "status": 200,
+  "content": "I can't publish an answer to this: it needed current information, and nothing in what this turn actually retrieved supports the answer that was written. (request: \"And now confirm you are back with: RESTART-SECOND-3302.\")\n\nThe sources this turn retrieved do not support the statements that were written.\n\nHere is what the sources returned for this turn:\n\n- Maritime event in the South China Sea On Au",
+  "elapsed_s": 13.77,
+  "stub_model_calls_during_turn": 1
+ },
+ "second_turn_after_restart": {
+  "status": 200,
+  "content": "I can't publish an answer to this: it needed current information, and nothing in what this turn actually retrieved supports the answer that was written. (request: \"And confirm once more that you still"
+ },
+ "first_turn_routing_timeline": [
+  {
+   "event_type": "task_received",
+   "message": "Received request: Remember this code for our next exchange: RESTART-FIRST-2201.",
+   "ts": "2026-09-02T17:38:45.943057+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Fast-path response completed without model inference.",
+   "ts": "2026-09-02T17:38:46.273757+00:00",
+   "fallback_reason": "model_not_used",
+   "lane": "daily",
+   "task_kind": "fast_path"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Fast-path response ready: Locked in. I\u2019ll remember that.",
+   "ts": "2026-09-02T17:38:46.274994+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And now confirm you are back with: RESTART-SECOND-3302.",
+   "ts": "2026-09-02T17:38:47.987354+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:39:01.332793+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist",
+   "ranked_candidates": [
+    "vllm-local:restart-repro-stub",
+    "ollama-local:restart-repro-stub"
+   ]
+  },
+  {
+   "event_type": "model_lane_selected",
+   "message": "Selected vllm-local:restart-repro-stub for the daily lane.",
+   "ts": "2026-09-02T17:39:01.335782+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "model.call_completed",
+   "message": "Model call completed with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:39:01.363686+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "vllm-local:restart-repro-stub completed with runtime proof.",
+   "ts": "2026-09-02T17:39:01.371205+00:00",
+   "fallback_reason": "",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: I couldn't produce a normal chat response for that request. Please try again.",
+   "ts": "2026-09-02T17:39:01.401646+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And confirm once more that you still remember the code RESTART-THIRD-4403.",
+   "ts": "2026-09-02T17:39:01.586497+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:39:18.270955+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist",
+   "ranked_candidates": [
+    "vllm-local:restart-repro-stub",
+    "ollama-local:restart-repro-stub"
+   ]
+  },
+  {
+   "event_type": "model_lane_selected",
+   "message": "Selected vllm-local:restart-repro-stub for the daily lane.",
+   "ts": "2026-09-02T17:39:18.273887+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "model.call_completed",
+   "message": "Model call completed with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:39:18.293223+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "vllm-local:restart-repro-stub completed with runtime proof.",
+   "ts": "2026-09-02T17:39:18.300395+00:00",
+   "fallback_reason": "",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: I couldn't produce a normal chat response for that request. Please try again.",
+   "ts": "2026-09-02T17:39:18.372192+00:00"
+  }
+ ],
+ "all_events": [
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-e17842ab11da49d18f4af233827f66ec created (unknown mode).",
+   "ts": "2026-09-02T17:38:45.910296+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: Remember this code for our next exchange: RESTART-FIRST-2201.",
+   "ts": "2026-09-02T17:38:45.943057+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Fast-path response completed without model inference.",
+   "ts": "2026-09-02T17:38:46.273757+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Fast-path response ready: Locked in. I\u2019ll remember that.",
+   "ts": "2026-09-02T17:38:46.274994+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 8 gates consulted, preempted by turn_frontdoor",
+   "ts": "2026-09-02T17:38:46.304407+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-e17842ab11da49d18f4af233827f66ec -> SUCCEEDED.",
+   "ts": "2026-09-02T17:38:46.305985+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:38:46.321471+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-9a4c423f20d04628a86d753eb0557329 created (unknown mode).",
+   "ts": "2026-09-02T17:38:47.967145+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And now confirm you are back with: RESTART-SECOND-3302.",
+   "ts": "2026-09-02T17:38:47.987354+00:00"
+  },
+  {
+   "event_type": "task_classified",
+   "message": "Task classified as unknown.",
+   "ts": "2026-09-02T17:38:48.154857+00:00"
+  },
+  {
+   "event_type": "web_retrieval_started",
+   "message": "Started an authorized web retrieval.",
+   "ts": "2026-09-02T17:38:48.177213+00:00"
+  },
+  {
+   "event_type": "web_retrieval_completed",
+   "message": "Web retrieval: Browser search \u00b7 4 sources",
+   "ts": "2026-09-02T17:38:54.894069+00:00"
+  },
+  {
+   "event_type": "web_retrieval_started",
+   "message": "Started an authorized web retrieval.",
+   "ts": "2026-09-02T17:38:54.895783+00:00"
+  },
+  {
+   "event_type": "web_retrieval_completed",
+   "message": "Web retrieval: Browser search \u00b7 3 sources",
+   "ts": "2026-09-02T17:39:01.291714+00:00"
+  },
+  {
+   "event_type": "evidence_bound_to_synthesis",
+   "message": "Bound 6 retrieved source(s) into the answering model call.",
+   "ts": "2026-09-02T17:39:01.301204+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:39:01.332793+00:00"
+  },
+  {
+   "event_type": "model_lane_selected",
+   "message": "Selected vllm-local:restart-repro-stub for the daily lane.",
+   "ts": "2026-09-02T17:39:01.335782+00:00"
+  },
+  {
+   "event_type": "model_lane_started",
+   "message": "Using vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:39:01.347389+00:00"
+  },
+  {
+   "event_type": "model.call_started",
+   "message": "Model call started with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:39:01.356235+00:00"
+  },
+  {
+   "event_type": "model.call_completed",
+   "message": "Model call completed with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:39:01.363686+00:00"
+  },
+  {
+   "event_type": "model_lane_verifier_blocked",
+   "message": "Verifier was required, but no verifier lane was available.",
+   "ts": "2026-09-02T17:39:01.364801+00:00"
+  },
+  {
+   "event_type": "model_lane_completed",
+   "message": "vllm-local:restart-repro-stub completed.",
+   "ts": "2026-09-02T17:39:01.366561+00:00"
+  },
+  {
+   "event_type": "model_usage",
+   "message": "vllm-local:restart-repro-stub used 2 tokens.",
+   "ts": "2026-09-02T17:39:01.369281+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "vllm-local:restart-repro-stub completed with runtime proof.",
+   "ts": "2026-09-02T17:39:01.371205+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: I couldn't produce a normal chat response for that request. Please try again.",
+   "ts": "2026-09-02T17:39:01.401646+00:00"
+  },
+  {
+   "event_type": "grounding_required",
+   "message": "This turn needs current information; its grounding lifecycle is open.",
+   "ts": "2026-09-02T17:39:01.420143+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 10 gates consulted, preempted by nothing",
+   "ts": "2026-09-02T17:39:01.478490+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-9a4c423f20d04628a86d753eb0557329 -> SUCCEEDED.",
+   "ts": "2026-09-02T17:39:01.480829+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:39:01.538858+00:00"
+  },
+  {
+   "event_type": "grounding_publication",
+   "message": "Grounding lifecycle refused: failed at claim_supported.",
+   "ts": "2026-09-02T17:39:01.566995+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-7cce83f2f10e43a288e78a553284ebb1 created (unknown mode).",
+   "ts": "2026-09-02T17:39:01.579366+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And confirm once more that you still remember the code RESTART-THIRD-4403.",
+   "ts": "2026-09-02T17:39:01.586497+00:00"
+  },
+  {
+   "event_type": "task_classified",
+   "message": "Task classified as unknown.",
+   "ts": "2026-09-02T17:39:01.633920+00:00"
+  },
+  {
+   "event_type": "web_retrieval_started",
+   "message": "Started an authorized web retrieval.",
+   "ts": "2026-09-02T17:39:01.738552+00:00"
+  },
+  {
+   "event_type": "web_retrieval_completed",
+   "message": "Web retrieval: Browser search \u00b7 2 sources",
+   "ts": "2026-09-02T17:39:10.654673+00:00"
+  },
+  {
+   "event_type": "web_retrieval_started",
+   "message": "Started an authorized web retrieval.",
+   "ts": "2026-09-02T17:39:10.659460+00:00"
+  },
+  {
+   "event_type": "web_retrieval_completed",
+   "message": "Web retrieval: Browser search \u00b7 4 sources",
+   "ts": "2026-09-02T17:39:18.244553+00:00"
+  },
+  {
+   "event_type": "evidence_bound_to_synthesis",
+   "message": "Bound 6 retrieved source(s) into the answering model call.",
+   "ts": "2026-09-02T17:39:18.250687+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:39:18.270955+00:00"
+  },
+  {
+   "event_type": "model_lane_selected",
+   "message": "Selected vllm-local:restart-repro-stub for the daily lane.",
+   "ts": "2026-09-02T17:39:18.273887+00:00"
+  },
+  {
+   "event_type": "model_lane_started",
+   "message": "Using vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:39:18.284833+00:00"
+  },
+  {
+   "event_type": "model.call_started",
+   "message": "Model call started with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:39:18.286581+00:00"
+  },
+  {
+   "event_type": "model.call_completed",
+   "message": "Model call completed with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:39:18.293223+00:00"
+  },
+  {
+   "event_type": "model_lane_completed",
+   "message": "vllm-local:restart-repro-stub completed.",
+   "ts": "2026-09-02T17:39:18.295872+00:00"
+  },
+  {
+   "event_type": "model_usage",
+   "message": "vllm-local:restart-repro-stub used 2 tokens.",
+   "ts": "2026-09-02T17:39:18.298456+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "vllm-local:restart-repro-stub completed with runtime proof.",
+   "ts": "2026-09-02T17:39:18.300395+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: I couldn't produce a normal chat response for that request. Please try again.",
+   "ts": "2026-09-02T17:39:18.372192+00:00"
+  },
+  {
+   "event_type": "grounding_required",
+   "message": "This turn needs current information; its grounding lifecycle is open.",
+   "ts": "2026-09-02T17:39:18.410548+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 10 gates consulted, preempted by nothing",
+   "ts": "2026-09-02T17:39:18.496593+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-7cce83f2f10e43a288e78a553284ebb1 -> SUCCEEDED.",
+   "ts": "2026-09-02T17:39:18.498940+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:39:18.606649+00:00"
+  },
+  {
+   "event_type": "grounding_publication",
+   "message": "Grounding lifecycle refused: failed at claim_supported.",
+   "ts": "2026-09-02T17:39:18.644699+00:00"
+  }
+ ],
+ "stub_calls_full_log": [
+  {
+   "ts": 1788370725.316,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370725.317,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370725.532,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370725.952,
+   "path": "CONNECT api.coingecko.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370727.478,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370727.48,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370727.685,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370727.996,
+   "path": "CONNECT api.coingecko.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370731.653,
+   "path": "CONNECT support.microsoft.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370731.655,
+   "path": "CONNECT www.nba2k.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370734.891,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370734.893,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370738.001,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370738.004,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370741.288,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370741.29,
+   "path": "CONNECT www.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370741.318,
+   "path": "/api/ps",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370741.358,
+   "path": "/v1/models",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370741.362,
+   "path": "/v1/chat/completions",
+   "status": 200,
+   "last_user": "And now confirm you are back with: RESTART-SECOND-3302. Grounding observations for this turn. Use them as evidence, not as a template:{\"actions_taken\":[\"initial_search\", \"verify_claim\", \"stop_answer\" "
+  },
+  {
+   "ts": 1788370745.351,
+   "path": "CONNECT support.google.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370745.354,
+   "path": "CONNECT malwaretips.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370748.617,
+   "path": "CONNECT search.yahoo.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370749.624,
+   "path": "CONNECT search.yahoo.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370749.63,
+   "path": "CONNECT search.brave.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370750.643,
+   "path": "CONNECT search.brave.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370750.651,
+   "path": "CONNECT api.duckduckgo.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370755.019,
+   "path": "CONNECT support.google.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370755.021,
+   "path": "CONNECT support.google.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370758.241,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370758.243,
+   "path": "CONNECT www.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370758.258,
+   "path": "/api/ps",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370758.292,
+   "path": "/v1/chat/completions",
+   "status": 200,
+   "last_user": "And confirm once more that you still remember the code RESTART-THIRD-4403. Grounding observations for this turn. Use them as evidence, not as a template:{\"actions_taken\":[\"initial_search\", \"verify_cla"
+  }
+ ]
+}

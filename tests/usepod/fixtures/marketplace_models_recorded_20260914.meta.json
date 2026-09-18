@@ -1,0 +1,18 @@
+{
+  "fixture": "marketplace_models_recorded_20260914.json",
+  "kind": "RECORDED (not synthetic)",
+  "what": "Twelve rows copied verbatim, unaltered, from one live response of the public UsePod marketplace feed. Only row selection was applied; no field was edited, added or removed.",
+  "source": "GET https://api.usepod.ai/v1/marketplace/models (public, no credential; the endpoint the usepod.ai/marketplace page reads)",
+  "fetched_at_utc": "2026-09-14T18:33:37Z",
+  "server_date_header": "Mon, 14 Sep 2026 18:33:37 GMT",
+  "full_response": {"rows": 668, "bytes": 269629, "sha256": "16229509cd8da94f3fd91ae870450082e6d574678dfca20c95003625a1385d84"},
+  "fixture_sha256": "a2a3887b30b3a726f6818b22b73eaa98e6b425ed9a6bc1b249fe869b74804951",
+  "selection": [
+    "eight named per-token and per-request rows: c0mpute-pro, claude-haiku-4-5, claude-sonnet-5, deepseek-v4-flash, gpt-4o-mini, gpt-oss-20b, kimi-k2, supergemma4-26b",
+    "the first two per-token rows with marketplace_provider_count 0 and a centralized price (bge-base-en-v1-5, deepseek-coder-33b-instruct)",
+    "the first per-token row with no prices at all (anthropic-claude-opus-4-7)",
+    "the first row with a non-text modality (dall-e-2)"
+  ],
+  "unit_cross_check": "gpt-oss-20b cheapest_input_per_1m 1600 and claude-haiku-4-5 77138 matched the rendered marketplace table ($0.0016 and $0.0771 per million) in the same session.",
+  "use": "Schema and value-shape fixture only. These prices are historical observations and authorize nothing; tests that need hostile or changed values build SYNTHETIC rows and label them in the test."
+}

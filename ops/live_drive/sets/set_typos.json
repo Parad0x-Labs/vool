@@ -1,0 +1,14 @@
+[
+ {"id":"Y1.1","lane":"typo: weather","prompt":"wheather in vilnius, berlin and rome"},
+ {"id":"Y1.2","lane":"typo: weather","prompt":"whats the wether in kaunas rn"},
+ {"id":"Y1.3","lane":"typo: weather","prompt":"tempreature in oslo today"},
+ {"id":"Y1.4","lane":"typo: city","prompt":"weather in vilnisu"},
+ {"id":"Y1.5","lane":"typo: city","prompt":"what is the weather in berln"},
+ {"id":"Y2.1","lane":"typo: price","prompt":"bitcon price now"},
+ {"id":"Y2.2","lane":"typo: price","prompt":"whats the pirce of ethereum"},
+ {"id":"Y2.3","lane":"typo: price","prompt":"gold prcie today"},
+ {"id":"Y3.1","lane":"sloppy: no punctuation","prompt":"weather vilnius and btc price and gold price no filler"},
+ {"id":"Y3.2","lane":"sloppy: shorthand","prompt":"wthr vln + btc px rn"},
+ {"id":"Y3.3","lane":"sloppy: caps","prompt":"WHEATHER IN VILNIUS RIGHT NOW"},
+ {"id":"Y4.1","lane":"typo: multipart","prompt":"give me wheather in vilnius and the bitcon price and revrse the word HELLO"}
+]

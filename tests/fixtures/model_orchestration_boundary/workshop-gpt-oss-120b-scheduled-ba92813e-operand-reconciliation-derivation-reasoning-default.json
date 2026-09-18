@@ -1,0 +1,96 @@
+{
+  "model": "openai/gpt-oss-120b",
+  "case": "workshop",
+  "calls": [
+    {
+      "system": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- Earlier nodes' results use the listed dependency symbols, such as dependency_1_value_1.\n  Use their exact symbol, not their display label or an earlier node's step_N.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.\nReconcile this proposed recipe with the user's actual requested quantities. Different allocations, balances or subjects can have identical units. Trace every dependency symbol to its displayed subject and every percentage to its stated base; do not confuse a local step's position with a dependency value's position. Re-derive the requested result from the source message, then return the complete corrected recipe in the SAME steps/cannot_determine schema. Retain correct work and every requested result. Do not merely approve the proposal. If the source cannot settle an operand choice, name the missing information instead of guessing.",
+      "prompt": "The user's full message:\nA workshop pays 924 EUR including a 10% service charge. Calculate the base cost and the included service charge.\n\nThe part of it you are answering:\nCalculate the included service charge.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 924 EUR  (written '924 EUR')\n  fact_2 = 10%  (written '10%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.1\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\nComputed dependency symbols (labels describe values; use only the symbols):\n  dependency_1_value_1 = 840.0; label=\"Base cost\"; unit=EUR\n  dependency_1_value_2 = 924.0; label=\"Invoice total\"; unit=EUR\nExecuted dependency derivations (read-only provenance, NOT new operand names):\n{\"dependency_1_value_1\": {\"expression\": \"fact_1 / (1 + fact_2_share)\", \"source_scope_bindings\": {\"fact_2_share\": 0.1}}, \"dependency_1_value_2\": {\"expression\": \"step_1 * (1 + fact_2_share)\", \"source_scope_bindings\": {\"fact_2_share\": 0.1, \"step_1\": 840.0}}}\nEach expression belongs to its source recipe. Its source_scope_bindings are local to that expression, not this recipe's dependency namespace. fact_N still refers to the original message. Use the current dependency symbols above in your new expressions. Preserve the bases and transformations these calculations established when deriving differences, adjustments or totals; do not silently apply a different base to the same change.\nUnits established by the supplied quantities:\n  fact_1: EUR\n  fact_2: ratio\n  fact_2_share: ratio\n\nProposed recipe (untrusted; not yet executed):\n{\"steps\": [{\"label\": \"Included charge\", \"expression\": \"fact_1 * fact_2_share\"}]}",
+      "max_tokens": 4096,
+      "reasoning": null,
+      "temperature": 0,
+      "reserved_usd": "0.000861303",
+      "wire_payload": {
+        "model": "openai/gpt-oss-120b",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- Earlier nodes' results use the listed dependency symbols, such as dependency_1_value_1.\n  Use their exact symbol, not their display label or an earlier node's step_N.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.\nReconcile this proposed recipe with the user's actual requested quantities. Different allocations, balances or subjects can have identical units. Trace every dependency symbol to its displayed subject and every percentage to its stated base; do not confuse a local step's position with a dependency value's position. Re-derive the requested result from the source message, then return the complete corrected recipe in the SAME steps/cannot_determine schema. Retain correct work and every requested result. Do not merely approve the proposal. If the source cannot settle an operand choice, name the missing information instead of guessing."
+          },
+          {
+            "role": "user",
+            "content": "The user's full message:\nA workshop pays 924 EUR including a 10% service charge. Calculate the base cost and the included service charge.\n\nThe part of it you are answering:\nCalculate the included service charge.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 924 EUR  (written '924 EUR')\n  fact_2 = 10%  (written '10%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.1\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\nComputed dependency symbols (labels describe values; use only the symbols):\n  dependency_1_value_1 = 840.0; label=\"Base cost\"; unit=EUR\n  dependency_1_value_2 = 924.0; label=\"Invoice total\"; unit=EUR\nExecuted dependency derivations (read-only provenance, NOT new operand names):\n{\"dependency_1_value_1\": {\"expression\": \"fact_1 / (1 + fact_2_share)\", \"source_scope_bindings\": {\"fact_2_share\": 0.1}}, \"dependency_1_value_2\": {\"expression\": \"step_1 * (1 + fact_2_share)\", \"source_scope_bindings\": {\"fact_2_share\": 0.1, \"step_1\": 840.0}}}\nEach expression belongs to its source recipe. Its source_scope_bindings are local to that expression, not this recipe's dependency namespace. fact_N still refers to the original message. Use the current dependency symbols above in your new expressions. Preserve the bases and transformations these calculations established when deriving differences, adjustments or totals; do not silently apply a different base to the same change.\nUnits established by the supplied quantities:\n  fact_1: EUR\n  fact_2: ratio\n  fact_2_share: ratio\n\nProposed recipe (untrusted; not yet executed):\n{\"steps\": [{\"label\": \"Included charge\", \"expression\": \"fact_1 * fact_2_share\"}]}"
+          }
+        ],
+        "max_tokens": 4096,
+        "temperature": 0
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "{\n  \"steps\": [\n    {\n      \"label\": \"Included charge\",\n      \"expression\": \"dependency_1_value_2 - dependency_1_value_1\",\n      \"unit\": \"EUR\"\n    }\n  ],\n  \"cannot_determine\": []\n}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 994,
+        "completion_tokens": 698,
+        "total_tokens": 1692,
+        "cost": 0.00014848,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 64,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00014848,
+          "upstream_inference_prompt_cost": 2.982e-05,
+          "upstream_inference_completions_cost": 0.00011866
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 557,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "openai/gpt-oss-120b",
+      "provider": "AkashML",
+      "generation_id": "gen-1789141366-1Xh5AZ3fID8Cb2HsFqCS",
+      "seconds": 57.912
+    }
+  ],
+  "source": "ba92813eead2ece12d37f789d2c6943072c9f5fd",
+  "kind": "live correction of captured/synthetic wrong recipe, NOT full-turn acceptance",
+  "operations_source_sha256": "36df4c68077f98157c114f3a8190935557fcefaffaeac07cf28cc48b3b107e93",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": false,
+  "candidate_recipe": "{\"steps\": [{\"label\": \"Included charge\", \"expression\": \"fact_1 * fact_2_share\"}]}",
+  "result": {
+    "steps": [
+      {
+        "step_id": "step_1",
+        "label": "Included charge",
+        "expression": "dependency_1_value_2 - dependency_1_value_1",
+        "value": 84.0,
+        "unit": "EUR",
+        "unit_dimensions": {
+          "EUR": 1
+        },
+        "unit_authority": "source_expression"
+      }
+    ],
+    "values": {
+      "Included charge": 84.0
+    },
+    "cannot_determine": [],
+    "recipe_review": "model_reconciled",
+    "expression_bindings": {
+      "fact_2_share": 0.1,
+      "dependency_1_value_1": 840.0,
+      "dependency_1_value_2": 924.0
+    },
+    "conversion_provenance": {}
+  }
+}

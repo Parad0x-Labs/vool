@@ -1,0 +1,78 @@
+{
+  "_meta": {
+    "locale": "en",
+    "label": "English (source of truth)",
+    "generated": false,
+    "human_reviewed": true,
+    "notes": "Keys curated in pass-001 from mechanically extracted repo strings (localization/tools/extract_strings.py). Companion/mobile and voice keys are newly proposed surfaces."
+  },
+  "strings": {
+    "common.ok": "OK",
+    "common.cancel": "Cancel",
+    "common.retry": "Retry",
+    "common.loading": "Loading…",
+    "common.copy": "Copy",
+    "common.copied": "Copied to clipboard.",
+    "common.all": "All",
+    "common.agent": "Agent",
+    "common.region": "Region",
+    "common.status": "Status",
+    "common.trust": "Trust",
+    "common.task": "Task",
+
+    "desktop.dashboard.tab.overview": "Overview",
+    "desktop.dashboard.tab.work": "Work",
+    "desktop.dashboard.tab.fabric": "Fabric",
+    "desktop.dashboard.tab.commons": "Commons",
+    "desktop.dashboard.tab.markets": "Markets",
+    "desktop.dashboard.section.what_matters_now": "What matters now",
+    "desktop.dashboard.section.what_changed_recently": "What changed recently",
+    "desktop.dashboard.section.current_flow": "Current flow",
+    "desktop.dashboard.section.proof_of_useful_work": "Proof of useful work",
+    "desktop.dashboard.section.task_lineage": "Task Lineage",
+    "desktop.dashboard.section.claim_stream": "Claim stream",
+    "desktop.dashboard.section.promotion_queue": "Promotion queue",
+    "desktop.dashboard.section.knowledge_totals": "Knowledge totals",
+    "desktop.dashboard.section.peer_infrastructure": "Peer infrastructure",
+    "desktop.dashboard.section.verified_work": "Verified work",
+    "desktop.dashboard.summary.research_gravity": "Research gravity",
+
+    "desktop.cli.agent_ready": "{name} is ready.",
+    "desktop.cli.exit_hint": "Type /exit to quit.",
+    "desktop.cli.bye": "bye.",
+    "desktop.cli.remote_first_mode": "No local model backend found. Starting in remote-first mode.",
+    "desktop.cli.bootstrap_failed": "Chat bootstrap failed: {reason}",
+    "desktop.cli.name_updated": "name updated: {name}",
+    "desktop.cli.usage_rename": "usage: /rename <new-name>",
+    "desktop.cli.provider_prewarm_failed": "- {provider_id}: failed ({error})",
+    "desktop.cli.confidence_line": "[confidence={value}]",
+
+    "web.public.trust_ledger": "Trust ledger",
+    "web.public.proof_ledger": "Proof ledger",
+    "web.public.task_ledger": "Task ledger",
+    "web.public.feed_tagline": "Work with owners, rewards, and visible proof.",
+    "web.public.finalized_work_blurb": "Finalized work that survived review.",
+
+    "mobile.companion.title": "VOOL Companion",
+    "mobile.companion.connect_hint": "Connect to your desktop agent on this network.",
+    "mobile.companion.connected_to": "Connected to {agent_name}",
+    "mobile.companion.send_task": "Send task",
+    "mobile.companion.offline_notice": "Offline — tasks will queue until reconnected.",
+
+    "notifications.tasks_completed": "{count, plural, one {Task completed} other {# tasks completed}}",
+    "notifications.peer_joined": "{peer_name} joined your Hive.",
+    "notifications.task_failed": "Task \"{task_title}\" failed: {reason}",
+    "notifications.receipt_issued": "A signed receipt was issued for turn {turn_index}.",
+
+    "receipts.status.clean": "Verified clean",
+    "receipts.status.no_action_claimed": "No action claimed",
+    "receipts.status.blocked_false_claim": "False claim blocked",
+    "receipts.status.unbacked_claim": "Claim without evidence",
+    "receipts.status.evidence_contradicted": "Contradicted by evidence",
+    "receipts.count_line": "{count, plural, one {# receipt verified} other {# receipts verified}}",
+    "receipts.cost_line": "This session cost {amount}.",
+
+    "voice.greeting": "Hello. VOOL is ready for your next task.",
+    "voice.receipt_summary": "Turn {turn_index}: status {status}, cost {amount}."
+  }
+}

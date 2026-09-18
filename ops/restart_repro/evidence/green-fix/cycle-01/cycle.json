@@ -1,0 +1,385 @@
+{
+ "cycle": 1,
+ "ok_first_turn": true,
+ "ok_second_turn": true,
+ "stub_host": "192.168.1.73",
+ "boot1_ready_at": "2026-09-02T17:53:46.667795Z",
+ "turn1": {
+  "status": 200,
+  "content": "Locked in. I\u2019ll remember that."
+ },
+ "boot2_ready_at": "2026-09-02T17:53:48.643083Z",
+ "first_turn_after_restart": {
+  "status": 200,
+  "content": "confirmed back: RESTART-SECOND-3302",
+  "elapsed_s": 0.61,
+  "stub_model_calls_during_turn": 1
+ },
+ "second_turn_after_restart": {
+  "status": 200,
+  "content": "still here: RESTART-THIRD-4403"
+ },
+ "first_turn_routing_timeline": [
+  {
+   "event_type": "task_received",
+   "message": "Received request: Remember this code for our next exchange: RESTART-FIRST-2201.",
+   "ts": "2026-09-02T17:53:47.195475+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Fast-path response completed without model inference.",
+   "ts": "2026-09-02T17:53:47.493569+00:00",
+   "fallback_reason": "model_not_used",
+   "lane": "daily",
+   "task_kind": "fast_path"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Fast-path response ready: Locked in. I\u2019ll remember that.",
+   "ts": "2026-09-02T17:53:47.494635+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And now confirm you are back with: RESTART-SECOND-3302.",
+   "ts": "2026-09-02T17:53:49.014356+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:53:49.241612+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist",
+   "ranked_candidates": [
+    "vllm-local:restart-repro-stub",
+    "ollama-local:restart-repro-stub"
+   ]
+  },
+  {
+   "event_type": "model_lane_selected",
+   "message": "Selected vllm-local:restart-repro-stub for the daily lane.",
+   "ts": "2026-09-02T17:53:49.244217+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "model.call_completed",
+   "message": "Model call completed with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:53:49.273332+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "vllm-local:restart-repro-stub completed with runtime proof.",
+   "ts": "2026-09-02T17:53:49.280022+00:00",
+   "fallback_reason": "",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: confirmed back: RESTART-SECOND-3302",
+   "ts": "2026-09-02T17:53:49.310268+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And confirm once more that you still remember the code RESTART-THIRD-4403.",
+   "ts": "2026-09-02T17:53:49.446174+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:53:49.615270+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist",
+   "ranked_candidates": [
+    "vllm-local:restart-repro-stub",
+    "ollama-local:restart-repro-stub"
+   ]
+  },
+  {
+   "event_type": "model_lane_selected",
+   "message": "Selected vllm-local:restart-repro-stub for the daily lane.",
+   "ts": "2026-09-02T17:53:49.618026+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "model.call_completed",
+   "message": "Model call completed with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:53:49.631918+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "vllm-local:restart-repro-stub completed with runtime proof.",
+   "ts": "2026-09-02T17:53:49.639334+00:00",
+   "fallback_reason": "",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: still here: RESTART-THIRD-4403",
+   "ts": "2026-09-02T17:53:49.704619+00:00"
+  }
+ ],
+ "all_events": [
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-b4522b80e605422e89fef11482ebfe3c created (unknown mode).",
+   "ts": "2026-09-02T17:53:47.160484+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: Remember this code for our next exchange: RESTART-FIRST-2201.",
+   "ts": "2026-09-02T17:53:47.195475+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Fast-path response completed without model inference.",
+   "ts": "2026-09-02T17:53:47.493569+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Fast-path response ready: Locked in. I\u2019ll remember that.",
+   "ts": "2026-09-02T17:53:47.494635+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 8 gates consulted, preempted by turn_frontdoor",
+   "ts": "2026-09-02T17:53:47.523568+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-b4522b80e605422e89fef11482ebfe3c -> SUCCEEDED.",
+   "ts": "2026-09-02T17:53:47.525230+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:53:47.542279+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-6eed8586d4b44288b0ad7806609f76d6 created (unknown mode).",
+   "ts": "2026-09-02T17:53:48.993299+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And now confirm you are back with: RESTART-SECOND-3302.",
+   "ts": "2026-09-02T17:53:49.014356+00:00"
+  },
+  {
+   "event_type": "task_classified",
+   "message": "Task classified as unknown.",
+   "ts": "2026-09-02T17:53:49.191288+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:53:49.241612+00:00"
+  },
+  {
+   "event_type": "model_lane_selected",
+   "message": "Selected vllm-local:restart-repro-stub for the daily lane.",
+   "ts": "2026-09-02T17:53:49.244217+00:00"
+  },
+  {
+   "event_type": "model_lane_started",
+   "message": "Using vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:53:49.254570+00:00"
+  },
+  {
+   "event_type": "model.call_started",
+   "message": "Model call started with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:53:49.262245+00:00"
+  },
+  {
+   "event_type": "model.call_completed",
+   "message": "Model call completed with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:53:49.273332+00:00"
+  },
+  {
+   "event_type": "model_lane_completed",
+   "message": "vllm-local:restart-repro-stub completed.",
+   "ts": "2026-09-02T17:53:49.275488+00:00"
+  },
+  {
+   "event_type": "model_usage",
+   "message": "vllm-local:restart-repro-stub used 2 tokens.",
+   "ts": "2026-09-02T17:53:49.278105+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "vllm-local:restart-repro-stub completed with runtime proof.",
+   "ts": "2026-09-02T17:53:49.280022+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: confirmed back: RESTART-SECOND-3302",
+   "ts": "2026-09-02T17:53:49.310268+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 10 gates consulted, preempted by nothing",
+   "ts": "2026-09-02T17:53:49.364946+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-6eed8586d4b44288b0ad7806609f76d6 -> SUCCEEDED.",
+   "ts": "2026-09-02T17:53:49.366915+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:53:49.409090+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-8aca5de7496e4b05af573dc23168fb97 created (unknown mode).",
+   "ts": "2026-09-02T17:53:49.438524+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And confirm once more that you still remember the code RESTART-THIRD-4403.",
+   "ts": "2026-09-02T17:53:49.446174+00:00"
+  },
+  {
+   "event_type": "task_classified",
+   "message": "Task classified as unknown.",
+   "ts": "2026-09-02T17:53:49.500566+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:53:49.615270+00:00"
+  },
+  {
+   "event_type": "model_lane_selected",
+   "message": "Selected vllm-local:restart-repro-stub for the daily lane.",
+   "ts": "2026-09-02T17:53:49.618026+00:00"
+  },
+  {
+   "event_type": "model_lane_started",
+   "message": "Using vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:53:49.623833+00:00"
+  },
+  {
+   "event_type": "model.call_started",
+   "message": "Model call started with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:53:49.624971+00:00"
+  },
+  {
+   "event_type": "model.call_completed",
+   "message": "Model call completed with vllm-local:restart-repro-stub.",
+   "ts": "2026-09-02T17:53:49.631918+00:00"
+  },
+  {
+   "event_type": "model_lane_completed",
+   "message": "vllm-local:restart-repro-stub completed.",
+   "ts": "2026-09-02T17:53:49.634289+00:00"
+  },
+  {
+   "event_type": "model_usage",
+   "message": "vllm-local:restart-repro-stub used 2 tokens.",
+   "ts": "2026-09-02T17:53:49.637208+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "vllm-local:restart-repro-stub completed with runtime proof.",
+   "ts": "2026-09-02T17:53:49.639334+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: still here: RESTART-THIRD-4403",
+   "ts": "2026-09-02T17:53:49.704619+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 10 gates consulted, preempted by nothing",
+   "ts": "2026-09-02T17:53:49.764733+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-8aca5de7496e4b05af573dc23168fb97 -> SUCCEEDED.",
+   "ts": "2026-09-02T17:53:49.766680+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:53:49.848790+00:00"
+  }
+ ],
+ "stub_calls_full_log": [
+  {
+   "ts": 1788371626.569,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371626.571,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371626.815,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371627.204,
+   "path": "CONNECT api.coingecko.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371628.554,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371628.556,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371628.775,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371629.023,
+   "path": "CONNECT api.coingecko.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371629.226,
+   "path": "/api/ps",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371629.264,
+   "path": "/v1/models",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788371629.272,
+   "path": "/v1/chat/completions",
+   "status": 200,
+   "last_user": "And now confirm you are back with: RESTART-SECOND-3302."
+  },
+  {
+   "ts": 1788371629.63,
+   "path": "/v1/chat/completions",
+   "status": 200,
+   "last_user": "And confirm once more that you still remember the code RESTART-THIRD-4403."
+  }
+ ]
+}

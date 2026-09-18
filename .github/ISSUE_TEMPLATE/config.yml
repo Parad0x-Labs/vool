@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: General Discussion
+    url: https://discord.gg/WuqCDnyfZ8
+    about: Join the NULLA Discord for questions, ideas, and chat.
+  - name: Security Vulnerability
+    url: https://github.com/Parad0x-Labs/nulla-hive-mind/security/advisories/new
+    about: Report security issues privately via GitHub Security Advisories.

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vool.local/served-reality/run_manifest.schema.json",
+  "title": "Served-reality bench run manifest",
+  "description": "The proof envelope for one bench run: which exact SHA was staged, from which tree, with which providers, and the honest outcome.",
+  "type": "object",
+  "required": [
+    "run_id",
+    "created_at",
+    "product_sha",
+    "provider_mode",
+    "case_count",
+    "failures",
+    "unexpected_skips",
+    "outcome",
+    "schema_version"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "run_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "number"},
+    "bench_version": {"type": "string"},
+    "product_sha": {"type": "string", "description": "Full 40-char commit actually staged and served."},
+    "product_branch": {"type": "string"},
+    "product_dirty": {"type": ["boolean", "null"]},
+    "staged_from_clean_tree": {"type": ["boolean", "null"]},
+    "staging_archive_sha256": {"type": "string"},
+    "app_census_unchanged": {"type": ["boolean", "null"], "description": "False means the product wrote into its own staged code tree during the run."},
+    "home_path": {"type": "string"},
+    "daemon_port": {"type": ["integer", "null"]},
+    "daemon_pid": {"type": ["integer", "null"]},
+    "provider_mode": {"type": "string", "pattern": "^(deterministic|live:.+)$"},
+    "live_providers": {"type": "array", "items": {"type": "string"}},
+    "network_mutation_attempts": {"type": "integer", "minimum": 0},
+    "case_count": {"type": "integer", "minimum": 0},
+    "failures": {"type": "integer", "minimum": 0},
+    "unexpected_skips": {"type": "integer", "minimum": 0},
+    "outcome": {"enum": ["pass", "fail", "harness_error", "incomplete"]},
+    "python_version": {"type": "string"}
+  }
+}

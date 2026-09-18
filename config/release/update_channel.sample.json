@@ -1,0 +1,13 @@
+{
+  "channel_name": "beta",
+  "release_version": "0.6.0-beta",
+  "protocol_version": 1,
+  "schema_generation": 1,
+  "minimum_compatible_release": "0.4.0-closed-test",
+  "rollout_stage": "beta",
+  "update_strategy": "manual_pull_then_restart",
+  "requires_clean_runtime": true,
+  "signed_write_required": true,
+  "notes": "VOOL 0.6.0 Beta. Local macOS wrapper available for evaluation; no distributable beta artifacts are published in this manifest. Existing compatibility and security requirements remain in force.",
+  "artifacts": []
+}

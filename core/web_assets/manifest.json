@@ -1,0 +1,34 @@
+{
+  "mermaid": {
+    "version": "12.0.0",
+    "url": "https://registry.npmjs.org/mermaid/-/mermaid-12.0.0.tgz",
+    "integrity": "sha512-/wQXC9iBxoGV8p3erbvaXs9h77VyLDBH6GdayVjj3hEcSQhFU4N1WUhUppotCEqlIxI2pRMwjwBSwTB1MfZBgQ==",
+    "license": "MIT",
+    "files": {
+      "mermaid-12.0.0.min.js": {
+        "sha256": "28fca7ae6ebc7ed7bb63bde63136a74bfef14f296a57e403657eeb8b32836073",
+        "bytes": 5575485
+      },
+      "mermaid-LICENSE": {
+        "sha256": "ec9fb67dcb25eccc416ed56e1aab819222c805a2a4bfe4cb19e7556bf2ffde80",
+        "bytes": 1089
+      }
+    }
+  },
+  "chart": {
+    "version": "4.5.1",
+    "url": "https://registry.npmjs.org/chart.js/-/chart.js-4.5.1.tgz",
+    "integrity": "sha512-GIjfiT9dbmHRiYi6Nl2yFCq7kkwdkp1W/lp2J99rX0yo9tgJGn3lKQATztIjb5tVtevcBtIdICNWqlq5+E8/Pw==",
+    "license": "MIT",
+    "files": {
+      "chart-4.5.1.min.js": {
+        "sha256": "48444a82d4edcb5bec0f1965faacdde18d9c17db3063d042abada2f705c9f54a",
+        "bytes": 208522
+      },
+      "chart-LICENSE.md": {
+        "sha256": "41a84aa2caba645f966a18d9c2056b73e6d3a81d80bc0046bc0011a2634d4cce",
+        "bytes": 1093
+      }
+    }
+  }
+}

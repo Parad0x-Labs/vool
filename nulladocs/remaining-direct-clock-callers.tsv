@@ -1,0 +1,109 @@
+FILE	FUNCTION	CLOCK_SOURCE	PURPOSE	SERVED?	MIGRATION_PRIORITY	A4 MIGRATED?	NOTES
+adapters/cloud_provider_common.py	(module-level)	datetime.now(timezone.utc)	Cloud provider rate-limit window check	yes	HIGH	no	Part of ~95 _utcnow duplicates
+adapters/local_subprocess_adapter.py	_run_with_timeout	time.monotonic()	Subprocess deadline enforcement	yes	LOW	no	Correct monotonic usage
+adapters/openai_compatible_adapter.py	(stream handler)	time.perf_counter()	Latency measurement	yes	LOW	no	Correct perf_counter usage
+apps/vool_agent.py	__init__	time.time()	Track last user activity	yes	LOW	no	In-memory only
+apps/vool_agent.py	handle_turn	time.monotonic()	Turn deadline for planning	yes	LOW	no	Correct monotonic
+apps/vool_agent.py	_mark_user_activity	time.time()	Update last user activity	yes	LOW	no	In-memory only
+apps/vool_cli.py	(spend display)	time.time()	Spend windows for CLI	yes	LOW	no	Display only
+apps/vool_daemon.py	register_capability_ad	datetime.now(timezone.utc)	Capability ad timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/active_context_capsule.py	_utcnow	datetime.now(timezone.utc)	Context capsule timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/agent_name_registry.py	_utcnow	datetime.now(timezone.utc)	Agent name registry timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/agent_runtime/active_finding.py	upsert_finding	time.time()	Finding TTL	yes	LOW	no	In-memory
+core/agent_runtime/active_finding.py	prune_stale	time.time()	Stale pruning	yes	LOW	no	In-memory
+core/agent_runtime/attempt_retry.py	wait_for_terminal	time.monotonic()	Retry deadline	yes	LOW	no	Correct monotonic
+core/agent_runtime/attempt_retry.py	_replay_until_terminal	time.monotonic()	Replay deadline	yes	LOW	no	Correct monotonic
+core/agent_runtime/attempt_retry.py	(attempt retry)	datetime.now(timezone.utc)	Retry state timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/agent_runtime/audit_policy.py	(module-level)	time.monotonic()	Audit policy timestamp	yes	LOW	no	Correct monotonic
+core/agent_runtime/audit_session.py	upsert_capsule	time.time()	Session capsule TTL	yes	LOW	no	In-memory
+core/agent_runtime/audit_session.py	prune_stale	time.time()	Stale capsule pruning	yes	LOW	no	In-memory
+core/agent_runtime/builder/controller.py	elapsed_seconds	time.monotonic()	Builder timed loop	yes	LOW	no	Correct monotonic
+core/agent_runtime/builder/controller.py	(controller)	time.monotonic()	Budget tracking	yes	LOW	no	Correct monotonic
+core/agent_runtime/builder/pinned_generation.py	(run loop)	time.monotonic()	Generation budget	yes	LOW	no	Correct monotonic
+core/agent_runtime/fast_paths_utility.py	_time_of_day	datetime.now() (naive)	Greeting time-of-day	yes	HIGH	no	Naive local time — needs migration
+core/agent_runtime/fast_paths_utility.py	_render_shifted_clock	datetime.now(timezone.utc)	DST-safe time arithmetic	yes	HIGH	no	Clock tool path — candidate for CLOCK.now_utc()
+core/agent_runtime/fast_paths_utility.py	_render_cross_zone_clock	datetime.now(timezone.utc)	Cross-zone clock conversion	yes	HIGH	no	Clock tool path — candidate for CLOCK.now_utc()
+core/agent_runtime/fast_paths_utility.py	utility_now_for_timezone	datetime.now(ZoneInfo)	Named timezone clock	yes	HIGH	no	Already good — candidate for CLOCK.now_for_timezone()
+core/agent_runtime/fast_paths_utility.py	utility_now_for_timezone	datetime.now().astimezone()	Local time fallback	yes	HIGH	no	Should use persisted timezone
+core/agent_runtime/investigation_session.py	upsert_capsule	time.time()	Session capsule TTL	yes	LOW	no	In-memory
+core/agent_runtime/investigation_session.py	prune_stale	time.time()	Stale pruning	yes	LOW	no	In-memory
+core/agent_runtime/live_data_runner.py	_now	time.monotonic() + datetime.now(timezone.utc)	Paired clock for live data	yes	MEDIUM	no	Paired clock pattern
+core/agent_runtime/orchestrator.py	(mark completed)	datetime.now(timezone.utc)	Orchestrator timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/agent_runtime/stepped_audit.py	(module-level)	time.monotonic()	Turn timing telemetry	yes	LOW	no	Correct monotonic
+core/agent_runtime/turn_planner_hook.py	(planning hook)	time.monotonic()	Turn deadline	yes	LOW	no	Correct monotonic
+core/api_write_auth.py	(resolve timestamp)	datetime.now(timezone.utc)	API write auth timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/api_write_auth.py	(permission check)	datetime.now(timezone.utc)	Permission expiry	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/appeal_queue.py	_utcnow	datetime.now(timezone.utc)	Appeal queue timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/bootstrap_sync.py	_utcnow	datetime.now(timezone.utc)	Bootstrap sync timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/bootstrap_sync.py	_is_expired	datetime.now(timezone.utc)	Expiry comparison	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/brain_hive_artifacts.py	_utcnow	datetime.now(timezone.utc)	Brain hive artifact timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/brain_hive_guard.py	(rate limit)	datetime.now(timezone.utc)	Rate-limit window	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/build_provenance.py	(module-level)	datetime.now(timezone.utc)	Build provenance timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/cache_freshness_policy.py	(module-level)	datetime.now(timezone.utc)	Cache freshness checks	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/candidate_knowledge_lane.py	_utcnow	datetime.now(timezone.utc)	Knowledge lane timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/capacity_predictor.py	(module-level)	datetime.now(timezone.utc)	Capacity predictor cutoff	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/challenge_engine.py	_utcnow	datetime.now(timezone.utc)	Challenge engine timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/circuit_breaker.py	(methods)	time.time()	Circuit breaker cooldown	yes	LOW	no	Correct use
+core/cloud_connection_state.py	(module-level)	time.time()	Connection state TTL	yes	LOW	no	Correct use
+core/cloud_escalation_policy.py	(module-level)	time.time()	Escalation policy TTL	yes	LOW	no	Correct use
+core/cloud_routing.py	(resolve moment)	datetime.now(timezone.utc)	Routing moment	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/cloud_route_receipt.py	(issue receipt)	time.time()	Route receipt timestamp	yes	LOW	no	Epoch float variant
+core/compute/rental_market.py	(start rental)	time.time()	Rental market timestamps	yes	HIGH	no	Should be aware UTC
+core/conductor/node.py	now_pair	time.monotonic() + datetime.now(timezone.utc)	Paired clock for conductor	yes	MEDIUM	no	Paired clock pattern
+core/conductor/scheduler.py	(schedule)	time.monotonic()	Plan deadline	yes	LOW	no	Correct monotonic
+core/consensus_validator.py	(validate)	datetime.now(timezone.utc)	Consensus deadline	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/context_namespace.py	_utcnow	datetime.now(timezone.utc)	Context namespace timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/context_relevance_ranker.py	(rank)	datetime.now(timezone.utc)	Context age computation	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/contribution_proof.py	_utcnow	datetime.now(timezone.utc)	Contribution proof timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/correction_evidence.py	(moment)	datetime.now(timezone.utc)	Correction evidence timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/credit_dex.py	(module-level)	datetime.now(timezone.utc)	Credit DEX timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/credit_ledger.py	(moment)	datetime.now(timezone.utc)	Credit ledger moment	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/curiosity_roamer.py	_roam	datetime.now(timezone.utc)	Hour index for roaming	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/daemon/health.py	(check)	time.perf_counter()	Health check latency	yes	LOW	no	Correct perf_counter
+core/daemon/mesh.py	(mesh)	time.time()	Daemon mesh timestamps	yes	LOW	no	Transient timestamps
+core/demo_source.py	(fetch)	time.monotonic()	Fetch deadline	yes	LOW	no	Correct monotonic
+core/discovery_index.py	(multiple)	datetime.now(timezone.utc)	Discovery index timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/dna_wallet_manager.py	_utcnow	datetime.now(timezone.utc)	DNA wallet timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/execution/artifacts.py	(create/rollback)	datetime.now(timezone.utc)	Artifact timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/execution/git_tools.py	_local_commit_day_windows	datetime.now().astimezone()	Local day windows for git	yes	HIGH	no	Should use persisted timezone
+core/execution_truth.py	_utcnow	datetime.now(timezone.utc)	Execution truth timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/feedback_engine.py	_utcnow	datetime.now(timezone.utc)	Feedback engine timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/hive_activity_tracker.py	(multiple)	datetime.now(timezone.utc)	Hive activity tracker	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/honesty_receipt.py	(issue)	time.time()	Honesty receipt timestamp	yes	LOW	no	Epoch float variant
+core/identity_manager.py	_utcnow	datetime.now(timezone.utc)	Identity manager timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/idle_assist_policy.py	(check deadline)	datetime.now(timezone.utc)	Idle assist expiry	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/kernel/differential.py	(diff)	time.time()	Kernel diff timing	yes	LOW	no	Transient
+core/kernel/repl.py	(module-level)	time.time()	REPL run ID	yes	LOW	no	Transient
+core/knowledge_freshness.py	_utcnow	datetime.now(timezone.utc)	Knowledge freshness ts	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/learning/procedure_shards.py	(default factory)	datetime.now(timezone.utc)	Shard timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/local_operator_actions.py	_parse_calendar_request	datetime.now().astimezone()	Calendar request parsing	yes	HIGH	no	Should use persisted timezone
+core/local_operator_actions.py	_render_ics	datetime.now(timezone.utc)	ICS file generation	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/memory/files.py	(multiple)	datetime.now(timezone.utc)	Memory file timestamps	yes	HIGH	no	CLOSEST TO CANONICAL OWNER
+core/memory_manager.py	log_short_term	datetime.now() (naive)	Local task memory ts	yes	CRITICAL	no	NAIVE — persists to SQLite
+core/memory_manager.py	save_local_task	datetime.now() (naive)	Task creation timestamp	yes	CRITICAL	no	NAIVE — persists to SQLite
+core/memory_manager.py	cache_swarm_shard	datetime.now() (naive)	Shard cache timestamp	yes	CRITICAL	no	NAIVE — persists to SQLite
+core/model_orchestration_state.py	_utcnow	datetime.now(timezone.utc)	Orchestration timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/voolbook_identity.py	_utcnow	datetime.now(timezone.utc)	Voolbook identity ts	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/onboarding.py	_utcnow	datetime.now(timezone.utc)	Onboarding timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/operator/approvals.py	_utcnow	datetime.now(timezone.utc)	Operator approvals ts	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/operator/calendar.py	(parameter default)	datetime.now(timezone.utc)	Calendar now function	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/prompt_normalizer.py	_runtime_turn_truth	datetime.now().astimezone()	System prompt clock fact	yes	CRITICAL	no	Disagrees with UTC spine near midnight
+core/provider_invocation_gateway.py	_utcnow	datetime.now(timezone.utc)	Provider gateway ts	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/retrieval_observability.py	_utcnow	datetime.now(timezone.utc)	Retrieval observability	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/reward_engine.py	(multiple)	datetime.now(timezone.utc)	Reward engine timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/runtime_continuity.py	(multiple)	datetime.now(timezone.utc)	Continuity timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/scoreboard_engine.py	_utcnow	datetime.now(timezone.utc)	Scoreboard timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/shard_synthesizer.py	_utcnow	datetime.now(timezone.utc)	Shard synthesizer ts	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/swarm_knowledge_fabric.py	_utcnow	datetime.now(timezone.utc)	Swarm knowledge fabric	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/task_capsule.py	(multiple)	datetime.now(timezone.utc)	Task capsule timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/task_decomposer.py	_utcnow	datetime.now(timezone.utc)	Task decomposer ts	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/task_state_machine.py	_utcnow	datetime.now(timezone.utc)	Task state machine ts	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/trace_id.py	_utcnow	datetime.now(timezone.utc)	Trace ID timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/usage_meter.py	(module-level)	datetime.now(timezone.utc)	Usage meter timestamp	yes	HIGH	no	Part of ~95 _utcnow duplicates
+core/web0_work_receipt.py	_iso	datetime.utcfromtimestamp()	Work receipt formatting	yes	CRITICAL	no	DEPRECATED API
+core/web0_work_receipt.py	issue_work_receipt	time.time()	Work receipt timestamps	yes	LOW	no	Epoch float variant
+network/peer_manager.py	mark_seen	datetime.now() (naive)	Peer last-seen ts	yes	CRITICAL	no	NAIVE — persists to SQLite
+network/peer_manager.py	update_peer_trust	datetime.now() (naive)	Peer trust update ts	yes	CRITICAL	no	NAIVE — persists to SQLite
+network/protocol.py	(multiple)	datetime.now(timezone.utc)	Protocol timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+network/signer.py	(multiple)	datetime.now(timezone.utc)	Signing timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
+storage/* (40+ files)	_utcnow	datetime.now(timezone.utc)	Per-store UTC timestamps	yes	HIGH	no	~40 duplicate _utcnow definitions

@@ -1,0 +1,12 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "factory",
+  "calls": [],
+  "source": "2c5050b6e8e1827753f782b0ab8434b384cad4ba",
+  "kind": "component comparison, NOT native acceptance",
+  "operations_source_sha256": "1e5a0d8758c86c768e42e26bde8a1503171481864d269410f630bb5b6a2e9689",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": true,
+  "component_plan": null
+}

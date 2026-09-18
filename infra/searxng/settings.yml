@@ -1,0 +1,22 @@
+use_default_settings: true
+
+server:
+  bind_address: "0.0.0.0"
+  port: 8080
+  # Change this before exposing the instance outside localhost.
+  secret_key: "CHANGE_ME_TO_A_LONG_RANDOM_SECRET"
+  limiter: true
+  public_instance: false
+
+redis:
+  url: redis://valkey:6379/0
+
+search:
+  safe_search: 1
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+ui:
+  static_use_hash: true

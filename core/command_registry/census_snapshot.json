@@ -1,0 +1,2903 @@
+{
+  "classifications": [
+    "REGISTRY_OWNED",
+    "GENERATED_ADAPTER",
+    "EXTERNAL_TRANSPORT_ONLY",
+    "LEGACY_UNMIGRATED",
+    "DEAD"
+  ],
+  "generated_by": "python -m core.command_registry.census --write",
+  "items": {
+    "chat-family:brakes": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "brakes",
+      "note": "frozen prose demand-routing (product law: not a command surface)",
+      "registry_command_id": "",
+      "surface": "chat-family"
+    },
+    "chat-family:cloud": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "cloud",
+      "note": "frozen prose demand-routing (product law: not a command surface)",
+      "registry_command_id": "",
+      "surface": "chat-family"
+    },
+    "chat-family:help": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "help",
+      "note": "frozen prose demand-routing (product law: not a command surface)",
+      "registry_command_id": "",
+      "surface": "chat-family"
+    },
+    "chat-family:new-family": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "new-family",
+      "note": "frozen prose demand-routing (product law: not a command surface)",
+      "registry_command_id": "",
+      "surface": "chat-family"
+    },
+    "chat-family:prefs": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "prefs",
+      "note": "frozen prose demand-routing (product law: not a command surface)",
+      "registry_command_id": "",
+      "surface": "chat-family"
+    },
+    "chat-family:secret-intake": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "secret-intake",
+      "note": "frozen prose demand-routing (product law: not a command surface)",
+      "registry_command_id": "",
+      "surface": "chat-family"
+    },
+    "chat-family:slash-refusal": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "slash-refusal",
+      "note": "frozen prose demand-routing (product law: not a command surface)",
+      "registry_command_id": "",
+      "surface": "chat-family"
+    },
+    "chat-family:trace-family": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "trace-family",
+      "note": "frozen prose demand-routing (product law: not a command surface)",
+      "registry_command_id": "",
+      "surface": "chat-family"
+    },
+    "chat-repl:/balance": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/balance",
+      "note": "credits lane via REPL",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/capabilities": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/capabilities",
+      "note": "web0 capability card via REPL",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/credits": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/credits",
+      "note": "credits lane via REPL",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/dial": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/dial",
+      "note": "web0 lane via REPL",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/exit": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/exit",
+      "note": "REPL lifecycle chrome",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/manifest": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/manifest",
+      "note": "web0 lane via REPL",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/quit": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/quit",
+      "note": "REPL lifecycle chrome",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/quote": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/quote",
+      "note": "web0 lane via REPL",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/resolve": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/resolve",
+      "note": "web0 lane via REPL",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/status": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "/status",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "status.show",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/summary": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "/summary",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "status.show",
+      "surface": "chat-repl"
+    },
+    "chat-repl:/web": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "/web",
+      "note": "performs a web-search turn (model lane action)",
+      "registry_command_id": "",
+      "surface": "chat-repl"
+    },
+    "cli-module:core.blackbox:rollback": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "python -m core.blackbox rollback",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "blackbox.rollback",
+      "surface": "cli-module"
+    },
+    "cli-module:core.blackbox:status": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "python -m core.blackbox status",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "blackbox.status",
+      "surface": "cli-module"
+    },
+    "cli-module:core.blackbox:turns": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "python -m core.blackbox turns",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "blackbox.turns",
+      "surface": "cli-module"
+    },
+    "cli-module:core.blackbox:verify": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "python -m core.blackbox verify",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "blackbox.verify",
+      "surface": "cli-module"
+    },
+    "cli-vool:adapt-autopilot": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-autopilot",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-corpus": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-corpus",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-corpus-export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-corpus-export",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-corpus-import": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-corpus-import",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-evals": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-evals",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-job-create": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-job-create",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-job-events": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-job-events",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-job-run": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-job-run",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-jobs": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-jobs",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-loop-status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-loop-status",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-loop-tick": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-loop-tick",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adapt-promote": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adapt-promote",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:adaptation-status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "adaptation-status",
+      "note": "adaptation lane developer tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.approve": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.approve",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.destination": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.destination",
+      "note": "bug-report lane read (destination state)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.draft": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.draft",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.export",
+      "note": "bug-report lane operator action (local sanitized export)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.preview": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.preview",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.receipts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.receipts",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.revoke": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.revoke",
+      "note": "bug-report lane operator action (draft revocation)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.status",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.submit": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.submit",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:control-sync": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "control-sync",
+      "note": "control-plane sync tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:credits": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "credits",
+      "note": "credits lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:dial": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "dial",
+      "note": "web0 peer lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:identities": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "identities",
+      "note": "web0 peer lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:install-profile": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "install-profile",
+      "note": "installer lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:manifest": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "manifest",
+      "note": "web0 capability card (peer lane)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:model-tool-certification": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "model-tool-certification",
+      "note": "certification lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:nullpass": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "nullpass",
+      "note": "device-tether parked lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:providers": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "providers",
+      "note": "local provider registry audit (certification lane)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:receipts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "receipts",
+      "note": "web0 anchored proofs (commercial lane); registry receipts.* owns the operator receipts surface",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:register": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "register",
+      "note": "web0 peer lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:release-status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "release-status",
+      "note": "installer lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:resolve": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "resolve",
+      "note": "web0 peer lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:sell-quote": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "sell-quote",
+      "note": "web0 peer lane",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:session-bundle": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "session-bundle",
+      "note": "session-portability lane (thin shell over core.session_portability.api; settings group = command-centre blueprint follow-up)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:session-bundle.export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "session-bundle.export",
+      "note": "session-portability lane (signed/encrypted bundle export over the ONE seam)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:session-bundle.import": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "session-bundle.import",
+      "note": "session-portability lane (atomic import over the ONE seam)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:session-bundle.inspect": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "session-bundle.inspect",
+      "note": "session-portability lane (bundle identity/manifest read over the ONE seam)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:session-bundle.preview": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "session-bundle.preview",
+      "note": "session-portability lane (export preview over the ONE seam)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:spend-freeze": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "spend-freeze",
+      "note": "wallet spend policy (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:spend-policy": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "spend-policy",
+      "note": "wallet spend policy (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:spend-set-cap": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "spend-set-cap",
+      "note": "wallet spend policy (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:spend-unfreeze": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "spend-unfreeze",
+      "note": "wallet spend policy (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:stage-trainable-base": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "stage-trainable-base",
+      "note": "training lane tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:summary": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "summary",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "status.show",
+      "surface": "cli-vool"
+    },
+    "cli-vool:trainable-base-status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "trainable-base-status",
+      "note": "training lane tooling",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:up": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "up",
+      "note": "OS launcher (starts services)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:update": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "update",
+      "note": "installer update_cli interactive flow; registry update.* owns the operator commands",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:wallet-address": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "wallet-address",
+      "note": "wallet lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:wallet-buy-credits": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "wallet-buy-credits",
+      "note": "wallet lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:wallet-export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "wallet-export",
+      "note": "wallet lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:wallet-init": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "wallet-init",
+      "note": "wallet lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:wallet-move-cold": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "wallet-move-cold",
+      "note": "wallet lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:wallet-status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "wallet-status",
+      "note": "wallet lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:wallet-topup-hot": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "wallet-topup-hot",
+      "note": "wallet lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:web": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "web",
+      "note": "performs a web-search turn (model lane action, not a command)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:x402-pay": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "x402-pay",
+      "note": "wallet lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-script:vool-agent": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.vool_agent:main",
+      "note": "runtime daemon entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-api": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.vool_api_server:main",
+      "note": "API server entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-benchmark": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "ops.benchmark_vool:main",
+      "note": "developer benchmark tool",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-daemon": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.vool_daemon:main",
+      "note": "runtime daemon entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-meet": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.meet_and_greet_server:main",
+      "note": "meet satellite entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-watch": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.brain_hive_watch_server:main",
+      "note": "watch satellite entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool": {
+      "classification": "REGISTRY_OWNED",
+      "name": "core.command_registry.cli:main",
+      "note": "the registry CLI",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-vool:<command dispatch>": {
+      "classification": "REGISTRY_OWNED",
+      "name": "vool <command dispatch>",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-vool:commands --check": {
+      "classification": "REGISTRY_OWNED",
+      "name": "vool commands --check",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-vool:commands --json": {
+      "classification": "REGISTRY_OWNED",
+      "name": "vool commands --json",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-vool:help": {
+      "classification": "REGISTRY_OWNED",
+      "name": "vool help",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "http:GET:/": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /",
+      "note": "index page transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/adaptation/evals": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/adaptation/evals",
+      "note": "adaptation lane feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/adaptation/job-events": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/adaptation/job-events",
+      "note": "adaptation lane feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/adaptation/jobs": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/adaptation/jobs",
+      "note": "adaptation lane feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/adaptation/loop": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/adaptation/loop",
+      "note": "adaptation lane feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/adaptation/status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/adaptation/status",
+      "note": "adaptation lane feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/bug-report/candidates": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/bug-report/candidates",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/bug-report/destination": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/bug-report/destination",
+      "note": "bug-report lane read feed (destination state)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/bug-report/receipts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/bug-report/receipts",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/bug-report/status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/bug-report/status",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/calendar/accounts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/calendar/accounts",
+      "note": "calendar lane read feed (accounts)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/calendar/alerts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/calendar/alerts",
+      "note": "calendar lane read feed (alerts)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/attachments": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/attachments",
+      "note": "chat read feed (staged attachments)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/attachments/documents": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/attachments/documents",
+      "note": "chat read feed (attached documents)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/attachments/limits": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/attachments/limits",
+      "note": "chat read feed (attachment limits)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/attachments/preview": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/attachments/preview",
+      "note": "chat read feed (attachment preview)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/dictation": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/dictation",
+      "note": "chat read feed (dictation availability probe)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/export",
+      "note": "chat read feed (transcript export)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/history": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/history",
+      "note": "chat read feed (transcript)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/pins": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/pins",
+      "note": "chat read feed (pinned messages)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/proof": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/proof",
+      "note": "chat read feed (proof chip)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/queue": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/queue",
+      "note": "chat read feed (queued messages)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/sessions": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/sessions",
+      "note": "chat read feed (session list)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/acceptances": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/acceptances",
+      "note": "price-acceptance feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/diagnostics": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/diagnostics",
+      "note": "cloud diagnostics feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/keys": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/keys",
+      "note": "credential intelligence lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/market-events": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/market-events",
+      "note": "market events feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/model": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/cloud/model",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "models.current",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/models": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/models",
+      "note": "cloud model catalog feed (dropdown)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/price-history": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/price-history",
+      "note": "price history feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/providers": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/providers",
+      "note": "cloud provider catalog feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/spend-limits": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/spend-limits",
+      "note": "effect-budget lane read feed (spend limits)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/status",
+      "note": "cloud status feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/usepod/discovery": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/usepod/discovery",
+      "note": "usepod lane read feed (discovery)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/cloud/usepod/x402/unresolved": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/cloud/usepod/x402/unresolved",
+      "note": "usepod lane read feed (unresolved x402 state)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/commands": {
+      "classification": "REGISTRY_OWNED",
+      "name": "GET /api/commands",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/commands/*": {
+      "classification": "REGISTRY_OWNED",
+      "name": "GET /api/commands/*",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/connections": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/connections",
+      "note": "connections feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.list",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts/credential": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts/credential",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.credential.status",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts/detail": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts/detail",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.detail",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts/import/sources": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts/import/sources",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.import.sources",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts/operations": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts/operations",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.operations.list",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts/operations/detail": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts/operations/detail",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.operations.detail",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts/options": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts/options",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.options",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts/resolve": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts/resolve",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.resolve",
+      "surface": "http"
+    },
+    "http:GET:/api/contacts/suggestions": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/contacts/suggestions",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.suggestions",
+      "surface": "http"
+    },
+    "http:GET:/api/context/pages": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/context/pages",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "context.pages.list",
+      "surface": "http"
+    },
+    "http:GET:/api/council/events": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/council/events",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.events",
+      "surface": "http"
+    },
+    "http:GET:/api/council/lock": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/council/lock",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.lock",
+      "surface": "http"
+    },
+    "http:GET:/api/council/runs": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/council/runs",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.runs",
+      "surface": "http"
+    },
+    "http:GET:/api/council/scorecard": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/council/scorecard",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.scorecard",
+      "surface": "http"
+    },
+    "http:GET:/api/council/status": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/council/status",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.status",
+      "surface": "http"
+    },
+    "http:GET:/api/credits/balance": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/credits/balance",
+      "note": "credits lane feed (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/discovery": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/discovery",
+      "note": "provider discovery lane read feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/email/accounts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/email/accounts",
+      "note": "email lane read feed (accounts)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/email/recovery": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/email/recovery",
+      "note": "email lane read feed (store recovery surface)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/files": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/files",
+      "note": "workspace files feed (deliberately read-only)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/files/raw": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/files/raw",
+      "note": "workspace files feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/intake/quarantine/list": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/intake/quarantine/list",
+      "note": "intake lane read feed (quarantine list)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/learning/procedures": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/learning/procedures",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "learning.list",
+      "surface": "http"
+    },
+    "http:GET:/api/memory/entries": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/memory/entries",
+      "note": "memory entries feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/mobile/devices": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/mobile/devices",
+      "note": "mobile companion read feed (device list)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/mobile/info": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/mobile/info",
+      "note": "mobile companion read feed (capability leaf)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/mobile/pairing/challenge": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/mobile/pairing/challenge",
+      "note": "mobile companion read feed (pairing challenge)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/mobile/pairing/page": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/mobile/pairing/page",
+      "note": "mobile companion UI page",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/mobile/pairing/status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/mobile/pairing/status",
+      "note": "mobile companion read feed (pairing status)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/mobile/receipts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/mobile/receipts",
+      "note": "mobile companion read feed (receipts)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/model-radar/feed": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/model-radar/feed",
+      "note": "model-radar lane feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/model-radar/preferences": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/model-radar/preferences",
+      "note": "model-radar lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/model-tool-certification": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/model-tool-certification",
+      "note": "certification lane feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/models/local": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/models/local",
+      "note": "model registry read feed (local models)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/money/contract": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/money/contract",
+      "note": "money contract lane read feed (contract)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/money/funding": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/money/funding",
+      "note": "money contract lane read feed (funding)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/money/grants": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/money/grants",
+      "note": "money contract lane read feed (grants)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/money/liabilities": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/money/liabilities",
+      "note": "money contract lane read feed (liabilities)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/money/liabilities/{id}": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/money/liabilities/{id}",
+      "note": "money contract lane read feed (one liability)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/money/projection": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/money/projection",
+      "note": "money contract lane read feed (projection)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/money/rules": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/money/rules",
+      "note": "money contract lane read feed (rules)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/notifications": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/notifications",
+      "note": "notifications lane read feed (centre inbox)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/notifications/native/status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/notifications/native/status",
+      "note": "notifications lane read feed (native helper status)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/notifications/preferences": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/notifications/preferences",
+      "note": "notifications lane read feed (preferences)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/oauth/status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/oauth/status",
+      "note": "oauth feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/onboarding/pact": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/onboarding/pact",
+      "note": "first-run pact state feed (server authority kept; its chat UI was retired 2026-09-07)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/onboarding/state": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/onboarding/state",
+      "note": "first-run provider-choice feed (the setup page reads /api/setup/state; kept for the pact authority)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/plugins": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/plugins",
+      "note": "plugin catalog feed (lane OFF by default)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/plugins/lifecycle": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/plugins/lifecycle",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "plugins.lifecycle.state",
+      "surface": "http"
+    },
+    "http:GET:/api/profile": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/profile",
+      "note": "profile feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/profile/export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/profile/export",
+      "note": "profile export",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/projects": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/projects",
+      "note": "workspace projects feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/reminders": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/reminders",
+      "note": "calendar lane read feed (reminders)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/repoops/session": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/repoops/session",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "repoops.session",
+      "surface": "http"
+    },
+    "http:GET:/api/repoops/sessions": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/repoops/sessions",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "repoops.sessions",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/capabilities": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/capabilities",
+      "note": "runtime feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/changes": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/changes",
+      "note": "runtime feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/control-plane/status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/control-plane/status",
+      "note": "control-plane aggregate feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/events": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/events",
+      "note": "runtime Activity feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/operator-snapshot": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/operator-snapshot",
+      "note": "operator snapshot feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/receipts": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/receipts",
+      "note": "Activity receipts feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/sessions": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/sessions",
+      "note": "runtime feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/unresolved-effects": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/unresolved-effects",
+      "note": "repair-lane feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/usage": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/usage",
+      "note": "runtime feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/runtime/version": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/runtime/version",
+      "note": "runtime feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/search/providers": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/search/providers",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "search.providers",
+      "surface": "http"
+    },
+    "http:GET:/api/session/bundle/download": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/session/bundle/download",
+      "note": "session-portability lane (confined download under session_bundles/)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/settings/credentials": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/settings/credentials",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "settings.credentials.list",
+      "surface": "http"
+    },
+    "http:GET:/api/settings/prefs": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/settings/prefs",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "settings.prefs.list",
+      "surface": "http"
+    },
+    "http:GET:/api/setup/state": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/setup/state",
+      "note": "first-run setup progress feed (derived; core/setup_progress.py)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/skills": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/skills",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "skills.list",
+      "surface": "http"
+    },
+    "http:GET:/api/tags": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/tags",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/update/status": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/update/status",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "update.status",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/balance": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/balance",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.balance",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/dna-fees": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/dna-fees",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.dna_fees.status",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/pocket/terms": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/pocket/terms",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.pocket.terms",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/proposals/{id}": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/proposals/{id}",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.proposal.get",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/receipts": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/receipts",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.receipts",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/safety": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/wallet/safety",
+      "note": "wallet safety envelope feed (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/status": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/status",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.status",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/transfers": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/transfers",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.transfers",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/usepod/status": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/usepod/status",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.usepod.status",
+      "surface": "http"
+    },
+    "http:GET:/api/wallet/wallets/{id}": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/wallet/wallets/{id}",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.get",
+      "surface": "http"
+    },
+    "http:GET:/api/web0/resolve": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/web0/resolve",
+      "note": "web0 gateway feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/chat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /chat",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/chat-assets/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /chat-assets/*",
+      "note": "chat assets read feed (static bundle family)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/healthz": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /healthz",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/media-editor": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /media-editor",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/media-editor/preview": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /media-editor/preview",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/media-editor/project": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /media-editor/project",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/media-editor/proxy": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /media-editor/proxy",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/null-browser": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /null-browser",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/school": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /school",
+      "note": "school satellite UI page",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/school/api/state": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /school/api/state",
+      "note": "school satellite read feed (state)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/school/student": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /school/student",
+      "note": "school satellite UI page",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/settings": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /settings",
+      "note": "settings page transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/setup": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /setup",
+      "note": "guided setup page (served like /settings; writes go through existing doors)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/task-rail": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /task-rail",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/trace": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /trace",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/v1/credits/balance": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /v1/credits/balance",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/v1/healthz": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /v1/healthz",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/v1/models": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /v1/models",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/v1/runtime/capabilities": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /v1/runtime/capabilities",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/v1/runtime/changes": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /v1/runtime/changes",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/v1/runtime/usage": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /v1/runtime/usage",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/v1/runtime/version": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /v1/runtime/version",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/v1/wallet/info": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /v1/wallet/info",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/web0": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /web0",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/adaptation/loop/tick": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/adaptation/loop/tick",
+      "note": "adaptation lane (gated internally)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/auth/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/auth/*",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "auth.callback.record",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/approve": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/approve",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/draft": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/draft",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/export",
+      "note": "bug-report lane operator action (local sanitized export)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/preview": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/preview",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/revoke": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/revoke",
+      "note": "bug-report lane operator action (draft revocation)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/submit": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/submit",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/update": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/update",
+      "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/accounts/add": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/accounts/add",
+      "note": "calendar lane operator action (account add)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/accounts/disconnect": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/accounts/disconnect",
+      "note": "calendar lane operator action (account disconnect)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/accounts/discover": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/accounts/discover",
+      "note": "calendar lane operator action (account discovery)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/accounts/opt-in": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/accounts/opt-in",
+      "note": "calendar lane operator action (projection opt-in)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/accounts/reconnect": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/accounts/reconnect",
+      "note": "calendar lane operator action (account reconnect)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/accounts/select": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/accounts/select",
+      "note": "calendar lane operator action (account selection)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/alerts/policy": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/alerts/policy",
+      "note": "calendar lane operator action (alerts policy)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/sync": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/sync",
+      "note": "calendar lane operator action (account sync)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/chat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/chat",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/attachments/remove": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/attachments/remove",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chat.attachment.remove",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/cancel": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/cancel",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chat.cancel",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/dictation": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/dictation",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chat.dictation",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/pin": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/pin",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chat.pin",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/queue": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/queue",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chat.queue.update",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/session": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/session",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chat.session.update",
+      "surface": "http"
+    },
+    "http:POST:/api/cloud/auto-model": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/cloud/auto-model",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "models.auto",
+      "surface": "http"
+    },
+    "http:POST:/api/cloud/model": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/cloud/model",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "models.pin",
+      "surface": "http"
+    },
+    "http:POST:/api/cloud/test": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/cloud/test",
+      "note": "cloud connection probe lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/cloud/usepod/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/cloud/usepod/*",
+      "note": "usepod lane operator surface family (its own spend/consent gates)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/commands/dispatch": {
+      "classification": "REGISTRY_OWNED",
+      "name": "POST /api/commands/dispatch",
+      "note": "registry API projection",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/create": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/create",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.create",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/credential/change": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/credential/change",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.credential.change",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/credential/enroll": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/credential/enroll",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.credential.enroll",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/credential/reset": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/credential/reset",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.credential.reset",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/delete": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/delete",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.delete",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/import/apply": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/import/apply",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.import.apply",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/import/connect": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/import/connect",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.import.connect",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/import/preview": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/import/preview",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.import.preview",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/import/remove": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/import/remove",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.import.remove",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/operations/cancel": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/operations/cancel",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.operations.cancel",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/operations/commit": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/operations/commit",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.operations.commit",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/operations/confirm": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/operations/confirm",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.operations.confirm",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/suggestions/accept": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/suggestions/accept",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.suggestion.accept",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/suggestions/dismiss": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/suggestions/dismiss",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.suggestion.dismiss",
+      "surface": "http"
+    },
+    "http:POST:/api/contacts/update": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/contacts/update",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "contacts.book.update",
+      "surface": "http"
+    },
+    "http:POST:/api/context/pages": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/context/pages",
+      "note": "legacy surface forwards through execute_command; typed family: context.pages.archive, context.pages.bump_generation, context.pages.erase, context.pages.pin, context.pages.recall, context.pages.release_pin, context.pages.supersede, context.pages.withhold",
+      "registry_command_id": "context.pages.archive",
+      "surface": "http"
+    },
+    "http:POST:/api/council/convene": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/council/convene",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.convene",
+      "surface": "http"
+    },
+    "http:POST:/api/council/resume": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/council/resume",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.resume",
+      "surface": "http"
+    },
+    "http:POST:/api/council/seat": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/council/seat",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.seat",
+      "surface": "http"
+    },
+    "http:POST:/api/council/stop": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/council/stop",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "council.stop",
+      "surface": "http"
+    },
+    "http:POST:/api/credits/settle": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/credits/settle",
+      "note": "credits lane (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/discovery/refresh": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/discovery/refresh",
+      "note": "provider discovery lane operator action (refresh)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/email/recovery/acknowledge": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/email/recovery/acknowledge",
+      "note": "email lane operator action (recovery acknowledgement)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/email/recovery/check": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/email/recovery/check",
+      "note": "email lane operator action (recovery check)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/files/open": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/files/open",
+      "note": "workspace lane (OS reveal)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/generate": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/generate",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/intake/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/intake/*",
+      "note": "legacy surface forwards through execute_command; typed family: intake.begin, intake.classify, intake.complete, intake.preview, intake.verify",
+      "registry_command_id": "intake.begin",
+      "surface": "http"
+    },
+    "http:POST:/api/learning/procedures": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/learning/procedures",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "learning.list",
+      "surface": "http"
+    },
+    "http:POST:/api/learning/procedures/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/learning/procedures/*",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "learning.invalidate",
+      "surface": "http"
+    },
+    "http:POST:/api/memory/forget": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/memory/forget",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "memory.forget",
+      "surface": "http"
+    },
+    "http:POST:/api/mobile/companion": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/mobile/companion",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.companion.dispatch",
+      "surface": "http"
+    },
+    "http:POST:/api/mobile/devices": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/mobile/devices",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.devices.revoke",
+      "surface": "http"
+    },
+    "http:POST:/api/mobile/devices/revoke": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/mobile/devices/revoke",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.devices.revoke",
+      "surface": "http"
+    },
+    "http:POST:/api/mobile/pairing/claim": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/mobile/pairing/claim",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.pairing.claim",
+      "surface": "http"
+    },
+    "http:POST:/api/mobile/pairing/start": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/mobile/pairing/start",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.pairing.start",
+      "surface": "http"
+    },
+    "http:POST:/api/mode": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/mode",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "approvals.resolve",
+      "surface": "http"
+    },
+    "http:POST:/api/model-radar/dismiss": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/model-radar/dismiss",
+      "note": "model-radar lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/model-radar/preferences": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/model-radar/preferences",
+      "note": "model-radar lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/model-radar/try-once": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/model-radar/try-once",
+      "note": "model-radar lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/model-radar/viewed": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/model-radar/viewed",
+      "note": "model-radar lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/model-tool-certification/run": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/model-tool-certification/run",
+      "note": "certification lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/models/local/register": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/models/local/register",
+      "note": "model registry operator action (local model registration)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/money/grants/revoke": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/money/grants/revoke",
+      "note": "money contract lane operator action (grant revocation)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/money/reconcile": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/money/reconcile",
+      "note": "money contract lane operator action (reconcile)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/notifications/action": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/action",
+      "note": "notifications lane operator action (inbox row action)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/notifications/native/authorize": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/native/authorize",
+      "note": "notifications lane operator action (native authorization)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/notifications/native/outbox": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/native/outbox",
+      "note": "notifications lane operator action (native outbox drain)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/notifications/native/report": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/native/report",
+      "note": "notifications lane operator action (native delivery report)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/notifications/native/test": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/native/test",
+      "note": "notifications lane operator action (native test delivery)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/notifications/preferences": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/preferences",
+      "note": "notifications lane operator action (preferences)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/null": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/null",
+      "note": "web0 lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/onboarding/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/onboarding/*",
+      "note": "legacy surface forwards through execute_command; typed family: first_run.choice.local_only, first_run.pact.advance, first_run.pact.begin, first_run.pact.boundary.set, first_run.pact.denial.claim, first_run.pact.facts.forget, first_run.pact.facts.set, first_run.pact.hide, first_run.pact.name, first_run.pact.reset, first_run.pact.skip, first_run.pact.task.claim, onboarding.choice, onboarding.reset",
+      "registry_command_id": "first_run.choice.local_only",
+      "surface": "http"
+    },
+    "http:POST:/api/plugins/enable": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/plugins/enable",
+      "note": "plugin lane (flag OFF by default)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/plugins/lifecycle": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/plugins/lifecycle",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "plugins.lifecycle.transition",
+      "surface": "http"
+    },
+    "http:POST:/api/plugins/rescan": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/plugins/rescan",
+      "note": "plugin catalog operator action (rescan)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/profile/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/profile/*",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "profile.remember",
+      "surface": "http"
+    },
+    "http:POST:/api/projects": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/projects",
+      "note": "workspace lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/projects/delete": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/projects/delete",
+      "note": "workspace lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/projects/emoji": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/projects/emoji",
+      "note": "workspace lane (UI-first)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/projects/reveal": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/projects/reveal",
+      "note": "workspace lane (OS reveal)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/repoops/authorize-forge-action": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/repoops/authorize-forge-action",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "repoops.authorize_forge_action",
+      "surface": "http"
+    },
+    "http:POST:/api/repoops/authorize-push": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/repoops/authorize-push",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "repoops.authorize_push",
+      "surface": "http"
+    },
+    "http:POST:/api/runtime/unresolved-effects/resolve": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/runtime/unresolved-effects/resolve",
+      "note": "repair lane (RootCauseContract); folds into the repair group follow-up",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/search/detect": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/search/detect",
+      "note": "runtime detection probe",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/search/test": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/search/test",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "search.test",
+      "surface": "http"
+    },
+    "http:POST:/api/session/bundle/export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/session/bundle/export",
+      "note": "session-portability lane (export door over the ONE seam)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/session/bundle/import": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/session/bundle/import",
+      "note": "session-portability lane (import door over the ONE seam)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/session/bundle/inspect-import": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/session/bundle/inspect-import",
+      "note": "session-portability lane (inspect+preview door over the ONE seam)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/session/bundle/preview": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/session/bundle/preview",
+      "note": "session-portability lane (preview door over the ONE seam)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/settings/credentials": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/settings/credentials",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "settings.credentials.set",
+      "surface": "http"
+    },
+    "http:POST:/api/settings/prefs": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/settings/prefs",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "settings.prefs.set",
+      "surface": "http"
+    },
+    "http:POST:/api/show": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/show",
+      "note": "web0 lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/skills/enable": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/skills/enable",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "skills.set_enabled",
+      "surface": "http"
+    },
+    "http:POST:/api/task/recovery": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/task/recovery",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "tasks.recovery",
+      "surface": "http"
+    },
+    "http:POST:/api/update/check": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/update/check",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "update.check",
+      "surface": "http"
+    },
+    "http:POST:/api/update/install": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/update/install",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "update.apply",
+      "surface": "http"
+    },
+    "http:POST:/api/update/restart": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/update/restart",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "update.restart",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/approval-method": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/wallet/approval-method",
+      "note": "wallet lane: PIN / password / device switch (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/approve": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/approve",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.approve",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/dna-fees/policy": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/dna-fees/policy",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.dna_fees.policy",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/environment": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/environment",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.environment.set",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/export": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/wallet/export",
+      "note": "wallet lane: private-key export behind device presence (goal exclusion: wallet)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/external": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/external",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.external.register",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/external/submit": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/external/submit",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.external.submit",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/facilitator/discover": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/facilitator/discover",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.facilitator.discover",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/facilitators": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/facilitators",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.facilitators.list",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/limits": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/limits",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.limits.set",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/pocket/create": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/pocket/create",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.pocket.create",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/pocket/restore": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/pocket/restore",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.pocket.restore",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/propose": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/propose",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.propose",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/quote": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/quote",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.quote.mint",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/recovery/backup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/recovery/backup",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.recovery.backup",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/recovery/device": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/recovery/device",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.recovery.device",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/recovery/options": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/recovery/options",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.recovery.options",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/reject": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/reject",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.reject",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/setup/acknowledge": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/setup/acknowledge",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.setup.acknowledge",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/setup/cancel": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/setup/cancel",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.setup.cancel",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/setup/create": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/setup/create",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.setup.create",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/setup/resume": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/setup/resume",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.setup.resume",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/setup/reveal": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/setup/reveal",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.setup.reveal",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/transfers/discard": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/transfers/discard",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.transfers.discard",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/transfers/refresh": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/transfers/refresh",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.transfers.refresh",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/transfers/resend": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/transfers/resend",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.transfers.resend",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/transfers/stop-waiting": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/transfers/stop-waiting",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.transfers.stop_waiting",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/usepod/topup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/usepod/topup",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.usepod.topup",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/watch-only": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/watch-only",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.watch_only.create",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/x402/fetch": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/x402/fetch",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.x402.fetch",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/x402/propose": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/x402/propose",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.x402.propose",
+      "surface": "http"
+    },
+    "http:POST:/api/wallet/x402/retry": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/x402/retry",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.x402.retry",
+      "surface": "http"
+    },
+    "http:POST:/gate/unlock": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /gate/unlock",
+      "note": "web0 lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/media-editor": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /media-editor",
+      "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/media-editor/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /media-editor/*",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "media.editor.open",
+      "surface": "http"
+    },
+    "http:POST:/school/api/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /school/api/*",
+      "note": "school satellite operator surface family",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/v1/chat/completions": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /v1/chat/completions",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/v1/credits/settle": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /v1/credits/settle",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/v1/null": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /v1/null",
+      "note": "machine/model-lane or satellite transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:UPLOAD:/api/session/bundle/upload": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "UPLOAD /api/session/bundle/upload",
+      "note": "session-portability lane (staging upload door; nothing parsed/imported)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "launcher:Install_And_Run_VOOL.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Install_And_Run_VOOL.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Install_And_Run_VOOL.command": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Install_And_Run_VOOL.command",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Install_And_Run_VOOL.ps1": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Install_And_Run_VOOL.ps1",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Install_And_Run_VOOL.sh": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Install_And_Run_VOOL.sh",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Install_VOOL.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Install_VOOL.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Install_VOOL.command": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Install_VOOL.command",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Install_VOOL.sh": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Install_VOOL.sh",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:OpenClaw_VOOL.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "OpenClaw_VOOL.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Open_Web0.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Open_Web0.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Probe_VOOL_Stack.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Probe_VOOL_Stack.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Probe_VOOL_Stack.sh": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Probe_VOOL_Stack.sh",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Stage_Trainable_Base.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Stage_Trainable_Base.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Stage_Trainable_Base.command": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Stage_Trainable_Base.command",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Stage_Trainable_Base.sh": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Stage_Trainable_Base.sh",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Start_VOOL.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Start_VOOL.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Stop_VOOL.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Stop_VOOL.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Talk_To_VOOL.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Talk_To_VOOL.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Test_VOOL_Windows_Gauntlet.cmd": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Test_VOOL_Windows_Gauntlet.cmd",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Test_VOOL_Windows_Stack.cmd": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Test_VOOL_Windows_Stack.cmd",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Verify_VOOL.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Verify_VOOL.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:Verify_VOOL.sh": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Verify_VOOL.sh",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:vool_background.cmd": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "vool_background.cmd",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:vool_background.vbs": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "vool_background.vbs",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:run.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "run.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:run.sh": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "run.sh",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    }
+  },
+  "totals": {
+    "DEAD": 0,
+    "EXTERNAL_TRANSPORT_ONLY": 280,
+    "GENERATED_ADAPTER": 124,
+    "LEGACY_UNMIGRATED": 0,
+    "REGISTRY_OWNED": 8
+  }
+}

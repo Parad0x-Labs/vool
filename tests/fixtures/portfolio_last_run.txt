@@ -1,0 +1,24 @@
+I have $12,500 USD and want to diversify it across British pounds, silver, and platinum.
+
+Allocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.
+
+Assume:
+
+* GBP/USD = 1.312
+* Silver = $41.80 per troy ounce
+* Platinum = $1,485.00 per troy ounce
+* Currency conversion fee = 0.8%
+* Silver purchase premium = 3.0%
+* Platinum purchase premium = 2.2%
+
+Calculate:
+
+1. How many British pounds I receive after the FX fee.
+2. How many troy ounces and grams of silver I can buy after the premium.
+3. How many troy ounces and grams of platinum I can buy after the premium.
+4. The exact USD amount allocated to each asset.
+5. The dollar amount paid in each fee/premium and their combined total.
+6. What percentage of the original $12,500 is lost to fees/premiums.
+7. Present the result in a compact table and finish with a short explanation of the final portfolio.
+
+Show enough calculation to verify the numbers, but keep the final answer concise and easy to read.

@@ -1,0 +1,144 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "tank",
+  "calls": [
+    {
+      "system": "result-presentation.v1: explain the supplied computed results briefly. Do not recalculate or invent observations. Return JSON with an explanation array. Each item is either plain text containing no digits, or an object with exactly one key ref naming a listed result symbol. Use references for all numerical statements. The runtime supplies the presentation; do not repeat it.",
+      "prompt": "{\"request\": \"Show the refrigerated shipment count in a table and briefly explain the outcome.\", \"results\": [{\"ref\": \"dependency_1_value_1\", \"node_id\": \"cold-chain\", \"step_id\": \"\", \"label\": \"Refrigerated parcels\", \"value\": 144.0, \"unit\": \"parcels\", \"calculation\": \"\"}]}",
+      "max_tokens": 1400,
+      "reasoning": null,
+      "temperature": 0,
+      "reserved_usd": "0.000118440",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "result-presentation.v1: explain the supplied computed results briefly. Do not recalculate or invent observations. Return JSON with an explanation array. Each item is either plain text containing no digits, or an object with exactly one key ref naming a listed result symbol. Use references for all numerical statements. The runtime supplies the presentation; do not repeat it."
+          },
+          {
+            "role": "user",
+            "content": "{\"request\": \"Show the refrigerated shipment count in a table and briefly explain the outcome.\", \"results\": [{\"ref\": \"dependency_1_value_1\", \"node_id\": \"cold-chain\", \"step_id\": \"\", \"label\": \"Refrigerated parcels\", \"value\": 144.0, \"unit\": \"parcels\", \"calculation\": \"\"}]}"
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 1400,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "vool_json_object",
+            "strict": false,
+            "schema": {
+              "type": "object",
+              "required": [
+                "explanation"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "explanation": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[^0-9]*$"
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "ref"
+                        ],
+                        "additionalProperties": false,
+                        "properties": {
+                          "ref": {
+                            "type": "string",
+                            "enum": [
+                              "dependency_1_value_1"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "{\n  \"explanation\": [\n    \"The table below shows the refrigerated parcel count from the cold-chain analysis.\",\n    {\n      \"ref\": \"dependency_1_value_1\"\n    },\n    \"This figure represents the total number of parcels that require temperature-controlled transport, derived directly from the shipment data.\"\n  ]\n}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 170,
+        "completion_tokens": 146,
+        "total_tokens": 316,
+        "cost": 3.648e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 3.648e-05,
+          "upstream_inference_prompt_cost": 1.02e-05,
+          "upstream_inference_completions_cost": 2.628e-05
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 86,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "DeepInfra",
+      "generation_id": "gen-1789142025-rEQqTMXOJN2PWPtV3pOV",
+      "seconds": 3.536
+    }
+  ],
+  "source": "9ab5a6a97ed307db71f885be600869475b5fd96e",
+  "kind": "live structured presentation of recorded/controlled results; arithmetic NOT reverified",
+  "operations_source_sha256": "36df4c68077f98157c114f3a8190935557fcefaffaeac07cf28cc48b3b107e93",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": false,
+  "result": {
+    "rows": [
+      {
+        "ref": "dependency_1_value_1",
+        "node_id": "cold-chain",
+        "step_id": "",
+        "label": "Refrigerated parcels",
+        "value": 144.0,
+        "unit": "parcels",
+        "calculation": ""
+      }
+    ],
+    "explanation": [
+      {
+        "text": "The table below shows the refrigerated parcel count from the cold-chain analysis."
+      },
+      {
+        "ref": "dependency_1_value_1"
+      },
+      {
+        "text": "This figure represents the total number of parcels that require temperature-controlled transport, derived directly from the shipment data."
+      }
+    ],
+    "cannot_determine": [],
+    "presentation_format": "table",
+    "chart_kind": "bars_v",
+    "chart_error": "",
+    "source_node_ids": [
+      "cold-chain"
+    ]
+  },
+  "rendered": "| Result | Calculation | Value |\n| --- | --- | --- |\n| Refrigerated parcels | `` | 144 parcels |\n\nThe table below shows the refrigerated parcel count from the cold-chain analysis.144 parcelsThis figure represents the total number of parcels that require temperature-controlled transport, derived directly from the shipment data."
+}

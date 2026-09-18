@@ -1,0 +1,1429 @@
+#!/usr/bin/env python3
+"""vool-database plugin handler (json_stdio_v1).
+
+One JSON object in on stdin, one JSON object out on stdout. Stdlib-only and
+Python 3.9 compatible on purpose: the confined child environment resolves
+`python3` against `/usr/bin:/bin:...`, which is the interpreter the host
+guarantees without widening the environment allowlist.
+
+Safety shape of every tool here:
+
+- A database is named by a BARE NAME, never a path. Names resolve under
+  `<PLUGIN_SCRATCH>/databases/<name>.sqlite`, so a model cannot aim this plugin
+  at an operator file, and the mutating child's one writable root is the
+  scratch directory the executor already confines it to.
+- Read-only tools open SQLite with `mode=ro` at the ENGINE level: an UPDATE,
+  INSERT, PRAGMA write or ATTACH-writethrough fails inside SQLite even if the
+  statement-shape guard is bypassed, and the kernel confinement additionally
+  denies the child every writable path.
+- Mutating tools run single-transaction with an explicit backup taken first,
+  and they answer with the engine's actual rollback semantics, never a promise
+  a file snapshot cannot keep.
+"""
+import base64
+import hashlib
+import json
+import os
+import re
+import sys
+import time
+import uuid
+
+import sqlite3
+
+MAX_ROW_LIMIT = 1000
+DEFAULT_ROW_LIMIT = 200
+MAX_SECONDS = 30
+DEFAULT_SECONDS = 5
+MAX_TEXT_BYTES = 256 * 1024
+APPLY_DEADLINE_SECONDS = 50
+
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+SELECT_HEAD_RE = re.compile(r"^\s*(select|with)\b", re.IGNORECASE)
+
+# Column-name fragments that usually mean personal data. Advisory only: a name
+# heuristic cannot prove PII, it flags columns a reviewer should look at.
+PII_FRAGMENTS = (
+    "email", "mail", "phone", "tel", "mobile", "addr", "address", "street",
+    "ssn", "social", "passport", "birth", "dob", "license", "iban", "bic",
+    "card", "pan", "cvv", "cvc", "token", "secret", "password", "passwd",
+    "private", "biometric", "lat", "lon", "latitude", "longitude",
+)
+
+_ENGINE_TRUTH = {
+    "engine": "sqlite",
+    "ddl_transactional": True,
+    "ddl_exceptions": [
+        "VACUUM cannot run inside a transaction",
+        "PRAGMA changes that take effect outside a transaction (e.g. journal_mode=WAL when a transaction is open)",
+    ],
+    "remote_rollback": "a file backup restores THIS local file only; it never rolls back a remote or attached database",
+}
+
+
+class Fail(Exception):
+    def __init__(self, status, error, **observation):
+        Exception.__init__(self, error)
+        self.status = status
+        self.error = error
+        self.observation = observation
+
+
+class Cancelled(Exception):
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Statement policy: the WRAPPER owns the transaction, never the input SQL.
+#
+# Two layers, neither a phrase blacklist:
+#
+# 1. Parsing that understands SQL text -- comments (-- and /* */), string
+#    literals and whitespace are handled BEFORE the first keyword is read, so
+#    "-- x\nCOMMIT" or "/* c */ ATTACH ..." classify as what they are.
+# 2. The engine's own authorization: while caller statements run, an authorizer
+#    denies SQLITE_TRANSACTION / SQLITE_ATTACH / SQLITE_DETACH / SQLITE_PRAGMA
+#    at prepare time. Anything the parser misreads dies inside SQLite with
+#    "not authorized" instead of escaping the wrapper's transaction.
+# ---------------------------------------------------------------------------
+
+# Authorizer action codes (stable sqlite3.h values; Python 3.9 does not export them).
+# RETURN codes follow the sqlite3 MODULE's numbering (SQLITE_OK=0, SQLITE_DENY=1),
+# which is what set_authorizer callbacks must answer with -- NOT the C-API's 1/2.
+_AUTH_OK = getattr(sqlite3, "SQLITE_OK", 0)
+_AUTH_DENY = getattr(sqlite3, "SQLITE_DENY", 1)
+_ACT_TRANSACTION = getattr(sqlite3, "SQLITE_TRANSACTION", 22)
+_ACT_ATTACH = getattr(sqlite3, "SQLITE_ATTACH", 24)
+_ACT_DETACH = getattr(sqlite3, "SQLITE_DETACH", 25)
+_ACT_PRAGMA = getattr(sqlite3, "SQLITE_PRAGMA", 19)
+_ACT_SAVEPOINT = getattr(sqlite3, "SQLITE_SAVEPOINT", 32)  # savepoints carry their OWN action code
+
+TRANSACTION_HEADS = frozenset({"BEGIN", "COMMIT", "END", "ROLLBACK", "SAVEPOINT", "RELEASE"})
+ATTACHMENT_HEADS = frozenset({"ATTACH", "DETACH"})
+MAINTENANCE_HEADS = frozenset({"VACUUM"})
+
+
+def _strip_sql_noise(text):
+    """Remove -- and /* */ comments (string-literal aware) and collapse whitespace.
+
+    Nested block comments are NOT nested in SQLite (they end at the first */),
+    so neither are they here. String literals survive untouched so a ';' or a
+    keyword inside data can never change how a statement classifies.
+    """
+    out = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == "'":
+            out.append(c)
+            i += 1
+            while i < n:
+                out.append(text[i])
+                if text[i] == "'":
+                    # A doubled quote is an escaped quote inside the literal.
+                    if i + 1 < n and text[i + 1] == "'":
+                        out.append(text[i + 1])
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == '"':
+            out.append(c)
+            i += 1
+            while i < n:
+                out.append(text[i])
+                if text[i] == '"':
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == "-" and i + 1 < n and text[i + 1] == "-":
+            j = text.find("\n", i)
+            if j < 0:
+                break
+            i = j  # keep the newline
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            j = text.find("*/", i + 2)
+            if j < 0:
+                break
+            out.append(" ")
+            i = j + 2
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _split_statements(text):
+    """Split one SQL script on statement-ending semicolons outside string literals."""
+    statements = []
+    current = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in ("'", '"'):
+            quote = c
+            current.append(c)
+            i += 1
+            while i < n:
+                current.append(text[i])
+                if text[i] == quote:
+                    if quote == "'" and i + 1 < n and text[i + 1] == "'":
+                        current.append(text[i + 1])
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == ";":
+            statements.append("".join(current))
+            current = []
+            i += 1
+            continue
+        current.append(c)
+        i += 1
+    statements.append("".join(current))
+    return [s.strip() for s in statements if s.strip()]
+
+
+def _statement_head(stmt):
+    """First keyword of one statement, with comments/whitespace already gone."""
+    stripped = _strip_sql_noise(stmt).strip().lstrip(";").strip()
+    tokens = stripped.split(None, 1)
+    return (tokens[0].upper() if tokens else ""), stripped
+
+
+def classify_migration_statements(statements):
+    """Refuse anything that could escape the wrapper's transaction or file scope.
+
+    Raises Fail with a typed status BEFORE any effect. Shared by db.create,
+    migrate.preview and migrate.apply so the three doors have ONE policy.
+    """
+    if not isinstance(statements, list) or not statements:
+        raise Fail("invalid_arguments", "statements must be a non-empty list of SQL strings")
+    clean = []
+    for index, stmt in enumerate(statements):
+        text = str(stmt or "").strip()
+        if not text.strip():
+            raise Fail("invalid_arguments", "statement %d is empty" % (index + 1))
+        heads = [_statement_head(part) for part in _split_statements(text)]
+        heads = [h for h in heads if h[1]]
+        if not heads:
+            raise Fail("invalid_arguments", "statement %d is empty" % (index + 1))
+        if len(heads) > 1:
+            raise Fail(
+                "refused_multi_statement",
+                "statement %d carries %d statements; give each SQL statement its own list entry "
+                "so the wrapper can own the transaction" % (index + 1, len(heads)),
+            )
+        head, body = heads[0]
+        where = "statement %d" % (index + 1)
+        if head in TRANSACTION_HEADS:
+            raise Fail(
+                "refused_transaction_control",
+                "%s (%s) is refused: the migration wrapper owns BEGIN/COMMIT/ROLLBACK and "
+                "savepoints; a caller-controlled transaction verb is how a partial commit "
+                "escapes a failed migration" % (where, head),
+            )
+        if head in ATTACHMENT_HEADS:
+            raise Fail(
+                "refused_attachment",
+                "%s (%s) is refused: ATTACH/DETACH would widen the operation past the one file "
+                "that was backed up" % (where, head),
+            )
+        if head == "PRAGMA":
+            raise Fail(
+                "refused_pragma",
+                "%s is refused: engine configuration does not belong inside a migration; PRAGMA "
+                "writes can escape the transaction (writable_schema, journal_mode) and reads "
+                "belong to the introspection tools" % where,
+            )
+        if head in MAINTENANCE_HEADS:
+            raise Fail(
+                "refused_maintenance",
+                "%s (VACUUM) is refused: VACUUM cannot run inside a transaction; run it as its "
+                "own approved step" % where,
+            )
+        clean.append(body.rstrip(";").strip() or text.rstrip(";").strip())
+    return clean
+
+
+def _migration_authorizer(action, arg1, arg2, database, trigger):
+    """Engine-level backstop armed while CALLER statements are prepared.
+
+    Denies transaction control, attachment and pragma actions no matter how the
+    statement text reached the engine. Returns the sqlite3 module's return codes.
+    """
+    if action == _ACT_TRANSACTION or action == _ACT_SAVEPOINT:
+        return _AUTH_DENY
+    if action in (_ACT_ATTACH, _ACT_DETACH):
+        return _AUTH_DENY
+    if action == _ACT_PRAGMA:
+        return _AUTH_DENY
+    return _AUTH_OK
+
+
+def _wrapper_execute(conn, sql):
+    """Run one WRAPPER control statement with the authorizer disarmed.
+
+    The authorizer is armed ONLY around caller statements (see
+    _execute_guarded_statement): wrapper BEGIN/COMMIT/ROLLBACK and the
+    wrapper's own integrity PRAGMA are the trusted control path.
+    """
+    conn.set_authorizer(None)
+    return conn.execute(sql)
+
+
+def _arm_authorizer(conn):
+    conn.set_authorizer(_migration_authorizer)
+
+
+def _apply_deadline(conn, seconds=APPLY_DEADLINE_SECONDS):
+    started = [time.monotonic()]
+
+    def check():
+        if time.monotonic() - started[0] > seconds:
+            raise Cancelled("migration exceeded its %ss budget and was cancelled" % seconds)
+        return 0
+
+    conn.set_progress_handler(check, 2000)
+
+
+# ---------------------------------------------------------------------------
+# Value-faithful verification. A verification that compared schema and row
+# COUNTS called itself "content verified" while [(1,)] and [(999,)] compared
+# equal -- the claim and the check have to match. The fingerprint below reads
+# schema PLUS every cell (NULL/BLOB/duplicates included) as one consistent
+# snapshot within a budget; if the read cannot complete, the caller gets None
+# and must report UNKNOWN, never verified. Physical row order is layout, not
+# logical content, so per-row digests are sorted before chaining.
+# ---------------------------------------------------------------------------
+
+VERIFY_BUDGET_SECONDS = 10
+
+
+def _typed_cell(value):
+    """One cell as unambiguous bytes: type tag plus exact value."""
+    if value is None:
+        return b"N"
+    if isinstance(value, bool):  # before int: bool is an int subclass
+        return b"Z1" if value else b"Z0"
+    if isinstance(value, int):
+        return b"I" + hex(value).encode("ascii")
+    if isinstance(value, float):
+        return b"F" + value.hex().encode("ascii")
+    if isinstance(value, str):
+        raw = value.encode("utf-8", "surrogatepass")
+        return b"S" + str(len(raw)).encode("ascii") + b":" + raw
+    if isinstance(value, bytes):
+        return b"B" + str(len(value)).encode("ascii") + b":" + value.hex().encode("ascii")
+    return b"O" + repr(value).encode("utf-8", "replace")
+
+
+def _content_fingerprint(conn, *, budget_seconds=VERIFY_BUDGET_SECONDS):
+    """Logical snapshot digest: schema text + every cell of every user table.
+
+    Returns a hex digest, or None when a bounded consistent read was impossible
+    (deadline, busy database, engine error). None MEANS unknown -- callers must
+    never turn it into a verified answer.
+    """
+    if budget_seconds <= 0:
+        return None
+    started = time.monotonic()
+
+    def expired():
+        if time.monotonic() - started > budget_seconds:
+            raise Cancelled("verification budget exceeded")
+        return 0
+
+    conn.set_progress_handler(expired, 500)
+    try:
+        # One deferred read transaction: every table read sees the same
+        # snapshot even if a concurrent writer commits in between.
+        conn.execute("BEGIN")
+        try:
+            schema = conn.execute(
+                "SELECT type, name, sql FROM sqlite_master ORDER BY type, name"
+            ).fetchall()
+            table_digests = []
+            for kind, tname, _sql in schema:
+                if kind != "table" or str(tname).startswith("sqlite_"):
+                    continue
+                safe = str(tname).replace('"', '""')
+                # Column identities come from the SAME projection the cells come
+                # from (cursor.description of this SELECT *). PRAGMA table_info
+                # OMITS generated columns while SELECT * INCLUDES them, so a
+                # table_info-derived name list mislabels or truncates cells --
+                # measured: tables differing only in z after a generated column
+                # fingerprinted equal. The projection is the authority.
+                cursor = conn.execute('SELECT * FROM "%s"' % safe)
+                names = [str(d[0]) for d in (cursor.description or [])]
+                if not names:
+                    raise RuntimeError("no projection for table %r" % str(tname))
+                row_digests = []
+                for row in cursor:
+                    if len(row) != len(names):
+                        # Cells and projection disagree in width: an unknown
+                        # read, never a silently truncated one.
+                        raise RuntimeError(
+                            "projection width mismatch on table %r: %d cells, %d names"
+                            % (str(tname), len(row), len(names))
+                        )
+                    digest = hashlib.sha256()
+                    for name, cell in zip(names, row):
+                        digest.update(str(name).encode("utf-8"))
+                        digest.update(b"=")
+                        digest.update(_typed_cell(cell))
+                        digest.update(b";")
+                    row_digests.append(digest.hexdigest())
+                chained = hashlib.sha256()
+                chained.update(str(tname).encode("utf-8"))
+                for rd in sorted(row_digests):  # order is layout, not content
+                    chained.update(rd.encode("ascii"))
+                table_digests.append(chained.hexdigest())
+            overall = hashlib.sha256()
+            for kind, tname, sql in schema:
+                overall.update(str(kind).encode("utf-8"))
+                overall.update(b"|")
+                overall.update(str(tname).encode("utf-8"))
+                overall.update(b"|")
+                overall.update(str(sql or "").encode("utf-8", "replace"))
+                overall.update(b"\\n")
+            for td in sorted(table_digests):
+                overall.update(td.encode("ascii"))
+            return overall.hexdigest()
+        finally:
+            try:
+                conn.execute("ROLLBACK")  # end the read transaction
+            except sqlite3.Error:
+                pass
+    except Exception:
+        # Deadline, busy, interrupted, unreadable page -- every one of these
+        # means "could not verify", which is NOT "verified".
+        return None
+    finally:
+        conn.set_progress_handler(None, 0)
+
+
+def _fresh_content_fingerprint(path):
+    """Ground truth from a connection the executing transaction never saw."""
+    conn = open_ro(path)
+    try:
+        return _content_fingerprint(conn)
+    finally:
+        conn.close()
+
+
+def scratch_root():
+    root = os.environ.get("PLUGIN_SCRATCH") or ""
+    if not root:
+        raise Fail("handler_missing", "PLUGIN_SCRATCH is not set; the executor owns the scratch directory")
+    return root
+
+
+def databases_root():
+    return os.path.join(scratch_root(), "databases")
+
+
+def db_path(name):
+    clean = str(name or "").strip().lower()
+    if not NAME_RE.match(clean):
+        raise Fail(
+            "invalid_database_name",
+            "a database is a bare name like 'orders' (lowercase letters, digits, - and _), not a path",
+            database=clean,
+        )
+    return os.path.join(databases_root(), clean + ".sqlite"), clean
+
+
+def backup_path(name, backup_name):
+    clean = str(backup_name or "").strip().lower()
+    if not NAME_RE.match(clean):
+        raise Fail(
+            "invalid_backup_name",
+            "a backup is named by a bare name like 'pre-migration' (lowercase letters, digits, - and _)",
+            backup=clean,
+        )
+    return os.path.join(databases_root(), "backups", str(name), clean + ".sqlite"), clean
+
+
+def open_ro(path):
+    # mode=ro is the engine-level read-only claim: SQLite refuses every write
+    # on this connection no matter what shape the statement has.
+    conn = sqlite3.connect("file:" + path + "?mode=ro", uri=True, timeout=2.0)
+    conn.execute("PRAGMA busy_timeout=2000")
+    return conn
+
+
+def jsonable(value):
+    if isinstance(value, bytes):
+        return {"$blob_b64": base64.b64encode(value).decode("ascii")}
+    return value
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def single_select(sql):
+    text = str(sql or "").strip()
+    if not text:
+        raise Fail("invalid_arguments", "sql is required")
+    body = text.rstrip(";").strip()
+    if ";" in body:
+        raise Fail(
+            "refused_multi_statement",
+            "one SELECT per call; a second statement is refused rather than silently skipped",
+        )
+    if not SELECT_HEAD_RE.match(body):
+        raise Fail(
+            "refused_not_select",
+            "the query tool runs a single SELECT/WITH statement in read-only mode; mutations go through migrate.preview + migrate.apply",
+        )
+    if not sqlite3.complete_statement(body + ";"):
+        raise Fail("invalid_sql", "the statement is not complete SQL")
+    return body
+
+
+def named_params(params):
+    clean = dict(params or {})
+    for key in list(clean):
+        if not isinstance(key, str):
+            raise Fail("invalid_arguments", "parameter names must be strings, got %r" % (key,))
+        clean[":" + key.lstrip(":")] = jsonable_value(clean[key])
+    return clean
+
+
+def jsonable_value(value):
+    if isinstance(value, list):
+        return [jsonable_value(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): jsonable_value(v) for k, v in value.items()}
+    if isinstance(value, bool) or value is None or isinstance(value, (int, float, str)):
+        return value
+    return str(value)
+
+
+def deadline_guard(conn, max_seconds):
+    started = [time.monotonic()]
+
+    def check():
+        if time.monotonic() - started[0] > max_seconds:
+            raise Cancelled("query exceeded its %ss time limit and was cancelled" % max_seconds)
+        return 0
+
+    conn.set_progress_handler(check, 2000)
+    return started
+
+
+def run_select(conn, body, params, row_limit, budget):
+    cur = conn.execute(body, params or {})
+    columns = [d[0] for d in cur.description or []]
+    rows = []
+    bytes_used = 0
+    while True:
+        batch = cur.fetchmany(64)
+        if not batch:
+            break
+        for row in batch:
+            values = [jsonable(v) for v in row]
+            rows.append(values)
+            bytes_used += len(json.dumps(values, default=str).encode("utf-8"))
+            if len(rows) >= row_limit or bytes_used >= budget:
+                cur.close()
+                return columns, rows, True
+    cur.close()
+    return columns, rows, False
+
+
+# ---------------------------------------------------------------------------
+# Tools
+# ---------------------------------------------------------------------------
+
+
+def tool_connect(args):
+    engine = str(args.get("engine") or "sqlite").strip().lower()
+    if engine != "sqlite":
+        raise Fail(
+            "engine_unavailable",
+            "engine %r is not available on this host: no safe local PostgreSQL sandbox exists, "
+            "and the plugin never opens a socket to a database it was not handed" % engine,
+            engine=engine,
+            boundary="a sandboxed local PostgreSQL (initdb under an isolated root) is the named "
+            "prerequisite for this adapter; report the gap instead of widening the connection",
+        )
+    path, name = db_path(args.get("name"))
+    if not os.path.isfile(path):
+        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+    conn = open_ro(path)
+    try:
+        identity = {
+            "engine": "sqlite",
+            "database": name,
+            "path": path,
+            "sqlite_version": sqlite3.sqlite_version,
+            "journal_mode": conn.execute("PRAGMA journal_mode").fetchone()[0],
+            "foreign_keys": bool(conn.execute("PRAGMA foreign_keys").fetchone()[0]),
+            "user_version": conn.execute("PRAGMA user_version").fetchone()[0],
+            "page_count": conn.execute("PRAGMA page_count").fetchone()[0],
+            "page_size": conn.execute("PRAGMA page_size").fetchone()[0],
+            "quick_check": conn.execute("PRAGMA quick_check").fetchone()[0],
+            "opened_mode": "ro",
+            "credential_policy": "sqlite needs no credentials; none collected, none stored",
+        }
+    finally:
+        conn.close()
+    return (
+        "Connected to %r (SQLite, read-only). Credential policy: %s."
+        % (name, identity["credential_policy"]),
+        dict(identity, connection="sqlite:" + name),
+        "sqlite:" + name,
+    )
+
+
+def tool_db_create(args):
+    path, name = db_path(args.get("name"))
+    if os.path.exists(path):
+        raise Fail(
+            "database_exists",
+            "a disposable database named %r already exists; restore into it or pick a new name" % name,
+            database=name,
+        )
+    schema_sql = str(args.get("schema_sql") or "").strip()
+    seed_sql = str(args.get("seed_sql") or "").strip()
+    if not schema_sql:
+        raise Fail("invalid_arguments", "schema_sql is required: the CREATE statements for the new database")
+    # ONE policy for every door that executes caller SQL.
+    statements = classify_migration_statements(_split_statements(schema_sql))
+    if seed_sql:
+        statements = statements + classify_migration_statements(_split_statements(seed_sql))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    conn = sqlite3.connect(path, timeout=2.0)
+    try:
+        conn.isolation_level = None
+        outcome = execute_migration(conn, statements, {})
+        if outcome["outcome"] != "committed":
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+            raise Fail(
+                "create_failed",
+                "the schema/seed script failed (%s): %s%s"
+                % (outcome["outcome"], outcome["error"], "; " + outcome["rollback_error"] if outcome["rollback_error"] else ""),
+                database=name,
+                outcome=outcome["outcome"],
+            )
+        counts = {}
+        for row in _wrapper_execute(
+            conn, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ):
+            safe = row[0].replace('"', '""')
+            counts[row[0]] = _wrapper_execute(conn, 'SELECT COUNT(*) FROM "%s"' % safe).fetchone()[0]
+    finally:
+        conn.close()
+    observation = {
+        "database": name,
+        "path": path,
+        "tables": counts,
+        "seeded": bool(seed_sql),
+        "engine_truth": _ENGINE_TRUTH,
+        "undo": "delete the file (or the whole disposable run directory) - creation is not journaled as reversible",
+    }
+    return (
+        "Created disposable database %r with %d table(s): %s."
+        % (name, len(counts), ", ".join("%s=%d" % kv for kv in sorted(counts.items())) or "none"),
+        observation,
+        "sqlite:" + name,
+    )
+
+
+def _schema_snapshot(conn):
+    snapshot = {}
+    tables = [
+        r[0]
+        for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        )
+    ]
+    for table in tables:
+        columns = []
+        for col in conn.execute('PRAGMA table_info("%s")' % table.replace('"', '""')):
+            columns.append(
+                {
+                    "name": col[1],
+                    "type": col[2] or "",
+                    "notnull": bool(col[3]),
+                    "default": col[4],
+                    "primary_key": bool(col[5]),
+                }
+            )
+        foreign_keys = []
+        for fk in conn.execute('PRAGMA foreign_key_list("%s")' % table.replace('"', '""')):
+            foreign_keys.append(
+                {
+                    "references_table": fk[2],
+                    "from_column": fk[3],
+                    "to_column": fk[4],
+                    "on_update": fk[5],
+                    "on_delete": fk[6],
+                }
+            )
+        indexes = []
+        for ix in conn.execute('PRAGMA index_list("%s")' % table.replace('"', '""')):
+            cols = [c[2] for c in conn.execute('PRAGMA index_info("%s")' % ix[1].replace('"', '""'))]
+            indexes.append({"name": ix[1], "columns": cols, "unique": bool(ix[2]), "origin": ix[3]})
+        checks = [
+            r[0] for r in conn.execute("SELECT sql FROM sqlite_master WHERE tbl_name=? AND type='table'", (table,))
+            if r[0] and "CHECK" in r[0].upper()
+        ]
+        snapshot[table] = {"columns": columns, "foreign_keys": foreign_keys, "indexes": indexes, "checks": checks}
+    return snapshot
+
+
+def _diff_schemas(before, after):
+    diff = {"tables_added": [], "tables_removed": [], "tables_changed": {}}
+    for table in sorted(set(after) - set(before)):
+        diff["tables_added"].append(table)
+    for table in sorted(set(before) - set(after)):
+        diff["tables_removed"].append(table)
+    for table in sorted(set(before) & set(after)):
+        if before[table] != after[table]:
+            diff["tables_changed"][table] = {
+                "before": before[table],
+                "after": after[table],
+            }
+    return diff
+
+
+def tool_schema(args):
+    path, name = db_path(args.get("name"))
+    if not os.path.isfile(path):
+        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+    table_filter = str(args.get("table") or "").strip().lower() or None
+    conn = open_ro(path)
+    try:
+        deadline = time.monotonic()
+        snapshot = _schema_snapshot(conn)
+        pii_columns = []
+        row_counts = {}
+        for table, shape in snapshot.items():
+            if table_filter and table != table_filter:
+                continue
+            safe = table.replace('"', '""')
+            try:
+                row_counts[table] = conn.execute('SELECT COUNT(*) FROM "%s"' % safe).fetchone()[0]
+            except sqlite3.OperationalError:
+                row_counts[table] = None
+            for col in shape["columns"]:
+                if any(f in col["name"].lower() for f in PII_FRAGMENTS):
+                    pii_columns.append("%s.%s" % (table, col["name"]))
+        elapsed = int((time.monotonic() - deadline) * 1000)
+    finally:
+        conn.close()
+    if table_filter and table_filter not in snapshot:
+        raise Fail("unknown_table", "table %r not found" % table_filter, database=name)
+    tables = {}
+    for table, shape in snapshot.items():
+        if table_filter and table != table_filter:
+            continue
+        tables[table] = dict(shape, row_count=row_counts.get(table))
+    observation = {
+        "database": name,
+        "tables": tables,
+        "table_count": len(tables),
+        "potential_pii_columns": sorted(set(pii_columns)),
+        "pii_note": "name heuristic, advisory only - it flags columns to review, it cannot prove or clear PII",
+        "introspected_ms": elapsed,
+        "engine": "sqlite",
+    }
+    return (
+        "Schema of %r: %d table(s)%s. Potential PII columns to review: %s."
+        % (
+            name,
+            len(tables),
+            "" if not table_filter else " (filtered to %r)" % table_filter,
+            ", ".join(sorted(set(pii_columns))) or "none flagged",
+        ),
+        observation,
+        "sqlite:" + name,
+    )
+
+
+def _cancelled(name, max_seconds):
+    return (
+        "Cancelled: the query exceeded its %ds time limit. No rows were returned; "
+        "narrow the query, add an index, or raise max_seconds (<= %ds)." % (max_seconds, MAX_SECONDS),
+        {
+            "database": name,
+            "status_detail": "time_limit_cancelled",
+            "max_seconds": max_seconds,
+            "rows_returned": 0,
+            "partial_rows": False,
+        },
+        "sqlite:" + name,
+    )
+
+
+def tool_query(args):
+    path, name = db_path(args.get("name"))
+    if not os.path.isfile(path):
+        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+    body = single_select(args.get("sql"))
+    params = named_params(args.get("params"))
+    try:
+        row_limit = int(args.get("row_limit") or DEFAULT_ROW_LIMIT)
+        max_seconds = int(args.get("max_seconds") or DEFAULT_SECONDS)
+    except (TypeError, ValueError):
+        raise Fail("invalid_arguments", "row_limit and max_seconds are integers")
+    row_limit = max(1, min(row_limit, MAX_ROW_LIMIT))
+    max_seconds = max(1, min(max_seconds, MAX_SECONDS))
+    conn = open_ro(path)
+    try:
+        deadline_guard(conn, max_seconds)
+        started = time.monotonic()
+        try:
+            columns, rows, truncated = run_select(conn, body, params, row_limit, MAX_TEXT_BYTES)
+        except Cancelled:
+            return _cancelled(name, max_seconds)
+        except sqlite3.OperationalError as exc:
+            # The progress handler's cancellation surfaces from the C layer as
+            # "interrupted" - same cause, same typed answer.
+            if "interrupted" in str(exc).lower():
+                return _cancelled(name, max_seconds)
+            raise
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+    finally:
+        conn.close()
+    observation = {
+        "database": name,
+        "columns": columns,
+        "rows": rows,
+        "row_count": len(rows),
+        "truncated": truncated,
+        "row_limit": row_limit,
+        "max_seconds": max_seconds,
+        "elapsed_ms": elapsed_ms,
+        "parameterized": bool(params),
+        "engine": "sqlite",
+    }
+    text = "%d row(s)%s from %r in %dms." % (len(rows), " (truncated at the limit)" if truncated else "", name, elapsed_ms)
+    return text, observation, "sqlite:" + name
+
+
+def tool_explain(args):
+    path, name = db_path(args.get("name"))
+    if not os.path.isfile(path):
+        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+    body = single_select(args.get("sql"))
+    params = named_params(args.get("params"))
+    conn = open_ro(path)
+    try:
+        deadline_guard(conn, DEFAULT_SECONDS)
+        try:
+            plan_rows = conn.execute("EXPLAIN QUERY PLAN " + body, params or {}).fetchall()
+        except Cancelled:
+            raise Fail("cancelled", "planning exceeded the %ds time limit" % DEFAULT_SECONDS)
+    finally:
+        conn.close()
+    steps = []
+    full_scans = []
+    for row in plan_rows:
+        step = {"node": row[0], "parent": row[1], "detail": row[3] if len(row) > 3 else row[2]}
+        steps.append(step)
+        detail = str(step["detail"]).upper()
+        if " SCAN " in detail:
+            full_scans.append(step["detail"])
+    observation = {
+        "database": name,
+        "plan": steps,
+        "full_table_scans": full_scans,
+        "scan_note": (
+            "a SCAN step reads the whole table, but that is not automatically a missing index: "
+            "for small tables, low-selectivity predicates, or queries that need most rows anyway, "
+            "scanning IS the cheaper plan. Judge with table size (schema tool row counts), "
+            "predicate selectivity and this plan's cost before proposing an index"
+        )
+        if full_scans
+        else "",
+        "engine": "sqlite",
+    }
+    return (
+        "Query plan for %r: %d step(s), %d full table scan(s)."
+        % (name, len(steps), len(full_scans)),
+        observation,
+        "sqlite:" + name,
+    )
+
+
+def _execute_guarded_statement(conn, stmt, params):
+    """Run ONE caller statement with the authorizer armed and params bound."""
+    _arm_authorizer(conn)
+    try:
+        if params and ("?" in stmt or re.search(r":[A-Za-z_]", stmt)):
+            conn.execute(stmt, dict(params))
+        else:
+            conn.execute(stmt)
+    finally:
+        conn.set_authorizer(None)
+
+
+def _rollback_quietly(conn):
+    """Attempt a wrapper ROLLBACK; never mask the original failure with its own."""
+    try:
+        _wrapper_execute(conn, "ROLLBACK")
+        return ""
+    except sqlite3.Error as exc:
+        return "%s: %s" % (type(exc).__name__, exc)
+
+
+def _integrity(conn):
+    row = _wrapper_execute(conn, "PRAGMA integrity_check").fetchone()
+    return str(row[0]) if row else "unknown"
+
+
+def execute_migration(conn, statements, params, *, path=None, preimage=None):
+    """Run a migration inside ONE wrapper-owned transaction and TELL THE TRUTH.
+
+    Returns a dict. `outcome` is one of:
+      committed              -- all statements ran, pre-commit integrity ok, wrapper
+                                COMMIT succeeded (file callers verify from a fresh
+                                connection afterwards)
+      rolled_back_verified   -- a statement failed (or was cancelled, or pre-commit
+                                integrity failed); wrapper ROLLBACK ran and a
+                                value-faithful read EQUALS the pre-migration preimage
+                                (from a fresh connection when a path was given)
+      rolled_back_unverified -- ROLLBACK ran, but the state could not be proven
+                                equal (unreadable preimage, or the post-rollback
+                                read could not complete within its budget): an
+                                explicit unknown, never a verified claim
+      recovery_needed        -- rollback failed, left the state changed
+                                (rollback_verification mismatch), or COMMIT itself
+                                failed; `rollback_error` carries the rollback's own
+                                failure, `error` the original one
+
+    `rollback_executed` (the ROLLBACK statement ran) and `rollback_verification`
+    (verified / unknown / mismatch / error) are reported as the SEPARATE facts
+    they are. A saved backup existing is NEVER reported as a rollback having
+    happened.
+    """
+    result = {
+        "outcome": "",
+        "error": "",
+        "rollback_error": "",
+        "failed_at": None,
+        "cancelled": False,
+        "integrity": "",
+        "rollback_executed": False,
+        "rollback_verification": "",
+    }
+    _apply_deadline(conn)
+    try:
+        _wrapper_execute(conn, "BEGIN")
+    except sqlite3.Error as exc:
+        result.update(outcome="recovery_needed", error="BEGIN failed: %s" % exc, rollback_verification="error")
+        return result
+    failed_at = None
+    original_error = ""
+    cancelled = False
+    try:
+        for position, stmt in enumerate(statements):
+            try:
+                _execute_guarded_statement(conn, stmt, params)
+            except Cancelled:
+                cancelled = True
+                failed_at = position + 1
+                original_error = "migration exceeded its %ss budget and was cancelled" % APPLY_DEADLINE_SECONDS
+                break
+            except sqlite3.OperationalError as exc:
+                if "interrupted" in str(exc).lower():
+                    cancelled = True
+                    failed_at = position + 1
+                    original_error = "migration exceeded its %ss budget and was cancelled" % APPLY_DEADLINE_SECONDS
+                    break
+                failed_at = position + 1
+                original_error = str(exc)
+                break
+            except sqlite3.Error as exc:
+                failed_at = position + 1
+                original_error = str(exc)
+                break
+        integrity_before_commit = ""
+        if not original_error:
+            # Integrity INSIDE the transaction: a failure here still rolls back
+            # for real. Checking only after COMMIT would make an integrity failure
+            # un-rollback-able while still calling itself one.
+            integrity_before_commit = _integrity(conn)
+            if integrity_before_commit != "ok":
+                original_error = "pre-commit integrity check failed: %s" % integrity_before_commit
+    except sqlite3.Error as exc:  # the statement loop itself is guarded; belt and braces
+        original_error = str(exc)
+
+    if original_error:
+        result["rollback_error"] = _rollback_quietly(conn)
+        result.update(error=original_error, failed_at=failed_at, cancelled=cancelled)
+        # EXECUTION and VERIFICATION are separate facts: the ROLLBACK statement
+        # running is one; PROOF the state survived is another, and "could not
+        # read the proof" is unknown, never verified.
+        result["rollback_executed"] = not result["rollback_error"]
+        if result["rollback_error"]:
+            result["outcome"] = "recovery_needed"
+            result["rollback_verification"] = "error"
+            return result
+        try:
+            if path is not None:
+                post = _fresh_content_fingerprint(path)
+            else:
+                post = _content_fingerprint(conn)
+        except Exception:
+            post = None
+        if post is None or preimage is None:
+            result["outcome"] = "rolled_back_unverified"
+            result["rollback_verification"] = "unknown"
+            if preimage is None:
+                result["rollback_error"] = (
+                    "no pre-migration preimage could be read, so equality is unprovable"
+                )
+            else:
+                result["rollback_error"] = (
+                    "the post-rollback state could not be read within the verification budget"
+                )
+            return result
+        if post == preimage:
+            result["outcome"] = "rolled_back_verified"
+            result["rollback_verification"] = "verified"
+            return result
+        result["outcome"] = "recovery_needed"
+        result["rollback_verification"] = "mismatch"
+        result["rollback_error"] = (
+            "rollback ran, but a fresh value-faithful read still sees state different from "
+            "the pre-migration preimage"
+        )
+        return result
+
+    try:
+        _wrapper_execute(conn, "COMMIT")
+    except sqlite3.Error as exc:
+        # COMMIT failed after every statement ran: the migration's fate is now
+        # uncertain by definition -- never call it committed or rolled back.
+        result["rollback_error"] = _rollback_quietly(conn)
+        result.update(
+            outcome="recovery_needed",
+            error="COMMIT failed: %s" % exc,
+            rollback_executed=not result["rollback_error"],
+            rollback_verification="error" if result["rollback_error"] else "unknown",
+        )
+        return result
+    result.update(outcome="committed", integrity=integrity_before_commit or "ok")
+    return result
+
+
+def tool_migrate_preview(args):
+    path, name = db_path(args.get("name"))
+    if not os.path.isfile(path):
+        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+    statements = classify_migration_statements(args.get("statements"))
+    params = named_params(args.get("params"))
+    # Preview runs on an in-memory clone: the read-only child never writes the
+    # real file, so the preview itself is a read-only operation. It classifies
+    # and executes under the SAME policy as apply -- a migration the preview
+    # accepts is exactly what apply will accept.
+    src = open_ro(path)
+    clone = sqlite3.connect(":memory:")
+    src.backup(clone)
+    src.close()
+    try:
+        clone.isolation_level = None  # explicit transaction control for the fingerprint read
+        before = _content_fingerprint(clone)
+        before_schema = _schema_snapshot(clone)
+        classified = []
+        for index, stmt in enumerate(statements):
+            head, _body = _statement_head(stmt)
+            classified.append(
+                {"index": index + 1, "kind": "DDL" if head in ("CREATE", "ALTER", "DROP") else "DML", "sql": stmt}
+            )
+        outcome = execute_migration(clone, statements, params, preimage=before)
+        if outcome["outcome"] != "committed":
+            raise Fail(
+                "preview_failed",
+                "the migration would FAIL at statement %s: %s"
+                % (outcome["failed_at"] or "?", outcome["error"]),
+                database=name,
+                failed_at=outcome["failed_at"],
+                outcome=outcome["outcome"],
+                rollback_error=outcome["rollback_error"] or "",
+            )
+        after_schema = _schema_snapshot(clone)
+        diff = _diff_schemas(before_schema, after_schema)
+        after = _content_fingerprint(clone)
+    finally:
+        clone.close()
+    observation = {
+        "database": name,
+        "statements": classified,
+        "diff": diff,
+        "preview_only": True,
+        "applied_to": "an in-memory clone of the database; the real file was never touched",
+        "clone_state_changed": before != after,
+        "policy_parity": "preview and apply classify and execute under one statement policy",
+        "engine_truth": _ENGINE_TRUTH,
+    }
+    return (
+        "Migration preview on a clone of %r: %d table(s) added, %d removed, %d changed; %d statement(s) classified."
+        % (name, len(diff["tables_added"]), len(diff["tables_removed"]), len(diff["tables_changed"]), len(statements)),
+        observation,
+        "sqlite:" + name,
+    )
+
+
+def _unique_backup_name(prefix):
+    """Second-precision timestamps collide within one second and across concurrent
+    runs on the same database; a random suffix plus the atomic claim below make
+    every automatic preimage distinct by CONSTRUCTION, not by probability."""
+    return "%s-%d-%s" % (prefix, int(time.time()), uuid.uuid4().hex[:8])
+
+
+def _publish_backup(path, name, backup_name):
+    """Publish one immutable backup ATOMICALLY: exactly one publisher per name.
+
+    The snapshot is written to a private `.part-<uuid>` sibling and then linked
+    into its final name with `os.link` -- the kernel-level atomic claim. A racing
+    writer that loses the link sees FileExistsError and is refused; the final
+    name therefore never exists in partial or half-written form, and a loser
+    NEVER touches the winner. A failed publication removes only its own part
+    file, never an existing winner.
+    """
+    target, clean = backup_path(name, backup_name)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    part = target + ".part-" + uuid.uuid4().hex[:8]
+    try:
+        src = open_ro(path)
+        dst = sqlite3.connect(part)
+        try:
+            with dst:
+                src.backup(dst)
+        finally:
+            src.close()
+            dst.close()
+    except Exception as exc:
+        try:
+            os.unlink(part)  # our own failed draft; no winner can exist yet
+        except OSError:
+            pass
+        raise Fail(
+            "backup_failed",
+            "the backup of %r to %r could not be written: %s" % (name, clean, exc),
+            database=name,
+            backup=clean,
+        )
+    try:
+        os.link(part, target)
+    except FileExistsError:
+        os.unlink(part)
+        raise Fail(
+            "backup_exists",
+            "a backup named %r already exists for database %r and is immutable; pick a new name"
+            % (clean, name),
+            database=name,
+            backup=clean,
+            path=target,
+        )
+    except OSError as exc:
+        os.unlink(part)
+        raise Fail(
+            "backup_failed",
+            "the backup of %r to %r could not be published: %s" % (name, clean, exc),
+            database=name,
+            backup=clean,
+        )
+    os.unlink(part)  # the link holds the content now; the draft name goes away
+    return target, clean
+
+
+def _take_backup(path, name, backup_name, *, retry_on_collision=False):
+    """Write one backup under the atomic publisher.
+
+    `retry_on_collision` is for AUTOMATIC names only, where a collision means
+    "generate a fresh unique name", never "overwrite". Named preimages never
+    retry: immutability is the contract.
+    """
+    attempts = 3 if retry_on_collision else 1
+    for _ in range(attempts):
+        try:
+            return _publish_backup(path, name, backup_name)
+        except Fail as fail:
+            if retry_on_collision and fail.status == "backup_exists":
+                backup_name = _unique_backup_name(backup_name.split("-", 1)[0] or "snapshot")
+                continue
+            raise
+    raise Fail("backup_failed", "could not claim a unique automatic backup name", database=name)
+
+
+def tool_migrate_apply(args):
+    path, name = db_path(args.get("name"))
+    if not os.path.isfile(path):
+        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+    # Refusal BEFORE any effect -- no backup is taken for a migration that will
+    # not run, and no statement of it executes.
+    statements = classify_migration_statements(args.get("statements"))
+    params = named_params(args.get("params"))
+    # Preimages FIRST: the automatic recovery snapshot plus any named one.
+    auto_target, _auto = _take_backup(path, name, _unique_backup_name("pre-apply"), retry_on_collision=True)
+    named_target = None
+    if str(args.get("backup_name") or "").strip():
+        named_target, _named = _take_backup(path, name, str(args.get("backup_name")))
+    preimage = _fresh_content_fingerprint(path)
+    conn = sqlite3.connect(path, timeout=2.0)
+    try:
+        conn.isolation_level = None
+        outcome = execute_migration(conn, statements, params, path=path, preimage=preimage)
+    finally:
+        conn.close()
+
+    if outcome["outcome"] == "committed":
+        # Verify from a connection the transaction never saw, AFTER the commit.
+        verify = open_ro(path)
+        try:
+            integrity = str(_wrapper_execute(verify, "PRAGMA integrity_check").fetchone()[0])
+        finally:
+            verify.close()
+        if integrity != "ok":
+            # The commit happened; an integrity problem found now is NOT a
+            # rollback and is never called one.
+            raise Fail(
+                "integrity_failure_after_commit",
+                "the migration COMMITTED and a fresh connection then failed its integrity check "
+                "(%s); recovery: restore the pre-apply backup at %s" % (integrity, auto_target),
+                database=name,
+                outcome="recovery_needed",
+                integrity=integrity,
+                recovery_backup=auto_target,
+                engine_truth=_ENGINE_TRUTH,
+            )
+        observation = {
+            "database": name,
+            "applied_statements": len(statements),
+            "outcome": "committed",
+            "verified_from": "fresh_connection",
+            "integrity": integrity,
+            "auto_backup": auto_target,
+            "auto_backup_sha256": sha256_file(auto_target),
+            "named_backup": named_target,
+            "engine_truth": _ENGINE_TRUTH,
+        }
+        return (
+            "Applied %d migration statement(s) to %r inside one transaction; verified committed "
+            "from a fresh connection (integrity ok); pre-apply backup at %s."
+            % (len(statements), name, auto_target),
+            observation,
+            "sqlite:" + name,
+        )
+
+    if outcome["outcome"] in ("rolled_back_verified", "rolled_back_unverified"):
+        verified = outcome["outcome"] == "rolled_back_verified"
+        raise Fail(
+            "apply_failed_rolled_back",
+            "migration failed and the transaction was rolled back: %s; %s; the pre-apply backup "
+            "(a recovery snapshot, not the rollback itself) is at %s"
+            % (
+                outcome["error"],
+                "a fresh value-faithful read confirms the pre-migration state"
+                if verified
+                else "the post-rollback state could not be verified (rollback ran; proof unknown)",
+                auto_target,
+            ),
+            database=name,
+            outcome=outcome["outcome"],
+            rolled_back=True,
+            rollback_executed=outcome["rollback_executed"],
+            rollback_verification=outcome["rollback_verification"],
+            rollback="transaction_rollback_verified_from_fresh_connection" if verified else "transaction_rollback_verification_unknown",
+            failed_at=outcome["failed_at"],
+            cancelled=outcome["cancelled"],
+            recovery_backup=auto_target,
+            engine_truth=_ENGINE_TRUTH,
+        )
+
+    raise Fail(
+        "apply_recovery_needed",
+        "migration failed and the rollback did NOT restore the pre-migration state. Original "
+        "error: %s. Rollback error: %s. RECOVER with vool-database.restore from %s"
+        % (outcome["error"] or "unknown", outcome["rollback_error"] or "unknown", auto_target),
+        database=name,
+        outcome="recovery_needed",
+        rolled_back=bool(outcome.get("rollback_executed")),
+        rollback_executed=outcome["rollback_executed"],
+        rollback_verification=outcome["rollback_verification"] or "error",
+        error=outcome["error"],
+        rollback_error=outcome["rollback_error"],
+        failed_at=outcome["failed_at"],
+        recovery_backup=auto_target,
+        engine_truth=_ENGINE_TRUTH,
+    )
+
+
+def tool_backup(args):
+    path, name = db_path(args.get("name"))
+    if not os.path.isfile(path):
+        raise Fail("unknown_database", "no disposable database named %r exists" % name, database=name)
+    raw = str(args.get("backup_name") or "").strip()
+    backup_name = raw if raw else _unique_backup_name("snapshot")
+    # Automatic names retry on a collision; a NAMED preimage is immutable and never retries.
+    target, clean = _take_backup(path, name, backup_name, retry_on_collision=not raw)
+    observation = {
+        "database": name,
+        "backup": clean,
+        "path": target,
+        "sha256": sha256_file(target),
+        "size_bytes": os.path.getsize(target),
+        "outcome": "backed_up",
+        "immutable": "a future backup with this name is refused, never overwritten",
+        "consistency": "taken through SQLite's online backup API, consistent under WAL",
+        "engine_truth": _ENGINE_TRUTH,
+    }
+    return (
+        "Backed up %r to %r (%d bytes, sha256 %s...). %s"
+        % (name, clean, observation["size_bytes"], observation["sha256"][:12], _ENGINE_TRUTH["remote_rollback"]),
+        observation,
+        "sqlite:" + name,
+    )
+
+
+def tool_restore(args):
+    path, name = db_path(args.get("name"))
+    source, clean = backup_path(name, args.get("backup_name"))
+    if not os.path.isfile(source):
+        raise Fail(
+            "unknown_backup",
+            "no backup named %r for database %r" % (clean, name),
+            database=name,
+            backup=clean,
+            backups_root=os.path.dirname(source),
+        )
+    expected = _fresh_content_fingerprint(source)
+    if not os.path.isfile(path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Safety preimage of the current file BEFORE overwriting it (unique id: a
+    # same-second second restore must not overwrite the first safety copy).
+    safety = None
+    if os.path.isfile(path):
+        safety, _s = _take_backup(path, name, _unique_backup_name("pre-restore"), retry_on_collision=True)
+    src = open_ro(source)
+    dst = sqlite3.connect(path, timeout=2.0)
+    try:
+        with dst:
+            src.backup(dst)
+    finally:
+        src.close()
+        dst.close()
+    # Value-faithful truth from a fresh connection: integrity AND every cell of
+    # the restored file equal to the backup's cells. If either side cannot be
+    # read within the verification budget, the answer is an explicit unknown --
+    # "restored" (the copy happened) with verification strength stated, never
+    # "restored_verified" without the proof.
+    verify = open_ro(path)
+    try:
+        integrity = str(_wrapper_execute(verify, "PRAGMA integrity_check").fetchone()[0])
+        restored = _content_fingerprint(verify)
+    finally:
+        verify.close()
+    if integrity != "ok" or (restored is not None and expected is not None and restored != expected):
+        raise Fail(
+            "restore_failed",
+            "the restored file did not verify against its backup (integrity: %s, content %s); "
+            "the pre-restore copy is at %s" % (integrity, "differs" if restored != expected else "matches", safety),
+            database=name,
+            outcome="recovery_needed",
+            integrity=integrity,
+            content_matches_backup=(restored == expected) if (restored is not None and expected is not None) else None,
+            safety_backup=safety,
+        )
+    verified = restored is not None and expected is not None and restored == expected
+    observation = {
+        "database": name,
+        "restored_from": source,
+        "restored_sha256": sha256_file(source),
+        "pre_restore_copy": safety,
+        "integrity": integrity,
+        "outcome": "restored_verified" if verified else "restored_unverified",
+        "verification": "verified" if verified else "unknown",
+        "verification_note": ""
+        if verified
+        else "the restored file could not be compared cell-by-cell within the verification "
+        "budget; the copy succeeded but equality is unproven",
+        "verified_from": "fresh_connection" if verified else "",
+        "engine_truth": _ENGINE_TRUTH,
+    }
+    if verified:
+        text = (
+            "Restored %r from backup %r and verified every cell from a fresh connection "
+            "(integrity ok; pre-restore copy kept at %s). %s"
+            % (name, clean, safety, _ENGINE_TRUTH["remote_rollback"])
+        )
+    else:
+        text = (
+            "Restored %r from backup %r; integrity ok, but cell-level verification could not "
+            "complete (pre-restore copy kept at %s). %s"
+            % (name, clean, safety, _ENGINE_TRUTH["remote_rollback"])
+        )
+    return (
+        text,
+        observation,
+        "sqlite:" + name,
+    )
+
+
+TOOLS = {
+    "vool-database.connect": tool_connect,
+    "vool-database.db.create": tool_db_create,
+    "vool-database.schema": tool_schema,
+    "vool-database.query": tool_query,
+    "vool-database.explain": tool_explain,
+    "vool-database.migrate.preview": tool_migrate_preview,
+    "vool-database.migrate.apply": tool_migrate_apply,
+    "vool-database.backup": tool_backup,
+    "vool-database.restore": tool_restore,
+}
+
+
+def main():
+    try:
+        payload = json.loads(sys.stdin.read())
+    except ValueError as exc:
+        sys.stdout.write(json.dumps({"ok": False, "status": "handler_protocol_error", "error": str(exc)}))
+        return
+    intent = str(payload.get("intent") or "")
+    args = payload.get("arguments") or {}
+    handler = TOOLS.get(intent)
+    if handler is None:
+        sys.stdout.write(json.dumps({"ok": False, "status": "unknown_intent", "error": intent}))
+        return
+    try:
+        text, observation, resolved = handler(args)
+        sys.stdout.write(
+            json.dumps({"ok": True, "text": text, "observation": observation, "resolved_target": resolved})
+        )
+    except Fail as fail:
+        body = {"ok": False, "status": fail.status, "error": fail.error, "observation": dict(fail.observation)}
+        sys.stdout.write(json.dumps(body))
+    except sqlite3.Error as exc:
+        # The engine refused something the guards did not pre-classify; typed, not a crash.
+        sys.stdout.write(
+            json.dumps({"ok": False, "status": "sql_error", "error": "sqlite: %s" % exc})
+        )
+    except Exception as exc:  # never a bare crash: a typed failure the model can act on
+        sys.stdout.write(
+            json.dumps({"ok": False, "status": "handler_failed", "error": "%s: %s" % (type(exc).__name__, exc)})
+        )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,319 @@
+{
+ "blackbox_turn_ids": [
+  "code-task:ct-d59eebf768ac"
+ ],
+ "cancelled_reason": "",
+ "created_at": "2026-09-14T09:57:17.238671+00:00",
+ "cumulative": null,
+ "defect": {
+  "at": "2026-09-14T09:57:17.315295+00:00",
+  "line": 1,
+  "path": "math.js",
+  "reason": "subtracts"
+ },
+ "diagnoses": [],
+ "fault_ids": [],
+ "git_diff_paths": [],
+ "narrow": null,
+ "objective": "legacy scenario two_pending_units",
+ "pr_description": {},
+ "proposals": {
+  "a": {
+   "approved": true,
+   "approved_at": "2026-09-14T09:57:17.363545+00:00",
+   "arguments": {
+    "content": "exports.add = (a, b) => a + b;\n",
+    "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "path": "math.js"
+   },
+   "consumed_by": "mut-a",
+   "created_at": "2026-09-14T09:57:17.349809+00:00",
+   "intent": "workspace.write_file",
+   "preview": {
+    "arguments_sha256": "30d6e998e911769977e492da06899fff1459cfe9d77171621e843d3d0b20e61c",
+    "content_sha256": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+    "intent": "workspace.write_file",
+    "paths": [
+     "math.js"
+    ],
+    "side_effect_class": "workspace_write"
+   },
+   "proposal_id": "a",
+   "rationale": "Owner math.js: restore addition."
+  },
+  "b": {
+   "approved": true,
+   "approved_at": "2026-09-14T09:57:17.368604+00:00",
+   "arguments": {
+    "content": "exports.label = (parts) => parts.join(',');\n",
+    "expected_hash": "c7fdd51f13f6d40ea04ad6b7e3906a33e12371cbfcb4350a32ae11fb6a538bc9",
+    "path": "labels.js"
+   },
+   "consumed_by": "",
+   "created_at": "2026-09-14T09:57:17.356896+00:00",
+   "intent": "workspace.write_file",
+   "preview": {
+    "arguments_sha256": "47ff2594c4ddc2a1dee178540cc8aa0ef960e7a7a028c2e1379bd4836adaea77",
+    "content_sha256": "d63eab8ff415e997f61cc24599e12da9938a866495e1e3e1dfd793b7d47bf847",
+    "intent": "workspace.write_file",
+    "paths": [
+     "labels.js"
+    ],
+    "side_effect_class": "workspace_write"
+   },
+   "proposal_id": "b",
+   "rationale": "Owner labels.js: join with a comma."
+  }
+ },
+ "read_paths": [
+  "math.js",
+  "labels.js"
+ ],
+ "reproduced_failure": {
+  "command": "node check.js",
+  "returncode": 1,
+  "step_id": "repro",
+  "success": false
+ },
+ "rollback": {
+  "restored": false,
+  "restored_paths": []
+ },
+ "session_id": "legacy-two_pending_units",
+ "stage": "mutate",
+ "step_order": [
+  "repro",
+  "read",
+  "read-other",
+  "mut-a"
+ ],
+ "steps": {
+  "mut-a": {
+   "arguments": {
+    "content": "exports.add = (a, b) => a + b;\n",
+    "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": true,
+   "completed_at": "2026-09-14T09:57:17.392210+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.write_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "a",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "action": "updated",
+    "after_hash": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+    "after_mode": 420,
+    "artifacts": [
+     {
+      "action": "updated",
+      "after_hash": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+      "artifact_type": "file_diff",
+      "before_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+      "diff_preview": "--- a/math.js\n+++ b/math.js\n@@ -1 +1 @@\n-exports.add = (a, b) => a - b;\n+exports.add = (a, b) => a + b;",
+      "line_count": 1,
+      "path": "math.js"
+     }
+    ],
+    "before_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "before_mode": 420,
+    "blackbox": {
+     "bytes_captured": true,
+     "coverage_gap": [],
+     "effect_ids": [
+      "effect-445820f6f73f48ee9f6338c314e045a0"
+     ],
+     "outcomes": {
+      "effect-445820f6f73f48ee9f6338c314e045a0": "succeeded"
+     },
+     "recovery_error": "",
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-d59eebf768ac"
+    },
+    "line_count": 1,
+    "mutation_record": {
+     "mutation_id": "mutation-105c2552a348493d9740dd1a270bdc15",
+     "session_key": "legacy-two_pending_units"
+    },
+    "path": "math.js"
+   },
+   "stage_at": "mutate",
+   "started_at": "2026-09-14T09:57:17.378533+00:00",
+   "status": "executed",
+   "step_id": "mut-a"
+  },
+  "read": {
+   "arguments": {
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T09:57:17.330720+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.read_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "decode_lossy": false,
+    "hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "line_count": 1,
+    "lines": [
+     {
+      "line_number": 1,
+      "text": "exports.add = (a, b) => a - b;"
+     }
+    ],
+    "path": "math.js",
+    "start_line": 1,
+    "total_lines": 1,
+    "truncated": false,
+    "verbatim": false
+   },
+   "stage_at": "propose",
+   "started_at": "2026-09-14T09:57:17.326809+00:00",
+   "status": "executed",
+   "step_id": "read"
+  },
+  "read-other": {
+   "arguments": {
+    "path": "labels.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T09:57:17.342246+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.read_file",
+   "ok": true,
+   "paths": [
+    "labels.js"
+   ],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "decode_lossy": false,
+    "hash": "c7fdd51f13f6d40ea04ad6b7e3906a33e12371cbfcb4350a32ae11fb6a538bc9",
+    "line_count": 1,
+    "lines": [
+     {
+      "line_number": 1,
+      "text": "exports.label = (parts) => parts.join(';');"
+     }
+    ],
+    "path": "labels.js",
+    "start_line": 1,
+    "total_lines": 1,
+    "truncated": false,
+    "verbatim": false
+   },
+   "stage_at": "propose",
+   "started_at": "2026-09-14T09:57:17.339190+00:00",
+   "status": "executed",
+   "step_id": "read-other"
+  },
+  "repro": {
+   "arguments": {
+    "command": "node check.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T09:57:17.307852+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.run_tests",
+   "ok": true,
+   "paths": [],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [
+    {
+     "attempt": 0,
+     "decided_by": "execution_gate.evaluate_command",
+     "decision": "allowed",
+     "effect_class": "command",
+     "effect_id": "eff:a0644e6a-0001",
+     "host": "",
+     "identity_note": "",
+     "keyed_or_keyless": "",
+     "lifecycle": "authorized",
+     "mode": "auto",
+     "policy_id": "tp:b9cc744f1c1cecc7",
+     "provider_id": "",
+     "reason": "Sandbox execution allowed.",
+     "recorded_at": "2026-09-14T09:57:17.266+00:00",
+     "request_id": "",
+     "scope_name": "runtime_tool.direct_call",
+     "turn_id": ""
+    }
+   ],
+   "result": {
+    "artifacts": [
+     {
+      "artifact_type": "validation_output",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "status": "command_failed",
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/two_pending_units/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": ""
+     },
+     {
+      "artifact_type": "failure",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/two_pending_units/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": "",
+      "summary": "node:assert:150"
+     }
+    ],
+    "blackbox": {
+     "coverage": {
+      "degraded": false,
+      "downgraded_to_irreversible": false,
+      "drift_count": 0,
+      "drift_paths": [],
+      "high_risk": {},
+      "rollback_capable": true,
+      "strategy": "workspace_scan"
+     },
+     "effect_ids": [
+      "effect-e032923685c54ce58dcfee20b9ee8fff"
+     ],
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-d59eebf768ac"
+    },
+    "command": "node check.js",
+    "cwd": ".",
+    "diagnostic_query": ":150",
+    "error_line": 1,
+    "error_path": "/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/two_pending_units/check.js",
+    "failure_summary": "node:assert:150",
+    "returncode": 1,
+    "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/two_pending_units/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+    "stdout": "",
+    "success": false
+   },
+   "stage_at": "reproduce",
+   "started_at": "2026-09-14T09:57:17.248472+00:00",
+   "status": "command_failed",
+   "step_id": "repro"
+  }
+ },
+ "task_id": "ct-d59eebf768ac",
+ "turn_id": "code-task:ct-d59eebf768ac",
+ "turn_key": "code-task:ct-d59eebf768ac",
+ "updated_at": "2026-09-14T09:57:17.392324+00:00",
+ "verifications": [],
+ "workspace_root": "/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/two_pending_units"
+}

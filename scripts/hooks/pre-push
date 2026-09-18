@@ -1,0 +1,34 @@
+#!/bin/sh
+# NULLA public-push ACCIDENT GUARD. Installed to .git/hooks/pre-push via scripts/install-hooks.
+#
+# Blocks ordinary pushes to the PUBLIC repo (Parad0x-Labs/nulla-local). Only
+# scripts/nulla-public-release may push there (it sets NULLA_PUBLIC_RELEASE=1 after a GO approval).
+# Private pushes (Parad0x-Labs/nulla-local-product) are allowed. Fails CLOSED on an unknown remote.
+#
+# NOTE: a local hook is bypassable (--no-verify / another clone). GitHub branch protection on public
+# main is the authoritative backstop (NULLA-DELIVERY/BRANCH_PROTECTION.md).
+
+remote_url="$2"
+if [ -z "$remote_url" ]; then
+  echo "pre-push: cannot determine the remote URL -- refusing (fail closed)." >&2
+  exit 1
+fi
+
+norm=$(printf '%s' "$remote_url" | tr 'A-Z' 'a-z')
+
+case "$norm" in
+  *parad0x-labs/nulla-local-product*)
+    exit 0 ;;                                   # private product repo -- allowed
+  *parad0x-labs/nulla-local.git|*parad0x-labs/nulla-local|*parad0x-labs/nulla-local/*)
+    if [ "$NULLA_PUBLIC_RELEASE" = "1" ] && [ -f "NULLA-DELIVERY/GO_APPROVAL.json" ]; then
+      exit 0                                    # authorized public release path
+    fi
+    echo "pre-push: BLOCKED push to the PUBLIC repo ($remote_url)." >&2
+    echo "Public releases go ONLY through scripts/nulla-public-release after an explicit GO." >&2
+    exit 1 ;;
+  *github.com*)
+    exit 0 ;;                                   # some other GitHub remote -- not the public repo
+  *)
+    echo "pre-push: unrecognized remote ($remote_url) -- refusing (fail closed)." >&2
+    exit 1 ;;
+esac

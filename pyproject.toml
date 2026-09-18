@@ -1,0 +1,215 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vool"
+version = "0.6.0"
+description = "Vool Hive Mind — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [
+    {name = "sls_0x"},
+]
+keywords = ["ai", "agent", "local-first", "memory", "tools", "proof"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "pydantic>=2.0,<3.0",
+    "cryptography>=41.0",
+    "idna==3.18",  # Canonical candidate identity is intentionally locked to this Unicode/IDNA behavior.
+    "requests>=2.28",
+    "pynacl>=1.5",
+    "keyring>=24.0",  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
+    "psutil>=5.9",
+    "pyyaml>=6.0",
+    "pypdf==6.16.2",  # Confined PDF text fallback; keep installer/bundle projections in sync.
+    "reportlab==5.0.1",
+    "markdown-it-py==4.2.0",
+    "xlrd==2.0.1",  # Legacy XLS reader (pure Python, no native parts); keep installer/bundle projections in sync.
+    "starlette>=0.37,<2.0",
+    "uvicorn>=0.30,<1.0",
+    # Required for correct .null PDA derivation (find_program_address) and x402 signing;
+    # the hand-rolled PDA fallback is unreliable, so this is a hard dependency, not optional.
+    "solders>=0.21",
+]
+
+[project.optional-dependencies]
+# EVM x402 v2 settlement: EIP-712 digests, ABI encoding and EIP-3009 recovery.
+# OPTIONAL by contract, not just by intent. core.wallet.evm resolves all three at
+# USE and raises the typed `wallet_dependency_unavailable` fault when they are
+# absent, so Solana, custody, spend ceilings and the mainnet-impossible guard all
+# work without them and app boot never touches them.
+#
+# eth-abi and eth-utils are declared here because core/wallet/evm.py imports them
+# DIRECTLY. They were previously reached only as transitive dependencies of
+# eth-account, so nothing in this project's metadata named the two modules its own
+# source actually imports.
+#
+# eth-account moved out of the required list on 2026-09-04: the runtime treats it
+# as optional, and a required pin that the code tolerates the absence of is a false
+# statement about the build. Reverse it by moving these three back above if the
+# wallet EVM lane is meant to be present in every install.
+evm = [
+    "eth-abi>=6.0",
+    "eth-utils>=6.0",
+    "eth-account>=0.13",
+]
+models = [
+    "sentence-transformers>=2.2",
+    "openai>=1.0",
+    "anthropic>=0.18",
+    "torch>=2.5",
+    "transformers>=4.48",
+    "peft>=0.14",
+    "accelerate>=1.2",
+    "datasets>=3.2",
+    "huggingface_hub>=0.28",
+]
+browser = [
+    "playwright>=1.52,<2.0",
+]
+companion = [
+    "zstandard>=0.22.0",
+    "xxhash>=3.4.0",
+]
+runtime = [
+    "sentence-transformers>=2.2",
+    "openai>=1.0",
+    "anthropic>=0.18",
+    "torch>=2.5",
+    "transformers>=4.48",
+    "peft>=0.14",
+    "accelerate>=1.2",
+    "datasets>=3.2",
+    "huggingface_hub>=0.28",
+    "playwright>=1.52,<2.0",
+    "zstandard>=0.22.0",
+    "xxhash>=3.4.0",
+]
+proof = [
+    "pytest>=7.0",
+]
+dev = [
+    "build>=1.2",
+    "tomli>=2.0; python_version < '3.11'",
+    # The authoritative gate checks this exact version before collection so local and CI cannot
+    # silently disagree about collection semantics.
+    "pytest==9.1.0",
+    # Same pin as the CI gate, so `pip install -e ".[dev]"` and the gate cannot disagree about
+    # which rules exist. Bump both lines together.
+    "ruff==0.15.16",
+    "mypy>=1.8",
+    # tests/test_daemon_survives_concurrent_load.py imports httpx to drive /healthz while chat turns
+    # are in flight. It was never declared, so it passed only on machines that happened to have it
+    # and failed in CI with ModuleNotFoundError every run -- the test could never have gone green there.
+    "httpx>=0.27",
+]
+
+[project.urls]
+Homepage = "https://github.com/Parad0x-Labs/vool"
+Repository = "https://github.com/Parad0x-Labs/vool"
+"Bug Tracker" = "https://github.com/Parad0x-Labs/vool/issues"
+"Brain Hive Watch" = "https://github.com/Parad0x-Labs/vool/blob/main/docs/BRAIN_HIVE_ARCHITECTURE.md"
+
+[project.scripts]
+vool-agent = "apps.vool_agent:main"
+vool-api = "apps.vool_api_server:main"
+vool-daemon = "apps.vool_daemon:main"
+vool-meet = "apps.meet_and_greet_server:main"
+vool-watch = "apps.brain_hive_watch_server:main"
+vool-benchmark = "ops.benchmark_vool:main"
+vool = "core.command_registry.cli:main"
+
+[tool.setuptools.package-data]
+"core.command_registry" = ["census_snapshot.json"]
+
+[tool.setuptools.packages.find]
+include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "E501",
+    "E402",   # module-import-not-at-top (conditional/deferred imports)
+    "E701",   # multiple-statements-on-one-line
+    "E741",   # ambiguous-variable-name
+    "N806",   # non-lowercase-variable-in-function
+    "B904",   # raise-without-from-inside-except
+    "SIM102", # collapsible-if
+    "SIM108", # if-else-block-instead-of-if-exp
+    "SIM112", # uncapitalized-environment-variables
+    "SIM117", # multiple-with-statements
+    "RUF001", # ambiguous-unicode-character-string
+    "RUF002", # ambiguous-unicode-character-docstring
+    "RUF003", # ambiguous-unicode-character-comment
+    "RUF012", # mutable-class-default
+    "UP045",  # Optional[X] needed for Python 3.9 runtime compat with Pydantic
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Vendored OX-LIQUEFY snapshot (upstream MIT code, pinned, never house-styled
+# in place — dossier §36.2 "vendored as a snapshot WITH its tests"). Held to
+# import-safety and runtime rules only, not house style.
+"core/liquefy/vendor/**" = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+# Historical-gold vault (2026-09-08 archaeology): recovered, identity-scrubbed source preserved as a
+# snapshot, NOT runtime and never house-styled in place -- import-isolated by
+# tests/test_recovery_vault_isolation.py. Same treatment as the vendored liquefy snapshot above.
+"recovery/historical-gold/**" = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+# Test names in this repo are documentation, and the capitalised word is the contrast the test
+# exists to pin: ..._is_given_the_CORRECTED_text_not_the_raw_one, ..._on_a_FOLLOW_UP_turn_too,
+# ..._only_a_test_BUILD_request_..., ..._secret_VALUE_is_masked_.... Lowercasing them to satisfy a
+# naming rule would delete the emphasis and leave four names that read as if nothing in particular
+# were being contrasted. Scoped to tests/ -- N802 still applies to shipped code.
+"tests/**" = ["N802"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["adapters", "core", "network", "storage", "sandbox", "apps", "ops", "retrieval", "channels", "tools", "relay", "installer"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "."]
+# The historical-gold vault (2026-09-08 archaeology) preserves recovered source AND its recovered
+# test files under recovery/historical-gold/**/src/tests/. Those are a snapshot, not this repo's
+# suite: pytest must not collect them (they import the vaulted package, which is import-isolated and
+# not on sys.path -- see tests/test_recovery_vault_isolation.py). Ignore the whole vault at
+# collection so a preserved test file can never break the real suite's collection.
+# norecursedirs is load-bearing (not addopts): the shard manifest builder runs pytest with
+# `-o addopts=`, which clears addopts, so --ignore alone does NOT reach the gate's collection.
+# norecursedirs prunes the dir during recursion regardless. The list restates pytest's defaults so
+# adding "recovery" does not drop them.
+addopts = ["--ignore=recovery"]
+norecursedirs = ["*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}", "recovery"]
+python_files = ["test_*.py"]
+python_classes = ["Test*", "*Tests"]
+python_functions = ["test_*"]
+markers = [
+    "gauntlet: deterministic VOOL gauntlet check — no live model, runs in the default CI lane",
+    "gauntlet_live: gauntlet check that needs a live local Ollama; opt in with VOOL_ALLOW_LIVE_OLLAMA_TESTS=1 (or VOOL_ALPHA_LIVE_SOAK=1)",
+    "safety: zero-tolerance money/consent/destructive-action gate — must stay 100% green to ship",
+    "pa_beta: personal-assistant beta-gate check — deterministic, no live model, runs in the default CI lane",
+    "pa_beta_live: PA beta-gate check that needs a live local Ollama; opt in with VOOL_ALLOW_LIVE_OLLAMA_TESTS=1 (or VOOL_ALPHA_LIVE_SOAK=1)",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+]

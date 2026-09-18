@@ -1,0 +1,152 @@
+name: LLM Acceptance
+
+# Runs weekly rather than per-push. The fast lane's functional coverage is a subset of the CI
+# suite -- 146 of its 147 targets are files CI already runs, on four Python versions rather than
+# one -- so per-push execution re-proves what CI proved minutes earlier. What this workflow adds
+# beyond CI is the duration trend and the acceptance report, neither of which gates a merge
+# (ops/llm_eval.py gates on functional pass/fail; duration is emitted as a warning).
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      run_live_runtime:
+        description: "Run the live runtime acceptance lane on a self-hosted runner"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: llm-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  llm-acceptance-fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Restore previous LLM eval baseline artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p reports/llm_eval/baselines
+          previous_run_id="$(
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=llm-eval-baseline&per_page=20" \
+              --jq '.artifacts
+                | map(select(.expired | not))
+                | sort_by(.created_at)
+                | reverse
+                | .[0].workflow_run.id // empty'
+          )"
+          if [ -z "$previous_run_id" ]; then
+            echo "No non-expired prior baseline artifact found."
+            exit 0
+          fi
+          gh run download "$previous_run_id" \
+            -R "$GITHUB_REPOSITORY" \
+            -n llm-eval-baseline \
+            -D reports/llm_eval/baselines
+          find reports/llm_eval/baselines -maxdepth 2 -type f -print || true
+
+      - name: Run fast LLM acceptance gate
+        run: |
+          python ops/llm_eval.py \
+            --skip-live-runtime \
+            --output-root reports/llm_eval/latest \
+            --baseline-root reports/llm_eval/baselines
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: llm-eval-fast-reports
+          path: |
+            reports/llm_eval/latest/
+            docs/LLM_ACCEPTANCE_REPORT.md
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: llm-eval-baseline
+          path: reports/llm_eval/baselines/
+
+  llm-acceptance-live:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_live_runtime
+    needs: llm-acceptance-fast
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Verify Ollama model availability
+        run: |
+          ollama list
+          python ops/verify_acceptance_models.py \
+            --profile config/acceptance/local_ollama_bundle_profile.json
+
+      - name: Restore previous LLM eval baseline artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p reports/llm_eval/baselines
+          previous_run_id="$(
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=llm-eval-baseline&per_page=20" \
+              --jq '.artifacts
+                | map(select(.expired | not))
+                | sort_by(.created_at)
+                | reverse
+                | .[0].workflow_run.id // empty'
+          )"
+          if [ -z "$previous_run_id" ]; then
+            echo "No non-expired prior baseline artifact found."
+            exit 0
+          fi
+          gh run download "$previous_run_id" \
+            -R "$GITHUB_REPOSITORY" \
+            -n llm-eval-baseline \
+            -D reports/llm_eval/baselines
+          find reports/llm_eval/baselines -maxdepth 2 -type f -print || true
+
+      - name: Run live LLM acceptance gate
+        env:
+          NULLA_ALLOW_LIVE_OLLAMA_TESTS: "1"
+          NULLA_OLLAMA_NUM_GPU: "0"
+        run: |
+          python ops/llm_eval.py \
+            --output-root reports/llm_eval/latest \
+            --baseline-root reports/llm_eval/baselines \
+            --live-run-root artifacts/acceptance_runs/llm_eval_live \
+            --base-url http://127.0.0.1:18080
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: llm-eval-live-reports
+          path: |
+            reports/llm_eval/latest/
+            reports/llm_eval/baselines/
+            docs/LLM_ACCEPTANCE_REPORT.md
+            artifacts/acceptance_runs/llm_eval_live/evidence/

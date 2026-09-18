@@ -1,0 +1,23 @@
+{
+  "app_census_unchanged": true,
+  "bench_version": "1.0.0",
+  "case_count": 29,
+  "created_at": 1788363731.044332,
+  "daemon_pid": 79856,
+  "daemon_port": 53616,
+  "failures": 3,
+  "home_path": "/private/tmp/sr-final-evidence/home",
+  "live_providers": [],
+  "network_mutation_attempts": 0,
+  "outcome": "fail",
+  "product_branch": "",
+  "product_dirty": null,
+  "product_sha": "a6c8e3c4eaa70f30ccd77a9a750560286da34f2c",
+  "provider_mode": "deterministic",
+  "python_version": "3.12.13",
+  "run_id": "sr-20260902-184211-e362a3e0",
+  "schema_version": "1.0.0",
+  "staged_from_clean_tree": true,
+  "staging_archive_sha256": "80ac895a5150e0c49ec719fc7c86348bcc8daa30bf3c6c2171c3384025dd2436",
+  "unexpected_skips": 0
+}

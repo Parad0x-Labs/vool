@@ -1,0 +1,12 @@
+{
+  "home_region": "eu",
+  "meet_seed_urls": [
+    "https://meet-eu.parad0xlabs.com",
+    "https://meet-us.parad0xlabs.com",
+    "https://meet-apac.parad0xlabs.com"
+  ],
+  "prefer_home_region_first": true,
+  "cross_region_summary_only": true,
+  "allow_local_fallback": true,
+  "keep_local_cache": true
+}

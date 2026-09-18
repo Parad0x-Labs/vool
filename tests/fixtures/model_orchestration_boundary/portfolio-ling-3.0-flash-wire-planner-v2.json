@@ -1,0 +1,102 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "portfolio",
+  "calls": [
+    {
+      "system": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]",
+      "prompt": "I have $12,500 USD and want to diversify it across British pounds, silver, and platinum.\n\nAllocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.\n\nAssume:\n\n* GBP/USD = 1.312\n* Silver = $41.80 per troy ounce\n* Platinum = $1,485.00 per troy ounce\n* Currency conversion fee = 0.8%\n* Silver purchase premium = 3.0%\n* Platinum purchase premium = 2.2%\n\nCalculate:\n\n1. How many British pounds I receive after the FX fee.\n2. How many troy ounces and grams of silver I can buy after the premium.\n3. How many troy ounces and grams of platinum I can buy after the premium.\n4. The exact USD amount allocated to each asset.\n5. The dollar amount paid in each fee/premium and their combined total.\n6. What percentage of the original $12,500 is lost to fees/premiums.\n7. Present the result in a compact table and finish with a short explanation of the final portfolio.\n\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read.",
+      "max_tokens": 2914,
+      "reasoning": null,
+      "temperature": 0,
+      "reserved_usd": "0.000308994",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]"
+          },
+          {
+            "role": "user",
+            "content": "I have $12,500 USD and want to diversify it across British pounds, silver, and platinum.\n\nAllocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.\n\nAssume:\n\n* GBP/USD = 1.312\n* Silver = $41.80 per troy ounce\n* Platinum = $1,485.00 per troy ounce\n* Currency conversion fee = 0.8%\n* Silver purchase premium = 3.0%\n* Platinum purchase premium = 2.2%\n\nCalculate:\n\n1. How many British pounds I receive after the FX fee.\n2. How many troy ounces and grams of silver I can buy after the premium.\n3. How many troy ounces and grams of platinum I can buy after the premium.\n4. The exact USD amount allocated to each asset.\n5. The dollar amount paid in each fee/premium and their combined total.\n6. What percentage of the original $12,500 is lost to fees/premiums.\n7. Present the result in a compact table and finish with a short explanation of the final portfolio.\n\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read."
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 2914,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "vool_json_object",
+            "strict": false,
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "request": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  },
+                  "depends_on": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "required": [
+                  "request",
+                  "operation",
+                  "depends_on"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "http_status": 200,
+      "output": "",
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 1233,
+        "completion_tokens": 2914,
+        "total_tokens": 4147,
+        "cost": 0.0005985,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0005985,
+          "upstream_inference_prompt_cost": 7.398e-05,
+          "upstream_inference_completions_cost": 0.00052452
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2139,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "DeepInfra",
+      "generation_id": "gen-1789107198-wNRZ1of3rjpLMPaaNgpZ",
+      "seconds": 42.744
+    }
+  ],
+  "source": "9d2a68c27b233795eac4556da563d408da06ea21",
+  "kind": "component comparison, NOT native acceptance",
+  "operations_source_sha256": "1e5a0d8758c86c768e42e26bde8a1503171481864d269410f630bb5b6a2e9689",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": true,
+  "component_plan": null
+}

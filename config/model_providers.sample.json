@@ -1,0 +1,102 @@
+{
+  "providers": [
+    {
+      "provider_name": "local-qwen-http",
+      "model_name": "qwen2.5:14b",
+      "source_type": "http",
+      "adapter_type": "local_qwen_provider",
+      "license_name": "Apache-2.0",
+      "license_reference": "https://www.apache.org/licenses/LICENSE-2.0",
+      "weight_location": "user-supplied",
+      "weights_bundled": false,
+      "redistribution_allowed": true,
+      "runtime_dependency": "ollama",
+      "notes": "Local Qwen provider via Ollama. Install Ollama, then: ollama pull qwen2.5:14b",
+      "capabilities": [
+        "summarize",
+        "classify",
+        "format",
+        "extract",
+        "structured_json",
+        "tool_intent"
+      ],
+      "runtime_config": {
+        "base_url": "http://127.0.0.1:11434",
+        "api_path": "/v1/chat/completions",
+        "health_path": "/v1/models",
+        "timeout_seconds": 30,
+        "supports_json_mode": false
+      },
+      "metadata": {
+        "runtime_family": "openai_compatible",
+        "deployment_class": "local",
+        "orchestration_role": "drone"
+      },
+      "enabled": false
+    },
+    {
+      "provider_name": "cloud-fallback-http",
+      "model_name": "external-cloud-model",
+      "source_type": "http",
+      "adapter_type": "cloud_fallback_provider",
+      "license_name": "Provider-specific",
+      "license_reference": "user-managed",
+      "weight_location": "external",
+      "weights_bundled": false,
+      "redistribution_allowed": false,
+      "runtime_dependency": "remote-openai-compatible-provider",
+      "notes": "Optional paid cloud fallback. Keep disabled unless you have a real API key and endpoint.",
+      "capabilities": [
+        "summarize",
+        "classify",
+        "format",
+        "extract",
+        "code_basic",
+        "code_complex",
+        "long_context",
+        "structured_json",
+        "tool_intent"
+      ],
+      "runtime_config": {
+        "base_url": "https://replace-with-provider.example",
+        "api_path": "/v1/chat/completions",
+        "api_key_env": "VOOL_CLOUD_API_KEY",
+        "timeout_seconds": 30
+      },
+      "metadata": {
+        "runtime_family": "openai_compatible",
+        "deployment_class": "cloud",
+        "orchestration_role": "queen"
+      },
+      "enabled": false
+    },
+    {
+      "provider_name": "subprocess-helper",
+      "model_name": "external-helper-runtime",
+      "source_type": "subprocess",
+      "adapter_type": "local_subprocess",
+      "license_name": "Proprietary or external",
+      "license_reference": "user-managed",
+      "weight_location": "external",
+      "weights_bundled": false,
+      "redistribution_allowed": false,
+      "runtime_dependency": "external-helper-runtime",
+      "notes": "Example subprocess bridge. The executable is external to VOOL core.",
+      "capabilities": [
+        "classify",
+        "extract",
+        "structured_json"
+      ],
+      "runtime_config": {
+        "command": [
+          "external-helper-runtime"
+        ],
+        "timeout_seconds": 60
+      },
+      "metadata": {
+        "runtime_family": "subprocess"
+      },
+      "enabled": false
+    }
+  ]
+}

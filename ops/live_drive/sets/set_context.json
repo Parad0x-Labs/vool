@@ -1,0 +1,352 @@
+[
+ {
+  "id": "C01",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "My name is Alex and I live in Vilnius. Remember that.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C02",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "My project is called VOOL and my budget for it is 4200 euros. Remember that too.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C03",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "My favourite colour is teal and my cat is called Mira. Remember these as well.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C04",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What city do I live in?",
+  "expect": "Vilnius"
+ },
+ {
+  "id": "C05",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 17 times 23?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C06",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is my project budget?",
+  "expect": "4200"
+ },
+ {
+  "id": "C07",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Reverse the word ORBIT.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C08",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is the capital of Portugal?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C09",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Give me two words describing Saturn.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C10",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is my cat called?",
+  "expect": "Mira"
+ },
+ {
+  "id": "C11",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 250 divided by 4?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C12",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name three primary colours.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C13",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What year did the Berlin wall fall?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C14",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Reverse the word CANDLE.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C15",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is the chemical symbol for iron?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C16",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "How many continents are there?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C17",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 99 plus 111?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C18",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name two planets with rings.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C19",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is the square root of 144?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C20",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is my name and what city do I live in?",
+  "expect": "Alex / Vilnius"
+ },
+ {
+  "id": "C21",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is my favourite colour?",
+  "expect": "teal"
+ },
+ {
+  "id": "C22",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 12 times 12?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C23",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name the largest ocean.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C24",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is the boiling point of water in celsius?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C25",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Reverse the word PLANET.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C26",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "How many sides does a hexagon have?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C27",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 1000 minus 377?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C28",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name a country starting with Z.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C29",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is the speed of light roughly?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C30",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 45 percent of 200?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C31",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name two programming languages.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C32",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is the tallest mountain on earth?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C33",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 8 cubed?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C34",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name three types of cloud.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C35",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is the freezing point of water in fahrenheit?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C36",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Reverse the word MARBLE.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C37",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 60 percent of 350?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C38",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name two Baltic countries.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C39",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 144 divided by 12?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C40",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name a famous physicist.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C41",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 2 to the power of 10?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C42",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "How many minutes in three hours?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C43",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name two European rivers.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C44",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 15 squared?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C45",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name the smallest planet.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C46",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What is 720 divided by 9?",
+  "expect": "conversational"
+ },
+ {
+  "id": "C47",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Name two chess pieces.",
+  "expect": "conversational"
+ },
+ {
+  "id": "C48",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "Remind me: my name, my city, my project, my budget, my cat's name and my favourite colour.",
+  "expect": "Alex / Vilnius / VOOL / 4200 / Mira / teal"
+ },
+ {
+  "id": "C49",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "What was the very first thing I asked you to remember?",
+  "expect": "name + city"
+ },
+ {
+  "id": "C50",
+  "lane": "context retention",
+  "thread": "ctx",
+  "prompt": "How much of my budget is left if I spend 1750 of it?",
+  "expect": "2450"
+ }
+]

@@ -1,0 +1,143 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "tank",
+  "calls": [
+    {
+      "system": "result-presentation.v2: explain the supplied computed results briefly. Do not recalculate or invent observations. Return JSON with an explanation array. Each item has exactly two keys: text (prose without digits, possibly empty) and ref (one listed result symbol, or null for prose alone). The runtime prints text then the referenced value. Use ref for every numerical statement; never put reference names, XML or placeholders inside text. The runtime already supplies the table or chart; do not recreate it. Produce only the requested short explanation.",
+      "prompt": "{\"request\": \"Show the refrigerated shipment count in a table and briefly explain the outcome.\", \"results\": [{\"ref\": \"dependency_1_value_1\", \"node_id\": \"cold-chain\", \"step_id\": \"\", \"label\": \"Refrigerated parcels\", \"value\": 144.0, \"unit\": \"parcels\", \"calculation\": \"\"}]}",
+      "max_tokens": 1400,
+      "reasoning": null,
+      "temperature": 0,
+      "reserved_usd": "0.000122577",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "result-presentation.v2: explain the supplied computed results briefly. Do not recalculate or invent observations. Return JSON with an explanation array. Each item has exactly two keys: text (prose without digits, possibly empty) and ref (one listed result symbol, or null for prose alone). The runtime prints text then the referenced value. Use ref for every numerical statement; never put reference names, XML or placeholders inside text. The runtime already supplies the table or chart; do not recreate it. Produce only the requested short explanation."
+          },
+          {
+            "role": "user",
+            "content": "{\"request\": \"Show the refrigerated shipment count in a table and briefly explain the outcome.\", \"results\": [{\"ref\": \"dependency_1_value_1\", \"node_id\": \"cold-chain\", \"step_id\": \"\", \"label\": \"Refrigerated parcels\", \"value\": 144.0, \"unit\": \"parcels\", \"calculation\": \"\"}]}"
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 1400,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "vool_json_object",
+            "strict": false,
+            "schema": {
+              "type": "object",
+              "required": [
+                "explanation"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "explanation": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "text",
+                      "ref"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "text": {
+                        "type": "string",
+                        "pattern": "^[^0-9]*$"
+                      },
+                      "ref": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          null,
+                          "dependency_1_value_1"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "{\n  \"explanation\": [\n    {\n      \"text\": \"The refrigerated shipment count in parcels is\",\n      \"ref\": \"dependency_1_value_1\"\n    }\n  ]\n}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 208,
+        "completion_tokens": 1295,
+        "total_tokens": 1503,
+        "cost": 0.00024558,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00024558,
+          "upstream_inference_prompt_cost": 1.248e-05,
+          "upstream_inference_completions_cost": 0.0002331
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1194,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "DeepInfra",
+      "generation_id": "gen-1789142321-6fjM56ySTfPb6KNkPcbv",
+      "seconds": 26.211
+    }
+  ],
+  "source": "9ab5a6a97ed307db71f885be600869475b5fd96e",
+  "kind": "live structured presentation of recorded/controlled results; arithmetic NOT reverified",
+  "presentation_source_sha256": "612cd35645ec091ed9aaa2c332380f481f866505d0d307e96a341ab9f67fd2b9",
+  "operations_source_sha256": "36df4c68077f98157c114f3a8190935557fcefaffaeac07cf28cc48b3b107e93",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": false,
+  "result": {
+    "rows": [
+      {
+        "ref": "dependency_1_value_1",
+        "node_id": "cold-chain",
+        "step_id": "",
+        "label": "Refrigerated parcels",
+        "value": 144.0,
+        "unit": "parcels",
+        "calculation": ""
+      }
+    ],
+    "explanation": [
+      {
+        "text": "The refrigerated shipment count in parcels is"
+      },
+      {
+        "ref": "dependency_1_value_1"
+      }
+    ],
+    "cannot_determine": [],
+    "presentation_format": "table",
+    "chart_kind": "bars_v",
+    "chart_error": "",
+    "source_node_ids": [
+      "cold-chain"
+    ]
+  },
+  "rendered": "| Result | Calculation | Value |\n| --- | --- | --- |\n| Refrigerated parcels | `` | 144 parcels |\n\nThe refrigerated shipment count in parcels is144 parcels"
+}

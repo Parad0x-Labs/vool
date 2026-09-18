@@ -1,0 +1,3217 @@
+{
+  "mode": "manual",
+  "rows": [
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "browser.render",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "Browser rendering is disabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "capability.expand_family",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "always_visible",
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "capability",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.review_evidence",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.task.approve",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code_task",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.task.cancel",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code_task",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.task.identify",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code_task",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.task.open",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code_task",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.task.propose",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code_task",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.task.report",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code_task",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.task.rollback",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "overwrite_existing_files",
+        "delete_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code_task",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "code.task.step",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "create_files",
+        "modify_files",
+        "run_side_effecting_commands"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "code_task",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "demo.plan",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "demo",
+      "unsupported_reason": "Demo planning needs web access to read the repo README or docs page (enable web fallback)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "email.read",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [
+        "explicit_demand"
+      ],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "email",
+      "unsupported_reason": "Email read is disabled on this runtime (set email.read_enabled and store IMAP credentials)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "email.reply",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "email",
+      "unsupported_reason": "Email reply is disabled on this runtime (set email.send_enabled and store SMTP credentials)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "email.send",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [
+        "explicit_demand"
+      ],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "email",
+      "unsupported_reason": "Email send is disabled on this runtime (set email.send_enabled and store SMTP credentials)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "image.generate",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [
+        "explicit_demand"
+      ],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "media",
+      "unsupported_reason": "Image generation is disabled on this runtime (set image.generate_enabled and configure an image service)."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.disk_usage",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.display_inspect",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.ensure_directory",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "create_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Safe local machine writes are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.event_log_errors",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.find_file",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "list_directories"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.find_folder",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "list_directories"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.find_largest",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "list_directories"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.host_state",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.inspect_specs",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Grounded machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.list_directory",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "list_directories"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Safe local directory inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.list_processes",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "list_directories"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.move_path",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "delete_files",
+        "modify_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Local machine file moves are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.read_file",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Safe local file reads are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "machine.write_file",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "create_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "machine",
+      "unsupported_reason": "Safe local machine writes are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "marketplace.purchase_knowledge",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "financial_or_paid_actions"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "marketplace",
+      "unsupported_reason": "Knowledge purchasing is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "marketplace.search_listings",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "family_hint",
+        "navigator"
+      ],
+      "permission_actions": [
+        "access_external_providers",
+        "use_network_access"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "marketplace",
+      "unsupported_reason": "The knowledge marketplace is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "media.edit",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "media",
+      "unsupported_reason": "Media Studio is disabled on this runtime (set media.studio_enabled)."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "media.export",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "media",
+      "unsupported_reason": "Media Studio is disabled on this runtime (set media.studio_enabled)."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "media.inspect",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "media",
+      "unsupported_reason": "Media Studio is disabled on this runtime (set media.studio_enabled)."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "media.open",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "media",
+      "unsupported_reason": "Media Studio is disabled on this runtime (set media.studio_enabled)."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "media.redo",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "media",
+      "unsupported_reason": "Media Studio is disabled on this runtime (set media.studio_enabled)."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "media.undo",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "media",
+      "unsupported_reason": "Media Studio is disabled on this runtime (set media.studio_enabled)."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:operator",
+      "intent": "operator.cleanup_temp_files",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "delete_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "operator",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:operator",
+      "intent": "operator.inspect_disk_usage",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion",
+        "family_hint",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "operator",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:operator",
+      "intent": "operator.inspect_processes",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "operator",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:operator",
+      "intent": "operator.inspect_services",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "operator",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:operator",
+      "intent": "operator.list_tools",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "always_visible",
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "operator",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:operator",
+      "intent": "operator.move_path",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "run_side_effecting_commands"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "operator",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:operator",
+      "intent": "operator.schedule_calendar_event",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "external_messages"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "operator",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "orchestration.execute_envelope",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "family_hint",
+        "navigator"
+      ],
+      "permission_actions": [
+        "run_side_effecting_commands"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "orchestration",
+      "unsupported_reason": "Task envelope execution requires workspace access and bounded execution to be enabled."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:payment",
+      "intent": "pay.x402",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "family_hint",
+        "navigator"
+      ],
+      "permission_actions": [
+        "financial_or_paid_actions"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "wallet",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "pdf.extract_text",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion",
+        "family_hint",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "pdf",
+      "unsupported_reason": "Local file reading is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "pdf.ocr",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "pdf",
+      "unsupported_reason": "Local file reading is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "profile.forget",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "profile",
+      "unsupported_reason": "Operator Profile is unavailable on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "profile.list",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "profile",
+      "unsupported_reason": "Operator Profile is unavailable on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "profile.remember",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "profile",
+      "unsupported_reason": "Operator Profile is unavailable on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.bind",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.ci.artifacts",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "access_external_providers"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.ci.cancel",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "access_external_providers"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.ci.jobs",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "access_external_providers"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.ci.log",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "access_external_providers"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.ci.rerun",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "access_external_providers"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.diagnose",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.diff",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "access_external_providers"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.git",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "git_commit",
+        "git_merge_or_rebase"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.inspect",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.push",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "git_push"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.push.authorize",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "change_settings"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.push.request",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.receipt",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.review",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.session.open",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.step",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "modify_files",
+        "run_side_effecting_commands"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "repo.verify_remote",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "access_external_providers"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "repo_ops",
+      "unsupported_reason": "Repository operations need workspace read access, which is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "direct_response",
+      "intent": "respond.direct",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "always_visible",
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "runtime",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "sandbox.run_command",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "unknown_side_effect"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "sandbox",
+      "unsupported_reason": "Sandbox command execution is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:payment",
+      "intent": "sell.quote",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "family_hint",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "marketplace",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "set.save",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "change_settings"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "set",
+      "unsupported_reason": "Creative sets are unavailable on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "set.use",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "family_hint",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "set",
+      "unsupported_reason": "Creative sets are unavailable on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "skill.create",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "create_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "skill",
+      "unsupported_reason": "Skill authoring is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "skill.inspect",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "skill",
+      "unsupported_reason": "Local file reading is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "skill.install",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "create_files",
+        "change_settings"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "skill",
+      "unsupported_reason": "Skill installation is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "skill.list",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion",
+        "family_hint"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "skill",
+      "unsupported_reason": "Local file reading is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "skill.rollback",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "create_files",
+        "change_settings"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "skill",
+      "unsupported_reason": "Skill rollback is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "skill.validate",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "skill",
+      "unsupported_reason": "Local file reading is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "video.generate",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "media",
+      "unsupported_reason": "Video generation is disabled on this runtime (set video.generate_enabled and configure a video service)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.assert",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.cancel",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.checkout.begin",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.checkout.handoff",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.click",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.download",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.inspect",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.navigate",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.offer.compare",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.offer.extract",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.order.reconcile",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.permission.grant",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.permission.list",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.profile.confirm",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.screenshot",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.session.close",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.session.open",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.session.status",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.type",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.upload",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "vool-browser.upload.stage",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "web",
+      "unsupported_reason": "The browser lane needs a Chromium-family browser and the Playwright driver, enabled by runtime browser policy."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "wallet.payment_status",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [
+        "explicit_demand"
+      ],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "wallet",
+      "unsupported_reason": "The wallet is switched off on this runtime (VOOL_WALLET_ENABLED)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "wallet.propose",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [
+        "explicit_demand"
+      ],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "wallet",
+      "unsupported_reason": "The wallet is switched off on this runtime (VOOL_WALLET_ENABLED)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "wallet.simulate",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [
+        "explicit_demand"
+      ],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "wallet",
+      "unsupported_reason": "The wallet is switched off on this runtime (VOOL_WALLET_ENABLED)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "wallet.spend",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "wallet",
+      "unsupported_reason": "Wallet spend is disabled on this runtime (set wallet.spend_enabled, configure a capped SpendPolicy, and wire a signer)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "wallet.status",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [
+        "explicit_demand"
+      ],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "wallet",
+      "unsupported_reason": "The wallet is switched off on this runtime (VOOL_WALLET_ENABLED)."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:web",
+      "intent": "web.fetch",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "public_read_only_retrieval"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web",
+      "unsupported_reason": "Web fetch is disabled by runtime web policy."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:web",
+      "intent": "web.research",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "public_read_only_retrieval"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "external_lane:web",
+      "intent": "web.search",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "public_read_only_retrieval"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web",
+      "unsupported_reason": ""
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "web0.add_block",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "modify_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web0",
+      "unsupported_reason": "Local Web0 builder is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "web0.add_gated_section",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "modify_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web0",
+      "unsupported_reason": "Local Web0 builder is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "web0.compile_preview",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "modify_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web0",
+      "unsupported_reason": "Local Web0 builder is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "web0.create_project",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "create_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web0",
+      "unsupported_reason": "Local Web0 builder is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "web0.encrypt_whole_site",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "modify_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web0",
+      "unsupported_reason": "Local Web0 builder is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "web0.fill_slots",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "modify_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web0",
+      "unsupported_reason": "Local Web0 builder is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "web0.open_builder_draft",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "family_hint"
+      ],
+      "permission_actions": [
+        "create_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web0",
+      "unsupported_reason": "Local Web0 builder draft generation is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "web0.publish",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "deployment",
+        "use_network_access"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "web0",
+      "unsupported_reason": "Web0 publishing is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.apply_unified_diff",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "modify_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace write actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.ensure_directory",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "create_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace write actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.git_diff",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion",
+        "navigator"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace git inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.git_status",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace git inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.git_summary",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace git inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.identity",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files",
+        "list_directories"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace inspection is disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.list_files",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "list_directories"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace read actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.list_tree",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "list_directories"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace read actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.read_file",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace read actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.replace_in_file",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "modify_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace write actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.rollback_last_change",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "delete_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace write actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.run_formatter",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "run_side_effecting_commands"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace validation commands are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.run_lint",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "run_side_effecting_commands"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace validation commands are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.run_tests",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "run_side_effecting_commands"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace validation commands are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.search_text",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace read actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.symbol_search",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "family_hint",
+        "expansion"
+      ],
+      "permission_actions": [
+        "read_files"
+      ],
+      "permission_effect": "allow",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace read actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": true,
+      "executed": 0,
+      "execution_lane": "runtime",
+      "intent": "workspace.write_file",
+      "not_model_facing_reason": "",
+      "offer_paths": [
+        "explicit_demand",
+        "expansion"
+      ],
+      "permission_actions": [
+        "create_files"
+      ],
+      "permission_effect": "require_approval",
+      "permitted": true,
+      "receipted": 0,
+      "registered": true,
+      "selectable": true,
+      "source": "builtin",
+      "supported": true,
+      "surface": "workspace",
+      "unsupported_reason": "Workspace write actions are disabled on this runtime."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "x.trending",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "x",
+      "unsupported_reason": "X trending is disabled on this runtime (set x.trending_enabled and configure a bearer token)."
+    },
+    {
+      "declared": true,
+      "executable": false,
+      "executed": 0,
+      "execution_lane": "",
+      "intent": "x402.propose",
+      "not_model_facing_reason": "policy_disabled",
+      "offer_paths": [
+        "explicit_demand"
+      ],
+      "permission_actions": [],
+      "permission_effect": "",
+      "permitted": false,
+      "receipted": 0,
+      "registered": true,
+      "selectable": false,
+      "source": "builtin",
+      "supported": false,
+      "surface": "wallet",
+      "unsupported_reason": "The wallet is switched off on this runtime (VOOL_WALLET_ENABLED)."
+    }
+  ],
+  "session_id": "",
+  "summary": {
+    "declared": 138,
+    "executable": 104,
+    "executed": 0,
+    "not_model_facing": 34,
+    "permitted": 104,
+    "receipted": 0,
+    "registered": 138,
+    "selectable": 104
+  }
+}

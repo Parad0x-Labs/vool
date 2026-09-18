@@ -1,0 +1,284 @@
+# OS / editor noise
+Thumbs.db
+.DS_Store
+screenlog.*
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python cache / test / packaging output
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.eggs/
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+
+# Stable home for finished build/test artifacts (built apps, live-matrix logs) — never /tmp-only,
+# and never allowed to dirty the tree the provenance gate probes.
+artifacts/
+
+# Local environments
+.venv/
+venv/
+env/
+
+# Local runtime state, personal memory, generated workspaces
+.vool_local/
+.vool_stopped
+.openclaw/
+Beta_Website/
+Beta_Website_Snapshots/
+Beta_Website_Copies/
+Beta_Website_Backups/
+Beta2_Website/
+Beta*_Website*/
+Beta*_Website*.zip
+memory/
+# ...but core/memory/ is PRODUCTION CODE, not runtime state. The rule above matches any
+# directory named `memory` at any depth, so it catches it too. The four modules there
+# survive only because they were tracked before this rule existed -- a NEW file added
+# beside them is silently ignored, which is how work disappears (see rule 0.9).
+!core/memory/
+!core/memory/**
+# The negation above out-ranks the global `__pycache__/` rule because it comes later, so
+# build artefacts under it have to be re-ignored explicitly.
+core/memory/__pycache__/
+generated/
+artifacts/acceptance_runs/
+.verification-logs/
+workspace/
+# Recorded code-task journals keep the workspace bytes their tests recreate.
+!tests/fixtures/code_task_journals/*/*/workspace/
+sandbox_workspace/
+control/
+templates/
+install_doctor.json
+install_receipt.json
+.worktrees/
+
+# Explicit guardrail: internal handovers must stay local-only.
+# Never put sensitive/operator handovers under docs/ or any tracked path.
+# Match HANDOVER anywhere in the name (e.g. WINDOWS_AGENT_HANDOVER.md), not just a
+# leading "HANDOVER_" — these files carry machine paths/usernames and must never ship.
+*HANDOVER*.md
+# HANDOFF is the same kind of file and the pattern above does not catch it. Found when a
+# `git add -A` swept VOOL-DELIVERY/KAS_HANDOFF_CONTEXT_2026-08-02.md into a commit: one
+# spelling was guarded and its synonym was not, so the guardrail depended on which word the
+# author happened to pick.
+*HANDOFF*.md
+**/*HANDOVER*.md
+HANDOVER_*.md
+memory/HANDOVER_*.md
+memory/INTERNAL_TAKEOVER*.md
+memory/*TAKEOVER*.md
+docs/HANDOVER_INTERNAL*.md
+docs/INTERNAL_TAKEOVER*.md
+
+# Personal / operator identity (never publish)
+USER.md
+IDENTITY.md
+MEMORY.md
+SOUL.md
+AGENTS.md
+HEARTBEAT.md
+BOOTSTRAP.md
+TOOLS.md
+Cursor_Claude_Handover.md
+
+# Handover docs (contain real node IPs, SSH paths, server configs)
+docs/HANDOVER_2026-03-15_FULL_STATE.md
+docs/HANDOVER_2026-03-14_HIVE_SURFACES_AND_RUNTIME_TRUTH.md
+
+# Ops scripts (contain deployment IPs, SSH paths, server configs)
+ops/*
+# Restart-first-turn P0 (2026-09-02): the served-reality-style reproduction
+# harness — loopback stub only, no IPs/secrets, must stay visible.
+!ops/restart_repro/
+!ops/restart_repro/**
+ops/restart_repro/__pycache__/
+!ops/llm_eval.py
+!ops/ensure_public_hive_auth.py
+!ops/pytest_shards.py
+!ops/a11_pass002_mutation_proofs.py
+!ops/demo_app_pass001_mutations.py
+!ops/pytest_manifest.py
+!ops/bundle_dependency_provenance.py
+!ops/pytest_execution.py
+!ops/process_tree.py
+!ops/verify.py
+!ops/wallet_devnet_proof.py
+!ops/wallet_authority_sabotage.py
+!ops/wallet_devnet_external_proof.py
+!ops/wallet_devnet_proof_sabotage.py
+# R2 (AUD-20260829-003) static tree-wide check: no sys.modules[__name__] reassignment shims.
+!ops/check_module_identity.py
+!ops/semantic_requestgraph_gold.py
+# Skip-accounting gate (recovered 2026-08-29 from audit/skip-accounting): a paired baseline
+# runner and the controller that grades it. They exist on no other ref, so an `ops/*` miss
+# here would lose them silently -- which is exactly what tests/test_ops_instruments_are
+# _never_invisible.py now fails on.
+!ops/baseline_check.py
+!ops/trusted_controller.py
+# MILESTONE 0 boundary map (architecture convergence campaign): the rerunnable
+# AST measurement of turn entrypoints / authority sites / import direction.
+!ops/boundary_map.py
+!ops/greenloop_concurrency.py
+# Served-reality bench (P0, 2026-09-02): the exact-SHA release harness that
+# stages one commit read-only and proves the assembled product over HTTP.
+!ops/served_reality/
+!ops/served_reality/**
+ops/served_reality/__pycache__/
+!ops/routing_reliability_corpus.py
+!ops/semantic_generalization_corpus.py
+!ops/verify_acceptance_models.py
+# Blast-radius selection + seeded hostile driver — loopback-only, no IPs/secrets.
+!ops/blast_matrix.py
+!ops/hostile_user_drive.py
+# A DIRECTORY of instruments, so the negation has to cover the tree rather than name each
+# file. `ops/*` above is an allowlist by design; a new tool that is not listed is invisible
+# to `git status` and one `git clean` from gone -- which is what rule 0.9 exists to stop, and
+# what happened when this directory was first added.
+!ops/live_drive/
+!ops/live_drive/**
+ops/live_drive/**/__pycache__/
+# Config-driven cluster launchers — pure glue (take --config <path>), no IPs/secrets.
+# Without these negations the ops/* rule silently swallows them, so the bootstrap +
+# cluster READMEs reference scripts that can never be committed.
+!ops/run_meet_node_from_config.py
+!ops/run_brain_hive_watch_from_config.py
+tests/test_overnight_reports.py
+tests/test_repo_hygiene_check.py
+tests/test_channel_gateway.py
+
+# Build-time provenance stamp (written per build by installer/stamp_build_source.py)
+config/build-source.json
+
+# Cluster configs (contain node IPs and auth tokens)
+config/meet_clusters/do_ip_first_4node/
+!config/meet_clusters/do_ip_first_4node/
+!config/meet_clusters/do_ip_first_4node/**
+config/meet_clusters/separated_watch_4node/tls/
+
+# Internal deployment handover docs (contain server IPs, SSH commands)
+docs/HANDOVER_PUBLIC_HIVE_*.md
+
+# Shell launchers with hardcoded local paths
+OpenClaw_VOOL.sh
+Start_VOOL.sh
+Talk_To_VOOL.sh
+Stop_VOOL.sh
+Open_Web0.sh
+*.command
+
+# Agent transcripts / cursor state
+.cursor/
+
+# Databases, logs, pid files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.log
+*.pid
+
+# Keys, secrets, machine identity, env files
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.b64
+data/keys/
+network/identity.json
+ssh/
+vool-ssh/
+
+# Local packaging / build metadata
+decentralized_vool.egg-info/
+
+# Local model staging: keep the tiny test fixture, ignore everything else
+data/trainable_models/*
+!data/trainable_models/sshleifer-tiny-gpt2/
+!data/trainable_models/sshleifer-tiny-gpt2/**
+data/voolbook_token.secret
+data/owner_identity.json
+
+# Generated evaluation outputs
+artifacts/acceptance_runs/
+artifacts/live_debug_workspace_acceptance_regressions*/
+reports/llm_eval/latest/
+reports/llm_eval/baselines/
+
+# Generated local proof and operator replay outputs
+.codex-skill-staging/
+reports/greenloop/concurrency.json
+reports/greenloop/live_acceptance*/
+reports/greenloop/logs/healthz_*.json
+reports/greenloop/logs/concurrency_probe.json
+reports/greenloop/operator_replay/
+reports/greenloop/start_greenloop_runtime.sh
+
+# OpenClaw per-machine setup state (generated, not source)
+openclaw-workspace-state.json
+
+# Local Codex audit evidence (advisory-only; preserved on audit/* branches,
+# contains machine-specific absolute paths — must not be pushed to public main)
+CODEX-AUDIT/
+
+# Local audit run output. Generated, never source: the 23 .py files it drops carry their own
+# lint debt (66 ruff errors) and were being counted against the repo, so `ruff check .` locally
+# reported 151 errors where CI's tracked-tree view saw 85. Ruff honours .gitignore, so ignoring
+# it here is what makes a local lint run agree with CI. A project must not be graded on its own
+# generated artifacts, and it must not be linted on them either.
+.vool-audit/
+
+# VOOL-DELIVERY bookkeeping: track the state files, but never the local approval artifact,
+# transient evidence, or local-only scratch. The state files themselves are the source of truth.
+VOOL-DELIVERY/GO_APPROVAL.json
+VOOL-DELIVERY/evidence/*
+!VOOL-DELIVERY/evidence/.gitkeep
+VOOL-DELIVERY/*.local
+VOOL-DELIVERY/PUBLIC_RELEASE_MANIFEST.json
+
+# Accidental databases named from a Python object repr (illegal on NTFS, breaks Windows checkout)
+*_PooledConnection*
+<*>
+
+# generated by tests/legacy/test_cas.py, not source
+test_data/*.bin
+
+.venv
+
+# Crash-recovery journals written by tests/_source_guard while a deliberate mutation is on disk.
+.vool_source_journal/
+!ops/semantic_phase0_frozen_corpus.json
+!ops/phase_r_multiintent_mutations.py
+# C15 (2026-09-03): the keychain-preflight sabotage runner — named-red proof per invariant.
+!ops/keychain_preflight_mutations.py
+!ops/council_mutations.py
+!ops/battery_20_probe.py
+
+# Lane-local optional reader decoders installed with `pip install --target`; never committed.
+.reader-deps/
+
+# First-run pact (2026-09-05): the sabotage harness and served journeys —
+# loopback-only, no IPs/secrets, must stay visible next to the keychain harness.
+!ops/first_run_pact_mutations.py
+!ops/first_run_pact_journeys.py
