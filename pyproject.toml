@@ -25,7 +25,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2.0,<3.0",
     "cryptography>=41.0",
-    "idna==3.18",  # Canonical candidate identity is intentionally locked to this Unicode/IDNA behavior.
+    "idna==3.19",  # Canonical candidate identity is intentionally locked to this Unicode/IDNA behavior.
     "requests>=2.28",
     "pynacl>=1.5",
     "keyring>=24.0",  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
