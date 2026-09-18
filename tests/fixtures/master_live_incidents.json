@@ -1,0 +1,37 @@
+{
+  "stream_commit_divergence": {
+    "prompt": "Return exactly this lowercase token and nothing else: laapitytio",
+    "speculative_text": "laapitytio (done)",
+    "canonical_text": "laapitytio",
+    "invariant": "visible == canonical == persisted == next_turn_history"
+  },
+  "provenance_history_contamination": {
+    "prompt": "What exact title did you give me? Reply with the title only.",
+    "canonical_text": "Local Routing QA Guards Every Edge",
+    "provenance_footer": "`cloud | nemotron-nano-9b-v2 | 42 tok`",
+    "invariant": "display metadata is absent from model-visible history"
+  },
+  "activity_replay": {
+    "event_count": 120,
+    "turn_count": 3,
+    "invariant": "each backend (session_id, seq) is rendered once across turn polls"
+  },
+  "draft_mode_sync": {
+    "event_type": "mode_changed",
+    "invariant": "a preference-only event cannot create a running task"
+  },
+  "unfulfilled_fallback_retry": {
+    "prompt": "A) Explain in one sentence why soap helps remove grease. B) Calculate 46 x 19. C) Give a 6-word title for a QA note about local routing.",
+    "failure_reason": "missing_requested_parts",
+    "invariant": "a response-control fallback remains an unfulfilled retry target"
+  },
+  "alphabetic_clause_constraint": {
+    "prompt": "A) Explain in one sentence why soap helps remove grease. B) Calculate 46 x 19. C) Give a 6-word title for a QA note about local routing.",
+    "request_count": 3,
+    "invariant": "the one-sentence constraint belongs to clause A, not the whole turn"
+  },
+  "impossible_action_with_know_sibling": {
+    "prompt": "A) Shut off the overflowing sink in my kitchen. B) Explain the physics of why closing the valve stops the flow.",
+    "invariant": "an unavailable physical action cannot become workspace search or suppress an independent knowledge answer"
+  }
+}

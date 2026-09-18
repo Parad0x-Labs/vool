@@ -1,0 +1,37 @@
+{
+  "cluster_id": "vool-global-3node-v1",
+  "topology": "regional_federation",
+  "description": "First global meet-and-greet federation pack with three regional seed nodes. Sample pack only; replace placeholder public URLs before deployment.",
+  "summary_mode_policy": {
+    "in_region": "regional_detail",
+    "cross_region": "global_summary"
+  },
+  "regions": [
+    {
+      "region": "eu",
+      "node_id": "seed-eu-1",
+      "role": "seed",
+      "priority": 10,
+      "public_base_url": "https://seed-eu-1.example.vool"
+    },
+    {
+      "region": "us",
+      "node_id": "seed-us-1",
+      "role": "seed",
+      "priority": 10,
+      "public_base_url": "https://seed-us-1.example.vool"
+    },
+    {
+      "region": "apac",
+      "node_id": "seed-apac-1",
+      "role": "seed",
+      "priority": 10,
+      "public_base_url": "https://seed-apac-1.example.vool"
+    }
+  ],
+  "agent_defaults": {
+    "keep_local_cache": true,
+    "allow_local_fallback": true,
+    "cross_region_summary_only": true
+  }
+}

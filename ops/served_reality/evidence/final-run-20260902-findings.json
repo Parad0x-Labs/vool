@@ -1,0 +1,1108 @@
+{
+ "run": {
+  "app_census_unchanged": true,
+  "bench_version": "1.0.0",
+  "case_count": 29,
+  "created_at": 1788363731.044332,
+  "daemon_pid": 79856,
+  "daemon_port": 53616,
+  "failures": 3,
+  "home_path": "/private/tmp/sr-final-evidence/home",
+  "live_providers": [],
+  "network_mutation_attempts": 0,
+  "outcome": "fail",
+  "product_branch": "",
+  "product_dirty": null,
+  "product_sha": "a6c8e3c4eaa70f30ccd77a9a750560286da34f2c",
+  "provider_mode": "deterministic",
+  "python_version": "3.12.13",
+  "run_id": "sr-20260902-184211-e362a3e0",
+  "schema_version": "1.0.0",
+  "staged_from_clean_tree": true,
+  "staging_archive_sha256": "80ac895a5150e0c49ec719fc7c86348bcc8daa30bf3c6c2171c3384025dd2436",
+  "unexpected_skips": 0
+ },
+ "cases": [
+  {
+   "assertions": [
+    {
+     "expected": 200,
+     "name": "http_status",
+     "note": "",
+     "observed": 200,
+     "ok": true
+    },
+    {
+     "expected": "VERBATIM-PROOF-2291",
+     "name": "literal_output_byte_exact",
+     "note": "strict literal output must not be wrapped, decorated or echoed",
+     "observed": "this and nothing else: VERBATIM-PROOF-2291",
+     "ok": false
+    },
+    {
+     "expected": ">0 stub model calls during case (unless case accepts none)",
+     "name": "stub_model_consulted",
+     "note": "",
+     "observed": 0,
+     "ok": true
+    }
+   ],
+   "bench_sha": "a6c8e3c4e",
+   "case_id": "strict-literal-output",
+   "detail": "expected='VERBATIM-PROOF-2291' observed='this and nothing else: VERBATIM-PROOF-2291' note=strict literal output must not be wrapped, decorated or echoed",
+   "duration_s": 0.05117392539978027,
+   "failure_class": "VOOL",
+   "identities": [
+    {
+     "attempt_id": "attempt-2ff355247fdc4532960ccfd83c493674",
+     "client_turn_id": "turn-d79d575b6c73",
+     "content_hash": "sha256:e29a6ac3fa5e61c0ae38f26dc6a42e07e8bc0ae107ea2c7aa3376c5059627be3",
+     "effect_ids": [],
+     "evidence_refs": [
+      "web0:wr-773c01c748dc4d08802960dccbc57773",
+      "commit:sha256:e29a6ac3fa5e61c0ae38f26dc6a42e07e8bc0ae107ea2c7aa3376c5059627be3",
+      "receipt:ba5699f35867dfb7f1baf367dda548453fd714bf4f1c5b47bb3ab31952417da5"
+     ],
+     "finalization_id": "fc:bad58673831f00f78f7f1e55a15b3c59",
+     "model_call_id": null,
+     "model_lane": null,
+     "receipt_ids": [
+      "hr-a66c1cb52a704f21bbc64924eeeba393"
+     ],
+     "request_id": "req:http:7086b80cae7d46b4b2730c49a2dc4ff3",
+     "session_id": "openclaw:7b8737bd14411a338437",
+     "tool_names": [],
+     "turn_id": "openclaw:7b8737bd14411a338437"
+    }
+   ],
+   "is_failure": true,
+   "product_sha": "a6c8e3c4e",
+   "provider_mode": "deterministic",
+   "reason": "assertion failed: literal_output_byte_exact",
+   "required": true,
+   "schema_version": "1.0.0",
+   "started_at": 1788363734.2806652,
+   "title": "Strict literal output ships byte-exact",
+   "verdict": "FAIL",
+   "wire_refs": [
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-6a46045a7eb2",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-2dd9b58b26dd",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-fafd88b4e05c",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-304b7b326907",
+     "method": "GET",
+     "path": "/healthz",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-1455d30d9bb8",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-e53f79080c43",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:c240b24f134ae211c2f4",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-238f121be58a",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:c240b24f134ae211c2f4",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-e73f1811468f",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-8da996c3a375",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:7b8737bd14411a338437",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-53d294cce5a2",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:7b8737bd14411a338437",
+     "status": 200
+    }
+   ]
+  },
+  {
+   "assertions": [
+    {
+     "expected": 200,
+     "name": "http_status",
+     "note": "",
+     "observed": 200,
+     "ok": true
+    },
+    {
+     "expected": null,
+     "name": "demand_ledger_observed",
+     "note": "the product's own per-turn demand ledger; coverage is asserted on content below",
+     "observed": {
+      "demand_minted": 3,
+      "demand_satisfied": 0
+     },
+     "ok": true
+    },
+    {
+     "expected": ">=2 minted demands for a three-part ask",
+     "name": "demands_recognized_as_multiple",
+     "note": "",
+     "observed": {
+      "demand_minted": 3,
+      "demand_satisfied": 0
+     },
+     "ok": true
+    },
+    {
+     "expected": null,
+     "name": "time_unit_answered",
+     "note": "",
+     "observed": "00:42 JST",
+     "ok": true
+    },
+    {
+     "expected": null,
+     "name": "currency_unit_answered",
+     "note": "",
+     "observed": "00:42 JST",
+     "ok": false
+    },
+    {
+     "expected": ">0 stub model calls during case (unless case accepts none)",
+     "name": "stub_model_consulted",
+     "note": "",
+     "observed": 1,
+     "ok": true
+    }
+   ],
+   "bench_sha": "a6c8e3c4e",
+   "case_id": "mixed-demands",
+   "detail": "expected=None observed='00:42 JST' note=",
+   "duration_s": 0.06535506248474121,
+   "failure_class": "VOOL",
+   "identities": [
+    {
+     "attempt_id": "attempt-600573d55d864b99ac8ca69ff443c720",
+     "client_turn_id": "turn-6dd922aba59b",
+     "content_hash": "sha256:8c63cc7f52b21e5063d8d72bcaf29ec933bcbf572f2b80b392ce455e80a92f49",
+     "effect_ids": [],
+     "evidence_refs": [
+      "web0:wr-f9cdd1dd14c2450baf81a024a31c62cb",
+      "commit:sha256:8c63cc7f52b21e5063d8d72bcaf29ec933bcbf572f2b80b392ce455e80a92f49",
+      "receipt:9cb3fdd040501ed13028b2b85f57fdf6b3bf8f609f0c0dd697afee2b453c4fd9"
+     ],
+     "finalization_id": "fc:a9846f642bc48e79b9f7fa681db13aa8",
+     "model_call_id": null,
+     "model_lane": null,
+     "receipt_ids": [
+      "hr-760cc381a2a34e14b79d2d961604149d"
+     ],
+     "request_id": "req:http:55474dcd3f54435caea9a79fe6d55be1",
+     "session_id": "openclaw:4ceea1441531993a5c2c",
+     "tool_names": [],
+     "turn_id": "openclaw:4ceea1441531993a5c2c"
+    }
+   ],
+   "is_failure": true,
+   "product_sha": "a6c8e3c4e",
+   "provider_mode": "deterministic",
+   "reason": "assertion failed: currency_unit_answered",
+   "required": true,
+   "schema_version": "1.0.0",
+   "started_at": 1788363734.337534,
+   "title": "Every unit of a mixed demand is minted, satisfied and served",
+   "verdict": "FAIL",
+   "wire_refs": [
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-6a46045a7eb2",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-2dd9b58b26dd",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-fafd88b4e05c",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-304b7b326907",
+     "method": "GET",
+     "path": "/healthz",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-1455d30d9bb8",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-e53f79080c43",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:c240b24f134ae211c2f4",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-238f121be58a",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:c240b24f134ae211c2f4",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-e73f1811468f",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-8da996c3a375",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:7b8737bd14411a338437",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-53d294cce5a2",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:7b8737bd14411a338437",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-6215c2b76f64",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-07918962d7dc",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:4ceea1441531993a5c2c",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-b75e21ba25ec",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:4ceea1441531993a5c2c",
+     "status": 200
+    }
+   ]
+  },
+  {
+   "assertions": [
+    {
+     "expected": 200,
+     "name": "http_status_1",
+     "note": "",
+     "observed": 200,
+     "ok": true
+    },
+    {
+     "expected": "a non-empty committed answer (any honest product lane)",
+     "name": "first_turn_answered",
+     "note": "",
+     "observed": "Locked in. I\u2019ll remember that.",
+     "ok": true
+    },
+    {
+     "expected": null,
+     "name": "receipt_before_restart",
+     "note": "",
+     "observed": 1,
+     "ok": true
+    },
+    {
+     "expected": "contains 'RESTART-FIRST-2201'",
+     "name": "history_survives_restart",
+     "note": "the user turn carrying the marker must persist across the restart",
+     "observed": "[{\"role\": \"user\", \"content\": \"Remember this code for our next exchange: RESTART-FIRST-2201.\"}, {\"role\": \"assistant\", \"content\": \"Locked in. I\\u2019ll remember that.\", \"ts\": \"2026-09-02T15:44:47.203082+00:00\", \"a7\": {\"status\": \"verified\", \"finalization_id\": \"fc:94e11a5959be0777386783d7aa946ead\", \"sem",
+     "ok": true
+    },
+    {
+     "expected": "receipt rows persist across a daemon restart",
+     "name": "receipts_survive_restart",
+     "note": "",
+     "observed": {
+      "after": 1,
+      "before": 1
+     },
+     "ok": true
+    },
+    {
+     "expected": null,
+     "name": "receipt_chain_verifies_after_restart",
+     "note": "",
+     "observed": true,
+     "ok": true
+    },
+    {
+     "expected": 200,
+     "name": "http_status_2",
+     "note": "",
+     "observed": 200,
+     "ok": true
+    },
+    {
+     "expected": "contains 'RESTART-SECOND-3302'",
+     "name": "second_turn_served_after_restart",
+     "note": "",
+     "observed": "I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered text as if it were fresh.",
+     "ok": false
+    },
+    {
+     "expected": ">0 stub model calls during case (unless case accepts none)",
+     "name": "stub_model_consulted",
+     "note": "",
+     "observed": 1,
+     "ok": true
+    }
+   ],
+   "bench_sha": "a6c8e3c4e",
+   "case_id": "restart-continuity",
+   "detail": "expected=\"contains 'RESTART-SECOND-3302'\" observed=\"I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered text as if it were fresh.\" note=",
+   "duration_s": 28.020029067993164,
+   "failure_class": "VOOL",
+   "identities": [
+    {
+     "attempt_id": "attempt-2f913bd3955f435ba19fa35944a0ddc7",
+     "client_turn_id": "turn-85828f32f0e2",
+     "content_hash": "sha256:ea116c6deb8621515d3a631b5a08eb15a557ac6309cf10487dede4c39772df20",
+     "effect_ids": [],
+     "evidence_refs": [
+      "web0:wr-0d000330df1045748eab547307231348",
+      "commit:sha256:ea116c6deb8621515d3a631b5a08eb15a557ac6309cf10487dede4c39772df20",
+      "receipt:7096cb3e2c8a4a7406a932eb5fde2c15a7e4c300467f93ffd0ed3fbfe04af9ef"
+     ],
+     "finalization_id": "fc:94e11a5959be0777386783d7aa946ead",
+     "model_call_id": null,
+     "model_lane": null,
+     "receipt_ids": [
+      "hr-a25d23955cad4b96896a6cce78517bcd"
+     ],
+     "request_id": "req:http:efb5c9a1204849089d9fdf24905df382",
+     "session_id": "openclaw:c4d7bee81059802ead14",
+     "tool_names": [],
+     "turn_id": "openclaw:c4d7bee81059802ead14"
+    },
+    {
+     "attempt_id": "attempt-2f913bd3955f435ba19fa35944a0ddc7",
+     "client_turn_id": "turn-b392d5eeda06",
+     "content_hash": "sha256:71b4ac6c747082d53e763b004d7b8e689a96b119922a07d4a7b52ef575e6d213",
+     "effect_ids": [],
+     "evidence_refs": [
+      "web0:wr-b7c18b353cfa407a887b9667bc24395b",
+      "commit:sha256:71b4ac6c747082d53e763b004d7b8e689a96b119922a07d4a7b52ef575e6d213",
+      "receipt:7096cb3e2c8a4a7406a932eb5fde2c15a7e4c300467f93ffd0ed3fbfe04af9ef",
+      "receipt:e9f62ab00172f5de451336da33c708c00e9dce83c05dadbfdd5099de6a978c8f"
+     ],
+     "finalization_id": "fc:480ee38af355bea426e6227f08b5423b",
+     "model_call_id": null,
+     "model_lane": null,
+     "receipt_ids": [
+      "hr-a25d23955cad4b96896a6cce78517bcd",
+      "hr-5bb9ee0ec9f24889be11120a87193900"
+     ],
+     "request_id": "req:http:2013e0e637a64ee9965e8bd52d67f609",
+     "session_id": "openclaw:c4d7bee81059802ead14",
+     "tool_names": [],
+     "turn_id": "openclaw:c4d7bee81059802ead14"
+    }
+   ],
+   "is_failure": true,
+   "product_sha": "a6c8e3c4e",
+   "provider_mode": "deterministic",
+   "reason": "assertion failed: second_turn_served_after_restart",
+   "required": true,
+   "schema_version": "1.0.0",
+   "started_at": 1788363887.16588,
+   "title": "State, receipts and chat survive a restart",
+   "verdict": "FAIL",
+   "wire_refs": [
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-6c08ec5bb92b",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-957e43de18fe",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-6171def252a4",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-184a6efdb49a",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-7493b9137114",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-59890e92d20d",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-470a2600bb18",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-b523991b8d17",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-371b8b9e1262",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-565ac58bf537",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-16cf0cd24278",
+     "method": "GET",
+     "path": "/api/council/runs?run_id=council-1307f4520dd9",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-b45ce7e3bdc3",
+     "method": "POST",
+     "path": "/api/council/stop",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-cc4e874779ae",
+     "method": "GET",
+     "path": "/api/council/lock",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-13e507aae9ce",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-26a124d5a75c",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:3998fbdb8d844aa01d03",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-5e2abc1e423f",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:3998fbdb8d844aa01d03",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-b60ea182a973",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-2d9c6b9b14f2",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:3998fbdb8d844aa01d03",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-686a7457fc82",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:3998fbdb8d844aa01d03",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-1886ea864e8d",
+     "method": "GET",
+     "path": "/api/runtime/sessions",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-3c3610d4659b",
+     "method": "GET",
+     "path": "/api/runtime/sessions",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-261820fffc03",
+     "method": "POST",
+     "path": "/api/chat/cancel",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-162124cbcca9",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-1b6968fea9b8",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:880baf2dd6b298f56e6e",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-fcd2c4292d47",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:880baf2dd6b298f56e6e",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-7196665093e1",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-2b05138b404d",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:880baf2dd6b298f56e6e",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-3345235556de",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:880baf2dd6b298f56e6e",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-7d86137026c1",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-d84b46e712bb",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:c4d7bee81059802ead14",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-72efdb2fcfc0",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:c4d7bee81059802ead14",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-fb65fcaf6b8b",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-313a0ac4d9f7",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-fdcecfd58dc4",
+     "method": "GET",
+     "path": "/healthz",
+     "status": null
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-0347c8d150d4",
+     "method": "GET",
+     "path": "/healthz",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-9c03ba0dbf4b",
+     "method": "GET",
+     "path": "/api/chat/history?session=openclaw:c4d7bee81059802ead14",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-e8ce6070eddf",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:c4d7bee81059802ead14",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-a652e9d897c0",
+     "method": "POST",
+     "path": "/api/chat",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-a527dc139004",
+     "method": "GET",
+     "path": "/api/runtime/events?session=openclaw:c4d7bee81059802ead14",
+     "status": 200
+    },
+    {
+     "artifacts_file": "wire-daemon.jsonl",
+     "byte_range": [
+      0,
+      0
+     ],
+     "direction": "daemon",
+     "exchange_id": "wx-03824745fe00",
+     "method": "GET",
+     "path": "/api/runtime/receipts?session=openclaw:c4d7bee81059802ead14",
+     "status": 200
+    }
+   ]
+  }
+ ],
+ "mutations": [
+  {
+   "case_id": "mutation:m1-dropped-request-unit",
+   "verdict": "PASS",
+   "reason": "injected: responder answers only 1 of the 3 demanded units (currency + joke dropped) | target case mixed-demands FAILED: VOOL: assertion failed: currency_unit_answered",
+   "duration_s": 15.935135126113892
+  },
+  {
+   "case_id": "mutation:m2-bypassed-permission",
+   "verdict": "PASS",
+   "reason": "injected: decide_tool_call patched to ALLOW everything without approval | target case denied-write FAILED: VOOL: assertion failed: denied_write_left_no_file",
+   "duration_s": 54.967477321624756
+  },
+  {
+   "case_id": "mutation:m3-fabricated-tool-success",
+   "verdict": "PASS",
+   "reason": "injected: every receipt claims an executed tool that never ran | target case evidence-receipt-correspondence FAILED: VOOL: assertion failed: receipt_row_exists",
+   "duration_s": 29.969924211502075
+  },
+  {
+   "case_id": "mutation:m4-wrong-turn-evidence",
+   "verdict": "PASS",
+   "reason": "injected: beta's conversation row rebound onto session openclaw:d492a5de7713e2b\u2026 (wrong-turn evidence in the history store) | target case simultaneous-chat-isolation FAILED: VOOL: assertion failed: alpha_history_no_beta",
+   "duration_s": 16.07646894454956
+  },
+  {
+   "case_id": "mutation:m5-corrupted-cas-accepted",
+   "verdict": "PASS",
+   "reason": "injected: chunk 74ecb7ba9d28fe59\u2026 corrupted in place; bench verifier saw 1 mismatch(es) | corrupted-cas case flagged the corrupted chunk (bench_detects_cas_corruption ok)",
+   "duration_s": 16.01529598236084
+  },
+  {
+   "case_id": "mutation:m6-false-receipt-verification",
+   "verdict": "PASS",
+   "reason": "injected: receipt ledger for session openclaw:12423b976fe4078\u2026 rewritten with false content hashes | target case evidence-receipt-correspondence FAILED: VOOL: assertion failed: chain_verifies",
+   "duration_s": 15.936389207839966
+  }
+ ]
+}

@@ -1,0 +1,2698 @@
+{
+ "instrument": "RED-C",
+ "tree": "/Users/example-user/Desktop/OX-VOOL/code",
+ "head": "0b4c2eb4949a05819e6d6733e8742a652e71dd12",
+ "core_file": "/Users/example-user/Desktop/OX-VOOL/code/core/__init__.py",
+ "real_mint": "",
+ "captured_at": "2026-08-29T19:40:29Z",
+ "rows": [
+  {
+   "key": "canonical_4slot",
+   "text": "What is 1000 EUR to RUB, how much gold can I buy with it, what is the weather in Rome, and what is the water temperature in the Baltic Sea?",
+   "expected": 4,
+   "origin": "question.md acceptance bar",
+   "aim": "the frozen closure bar; one comma-run slice",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency",
+      "market_quote"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [
+    "s1"
+   ],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "What is 1000 EUR to RUB, how much gold can I buy with it, what is the weather in Rome, and what is the water temperature in the Baltic Sea?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "UNDER_MINT",
+   "class_rule_b": "UNDER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-canonical_4slot-223454",
+    "latency_s": 45.12,
+    "transport_error": "",
+    "text": "EUR/RUB: 1000 EUR \u00d7 99.8 = 99800.0 RUB (source: Frankfurter public institutional rates; observed: 2026-08-29T00:00:00+00:00).\nRome, Italy: Partly cloudy, 28.7\u00b0C (source: open-meteo.com)\nNewberry Springs, United States: Clear sky, 38.4\u00b0C (source: open-meteo.com)\n\u00d6ssby, Sweden: Thundery outbreaks in nearby, 16.0\u00b0C (source: wttr.in)\n\nCould not be answered:\n- How much gold can I buy with 1000 EUR? \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)\n- What is the water temperature in the Baltic Sea? \u2014 the available answer path does not safely match this request\n- how much gold can I buy with it \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)\n- how much gold can I buy with it \u2014 was attempted and did not come back\n- water temperature: in the Baltic Sea \u2014 is not something this runtime can look up",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:c55646d2264a4d9a"
+    },
+    "route": "conductor_multi_intent_plan",
+    "provenance_footer": "`tool | conductor_multi_intent_plan | tool-generated answer | 1 mixed model attempt failed | build 0.5.0`",
+    "slot_states": {
+     "fx": "ANSWERED",
+     "gold": "NAMED_FAILED",
+     "rome": "ANSWERED",
+     "water": "NAMED_FAILED"
+    },
+    "n_answered": 2,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "operator_evening_verbatim",
+   "text": "ok so u think u so cool heh? ok what about 1500 eur to usd? then how much and how much  god i can buy iwth it? and thne tell me the water tempperature in baltc sea and in  berling now :D",
+   "expected": 4,
+   "origin": "E001 turn 10 (verbatim, double spaces preserved)",
+   "aim": "sloppy typo-laden multi-domain; defeated the 53fa9ffa strong-marker guard",
+   "n_slices": 4,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s3",
+     []
+    ],
+    [
+     "s4",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1",
+    "s3",
+    "s4"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "ok so u think u so cool heh",
+    "then how much and how much god i can buy iwth it",
+    "and thne tell me the water tempperature in baltc sea and in berling now :D"
+   ],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 4,
+    "clauses": [
+     [
+      "s1",
+      "ok so u think u so cool heh?"
+     ],
+     [
+      "s2",
+      "ok what about 1500 eur to usd?"
+     ],
+     [
+      "s3",
+      "then how much and how much  god i can buy iwth it?"
+     ],
+     [
+      "s4",
+      "and thne tell me the water tempperature in baltc sea and in  berling now :D"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1",
+     "s2",
+     "s3",
+     "s4"
+    ],
+    "rule_b_minted": [
+     "s2",
+     "s3",
+     "s4"
+    ],
+    "rule_a_card": 4,
+    "rule_b_card": 3
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "UNDER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-operator_evening_verbati-223454",
+    "latency_s": 0.19,
+    "transport_error": "",
+    "text": "1,500 EUR (euro) \u00d7 1.1652 = 1,747.80 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:e07f116cd9144d7d"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "fx": "ANSWERED",
+     "gold": "SILENTLY_DROPPED",
+     "water": "SILENTLY_DROPPED",
+     "berlin": "SILENTLY_DROPPED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 3
+   }
+  },
+  {
+   "key": "bare_declarative_frozen",
+   "text": "100 EUR to USD at 1.10.",
+   "expected": 1,
+   "origin": "MULTI_SLICE_CASES[0] first clause / E012 T5.1 Fact 3",
+   "aim": "UNDER-MINT TO ZERO: no '?', no head verb, no politeness \u2014 the shape RSS property 1 cannot see at all",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "100 EUR to USD at 1.10."
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-bare_declarative_frozen-223454",
+    "latency_s": 0.03,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.10 = 110 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:34f17f1008b74f90"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "politeness_padded_gbp",
+   "text": "good morning! what is 500 GBP in EUR? thank you very much",
+   "expected": 1,
+   "origin": "E011 C3 filler table / verdict-correction-001 'Symmetry'",
+   "aim": "trips BOTH 002 conjuncts -> would be declined out of the closed contract; the exact shape family the 114-flow revert was about",
+   "n_slices": 3,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s3",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1",
+    "s3"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "thank you very much"
+   ],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 3,
+    "clauses": [
+     [
+      "s1",
+      "good morning!"
+     ],
+     [
+      "s2",
+      "what is 500 GBP in EUR?"
+     ],
+     [
+      "s3",
+      "thank you very much"
+     ]
+    ],
+    "rule_a_minted": [
+     "s2"
+    ],
+    "rule_b_minted": [
+     "s2"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-politeness_padded_gbp-223454",
+    "latency_s": 0.28,
+    "transport_error": "",
+    "text": "500 GBP (pound sterling) \u00d7 1.166 = 583 EUR (euro), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:e370bd0d0c884d8f"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "eur": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "greeting_prefixed_try",
+   "text": "hi there. 1000 TRY to USD?",
+   "expected": 1,
+   "origin": "E011 C3 filler table",
+   "aim": "greeting mints an ownerless slice; bare unclaimed guard reroutes a frozen single-family contract",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "hi there."
+     ],
+     [
+      "s2",
+      "1000 TRY to USD?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s2"
+    ],
+    "rule_b_minted": [],
+    "rule_a_card": 1,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-greeting_prefixed_try-223454",
+    "latency_s": 0.15,
+    "transport_error": "",
+    "text": "1,000 TRY (Turkish lira) \u00d7 0.02076 = 20.76 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:cb05bfa244ea4586"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "q001_no_family_mix",
+   "text": "1500 eur to usd, and what is 18^2, and name one graph db",
+   "expected": 3,
+   "origin": "decision record Q001 (shortened form)",
+   "aim": "two of three domains have NO registered claiming family",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "1500 eur to usd, and what is 18^2, and name one graph db"
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-q001_no_family_mix-223454",
+    "latency_s": 0.15,
+    "transport_error": "",
+    "text": "1,500 EUR (euro) \u00d7 1.1652 = 1,747.80 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:74aad5484f4644a0"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "fx": "ANSWERED",
+     "arith": "SILENTLY_DROPPED",
+     "graphdb": "SILENTLY_DROPPED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 2
+   }
+  },
+  {
+   "key": "rhetorical_opener_then_ask",
+   "text": "u mad? anyway 200 usd to eur pls",
+   "expected": 1,
+   "origin": "RED-1, modeled on E001's 'ok so u think u so cool heh?'",
+   "aim": "OVER-MINT: a sarcastic opener ending in '?' is neither filler nor greeting",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "u mad?"
+     ],
+     [
+      "s2",
+      "anyway 200 usd to eur pls"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [],
+    "rule_a_card": 1,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-rhetorical_opener_then_a-223454",
+    "latency_s": 0.24,
+    "transport_error": "",
+    "text": "200 USD (United States dollar) \u00d7 0.85825 = 171.65 EUR (euro), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:1a75abedbc5f44e2"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "eur": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "tag_question_same_clause",
+   "text": "100 EUR to USD at 1.10, don't you think that's fair?",
+   "expected": 1,
+   "origin": "E012 T5.1 adversarial:tag_question_same_clause",
+   "aim": "one slice; Rule A mints it, Rule B mints nothing \u2014 rule-dependent",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "10, don't you think that's fair"
+   ],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "100 EUR to USD at 1.10, don't you think that's fair?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [],
+    "rule_a_card": 1,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-tag_question_same_clause-223454",
+    "latency_s": 0.04,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.10 = 110 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:5e56a0317cc34642"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "sarcastic_two_marks",
+   "text": "seriously?? just give me 50 aud to nzd. thx",
+   "expected": 1,
+   "origin": "RED-1, E001 style",
+   "aim": "OVER-MINT via a rhetorical interjection + a sign-off",
+   "n_slices": 3,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s3",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1",
+    "s3"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 3,
+    "clauses": [
+     [
+      "s1",
+      "seriously?"
+     ],
+     [
+      "s2",
+      "just give me 50 aud to nzd."
+     ],
+     [
+      "s3",
+      "thx"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1",
+     "s2"
+    ],
+    "rule_b_minted": [
+     "s2"
+    ],
+    "rule_a_card": 2,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "OVER_MINT",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-sarcastic_two_marks-223454",
+    "latency_s": 0.38,
+    "transport_error": "",
+    "text": "50 AUD (Australian dollar) \u00d7 1.2076 = 60.38 NZD (New Zealand dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:8d9b1ca7a1504341"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "nzd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "dismissive_then_ask",
+   "text": "so? 300 chf to gbp.",
+   "expected": 1,
+   "origin": "RED-1, E001 style",
+   "aim": "OVER-MINT on 'so?' plus UNDER-MINT on the bare declarative that follows",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "so?"
+     ],
+     [
+      "s2",
+      "300 chf to gbp."
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [],
+    "rule_a_card": 1,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-dismissive_then_ask-223454",
+    "latency_s": 0.3,
+    "transport_error": "",
+    "text": "300 CHF (Swiss franc) \u00d7 0.91442 = 274.33 GBP (pound sterling), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:23269e58c5294945"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "gbp": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "social_nicety_then_ask",
+   "text": "Hey there! How are you? Can you convert 100 EUR to USD at 1.10?",
+   "expected": 1,
+   "origin": "E012 T5.1 adversarial:greeting_plus_one_ask",
+   "aim": "'How are you?' is a WH-question by the letter of the rule and mints an obligation no lane will ever discharge",
+   "n_slices": 3,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     []
+    ],
+    [
+     "s3",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1",
+    "s2"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "How are you"
+   ],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 3,
+    "clauses": [
+     [
+      "s1",
+      "Hey there!"
+     ],
+     [
+      "s2",
+      "How are you?"
+     ],
+     [
+      "s3",
+      "Can you convert 100 EUR to USD at 1.10?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s2",
+     "s3"
+    ],
+    "rule_b_minted": [
+     "s2",
+     "s3"
+    ],
+    "rule_a_card": 2,
+    "rule_b_card": 2
+   },
+   "class_rule_a": "OVER_MINT",
+   "class_rule_b": "OVER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-social_nicety_then_ask-223454",
+    "latency_s": 0.04,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.10 = 110 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:aaad6d6ba17343d7"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "nested_conditional",
+   "text": "if the rate is 1.10, convert 100 EUR to USD, and if it's above 1.15, tell me the weather in Rome instead",
+   "expected": 2,
+   "origin": "RED-1",
+   "aim": "nested conditionals; commas are not slice boundaries",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency",
+      "live_info"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [
+    "s1"
+   ],
+   "uncovered_residue": [
+    "15, tell me the weather in Rome instead"
+   ],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "if the rate is 1.10, convert 100 EUR to USD, and if it's above 1.15, tell me the weather in Rome instead"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "UNDER_MINT",
+   "class_rule_b": "UNDER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-nested_conditional-223454",
+    "latency_s": 28.1,
+    "transport_error": "",
+    "text": "Rome, Italy: Partly cloudy, 28.7\u00b0C (source: open-meteo.com)\nEUR/USD: 100 EUR \u00d7 1.1652 = 116.5200 USD (source: Frankfurter public institutional rates; observed: 2026-08-29T00:00:00+00:00).\n\nCould not be answered:\n- convert 100 EUR to USD with the rate of 1.10 \u2014 the available answer path does not safely match this request\n- if it's above 1.15, tell me the weather in Rome instead \u2014 the available answer path does not safely match this request\n- Rome Instead \u2014 could not be answered: HTTPError: HTTP Error 500: Internal Server Error (missing: condition, temperature_c)",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:2ff69351c1394550"
+    },
+    "route": "conductor_multi_intent_plan",
+    "provenance_footer": "`tool | conductor_multi_intent_plan | tool-generated answer | 2 local routing calls | build 0.5.0`",
+    "slot_states": {
+     "usd": "CONTRADICTED",
+     "rome": "CONTRADICTED"
+    },
+    "n_answered": 0,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "nested_parenthetical",
+   "text": "convert 1000 EUR to RUB (using today's rate, not yesterday's), then tell me how much gold that buys at spot, assuming troy ounces",
+   "expected": 2,
+   "origin": "RED-1",
+   "aim": "parentheticals + a stated assumption inside one slice",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency",
+      "market_quote"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "convert 1000 EUR to RUB (using today's rate, not yesterday's), then tell me how much gold that buys at spot, assuming troy ounces"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "UNDER_MINT",
+   "class_rule_b": "UNDER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-nested_parenthetical-223454",
+    "latency_s": 19.0,
+    "transport_error": "",
+    "text": "EUR/RUB: 1 EUR = 99.8 RUB (source: Frankfurter public institutional rates; observed: 2026-08-29T00:00:00+00:00).\n\nCould not be answered:\n- convert 1000 EUR to RUB \u2014 the available answer path does not safely match this request\n- how much gold that buys at spot, assuming troy ounces \u2014 not attempted: depends on conductor-0226795d5396:unresolved:0, which did not succeed",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:38309f56b50645c5"
+    },
+    "route": "conductor_multi_intent_plan",
+    "provenance_footer": "`tool | conductor_multi_intent_plan | tool-generated answer | 2 local routing calls | build 0.5.0`",
+    "slot_states": {
+     "fx": "CONTRADICTED",
+     "gold": "NAMED_FAILED"
+    },
+    "n_answered": 0,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "nested_meta_instruction",
+   "text": "tell me the water temperature in the Baltic Sea, and if you can't, say why, and also give me Rome's weather",
+   "expected": 2,
+   "origin": "RED-1",
+   "aim": "the turn CONTAINS criterion 7 as an instruction; a runtime that drops the water slot silently violates the user's explicit request",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "tell me the water temperature in the Baltic Sea, and if you can't, say why, and also give me Rome's weather"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "tell me the water temperature in the Baltic Sea, and if you can't, say why, and also give me Rome's weather"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "UNDER_MINT",
+   "class_rule_b": "UNDER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-nested_meta_instruction-223454",
+    "latency_s": 19.53,
+    "transport_error": "",
+    "text": "1. I cannot provide real-time water temperature data for the Baltic Sea as of Saturday, 29 August 2026, 22:36 (EEST).\n\n2. Rome's weather on that date is likely warm with temperatures around 30\u00b0C (86\u00b0F) and clear skies in August.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:6fda363fcef54b31"
+    },
+    "route": "ordinary_plain_text_task",
+    "provenance_footer": "`local | qwen2.5:7b | 1,254 tok`",
+    "slot_states": {
+     "water": "ANSWERED",
+     "rome": "ANSWERED"
+    },
+    "n_answered": 2,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "no_family_arithmetic",
+   "text": "what is 18^2",
+   "expected": 1,
+   "origin": "decision record Q001 clause",
+   "aim": "no arithmetic family exists in the registry",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "what is 18^2"
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 0,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-no_family_arithmetic-223454",
+    "latency_s": 5.44,
+    "transport_error": "",
+    "text": "18\u00b2 is 324.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:086d7ba38a1547d2"
+    },
+    "route": "ordinary_plain_text_chat",
+    "provenance_footer": "`local | qwen2.5:7b | 898 tok`",
+    "slot_states": {
+     "arith": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "no_family_knowledge",
+   "text": "name one graph db",
+   "expected": 1,
+   "origin": "decision record Q001 clause",
+   "aim": "no general-knowledge family exists",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "name one graph db"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "name one graph db"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-no_family_knowledge-223454",
+    "latency_s": 6.22,
+    "transport_error": "",
+    "text": "I finished the work, but I'm stripping internal orchestration details from the reply.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:0695fd7d163c4366"
+    },
+    "route": "ordinary_plain_text_chat",
+    "provenance_footer": "`local | qwen2.5:7b | 890 tok`",
+    "slot_states": {
+     "graphdb": "SILENTLY_DROPPED"
+    },
+    "n_answered": 0,
+    "n_silently_dropped": 1
+   }
+  },
+  {
+   "key": "no_family_obscure",
+   "text": "what is the airspeed velocity of an unladen swallow in knots?",
+   "expected": 1,
+   "origin": "RED-1",
+   "aim": "an ask no family claims and no tool can ground: must be REFUSED with a reason, never silently dropped",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "what is the airspeed velocity of an unladen swallow in knots"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "what is the airspeed velocity of an unladen swallow in knots?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-no_family_obscure-223454",
+    "latency_s": 25.92,
+    "transport_error": "",
+    "text": "The airspeed velocity of an unladen swallow is approximately 30 to 45 knots.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:74567288d6d64bbd"
+    },
+    "route": "ordinary_plain_text_chat",
+    "provenance_footer": "`local | qwen2.5:7b | 2,016 tok`",
+    "slot_states": {
+     "swallow": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "no_family_first_then_currency",
+   "text": "18^2. and 100 eur to usd.",
+   "expected": 2,
+   "origin": "RED-1",
+   "aim": "the ownerless clause is FIRST; a whole-turn currency grant buries it",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "18^2."
+     ],
+     [
+      "s2",
+      "and 100 eur to usd."
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-no_family_first_then_cur-223454",
+    "latency_s": 0.24,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.1652 = 116.52 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:ce16164e37e74347"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "arith": "SILENTLY_DROPPED",
+     "usd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 1
+   }
+  },
+  {
+   "key": "no_family_plus_currency_fused",
+   "text": "what is the half-life of caesium-137, and 100 usd to jpy?",
+   "expected": 2,
+   "origin": "RED-1",
+   "aim": "one comma-run slice, one domain with no family",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "what is the half-life of caesium-137, and 100 usd to jpy?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "UNDER_MINT",
+   "class_rule_b": "UNDER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-no_family_plus_currency_-223454",
+    "latency_s": 0.34,
+    "transport_error": "",
+    "text": "100 USD (United States dollar) \u00d7 159.55 = 15,955 JPY (Japanese yen), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:feb49bc6cc044163"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "halflife": "SILENTLY_DROPPED",
+     "jpy": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 1
+   }
+  },
+  {
+   "key": "sharpest_control_pure_audit",
+   "text": "Audit this project. Find the security vulnerabilities. Give me a verdict.",
+   "expected": 1,
+   "origin": "tests/test_mixed_intent_slice_arbitration.py PURE_AUDIT",
+   "aim": "the suite's OWN 'sharpest control'; mints 3 under BOTH E012 rules \u2014 rule-independent over-mint",
+   "n_slices": 3,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "workspace_audit"
+     ]
+    ],
+    [
+     "s2",
+     []
+    ],
+    [
+     "s3",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s2",
+    "s3"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "Audit this project",
+    "Find the security vulnerabilities"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 3,
+    "clauses": [
+     [
+      "s1",
+      "Audit this project."
+     ],
+     [
+      "s2",
+      "Find the security vulnerabilities."
+     ],
+     [
+      "s3",
+      "Give me a verdict."
+     ]
+    ],
+    "rule_a_minted": [
+     "s1",
+     "s2",
+     "s3"
+    ],
+    "rule_b_minted": [
+     "s1",
+     "s2",
+     "s3"
+    ],
+    "rule_a_card": 3,
+    "rule_b_card": 3
+   },
+   "class_rule_a": "OVER_MINT",
+   "class_rule_b": "OVER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-sharpest_control_pure_au-223454",
+    "latency_s": 9.06,
+    "transport_error": "",
+    "text": "I can run the audit, but this chat is **General** and is not bound to a project folder. The only available scope is VOOL's fallback workspace (`/Users/example-user/Desktop/OX-VOOL/code`), which may not be the code you mean. I will not guess and audit the wrong folder. Move this chat into the intended project in the sidebar (or provide an explicit absolute folder path), then ask again.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:15e4555affd54feb"
+    },
+    "route": "workspace_audit_default_scope_refused",
+    "provenance_footer": "`tool | workspace_audit_default_scope_refused | tool-generated answer | 1 local routing call | build 0.5.0`",
+    "slot_states": {
+     "audit": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "frozen_eur_chf_multiconversion",
+   "text": "how much is 100 EUR in USD at 1.10? and 500 CHF in JPY at 170?",
+   "expected": 2,
+   "origin": "MULTI_SLICE_CASES[3] \u2014 the case verdict.md names to prove safety",
+   "aim": "the verdict says this mints 1 'by construction'; E012 measured 2 under Rule A",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency",
+      "live_info"
+     ]
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "how much is 100 EUR in USD at 1.10?"
+     ],
+     [
+      "s2",
+      "and 500 CHF in JPY at 170?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1",
+     "s2"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 2,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "UNDER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-frozen_eur_chf_multiconv-223454",
+    "latency_s": 0.05,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.10 = 110 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.\n\n500 CHF (Swiss franc) \u00d7 170 = 85,000 JPY (Japanese yen), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:f1906d2238664680"
+    },
+    "route": "currency_multislice_fast_path",
+    "provenance_footer": "`tool | currency_multislice_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED",
+     "jpy": "ANSWERED"
+    },
+    "n_answered": 2,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "preamble_then_two",
+   "text": "ok cool. 100 EUR to USD at 1.10. Also 500 GBP to JPY at 190.5.",
+   "expected": 2,
+   "origin": "E011 C3 filler table",
+   "aim": "preamble + two bare declaratives",
+   "n_slices": 3,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s3",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 3,
+    "clauses": [
+     [
+      "s1",
+      "ok cool."
+     ],
+     [
+      "s2",
+      "100 EUR to USD at 1.10."
+     ],
+     [
+      "s3",
+      "Also 500 GBP to JPY at 190.5."
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-preamble_then_two-223454",
+    "latency_s": 0.05,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.10 = 110 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.\n\n500 GBP (pound sterling) \u00d7 190.5 = 95,250 JPY (Japanese yen), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:b671e9cee9764da5"
+    },
+    "route": "currency_multislice_fast_path",
+    "provenance_footer": "`tool | currency_multislice_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED",
+     "jpy": "ANSWERED"
+    },
+    "n_answered": 2,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "restatement_confirm_tail",
+   "text": "Convert 100 EUR to USD at 1.10. And also, just to confirm, is that the rate you're using? Also convert 500 CHF to JPY at 170.",
+   "expected": 2,
+   "origin": "E012 T5.1 adversarial:restatement_confirm_tail",
+   "aim": "a clarifying restatement of the SAME conversion reads as a third demand",
+   "n_slices": 3,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s2",
+     []
+    ],
+    [
+     "s3",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s2"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "And also, just to confirm, is that the rate you're using"
+   ],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 3,
+    "clauses": [
+     [
+      "s1",
+      "Convert 100 EUR to USD at 1.10."
+     ],
+     [
+      "s2",
+      "And also, just to confirm, is that the rate you're using?"
+     ],
+     [
+      "s3",
+      "Also convert 500 CHF to JPY at 170."
+     ]
+    ],
+    "rule_a_minted": [
+     "s1",
+     "s2",
+     "s3"
+    ],
+    "rule_b_minted": [
+     "s1",
+     "s3"
+    ],
+    "rule_a_card": 3,
+    "rule_b_card": 2
+   },
+   "class_rule_a": "OVER_MINT",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-restatement_confirm_tail-223454",
+    "latency_s": 0.05,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.10 = 110 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.\n\n500 CHF (Swiss franc) \u00d7 170 = 85,000 JPY (Japanese yen), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:55be3a68a76e488f"
+    },
+    "route": "currency_multislice_fast_path",
+    "provenance_footer": "`tool | currency_multislice_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED",
+     "jpy": "ANSWERED"
+    },
+    "n_answered": 2,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "bare_semicolon_pair",
+   "text": "100 EUR to USD at 1.10; 250 GBP to JPY at 190.0",
+   "expected": 2,
+   "origin": "MULTI_SLICE_CASES[2]",
+   "aim": "UNDER-MINT TO ZERO under both E012 rules",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "100 EUR to USD at 1.10;"
+     ],
+     [
+      "s2",
+      "250 GBP to JPY at 190.0"
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-bare_semicolon_pair-223454",
+    "latency_s": 0.04,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.10 = 110 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.\n\n250 GBP (pound sterling) \u00d7 190.0 = 47,500 JPY (Japanese yen), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:957f812c792f4a5c"
+    },
+    "route": "currency_multislice_fast_path",
+    "provenance_footer": "`tool | currency_multislice_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED",
+     "jpy": "ANSWERED"
+    },
+    "n_answered": 2,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "bare_three_declaratives",
+   "text": "100 EUR to USD at 1.10. Also 500 GBP to JPY at 190.5. And 10 CHF to EUR at 0.95.",
+   "expected": 3,
+   "origin": "MULTI_SLICE_CASES[4]",
+   "aim": "UNDER-MINT TO ZERO on three real conversions",
+   "n_slices": 3,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s3",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 3,
+    "clauses": [
+     [
+      "s1",
+      "100 EUR to USD at 1.10."
+     ],
+     [
+      "s2",
+      "Also 500 GBP to JPY at 190.5."
+     ],
+     [
+      "s3",
+      "And 10 CHF to EUR at 0.95."
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-bare_three_declaratives-223454",
+    "latency_s": 0.05,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.10 = 110 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.\n\n500 GBP (pound sterling) \u00d7 190.5 = 95,250 JPY (Japanese yen), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.\n\n10 CHF (Swiss franc) \u00d7 0.95 = 9.50 EUR (euro), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:895de7f143b74405"
+    },
+    "route": "currency_multislice_fast_path",
+    "provenance_footer": "`tool | currency_multislice_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED",
+     "jpy": "ANSWERED",
+     "eur": "ANSWERED"
+    },
+    "n_answered": 3,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "canonical_as_bare_fragments",
+   "text": "gold price. baltic water temp. rome weather.",
+   "expected": 3,
+   "origin": "RED-1 \u2014 the canonical semantics stripped of every demand-shape signal",
+   "aim": "UNDER-MINT TO ZERO on a genuinely THREE-DOMAIN turn: no '?', no imperative head, no politeness. If the fix only sees interrogatives it is blind here.",
+   "n_slices": 3,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "market_quote",
+      "live_info"
+     ]
+    ],
+    [
+     "s2",
+     []
+    ],
+    [
+     "s3",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s2",
+    "s3"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "baltic water temp"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 3,
+    "clauses": [
+     [
+      "s1",
+      "gold price."
+     ],
+     [
+      "s2",
+      "baltic water temp."
+     ],
+     [
+      "s3",
+      "rome weather."
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-canonical_as_bare_fragme-223454",
+    "latency_s": 15.77,
+    "transport_error": "",
+    "text": "Gold: 4529.9 USD, -2.88% 24h (source: Yahoo Finance)\nBaltic, United States of America: Overcast, 32.0\u00b0C (source: wttr.in)\n\nCould not be answered:\n- baltic water temp \u2014 weather_lookup found nothing to act on in this request\n- rome weather \u2014 weather_lookup found nothing to act on in this request",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:598e150d11f6443b"
+    },
+    "route": "conductor_multi_intent_plan",
+    "provenance_footer": "`tool | conductor_multi_intent_plan | tool-generated answer | 2 local routing calls | build 0.5.0`",
+    "slot_states": {
+     "gold": "ANSWERED",
+     "water": "CONTRADICTED",
+     "rome": "NAMED_FAILED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "canonical_four_bare_fragments",
+   "text": "eur rub rate. gold with it. rome weather. baltic water temp.",
+   "expected": 4,
+   "origin": "RED-1 \u2014 the acceptance bar restated as bare noun phrases",
+   "aim": "the acceptance prompt with ZERO demand-shape markers; a fix that passes the canonical prompt and fails this has fixed a shape, not the class",
+   "n_slices": 4,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     []
+    ],
+    [
+     "s3",
+     []
+    ],
+    [
+     "s4",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1",
+    "s2",
+    "s3",
+    "s4"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "baltic water temp"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 4,
+    "clauses": [
+     [
+      "s1",
+      "eur rub rate."
+     ],
+     [
+      "s2",
+      "gold with it."
+     ],
+     [
+      "s3",
+      "rome weather."
+     ],
+     [
+      "s4",
+      "baltic water temp."
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-canonical_four_bare_frag-223454",
+    "latency_s": 27.35,
+    "transport_error": "",
+    "text": "EUR/RUB: 1 EUR = 99.8 RUB (source: Frankfurter public institutional rates; observed: 2026-08-29T00:00:00+00:00).\nGold: 4529.9 USD, -2.88% 24h (source: Yahoo Finance)\nRome, Italy: Partly cloudy, 28.7\u00b0C (source: open-meteo.com)\n\nCould not be answered:\n- eur rub rate \u2014 fx_quote found nothing to act on in this request\n- gold with it \u2014 market_quote found nothing to act on in this request\n- rome weather \u2014 weather_lookup found nothing to act on in this request\n- baltic water temp \u2014 the available answer path does not safely match this request",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:c7903e407fbc4b63"
+    },
+    "route": "conductor_multi_intent_plan",
+    "provenance_footer": "`tool | conductor_multi_intent_plan | tool-generated answer | 2 local routing calls | build 0.5.0`",
+    "slot_states": {
+     "fx": "CONTRADICTED",
+     "gold": "CONTRADICTED",
+     "rome": "CONTRADICTED",
+     "water": "NAMED_FAILED"
+    },
+    "n_answered": 0,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "bare_single_no_punct",
+   "text": "1000 TRY to USD at 33.4",
+   "expected": 1,
+   "origin": "SINGLE_CLAUSE_CONTROLS[2]",
+   "aim": "UNDER-MINT TO ZERO on a frozen single control",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "1000 TRY to USD at 33.4"
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-bare_single_no_punct-223454",
+    "latency_s": 0.03,
+    "transport_error": "",
+    "text": "1,000 TRY (Turkish lira) \u00d7 33.4 = 33,400 USD (United States dollar), using the rate you gave.\nThat is arithmetic on your number \u2014 I have not checked it against a live market.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:5bb86f67580f4b49"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "preamble_is_the_request_marker",
+   "text": "I want to convert money. 1000 TRY to USD?",
+   "expected": 1,
+   "origin": "tests/test_mixed_intent_slice_arbitration.py single_domain_turn_keeps_lane[2]",
+   "aim": "WRONG SLOT: 'I want' mints the content-free preamble; the real ask opens with a digit and is invisible to a head-anchored rule",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "I want to convert money"
+   ],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "I want to convert money."
+     ],
+     [
+      "s2",
+      "1000 TRY to USD?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1",
+     "s2"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 2,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "OVER_MINT",
+   "class_rule_b": "WRONG_SLOT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-preamble_is_the_request_-223454",
+    "latency_s": 0.27,
+    "transport_error": "",
+    "text": "1,000 TRY (Turkish lira) \u00d7 0.02076 = 20.76 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:db60b4451509465a"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "request_marker_in_filler",
+   "text": "let me know when you can. what is the water temperature in the Baltic Sea?",
+   "expected": 1,
+   "origin": "RED-1",
+   "aim": "WRONG SLOT: 'let me know' is a request marker attached to filler",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1",
+    "s2"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "let me know when you can",
+    "what is the water temperature in the Baltic Sea"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "let me know when you can."
+     ],
+     [
+      "s2",
+      "what is the water temperature in the Baltic Sea?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1",
+     "s2"
+    ],
+    "rule_b_minted": [
+     "s1",
+     "s2"
+    ],
+    "rule_a_card": 2,
+    "rule_b_card": 2
+   },
+   "class_rule_a": "OVER_MINT",
+   "class_rule_b": "OVER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-request_marker_in_filler-223454",
+    "latency_s": 16.93,
+    "transport_error": "",
+    "text": "\u00d6ssby, Sweden: Thundery outbreaks in nearby, 16.0\u00b0C (source: wttr.in)\nMeilahti, Finland: Overcast, 17.0\u00b0C (source: wttr.in)\n\nCould not be answered:\n- when you can \u2014 the available answer path does not safely match this request",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:8e761549eae74a3c"
+    },
+    "route": "conductor_multi_intent_plan",
+    "provenance_footer": "`tool | conductor_multi_intent_plan | tool-generated answer | 2 local routing calls | build 0.5.0`",
+    "slot_states": {
+     "water": "SILENTLY_DROPPED"
+    },
+    "n_answered": 0,
+    "n_silently_dropped": 1
+   }
+  },
+  {
+   "key": "bare_please_then_ask",
+   "text": "please. 500 gbp to eur.",
+   "expected": 1,
+   "origin": "RED-1",
+   "aim": "WRONG SLOT + UNDER-MINT: the politeness token is the only demand signal and it is not on the ask",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "please."
+     ],
+     [
+      "s2",
+      "500 gbp to eur."
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-bare_please_then_ask-223454",
+    "latency_s": 0.23,
+    "transport_error": "",
+    "text": "500 GBP (pound sterling) \u00d7 1.166 = 583 EUR (euro), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:c362e6e419b04368"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "eur": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "quoted_story_trailing_imperative",
+   "text": "A traveler says: \"I exchanged 8,500 kr for $1,240, then spent $300 in Singapore and came home with 2,100 kr.\" Explain whether the exchange was good or bad compared with the normal exchange rate.",
+   "expected": 1,
+   "origin": "tests/test_mixed_intent_slice_arbitration.py TRAVELER",
+   "aim": "one quote-aware slice; the imperative is not the head token, so both E012 rules mint ZERO on a turn that plainly asks for work",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency",
+      "live_info"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "A traveler says: \"I exchanged 8,500 kr for $1,240, then spent $300 in Singapore and came home with 2,100 kr.\" Explain whether the exchange was good or bad compared with the normal exchange rate."
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-quoted_story_trailing_im-223454",
+    "latency_s": 0.04,
+    "transport_error": "",
+    "text": "Static currency identity:\n- `kr` is unresolved without a country anchor; several currencies use it.\n- `$` remains ambiguous; the prompt does not establish USD rather than another dollar currency.\n\nDynamic value:\n- FX compares currencies using exchange rates at a stated time. No live or user-supplied FX rates are available here, so I cannot give exact conversions or rank these amounts.\n- PPP compares what money buys locally, not its market exchange value. A numeric PPP comparison needs a named PPP dataset or a user-supplied basket with local prices; neither is available here.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:9fd6fc0ae4ad4262"
+    },
+    "route": "dynamic_currency_value_unavailable",
+    "provenance_footer": "`tool | dynamic_currency_value_unavailable | no model | build 0.5.0`",
+    "slot_states": {
+     "verdict": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "canonical_comma_run_no_qmark",
+   "text": "1000 EUR to RUB, gold with it, weather in Rome, baltic sea water temp",
+   "expected": 4,
+   "origin": "RED-1",
+   "aim": "the acceptance bar as ONE slice with no terminal '?'",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "1000 EUR to RUB, gold with it, weather in Rome, baltic sea water temp"
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-canonical_comma_run_no_q-223454",
+    "latency_s": 0.32,
+    "transport_error": "",
+    "text": "1,000 EUR (euro) \u00d7 99.8 = 99,800 RUB (Russian ruble), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:ffa9f4a0e411421f"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "fx": "ANSWERED",
+     "gold": "SILENTLY_DROPPED",
+     "rome": "SILENTLY_DROPPED",
+     "water": "SILENTLY_DROPPED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 3
+   }
+  },
+  {
+   "key": "canonical_four_sentences",
+   "text": "What is 1000 EUR to RUB? How much gold can I buy with it? What is the weather in Rome? What is the water temperature in the Baltic Sea?",
+   "expected": 4,
+   "origin": "RED-1",
+   "aim": "the EASY form \u2014 four slices, four question marks. A fix that passes only this has fixed the punctuation, not the accounting",
+   "n_slices": 4,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ],
+    [
+     "s2",
+     [
+      "market_quote"
+     ]
+    ],
+    [
+     "s3",
+     [
+      "live_info"
+     ]
+    ],
+    [
+     "s4",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s4"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "How much gold can I buy with it",
+    "What is the weather in Rome",
+    "What is the water temperature in the Baltic Sea"
+   ],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 4,
+    "clauses": [
+     [
+      "s1",
+      "What is 1000 EUR to RUB?"
+     ],
+     [
+      "s2",
+      "How much gold can I buy with it?"
+     ],
+     [
+      "s3",
+      "What is the weather in Rome?"
+     ],
+     [
+      "s4",
+      "What is the water temperature in the Baltic Sea?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1",
+     "s2",
+     "s3",
+     "s4"
+    ],
+    "rule_b_minted": [
+     "s1",
+     "s2",
+     "s3",
+     "s4"
+    ],
+    "rule_a_card": 4,
+    "rule_b_card": 4
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-canonical_four_sentences-223454",
+    "latency_s": 45.12,
+    "transport_error": "",
+    "text": "EUR/RUB: 1000 EUR \u00d7 99.8 = 99800.0 RUB (source: Frankfurter public institutional rates; observed: 2026-08-29T00:00:00+00:00).\nRome, Italy: Partly cloudy, 28.7\u00b0C (source: open-meteo.com)\n\u00d6ssby, Sweden: Thundery outbreaks in nearby, 16.0\u00b0C (source: wttr.in)\nMeilahti, Finland: Overcast, 17.0\u00b0C (source: wttr.in)\n\nCould not be answered:\n- How much gold can I buy with it? \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)\n- What is the water temperature in the Baltic Sea? \u2014 the available answer path does not safely match this request\n- How much gold can I buy with it? \u2014 was attempted and did not come back",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:03f7f988cacf41eb"
+    },
+    "route": "conductor_multi_intent_plan",
+    "provenance_footer": "`tool | conductor_multi_intent_plan | tool-generated answer | 1 mixed model attempt failed | build 0.5.0`",
+    "slot_states": {
+     "fx": "ANSWERED",
+     "gold": "NAMED_FAILED",
+     "rome": "ANSWERED",
+     "water": "NAMED_FAILED"
+    },
+    "n_answered": 2,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "negation_then_ask",
+   "text": "Do not send any money. Just tell me the EUR/USD rate.",
+   "expected": 1,
+   "origin": "tests/claim_predicate_census.py \u2014 one of the 3/567 served-defect-shape rows",
+   "aim": "a prohibition clause plus one ask; minting the prohibition as a demand produces an obligation that can only ever be reported unmet",
+   "n_slices": 2,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ],
+    [
+     "s2",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "Do not send any money"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 2,
+    "clauses": [
+     [
+      "s1",
+      "Do not send any money."
+     ],
+     [
+      "s2",
+      "Just tell me the EUR/USD rate."
+     ]
+    ],
+    "rule_a_minted": [
+     "s2"
+    ],
+    "rule_b_minted": [
+     "s1",
+     "s2"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 2
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "OVER_MINT",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-negation_then_ask-223454",
+    "latency_s": 16.94,
+    "transport_error": "",
+    "text": "Just tell me the EUR/USD rate.\n\n1 EUR = 1.1652 USD, from a live rate as of 2026-08-29T00:00:00+00:00.\n\nEUR (euro) \u2192 USD (United States dollar).",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:ead3f12212584487"
+    },
+    "route": "ordinary_plain_text_chat",
+    "provenance_footer": "`local | qwen2.5:7b | 1,183 tok`",
+    "slot_states": {
+     "rate": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "duplicate_slot",
+   "text": "100 EUR to USD, and again 100 EUR to USD",
+   "expected": 1,
+   "origin": "RED-1",
+   "aim": "does the mint dedupe? two obligations for one answer is a permanent open_count of 1",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "100 EUR to USD, and again 100 EUR to USD"
+     ]
+    ],
+    "rule_a_minted": [],
+    "rule_b_minted": [],
+    "rule_a_card": 0,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT_TO_ZERO",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-duplicate_slot-223454",
+    "latency_s": 0.19,
+    "transport_error": "",
+    "text": "100 EUR (euro) \u00d7 1.1652 = 116.52 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:5c4ace88ea0b448e"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "usd": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "impossible_slot",
+   "text": "what is the water temperature in the Baltic Sea in the year 3000?",
+   "expected": 1,
+   "origin": "RED-1",
+   "aim": "an ungroundable ask: criterion 7 demands it be NAMED unavailable with a reason, not silently dropped and not fabricated",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "what is the water temperature in the Baltic Sea in the year 3000"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "what is the water temperature in the Baltic Sea in the year 3000?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-impossible_slot-223454",
+    "latency_s": 31.16,
+    "transport_error": "",
+    "text": "In the year 3000, the Baltic Sea's water temperature might be around 10-15\u00b0C (50-59\u00b0F) in summer, higher than today due to climate change.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:ca318f3fa1a64c8d"
+    },
+    "route": "ordinary_plain_text_chat",
+    "provenance_footer": "`local | qwen2.5:7b | 2,088 tok`",
+    "slot_states": {
+     "water": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  },
+  {
+   "key": "five_slots_one_run",
+   "text": "1000 EUR to RUB, gold with it, weather in Rome, water temp in the Baltic, and what is 18^2?",
+   "expected": 5,
+   "origin": "RED-1",
+   "aim": "five slots, one comma run, one with no registered family \u2014 the canonical bar plus one ownerless domain",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     [
+      "currency"
+     ]
+    ]
+   ],
+   "unclaimed_slices": [],
+   "fused_cross_domain": [],
+   "uncovered_residue": [],
+   "currency_fast_path_kind": "conversion",
+   "contract_holds": true,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "1000 EUR to RUB, gold with it, weather in Rome, water temp in the Baltic, and what is 18^2?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [],
+    "rule_a_card": 1,
+    "rule_b_card": 0
+   },
+   "class_rule_a": "UNDER_MINT",
+   "class_rule_b": "UNDER_MINT_TO_ZERO",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-five_slots_one_run-223454",
+    "latency_s": 0.16,
+    "transport_error": "",
+    "text": "1,000 EUR (euro) \u00d7 99.8 = 99,800 RUB (Russian ruble), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:88ca8281025a4d75"
+    },
+    "route": "currency_conversion_fast_path",
+    "provenance_footer": "`tool | currency_conversion_fast_path | no model | build 0.5.0`",
+    "slot_states": {
+     "fx": "ANSWERED",
+     "gold": "SILENTLY_DROPPED",
+     "rome": "SILENTLY_DROPPED",
+     "water": "SILENTLY_DROPPED",
+     "arith": "SILENTLY_DROPPED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 4
+   }
+  },
+  {
+   "key": "failure_then_followup_bait",
+   "text": "what is the water temperature in the Baltic Sea, and why did that fail?",
+   "expected": 1,
+   "origin": "RED-1",
+   "aim": "criterion 9's follow-up folded INTO the first turn: a runtime that answers the meta-question about a failure that has not happened yet is converting no-answer state into semantic content (criterion 12)",
+   "n_slices": 1,
+   "slice_families": [
+    [
+     "s1",
+     []
+    ]
+   ],
+   "unclaimed_slices": [
+    "s1"
+   ],
+   "fused_cross_domain": [],
+   "uncovered_residue": [
+    "what is the water temperature in the Baltic Sea, and why did that fail"
+   ],
+   "currency_fast_path_kind": null,
+   "contract_holds": false,
+   "mint": {
+    "n_slices": 1,
+    "clauses": [
+     [
+      "s1",
+      "what is the water temperature in the Baltic Sea, and why did that fail?"
+     ]
+    ],
+    "rule_a_minted": [
+     "s1"
+    ],
+    "rule_b_minted": [
+     "s1"
+    ],
+    "rule_a_card": 1,
+    "rule_b_card": 1
+   },
+   "class_rule_a": "OK",
+   "class_rule_b": "OK",
+   "class_real_mint": "",
+   "served": {
+    "chat_id": "audit-AUD-20260829-003-RED1-corpus-failure_then_followup_ba-223454",
+    "latency_s": 18.89,
+    "transport_error": "",
+    "text": "1. The request to find the water temperature in the Baltic Sea failed because no real-time data access is available.\n2. Current context does not support retrieving up-to-date ocean temperatures.",
+    "closure_verdict": {
+     "covered": true,
+     "open_count": 0,
+     "set_version": "v1:ed47e20019774dba"
+    },
+    "route": "ordinary_plain_text_task",
+    "provenance_footer": "`local | qwen2.5:7b | 1,046 tok`",
+    "slot_states": {
+     "water": "ANSWERED"
+    },
+    "n_answered": 1,
+    "n_silently_dropped": 0
+   }
+  }
+ ]
+}

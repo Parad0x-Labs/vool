@@ -1,0 +1,311 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "portfolio",
+  "calls": [
+    {
+      "system": "result-presentation.v1: explain the supplied computed results briefly. Do not recalculate or invent observations. Return JSON with an explanation array. Each item is either plain text containing no digits, or an object with exactly one key ref naming a listed result symbol. Use references for all numerical statements. The runtime supplies the presentation; do not repeat it.",
+      "prompt": "{\"request\": \"Present the result in a compact table and finish with a short explanation of the final portfolio. Show enough calculation to verify the numbers, but keep the final answer concise and easy to read.\", \"results\": [{\"ref\": \"dependency_1_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t\", \"step_id\": \"step_1\", \"label\": \"USD to GBP allocation\", \"value\": 3125.0, \"unit\": \"USD\", \"calculation\": \"fact_1 * 0.25\"}, {\"ref\": \"dependency_1_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t\", \"step_id\": \"step_2\", \"label\": \"USD to silver allocation\", \"value\": 5156.25, \"unit\": \"USD\", \"calculation\": \"fact_1 * 0.75 * 0.55\"}, {\"ref\": \"dependency_1_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t\", \"step_id\": \"step_3\", \"label\": \"USD to platinum allocation\", \"value\": 4218.75, \"unit\": \"USD\", \"calculation\": \"fact_1 * 0.75 * 0.45\"}, {\"ref\": \"dependency_2_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv\", \"step_id\": \"step_1\", \"label\": \"GBP before fee\", \"value\": 2381.859756097561, \"unit\": \"GBP\", \"calculation\": \"3,125 / fact_6\"}, {\"ref\": \"dependency_2_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv\", \"step_id\": \"step_2\", \"label\": \"FX fee amount\", \"value\": 25.0, \"unit\": \"USD\", \"calculation\": \"3,125 * 0.008\"}, {\"ref\": \"dependency_2_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv\", \"step_id\": \"step_3\", \"label\": \"GBP after FX fee\", \"value\": 2362.80487804878, \"unit\": \"GBP\", \"calculation\": \"(3,125 - (3,125 * 0.008)) / fact_6\"}, {\"ref\": \"dependency_3_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o\", \"step_id\": \"step_1\", \"label\": \"USD to silver allocation\", \"value\": 5156.25, \"unit\": \"USD\", \"calculation\": \"fact_1 * 0.75 * 0.55\"}, {\"ref\": \"dependency_3_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o\", \"step_id\": \"step_2\", \"label\": \"Silver cost per troy oz after premium\", \"value\": 43.053999999999995, \"unit\": \"USD / troy ounces\", \"calculation\": \"fact_7 * (1 + 0.03)\"}, {\"ref\": \"dependency_3_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o\", \"step_id\": \"step_3\", \"label\": \"Troy ounces of silver\", \"value\": 119.7623914154318, \"unit\": \"troy ounces\", \"calculation\": \"5,156.25 / (fact_7 * (1 + 0.03))\"}, {\"ref\": \"dependency_3_value_4\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o\", \"step_id\": \"step_4\", \"label\": \"Grams of silver\", \"value\": 3725.0267629024024, \"unit\": \"g\", \"calculation\": \"5,156.25 / (fact_7 * (1 + 0.03)) * 31.1035\"}, {\"ref\": \"dependency_4_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0\", \"step_id\": \"step_1\", \"label\": \"Platinum gross troy ounces\", \"value\": 2.840909090909091, \"unit\": \"troy ounces\", \"calculation\": \"4,218.75 / fact_8\"}, {\"ref\": \"dependency_4_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0\", \"step_id\": \"step_2\", \"label\": \"Platinum net troy ounces after premium\", \"value\": 2.779754492083259, \"unit\": \"troy ounces\", \"calculation\": \"(Platinum gross troy ounces) / (1 + 0.022)\"}, {\"ref\": \"dependency_4_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0\", \"step_id\": \"step_3\", \"label\": \"Platinum net grams\", \"value\": 86.46002935420744, \"unit\": \"g\", \"calculation\": \"(Platinum net troy ounces after premium) * 31.1035\"}, {\"ref\": \"dependency_5_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f\", \"step_id\": \"step_1\", \"label\": \"Silver premium amount\", \"value\": 154.6875, \"unit\": \"USD\", \"calculation\": \"5,156.25 * 0.03\"}, {\"ref\": \"dependency_5_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f\", \"step_id\": \"step_2\", \"label\": \"Platinum gross cost\", \"value\": 4218.75, \"unit\": \"USD\", \"calculation\": \"2.8409 * fact_8\"}, {\"ref\": \"dependency_5_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f\", \"step_id\": \"step_3\", \"label\": \"Platinum premium amount\", \"value\": 92.81250000000001, \"unit\": \"USD\", \"calculation\": \"2.8409 * fact_8 * 0.022\"}, {\"ref\": \"dependency_5_value_4\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f\", \"step_id\": \"step_4\", \"label\": \"Combined total fees/premiums\", \"value\": 272.5, \"unit\": \"USD\", \"calculation\": \"25 + 5,156.25 * 0.03 + 2.8409 * fact_8 * 0.022\"}, {\"ref\": \"dependency_6_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:what_percentage_of_the_original\", \"step_id\": \"step_1\", \"label\": \"Percentage lost to fees/premiums\", \"value\": 2.18, \"unit\": \"%\", \"calculation\": \"(272.5 / fact_12) * 100\"}]}",
+      "max_tokens": 1400,
+      "reasoning": null,
+      "temperature": 0,
+      "reserved_usd": "0.000236376",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "result-presentation.v1: explain the supplied computed results briefly. Do not recalculate or invent observations. Return JSON with an explanation array. Each item is either plain text containing no digits, or an object with exactly one key ref naming a listed result symbol. Use references for all numerical statements. The runtime supplies the presentation; do not repeat it."
+          },
+          {
+            "role": "user",
+            "content": "{\"request\": \"Present the result in a compact table and finish with a short explanation of the final portfolio. Show enough calculation to verify the numbers, but keep the final answer concise and easy to read.\", \"results\": [{\"ref\": \"dependency_1_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t\", \"step_id\": \"step_1\", \"label\": \"USD to GBP allocation\", \"value\": 3125.0, \"unit\": \"USD\", \"calculation\": \"fact_1 * 0.25\"}, {\"ref\": \"dependency_1_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t\", \"step_id\": \"step_2\", \"label\": \"USD to silver allocation\", \"value\": 5156.25, \"unit\": \"USD\", \"calculation\": \"fact_1 * 0.75 * 0.55\"}, {\"ref\": \"dependency_1_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t\", \"step_id\": \"step_3\", \"label\": \"USD to platinum allocation\", \"value\": 4218.75, \"unit\": \"USD\", \"calculation\": \"fact_1 * 0.75 * 0.45\"}, {\"ref\": \"dependency_2_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv\", \"step_id\": \"step_1\", \"label\": \"GBP before fee\", \"value\": 2381.859756097561, \"unit\": \"GBP\", \"calculation\": \"3,125 / fact_6\"}, {\"ref\": \"dependency_2_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv\", \"step_id\": \"step_2\", \"label\": \"FX fee amount\", \"value\": 25.0, \"unit\": \"USD\", \"calculation\": \"3,125 * 0.008\"}, {\"ref\": \"dependency_2_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv\", \"step_id\": \"step_3\", \"label\": \"GBP after FX fee\", \"value\": 2362.80487804878, \"unit\": \"GBP\", \"calculation\": \"(3,125 - (3,125 * 0.008)) / fact_6\"}, {\"ref\": \"dependency_3_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o\", \"step_id\": \"step_1\", \"label\": \"USD to silver allocation\", \"value\": 5156.25, \"unit\": \"USD\", \"calculation\": \"fact_1 * 0.75 * 0.55\"}, {\"ref\": \"dependency_3_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o\", \"step_id\": \"step_2\", \"label\": \"Silver cost per troy oz after premium\", \"value\": 43.053999999999995, \"unit\": \"USD / troy ounces\", \"calculation\": \"fact_7 * (1 + 0.03)\"}, {\"ref\": \"dependency_3_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o\", \"step_id\": \"step_3\", \"label\": \"Troy ounces of silver\", \"value\": 119.7623914154318, \"unit\": \"troy ounces\", \"calculation\": \"5,156.25 / (fact_7 * (1 + 0.03))\"}, {\"ref\": \"dependency_3_value_4\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o\", \"step_id\": \"step_4\", \"label\": \"Grams of silver\", \"value\": 3725.0267629024024, \"unit\": \"g\", \"calculation\": \"5,156.25 / (fact_7 * (1 + 0.03)) * 31.1035\"}, {\"ref\": \"dependency_4_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0\", \"step_id\": \"step_1\", \"label\": \"Platinum gross troy ounces\", \"value\": 2.840909090909091, \"unit\": \"troy ounces\", \"calculation\": \"4,218.75 / fact_8\"}, {\"ref\": \"dependency_4_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0\", \"step_id\": \"step_2\", \"label\": \"Platinum net troy ounces after premium\", \"value\": 2.779754492083259, \"unit\": \"troy ounces\", \"calculation\": \"(Platinum gross troy ounces) / (1 + 0.022)\"}, {\"ref\": \"dependency_4_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0\", \"step_id\": \"step_3\", \"label\": \"Platinum net grams\", \"value\": 86.46002935420744, \"unit\": \"g\", \"calculation\": \"(Platinum net troy ounces after premium) * 31.1035\"}, {\"ref\": \"dependency_5_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f\", \"step_id\": \"step_1\", \"label\": \"Silver premium amount\", \"value\": 154.6875, \"unit\": \"USD\", \"calculation\": \"5,156.25 * 0.03\"}, {\"ref\": \"dependency_5_value_2\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f\", \"step_id\": \"step_2\", \"label\": \"Platinum gross cost\", \"value\": 4218.75, \"unit\": \"USD\", \"calculation\": \"2.8409 * fact_8\"}, {\"ref\": \"dependency_5_value_3\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f\", \"step_id\": \"step_3\", \"label\": \"Platinum premium amount\", \"value\": 92.81250000000001, \"unit\": \"USD\", \"calculation\": \"2.8409 * fact_8 * 0.022\"}, {\"ref\": \"dependency_5_value_4\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f\", \"step_id\": \"step_4\", \"label\": \"Combined total fees/premiums\", \"value\": 272.5, \"unit\": \"USD\", \"calculation\": \"25 + 5,156.25 * 0.03 + 2.8409 * fact_8 * 0.022\"}, {\"ref\": \"dependency_6_value_1\", \"node_id\": \"conductor-7ff28ffc9a3d:quantitative_reasoning:what_percentage_of_the_original\", \"step_id\": \"step_1\", \"label\": \"Percentage lost to fees/premiums\", \"value\": 2.18, \"unit\": \"%\", \"calculation\": \"(272.5 / fact_12) * 100\"}]}"
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 1400,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "vool_json_object",
+            "strict": false,
+            "schema": {
+              "type": "object",
+              "required": [
+                "explanation"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "explanation": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[^0-9]*$"
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "ref"
+                        ],
+                        "additionalProperties": false,
+                        "properties": {
+                          "ref": {
+                            "type": "string",
+                            "enum": [
+                              "dependency_1_value_1",
+                              "dependency_1_value_2",
+                              "dependency_1_value_3",
+                              "dependency_2_value_1",
+                              "dependency_2_value_2",
+                              "dependency_2_value_3",
+                              "dependency_3_value_1",
+                              "dependency_3_value_2",
+                              "dependency_3_value_3",
+                              "dependency_3_value_4",
+                              "dependency_4_value_1",
+                              "dependency_4_value_2",
+                              "dependency_4_value_3",
+                              "dependency_5_value_1",
+                              "dependency_5_value_2",
+                              "dependency_5_value_3",
+                              "dependency_5_value_4",
+                              "dependency_6_value_1"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "{\n  \"explanation\": [\n    \"Portfolio Allocation Summary (from $<ref>dependency_relation_</ref>)\",\n    \"| Asset | USD Allocated | Final Amount | Details |\",\n    \"|-------|--------------|--------------|---------|\",\n    \"| GBP | <ref>dependency_relation_</ref> | <ref>dependency_relation_</ref> | After $<ref>dependency_relation_</ref> FX fee |\",\n    \"| Silver | <ref>dependency_relation_</ref> | <ref>dependency_relation_</ref> | <ref>dependency_relation_</ref> |\",\n    \"| Platinum | <ref>dependency_relation_</ref> | <ref>dependency_relation_</ref> | <ref>dependency_relation_</ref> |\",\n    \"\",\n    \"Fee & Premium Breakdown\",\n    \"| Item | Amount (USD) |\",\n    \"|------|-------------|\",\n    \"| FX fee | <ref>dependency_relation_</ref> |\",\n    \"| Silver premium | <ref>dependency_relation_</ref> |\",\n    \"| Platinum premium | <ref>dependency_relation_</ref> |\",\n    \"| **Total fees/premiums** | **<ref>dependency_relation_</ref>** |\",\n    \"\",\n    \"Cost Analysis\",\n    \"| Metric | Value |\",\n    \"|--------|-------|\",\n    \"| % lost to fees/premiums | <ref>dependency_relation_</ref> |\",\n    \"\",\n    \"The portfolio splits $<ref>dependency_relation_</ref> into GBP, silver, and platinum. After currency conversion and premiums, total fees amount to $<ref>dependency_relation_</ref>, representing <ref>dependency_relation_</ref> of the original sum. The investor ends up with <ref>dependency_relation_</ref> in GBP, <ref>dependency_relation_</ref> of silver, and <ref>dependency_relation_</ref> of platinum.\"\n  ]\n}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 2139,
+        "completion_tokens": 757,
+        "total_tokens": 2896,
+        "cost": 0.0002646,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0002646,
+          "upstream_inference_prompt_cost": 0.00012834,
+          "upstream_inference_completions_cost": 0.00013626
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 218,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "DeepInfra",
+      "generation_id": "gen-1789142013-670GAWjN5AGFu6NZwlw9",
+      "seconds": 11.359
+    }
+  ],
+  "source": "9ab5a6a97ed307db71f885be600869475b5fd96e",
+  "kind": "live structured presentation of recorded/controlled results; arithmetic NOT reverified",
+  "operations_source_sha256": "36df4c68077f98157c114f3a8190935557fcefaffaeac07cf28cc48b3b107e93",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": false,
+  "result": {
+    "rows": [
+      {
+        "ref": "dependency_1_value_1",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t",
+        "step_id": "step_1",
+        "label": "USD to GBP allocation",
+        "value": 3125.0,
+        "unit": "USD",
+        "calculation": "fact_1 * 0.25"
+      },
+      {
+        "ref": "dependency_1_value_2",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t",
+        "step_id": "step_2",
+        "label": "USD to silver allocation",
+        "value": 5156.25,
+        "unit": "USD",
+        "calculation": "fact_1 * 0.75 * 0.55"
+      },
+      {
+        "ref": "dependency_1_value_3",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t",
+        "step_id": "step_3",
+        "label": "USD to platinum allocation",
+        "value": 4218.75,
+        "unit": "USD",
+        "calculation": "fact_1 * 0.75 * 0.45"
+      },
+      {
+        "ref": "dependency_2_value_1",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv",
+        "step_id": "step_1",
+        "label": "GBP before fee",
+        "value": 2381.859756097561,
+        "unit": "GBP",
+        "calculation": "3,125 / fact_6"
+      },
+      {
+        "ref": "dependency_2_value_2",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv",
+        "step_id": "step_2",
+        "label": "FX fee amount",
+        "value": 25.0,
+        "unit": "USD",
+        "calculation": "3,125 * 0.008"
+      },
+      {
+        "ref": "dependency_2_value_3",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv",
+        "step_id": "step_3",
+        "label": "GBP after FX fee",
+        "value": 2362.80487804878,
+        "unit": "GBP",
+        "calculation": "(3,125 - (3,125 * 0.008)) / fact_6"
+      },
+      {
+        "ref": "dependency_3_value_1",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o",
+        "step_id": "step_1",
+        "label": "USD to silver allocation",
+        "value": 5156.25,
+        "unit": "USD",
+        "calculation": "fact_1 * 0.75 * 0.55"
+      },
+      {
+        "ref": "dependency_3_value_2",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o",
+        "step_id": "step_2",
+        "label": "Silver cost per troy oz after premium",
+        "value": 43.053999999999995,
+        "unit": "USD / troy ounces",
+        "calculation": "fact_7 * (1 + 0.03)"
+      },
+      {
+        "ref": "dependency_3_value_3",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o",
+        "step_id": "step_3",
+        "label": "Troy ounces of silver",
+        "value": 119.7623914154318,
+        "unit": "troy ounces",
+        "calculation": "5,156.25 / (fact_7 * (1 + 0.03))"
+      },
+      {
+        "ref": "dependency_3_value_4",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o",
+        "step_id": "step_4",
+        "label": "Grams of silver",
+        "value": 3725.0267629024024,
+        "unit": "g",
+        "calculation": "5,156.25 / (fact_7 * (1 + 0.03)) * 31.1035"
+      },
+      {
+        "ref": "dependency_4_value_1",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0",
+        "step_id": "step_1",
+        "label": "Platinum gross troy ounces",
+        "value": 2.840909090909091,
+        "unit": "troy ounces",
+        "calculation": "4,218.75 / fact_8"
+      },
+      {
+        "ref": "dependency_4_value_2",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0",
+        "step_id": "step_2",
+        "label": "Platinum net troy ounces after premium",
+        "value": 2.779754492083259,
+        "unit": "troy ounces",
+        "calculation": "(Platinum gross troy ounces) / (1 + 0.022)"
+      },
+      {
+        "ref": "dependency_4_value_3",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0",
+        "step_id": "step_3",
+        "label": "Platinum net grams",
+        "value": 86.46002935420744,
+        "unit": "g",
+        "calculation": "(Platinum net troy ounces after premium) * 31.1035"
+      },
+      {
+        "ref": "dependency_5_value_1",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f",
+        "step_id": "step_1",
+        "label": "Silver premium amount",
+        "value": 154.6875,
+        "unit": "USD",
+        "calculation": "5,156.25 * 0.03"
+      },
+      {
+        "ref": "dependency_5_value_2",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f",
+        "step_id": "step_2",
+        "label": "Platinum gross cost",
+        "value": 4218.75,
+        "unit": "USD",
+        "calculation": "2.8409 * fact_8"
+      },
+      {
+        "ref": "dependency_5_value_3",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f",
+        "step_id": "step_3",
+        "label": "Platinum premium amount",
+        "value": 92.81250000000001,
+        "unit": "USD",
+        "calculation": "2.8409 * fact_8 * 0.022"
+      },
+      {
+        "ref": "dependency_5_value_4",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f",
+        "step_id": "step_4",
+        "label": "Combined total fees/premiums",
+        "value": 272.5,
+        "unit": "USD",
+        "calculation": "25 + 5,156.25 * 0.03 + 2.8409 * fact_8 * 0.022"
+      },
+      {
+        "ref": "dependency_6_value_1",
+        "node_id": "conductor-7ff28ffc9a3d:quantitative_reasoning:what_percentage_of_the_original",
+        "step_id": "step_1",
+        "label": "Percentage lost to fees/premiums",
+        "value": 2.18,
+        "unit": "%",
+        "calculation": "(272.5 / fact_12) * 100"
+      }
+    ],
+    "explanation": [],
+    "cannot_determine": [
+      "The requested explanation supplied no valid result-bound content."
+    ],
+    "presentation_format": "table",
+    "chart_kind": "bars_v",
+    "chart_error": "",
+    "source_node_ids": [
+      "conductor-7ff28ffc9a3d:quantitative_reasoning:the_exact_usd_amount_allocated_t",
+      "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_british_pounds_i_receiv",
+      "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o",
+      "conductor-7ff28ffc9a3d:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0",
+      "conductor-7ff28ffc9a3d:quantitative_reasoning:the_dollar_amount_paid_in_each_f",
+      "conductor-7ff28ffc9a3d:quantitative_reasoning:what_percentage_of_the_original"
+    ]
+  },
+  "rendered": "| Result | Calculation | Value |\n| --- | --- | --- |\n| USD to GBP allocation | `fact_1 * 0.25` | 3,125 USD |\n| USD to silver allocation | `fact_1 * 0.75 * 0.55` | 5,156.25 USD |\n| USD to platinum allocation | `fact_1 * 0.75 * 0.45` | 4,218.75 USD |\n| GBP before fee | `3,125 / fact_6` | 2,381.8598 GBP |\n| FX fee amount | `3,125 * 0.008` | 25 USD |\n| GBP after FX fee | `(3,125 - (3,125 * 0.008)) / fact_6` | 2,362.8049 GBP |\n| USD to silver allocation | `fact_1 * 0.75 * 0.55` | 5,156.25 USD |\n| Silver cost per troy oz after premium | `fact_7 * (1 + 0.03)` | 43.054 USD / troy ounces |\n| Troy ounces of silver | `5,156.25 / (fact_7 * (1 + 0.03))` | 119.7624 troy ounces |\n| Grams of silver | `5,156.25 / (fact_7 * (1 + 0.03)) * 31.1035` | 3,725.0268 g |\n| Platinum gross troy ounces | `4,218.75 / fact_8` | 2.8409 troy ounces |\n| Platinum net troy ounces after premium | `(Platinum gross troy ounces) / (1 + 0.022)` | 2.7798 troy ounces |\n| Platinum net grams | `(Platinum net troy ounces after premium) * 31.1035` | 86.46 g |\n| Silver premium amount | `5,156.25 * 0.03` | 154.6875 USD |\n| Platinum gross cost | `2.8409 * fact_8` | 4,218.75 USD |\n| Platinum premium amount | `2.8409 * fact_8 * 0.022` | 92.8125 USD |\n| Combined total fees/premiums | `25 + 5,156.25 * 0.03 + 2.8409 * fact_8 * 0.022` | 272.5 USD |\n| Percentage lost to fees/premiums | `(272.5 / fact_12) * 100` | 2.18 % |\n\nNot determined: The requested explanation supplied no valid result-bound content."
+}

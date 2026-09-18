@@ -1,0 +1,642 @@
+{
+  "label": "v1_df49",
+  "runtime_head": "df49f096cce927c830f8b68f12727a5d944cf3f2",
+  "runtime_repo": "/sanitized/revision-3/base-df49/repo",
+  "scenarios": {
+    "approved_with_hash": {
+      "calls": [
+        {
+          "arguments": {
+            "objective": "legacy scenario approved_with_hash"
+          },
+          "intent": "code.task.open",
+          "ok": true,
+          "stage": "reproduce",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "repro",
+            "task_id": "ct-4c58e04ce201"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "identify",
+          "status": "command_failed"
+        },
+        {
+          "arguments": {
+            "line": 1,
+            "path": "math.js",
+            "reason": "subtracts",
+            "task_id": "ct-4c58e04ce201"
+          },
+          "intent": "code.task.identify",
+          "ok": true,
+          "stage": "propose",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "path": "math.js"
+            },
+            "intent": "workspace.read_file",
+            "step_id": "read",
+            "task_id": "ct-4c58e04ce201"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "propose",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a + b;\n",
+              "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "proposal_id": "p1",
+            "rationale": "Owner math.js: restore addition.",
+            "task_id": "ct-4c58e04ce201"
+          },
+          "intent": "code.task.propose",
+          "ok": true,
+          "stage": "approve",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "proposal_id": "p1",
+            "task_id": "ct-4c58e04ce201"
+          },
+          "intent": "code.task.approve",
+          "ok": true,
+          "stage": "mutate",
+          "status": "ok"
+        }
+      ],
+      "journal_sha256": "9e67c7727e9913a5e2792a0b0cf69925cfcc163626da5a76e16991b5e17758ce",
+      "task_id": "ct-4c58e04ce201",
+      "workspace_root_recorded": "/sanitized/revision-3/fixtures-legacy/v1_df49/_scratch/ws/approved_with_hash"
+    },
+    "approved_without_hash": {
+      "calls": [
+        {
+          "arguments": {
+            "objective": "legacy scenario approved_without_hash"
+          },
+          "intent": "code.task.open",
+          "ok": true,
+          "stage": "reproduce",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "repro",
+            "task_id": "ct-378ae6db825c"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "identify",
+          "status": "command_failed"
+        },
+        {
+          "arguments": {
+            "line": 1,
+            "path": "math.js",
+            "reason": "subtracts",
+            "task_id": "ct-378ae6db825c"
+          },
+          "intent": "code.task.identify",
+          "ok": true,
+          "stage": "propose",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "path": "math.js"
+            },
+            "intent": "workspace.read_file",
+            "step_id": "read",
+            "task_id": "ct-378ae6db825c"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "propose",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a + b;\n",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "proposal_id": "p1",
+            "rationale": "Owner math.js: restore addition.",
+            "task_id": "ct-378ae6db825c"
+          },
+          "intent": "code.task.propose",
+          "ok": true,
+          "stage": "approve",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "proposal_id": "p1",
+            "task_id": "ct-378ae6db825c"
+          },
+          "intent": "code.task.approve",
+          "ok": true,
+          "stage": "mutate",
+          "status": "ok"
+        }
+      ],
+      "journal_sha256": "21dd368ad3c105a0691de78b971a80921393b4bf15df07dfd80f310d8d0fe786",
+      "task_id": "ct-378ae6db825c",
+      "workspace_root_recorded": "/sanitized/revision-3/fixtures-legacy/v1_df49/_scratch/ws/approved_without_hash"
+    },
+    "completed": {
+      "calls": [
+        {
+          "arguments": {
+            "objective": "legacy scenario completed"
+          },
+          "intent": "code.task.open",
+          "ok": true,
+          "stage": "reproduce",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "repro",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "identify",
+          "status": "command_failed"
+        },
+        {
+          "arguments": {
+            "line": 1,
+            "path": "math.js",
+            "reason": "subtracts",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.identify",
+          "ok": true,
+          "stage": "propose",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "path": "math.js"
+            },
+            "intent": "workspace.read_file",
+            "step_id": "read",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "propose",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a + b;\n",
+              "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "proposal_id": "p1",
+            "rationale": "Owner math.js: restore addition.",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.propose",
+          "ok": true,
+          "stage": "approve",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "proposal_id": "p1",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.approve",
+          "ok": true,
+          "stage": "mutate",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a + b;\n",
+              "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "step_id": "mut",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "narrow_test",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "narrow",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "cumulative",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "cumulative",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "inspect_diff",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {},
+            "intent": "workspace.git_diff",
+            "step_id": "diff",
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "report",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "task_id": "ct-f52abe0a6031"
+          },
+          "intent": "code.task.report",
+          "ok": true,
+          "stage": "report",
+          "status": "ok"
+        }
+      ],
+      "journal_sha256": "4dcbf652b218341cee14c4af8dd66ff1691108b292b41227a48971a9c39645f0",
+      "task_id": "ct-f52abe0a6031",
+      "workspace_root_recorded": "/sanitized/revision-3/fixtures-legacy/v1_df49/_scratch/ws/completed"
+    },
+    "stale_failure_after_corrected_mutation": {
+      "calls": [
+        {
+          "arguments": {
+            "objective": "legacy scenario stale_failure_after_corrected_mutation"
+          },
+          "intent": "code.task.open",
+          "ok": true,
+          "stage": "reproduce",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "repro",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "identify",
+          "status": "command_failed"
+        },
+        {
+          "arguments": {
+            "line": 1,
+            "path": "math.js",
+            "reason": "subtracts",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.identify",
+          "ok": true,
+          "stage": "propose",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "path": "math.js"
+            },
+            "intent": "workspace.read_file",
+            "step_id": "read",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "propose",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a * b;\n",
+              "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "proposal_id": "wrong",
+            "rationale": "Owner math.js: wrong operator.",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.propose",
+          "ok": true,
+          "stage": "approve",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "proposal_id": "wrong",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.approve",
+          "ok": true,
+          "stage": "mutate",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a * b;\n",
+              "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "step_id": "mut-wrong",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "narrow_test",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "verify-wrong",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "narrow_test",
+          "status": "command_failed"
+        },
+        {
+          "arguments": {
+            "line": 1,
+            "path": "math.js",
+            "reason": "first fix wrong",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.identify",
+          "ok": false,
+          "stage": "narrow_test",
+          "status": "stage_violation"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "path": "math.js"
+            },
+            "intent": "workspace.read_file",
+            "step_id": "reread",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "narrow_test",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a + b;\n",
+              "expected_hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "proposal_id": "fixed",
+            "rationale": "Owner math.js: restore addition.",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.propose",
+          "ok": false,
+          "stage": "narrow_test",
+          "status": "stage_violation"
+        },
+        {
+          "arguments": {
+            "proposal_id": "fixed",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.approve",
+          "ok": false,
+          "stage": "narrow_test",
+          "status": "unknown_proposal"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a + b;\n",
+              "expected_hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "step_id": "mut-fixed",
+            "task_id": "ct-87b65ed624dd"
+          },
+          "intent": "code.task.step",
+          "ok": false,
+          "stage": "narrow_test",
+          "status": "stage_violation"
+        }
+      ],
+      "journal_sha256": "3cb780b20199e6c37198b4f8d32665c33c5942c23ab8c5eba656d2acc063a04c",
+      "task_id": "ct-87b65ed624dd",
+      "workspace_root_recorded": "/sanitized/revision-3/fixtures-legacy/v1_df49/_scratch/ws/stale_failure_after_corrected_mutation"
+    },
+    "two_pending_units": {
+      "calls": [
+        {
+          "arguments": {
+            "objective": "legacy scenario two_pending_units"
+          },
+          "intent": "code.task.open",
+          "ok": true,
+          "stage": "reproduce",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "command": "node check.js"
+            },
+            "intent": "workspace.run_tests",
+            "step_id": "repro",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "identify",
+          "status": "command_failed"
+        },
+        {
+          "arguments": {
+            "line": 1,
+            "path": "math.js",
+            "reason": "subtracts",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.identify",
+          "ok": true,
+          "stage": "propose",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "path": "math.js"
+            },
+            "intent": "workspace.read_file",
+            "step_id": "read",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "propose",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "path": "labels.js"
+            },
+            "intent": "workspace.read_file",
+            "step_id": "read-other",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "propose",
+          "status": "executed"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a + b;\n",
+              "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "proposal_id": "a",
+            "rationale": "Owner math.js: restore addition.",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.propose",
+          "ok": true,
+          "stage": "approve",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.label = (parts) => parts.join(',');\n",
+              "expected_hash": "c7fdd51f13f6d40ea04ad6b7e3906a33e12371cbfcb4350a32ae11fb6a538bc9",
+              "path": "labels.js"
+            },
+            "intent": "workspace.write_file",
+            "proposal_id": "b",
+            "rationale": "Owner labels.js: join with a comma.",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.propose",
+          "ok": true,
+          "stage": "approve",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "proposal_id": "a",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.approve",
+          "ok": true,
+          "stage": "mutate",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "proposal_id": "b",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.approve",
+          "ok": true,
+          "stage": "mutate",
+          "status": "ok"
+        },
+        {
+          "arguments": {
+            "arguments": {
+              "content": "exports.add = (a, b) => a + b;\n",
+              "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+              "path": "math.js"
+            },
+            "intent": "workspace.write_file",
+            "step_id": "mut-a",
+            "task_id": "ct-c5e8be375691"
+          },
+          "intent": "code.task.step",
+          "ok": true,
+          "stage": "mutate",
+          "status": "executed"
+        }
+      ],
+      "journal_sha256": "6674e84e89fa00546864edd0d02a633e2786ccdb1e09cf74d71e4aff04486151",
+      "task_id": "ct-c5e8be375691",
+      "workspace_root_recorded": "/sanitized/revision-3/fixtures-legacy/v1_df49/_scratch/ws/two_pending_units"
+    }
+  }
+}

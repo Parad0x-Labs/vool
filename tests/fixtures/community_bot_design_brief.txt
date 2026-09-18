@@ -1,0 +1,25 @@
+I want to build a small community bot system with a World of Warcraft theme.
+
+The Telegram bot is used by members. Users can earn points from activity, choose Alliance or Horde, check balances, transfer points, and view faction rankings.
+
+I also want a private Discord server for admins where trusted staff can control the Telegram bot remotely.
+
+For example, from Discord an admin should be able to:
+- add or remove points from a Telegram user
+- reset a user's balance by percentage
+- change faction settings
+- temporarily disable rewards
+- change reward amounts
+- view bot status and recent errors
+- restart selected bot services
+- see the top users/factions
+
+The Telegram and Discord sides should share the same persistent data and survive restarts.
+
+The important part is that normal Discord users must never be able to trigger admin actions, and a compromised Discord command should not accidentally give unlimited control over everything.
+
+How would you design this system?
+
+Explain the architecture, how Discord talks to the Telegram bot, how permissions should work, how you would store the shared state, and what you would do to avoid duplicate commands or accidental double execution.
+
+Keep it practical — something one developer could actually build and maintain.

@@ -1,0 +1,95 @@
+{
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "case": "factory",
+  "calls": [
+    {
+      "system": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]\nSource-reference alternative for this turn:\nThe runtime has already located the source clauses below. Prefer naming their IDs in source_clause_ids instead of rewriting them; set request to an empty string for those entries. The runtime substitutes their original text. Every listed ID must occur once across the plan. You still choose operation and depends_on; references do not authorize an operation or prove it answered anything. Context and assumptions remain available from the original message. Do not turn response-format instructions into separate work. Group them with the work they modify. If the structural clauses cannot represent the split, use the original request-text contract consistently, without source_clause_ids.\n[{\"id\": \"clause-1\", \"text\": \"A factory receives 960 litres of concentrate. Allocate 30% to the north line,\"}, {\"id\": \"clause-2\", \"text\": \"send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%.\"}, {\"id\": \"clause-3\", \"text\": \"Calculate each line's initial volume, usable volume and discarded volume.\"}, {\"id\": \"clause-4\", \"text\": \"calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.\"}]",
+      "prompt": "A factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.",
+      "max_tokens": 1501,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0",
+      "wire_payload": {
+        "model": "nvidia/nemotron-3.5-lightning:free",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]\nSource-reference alternative for this turn:\nThe runtime has already located the source clauses below. Prefer naming their IDs in source_clause_ids instead of rewriting them; set request to an empty string for those entries. The runtime substitutes their original text. Every listed ID must occur once across the plan. You still choose operation and depends_on; references do not authorize an operation or prove it answered anything. Context and assumptions remain available from the original message. Do not turn response-format instructions into separate work. Group them with the work they modify. If the structural clauses cannot represent the split, use the original request-text contract consistently, without source_clause_ids.\n[{\"id\": \"clause-1\", \"text\": \"A factory receives 960 litres of concentrate. Allocate 30% to the north line,\"}, {\"id\": \"clause-2\", \"text\": \"send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%.\"}, {\"id\": \"clause-3\", \"text\": \"Calculate each line's initial volume, usable volume and discarded volume.\"}, {\"id\": \"clause-4\", \"text\": \"calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.\"}]"
+          },
+          {
+            "role": "user",
+            "content": "A factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together."
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 1501,
+        "reasoning": {
+          "enabled": false
+        },
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "vool_json_object",
+            "strict": false,
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "request": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  },
+                  "depends_on": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "source_clause_ids": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "clause-1",
+                        "clause-2",
+                        "clause-3",
+                        "clause-4"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "request",
+                  "operation",
+                  "depends_on"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "http_status": 200,
+      "error_type": "KeyError",
+      "seconds": 79.011
+    }
+  ],
+  "source": "cdfc28a6df5da4c0124a5fa775289679d68a51a4",
+  "kind": "component comparison, NOT native acceptance",
+  "operations_source_sha256": "d02364653d192a31616c7ee434642617828bea144560785763bceb3f1687ecf9",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": true,
+  "bound_source_plan": "",
+  "component_plan": null
+}

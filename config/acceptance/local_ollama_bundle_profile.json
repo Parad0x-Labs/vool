@@ -1,0 +1,38 @@
+{
+  "profile_id": "local-bundle-ollama-v1",
+  "display_name": "VOOL local acceptance for the hardware-aware local Ollama bundle",
+  "model": "qwen3:8b",
+  "selected_models": [
+    "qwen3:8b",
+    "deepseek-r1:8b"
+  ],
+  "selected_model_roles": [
+    {
+      "role": "general",
+      "model": "qwen3:8b"
+    },
+    {
+      "role": "reasoning",
+      "model": "deepseek-r1:8b"
+    }
+  ],
+  "capacity_bucket": "C",
+  "fallback_bundle_models": [
+    "qwen3:8b",
+    "gemma3:4b"
+  ],
+  "advanced_optional_profile": "local-max",
+  "thresholds": {
+    "cold_start_max_seconds": 30.0,
+    "simple_prompt_median_max_seconds": 4.0,
+    "simple_prompt_hard_max_seconds": 20.0,
+    "file_task_median_max_seconds": 3.0,
+    "live_lookup_median_max_seconds": 10.0,
+    "chained_task_median_max_seconds": 8.0,
+    "consistency_min_passes": 2
+  },
+  "manual_btc_check": {
+    "source_label": "CoinGecko simple price API",
+    "url": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+  }
+}

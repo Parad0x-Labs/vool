@@ -1,0 +1,3 @@
+2cbbacefb63b71dda5deb42edf6f6b359f4989bd771f4286f80e2f0355c79ff5  mobile/assets/adaptive-icon.png
+2cbbacefb63b71dda5deb42edf6f6b359f4989bd771f4286f80e2f0355c79ff5  mobile/assets/icon.png
+3aefcfd6c2ec9ced9c79ea1d007ec07167a397353752748ed859c5ab85623ce7  mobile/assets/splash-icon.png

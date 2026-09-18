@@ -1,0 +1,15 @@
+from __future__ import annotations
+
+from core.agent_runtime.hive_topic_delete_runtime import (
+    handle_hive_topic_delete_request as delete_runtime_handle_hive_topic_delete_request,
+)
+from core.agent_runtime.hive_topic_mutation_resolver import (
+    resolve_hive_topic_for_mutation as mutation_resolver_resolve_hive_topic_for_mutation,
+)
+from core.agent_runtime.hive_topic_update_runtime import (
+    handle_hive_topic_update_request as update_runtime_handle_hive_topic_update_request,
+)
+
+resolve_hive_topic_for_mutation = mutation_resolver_resolve_hive_topic_for_mutation
+handle_hive_topic_update_request = update_runtime_handle_hive_topic_update_request
+handle_hive_topic_delete_request = delete_runtime_handle_hive_topic_delete_request

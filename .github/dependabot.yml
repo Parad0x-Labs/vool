@@ -1,0 +1,21 @@
+version: 2
+# Only ecosystems this repo actually has. npm and cargo were configured at "/" with no
+# package.json or Cargo.toml anywhere in the tree, so both failed every week and left
+# main permanently red -- which is how a real failure gets ignored.
+updates:
+  # pip / Python
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "security"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "ci"]

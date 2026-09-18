@@ -1,0 +1,319 @@
+system:
+  advice_only_default: true
+  local_only_mode: false
+  # Web access is on by default so live-data questions (weather, prices, news)
+  # get a real DuckDuckGo-backed answer instead of the model guessing. Disable
+  # with VOOL_DISABLE_WEB=1 (or VOOL_NO_WEB=1), or set this to false here.
+  # Local Only governs cloud AI/model calls and does not disable web tools.
+  allow_web_fallback: true
+  # Remote null:// dial is opt-in and off by default. Enable with
+  # VOOL_ENABLE_NULL_DIAL=1 (or VOOL_ALLOW_NULL_DIAL=1), or set this to true
+  # here, to let a null:// request reach the named agent's endpoint. Spend stays
+  # separately gated by --allow-spend within a cap.
+  allow_null_dial: false
+  allow_swarm_queries: true
+  max_datagram_bytes: 32768
+  max_message_bytes: 262144
+  enable_udp_fragmentation: true
+  enable_stream_data_plane: true
+  stream_transfer_threshold_bytes: 24576
+  max_fragment_buckets: 2048
+  mesh_psk_b64: ""
+  require_mesh_encryption: true
+  stream_tls_enabled: true
+  stream_tls_certfile: ""
+  stream_tls_keyfile: ""
+  stream_tls_ca_file: ""
+  stream_tls_require_client_cert: false
+  stream_tls_insecure_skip_verify: false
+  nonce_cache_max_age_hours: 48
+  nonce_cache_max_rows: 200000
+  max_candidates_per_query: 5
+  quarantine_on_invalid_signature: true
+  quarantine_on_schema_abuse: true
+
+personality:
+  persona_core_locked: true
+  persona_update_from_swarm: false
+  persona_update_from_web: false
+  spirit_anchor_required: true
+  allow_local_persona_tuning: true
+  allow_auto_persona_drift: false
+
+execution:
+  default_mode: advice_only
+  allow_simulation: true
+  allow_sandbox_execution: true
+  allow_safe_local_actions: true
+  allowed_safe_local_actions:
+    - inspect_disk_usage
+    - cleanup_temp_files
+    - inspect_processes
+    - inspect_services
+    - move_path
+    - schedule_calendar_event
+    - schedule_reminder
+    - list_reminders
+    - cancel_reminder
+    - move_reminder
+    - complete_reminder
+    - edit_reminder
+    - cancel_calendar_event
+    - move_calendar_event
+    # Provider-backed calendar reads and workspace notes: non-destructive on this
+    # machine. Provider WRITES (create/update/cancel of provider events) are not
+    # listed -- they are outward-facing effects that always require the explicit
+    # provider-approval turn, independent of this local-action gate.
+    - check_availability
+    - list_calendars
+    - inspect_calendar_event
+    - show_agenda
+    - search_calendar_event
+    - save_note
+    - find_notes
+    - show_note
+    - archive_note
+    - restore_note
+    - apple_note_list
+    - apple_note_read
+    - apple_note_append
+    - apple_note_rename
+    - apple_note_delete
+  require_explicit_user_approval_for_execution: true
+  allow_machine_writes: true
+  allow_dependency_install: false
+  allow_privileged_actions: false
+  allow_network_access_during_execution: false
+  max_subprocess_seconds: 10
+  max_subprocess_output_kb: 256
+
+filesystem:
+  workspace_roots:
+    - "./workspace"
+    - "./tmp"
+  allow_read_workspace: true
+  allow_write_workspace: true
+  deny_paths:
+    - "/etc"
+    - "/boot"
+    - "/sys"
+    - "/proc"
+    - "/System"
+    - "/Library"
+    - "C:\\Windows"
+    - "C:\\Program Files"
+    - "C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
+
+hive:
+  public_mode: true  # alpha: stricter limits (3 topics/hr, 8 posts/10min)
+
+curiosity:
+  enabled: true
+  max_queries_per_topic: 4
+  max_snippets_per_query: 5
+
+network:
+  inbound_enabled: true
+  outbound_enabled: true
+  max_peers: 64
+  max_requests_per_minute_per_peer: 30
+  max_failed_messages_before_quarantine: 3
+  allow_reputation_hints: false
+  pow_min_difficulty: 4
+  report_abuse_gossip_ttl: 2
+  report_abuse_gossip_fanout: 8
+
+orchestration:
+  max_subtasks_per_parent: 3
+  max_helpers_per_subtask: 1
+  max_subtasks_hard_cap: 10
+  max_helpers_hard_cap: 10
+  enable_local_worker_pool_when_swarm_empty: true
+  local_loopback_offer_on_no_helpers: true
+  local_worker_auto_detect: true
+  local_worker_pool_target: 0
+  local_worker_pool_max: 10
+
+model_orchestration:
+  drone_provider_hint: "qwen"
+  queen_provider_hint: "kimi"
+  drone_swarm_width: 2
+  queen_swarm_width: 1
+  queen_allow_paid_fallback: true
+  # Wall-clock budget (seconds) for the sequential provider-fallback loop on an
+  # ordinary tiny/daily turn when a GPU is offloading inference. deep/cloud/human
+  # lanes are unbounded regardless of this value.
+  provider_fallback_budget_seconds: 60
+  # Larger budget used instead when the run is CPU-only (Ollama forced to CPU via
+  # VOOL_OLLAMA_NUM_GPU=0, or no usable GPU offload is active). A full CPU turn
+  # cannot finish inside 60s; 180s matches the per-manifest timeout_seconds so a
+  # slow CPU generation can complete rather than being cut off.
+  provider_fallback_budget_seconds_cpu: 180
+
+observability:
+  log_level: "INFO"
+  json_logs: true
+  metrics_enabled: true
+
+shards:
+  new_shards_start_untrusted: true
+  require_signature_for_remote_shards: true
+  require_schema_version: 1
+  allow_raw_code_in_shards: false
+  allow_paths_in_shards: false
+  allow_usernames_in_shards: false
+  allow_tokens_in_shards: false
+  force_abstract_resolution_patterns: true
+  default_expiry_days: 90
+  default_share_scope: "local_only"
+  auto_promote_min_quality: 0.60
+  replication_target: 2
+  freshness_audit_interval_ticks: 10
+  marketplace_auto_list: true
+  marketplace_default_price: 1.0
+  quarantine_if_risk_flags_include:
+    - destructive_command
+    - privileged_action
+    - persistence_attempt
+    - exfiltration_hint
+
+web:
+  cache_notes: true
+  web_notes_not_authoritative: true
+  convert_web_note_to_shard_only_after_local_success: true
+  # duckduckgo_html is deliberately absent. DuckDuckGo now answers every keyless
+  # scrape of html.duckduckgo.com and lite.duckduckgo.com with its anti-bot
+  # "anomaly" challenge page (HTTP 202, zero results) -- 0/8 on varied queries.
+  # Listing it only guaranteed a failure note before the chain moved on.
+  #
+  # browser_search leads. Measured 2026-08-17: every keyless HTTP search path is served a DECOY
+  # INDEX rather than a refusal -- HTTP 200, real HTML, wrong subject ("how many moons does jupiter
+  # have" came back as dictionary definitions of the word "many"). A real User-Agent, query
+  # reformulation, the DuckDuckGo html/lite endpoints and Brave were each tried and each failed.
+  # Rendering the same query in the browser already installed on the machine returns NASA,
+  # Wikipedia and the official president.go.ke. It needs no install and no Playwright package; it
+  # drives Chrome/Chromium over a subprocess pipe, and removes itself from the chain when no
+  # browser is found, so a machine without one behaves exactly as before. The HTTP engines stay
+  # below it as fallback.
+  #
+  # UPGRADE HAZARD: this list is the permission boundary and there is no runtime backfill. A
+  # policy file shipped before this entry existed replaces the whole list, silently dropping
+  # browser_search and leaving only the engines that return decoys.
+  provider_order:
+    - browser_search
+    - searxng
+    - google_html
+    - ddg_instant
+  allowed_engines:
+    - browser_search
+    - searxng
+    - google_html
+    - ddg_instant
+  searxng_url: "http://127.0.0.1:8080"
+  searxng_timeout_seconds: 12.0
+  playwright_enabled: false
+  browser_engine: chromium
+  allow_browser_fallback: true
+  max_fetch_bytes: 2000000
+  blocked_domains: []
+
+trust:
+  initial_peer_trust: 0.50
+  min_trust_to_consider_shard: 0.30
+  min_trust_to_promote_shard: 0.65
+  harmful_outcome_penalty: 0.30
+  successful_validation_boost: 0.08
+  failed_validation_penalty: 0.12
+  stale_decay_per_30_days: 0.05
+
+assist_mesh:
+  idle_assist_mode: "passive" # options: off, passive, active
+  allow_research: true
+  allow_code_reasoning: false
+  allow_validation: true
+  max_concurrent_tasks: 2
+  trusted_peers_only: true
+  min_reward_threshold: 10
+  work_only_when_idle: true
+  reserve_capacity_for_local_user: true
+  require_assignment_capability_token: true
+  assignment_lease_seconds: 900
+  blocked_requeue_seconds: 15
+  reconcile_interval_seconds: 10
+  reconcile_subtask_limit: 50
+  reconcile_token_limit: 100
+  reconcile_assignment_limit: 25
+  reconcile_open_offer_limit: 25
+  reconcile_parent_limit: 25
+  rebroadcast_helper_limit: 8
+  min_parent_trust_for_assignment_execution: 0.25
+
+adaptation:
+  enabled: true
+  tick_interval_seconds: 1800
+  max_running_jobs: 1
+  default_corpus_label: "autopilot-default"
+  limit_per_source: 256
+  # Must point to a real trainable Transformers base model path or HF model id.
+  # Ollama tags are not enough for LoRA training.
+  # If left empty, VOOL will use a staged local fallback test base when present:
+  # data/trainable_models/sshleifer-tiny-gpt2
+  base_model_ref: ""
+  base_provider_name: ""
+  base_model_name: ""
+  license_name: ""
+  license_reference: ""
+  adapter_provider_name: "vool-adapted"
+  adapter_model_prefix: "vool-loop"
+  capabilities:
+    - summarize
+    - classify
+    - format
+  min_examples_to_train: 24
+  min_structured_examples: 12
+  min_high_signal_examples: 8
+  min_new_examples_since_last_job: 8
+  min_quality_score: 0.68
+  max_conversation_ratio: 0.45
+  max_eval_samples: 12
+  max_canary_samples: 8
+  eval_holdout_examples: 6
+  canary_holdout_examples: 4
+  min_train_examples_after_holdout: 12
+  epochs: 1
+  max_steps: 32
+  batch_size: 1
+  gradient_accumulation_steps: 4
+  learning_rate: 0.0002
+  cutoff_len: 768
+  lora_r: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+  logging_steps: 4
+  promotion_margin: 0.03
+  rollback_margin: 0.04
+  min_candidate_eval_score: 0.55
+  min_candidate_canary_score: 0.52
+  post_promotion_canary_min_new_examples: 8
+  publish_metadata_to_hive: true
+  hive_topic: "VOOL Model Adaptation"
+
+brain_hive:
+  commons_review_threshold: 3.5
+  commons_archive_threshold: 2.5
+
+rewards_and_farming:
+  daily_max_pending_reward: 1000
+  daily_max_rewarded_tasks: 20
+  rolling_pair_cap_hours: 24
+  fraud_window_hours_small: 6
+  fraud_window_hours_medium: 24
+  fraud_window_hours_large: 72
+
+lifeform:
+  enabled: true
+  presentation: companion_slot
+  # Energy caps/pacing are RULESET constants (core.companion.lifeform.progression,
+  # ruleset_version) and are deliberately NOT configurable here: a config edit
+  # must never bend progression retroactively. This section carries presentation
+  # preferences only.

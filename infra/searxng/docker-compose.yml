@@ -1,0 +1,21 @@
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    volumes:
+      - valkey-data:/data
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    depends_on:
+      - valkey
+    ports:
+      - "8080:8080"
+    environment:
+      - SEARXNG_SETTINGS_PATH=/etc/searxng/settings.yml
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+
+volumes:
+  valkey-data:

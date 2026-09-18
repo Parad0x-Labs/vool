@@ -1,0 +1,28 @@
+from __future__ import annotations
+
+_WEATHER_MARKERS = (
+    " weather ",
+    " weather?",
+    "weather ",
+    " forecast",
+    " temperature",
+    " rain ",
+    " rain?",
+    " raining",
+    " rainy",
+    " snow ",
+    " snow?",
+    " snowing",
+    " snowy",
+    " wind ",
+    " windy",
+    " humidity",
+    " humid ",
+    " sunrise",
+    " sunset",
+    " wheather",
+    " wheater",
+    " whether today",
+    " whether now",
+    " whether in ",
+)

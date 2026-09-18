@@ -1,0 +1,43 @@
+{
+ "proofs": {
+  "setup_turn": {
+   "status": 200,
+   "content": "Locked in. I\u2019ll remember that."
+  },
+  "concurrent_first": {
+   "elapsed_s": 0.6,
+   "alpha": {
+    "status": 500,
+    "content": ""
+   },
+   "beta": {
+    "status": 200,
+    "content": "beta lane answer: BETA-MARKER-8802"
+   },
+   "alpha_clean": false,
+   "beta_clean": true,
+   "no_crossover": true,
+   "stub_calls_total": 1
+  },
+  "first_turn": {
+   "status": 200,
+   "content": "confirmed back: RESTART-SECOND-3302",
+   "clean": true,
+   "stub_model_calls": 1,
+   "task_completed_events": 2
+  },
+  "second_turn": {
+   "status": 200,
+   "content": "still here: RESTART-THIRD-4403",
+   "clean": true,
+   "stub_model_calls": 1
+  },
+  "unavailable_provider": {
+   "status": 200,
+   "content": "I can't publish this answer: nothing this turn retrieved, computed or observed backs it, so the answer would rest on the writing model alone. `ollama-local:qwen2.5:7b` is not certified to author on this runtime, so the c",
+   "elapsed_s": 15.29,
+   "typed_refusal": true
+  }
+ },
+ "all_proofs_ok": false
+}

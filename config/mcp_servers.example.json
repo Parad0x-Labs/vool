@@ -1,0 +1,12 @@
+{
+  "_comment": "Optional, off by default. To let VOOL use local MCP tool servers, copy this to <VOOL_HOME>/mcp_servers.json (or point env VOOL_MCP_CONFIG at it) and set enabled:true. Each server runs as a local stdio subprocess; its tools appear to the agent as mcp.<name>.<tool>. Nothing leaves your machine.",
+  "servers": [
+    {
+      "name": "example",
+      "command": "python",
+      "args": ["/absolute/path/to/your_mcp_server.py"],
+      "enabled": false,
+      "timeout": 30
+    }
+  ]
+}

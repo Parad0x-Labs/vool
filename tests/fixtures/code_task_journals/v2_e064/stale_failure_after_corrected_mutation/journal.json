@@ -1,0 +1,487 @@
+{
+ "blackbox_turn_ids": [
+  "code-task:ct-d75c309d8fb7"
+ ],
+ "cancelled_reason": "",
+ "created_at": "2026-09-14T09:57:16.941759+00:00",
+ "cumulative": null,
+ "defect": {
+  "at": "2026-09-14T09:57:17.133879+00:00",
+  "line": 1,
+  "path": "math.js",
+  "reason": "first fix wrong"
+ },
+ "diagnoses": [
+  {
+   "at": "2026-09-14T09:57:17.013010+00:00",
+   "line": 1,
+   "path": "math.js",
+   "reason": "subtracts"
+  }
+ ],
+ "fault_ids": [],
+ "git_diff_paths": [],
+ "narrow": {
+  "command": "node check.js",
+  "returncode": 1,
+  "step_id": "verify-wrong",
+  "success": false
+ },
+ "objective": "legacy scenario stale_failure_after_corrected_mutation",
+ "pr_description": {},
+ "proposals": {
+  "fixed": {
+   "approved": true,
+   "approved_at": "2026-09-14T09:57:17.161738+00:00",
+   "arguments": {
+    "content": "exports.add = (a, b) => a + b;\n",
+    "expected_hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+    "path": "math.js"
+   },
+   "consumed_by": "mut-fixed",
+   "created_at": "2026-09-14T09:57:17.155528+00:00",
+   "intent": "workspace.write_file",
+   "preview": {
+    "arguments_sha256": "30d6e998e911769977e492da06899fff1459cfe9d77171621e843d3d0b20e61c",
+    "content_sha256": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+    "intent": "workspace.write_file",
+    "paths": [
+     "math.js"
+    ],
+    "side_effect_class": "workspace_write"
+   },
+   "proposal_id": "fixed",
+   "rationale": "Owner math.js: restore addition."
+  },
+  "wrong": {
+   "approved": true,
+   "approved_at": "2026-09-14T09:57:17.038536+00:00",
+   "arguments": {
+    "content": "exports.add = (a, b) => a * b;\n",
+    "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "path": "math.js"
+   },
+   "consumed_by": "mut-wrong",
+   "created_at": "2026-09-14T09:57:17.033184+00:00",
+   "intent": "workspace.write_file",
+   "preview": {
+    "arguments_sha256": "0c814bf4f39df89029c7f315f3c638520076488b1e6c4cd242226d6f2ed338b0",
+    "content_sha256": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+    "intent": "workspace.write_file",
+    "paths": [
+     "math.js"
+    ],
+    "side_effect_class": "workspace_write"
+   },
+   "proposal_id": "wrong",
+   "rationale": "Owner math.js: wrong operator."
+  }
+ },
+ "read_paths": [
+  "math.js"
+ ],
+ "reproduced_failure": {
+  "command": "node check.js",
+  "returncode": 1,
+  "step_id": "repro",
+  "success": false
+ },
+ "rollback": {
+  "restored": false,
+  "restored_paths": []
+ },
+ "session_id": "legacy-stale_failure_after_corrected_mutation",
+ "stage": "narrow_test",
+ "step_order": [
+  "repro",
+  "read",
+  "mut-wrong",
+  "verify-wrong",
+  "reread",
+  "mut-fixed"
+ ],
+ "steps": {
+  "mut-fixed": {
+   "arguments": {
+    "content": "exports.add = (a, b) => a + b;\n",
+    "expected_hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": true,
+   "completed_at": "2026-09-14T09:57:17.185449+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.write_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "fixed",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "action": "updated",
+    "after_hash": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+    "after_mode": 420,
+    "artifacts": [
+     {
+      "action": "updated",
+      "after_hash": "0ec5062faab170572a435284b5253963013467df51ba80c8508952311335954a",
+      "artifact_type": "file_diff",
+      "before_hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+      "diff_preview": "--- a/math.js\n+++ b/math.js\n@@ -1 +1 @@\n-exports.add = (a, b) => a * b;\n+exports.add = (a, b) => a + b;",
+      "line_count": 1,
+      "path": "math.js"
+     }
+    ],
+    "before_hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+    "before_mode": 420,
+    "blackbox": {
+     "bytes_captured": true,
+     "coverage_gap": [],
+     "effect_ids": [
+      "effect-d8d65c3b51124983a4d8332f9011f5ad"
+     ],
+     "outcomes": {
+      "effect-d8d65c3b51124983a4d8332f9011f5ad": "succeeded"
+     },
+     "recovery_error": "",
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-d75c309d8fb7"
+    },
+    "line_count": 1,
+    "mutation_record": {
+     "mutation_id": "mutation-a9ffa0136a4c418eba4d2a0e56b4cf81",
+     "session_key": "legacy-stale_failure_after_corrected_mutation"
+    },
+    "path": "math.js"
+   },
+   "stage_at": "mutate",
+   "started_at": "2026-09-14T09:57:17.170250+00:00",
+   "status": "executed",
+   "step_id": "mut-fixed"
+  },
+  "mut-wrong": {
+   "arguments": {
+    "content": "exports.add = (a, b) => a * b;\n",
+    "expected_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": true,
+   "completed_at": "2026-09-14T09:57:17.061484+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.write_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "wrong",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "action": "updated",
+    "after_hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+    "after_mode": 420,
+    "artifacts": [
+     {
+      "action": "updated",
+      "after_hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+      "artifact_type": "file_diff",
+      "before_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+      "diff_preview": "--- a/math.js\n+++ b/math.js\n@@ -1 +1 @@\n-exports.add = (a, b) => a - b;\n+exports.add = (a, b) => a * b;",
+      "line_count": 1,
+      "path": "math.js"
+     }
+    ],
+    "before_hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "before_mode": 420,
+    "blackbox": {
+     "bytes_captured": true,
+     "coverage_gap": [],
+     "effect_ids": [
+      "effect-e062fc1dd25845a580a5704e19d15283"
+     ],
+     "outcomes": {
+      "effect-e062fc1dd25845a580a5704e19d15283": "succeeded"
+     },
+     "recovery_error": "",
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-d75c309d8fb7"
+    },
+    "line_count": 1,
+    "mutation_record": {
+     "mutation_id": "mutation-11eae7a97b0349b4a86c8f8777c0601a",
+     "session_key": "legacy-stale_failure_after_corrected_mutation"
+    },
+    "path": "math.js"
+   },
+   "stage_at": "mutate",
+   "started_at": "2026-09-14T09:57:17.046997+00:00",
+   "status": "executed",
+   "step_id": "mut-wrong"
+  },
+  "read": {
+   "arguments": {
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T09:57:17.026107+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.read_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "decode_lossy": false,
+    "hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "line_count": 1,
+    "lines": [
+     {
+      "line_number": 1,
+      "text": "exports.add = (a, b) => a - b;"
+     }
+    ],
+    "path": "math.js",
+    "start_line": 1,
+    "total_lines": 1,
+    "truncated": false,
+    "verbatim": false
+   },
+   "stage_at": "propose",
+   "started_at": "2026-09-14T09:57:17.022455+00:00",
+   "status": "executed",
+   "step_id": "read"
+  },
+  "repro": {
+   "arguments": {
+    "command": "node check.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T09:57:17.006070+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.run_tests",
+   "ok": true,
+   "paths": [],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [
+    {
+     "attempt": 0,
+     "decided_by": "execution_gate.evaluate_command",
+     "decision": "allowed",
+     "effect_class": "command",
+     "effect_id": "eff:e22218d6-0001",
+     "host": "",
+     "identity_note": "",
+     "keyed_or_keyless": "",
+     "lifecycle": "authorized",
+     "mode": "auto",
+     "policy_id": "tp:942a2597349a3091",
+     "provider_id": "",
+     "reason": "Sandbox execution allowed.",
+     "recorded_at": "2026-09-14T09:57:16.967+00:00",
+     "request_id": "",
+     "scope_name": "runtime_tool.direct_call",
+     "turn_id": ""
+    }
+   ],
+   "result": {
+    "artifacts": [
+     {
+      "artifact_type": "validation_output",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "status": "command_failed",
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": ""
+     },
+     {
+      "artifact_type": "failure",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": "",
+      "summary": "node:assert:150"
+     }
+    ],
+    "blackbox": {
+     "coverage": {
+      "degraded": false,
+      "downgraded_to_irreversible": false,
+      "drift_count": 0,
+      "drift_paths": [],
+      "high_risk": {},
+      "rollback_capable": true,
+      "strategy": "workspace_scan"
+     },
+     "effect_ids": [
+      "effect-f2d33644427642b0a0500a09f1f2af43"
+     ],
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-d75c309d8fb7"
+    },
+    "command": "node check.js",
+    "cwd": ".",
+    "diagnostic_query": ":150",
+    "error_line": 1,
+    "error_path": "/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation/check.js",
+    "failure_summary": "node:assert:150",
+    "returncode": 1,
+    "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+    "stdout": "",
+    "success": false
+   },
+   "stage_at": "reproduce",
+   "started_at": "2026-09-14T09:57:16.950634+00:00",
+   "status": "command_failed",
+   "step_id": "repro"
+  },
+  "reread": {
+   "arguments": {
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T09:57:17.147781+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.read_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "decode_lossy": false,
+    "hash": "8e267da35728844d48e47be11ee403514e6c80327420fb0566adbb8607a6bd9b",
+    "line_count": 1,
+    "lines": [
+     {
+      "line_number": 1,
+      "text": "exports.add = (a, b) => a * b;"
+     }
+    ],
+    "path": "math.js",
+    "start_line": 1,
+    "total_lines": 1,
+    "truncated": false,
+    "verbatim": false
+   },
+   "stage_at": "propose",
+   "started_at": "2026-09-14T09:57:17.144115+00:00",
+   "status": "executed",
+   "step_id": "reread"
+  },
+  "verify-wrong": {
+   "arguments": {
+    "command": "node check.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T09:57:17.127504+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.run_tests",
+   "ok": true,
+   "paths": [],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [
+    {
+     "attempt": 0,
+     "decided_by": "execution_gate.evaluate_command",
+     "decision": "allowed",
+     "effect_class": "command",
+     "effect_id": "eff:e6c72a6d-0001",
+     "host": "",
+     "identity_note": "",
+     "keyed_or_keyless": "",
+     "lifecycle": "authorized",
+     "mode": "auto",
+     "policy_id": "tp:3d4ac2fa392b7142",
+     "provider_id": "",
+     "reason": "Sandbox execution allowed.",
+     "recorded_at": "2026-09-14T09:57:17.088+00:00",
+     "request_id": "",
+     "scope_name": "runtime_tool.direct_call",
+     "turn_id": ""
+    }
+   ],
+   "result": {
+    "artifacts": [
+     {
+      "artifact_type": "validation_output",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "status": "command_failed",
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n28 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 28,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": ""
+     },
+     {
+      "artifact_type": "failure",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n28 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 28,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": "",
+      "summary": "node:assert:150"
+     }
+    ],
+    "blackbox": {
+     "coverage": {
+      "degraded": false,
+      "downgraded_to_irreversible": false,
+      "drift_count": 0,
+      "drift_paths": [],
+      "high_risk": {},
+      "rollback_capable": true,
+      "strategy": "workspace_scan"
+     },
+     "effect_ids": [
+      "effect-dc471010b4c54271ae7a2c64504fdd7e"
+     ],
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-d75c309d8fb7"
+    },
+    "command": "node check.js",
+    "cwd": ".",
+    "diagnostic_query": ":150",
+    "error_line": 1,
+    "error_path": "/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation/check.js",
+    "failure_summary": "node:assert:150",
+    "returncode": 1,
+    "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n28 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 28,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+    "stdout": "",
+    "success": false
+   },
+   "stage_at": "narrow_test",
+   "started_at": "2026-09-14T09:57:17.071824+00:00",
+   "status": "command_failed",
+   "step_id": "verify-wrong"
+  }
+ },
+ "task_id": "ct-d75c309d8fb7",
+ "turn_id": "code-task:ct-d75c309d8fb7",
+ "turn_key": "code-task:ct-d75c309d8fb7",
+ "updated_at": "2026-09-14T09:57:17.185592+00:00",
+ "verifications": [
+  {
+   "command": "node check.js",
+   "returncode": 1,
+   "stage": "narrow_test",
+   "step_id": "verify-wrong",
+   "success": false
+  }
+ ],
+ "workspace_root": "/sanitized/revision-3/fixtures-legacy/v2_e064/_scratch/ws/stale_failure_after_corrected_mutation"
+}

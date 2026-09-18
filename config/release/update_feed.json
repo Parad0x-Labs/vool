@@ -1,0 +1,9 @@
+{
+  "manifest_url": "",
+  "app_path": "",
+  "channel": "stable",
+  "health_url": "http://127.0.0.1:11435/healthz",
+  "helper_script": "",
+  "check_interval_seconds": 86400,
+  "_comment": "The signed-manifest update feed. Empty manifest_url or an empty trusted_publisher_keys.json pin means the updater is HONESTLY UNAVAILABLE: the app reports 'Updates are unavailable' with the reason and runs no background checks. manifest_url: where signed update manifests are published. app_path: the .app bundle this install may update (empty = installs are refused — nothing is ever guessed). helper_script: the external swap helper (the built app carries it at Contents/Resources/update/mac_update_helper.sh). Release staging and sandbox journeys may override via VOOL_UPDATE_* environment variables; see docs/RELEASE_KEY_CEREMONY.md before turning this on."
+}

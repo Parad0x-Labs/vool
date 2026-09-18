@@ -1,0 +1,66 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # every Monday 08:00 UTC
+  workflow_dispatch:        # run manually anytime
+
+# Every auditor's exit code is the only status authority here. No continue-on-error, no `|| true`,
+# no `|| echo 0`: a crashed auditor must fail this job (UNKNOWN is a failure, never a fabricated
+# zero), and any found vulnerability fails it through the tool's own nonzero exit. Dependabot
+# remains the fix channel; this workflow is the alarm that surfaces anything Dependabot missed.
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: pip-audit (pinned requirements)
+        # Reaching the counts block proves both audits exited 0; pip-audit exits nonzero on any
+        # finding or on any crash, so this step cannot print a healthy zero over a failure.
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip pip-audit
+          python -m pip_audit -r requirements.txt --format=json -o /tmp/pip-audit-requirements.json
+          python -m pip_audit -r requirements-runtime.txt --format=json -o /tmp/pip-audit-requirements-runtime.json
+          python3 - <<'PY'
+          import json
+          for name in ("pip-audit-requirements.json", "pip-audit-requirements-runtime.json"):
+              with open(f"/tmp/{name}", encoding="utf-8") as handle:
+                  payload = json.load(handle)
+              dependencies = payload.get("dependencies", [])
+              vulns = sum(len(dep.get("vulns", [])) for dep in dependencies)
+              fixable = sum(
+                  1
+                  for dep in dependencies
+                  for vuln in dep.get("vulns", [])
+                  if vuln.get("fixes")
+              )
+              print(f"{name}: vulnerabilities={vulns} fixable={fixable}")
+          PY
+
+      - name: npm audit (only when a package.json exists)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=moderate
+
+      - name: cargo audit (only when a Cargo.toml exists)
+        if: ${{ hashFiles('Cargo.toml') != '' }}
+        run: |
+          set -euo pipefail
+          cargo install cargo-audit --locked
+          cargo audit
+
+      - name: Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## Security Audit — $(date -u +%Y-%m-%d)"
+            echo ""
+            echo "Auditor exit codes are the only status authority: a crashed auditor fails this job (UNKNOWN), and any found vulnerability fails it."
+            echo ""
+            echo "Fix channel — Dependabot alerts: https://github.com/Parad0x-Labs/${{ github.event.repository.name }}/security/dependabot"
+          } >> "$GITHUB_STEP_SUMMARY"

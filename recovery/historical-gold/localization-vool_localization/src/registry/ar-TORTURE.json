@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "locale": "ar-TORTURE",
+    "label": "Arabic-script RTL torture fixture (SYNTHETIC — never ship)",
+    "generated": true,
+    "human_reviewed": false,
+    "generated_note": "SYNTHETIC RTL STRESS FIXTURE built in pass-001. Not real Arabic copy: sentences are engineered to mix Arabic script with Latin brand names (VOOL), null:// URIs, digits, currency codes, and punctuation so bidi isolation bugs surface immediately. Never include in any shipped build."
+  },
+  "strings": {
+    "common.ok": "حسناً",
+    "common.loading": "جارٍ التحميل من VOOL…",
+    "desktop.dashboard.tab.overview": "نظرة عامة",
+    "desktop.dashboard.section.proof_of_useful_work": "إثبات العمل المفيد #4821",
+    "desktop.cli.agent_ready": "{name} جاهز عبر null://agent/local الآن.",
+    "notifications.tasks_completed": "{count, plural, zero {لا مهام مكتملة} one {مهمة واحدة مكتملة} two {مهمتان مكتملتان} few {# مهام مكتملة} many {# مهمة مكتملة} other {# مهمة مكتملة}}",
+    "notifications.task_failed": "فشلت المهمة \"{task_title}\" بسبب: {reason} — الحد $99 USD!",
+    "receipts.status.blocked_false_claim": "تم إيقاف ادعاء غير مدعوم — الحالة: blocked_false_claim",
+    "receipts.count_line": "{count, plural, one {تم التحقق من إيصال واحد} other {تم التحقق من # إيصالات}}",
+    "receipts.cost_line": "كلفة هذه الجلسة {amount} مقابل $99 USD."
+  }
+}

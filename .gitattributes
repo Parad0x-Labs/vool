@@ -1,0 +1,27 @@
+* text=auto
+
+*.py text eol=lf
+*.sh text eol=lf
+*.command text eol=lf
+scripts/hooks/* text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.bin binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.gz binary
+*.zst binary

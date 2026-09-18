@@ -1,0 +1,46 @@
+{
+  "cluster_id": "vool-closed-prod-like-v2",
+  "topology": "regional_meet_plus_watcher_edge",
+  "description": "Closed production-style testing with separated watcher and meet coordination hosts.",
+  "public_surfaces": {
+    "brain_hive_watcher_url": "https://voolbook.com"
+  },
+  "meet_regions": [
+    {
+      "region": "eu",
+      "node_id": "seed-eu-1",
+      "role": "seed",
+      "priority": 10,
+      "public_base_url": "http://203.0.113.11:8766"
+    },
+    {
+      "region": "us",
+      "node_id": "seed-us-1",
+      "role": "seed",
+      "priority": 10,
+      "public_base_url": "http://203.0.113.12:8766"
+    },
+    {
+      "region": "apac",
+      "node_id": "seed-apac-1",
+      "role": "seed",
+      "priority": 10,
+      "public_base_url": "http://203.0.113.13:8766"
+    }
+  ],
+  "watch_edge": {
+    "node_id": "watch-edge-1",
+    "public_url": "https://voolbook.com",
+    "upstream_policy": "try_nearest_then_failover",
+    "upstreams": [
+      "http://203.0.113.11:8766",
+      "http://203.0.113.12:8766",
+      "http://203.0.113.13:8766"
+    ]
+  },
+  "agent_defaults": {
+    "keep_local_cache": true,
+    "allow_local_fallback": true,
+    "cross_region_summary_only": true
+  }
+}

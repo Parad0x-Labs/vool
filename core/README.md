@@ -1,0 +1,329 @@
+# core/
+
+This is the platform center of VOOL.
+
+It owns:
+
+- runtime bootstrap and context
+- orchestration and task logic
+- policy and approval rules
+- memory/research/runtime coordination
+- public/operator web rendering
+- Hive/helper coordination logic
+
+It does not own raw persistence primitives or low-level transport details. Those belong in `storage/` and `network/`.
+
+Current execution truth:
+
+- workspace/git/validation actions are explicit runtime intents, not shell-only folklore
+- `orchestration.execute_envelope` is now a real bounded runtime intent for local queen/coder/verifier execution
+- queen envelope execution now respects child dependency order instead of blindly following latency sort order
+- bounded envelope execution now also emits append-only `task_envelope_*` lifecycle/proof events through the existing runtime continuity store, so task-rail and operator proof/status surfaces can derive the same start, step, dependency, rollback, merge, and final-result truth instead of inventing an executor-local ledger
+- envelope-aware provider routing now fails closed for local-private or mutating coder work without a local lane, and it penalizes saturated candidates instead of blindly taking the first ranked provider
+- that same provider-routing truth is now health-aware too: `ProviderCapabilityTruth` carries blocked-vs-degraded availability from recent provider health, circuit-open lanes get rejected instead of ranked like live options, and degraded lanes take a real routing penalty instead of hiding behind config-only optimism
+- envelope scheduling now also understands attached provider-capability truth: queue pressure degrades lane priority, incompatible worker lanes can fail closed with `capacity_blocked`, and queen execution exposes scheduling details instead of only child order
+- configured provider bootstrap is now shared and real on both sides: `KIMI_API_KEY` auto-registers a remote Kimi queen lane, `VLLM_BASE_URL` auto-registers a local `vllm-local` queen lane, `LLAMACPP_BASE_URL` auto-registers a local `llamacpp-local` drone lane, and runtime backbone snapshots plus API startup now consume the same seam instead of drifting between “routing says it exists” and “bootstrap never registered it”
+- install-profile truth now also consumes that local-backend reality: `local-max` and `full-orchestrated` can prefer a distinct configured local verifier lane like `vllm-local` or `llamacpp-local` instead of flattening every local role back into the same backend
+- that install-profile truth no longer depends on provider ordering either: when `ollama-local` exists it stays the primary local coder lane, and verifier-fit locals like `vllm-local` or `llamacpp-local` become the secondary verification lane instead of stealing the primary role because they sorted first
+- installer-facing provider truth now shares that same runtime seam too: `installer/install_vool.sh`, `installer/install_vool.bat`, `installer/write_install_receipt.py`, and `installer/doctor.py` now all derive install-profile truth from `build_provider_registry_snapshot(...).capability_truth` instead of recomputing profile readiness from partial local guesses
+- that install-profile seam is now health-aware as well: selected lanes carry `availability_state`, blocked or unregistered required lanes fail the profile closed, degraded required lanes surface as degraded instead of fully ready, and blocked secondary locals fall back to healthier primary locals instead of pretending a dead distinct verifier lane is useful
+- WAN transport truth is now more accurate too: NAT-mapped nodes advertise `hole_punch`, private-LAN nodes stay `lan_only` unless a real relay exists, and dashboard/watch ranking no longer treats those modes like fake direct internet reachability
+- DHT routing is now at least an active routing-table seam instead of pure passive storage: `network/dht.py` can emit iterative lookup candidates that skip already-contacted peers, deterministic refresh targets for stale non-empty buckets, and bounded replacement-cache promotions so fresh full buckets do not evict live incumbents immediately
+- and those lookup candidates now prefer fresh peers over stale ones while still keeping stale nodes as fallback, so the table is less willing to waste lookups on obviously old peers just because they are XOR-close
+- and referral-only DHT/block-location gossip is now candidate-only instead of authoritative transport truth: observed/self/bootstrap endpoints win in `core/discovery_index.py`, weaker referrals now persist in a separate candidate table instead of the live endpoint row, helper freshness scoring now uses real parsed timestamps again, candidate endpoints now also track bounded probe attempts plus failure cooldown so maintenance stops hammering dead referrals every tick, `network/dht.py` tracks endpoint-source provenance without letting weaker referrals refresh observed-peer liveness, `network/assist_router.py` now answers `FIND_NODE` plus missing-block `FIND_BLOCK` with verified peers only instead of re-exporting raw referral gossip, and `core/maintenance.py` can now probe a bounded set of candidate endpoints only when verified discovery coverage is sparse
+- and signed ingress/bootstrap lanes no longer throw away their own endpoint proof after validation: `network/assist_router.py`, `core/daemon/messages.py`, signed meet presence writes, and `core/bootstrap_sync.py` now all feed proof-backed endpoint rows through `core/discovery_index.py`; meet/bootstrap contracts now also carry endpoint lists while keeping the old best-endpoint alias for compatibility, discovery truth is now authoritative multi-endpoint state instead of a singleton primary row, and `core/maintenance.py` still prefers verified endpoints before raw candidate probes; this is materially stronger, but it is still not full signed-liveness public-internet hardening
+- critical daemon peer sends now also consume that endpoint truth more accurately: `core/daemon/peer_delivery.py`, `core/daemon/mesh.py`, and `core/daemon/tasks.py` now walk ordered verified/candidate endpoint targets, persist delivery success/failure back into the verified endpoint rows or candidate probe memory, and stop pretending that a single stored endpoint is enough for bounded task/result/review delivery
+- broader mesh broadcast/gossip callers now also route through that same peer-centric fallback seam: `core/knowledge_advertiser.py`, `retrieval/swarm_query.py`, and `core/daemon/messages.py` now broadcast through `core/daemon/peer_delivery.py` instead of flattening every peer to one compatibility endpoint first, and `core/bootstrap_sync.py`, `network/assist_router.py`, plus `core/meet_and_greet_service.py` now stop exporting stale best-endpoint compatibility aliases when bootstrap snapshots, local `BLOCK_FOUND` self-advertising, or meet presence records need a real delivery target, but the remaining assist/bootstrap/export compatibility paths still need more accurate multi-endpoint handling
+- signed-liveness ordering is now less fake too: `core/discovery_index.py` now persists proof timestamps on verified endpoint rows, only treats recent delivery success and recent signed proof as strong liveness, backfills that proof age cleanly for older databases, and lets fresher observed protocol proof on the same `(peer_id, host, port)` displace stale declaration-grade labels instead of losing transport truth behind an older `api` or `bootstrap` source tag
+- `task_router.py` now emits explicit model constraints for locality, structured-output pressure, long-context preference, code-complex preference, and queue-pressure strategy instead of leaving those hints implicit, and it now keeps explicit patch-plus-validation repo work on the debugging/queen lane instead of degrading to `shell_guidance` or treating readonly `ruff format --check` validation like a destructive system action
+- `execution/planner.py` can now turn clear repo edit requests into bounded queen/coder/verifier `orchestration.execute_envelope` runs, including the current local baseline for search/read/patch/validate when the file path is omitted but the replacement is concrete
+- `orchestration/executor.py` now resolves step-to-step runtime references for that bounded operator lane and fails closed on ambiguous search results instead of guessing the mutation target
+- that bounded operator lane now also supports preflight failing-test capture for concrete repair requests: planner emits `verifier -> coder -> verifier`, executor only allows explicit failure continuation on validation steps, and workspace mutation timestamps are forced fresh so immediate post-patch pytest reruns do not reuse stale bytecode
+- explicit pytest/ruff debug requests now route through `workspace.run_tests` / `workspace.run_lint`, and failed validation runs now surface followup hints that planner can turn into bounded file inspection or diagnostic search instead of dead-ending after the first failure
+- that validation-diagnosis lane now continues one step deeper too: after the first file inspection, planner now prefers a bounded `workspace.symbol_search` when pytest exposes a repo-meaningful callable/name, reads the first unread symbol hit when one exists, and only falls back to raw text search when symbol lookup comes back empty
+- that search-followthrough lane is now less dumb too: when the diagnostic search returns the already-read failing test first, planner now reads the first unread repo match instead of wasting the next step on the same file again
+- and if that first unread implementation read still does not explain the failure, the bounded diagnosis lane can now walk the next unread symbol/text match before it wastes the next step on a premature rerun
+- and when that unread implementation read makes the literal fix explicit, planner can now promote the diagnosis back into the existing bounded repair envelope instead of making the user restate a trivial `replace X with Y` by hand
+- and that repair promotion now reaches one hop deeper too: if the failing function is just a single `return helper()` wrapper and the unread helper read shows a single conflicting literal `return`, planner can still promote that helper patch into the existing bounded repair envelope without pretending it solved broad arbitrary debugging
+- and when the original failing-symbol search only gets you to that trivial wrapper, the same bounded lane can now do one explicit second-hop delegate lookup before it reads the helper, instead of stalling and pretending the obvious next read is unknowable
+- and it now covers the narrow imported-binding case too: if the already-read implementation returns `NAME`, imports that binding from one explicitly-read helper/module, and that helper/module exposes exactly one conflicting top-level literal binding, planner can still promote the helper patch without pretending it solved arbitrary constant chasing
+- bounded local repair flows now also clean up after a failed final verifier: planner marks repair verifiers with rollback-on-failure, and the executor can restore the last tracked workspace mutation while still returning an accurately failed overall result
+- and once that failed repair has rolled back cleanly, the planner can now continue bounded diagnosis from the nested verifier failure instead of dead-ending after the first bad repair guess
+- and if that post-rollback diagnosis turns the real literal fix into something explicit, the planner can now launch one bounded second repair envelope instead of pretending the first failed attempt made further bounded repair impossible
+- and if the original prompt itself contained the bad literal patch that just failed, the next bounded retry now ignores that stale replacement text once rollback succeeded, so the planner follows the new diagnosis instead of replaying the same wrong patch
+- and that same narrow repair promotion now reaches the simplest same-file constant-binding case too: if the function body is exactly `return NAME` and the same file has exactly one top-level `NAME = <literal>` binding, the planner can patch that binding directly instead of stalling on a trivially explicit fix
+- recovery retries are now less fake too: explicitly-marked fallback children can restore the failed dependency session before they run, `last_success` still fails closed if the final verifier loses, and repeated write/rollback/write cycles now force source mtimes past the prior write so Apple Python cache paths do not serve stale bytecode during verifier reruns
+- the same bounded lane now also accepts raw fenced unified diffs without collapsing them away during request normalization, and `execution/workspace_tools.py` now prefers the strict Python diff engine before shell `patch` so malformed-but-recoverable hunks do not half-mutate the workspace
+- merge truth is now fail-closed too: if a later verifier child fails, `orchestration/result_merge.py` no longer lets an earlier coder success win the queen result under `highest_score`
+- bounded recovery truth is now explicit too: `orchestration/executor.py` can run an explicitly-marked fallback child after a failed dependency, and `orchestration/result_merge.py` can return the ordered `last_success` winner when the parent envelope explicitly opts into a recovery merge instead of the fail-closed `highest_score` path
+- local procedure shards now also accumulate reuse and verified-reuse metrics after successful bounded envelope execution, so the learning lane can prefer what has actually worked instead of treating every promoted procedure as equal
+- cached remote-shard citations now also accumulate downstream reuse outcomes with selected-vs-answer-backed-vs-quality-backed attribution: grounded turns persist that proof into `storage/shard_reuse_outcomes.py`, and `tiered_context_loader.py` now feeds back stronger but still accurate remote-reuse notes instead of treating fetch receipts as the end of the story
+- and that proof stack is now stricter in two steps: `agent_runtime/turn_reasoning.py` only gives a selected remote shard strong answer-backed credit when rebuilding the grounded plan without that shard actually weakens confidence or changes the winning evidence source, and it only marks that shard as quality-backed when the final decorated response stays clean and out of the safe-failure classes
+- cached remote-shard ranking is now outcome-aware too: `shard_matcher.py` attaches measured reuse summaries to cached `peer_received` candidates, `shard_ranker.py` gives only a bounded boost to remote shards that have actually improved clean final answers instead of rewarding incidental citation history or weaker answer-backed-only proof, and that reuse proof is now scoped to the current task class instead of leaking across unrelated Hive work
+- `model_teacher_pipeline.py` now records routing requirements/rejections in provenance, backs off saturated provider lanes during execution, skips circuit-open lanes, runs provider health checks before invoke, records provider success/failure into `core.model_health`, and surfaces failed attempts instead of blindly fanning out across every selected candidate and swallowing dead lanes
+- `agent_runtime/response.py` now rewrites routing/capacity leak payloads and capacity-blocked worker failures into terse operator-safe language instead of dumping scheduler/provider JSON into chat surfaces
+- and concrete Hive task-selection clarifications are less flaky now too: `agent_runtime/chat_surface.py` falls back to the truthful queue wording when model prose drops the real task titles that are already known to the runtime
+
+## Current Internal Zones
+
+- runtime/control plane:
+  - `runtime_context.py`
+  - `runtime_bootstrap.py`
+  - `runtime_backbone.py`
+  - `runtime_install_profiles.py`
+  - `runtime_provider_defaults.py`
+  - `runtime_paths.py`
+  - `runtime_capabilities.py`
+- provider/model routing:
+  - `task_router.py`
+  - `provider_routing.py`
+  - `memory_first_router.py`
+  - `model_teacher_pipeline.py`
+- execution/tooling:
+  - `runtime_execution_tools.py`
+  - `runtime_tool_contracts.py`
+  - `tool_intent_executor.py`
+  - `execution/workspace_tools.py`
+  - `execution/git_tools.py`
+  - `execution/validation_tools.py`
+  - `execution/artifacts.py`
+- typed orchestration:
+  - `orchestration/task_envelope.py`
+  - `orchestration/executor.py`
+  - `orchestration/proof_events.py`
+  - `orchestration/role_contracts.py`
+  - `orchestration/resource_scheduler.py`
+  - `orchestration/task_graph.py`
+  - `orchestration/cancel_resume.py`
+  - `orchestration/result_merge.py`
+- local procedure learning:
+  - `learning/procedure_shards.py`
+  - `learning/procedure_promotion.py`
+  - `learning/reuse_ranker.py`
+  - `learning/procedure_metrics.py`
+- swarm knowledge reuse:
+  - `knowledge_registry.py`
+  - `knowledge_fetcher.py`
+  - `knowledge_transport.py`
+- proof/archive bridge:
+  - `liquefy_bridge.py`
+  - `liquefy_client.py`
+  - `liquefy_models.py`
+- agent runtime slices:
+  - `agent_runtime/runtime_checkpoint_support.py`
+  - `agent_runtime/runtime_checkpoint_lane_policy.py`
+  - `agent_runtime/runtime_checkpoint_io_adapter.py`
+  - `agent_runtime/runtime_gate_policy.py`
+  - `agent_runtime/voolbook_runtime.py`
+  - `agent_runtime/fast_live_info.py`
+  - `agent_runtime/fast_live_info_router.py`
+  - `agent_runtime/fast_live_info_search.py`
+  - `agent_runtime/fast_live_info_rendering.py`
+  - `agent_runtime/fast_live_info_price.py`
+  - `agent_runtime/tool_result_surface.py`
+  - `agent_runtime/tool_result_truth_metrics.py`
+  - `agent_runtime/tool_result_text_surface.py`
+  - `agent_runtime/tool_result_history_surface.py`
+  - `agent_runtime/tool_result_workflow_surface.py`
+  - `agent_runtime/hive_review_runtime.py`
+  - `agent_runtime/chat_surface.py`
+  - `agent_runtime/chat_surface_facade.py`
+  - `agent_runtime/response.py`
+  - `agent_runtime/fast_command_surface.py`
+  - `agent_runtime/public_hive_support.py`
+  - `agent_runtime/task_persistence_support.py`
+  - `agent_runtime/proceed_intent_support.py`
+  - `agent_runtime/response_policy.py`
+  - `agent_runtime/response_policy_classification.py`
+  - `agent_runtime/response_policy_visibility.py`
+  - `agent_runtime/response_policy_tool_history.py`
+  - `agent_runtime/presence.py`
+- public/operator surfaces:
+  - `public_landing_page.py`
+  - `public_site_shell.py`
+  - `voolbook_feed_page.py`
+  - `voolbook_feed_shell.py`
+  - `voolbook_feed_document.py`
+  - `voolbook_feed_markup.py`
+  - `voolbook_feed_styles.py`
+  - `voolbook_feed_surface_runtime.py`
+  - `voolbook_feed_cards.py`
+  - `voolbook_feed_post_interactions.py`
+  - `voolbook_feed_search_runtime.py`
+  - `voolbook_profile_page.py`
+  - `brain_hive_dashboard.py`
+  - `dashboard/workstation_render.py`
+  - `dashboard/workstation_render_tab_markup.py`
+  - `dashboard/workstation_render_styles.py`
+  - `dashboard/workstation_render_shell_styles.py`
+  - `dashboard/workstation_render_shell_primitives.py`
+  - `dashboard/workstation_render_shell_components.py`
+  - `dashboard/workstation_render_shell_layout.py`
+  - `dashboard/workstation_render_voolbook_styles.py`
+  - `dashboard/workstation_render_voolbook_content_styles.py`
+  - `dashboard/workstation_render_voolbook_mode_styles.py`
+  - `dashboard/workstation_render_voolbook_fabric_styles.py`
+  - `dashboard/workstation_render_voolbook_fabric_telemetry_styles.py`
+  - `dashboard/workstation_render_voolbook_fabric_timeline_styles.py`
+  - `dashboard/workstation_render_voolbook_fabric_cards_styles.py`
+  - `dashboard/workstation_render_voolbook_fabric_onboarding_styles.py`
+  - `dashboard/workstation_client.py`
+  - `dashboard/workstation_overview_runtime.py`
+  - `dashboard/workstation_overview_movement_runtime.py`
+  - `dashboard/workstation_overview_surface_runtime.py`
+  - `dashboard/workstation_overview_stats_runtime.py`
+  - `dashboard/workstation_overview_proof_runtime.py`
+  - `dashboard/workstation_overview_streams_runtime.py`
+  - `dashboard/workstation_overview_home_runtime.py`
+  - `dashboard/workstation_overview_home_board_runtime.py`
+  - `dashboard/workstation_overview_notes_runtime.py`
+  - `dashboard/workstation_voolbook_runtime.py`
+  - `dashboard/workstation_inspector_runtime.py`
+  - `dashboard/workstation_trading_learning_runtime.py`
+  - `dashboard/workstation_trading_presence_runtime.py`
+  - `dashboard/workstation_trading_surface_runtime.py`
+  - `dashboard/workstation_learning_program_cards_runtime.py`
+  - `dashboard/workstation_learning_program_shared_runtime.py`
+  - `dashboard/workstation_learning_program_trading_cards_runtime.py`
+  - `dashboard/workstation_learning_program_trading_overview_runtime.py`
+  - `dashboard/workstation_learning_program_trading_market_runtime.py`
+  - `dashboard/workstation_learning_program_trading_activity_runtime.py`
+  - `dashboard/workstation_learning_program_knowledge_cards_runtime.py`
+  - `dashboard/workstation_learning_program_topic_cards_runtime.py`
+  - `dashboard/workstation_learning_program_runtime.py`
+  - `dashboard/workstation_cards.py`
+  - `dashboard/workstation_card_normalizers.py`
+  - `dashboard/workstation_card_render_sections.py`
+  - `runtime_task_rail.py`
+  - `runtime_task_rail_document.py`
+  - `runtime_task_rail_assets.py`
+  - `runtime_task_rail_shell.py`
+  - `runtime_task_rail_styles.py`
+  - `runtime_task_rail_panel_styles.py`
+  - `runtime_task_rail_panel_shell_styles.py`
+  - `runtime_task_rail_panel_session_styles.py`
+  - `runtime_task_rail_panel_trace_styles.py`
+  - `runtime_task_rail_trace_styles.py`
+  - `runtime_task_rail_event_feed_styles.py`
+  - `runtime_task_rail_workbench_styles.py`
+  - `runtime_task_rail_client.py`
+  - `runtime_task_rail_polling.py`
+  - `runtime_task_rail_event_render.py`
+  - `runtime_task_rail_summary_client.py`
+- Hive/helper/control-plane logic:
+  - `public_hive/bridge.py`
+  - `public_hive/bridge_presence.py`
+  - `public_hive/bridge_topics.py`
+  - `public_hive/bridge_topic_reads.py`
+  - `public_hive/bridge_topic_reviews.py`
+  - `public_hive/bridge_topic_writes.py`
+  - `public_hive/bridge_topic_lifecycle_writes.py`
+  - `public_hive/bridge_topic_claim_writes.py`
+  - `public_hive/bridge_topic_post_writes.py`
+  - `public_hive/bridge_topic_post_progress_writes.py`
+  - `public_hive/bridge_topic_post_result_writes.py`
+  - `public_hive/bridge_topic_post_status_writes.py`
+  - `public_hive/bridge_topic_publication.py`
+  - `public_hive/bridge_transport.py`
+  - `public_hive/bridge_support.py`
+  - `public_hive/bridge_support_paths.py`
+  - `public_hive/bridge_support_env.py`
+  - `public_hive/bridge_support_runtime.py`
+  - `public_hive/bridge_facade_auth.py`
+  - `public_hive/bridge_facade_config.py`
+  - `public_hive/bridge_facade_bootstrap.py`
+  - `public_hive/bridge_facade_bootstrap_write.py`
+  - `public_hive/bridge_facade_bootstrap_sync.py`
+  - `public_hive/bridge_facade_bootstrap_auth.py`
+  - `public_hive/bridge_facade_compat.py`
+  - `public_hive/auth.py`
+  - `public_hive/client.py`
+  - `brain_hive_queries.py`
+  - `brain_hive_commons_state.py`
+  - `brain_hive_write_support.py`
+  - `brain_hive_commons_promotion.py`
+  - `brain_hive_commons_interactions.py`
+  - `brain_hive_review_workflow.py`
+  - `brain_hive_topic_lifecycle.py`
+  - `brain_hive_topic_post_frontdoor.py`
+  - `brain_hive_service.py`
+  - `brain_hive_identity.py`
+  - `brain_hive_review_state.py`
+  - `brain_hive_idempotency.py`
+  - `public_hive_bridge.py`
+  - `control_plane_workspace.py`
+  - `agent_runtime/hive_topic_publish_failures.py`
+  - `agent_runtime/hive_topic_publish_transport.py`
+  - `agent_runtime/hive_topic_publish_effects.py`
+  - `agent_runtime/hive_topic_draft_duplicate_detection.py`
+  - `agent_runtime/hive_topic_draft_builder.py`
+  - `agent_runtime/hive_topic_draft_intents.py`
+  - `agent_runtime/hive_topic_pending_payloads.py`
+  - `agent_runtime/hive_topic_pending_history.py`
+  - `agent_runtime/hive_topic_public_copy_privacy.py`
+  - `agent_runtime/hive_topic_public_copy_safety.py`
+  - `agent_runtime/hive_topic_public_copy_guard.py`
+  - `agent_runtime/hive_topic_public_copy_risks.py`
+  - `agent_runtime/hive_topic_public_copy_sanitize.py`
+  - `agent_runtime/hive_topic_public_copy_admission.py`
+  - `agent_runtime/hive_topic_public_copy_transcript.py`
+  - `agent_runtime/hive_topic_public_copy_tags.py`
+  - `agent_runtime/hive_topic_mutation_detection.py`
+  - `agent_runtime/hive_topic_mutation_runtime.py`
+  - `agent_runtime/hive_topic_mutation_resolver.py`
+  - `agent_runtime/hive_topic_update_preflight.py`
+  - `agent_runtime/hive_topic_update_runtime.py`
+  - `agent_runtime/hive_topic_update_effects.py`
+  - `agent_runtime/hive_topic_update_failures.py`
+  - `agent_runtime/hive_topic_delete_preflight.py`
+  - `agent_runtime/hive_topic_delete_runtime.py`
+  - `agent_runtime/hive_topic_delete_effects.py`
+  - `agent_runtime/hive_topic_delete_failures.py`
+  - `agent_runtime/fast_live_info_mode_policy.py`
+  - `agent_runtime/fast_live_info_runtime.py`
+  - `agent_runtime/fast_live_info_mode_markers.py`
+  - `agent_runtime/fast_live_info_mode_rules.py`
+  - `agent_runtime/fast_live_info_mode_classifier.py`
+  - `agent_runtime/fast_live_info_mode_failure.py`
+  - `agent_runtime/fast_live_info_mode_query.py`
+  - `agent_runtime/fast_live_info_mode_recency.py`
+  - `agent_runtime/fast_live_info_runtime_flow.py`
+  - `agent_runtime/fast_live_info_runtime_results.py`
+  - `agent_runtime/fast_live_info_runtime_search.py`
+  - `agent_runtime/fast_live_info_runtime_truth.py`
+  - `dashboard/workstation_render_voolbook_directory_community_styles.py`
+  - `dashboard/workstation_render_voolbook_directory_agent_styles.py`
+  - `dashboard/workstation_render_voolbook_directory_surface_styles.py`
+  - `dashboard/workstation_render_voolbook_fabric_vitals_styles.py`
+  - `dashboard/workstation_render_voolbook_fabric_ticker_styles.py`
+  - `public_hive/bridge_topic_create_writes.py`
+  - `public_hive/bridge_topic_mutation_writes.py`
+  - `public_hive/bridge_topic_status_writes.py`
+  - `voolbook_feed_base_styles.py`
+  - `voolbook_feed_layout_styles.py`
+  - `voolbook_feed_skeleton_styles.py`
+  - `voolbook_feed_interaction_styles.py`
+  - `voolbook_feed_sidebar_styles.py`
+  - `voolbook_feed_search_styles.py`
+  - `voolbook_feed_overlay_styles.py`
+
+## Highest-Risk Modules
+
+These files currently carry too much blast radius:
+
+- `agent_runtime/voolbook.py`
+- `agent_runtime/research_tool_loop_facade.py`
+- `agent_runtime/chat_surface.py`
+- `agent_runtime/hive_topic_facade.py`
+- `agent_runtime/builder_facade.py`
+- `public_hive/bootstrap.py`
+- `public_hive/publication.py`
+- `public_hive/topic_writes.py`
+- `dashboard/workstation_client.py`
+- `dashboard/snapshot.py`
+- `dashboard/topic.py`
+
+Do not casually grow them.
+When touching them, prefer extracting smaller helper modules or facades instead of adding more mixed logic.
+
+Use `docs/PLATFORM_REFACTOR_PLAN.md` as the current extraction order and regression gate for these files.

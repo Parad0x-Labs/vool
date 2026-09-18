@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "/Users/fixtureuser/vool/VOOL-V0.5.x/core/planner.py", line 214, in build_plan
+  File "/Users/fixtureuser/vool/VOOL-V0.5.x/core/model_client.py", line 88, in complete
+  File "/Users/fixtureuser/vool/VOOL-V0.5.x/network/provider.py", line 33, in post
+RuntimeError: provider 401 for key sk-or-v1-q7Wk2mX9pT4vR8bN3cZ6dY1fH5jL0sGe
+Additional context: requested by alice@example.com from 192.168.13.66
+env dump: OPENROUTER_API_KEY=sk-ant-api03-xY9zW8vU7tS6rQ5pO4nM3lK2jI1hG0f
+aws key AKIAI44QH8DHEXAMPLEAMPL with secret wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+github fine-grained token github_pat_22AABBCC_x1y2z3w4v5u6t7s8r9q0p1o2n3m4
+admin password is sup3rs3cr3t
+session cookie SGVsbG8gZnJvbSB0aGUgb3RoZXIgc2lkZQ==
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA7f3xK9wQmZ2Lr8vT1yU4iO5pA6sD7fG8hJ9kL0zXcVbNm
+-----END RSA PRIVATE KEY-----

@@ -1,0 +1,78 @@
+{
+  "_meta": {
+    "locale": "pt-BR",
+    "label": "Português (Brasil)",
+    "generated": true,
+    "human_reviewed": false,
+    "generated_note": "GENERATED, NOT HUMAN-REVIEWED. Machine-drafted in localization pass-001 (2026-08-26). pt-BR is tracked as its own locale and must never be merged with pt-PT: vocabulary ('arquivo' vs 'ficheiro', 'tela' vs 'ecrã'), currency formatting (R$ prefix), and date conventions differ."
+  },
+  "strings": {
+    "common.ok": "OK",
+    "common.cancel": "Cancelar",
+    "common.retry": "Tentar novamente",
+    "common.loading": "Carregando…",
+    "common.copy": "Copiar",
+    "common.copied": "Copiado para a área de transferência.",
+    "common.all": "Tudo",
+    "common.agent": "Agente",
+    "common.region": "Região",
+    "common.status": "Status",
+    "common.trust": "Confiança",
+    "common.task": "Tarefa",
+
+    "desktop.dashboard.tab.overview": "Visão geral",
+    "desktop.dashboard.tab.work": "Trabalho",
+    "desktop.dashboard.tab.fabric": "Malha",
+    "desktop.dashboard.tab.commons": "Comuns",
+    "desktop.dashboard.tab.markets": "Mercados",
+    "desktop.dashboard.section.what_matters_now": "O que importa agora",
+    "desktop.dashboard.section.what_changed_recently": "O que mudou recentemente",
+    "desktop.dashboard.section.current_flow": "Fluxo atual",
+    "desktop.dashboard.section.proof_of_useful_work": "Prova de trabalho útil",
+    "desktop.dashboard.section.task_lineage": "Linhagem de tarefas",
+    "desktop.dashboard.section.claim_stream": "Fluxo de reivindicações",
+    "desktop.dashboard.section.promotion_queue": "Fila de promoção",
+    "desktop.dashboard.section.knowledge_totals": "Totais de conhecimento",
+    "desktop.dashboard.section.peer_infrastructure": "Infraestrutura de pares",
+    "desktop.dashboard.section.verified_work": "Trabalho verificado",
+    "desktop.dashboard.summary.research_gravity": "Gravidade da pesquisa",
+
+    "desktop.cli.agent_ready": "{name} está pronto.",
+    "desktop.cli.exit_hint": "Digite /exit para sair.",
+    "desktop.cli.bye": "tchau.",
+    "desktop.cli.remote_first_mode": "Nenhum modelo local encontrado. Iniciando no modo remoto-primeiro.",
+    "desktop.cli.bootstrap_failed": "Falha ao iniciar o chat: {reason}",
+    "desktop.cli.name_updated": "nome atualizado: {name}",
+    "desktop.cli.usage_rename": "uso: /rename <novo-nome>",
+    "desktop.cli.provider_prewarm_failed": "- {provider_id}: falhou ({error})",
+    "desktop.cli.confidence_line": "[confiança={value}]",
+
+    "web.public.trust_ledger": "Livro de confiança",
+    "web.public.proof_ledger": "Livro de provas",
+    "web.public.task_ledger": "Livro de tarefas",
+    "web.public.feed_tagline": "Trabalho com responsáveis, recompensas e prova visível.",
+    "web.public.finalized_work_blurb": "Trabalho finalizado que sobreviveu à revisão.",
+
+    "mobile.companion.title": "VOOL Companheiro",
+    "mobile.companion.connect_hint": "Conecte-se ao seu agente de mesa nesta rede.",
+    "mobile.companion.connected_to": "Conectado a {agent_name}",
+    "mobile.companion.send_task": "Enviar tarefa",
+    "mobile.companion.offline_notice": "Off-line — as tarefas ficarão na fila até reconectar.",
+
+    "notifications.tasks_completed": "{count, plural, one {Tarefa concluída} other {# tarefas concluídas}}",
+    "notifications.peer_joined": "{peer_name} entrou na sua Colmeia.",
+    "notifications.task_failed": "A tarefa \"{task_title}\" falhou: {reason}",
+    "notifications.receipt_issued": "Um recibo assinado foi emitido para a rodada {turn_index}.",
+
+    "receipts.status.clean": "Verificado e limpo",
+    "receipts.status.no_action_claimed": "Nenhuma ação reivindicada",
+    "receipts.status.blocked_false_claim": "Falso pedido bloqueado",
+    "receipts.status.unbacked_claim": "Pedido sem evidência",
+    "receipts.status.evidence_contradicted": "Contradito pelas evidências",
+    "receipts.count_line": "{count, plural, one {# recibo verificado} other {# recibos verificados}}",
+    "receipts.cost_line": "Esta sessão custou {amount}.",
+
+    "voice.greeting": "Olá. O VOOL está pronto para a sua próxima tarefa.",
+    "voice.receipt_summary": "Rodada {turn_index}: status {status}, custo {amount}."
+  }
+}

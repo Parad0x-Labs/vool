@@ -1,0 +1,383 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "portfolio",
+  "calls": [
+    {
+      "system": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]\nSource-reference alternative for this turn:\nThe runtime has already located the source clauses below. Prefer naming their IDs in source_clause_ids instead of rewriting them; set request to an empty string for those entries. The runtime substitutes their original text. Every listed ID must occur once across the plan. You still choose operation and depends_on; references do not authorize an operation or prove it answered anything. Context and assumptions remain available from the original message. Do not turn response-format instructions into separate work. Group them with the work they modify. If the structural clauses cannot represent the split, use the original request-text contract consistently, without source_clause_ids.\n[{\"id\": \"clause-1\", \"text\": \"How many British pounds I receive after the FX fee.\"}, {\"id\": \"clause-2\", \"text\": \"How many troy ounces and grams of silver I can buy after the premium.\"}, {\"id\": \"clause-3\", \"text\": \"How many troy ounces and grams of platinum I can buy after the premium.\"}, {\"id\": \"clause-4\", \"text\": \"The exact USD amount allocated to each asset.\"}, {\"id\": \"clause-5\", \"text\": \"The dollar amount paid in each fee/premium and their combined total.\"}, {\"id\": \"clause-6\", \"text\": \"What percentage of the original $12,500 is lost to fees/premiums.\"}, {\"id\": \"clause-7\", \"text\": \"Present the result in a compact table and finish with a short explanation of the final portfolio.\\n\\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read.\"}]",
+      "prompt": "I have $12,500 USD and want to diversify it across British pounds, silver, and platinum.\n\nAllocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.\n\nAssume:\n\n* GBP/USD = 1.312\n* Silver = $41.80 per troy ounce\n* Platinum = $1,485.00 per troy ounce\n* Currency conversion fee = 0.8%\n* Silver purchase premium = 3.0%\n* Platinum purchase premium = 2.2%\n\nCalculate:\n\n1. How many British pounds I receive after the FX fee.\n2. How many troy ounces and grams of silver I can buy after the premium.\n3. How many troy ounces and grams of platinum I can buy after the premium.\n4. The exact USD amount allocated to each asset.\n5. The dollar amount paid in each fee/premium and their combined total.\n6. What percentage of the original $12,500 is lost to fees/premiums.\n7. Present the result in a compact table and finish with a short explanation of the final portfolio.\n\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read.",
+      "max_tokens": 2914,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000347214",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]\nSource-reference alternative for this turn:\nThe runtime has already located the source clauses below. Prefer naming their IDs in source_clause_ids instead of rewriting them; set request to an empty string for those entries. The runtime substitutes their original text. Every listed ID must occur once across the plan. You still choose operation and depends_on; references do not authorize an operation or prove it answered anything. Context and assumptions remain available from the original message. Do not turn response-format instructions into separate work. Group them with the work they modify. If the structural clauses cannot represent the split, use the original request-text contract consistently, without source_clause_ids.\n[{\"id\": \"clause-1\", \"text\": \"How many British pounds I receive after the FX fee.\"}, {\"id\": \"clause-2\", \"text\": \"How many troy ounces and grams of silver I can buy after the premium.\"}, {\"id\": \"clause-3\", \"text\": \"How many troy ounces and grams of platinum I can buy after the premium.\"}, {\"id\": \"clause-4\", \"text\": \"The exact USD amount allocated to each asset.\"}, {\"id\": \"clause-5\", \"text\": \"The dollar amount paid in each fee/premium and their combined total.\"}, {\"id\": \"clause-6\", \"text\": \"What percentage of the original $12,500 is lost to fees/premiums.\"}, {\"id\": \"clause-7\", \"text\": \"Present the result in a compact table and finish with a short explanation of the final portfolio.\\n\\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read.\"}]"
+          },
+          {
+            "role": "user",
+            "content": "I have $12,500 USD and want to diversify it across British pounds, silver, and platinum.\n\nAllocate 25% to British pounds. From the remaining 75%, allocate 55% to silver and 45% to platinum.\n\nAssume:\n\n* GBP/USD = 1.312\n* Silver = $41.80 per troy ounce\n* Platinum = $1,485.00 per troy ounce\n* Currency conversion fee = 0.8%\n* Silver purchase premium = 3.0%\n* Platinum purchase premium = 2.2%\n\nCalculate:\n\n1. How many British pounds I receive after the FX fee.\n2. How many troy ounces and grams of silver I can buy after the premium.\n3. How many troy ounces and grams of platinum I can buy after the premium.\n4. The exact USD amount allocated to each asset.\n5. The dollar amount paid in each fee/premium and their combined total.\n6. What percentage of the original $12,500 is lost to fees/premiums.\n7. Present the result in a compact table and finish with a short explanation of the final portfolio.\n\nShow enough calculation to verify the numbers, but keep the final answer concise and easy to read."
+          }
+        ],
+        "temperature": 0,
+        "max_tokens": 2914,
+        "reasoning": {
+          "enabled": false
+        },
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "vool_json_object",
+            "strict": false,
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "request": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  },
+                  "depends_on": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "source_clause_ids": {
+                    "type": "array",
+                    "maxItems": 7,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "clause-1",
+                        "clause-2",
+                        "clause-3",
+                        "clause-4",
+                        "clause-5",
+                        "clause-6",
+                        "clause-7"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "request",
+                  "operation",
+                  "depends_on"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "[{\"request\":\"Allocate 25% of $12,500 to British pounds\",\"operation\":\"calculation\",\"depends_on\":[]},{\"request\":\"Allocate the remaining 75% across silver (55%) and platinum (45%)\",\"operation\":\"calculation\",\"depends_on\":[0]},{\"request\":\"How many British pounds I receive after the FX fee\",\"operation\":\"calculation\",\"depends_on\":[0,1]},{\"request\":\"How many troy ounces and grams of silver I can buy after the premium\",\"operation\":\"calculation\",\"depends_on\":[1]},{\"request\":\"How many troy ounces and grams of platinum I can buy after the premium\",\"operation\":\"calculation\",\"depends_on\":[1]},{\"request\":\"The exact USD amount allocated to each asset\",\"operation\":\"calculation\",\"depends_on\":[0,1]},{\"request\":\"The dollar amount paid in each fee/premium and their combined total\",\"operation\":\"calculation\",\"depends_on\":[2,3,4]},{\"request\":\"What percentage of the original $12,500 is lost to fees/premiums\",\"operation\":\"calculation\",\"depends_on\":[6]}]",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1593,
+        "completion_tokens": 246,
+        "total_tokens": 1839,
+        "cost": 0.00013986,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00013986,
+          "upstream_inference_prompt_cost": 9.558e-05,
+          "upstream_inference_completions_cost": 4.428e-05
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "DeepInfra",
+      "generation_id": "gen-1789114648-8WFSvplegYfvOcpchq2C",
+      "seconds": 2.464
+    }
+  ],
+  "source": "cdfc28a6df5da4c0124a5fa775289679d68a51a4",
+  "kind": "component comparison, NOT native acceptance",
+  "operations_source_sha256": "d02364653d192a31616c7ee434642617828bea144560785763bceb3f1687ecf9",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": true,
+  "bound_source_plan": "[{\"request\":\"Allocate 25% of $12,500 to British pounds\",\"operation\":\"calculation\",\"depends_on\":[]},{\"request\":\"Allocate the remaining 75% across silver (55%) and platinum (45%)\",\"operation\":\"calculation\",\"depends_on\":[0]},{\"request\":\"How many British pounds I receive after the FX fee\",\"operation\":\"calculation\",\"depends_on\":[0,1]},{\"request\":\"How many troy ounces and grams of silver I can buy after the premium\",\"operation\":\"calculation\",\"depends_on\":[1]},{\"request\":\"How many troy ounces and grams of platinum I can buy after the premium\",\"operation\":\"calculation\",\"depends_on\":[1]},{\"request\":\"The exact USD amount allocated to each asset\",\"operation\":\"calculation\",\"depends_on\":[0,1]},{\"request\":\"The dollar amount paid in each fee/premium and their combined total\",\"operation\":\"calculation\",\"depends_on\":[2,3,4]},{\"request\":\"What percentage of the original $12,500 is lost to fees/premiums\",\"operation\":\"calculation\",\"depends_on\":[6]}]",
+  "component_plan": [
+    {
+      "operation": "unresolved",
+      "arguments": {},
+      "depends_on": []
+    },
+    {
+      "operation": "unresolved",
+      "arguments": {},
+      "depends_on": [
+        "conductor-8a123d8ea757:unresolved:0"
+      ]
+    },
+    {
+      "operation": "quantitative_reasoning",
+      "arguments": {
+        "entity": "how_many_british_pounds_i_receiv",
+        "clause": "How many British pounds I receive after the FX fee",
+        "fact_labels": [
+          "fact_1",
+          "fact_2",
+          "fact_3",
+          "fact_4",
+          "fact_5",
+          "fact_6",
+          "fact_7",
+          "fact_8",
+          "fact_9",
+          "fact_10",
+          "fact_11",
+          "fact_12",
+          "fact_13",
+          "fact_14",
+          "fact_15",
+          "fact_16",
+          "fact_17",
+          "fact_18",
+          "fact_19"
+        ],
+        "fact_values": {
+          "fact_1": 12500.0,
+          "fact_2": 25.0,
+          "fact_3": 75.0,
+          "fact_4": 55.0,
+          "fact_5": 45.0,
+          "fact_6": 1.312,
+          "fact_7": 41.8,
+          "fact_8": 1485.0,
+          "fact_9": 0.8,
+          "fact_10": 3.0,
+          "fact_11": 2.2,
+          "fact_12": 1.0,
+          "fact_13": 2.0,
+          "fact_14": 3.0,
+          "fact_15": 4.0,
+          "fact_16": 5.0,
+          "fact_17": 6.0,
+          "fact_18": 12500.0,
+          "fact_19": 7.0
+        }
+      },
+      "depends_on": [
+        "conductor-8a123d8ea757:unresolved:0",
+        "conductor-8a123d8ea757:unresolved:1"
+      ]
+    },
+    {
+      "operation": "quantitative_reasoning",
+      "arguments": {
+        "entity": "how_many_troy_ounces_and_grams_o",
+        "clause": "How many troy ounces and grams of silver I can buy after the premium",
+        "fact_labels": [
+          "fact_1",
+          "fact_2",
+          "fact_3",
+          "fact_4",
+          "fact_5",
+          "fact_6",
+          "fact_7",
+          "fact_8",
+          "fact_9",
+          "fact_10",
+          "fact_11",
+          "fact_12",
+          "fact_13",
+          "fact_14",
+          "fact_15",
+          "fact_16",
+          "fact_17",
+          "fact_18",
+          "fact_19"
+        ],
+        "fact_values": {
+          "fact_1": 12500.0,
+          "fact_2": 25.0,
+          "fact_3": 75.0,
+          "fact_4": 55.0,
+          "fact_5": 45.0,
+          "fact_6": 1.312,
+          "fact_7": 41.8,
+          "fact_8": 1485.0,
+          "fact_9": 0.8,
+          "fact_10": 3.0,
+          "fact_11": 2.2,
+          "fact_12": 1.0,
+          "fact_13": 2.0,
+          "fact_14": 3.0,
+          "fact_15": 4.0,
+          "fact_16": 5.0,
+          "fact_17": 6.0,
+          "fact_18": 12500.0,
+          "fact_19": 7.0
+        }
+      },
+      "depends_on": [
+        "conductor-8a123d8ea757:unresolved:1",
+        "conductor-8a123d8ea757:market_quote:silver"
+      ]
+    },
+    {
+      "operation": "quantitative_reasoning",
+      "arguments": {
+        "entity": "how_many_troy_ounces_and_grams_o",
+        "clause": "How many troy ounces and grams of platinum I can buy after the premium",
+        "fact_labels": [
+          "fact_1",
+          "fact_2",
+          "fact_3",
+          "fact_4",
+          "fact_5",
+          "fact_6",
+          "fact_7",
+          "fact_8",
+          "fact_9",
+          "fact_10",
+          "fact_11",
+          "fact_12",
+          "fact_13",
+          "fact_14",
+          "fact_15",
+          "fact_16",
+          "fact_17",
+          "fact_18",
+          "fact_19"
+        ],
+        "fact_values": {
+          "fact_1": 12500.0,
+          "fact_2": 25.0,
+          "fact_3": 75.0,
+          "fact_4": 55.0,
+          "fact_5": 45.0,
+          "fact_6": 1.312,
+          "fact_7": 41.8,
+          "fact_8": 1485.0,
+          "fact_9": 0.8,
+          "fact_10": 3.0,
+          "fact_11": 2.2,
+          "fact_12": 1.0,
+          "fact_13": 2.0,
+          "fact_14": 3.0,
+          "fact_15": 4.0,
+          "fact_16": 5.0,
+          "fact_17": 6.0,
+          "fact_18": 12500.0,
+          "fact_19": 7.0
+        }
+      },
+      "depends_on": [
+        "conductor-8a123d8ea757:unresolved:1"
+      ]
+    },
+    {
+      "operation": "unresolved",
+      "arguments": {},
+      "depends_on": [
+        "conductor-8a123d8ea757:unresolved:0",
+        "conductor-8a123d8ea757:unresolved:1"
+      ]
+    },
+    {
+      "operation": "quantitative_reasoning",
+      "arguments": {
+        "entity": "the_dollar_amount_paid_in_each_f",
+        "clause": "The dollar amount paid in each fee/premium and their combined total",
+        "fact_labels": [
+          "fact_1",
+          "fact_2",
+          "fact_3",
+          "fact_4",
+          "fact_5",
+          "fact_6",
+          "fact_7",
+          "fact_8",
+          "fact_9",
+          "fact_10",
+          "fact_11",
+          "fact_12",
+          "fact_13",
+          "fact_14",
+          "fact_15",
+          "fact_16",
+          "fact_17",
+          "fact_18",
+          "fact_19"
+        ],
+        "fact_values": {
+          "fact_1": 12500.0,
+          "fact_2": 25.0,
+          "fact_3": 75.0,
+          "fact_4": 55.0,
+          "fact_5": 45.0,
+          "fact_6": 1.312,
+          "fact_7": 41.8,
+          "fact_8": 1485.0,
+          "fact_9": 0.8,
+          "fact_10": 3.0,
+          "fact_11": 2.2,
+          "fact_12": 1.0,
+          "fact_13": 2.0,
+          "fact_14": 3.0,
+          "fact_15": 4.0,
+          "fact_16": 5.0,
+          "fact_17": 6.0,
+          "fact_18": 12500.0,
+          "fact_19": 7.0
+        }
+      },
+      "depends_on": [
+        "conductor-8a123d8ea757:quantitative_reasoning:how_many_british_pounds_i_receiv",
+        "conductor-8a123d8ea757:quantitative_reasoning:how_many_troy_ounces_and_grams_o",
+        "conductor-8a123d8ea757:quantitative_reasoning:how_many_troy_ounces_and_grams_o_0"
+      ]
+    },
+    {
+      "operation": "unresolved",
+      "arguments": {},
+      "depends_on": [
+        "conductor-8a123d8ea757:quantitative_reasoning:the_dollar_amount_paid_in_each_f"
+      ]
+    },
+    {
+      "operation": "market_quote",
+      "arguments": {
+        "entity": "Silver",
+        "asset_key": "silver",
+        "kind": "commodity"
+      },
+      "depends_on": []
+    },
+    {
+      "operation": "unresolved",
+      "arguments": {},
+      "depends_on": []
+    }
+  ]
+}

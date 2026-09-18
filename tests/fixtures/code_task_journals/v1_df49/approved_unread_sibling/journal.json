@@ -1,0 +1,191 @@
+{
+ "blackbox_turn_ids": [],
+ "cancelled_reason": "",
+ "created_at": "2026-09-14T10:20:25.926022+00:00",
+ "cumulative": null,
+ "defect": {
+  "at": "2026-09-14T10:20:26.161180+00:00",
+  "line": 1,
+  "path": "math.js",
+  "reason": "subtracts"
+ },
+ "fault_ids": [],
+ "git_diff_paths": [],
+ "narrow": null,
+ "objective": "legacy scenario approved_unread_sibling",
+ "pr_description": {},
+ "proposals": {
+  "sibling": {
+   "approved": true,
+   "approved_at": "2026-09-14T10:20:26.184792+00:00",
+   "arguments": {
+    "content": "exports.label = (parts) => parts.join(',');\n",
+    "path": "labels.js"
+   },
+   "consumed_by": "",
+   "created_at": "2026-09-14T10:20:26.178123+00:00",
+   "intent": "workspace.write_file",
+   "preview": {
+    "arguments_sha256": "47ff2594c4ddc2a1dee178540cc8aa0ef960e7a7a028c2e1379bd4836adaea77",
+    "content_sha256": "d63eab8ff415e997f61cc24599e12da9938a866495e1e3e1dfd793b7d47bf847",
+    "intent": "workspace.write_file",
+    "paths": [
+     "labels.js"
+    ],
+    "side_effect_class": "workspace_write"
+   },
+   "proposal_id": "sibling",
+   "rationale": "Owner labels.js: join with a comma."
+  }
+ },
+ "read_paths": [
+  "math.js"
+ ],
+ "reproduced_failure": {
+  "command": "node check.js",
+  "returncode": 1,
+  "step_id": "repro",
+  "success": false
+ },
+ "rollback": {
+  "restored": false,
+  "restored_paths": []
+ },
+ "session_id": "legacy-approved_unread_sibling",
+ "stage": "mutate",
+ "step_order": [
+  "repro",
+  "read"
+ ],
+ "steps": {
+  "read": {
+   "arguments": {
+    "path": "math.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T10:20:26.171881+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.read_file",
+   "ok": true,
+   "paths": [
+    "math.js"
+   ],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [],
+   "result": {
+    "decode_lossy": false,
+    "hash": "3287c2099845184d0cb7949a08e88a646e51520fb82bb346cc71dc39850b751e",
+    "line_count": 1,
+    "lines": [
+     {
+      "line_number": 1,
+      "text": "exports.add = (a, b) => a - b;"
+     }
+    ],
+    "path": "math.js",
+    "start_line": 1,
+    "total_lines": 1,
+    "truncated": false,
+    "verbatim": false
+   },
+   "stage_at": "propose",
+   "started_at": "2026-09-14T10:20:26.168679+00:00",
+   "status": "executed",
+   "step_id": "read"
+  },
+  "repro": {
+   "arguments": {
+    "command": "node check.js"
+   },
+   "bytes_match_approved_patch": null,
+   "completed_at": "2026-09-14T10:20:26.156048+00:00",
+   "executed": true,
+   "fault_id": "",
+   "intent": "workspace.run_tests",
+   "ok": true,
+   "paths": [],
+   "proposal_id": "",
+   "reason": "",
+   "receipts": [
+    {
+     "attempt": 0,
+     "decided_by": "execution_gate.evaluate_command",
+     "decision": "allowed",
+     "effect_class": "command",
+     "effect_id": "eff:40bcc4c7-0001",
+     "host": "",
+     "identity_note": "",
+     "keyed_or_keyless": "",
+     "lifecycle": "authorized",
+     "mode": "auto",
+     "policy_id": "tp:5e91d127a77be265",
+     "provider_id": "",
+     "reason": "Sandbox execution allowed.",
+     "recorded_at": "2026-09-14T10:20:26.104+00:00",
+     "request_id": "",
+     "scope_name": "runtime_tool.direct_call",
+     "turn_id": ""
+    }
+   ],
+   "result": {
+    "artifacts": [
+     {
+      "artifact_type": "validation_output",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "status": "command_failed",
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v1_df49_extra/_scratch/ws/approved_unread_sibling/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": ""
+     },
+     {
+      "artifact_type": "failure",
+      "command": "node check.js",
+      "cwd": ".",
+      "returncode": 1,
+      "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v1_df49_extra/_scratch/ws/approved_unread_sibling/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+      "stdout": "",
+      "summary": "node:assert:150"
+     }
+    ],
+    "blackbox": {
+     "coverage": {
+      "degraded": false,
+      "downgraded_to_irreversible": false,
+      "drift_count": 0,
+      "drift_paths": [],
+      "high_risk": {},
+      "rollback_capable": true,
+      "strategy": "workspace_scan"
+     },
+     "effect_ids": [
+      "effect-0dd0614ed0a34fe6b914f830af852a4a"
+     ],
+     "terminal_recorded": true,
+     "turn_id": "code-task:ct-2bbc7a725945"
+    },
+    "command": "node check.js",
+    "cwd": ".",
+    "diagnostic_query": ":150",
+    "error_line": 1,
+    "error_path": "/sanitized/revision-3/fixtures-legacy/v1_df49_extra/_scratch/ws/approved_unread_sibling/check.js",
+    "failure_summary": "node:assert:150",
+    "returncode": 1,
+    "stderr": "node:assert:150\n  throw new AssertionError(obj);\n  ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n3 !== 11\n\n    at Object.<anonymous> (/sanitized/revision-3/fixtures-legacy/v1_df49_extra/_scratch/ws/approved_unread_sibling/check.js:1:52)\n    at Module._compile (node:internal/modules/cjs/loader:1781:14)\n    at Object..js (node:internal/modules/cjs/loader:1913:10)\n    at Module.load (node:internal/modules/cjs/loader:1505:32)\n    at Function._load (node:internal/modules/cjs/loader:1309:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)\n    at node:internal/main/run_main_module:36:49 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 3,\n  expected: 11,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v22.23.1\n",
+    "stdout": "",
+    "success": false
+   },
+   "stage_at": "reproduce",
+   "started_at": "2026-09-14T10:20:25.943251+00:00",
+   "status": "command_failed",
+   "step_id": "repro"
+  }
+ },
+ "task_id": "ct-2bbc7a725945",
+ "turn_id": "code-task:ct-2bbc7a725945",
+ "turn_key": "code-task:ct-2bbc7a725945",
+ "updated_at": "2026-09-14T10:20:26.184796+00:00",
+ "workspace_root": "/sanitized/revision-3/fixtures-legacy/v1_df49_extra/_scratch/ws/approved_unread_sibling"
+}

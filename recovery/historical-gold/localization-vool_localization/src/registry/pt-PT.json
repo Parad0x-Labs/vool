@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "locale": "pt-PT",
+    "label": "Português (Portugal)",
+    "generated": true,
+    "human_reviewed": false,
+    "generated_note": "GENERATED, NOT HUMAN-REVIEWED. Partial sample proving pt-PT stays distinct from pt-BR: 'ficheiro/ecrã/gestor' vocabulary and European number/currency conventions. Unlisted keys fall back to pt then en — that fallback is itself under test."
+  },
+  "strings": {
+    "common.copy": "Copiar",
+    "common.copied": "Copiado para a área de transferência.",
+    "common.loading": "A carregar…",
+    "common.region": "Região",
+    "desktop.dashboard.section.proof_of_useful_work": "Prova de trabalho útil",
+    "mobile.companion.title": "VOOL Companheiro",
+    "mobile.companion.offline_notice": "Sem ligação — as tarefas ficam em fila até voltar a ligar.",
+    "notifications.tasks_completed": "{count, plural, one {Tarefa concluída} other {# tarefas concluídas}}",
+    "receipts.cost_line": "Esta sessão custou {amount}."
+  }
+}

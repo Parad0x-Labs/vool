@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "VOOL Companion",
+    "slug": "vool-mobile-companion",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0b0d10",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "systems.vool.companion",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scan the pairing QR code shown on your VOOL desktop.",
+        "NSPhotoLibraryUsageDescription": "Attach photos to VOOL chats from your phone."
+      }
+    },
+    "android": {
+      "package": "systems.vool.companion",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b0d10"
+      }
+    },
+    "scheme": "vool-pair",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b0d10"
+    }
+  }
+}

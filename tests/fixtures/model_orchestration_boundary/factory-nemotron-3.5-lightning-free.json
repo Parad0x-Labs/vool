@@ -1,0 +1,18 @@
+{
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "case": "factory",
+  "calls": [
+    {
+      "system": "Answer the user's request accurately and completely.",
+      "prompt": "A factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0"
+    }
+  ],
+  "source": "2c5050b6e8e1827753f782b0ab8434b384cad4ba",
+  "kind": "component comparison, NOT native acceptance"
+}

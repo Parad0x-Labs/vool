@@ -1,0 +1,311 @@
+{
+ "instrument": "RED-B",
+ "runs": [
+  {
+   "tag": "canonical",
+   "entrance": "api_chat",
+   "prompt": "What is 1000 EUR to RUB, how much gold can I buy with it, what is the weather in Rome, and what is the water temperature in the Baltic Sea?",
+   "chat_id": "audit-AUD-20260829-003-RED1-canonical-222832",
+   "served_text": "EUR/RUB: 1000 EUR \u00d7 99.8 = 99800.0 RUB (source: Frankfurter public institutional rates; observed: 2026-08-29T00:00:00+00:00).\nRome, Italy: Partly cloudy, 28.8\u00b0C (source: open-meteo.com)\nNewberry Springs, United States: Clear sky, 38.1\u00b0C (source: open-meteo.com)\n\u00d6ssby, Sweden: Thundery outbreaks in nearby, 16.0\u00b0C (source: wttr.in)\n\nCould not be answered:\n- How much gold can I buy with 1000 EUR? \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)\n- What is the water temperature in the Baltic Sea? \u2014 the available answer path does not safely match this request\n- how much gold can I buy with it \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)\n- how much gold can I buy with it \u2014 was attempted and did not come back\n- water temperature: in the Baltic Sea \u2014 is not something this runtime can look up",
+   "closure_verdict": {
+    "covered": true,
+    "open_count": 0,
+    "set_version": "v1:e0603dbcba2547ea"
+   },
+   "provenance": {
+    "lane": "tool",
+    "model": "",
+    "model_ran": false,
+    "tokens": 0,
+    "usd": 0.0,
+    "actions": 0,
+    "route": "conductor_multi_intent_plan",
+    "build": "0.5.0",
+    "recorded": true,
+    "lane_recorded": true,
+    "tool": "",
+    "extra_tools": 0,
+    "routing_calls": 2,
+    "routing_lane": "mixed",
+    "local_only": false,
+    "answer_source": "deterministic",
+    "model_participation": "routed_only",
+    "completed_model_calls": 2,
+    "failed_model_calls": 0,
+    "pending_model_calls": 1,
+    "participating_models": [
+     "qwen2.5:7b",
+     "nvidia/nemotron-3.5-lightning:free"
+    ]
+   },
+   "latency_s": 45.10097408294678,
+   "transport_error": "",
+   "slot_states": {
+    "fx": "ANSWERED",
+    "gold": "NAMED_FAILED",
+    "weather": "ANSWERED",
+    "water": "NAMED_FAILED"
+   },
+   "failure_rows": [
+    "How much gold can I buy with 1000 EUR? \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)",
+    "What is the water temperature in the Baltic Sea? \u2014 the available answer path does not safely match this request",
+    "how much gold can I buy with it \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)",
+    "how much gold can I buy with it \u2014 was attempted and did not come back",
+    "water temperature: in the Baltic Sea \u2014 is not something this runtime can look up"
+   ],
+   "singleton_states": {
+    "fx": "ANSWERED",
+    "gold": "SILENTLY_DROPPED",
+    "weather": "ANSWERED",
+    "water": "ANSWERED"
+   },
+   "singleton_texts": {
+    "fx": "1,000 EUR (euro) \u00d7 99.8 = 99,800 RUB (Russian ruble), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "gold": "Gold: USD 4,529.90 per troy ounce (24h change: -2.88%). Source: [Yahoo Finance](https://finance.yahoo.com/quote/GC=F), retrieved 2026-08-28 20:59 UTC.",
+    "weather": "Rome: Partly cloudy, 29 C (today's high 36 C / low 26 C). Source: [open-meteo.com](https://open-meteo.com/), observed 2026-08-29T21:15.",
+    "water": "The water temperature in the Baltic Sea ranges from about 3-5\u00b0C (37-41\u00b0F) in winter to around 18\u00b0C (64\u00b0F) in summer."
+   },
+   "followups": {
+    "why": "I didn't run any live lookup on this turn, so I can't verify current price figures \u2014 any specific numbers I gave would be invented, and I'm not going to state them. Ask again and I'll fetch the real data first.",
+    "retry": "Let's retry the exact failed requests:\n\n1. **EUR to RUB**: \n   - 1000 EUR \u00d7 99.8 = 99800.0 RUB (as of 2026-08-29T00:00:00+00:00, source: Frankfurter public institutional rates).\n\n2. **Gold with 1000 EUR**:\n   - The price of gold fluctuates, but as of August 2026, the approximate price is around 45-48 EUR per gram (source: Kitco Metals). \n   - \\( \\frac{1000}{45} \\approx 22.22 \\) grams of gold.\n\n3. **Weather in Rome**:\n   - Partly cloudy, 28.8\u00b0C (source: open-meteo.com).\n\n4. **Water temperature in the Baltic Sea**:\n   - The average water temperature in the Baltic Sea varies by season but is generally around 10-15\u00b0C in late summer (source: National Oceanic and Atmospheric Administration, NOAA).\n\nThese are approximate values based on recent data and general trends. For real-time or more precise information, you might want to check current financial markets for gold prices and local weather services for the most accurate weather conditions.",
+    "restart": "EUR/RUB: 1000 EUR \u00d7 99.8 = 99800.0 RUB (source: Frankfurter public institutional rates; observed: 2026-08-29T00:00:00+00:00).\nRome, Italy: Partly cloudy, 28.7\u00b0C (source: open-meteo.com)\nNewberry Springs, United States: Clear sky, 38.4\u00b0C (source: open-meteo.com)\n\u00d6ssby, Sweden: Thundery outbreaks in nearby, 16.0\u00b0C (source: wttr.in)\n\nCould not be answered:\n- How much gold can I buy with 1000 EUR? \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)\n- What is the water temperature in the Baltic Sea? \u2014 the available answer path does not safely match this request\n- how much gold can I buy with it \u2014 could not be answered: plan deadline expired before this request could be answered (missing: steps, values)\n- how much gold can I buy with it \u2014 was attempted and did not come back\n- water temperature: in the Baltic Sea \u2014 is not something this runtime can look up",
+    "control_sea": "The water temperature in the Mediterranean Sea ranges from about 16\u00b0C (61\u00b0F) to 28\u00b0C (82\u00b0F). For a specific location and date, we can look it up online."
+   },
+   "checks": [
+    {
+     "cid": "C1",
+     "title": "conversion slot uses current FX",
+     "status": "PASS",
+     "evidence": "converted value + source + fresh date"
+    },
+    {
+     "cid": "C2",
+     "title": "gold amount, current price, unit/assumption stated",
+     "status": "FAIL",
+     "evidence": "slot state=NAMED_FAILED"
+    },
+    {
+     "cid": "C3",
+     "title": "weather slot from a current source",
+     "status": "PASS",
+     "evidence": "requested city + temperature + source"
+    },
+    {
+     "cid": "C4",
+     "title": "Baltic water temp: caveated, not an air reading, not universal",
+     "status": "FAIL",
+     "evidence": "slot state=NAMED_FAILED; stray location line(s) in the answered body: ['Newberry Springs, United States: Clear sky, 38.1\u00b0C (source: open-meteo.com)', '\u00d6ssby, Sweden: Thundery outbreaks in nearby, 16.0\u00b0C (source: wttr.in)']"
+    },
+    {
+     "cid": "C5",
+     "title": "all 4 requested slots preserved",
+     "status": "PASS",
+     "evidence": "states={'fx': 'ANSWERED', 'gold': 'NAMED_FAILED', 'weather': 'ANSWERED', 'water': 'NAMED_FAILED'}"
+    },
+    {
+     "cid": "C5b",
+     "title": "closure verdict tracks unanswered slots",
+     "status": "FAIL",
+     "evidence": "closure_verdict={'covered': True, 'open_count': 0, 'set_version': 'v1:e0603dbcba2547ea'} certifies full coverage while 2 of 4 slots are unanswered: ['gold', 'water']"
+    },
+    {
+     "cid": "C6",
+     "title": "one slot failing does not stop the others",
+     "status": "PASS",
+     "evidence": "answerable alone=['fx', 'water', 'weather']; lost in the 4-slot turn=[]"
+    },
+    {
+     "cid": "C7",
+     "title": "failed slot named unavailable WITH a reason, never silently dropped",
+     "status": "PASS",
+     "evidence": "every unanswered slot named with a clean reason"
+    },
+    {
+     "cid": "C7b",
+     "title": "one failed slot -> one row -> one reason",
+     "status": "FAIL",
+     "evidence": "5 rows for 2 slot(s); gold: 3 rows, reasons=['plan deadline expired before this request could be answered ', 'plan deadline expired before this request could be answered ', 'was attempted and did not come back']; water: 2 rows, reasons=['the available answer path does not safely match this request', 'is not something this runtime can look up']"
+    },
+    {
+     "cid": "C8",
+     "title": "no slot listed unanswered when it was answered",
+     "status": "PASS",
+     "evidence": "no slot both answered and listed failed"
+    },
+    {
+     "cid": "C9",
+     "title": "'why did that fail?' names the exact failed slot/tool",
+     "status": "FAIL",
+     "evidence": "failed=['gold', 'water']; named in follow-up=[]; tool/source named=True; mis-blamed answered slots=[]"
+    },
+    {
+     "cid": "C10",
+     "title": "'retry that exact failed request' retries that slot, not a fresh search",
+     "status": "PASS",
+     "evidence": "failed=['gold', 'water']; addressed by retry=['gold', 'water']; already-answered slots re-served (fresh-search signature)=['fx']"
+    },
+    {
+     "cid": "C11",
+     "title": "served receipts show tool/source/model per slot",
+     "status": "FAIL",
+     "evidence": "provenance is turn-grain only: keys=['actions', 'answer_source', 'build', 'completed_model_calls', 'extra_tools', 'failed_model_calls', 'lane', 'lane_recorded', 'local_only', 'model', 'model_participation', 'model_ran']; per-slot attributions found 2/4: {'fx': 'inline-source:EUR/RUB: 1000 EUR \u00d7 99.8 = 99800.0 RUB (source: Fr', 'weather': 'inline-source:Rome, Italy: Partly cloudy, 28.8\u00b0C (source: open-m'}"
+    },
+    {
+     "cid": "C12",
+     "title": "restart/retry never converts prior failed state into content",
+     "status": "PASS",
+     "evidence": "no prior-state leakage detected"
+    }
+   ]
+  },
+  {
+   "tag": "operator-evening",
+   "entrance": "api_chat",
+   "prompt": "ok so u think u so cool heh? ok what about 1500 eur to usd? then how much and how much  god i can buy iwth it? and thne tell me the water tempperature in baltc sea and in  berling now :D",
+   "chat_id": "audit-AUD-20260829-003-RED1-operator-evening-223147",
+   "served_text": "1,500 EUR (euro) \u00d7 1.1652 = 1,747.80 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+   "closure_verdict": {
+    "covered": true,
+    "open_count": 0,
+    "set_version": "v1:742b7bc4eea347d1"
+   },
+   "provenance": {
+    "lane": "tool",
+    "model": "",
+    "model_ran": false,
+    "tokens": 0,
+    "usd": 0.0,
+    "actions": 0,
+    "route": "currency_conversion_fast_path",
+    "build": "0.5.0",
+    "recorded": true,
+    "lane_recorded": false,
+    "tool": "",
+    "extra_tools": 0,
+    "routing_calls": 0,
+    "routing_lane": "",
+    "local_only": false,
+    "answer_source": "deterministic",
+    "model_participation": "none",
+    "completed_model_calls": 0,
+    "failed_model_calls": 0,
+    "pending_model_calls": 0,
+    "participating_models": []
+   },
+   "latency_s": 0.1932220458984375,
+   "transport_error": "",
+   "slot_states": {
+    "fx_usd": "ANSWERED",
+    "gold": "SILENTLY_DROPPED",
+    "water": "SILENTLY_DROPPED",
+    "berlin": "SILENTLY_DROPPED"
+   },
+   "failure_rows": [],
+   "singleton_states": {
+    "fx_usd": "ANSWERED",
+    "gold": "SILENTLY_DROPPED",
+    "water": "ANSWERED",
+    "berlin": "SILENTLY_DROPPED"
+   },
+   "singleton_texts": {
+    "fx_usd": "1,500 EUR (euro) \u00d7 1.1652 = 1,747.80 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "gold": "That's probably a typo for \"gold\"! I can't access your money or make purchases, but I can help you understand gold prices or investment basics if you'd like. What's your real question?",
+    "water": "As of late August 2026, the Baltic Sea's water temperature typically ranges from 15\u00b0C to 22\u00b0C depending on location. Southern regions like the Gulf of Finland are warmer (20\u201322\u00b0C), while northern areas are cooler (15\u201318\u00b0C).",
+    "berlin": "I don\u2019t have live weather data access. For real-time Berlin water temperature, you\u2019d need to check a weather service or local sensor. (Note: Your query had typos\u2014\"berling\" \u2192 Berlin, \"tempperature\" \u2192 temperature.) I can\u2019t provide current values without internet."
+   },
+   "followups": {
+    "why": "1,500 EUR is about 1,748 USD. With this, you could buy a mid-range laptop or several high-end gadgets. Baltic Sea water temp: around 18\u00b0C (64\u00b0F). Berlin's water temp: about 20-22\u00b0C (68-72\u00b0F).",
+    "retry": "Sure, let's retry that exact request:\n\n1,500 EUR is approximately 1,748 USD as of the current exchange rate.\n\nWith 1,748 USD, you could buy a range of items depending on what you're looking for. For example:\n- A mid-range laptop might cost around $900 to $1,200.\n- High-end gadgets like multiple smartphones or a gaming console could add up to about $500 to $700.\n\nNow, let's check the water temperature in the Baltic Sea and Berlin:\n\n- The current water temperature in the Baltic Sea is typically around 18\u00b0C (64\u00b0F).\n- In Berlin, the average water temperature of rivers like the Spree can be around 20-22\u00b0C (68-72\u00b0F), but it can vary depending on the season.\n\nIs there anything else you'd like to know?",
+    "restart": "1,500 EUR (euro) \u00d7 1.1652 = 1,747.80 USD (United States dollar), using a live rate as of 2026-08-29T00:00:00+00:00.",
+    "control_sea": "Surface temperatures in the Mediterranean Sea range from about 16\u00b0C (61\u00b0F) in winter to around 26\u00b0C (79\u00b0F) in summer."
+   },
+   "checks": [
+    {
+     "cid": "C1",
+     "title": "conversion slot uses current FX",
+     "status": "PASS",
+     "evidence": "converted value + source + fresh date"
+    },
+    {
+     "cid": "C2",
+     "title": "gold amount, current price, unit/assumption stated",
+     "status": "FAIL",
+     "evidence": "slot state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C3",
+     "title": "weather slot from a current source",
+     "status": "FAIL",
+     "evidence": "slot berlin state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C4",
+     "title": "Baltic water temp: caveated, not an air reading, not universal",
+     "status": "FAIL",
+     "evidence": "slot state=SILENTLY_DROPPED"
+    },
+    {
+     "cid": "C5",
+     "title": "all 4 requested slots preserved",
+     "status": "FAIL",
+     "evidence": "states={'fx_usd': 'ANSWERED', 'gold': 'SILENTLY_DROPPED', 'water': 'SILENTLY_DROPPED', 'berlin': 'SILENTLY_DROPPED'}; SILENTLY DROPPED: ['gold', 'water', 'berlin']"
+    },
+    {
+     "cid": "C5b",
+     "title": "closure verdict tracks unanswered slots",
+     "status": "FAIL",
+     "evidence": "closure_verdict={'covered': True, 'open_count': 0, 'set_version': 'v1:742b7bc4eea347d1'} certifies full coverage while 3 of 4 slots are unanswered: ['gold', 'water', 'berlin']"
+    },
+    {
+     "cid": "C6",
+     "title": "one slot failing does not stop the others",
+     "status": "FAIL",
+     "evidence": "answerable alone=['fx_usd', 'water']; lost in the 4-slot turn=['water']"
+    },
+    {
+     "cid": "C7",
+     "title": "failed slot named unavailable WITH a reason, never silently dropped",
+     "status": "FAIL",
+     "evidence": "gold: dropped with no failure row; water: dropped with no failure row; berlin: dropped with no failure row"
+    },
+    {
+     "cid": "C7b",
+     "title": "one failed slot -> one row -> one reason",
+     "status": "PASS",
+     "evidence": "no failure rows"
+    },
+    {
+     "cid": "C8",
+     "title": "no slot listed unanswered when it was answered",
+     "status": "PASS",
+     "evidence": "no slot both answered and listed failed"
+    },
+    {
+     "cid": "C9",
+     "title": "'why did that fail?' names the exact failed slot/tool",
+     "status": "FAIL",
+     "evidence": "failed=['gold', 'water', 'berlin']; named in follow-up=['water', 'berlin']; tool/source named=False; mis-blamed answered slots=[]"
+    },
+    {
+     "cid": "C10",
+     "title": "'retry that exact failed request' retries that slot, not a fresh search",
+     "status": "PASS",
+     "evidence": "failed=['gold', 'water', 'berlin']; addressed by retry=['water', 'berlin']; already-answered slots re-served (fresh-search signature)=['fx_usd']"
+    },
+    {
+     "cid": "C11",
+     "title": "served receipts show tool/source/model per slot",
+     "status": "FAIL",
+     "evidence": "provenance is turn-grain only: keys=['actions', 'answer_source', 'build', 'completed_model_calls', 'extra_tools', 'failed_model_calls', 'lane', 'lane_recorded', 'local_only', 'model', 'model_participation', 'model_ran']; per-slot attributions found 1/4: {'fx_usd': 'inline-source:1,500 EUR (euro) \u00d7 1.1652 = 1,747.80 USD (United S'}"
+    },
+    {
+     "cid": "C12",
+     "title": "restart/retry never converts prior failed state into content",
+     "status": "FAIL",
+     "evidence": "[retry] berlin: value asserted with no source/caveat; [retry] water: value asserted with no source/caveat; [why] berlin: value asserted with no source/caveat; [why] water: value asserted with no source/caveat"
+    }
+   ]
+  }
+ ],
+ "captured_at": "2026-08-29T19:34:19Z"
+}

@@ -1,0 +1,278 @@
+{
+ "models": [
+  {
+   "centralized_input_per_1m": 100000,
+   "centralized_output_per_1m": null,
+   "centralized_providers": [
+    {
+     "input_per_1m": 100000,
+     "output_per_1m": null,
+     "provider": "c0mpute"
+    }
+   ],
+   "cheapest_input_per_1m": 100000,
+   "cheapest_output_per_1m": null,
+   "marketplace_provider_count": 1,
+   "marketplace_total_tps": 0.0,
+   "model_id": "c0mpute-pro",
+   "pricing_mode": "per_request",
+   "request_price_microunits": 100000,
+   "uncensored": true
+  },
+  {
+   "centralized_input_per_1m": 800000,
+   "centralized_output_per_1m": 4000000,
+   "centralized_providers": [
+    {
+     "input_per_1m": 800000,
+     "output_per_1m": 4000000,
+     "provider": "nousresearch"
+    },
+    {
+     "input_per_1m": 1000000,
+     "output_per_1m": 5000000,
+     "provider": "openrouter"
+    },
+    {
+     "input_per_1m": 1100000,
+     "output_per_1m": 5500000,
+     "provider": "anthropic"
+    }
+   ],
+   "cheapest_input_per_1m": 77138,
+   "cheapest_output_per_1m": 385688,
+   "marketplace_provider_count": 15,
+   "marketplace_total_tps": 0.0,
+   "model_id": "claude-haiku-4-5",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_input_per_1m": 1600000,
+   "centralized_output_per_1m": 8000000,
+   "centralized_providers": [
+    {
+     "input_per_1m": 1600000,
+     "output_per_1m": 8000000,
+     "provider": "nousresearch"
+    },
+    {
+     "input_per_1m": 2000000,
+     "output_per_1m": 10000000,
+     "provider": "openrouter"
+    },
+    {
+     "input_per_1m": 2000000,
+     "output_per_1m": 10000000,
+     "provider": "anthropic"
+    },
+    {
+     "input_per_1m": 3000000,
+     "output_per_1m": 15000000,
+     "provider": "venice"
+    }
+   ],
+   "cheapest_input_per_1m": 160000,
+   "cheapest_output_per_1m": 800000,
+   "marketplace_provider_count": 17,
+   "marketplace_total_tps": 0.0,
+   "model_id": "claude-sonnet-5",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_input_per_1m": 54300,
+   "centralized_output_per_1m": 134400,
+   "centralized_providers": [
+    {
+     "input_per_1m": 54300,
+     "output_per_1m": 134400,
+     "provider": "nousresearch"
+    },
+    {
+     "input_per_1m": 122455,
+     "output_per_1m": 266864,
+     "provider": "uomi"
+    },
+    {
+     "input_per_1m": 138000,
+     "output_per_1m": 275000,
+     "provider": "venice"
+    },
+    {
+     "input_per_1m": 140000,
+     "output_per_1m": 280000,
+     "provider": "together"
+    }
+   ],
+   "cheapest_input_per_1m": 5430,
+   "cheapest_output_per_1m": 13440,
+   "marketplace_provider_count": 12,
+   "marketplace_total_tps": 0.0,
+   "model_id": "deepseek-v4-flash",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_input_per_1m": 120000,
+   "centralized_output_per_1m": 480000,
+   "centralized_providers": [
+    {
+     "input_per_1m": 120000,
+     "output_per_1m": 480000,
+     "provider": "nousresearch"
+    },
+    {
+     "input_per_1m": 150000,
+     "output_per_1m": 600000,
+     "provider": "openai"
+    },
+    {
+     "input_per_1m": 187500,
+     "output_per_1m": 750000,
+     "provider": "venice"
+    }
+   ],
+   "cheapest_input_per_1m": 10519,
+   "cheapest_output_per_1m": 42075,
+   "marketplace_provider_count": 20,
+   "marketplace_total_tps": 0.0,
+   "model_id": "gpt-4o-mini",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_input_per_1m": 16000,
+   "centralized_output_per_1m": 80000,
+   "centralized_providers": [
+    {
+     "input_per_1m": 16000,
+     "output_per_1m": 80000,
+     "provider": "nousresearch"
+    },
+    {
+     "input_per_1m": 30000,
+     "output_per_1m": 130000,
+     "provider": "openrouter"
+    },
+    {
+     "input_per_1m": 31500,
+     "output_per_1m": 147000,
+     "provider": "uomi"
+    },
+    {
+     "input_per_1m": 50000,
+     "output_per_1m": 200000,
+     "provider": "together"
+    }
+   ],
+   "cheapest_input_per_1m": 1600,
+   "cheapest_output_per_1m": 8000,
+   "marketplace_provider_count": 9,
+   "marketplace_total_tps": 0.0,
+   "model_id": "gpt-oss-20b",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_input_per_1m": 456000,
+   "centralized_output_per_1m": 1840000,
+   "centralized_providers": [
+    {
+     "input_per_1m": 456000,
+     "output_per_1m": 1840000,
+     "provider": "nousresearch"
+    },
+    {
+     "input_per_1m": 570000,
+     "output_per_1m": 2300000,
+     "provider": "openrouter"
+    }
+   ],
+   "cheapest_input_per_1m": 45600,
+   "cheapest_output_per_1m": 184000,
+   "marketplace_provider_count": 7,
+   "marketplace_total_tps": 0.0,
+   "model_id": "kimi-k2",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_input_per_1m": 150000,
+   "centralized_output_per_1m": null,
+   "centralized_providers": [
+    {
+     "input_per_1m": 150000,
+     "output_per_1m": null,
+     "provider": "c0mpute"
+    }
+   ],
+   "cheapest_input_per_1m": 150000,
+   "cheapest_output_per_1m": null,
+   "marketplace_provider_count": 1,
+   "marketplace_total_tps": 0.0,
+   "model_id": "supergemma4-26b",
+   "pricing_mode": "per_request",
+   "request_price_microunits": 150000,
+   "uncensored": true
+  },
+  {
+   "centralized_input_per_1m": 8000,
+   "centralized_output_per_1m": 8000,
+   "centralized_providers": [
+    {
+     "input_per_1m": 8000,
+     "output_per_1m": 8000,
+     "provider": "together"
+    }
+   ],
+   "cheapest_input_per_1m": 8000,
+   "cheapest_output_per_1m": 8000,
+   "marketplace_provider_count": 0,
+   "marketplace_total_tps": 0.0,
+   "model_id": "bge-base-en-v1-5",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_input_per_1m": 800000,
+   "centralized_output_per_1m": 800000,
+   "centralized_providers": [
+    {
+     "input_per_1m": 800000,
+     "output_per_1m": 800000,
+     "provider": "together"
+    }
+   ],
+   "cheapest_input_per_1m": 800000,
+   "cheapest_output_per_1m": 800000,
+   "marketplace_provider_count": 0,
+   "marketplace_total_tps": 0.0,
+   "model_id": "deepseek-coder-33b-instruct",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_input_per_1m": null,
+   "centralized_output_per_1m": null,
+   "centralized_providers": [],
+   "cheapest_input_per_1m": null,
+   "cheapest_output_per_1m": null,
+   "marketplace_provider_count": 0,
+   "marketplace_total_tps": 0.0,
+   "model_id": "anthropic-claude-opus-4-7",
+   "pricing_mode": "per_token",
+   "uncensored": false
+  },
+  {
+   "centralized_price_per_image": 20000,
+   "cheapest_price_per_edit": 20000,
+   "cheapest_price_per_image": 20000,
+   "marketplace_provider_count": 0,
+   "marketplace_total_tps": 0.0,
+   "modality": "image",
+   "model_id": "dall-e-2",
+   "uncensored": false
+  }
+ ]
+}

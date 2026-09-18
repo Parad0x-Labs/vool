@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vool.local/served-reality/case_result.schema.json",
+  "title": "Served-reality bench case result",
+  "description": "One machine-readable proof row per executed case. Serialized by ops.served_reality.schema.CaseResult.to_dict; this document is the contract mirror.",
+  "type": "object",
+  "required": [
+    "case_id",
+    "title",
+    "required",
+    "verdict",
+    "is_failure",
+    "assertions",
+    "identities",
+    "wire_refs",
+    "started_at",
+    "duration_s",
+    "schema_version"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "case_id": {"type": "string", "minLength": 1},
+    "title": {"type": "string"},
+    "required": {"type": "boolean"},
+    "verdict": {"enum": ["PASS", "FAIL", "SKIP_EXPECTED", "SKIP_UNEXPECTED"]},
+    "is_failure": {"type": "boolean"},
+    "failure_class": {"type": ["null", "string"], "enum": [null, "VOOL", "PROVIDER", "MODEL", "HARNESS"]},
+    "reason": {"type": "string"},
+    "detail": {"type": "string"},
+    "started_at": {"type": "number"},
+    "duration_s": {"type": "number", "minimum": 0},
+    "bench_sha": {"type": "string"},
+    "product_sha": {"type": "string"},
+    "provider_mode": {"type": "string", "pattern": "^(deterministic|live:.+)$"},
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "ok"],
+        "properties": {
+          "name": {"type": "string"},
+          "ok": {"type": "boolean"},
+          "expected": {},
+          "observed": {},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "identities": {
+      "type": "array",
+      "description": "One identity set per observed turn: request/turn/attempt/model/tool/effect/evidence identities.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "request_id": {"type": ["null", "string"]},
+          "finalization_id": {"type": ["null", "string"]},
+          "turn_id": {"type": ["null", "string"]},
+          "client_turn_id": {"type": ["null", "string"]},
+          "session_id": {"type": ["null", "string"]},
+          "attempt_id": {"type": ["null", "string"]},
+          "model_lane": {"type": ["null", "string"]},
+          "model_call_id": {"type": ["null", "string"]},
+          "tool_names": {"type": "array", "items": {"type": "string"}},
+          "effect_ids": {"type": "array", "items": {"type": "string"}},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}},
+          "receipt_ids": {"type": "array", "items": {"type": "string"}},
+          "content_hash": {"type": ["null", "string"]}
+        }
+      }
+    },
+    "wire_refs": {
+      "type": "array",
+      "description": "Pointers to retained exact wire bytes (sanitized of credential values, never of structure).",
+      "items": {
+        "type": "object",
+        "required": ["exchange_id", "direction", "method", "path", "artifacts_file"],
+        "properties": {
+          "exchange_id": {"type": "string"},
+          "direction": {"enum": ["daemon", "stub", "live"]},
+          "method": {"type": "string"},
+          "path": {"type": "string"},
+          "status": {"type": ["null", "integer"]},
+          "artifacts_file": {"type": "string"},
+          "byte_range": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2}
+        }
+      }
+    }
+  }
+}

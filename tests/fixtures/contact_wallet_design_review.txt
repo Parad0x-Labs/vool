@@ -1,0 +1,27 @@
+You are reviewing a proposed feature for a local AI agent runtime.
+
+Feature:
+Users can save a wallet address inside a contact card and later say:
+“Send $25 to Tom.”
+
+System properties:
+- Skills/plugins can access contacts.
+- Agents can call tools.
+- Wallet payments exist.
+- Contacts are stored locally.
+- Users may install third-party skills/plugins.
+- The runtime must protect users even if a plugin is malicious.
+- We want the smallest practical design that is safe enough for beta.
+
+Task:
+
+1. Identify the 7 most important security or abuse risks introduced by adding wallet addresses to contacts.
+2. Rank them by severity and explain why.
+3. Propose the minimum architecture needed to mitigate them.
+4. Clearly separate:
+   - protections that must be enforced in the runtime/storage layer
+   - protections that can safely live in UI/UX
+5. Identify any design that looks safe at first but is actually bypassable.
+6. Do not invent unnecessary infrastructure. Prefer the smallest design that closes the real attack paths.
+
+Be concise but technically specific.

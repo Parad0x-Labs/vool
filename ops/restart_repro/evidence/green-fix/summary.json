@@ -1,0 +1,8 @@
+{
+ "cycles": 10,
+ "first_turn_failures": 0,
+ "second_turn_failures": 0,
+ "failed_cycles": [],
+ "python": "/tmp/vool-venv312/bin/python",
+ "first_turn_delay_s": 0.0
+}

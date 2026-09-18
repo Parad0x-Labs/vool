@@ -1,0 +1,457 @@
+{
+  "name": "vool-database",
+  "version": "0.1.0",
+  "description": "Least-privilege database assistance over disposable SQLite databases: introspection, parameterized read-only queries, explain plans, scoped migration preview/apply with backups, and engine-honest restore.",
+  "keywords": ["database", "sqlite", "sql", "schema", "migration"],
+  "author": {
+    "name": "sls_0x",
+    "url": ""
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "VOOL Database",
+    "shortDescription": "Typed database tools over disposable SQLite files.",
+    "category": "Data",
+    "developerName": "sls_0x"
+  },
+  "runtime": {
+    "contract_version": 1
+  },
+  "tools": [
+    {
+      "intent": "vool-database.connect",
+      "description": "Open the connection identity of a disposable database: engine, journal mode, integrity snapshot, and the credential policy. Read-only.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 20
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the disposable database (not a path).",
+            "x-vool-kind": "name"
+          },
+          "engine": {
+            "type": "string",
+            "enum": ["sqlite", "postgres"],
+            "default": "sqlite",
+            "description": "Engine selector; sqlite is available here, postgres answers with its exact availability boundary."
+          }
+        }
+      },
+      "side_effect_class": "read_only",
+      "approval_requirement": "none",
+      "permission_actions": ["read_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target"
+      }
+    },
+    {
+      "intent": "vool-database.db.create",
+      "description": "Create a new disposable SQLite database under the plugin's isolated scratch root from schema and optional seed SQL. Single transaction; refuses existing names.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 30
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "schema_sql"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name for the new disposable database.",
+            "x-vool-kind": "name"
+          },
+          "schema_sql": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "description": "CREATE TABLE/INDEX statements, semicolon-separated simple DDL (no triggers; use migrations for those)."
+          },
+          "seed_sql": {
+            "type": "string",
+            "maxLength": 200000,
+            "description": "Optional INSERT statements run in the same transaction."
+          }
+        }
+      },
+      "side_effect_class": "workspace_write",
+      "approval_requirement": "runtime_policy",
+      "permission_actions": ["create_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target",
+        "asserts_action": true
+      },
+      "mutation": {
+        "tool": "vool-database.db.create",
+        "scope": "workspace",
+        "effect_class": "irreversible",
+        "snapshot_strategy": "postimage_only",
+        "receipt_lifecycle": "terminal_only",
+        "rollback_support": "none",
+        "recorder": "blackbox",
+        "notes": "creates one new file under the plugin scratch databases root; undo is deleting the disposable file"
+      }
+    },
+    {
+      "intent": "vool-database.schema",
+      "description": "Introspect a disposable database: tables, columns, types, keys, foreign keys, indexes, row counts, and advisory potential-PII column flags. Read-only.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 25
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the disposable database.",
+            "x-vool-kind": "name"
+          },
+          "table": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Optional: restrict the introspection to one table."
+          }
+        }
+      },
+      "side_effect_class": "read_only",
+      "approval_requirement": "none",
+      "permission_actions": ["read_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target"
+      }
+    },
+    {
+      "intent": "vool-database.query",
+      "description": "Run ONE parameterized SELECT against a disposable database with enforced row and time limits. Engine-level read-only (mode=ro); mutations are refused here.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 40
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "sql"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the disposable database.",
+            "x-vool-kind": "name"
+          },
+          "sql": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "A single SELECT or WITH statement. Named parameters use :name."
+          },
+          "params": {
+            "type": "object",
+            "description": "Values for the :name parameters in the statement; never interpolate values into sql."
+          },
+          "row_limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 200,
+            "description": "Maximum rows returned; extra rows are reported as truncated."
+          },
+          "max_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "default": 5,
+            "description": "Wall-clock budget; the query is cancelled and typed-reported when exceeded."
+          }
+        }
+      },
+      "side_effect_class": "read_only",
+      "approval_requirement": "none",
+      "permission_actions": ["read_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target",
+        "result_items_key": "rows"
+      }
+    },
+    {
+      "intent": "vool-database.explain",
+      "description": "Show the EXPLAIN QUERY PLAN for a SELECT and flag full table scans that an index could turn into searches. Read-only.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 20
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "sql"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the disposable database.",
+            "x-vool-kind": "name"
+          },
+          "sql": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "The SELECT/WITH statement to plan."
+          },
+          "params": {
+            "type": "object",
+            "description": "Values for :name parameters used by the statement."
+          }
+        }
+      },
+      "side_effect_class": "read_only",
+      "approval_requirement": "none",
+      "permission_actions": ["read_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target"
+      }
+    },
+    {
+      "intent": "vool-database.migrate.preview",
+      "description": "Preview a migration on an in-memory clone: before/after schema diff, statement classification, and the statement that would fail if any. The real file is never touched.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 30
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "statements"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the disposable database.",
+            "x-vool-kind": "name"
+          },
+          "statements": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "description": "The migration as a list of single SQL statements, in order."
+          },
+          "params": {
+            "type": "object",
+            "description": "Values for :name parameters used by data statements."
+          }
+        }
+      },
+      "side_effect_class": "read_only",
+      "approval_requirement": "none",
+      "permission_actions": ["read_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target"
+      }
+    },
+    {
+      "intent": "vool-database.migrate.apply",
+      "description": "Apply a migration to a disposable database inside ONE transaction, after taking an automatic backup. Explicit user approval required; VACUUM/ATTACH are refused; failures roll back and keep the recovery backup.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 60
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "statements"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the disposable database.",
+            "x-vool-kind": "name"
+          },
+          "statements": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "description": "The migration as a list of single SQL statements, in order. Run migrate.preview first."
+          },
+          "params": {
+            "type": "object",
+            "description": "Values for :name parameters used by data statements."
+          },
+          "backup_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Optional named backup taken in addition to the automatic pre-apply one.",
+            "x-vool-kind": "name"
+          }
+        }
+      },
+      "side_effect_class": "workspace_write",
+      "approval_requirement": "explicit_user_opt_in",
+      "permission_actions": ["modify_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target",
+        "asserts_action": true
+      },
+      "mutation": {
+        "tool": "vool-database.migrate.apply",
+        "scope": "workspace",
+        "effect_class": "reversible",
+        "snapshot_strategy": "declared_paths",
+        "receipt_lifecycle": "intent_then_terminal",
+        "rollback_support": "exact",
+        "recorder": "blackbox",
+        "notes": "preimage = the one declared database file, captured through SQLite's online backup API before BEGIN; rollback = restore that backup; engine truth (transactional DDL, VACUUM/PRAGMA exceptions, local-file-only restore) rides every result"
+      }
+    },
+    {
+      "intent": "vool-database.backup",
+      "description": "Take a consistent backup of a disposable database through SQLite's online backup API and report its sha256. A file snapshot of the LOCAL file only.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 30
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the disposable database.",
+            "x-vool-kind": "name"
+          },
+          "backup_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Optional bare name for the backup; defaults to a timestamped snapshot name.",
+            "x-vool-kind": "name"
+          }
+        }
+      },
+      "side_effect_class": "workspace_write",
+      "approval_requirement": "runtime_policy",
+      "permission_actions": ["create_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target",
+        "asserts_action": true
+      },
+      "mutation": {
+        "tool": "vool-database.backup",
+        "scope": "workspace",
+        "effect_class": "irreversible",
+        "snapshot_strategy": "postimage_only",
+        "receipt_lifecycle": "terminal_only",
+        "rollback_support": "none",
+        "recorder": "blackbox",
+        "notes": "creates a new backup file under the plugin scratch backups root; the source database is only read"
+      }
+    },
+    {
+      "intent": "vool-database.restore",
+      "description": "Restore a disposable database from a named backup, keeping a safety copy of the current file first. Explicit user approval required. Restores the LOCAL file only.",
+      "handler": {
+        "kind": "subprocess",
+        "entry": "bin/db_handler",
+        "timeout_seconds": 45
+      },
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "backup_name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the disposable database.",
+            "x-vool-kind": "name"
+          },
+          "backup_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "Bare name of the backup to restore.",
+            "x-vool-kind": "name"
+          }
+        }
+      },
+      "side_effect_class": "workspace_write",
+      "approval_requirement": "explicit_user_opt_in",
+      "permission_actions": ["modify_files"],
+      "claim": {
+        "target_argument": "name",
+        "resolved_target_key": "resolved_target",
+        "asserts_action": true
+      },
+      "mutation": {
+        "tool": "vool-database.restore",
+        "scope": "workspace",
+        "effect_class": "reversible",
+        "snapshot_strategy": "declared_paths",
+        "receipt_lifecycle": "intent_then_terminal",
+        "rollback_support": "exact",
+        "recorder": "blackbox",
+        "notes": "preimage = the current database file, captured to a pre-restore backup before overwriting; rollback = restore that pre-restore copy; the backup source itself is only read"
+      }
+    }
+  ]
+}

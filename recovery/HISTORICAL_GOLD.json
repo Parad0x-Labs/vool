@@ -1,0 +1,126 @@
+{
+  "generated": "2026-09-08",
+  "vault": "recovery/historical-gold",
+  "runtime_status": "DISABLED / NOT REGISTERED (import-isolated)",
+  "isolation_guard": "tests/test_recovery_vault_isolation.py",
+  "families": {
+    "kernel-laws-enforcement": {
+      "source": "dangling commits 32c7740f (+ e288f48a, 819cd464) in OX-VOOL/code; also on-disk at-risk-recovery-20260829/vool-engine-kernel",
+      "path": "core/kernel/* (wasm_sandbox, broker, compartments, counterfactual, plugin_contract, plugin_lifecycle, envelope, flow, boundary, continuation, stability, composition, council_flow)",
+      "maturity": "SUBSTANTIAL + TESTED (dedicated test_kernel_* + compiled vool_plugin.wasm fixture)",
+      "hist_wired": "experimental lab only (never on the served path)",
+      "hist_tested": "yes",
+      "current_equiv": "PARTIAL \u2014 canonical adopted only the kernel-laws FOUNDATION (evidence_types/capabilities/effects/obligations); NONE of the enforcement modules",
+      "rec": "P0 recover + STRONGLY consider rewiring; privacy compartments + leak_scan first (private-vs-capable mission). Sole surviving copy is this vault + the git-dangling commits.",
+      "status": "DISABLED / NOT REGISTERED"
+    },
+    "toolbelt": {
+      "source": "tag preserve/exp-toolbelt-ninja-pass3-20260829 (+ pass1/2 tags, origin/exp/toolbelt-ninja-pass4)",
+      "path": "core/toolbelt/* (models, operations, resolve, evidence, identities, exe_identity, ssh_signing, probes, inventory, credentials, runtime_manifest, version_spec)",
+      "maturity": "SUBSTANTIAL (typed per-tool presence/scope/health/auth state machine; install plans; secrets-as-handles CredentialHandle invariant)",
+      "hist_wired": "experiment lane",
+      "hist_tested": "partial",
+      "current_equiv": "WEAKER \u2014 ad-hoc shutil.which scattered across ~15 modules + machine_diagnostics/install_recommendations (GPU/deps focus), NOT the unified typed layer",
+      "rec": "P0/P1 recover + consider rewiring; the CredentialHandle secrets-as-handles design is high value.",
+      "status": "NOT REGISTERED"
+    },
+    "i18n": {
+      "source": "branch build/vool-i18n-docs-p1-20260904 @ a284f1b9",
+      "path": "core/i18n/* (catalog, locales, page_bundle + 18 locale catalogs) + tools/i18n/check_translations.py",
+      "maturity": "SUBSTANTIAL (ICU-lite plural/select, SHA-pinned drift, HTML-escape, deterministic fallback; en.json 367 keys + 16 locales)",
+      "hist_wired": "served UI picker on-branch, not in 613",
+      "hist_tested": "yes",
+      "current_equiv": "NONE (canonical has only response_language_policy = which language the model answers in)",
+      "rec": "P0/P1 recover; reconcile with vool_localization (pick ONE localization engine) before any rewire.",
+      "status": "NOT REGISTERED"
+    },
+    "localization-vool_localization": {
+      "source": "on-disk backup ~/vool/archive/at-risk-recovery-20260829/swarm-localization_localization (DISK-ONLY, absent from git)",
+      "path": "vool_localization/* (catalog, message, plural, bidi, formatting + adapters: gettext/voice/android/windows/web_json/apple + registries + tests)",
+      "maturity": "SUBSTANTIAL (6 platform adapters, plurals, bidi, locale registries, tests)",
+      "hist_wired": "no",
+      "hist_tested": "yes",
+      "current_equiv": "NONE (distinct from core/i18n git gold)",
+      "rec": "P0/P1 recover; DEDUPE with i18n \u2014 choose the stronger engine, vault the other. This was the sole (disk) copy; now vaulted.",
+      "status": "NOT REGISTERED"
+    },
+    "skill-identity-invocation": {
+      "source": "branch origin/exp/skill-system-pass1 @ 6c194fc6",
+      "path": "core/skill_identity.py (two-digest PACKAGE vs EFFECTIVE authenticity, parse_skill_md, strip_hidden_blocks) + core/skill_invocation.py (APPLIED/PARTIAL/BLOCKED invocation truth)",
+      "maturity": "PARTIAL (collision + identity-conflict law)",
+      "hist_wired": "experiment",
+      "hist_tested": "partial",
+      "current_equiv": "WEAKER \u2014 only a plain content sha256 survives in skill_tools.py; the identity/collision law dropped",
+      "rec": "P0/P1 recover the collision/identity-conflict protection; skill system otherwise stronger in canonical.",
+      "status": "NOT REGISTERED"
+    },
+    "presentation-render": {
+      "source": "branch/commits b92ba5b7 (+ 33737782)",
+      "path": "core/presentation/* (RenderDocument model, render_markdown, render_plain, charts, links, intent, voice, companion_render, status)",
+      "maturity": "EXPERIMENT",
+      "hist_wired": "experiment",
+      "hist_tested": "partial",
+      "current_equiv": "SUPERSEDED for selection by core/presentation_selection.py (C19, stronger); the structured render-document + renderers are unique",
+      "rec": "P1/P2 recover render capabilities ONLY if they improve answer output WITHOUT changing current UX; otherwise vault.",
+      "status": "NOT REGISTERED"
+    },
+    "companion-lifeform": {
+      "source": "branch feature/voolemon-foundation-20260906 @ 73b239aa",
+      "path": "core/companion/lifeform/* (schema, genesis, progression, appearance, competition, signals) + command_registry/groups/lifeform_group.py",
+      "maturity": "WIP (gamification/progression layer)",
+      "hist_wired": "branch only",
+      "hist_tested": "partial",
+      "current_equiv": "WEAKER fragment pet survives (companion_*_fragment.py); the progression layer is absent",
+      "rec": "VAULT-ONLY for now (net-new product surface); do not baseline. Later product branch.",
+      "status": "NOT REGISTERED"
+    },
+    "social-content": {
+      "source": "branch build/social-content-manager-p1-20260904 @ bfa92578",
+      "path": "core/social_content/* (research, x_session_research, adaptation, observations, review, publishing, platform_policy) + storage/social_content_store.py + command group",
+      "maturity": "SUBSTANTIAL (multi-platform)",
+      "hist_wired": "branch only; the X-specific variant DID merge (x_editorial.py)",
+      "hist_tested": "partial",
+      "current_equiv": "PARTIAL \u2014 X-narrow x_editorial/x_platform_policy merged; general multi-platform pipeline absent",
+      "rec": "VAULT-ONLY for now; harvest any reusable capability the current tree lost (P1/P2), do not baseline the product.",
+      "status": "NOT REGISTERED"
+    },
+    "school-edition": {
+      "source": "branch feat/vool-school-20260908 @ 419805a0 (same-day WIP)",
+      "path": "core/school/* (store, service, api, pages, policy, quota, submission, assistance, ingress, session) + core/product_edition.py",
+      "maturity": "WIP (same-day; a complete classroom product surface)",
+      "hist_wired": "branch only",
+      "hist_tested": "partial",
+      "current_equiv": "NONE",
+      "rec": "VAULT-ONLY for now (net-new product; still live on its branch). Later product branch decision.",
+      "status": "NOT REGISTERED"
+    },
+    "channels-inbound-KAS": {
+      "source": "dangling KAS-049 lane 175d378d (pre-rebase b708fd38) in OX-VOOL/code",
+      "path": "core/external_ingress.py, connector_awareness*.py, discord_recent_*.py + relay/bridge_workers/* (discord_gateway_ingress/state, discord_command_parser, telegram bridges, webhook_ingress)",
+      "maturity": "SUBSTANTIAL (46-commit real-time websocket Discord Gateway + governed connectors; canonical is polling-only)",
+      "hist_wired": "lane only, never merged",
+      "hist_tested": "yes (~5k lines of tests on-lane)",
+      "current_equiv": "WEAKER \u2014 canonical has outbound-only relay/bridge_workers/discord_bridge.py",
+      "rec": "PRESERVE + ANALYZE ONLY. **KAS owns external channels/integrations** \u2014 do NOT wire into VOOL if it violates the VOOL/KAS boundary. Hand to the KAS lane.",
+      "status": "NOT REGISTERED",
+      "owner": "KAS lane (external channels)"
+    }
+  },
+  "standalone_repos": {
+    "nullcap": {
+      "source": "standalone repo ~/vool/workspaces/proof-capsule-lab-20260825 (own git; snapshot A3/gold-repo-snapshots/proof-capsule-lab.tgz)",
+      "maturity": "EXPERIMENTAL + 104-green sabotage suite; needs `cryptography`",
+      "current_equiv": "canonical has receipts/anchoring but no nullcap AEAD/HPKE/Merkle/wallet-binding",
+      "rec": "Evaluate whether AEAD/HPKE/Merkle/wallet-binding STRENGTHEN the existing receipt/proof/privacy architecture vs create DUPLICATE crypto. Preserve the standalone repo regardless.",
+      "status": "STANDALONE REPO (not in runtime)"
+    },
+    "jury-control-plane": {
+      "source": "standalone repo ~/vool/jury-control-plane (own git, port 8787; snapshot A3/gold-repo-snapshots/jury-control-plane.tgz)",
+      "maturity": "SUBSTANTIAL, stdlib-only; server-side gates, reveal firewall, hash-chained tape, minority-finding visibility, PARTIAL/FULL modes",
+      "current_equiv": "canonical has in-runtime core/council/* but NOT this as a service",
+      "rec": "Compare server-side gates / reveal firewall / tamper-evident tape / minority-finding visibility vs current Council; integrate concepts only if stronger + compatible. Preserve the standalone repo regardless.",
+      "status": "STANDALONE REPO (not in runtime)"
+    }
+  },
+  "note": "59 genuinely-lost modules were preserved by FAMILY, not by merging 59 modules. Recovery/integration is gated (Phase C/D)."
+}

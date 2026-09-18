@@ -1,0 +1,770 @@
+[
+ {
+  "id": "N-W-clean",
+  "lane": "noise baseline W",
+  "prompt": "what is the weather in vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "clean"
+ },
+ {
+  "id": "N-P-clean",
+  "lane": "noise baseline P",
+  "prompt": "what is the current price of bitcoin",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "clean"
+ },
+ {
+  "id": "N-M-clean",
+  "lane": "noise baseline M",
+  "prompt": "weather in vilnius, berlin and rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "clean"
+ },
+ {
+  "id": "N-R-clean",
+  "lane": "noise baseline R",
+  "prompt": "reverse the string HELLO. Output ONLY the reversed string.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "clean"
+ },
+ {
+  "id": "N-A-clean",
+  "lane": "noise baseline A",
+  "prompt": "get the current bitcoin price. multiply it by 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "clean"
+ },
+ {
+  "id": "N-F-clean",
+  "lane": "noise baseline F",
+  "prompt": "how much is 100 EUR in USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "clean"
+ },
+ {
+  "id": "N-W-mixedcaps",
+  "lane": "noise mixedcaps",
+  "prompt": "wHaT Is tHe wEaThEr iN ViLnIuS",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "mixedcaps"
+ },
+ {
+  "id": "N-W-shout",
+  "lane": "noise shout",
+  "prompt": "WHAT IS THE WEATHER IN VILNIUS",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "shout"
+ },
+ {
+  "id": "N-W-dblspace",
+  "lane": "noise dblspace",
+  "prompt": "what  is  the  weather  in  vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "dblspace"
+ },
+ {
+  "id": "N-W-numprefix",
+  "lane": "noise numprefix",
+  "prompt": "1. what is the weather in vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "numprefix"
+ },
+ {
+  "id": "N-W-dashprefix",
+  "lane": "noise dashprefix",
+  "prompt": "- what is the weather in vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "dashprefix"
+ },
+ {
+  "id": "N-W-dotprefix",
+  "lane": "noise dotprefix",
+  "prompt": ". what is the weather in vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "dotprefix"
+ },
+ {
+  "id": "N-W-leadspace",
+  "lane": "noise leadspace",
+  "prompt": "   what is the weather in vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "leadspace"
+ },
+ {
+  "id": "N-W-trailthx",
+  "lane": "noise trailthx",
+  "prompt": "what is the weather in vilnius thx",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "trailthx"
+ },
+ {
+  "id": "N-W-trailasap",
+  "lane": "noise trailasap",
+  "prompt": "what is the weather in vilnius pls asap",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "trailasap"
+ },
+ {
+  "id": "N-W-noqmark",
+  "lane": "noise noqmark",
+  "prompt": "what is the weather in vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "noqmark"
+ },
+ {
+  "id": "N-W-extrapunct",
+  "lane": "noise extrapunct",
+  "prompt": "what is the weather in vilnius!!!???",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "extrapunct"
+ },
+ {
+  "id": "N-W-newline",
+  "lane": "noise newline",
+  "prompt": "\n\nwhat is the weather in vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "newline"
+ },
+ {
+  "id": "N-W-emoji",
+  "lane": "noise emoji",
+  "prompt": "what is the weather in vilnius \ud83d\ude4f",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "emoji"
+ },
+ {
+  "id": "N-W-typo",
+  "lane": "noise typo",
+  "prompt": "what is the wheather in vilnius",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "typo"
+ },
+ {
+  "id": "N-W-combo",
+  "lane": "noise combo",
+  "prompt": "1.  wHaT  Is  tHe  wEaThEr  iN  ViLnIuS thx",
+  "expect": "conversational",
+  "base": "W",
+  "mut": "combo"
+ },
+ {
+  "id": "N-P-mixedcaps",
+  "lane": "noise mixedcaps",
+  "prompt": "wHaT Is tHe cUrReNt pRiCe oF BiTcOiN",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "mixedcaps"
+ },
+ {
+  "id": "N-P-shout",
+  "lane": "noise shout",
+  "prompt": "WHAT IS THE CURRENT PRICE OF BITCOIN",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "shout"
+ },
+ {
+  "id": "N-P-dblspace",
+  "lane": "noise dblspace",
+  "prompt": "what  is  the  current  price  of  bitcoin",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "dblspace"
+ },
+ {
+  "id": "N-P-numprefix",
+  "lane": "noise numprefix",
+  "prompt": "1. what is the current price of bitcoin",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "numprefix"
+ },
+ {
+  "id": "N-P-dashprefix",
+  "lane": "noise dashprefix",
+  "prompt": "- what is the current price of bitcoin",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "dashprefix"
+ },
+ {
+  "id": "N-P-dotprefix",
+  "lane": "noise dotprefix",
+  "prompt": ". what is the current price of bitcoin",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "dotprefix"
+ },
+ {
+  "id": "N-P-leadspace",
+  "lane": "noise leadspace",
+  "prompt": "   what is the current price of bitcoin",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "leadspace"
+ },
+ {
+  "id": "N-P-trailthx",
+  "lane": "noise trailthx",
+  "prompt": "what is the current price of bitcoin thx",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "trailthx"
+ },
+ {
+  "id": "N-P-trailasap",
+  "lane": "noise trailasap",
+  "prompt": "what is the current price of bitcoin pls asap",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "trailasap"
+ },
+ {
+  "id": "N-P-noqmark",
+  "lane": "noise noqmark",
+  "prompt": "what is the current price of bitcoin",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "noqmark"
+ },
+ {
+  "id": "N-P-extrapunct",
+  "lane": "noise extrapunct",
+  "prompt": "what is the current price of bitcoin!!!???",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "extrapunct"
+ },
+ {
+  "id": "N-P-newline",
+  "lane": "noise newline",
+  "prompt": "\n\nwhat is the current price of bitcoin",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "newline"
+ },
+ {
+  "id": "N-P-emoji",
+  "lane": "noise emoji",
+  "prompt": "what is the current price of bitcoin \ud83d\ude4f",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "emoji"
+ },
+ {
+  "id": "N-P-typo",
+  "lane": "noise typo",
+  "prompt": "what is the curent pirce of bitcon",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "typo"
+ },
+ {
+  "id": "N-P-combo",
+  "lane": "noise combo",
+  "prompt": "1.  wHaT  Is  tHe  cUrReNt  pRiCe  oF  BiTcOiN thx",
+  "expect": "conversational",
+  "base": "P",
+  "mut": "combo"
+ },
+ {
+  "id": "N-M-mixedcaps",
+  "lane": "noise mixedcaps",
+  "prompt": "wEaThEr iN ViLnIuS, bErLiN AnD RoMe",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "mixedcaps"
+ },
+ {
+  "id": "N-M-shout",
+  "lane": "noise shout",
+  "prompt": "WEATHER IN VILNIUS, BERLIN AND ROME",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "shout"
+ },
+ {
+  "id": "N-M-dblspace",
+  "lane": "noise dblspace",
+  "prompt": "weather  in  vilnius,  berlin  and  rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "dblspace"
+ },
+ {
+  "id": "N-M-numprefix",
+  "lane": "noise numprefix",
+  "prompt": "1. weather in vilnius, berlin and rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "numprefix"
+ },
+ {
+  "id": "N-M-dashprefix",
+  "lane": "noise dashprefix",
+  "prompt": "- weather in vilnius, berlin and rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "dashprefix"
+ },
+ {
+  "id": "N-M-dotprefix",
+  "lane": "noise dotprefix",
+  "prompt": ". weather in vilnius, berlin and rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "dotprefix"
+ },
+ {
+  "id": "N-M-leadspace",
+  "lane": "noise leadspace",
+  "prompt": "   weather in vilnius, berlin and rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "leadspace"
+ },
+ {
+  "id": "N-M-trailthx",
+  "lane": "noise trailthx",
+  "prompt": "weather in vilnius, berlin and rome thx",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "trailthx"
+ },
+ {
+  "id": "N-M-trailasap",
+  "lane": "noise trailasap",
+  "prompt": "weather in vilnius, berlin and rome pls asap",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "trailasap"
+ },
+ {
+  "id": "N-M-noqmark",
+  "lane": "noise noqmark",
+  "prompt": "weather in vilnius, berlin and rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "noqmark"
+ },
+ {
+  "id": "N-M-extrapunct",
+  "lane": "noise extrapunct",
+  "prompt": "weather in vilnius, berlin and rome!!!???",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "extrapunct"
+ },
+ {
+  "id": "N-M-newline",
+  "lane": "noise newline",
+  "prompt": "\n\nweather in vilnius, berlin and rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "newline"
+ },
+ {
+  "id": "N-M-emoji",
+  "lane": "noise emoji",
+  "prompt": "weather in vilnius, berlin and rome \ud83d\ude4f",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "emoji"
+ },
+ {
+  "id": "N-M-typo",
+  "lane": "noise typo",
+  "prompt": "wheather in vilnius, berlin and rome",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "typo"
+ },
+ {
+  "id": "N-M-combo",
+  "lane": "noise combo",
+  "prompt": "1.  wEaThEr  iN  ViLnIuS,  bErLiN  AnD  RoMe thx",
+  "expect": "conversational",
+  "base": "M",
+  "mut": "combo"
+ },
+ {
+  "id": "N-R-mixedcaps",
+  "lane": "noise mixedcaps",
+  "prompt": "rEvErSe tHe sTrInG HeLlO. oUtPuT OnLy tHe rEvErSeD StRiNg.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "mixedcaps"
+ },
+ {
+  "id": "N-R-shout",
+  "lane": "noise shout",
+  "prompt": "REVERSE THE STRING HELLO. OUTPUT ONLY THE REVERSED STRING.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "shout"
+ },
+ {
+  "id": "N-R-dblspace",
+  "lane": "noise dblspace",
+  "prompt": "reverse  the  string  HELLO.  Output  ONLY  the  reversed  string.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "dblspace"
+ },
+ {
+  "id": "N-R-numprefix",
+  "lane": "noise numprefix",
+  "prompt": "1. reverse the string HELLO. Output ONLY the reversed string.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "numprefix"
+ },
+ {
+  "id": "N-R-dashprefix",
+  "lane": "noise dashprefix",
+  "prompt": "- reverse the string HELLO. Output ONLY the reversed string.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "dashprefix"
+ },
+ {
+  "id": "N-R-dotprefix",
+  "lane": "noise dotprefix",
+  "prompt": ". reverse the string HELLO. Output ONLY the reversed string.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "dotprefix"
+ },
+ {
+  "id": "N-R-leadspace",
+  "lane": "noise leadspace",
+  "prompt": "   reverse the string HELLO. Output ONLY the reversed string.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "leadspace"
+ },
+ {
+  "id": "N-R-trailthx",
+  "lane": "noise trailthx",
+  "prompt": "reverse the string HELLO. Output ONLY the reversed string. thx",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "trailthx"
+ },
+ {
+  "id": "N-R-trailasap",
+  "lane": "noise trailasap",
+  "prompt": "reverse the string HELLO. Output ONLY the reversed string. pls asap",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "trailasap"
+ },
+ {
+  "id": "N-R-noqmark",
+  "lane": "noise noqmark",
+  "prompt": "reverse the string HELLO. Output ONLY the reversed string",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "noqmark"
+ },
+ {
+  "id": "N-R-extrapunct",
+  "lane": "noise extrapunct",
+  "prompt": "reverse the string HELLO. Output ONLY the reversed string.!!!???",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "extrapunct"
+ },
+ {
+  "id": "N-R-newline",
+  "lane": "noise newline",
+  "prompt": "\n\nreverse the string HELLO. Output ONLY the reversed string.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "newline"
+ },
+ {
+  "id": "N-R-emoji",
+  "lane": "noise emoji",
+  "prompt": "reverse the string HELLO. Output ONLY the reversed string. \ud83d\ude4f",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "emoji"
+ },
+ {
+  "id": "N-R-typo",
+  "lane": "noise typo",
+  "prompt": "revrse the string HELLO. Output ONLY the revrsed string.",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "typo"
+ },
+ {
+  "id": "N-R-combo",
+  "lane": "noise combo",
+  "prompt": "1.  rEvErSe  tHe  sTrInG  HeLlO.  oUtPuT  OnLy  tHe  rEvErSeD  StRiNg. thx",
+  "expect": "conversational",
+  "base": "R",
+  "mut": "combo"
+ },
+ {
+  "id": "N-A-mixedcaps",
+  "lane": "noise mixedcaps",
+  "prompt": "gEt tHe cUrReNt bItCoIn pRiCe. MuLtIpLy iT By 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "mixedcaps"
+ },
+ {
+  "id": "N-A-shout",
+  "lane": "noise shout",
+  "prompt": "GET THE CURRENT BITCOIN PRICE. MULTIPLY IT BY 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "shout"
+ },
+ {
+  "id": "N-A-dblspace",
+  "lane": "noise dblspace",
+  "prompt": "get  the  current  bitcoin  price.  multiply  it  by  4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "dblspace"
+ },
+ {
+  "id": "N-A-numprefix",
+  "lane": "noise numprefix",
+  "prompt": "1. get the current bitcoin price. multiply it by 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "numprefix"
+ },
+ {
+  "id": "N-A-dashprefix",
+  "lane": "noise dashprefix",
+  "prompt": "- get the current bitcoin price. multiply it by 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "dashprefix"
+ },
+ {
+  "id": "N-A-dotprefix",
+  "lane": "noise dotprefix",
+  "prompt": ". get the current bitcoin price. multiply it by 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "dotprefix"
+ },
+ {
+  "id": "N-A-leadspace",
+  "lane": "noise leadspace",
+  "prompt": "   get the current bitcoin price. multiply it by 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "leadspace"
+ },
+ {
+  "id": "N-A-trailthx",
+  "lane": "noise trailthx",
+  "prompt": "get the current bitcoin price. multiply it by 4 thx",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "trailthx"
+ },
+ {
+  "id": "N-A-trailasap",
+  "lane": "noise trailasap",
+  "prompt": "get the current bitcoin price. multiply it by 4 pls asap",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "trailasap"
+ },
+ {
+  "id": "N-A-noqmark",
+  "lane": "noise noqmark",
+  "prompt": "get the current bitcoin price. multiply it by 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "noqmark"
+ },
+ {
+  "id": "N-A-extrapunct",
+  "lane": "noise extrapunct",
+  "prompt": "get the current bitcoin price. multiply it by 4!!!???",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "extrapunct"
+ },
+ {
+  "id": "N-A-newline",
+  "lane": "noise newline",
+  "prompt": "\n\nget the current bitcoin price. multiply it by 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "newline"
+ },
+ {
+  "id": "N-A-emoji",
+  "lane": "noise emoji",
+  "prompt": "get the current bitcoin price. multiply it by 4 \ud83d\ude4f",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "emoji"
+ },
+ {
+  "id": "N-A-typo",
+  "lane": "noise typo",
+  "prompt": "get the curent bitcon pirce. multipy it by 4",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "typo"
+ },
+ {
+  "id": "N-A-combo",
+  "lane": "noise combo",
+  "prompt": "1.  gEt  tHe  cUrReNt  bItCoIn  pRiCe.  MuLtIpLy  iT  By  4 thx",
+  "expect": "conversational",
+  "base": "A",
+  "mut": "combo"
+ },
+ {
+  "id": "N-F-mixedcaps",
+  "lane": "noise mixedcaps",
+  "prompt": "hOw mUcH Is 100 eUr iN UsD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "mixedcaps"
+ },
+ {
+  "id": "N-F-shout",
+  "lane": "noise shout",
+  "prompt": "HOW MUCH IS 100 EUR IN USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "shout"
+ },
+ {
+  "id": "N-F-dblspace",
+  "lane": "noise dblspace",
+  "prompt": "how  much  is  100  EUR  in  USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "dblspace"
+ },
+ {
+  "id": "N-F-numprefix",
+  "lane": "noise numprefix",
+  "prompt": "1. how much is 100 EUR in USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "numprefix"
+ },
+ {
+  "id": "N-F-dashprefix",
+  "lane": "noise dashprefix",
+  "prompt": "- how much is 100 EUR in USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "dashprefix"
+ },
+ {
+  "id": "N-F-dotprefix",
+  "lane": "noise dotprefix",
+  "prompt": ". how much is 100 EUR in USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "dotprefix"
+ },
+ {
+  "id": "N-F-leadspace",
+  "lane": "noise leadspace",
+  "prompt": "   how much is 100 EUR in USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "leadspace"
+ },
+ {
+  "id": "N-F-trailthx",
+  "lane": "noise trailthx",
+  "prompt": "how much is 100 EUR in USD thx",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "trailthx"
+ },
+ {
+  "id": "N-F-trailasap",
+  "lane": "noise trailasap",
+  "prompt": "how much is 100 EUR in USD pls asap",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "trailasap"
+ },
+ {
+  "id": "N-F-noqmark",
+  "lane": "noise noqmark",
+  "prompt": "how much is 100 EUR in USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "noqmark"
+ },
+ {
+  "id": "N-F-extrapunct",
+  "lane": "noise extrapunct",
+  "prompt": "how much is 100 EUR in USD!!!???",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "extrapunct"
+ },
+ {
+  "id": "N-F-newline",
+  "lane": "noise newline",
+  "prompt": "\n\nhow much is 100 EUR in USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "newline"
+ },
+ {
+  "id": "N-F-emoji",
+  "lane": "noise emoji",
+  "prompt": "how much is 100 EUR in USD \ud83d\ude4f",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "emoji"
+ },
+ {
+  "id": "N-F-typo",
+  "lane": "noise typo",
+  "prompt": "how much is 100 EUR in USD",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "typo"
+ },
+ {
+  "id": "N-F-combo",
+  "lane": "noise combo",
+  "prompt": "1.  hOw  mUcH  Is  100  eUr  iN  UsD thx",
+  "expect": "conversational",
+  "base": "F",
+  "mut": "combo"
+ }
+]

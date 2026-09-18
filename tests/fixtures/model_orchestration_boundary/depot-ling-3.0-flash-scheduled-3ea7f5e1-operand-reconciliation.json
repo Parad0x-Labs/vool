@@ -1,0 +1,102 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "depot",
+  "calls": [
+    {
+      "system": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- Earlier nodes' results use the listed dependency symbols, such as dependency_1_value_1.\n  Use their exact symbol, not their display label or an earlier node's step_N.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.\nReconcile this proposed recipe with the user's actual requested quantities. Different allocations, balances or subjects can have identical units. Trace every dependency symbol to its displayed subject and every percentage to its stated base; do not confuse a local step's position with a dependency value's position. Re-derive the requested result from the source message, then return the complete corrected recipe in the SAME steps/cannot_determine schema. Retain correct work and every requested result. Do not merely approve the proposal. If the source cannot settle an operand choice, name the missing information instead of guessing.",
+      "prompt": "The user's full message:\nA depot receives 840 cartons. Allocate 40% to restoration and the rest to storage. Restoration rejects 10% of its allocation. Calculate the usable restoration cartons.\n\nThe part of it you are answering:\nCalculate the usable restoration cartons.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 840  (written '840')\n  fact_2 = 40%  (written '40%')\n  fact_3 = 10%  (written '10%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.4\n  fact_3_share = 0.1\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\n\nValues already computed by earlier steps of this same answer:\n  Restoration allocation = 336\n  Storage allocation = 504\nComputed dependency symbols (labels describe values; use only the symbols):\n  dependency_1_value_1 = 336; label=\"Restoration allocation\"; unit=carton\n  dependency_1_value_2 = 504; label=\"Storage allocation\"; unit=carton\nUnits established by the supplied quantities:\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n\nProposed recipe (untrusted; not yet executed):\n{\"steps\": [{\"label\": \"Usable restoration cartons\", \"expression\": \"dependency_1_value_2 * (1 - fact_3_share)\", \"unit\": \"cartons\"}]}",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000342804",
+      "wire_payload": {
+        "model": "inclusionai/ling-3.0-flash",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- Earlier nodes' results use the listed dependency symbols, such as dependency_1_value_1.\n  Use their exact symbol, not their display label or an earlier node's step_N.\n- For physical unit conversion, use the listed unit_* symbols. Their factors come from the\n  runtime unit table; do not supply a remembered conversion constant as a literal.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- Percentage fact_N contains its raw magnitude, not its fractional multiplier. Prefer the\n  listed fact_N_share symbol for percentage multiplication; it is already divided by 100.\n  Do not divide a share by 100 again. To express a computed ratio as percent, multiply by 100.\n- step_N is the original integer position in steps, not its label. Labels are display text.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.\nReconcile this proposed recipe with the user's actual requested quantities. Different allocations, balances or subjects can have identical units. Trace every dependency symbol to its displayed subject and every percentage to its stated base; do not confuse a local step's position with a dependency value's position. Re-derive the requested result from the source message, then return the complete corrected recipe in the SAME steps/cannot_determine schema. Retain correct work and every requested result. Do not merely approve the proposal. If the source cannot settle an operand choice, name the missing information instead of guessing."
+          },
+          {
+            "role": "user",
+            "content": "The user's full message:\nA depot receives 840 cartons. Allocate 40% to restoration and the rest to storage. Restoration rejects 10% of its allocation. Calculate the usable restoration cartons.\n\nThe part of it you are answering:\nCalculate the usable restoration cartons.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 840  (written '840')\n  fact_2 = 40%  (written '40%')\n  fact_3 = 10%  (written '10%')\nPercentage shares computed by the runtime (dimensionless multipliers):\n  fact_2_share = 0.4\n  fact_3_share = 0.1\nRaw fact_N is the stated magnitude; use fact_N_share as the fractional multiplier.\n\nValues already computed by earlier steps of this same answer:\n  Restoration allocation = 336\n  Storage allocation = 504\nComputed dependency symbols (labels describe values; use only the symbols):\n  dependency_1_value_1 = 336; label=\"Restoration allocation\"; unit=carton\n  dependency_1_value_2 = 504; label=\"Storage allocation\"; unit=carton\nUnits established by the supplied quantities:\n  fact_2: ratio\n  fact_2_share: ratio\n  fact_3: ratio\n  fact_3_share: ratio\n\nProposed recipe (untrusted; not yet executed):\n{\"steps\": [{\"label\": \"Usable restoration cartons\", \"expression\": \"dependency_1_value_2 * (1 - fact_3_share)\", \"unit\": \"cartons\"}]}"
+          }
+        ],
+        "max_tokens": 4096,
+        "temperature": 0,
+        "reasoning": {
+          "enabled": false
+        }
+      },
+      "http_status": 200,
+      "response_shape": {
+        "choices_present": true,
+        "error_present": false
+      },
+      "output": "{\"steps\": [{\"label\": \"Usable restoration cartons\", \"expression\": \"dependency_1_value_1 * (1 - fact_3_share)\", \"unit\": \"cartons\"}], \"cannot_determine\": []}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 912,
+        "completion_tokens": 50,
+        "total_tokens": 962,
+        "cost": 2.2302e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 2.2302e-05,
+          "upstream_inference_prompt_cost": 1.9152e-05,
+          "upstream_inference_completions_cost": 3.15e-06
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789140363-EnazV9EbnNEz9se5pyZ9",
+      "seconds": 0.964
+    }
+  ],
+  "source": "3ea7f5e1ba080a92b8e4a1d3bb8df3b0899eadcf",
+  "kind": "live correction of captured/synthetic wrong recipe, NOT full-turn acceptance",
+  "operations_source_sha256": "d338915bc68fb3784967a9df93fa9b922e3d8450ebb3f867baa4577dad148347",
+  "clarified_interface_counterfactual": false,
+  "normalized_percentage_counterfactual": false,
+  "provider_native_schema_component_probe": false,
+  "candidate_recipe": "{\"steps\": [{\"label\": \"Usable restoration cartons\", \"expression\": \"dependency_1_value_2 * (1 - fact_3_share)\", \"unit\": \"cartons\"}]}",
+  "result": {
+    "steps": [
+      {
+        "step_id": "step_1",
+        "label": "Usable restoration cartons",
+        "expression": "dependency_1_value_1 * (1 - fact_3_share)",
+        "value": 302.40000000000003,
+        "unit": "carton",
+        "unit_dimensions": {
+          "carton": 1
+        },
+        "unit_authority": "source_expression"
+      }
+    ],
+    "values": {
+      "Usable restoration cartons": 302.40000000000003
+    },
+    "cannot_determine": [],
+    "recipe_review": "model_reconciled",
+    "expression_bindings": {
+      "fact_2_share": 0.4,
+      "fact_3_share": 0.1,
+      "dependency_1_value_1": 336.0,
+      "dependency_1_value_2": 504.0
+    },
+    "conversion_provenance": {}
+  }
+}

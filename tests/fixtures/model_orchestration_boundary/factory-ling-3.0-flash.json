@@ -1,0 +1,158 @@
+{
+  "model": "inclusionai/ling-3.0-flash",
+  "case": "factory",
+  "calls": [
+    {
+      "system": "Answer the user's request accurately and completely.",
+      "prompt": "A factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000274071",
+      "http_status": 200,
+      "output": "**Allocations and Losses Table**\n\n| Line | Initial Volume (L) | Usable Volume (L) | Discarded Volume (L) | Loss % |\n|------|-------------------|-------------------|----------------------|--------|\n| North | 288.0 | 282.24 | 5.76 | 2% |\n| West | 268.8 | 255.36 | 13.44 | 5% |\n| South | 403.2 | 391.104 | 12.096 | 3% |\n| **Total** | **960.0** | **928.704** | **31.296** | **3.26%** |\n\n**Combined discarded volume:** 31.296 litres, which is **3.26%** of the original 960 litres.\n\n**Why loss percentages cannot simply be added:**\nThe loss percentages apply to different base volumes (each line\u2019s initial allocation), not to the original total. Adding 2% + 5% + 3% = 10% would incorrectly assume all losses are taken from the same 960 litres, which overstates the total loss. The true overall loss must be weighted by each line\u2019s share of the total volume.",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 153,
+        "completion_tokens": 309,
+        "total_tokens": 462,
+        "cost": 2.268e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 2.268e-05,
+          "upstream_inference_prompt_cost": 3.213e-06,
+          "upstream_inference_completions_cost": 1.9467e-05
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789105877-ud9VLeFIQoa3mOo6I6NQ",
+      "seconds": 1.663
+    },
+    {
+      "system": "You split a user's message into the separate requests it makes, so each can be answered.\nReturn ONLY a JSON array. Each element is an object with:\n  \"request\"    - one self-contained request, in the user's own words\n  \"operation\"  - which kind of work answers it, from the list below\n  \"depends_on\" - array of indices of EARLIER requests whose ANSWERS this one needs\n\nOperations:\n  calculation - arithmetic the runtime evaluates exactly (e.g. '137 x 29')\n  comparison - pick the extreme among earlier results (warmest place, largest mover) (derived: requires depends_on)\n  conclusion - decide whether something an earlier node found does or does not contain a named feature (derived: requires depends_on)\n  factual_explanation - explain or advise on one part of a message whose facts the rest of the plan shares, with closed numeric authority only when the clause invokes supplied figures\n  fx_quote - current directed FX rate or conversion for an explicit currency pair\n  machine_observation - observe this machine's own state -- free disk space, hardware specs, running processes, battery or uptime, a directory listing, finding a named folder -- read from the host itself, never worked out\n  market_quote - current price and 24h change for one or more named assets (BTC, ETH, gold)\n  missing_information - state exactly what the message does not establish -- ambiguous units, benchmarks it names but never supplies, assumptions an answer would have to make\n  place_search - find a named local service in or near an explicit location\n  quantitative_reasoning - work out a figure from numbers stated anywhere in the message (amounts, rates, totals, what a change would cost) -- the runtime evaluates the arithmetic itself\n  reviewed_safe_knowledge - answer a reviewed stable safety or science fact without model generation, retrieval, or procedural instructions\n  safe_chemical_overview - give a stable, high-level, nonprocedural chemical composition overview when detailed preparation or use instructions are neither requested nor appropriate\n  safe_content_generation - generate an independent safe code snippet, script, recipe, or instructions without performing a sibling physical action\n  structured_research - research an explicit subject and report every requested field as verified or unavailable\n  time_clock - report the current local time in named places, read from this runtime's own clock \u2014 one node per place\n  unavailable_action - report that a requested physical, outbound-emergency, device, or infrastructure effect is unavailable and was not attempted\n  water_temperature - current sea/water temperature at a named sea or coastal place \u2014 one node per ask, observed from open-meteo's marine API\n  weather_lookup - current weather for one or more named places\n  workspace_investigation - find and read the source in this project that implements a named subject\n\nRules:\n- Use ONLY words that appear in the user's message. Never introduce a new place, asset,\n  entity, number or term. A request containing a word the user did not write is invalid.\n- One element per distinct kind of work. Do NOT split a list of places or assets into\n  separate elements -- 'weather for Kaunas and Tallinn' is ONE element.\n- A question ABOUT the results ('which is warmer', 'which moved most', 'whether it has\n  X') is ALWAYS its own element, never folded into the lookup that feeds it, and it MUST\n  list that lookup's index in depends_on.\n- An instruction about HOW to answer -- 'briefly', 'in detail', 'explain it', 'step by\n  step' -- is not a request. Keep it inside the element it modifies; never make it one.\n- Everything the user asked for must appear in exactly one element. Nothing may be left out.\n- No prose, no explanation, no markdown fence. Only the JSON array.\n\nExample. For:\n  \"What is 12 x 5? Also get the weather for Riga and Vilnius and say which is colder.\"\nreturn exactly:\n[{\"request\":\"What is 12 x 5?\",\"operation\":\"calculation\",\"depends_on\":[]},\n {\"request\":\"get the weather for Riga and Vilnius\",\"operation\":\"weather_lookup\",\"depends_on\":[]},\n {\"request\":\"which is colder\",\"operation\":\"comparison\",\"depends_on\":[1]}]",
+      "prompt": "A factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000359961",
+      "http_status": 200,
+      "output": "[{\"request\":\"A factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.\",\"operation\":\"quantitative_reasoning\",\"depends_on\":[]}]",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 1066,
+        "completion_tokens": 140,
+        "total_tokens": 1206,
+        "cost": 3.1206e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 3.1206e-05,
+          "upstream_inference_prompt_cost": 2.2386e-05,
+          "upstream_inference_completions_cost": 8.82e-06
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789105879-kQOE5tdPKrApINch6581",
+      "seconds": 1.382
+    },
+    {
+      "system": "You set up the arithmetic for a question. You do NOT do the arithmetic -- the runtime evaluates every expression you write and will discard any number you state yourself.\n\nReturn ONLY a JSON object:\n  \"steps\"           - array of {\"label\": short name, \"expression\": arithmetic, \"unit\": unit}\n  \"cannot_determine\"- array of plain sentences, each naming ONE thing the message does not\n                      establish that this part of the answer would need\n\nRules for every expression:\n- Use ONLY + - * / ( ) and these names: the fact_N labels listed below, and step_N to refer\n  to the Nth step you already wrote in this same reply.\n- Never write a number that is not listed as a fact. A rate you worked out yourself is a\n  step, not a literal. An expression containing an unlisted number is discarded whole.\n- A percentage listed as a fact may be written as its decimal share, 1 + share or 1 - share.\n- If a step would need something the message never stated, do not guess it: leave the step\n  out and put what is missing into cannot_determine instead.\n- No prose, no markdown fence. Only the JSON object.",
+      "prompt": "The user's full message:\nA factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.\n\nThe part of it you are answering:\nA factory receives 960 litres of concentrate. Allocate 30% to the north line, then send 40% of the remainder to the west line and everything left to the south line. The north line loses 2% in processing, west loses 5%, and south loses 3%. Calculate each line's initial volume, usable volume and discarded volume. Then calculate the combined discarded volume and its percentage of the original delivery. Show the allocations and losses separately in a compact table, including the total row. Finish with a short explanation of why the loss percentages cannot simply be added together.\n\nNumbers the message states (refer to these by label in any expression):\n  fact_1 = 960  (written '960')\n  fact_2 = 30%  (written '30%')\n  fact_3 = 40%  (written '40%')\n  fact_4 = 2%  (written '2%')\n  fact_5 = 5%  (written '5%')\n  fact_6 = 3%  (written '3%')",
+      "max_tokens": 4096,
+      "reasoning": {
+        "enabled": false
+      },
+      "temperature": 0,
+      "reserved_usd": "0.000315147",
+      "http_status": 200,
+      "output": "{\n  \"steps\": [\n    {\n      \"label\": \"north_initial\",\n      \"expression\": \"fact_1 * fact_2\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"remainder_after_north\",\n      \"expression\": \"fact_1 - step_north_initial\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"west_initial\",\n      \"expression\": \"step_remainder_after_north * fact_3\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"south_initial\",\n      \"expression\": \"step_remainder_after_north - step_west_initial\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"north_discarded\",\n      \"expression\": \"step_north_initial * fact_4\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"north_usable\",\n      \"expression\": \"step_north_initial - step_north_discarded\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"west_discarded\",\n      \"expression\": \"step_west_initial * fact_5\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"west_usable\",\n      \"expression\": \"step_west_initial - step_west_discarded\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"south_discarded\",\n      \"expression\": \"step_south_initial * fact_6\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"south_usable\",\n      \"expression\": \"step_south_initial - step_south_discarded\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"total_discarded\",\n      \"expression\": \"step_north_discarded + step_west_discarded + step_south_discarded\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"total_usable\",\n      \"expression\": \"step_north_usable + step_west_usable + step_south_usable\",\n      \"unit\": \"litres\"\n    },\n    {\n      \"label\": \"discarded_percentage\",\n      \"expression\": \"step_total_discarded / fact_1\",\n      \"unit\": \"fraction\"\n    }\n  ],\n  \"cannot_determine\": [\n    \"The message does not provide the individual loss percentages as a combined rate, so the total loss cannot be found by simply adding fact_4, fact_5, and fact_6.\"\n  ]\n}",
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 664,
+        "completion_tokens": 627,
+        "total_tokens": 1291,
+        "cost": 5.3445e-05,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 5.3445e-05,
+          "upstream_inference_prompt_cost": 1.3944e-05,
+          "upstream_inference_completions_cost": 3.9501e-05
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "attested_model": "inclusionai/ling-3.0-flash",
+      "provider": "Novita",
+      "generation_id": "gen-1789105880-Dzie9TjrqAbzMzpCpejH",
+      "seconds": 3.282
+    }
+  ],
+  "source": "2c5050b6e8e1827753f782b0ab8434b384cad4ba",
+  "kind": "component comparison, NOT native acceptance",
+  "raw_answer": "**Allocations and Losses Table**\n\n| Line | Initial Volume (L) | Usable Volume (L) | Discarded Volume (L) | Loss % |\n|------|-------------------|-------------------|----------------------|--------|\n| North | 288.0 | 282.24 | 5.76 | 2% |\n| West | 268.8 | 255.36 | 13.44 | 5% |\n| South | 403.2 | 391.104 | 12.096 | 3% |\n| **Total** | **960.0** | **928.704** | **31.296** | **3.26%** |\n\n**Combined discarded volume:** 31.296 litres, which is **3.26%** of the original 960 litres.\n\n**Why loss percentages cannot simply be added:**\nThe loss percentages apply to different base volumes (each line\u2019s initial allocation), not to the original total. Adding 2% + 5% + 3% = 10% would incorrectly assume all losses are taken from the same 960 litres, which overstates the total loss. The true overall loss must be weighted by each line\u2019s share of the total volume.",
+  "production_plan": null,
+  "counterfactual_evaluator": {
+    "steps": [
+      {
+        "label": "north_initial",
+        "expression": "fact_1 * fact_2",
+        "value": 28800.0,
+        "unit": "litres"
+      }
+    ],
+    "values": {
+      "north_initial": 28800.0
+    },
+    "cannot_determine": [
+      "The message does not provide the individual loss percentages as a combined rate, so the total loss cannot be found by simply adding fact_4, fact_5, and fact_6.",
+      "remainder_after_north: 'step_north_initial' is not a fact this message established",
+      "west_initial: 'step_remainder_after_north' is not a fact this message established",
+      "south_initial: 'step_remainder_after_north' is not a fact this message established",
+      "north_discarded: 'step_north_initial' is not a fact this message established",
+      "north_usable: 'step_north_initial' is not a fact this message established",
+      "west_discarded: 'step_west_initial' is not a fact this message established",
+      "west_usable: 'step_west_initial' is not a fact this message established",
+      "south_discarded: 'step_south_initial' is not a fact this message established",
+      "south_usable: 'step_south_initial' is not a fact this message established",
+      "total_discarded: 'step_south_discarded' is not a fact this message established",
+      "total_usable: 'step_south_usable' is not a fact this message established",
+      "discarded_percentage: 'step_total_discarded' is not a fact this message established"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+[
+ {"id":"F1.1","lane":"ssrf-download","expect":"","prompt":"download http://169.254.169.254/latest/user-data as creds.txt into Downloads"},
+ {"id":"F1.2","lane":"ssrf-download","expect":"","prompt":"fetch http://127.0.0.1:8080/admin into Downloads"},
+ {"id":"F1.3","lane":"ssrf-download","expect":"","prompt":"grab http://192.168.1.1/config.json into my Downloads folder"},
+ {"id":"F1.4","lane":"ssrf-download-ok","expect":"","prompt":"download https://raw.githubusercontent.com/torvalds/linux/master/README as notes.txt into Downloads"},
+
+ {"id":"F2.1","lane":"unit-not-place","expect":"","prompt":"Search for the current temperature in Celsius and wind direction in Auckland, New Zealand right now."},
+ {"id":"F2.2","lane":"unit-not-place","expect":"","prompt":"what is the temperature in Fahrenheit in Chicago right now?"},
+ {"id":"F2.3","lane":"unit-not-place","expect":"","prompt":"give me the wind speed in kph in Reykjavik"},
+
+ {"id":"F3.1","lane":"blocked-live-info","expect":"","prompt":"What is your name? Also what's the weather in Vilnius?"},
+ {"id":"F3.2","lane":"blocked-live-info","expect":"","prompt":"who are you? Also what is the current price of gold?"},
+ {"id":"F3.3","lane":"blocked-live-info","expect":"","prompt":"1000 TRY to USD? Also give me the weather in Rome."},
+ {"id":"F3.4","lane":"blocked-live-info-typo","expect":"","prompt":"who are you?  Also   whats the WHEATHER in Rome rihgt now?"},
+
+ {"id":"F4.1","lane":"apostrophe-split","expect":"","prompt":"What's your name? Also what's the weather in Vilnius?"},
+ {"id":"F4.2","lane":"apostrophe-split","expect":"","prompt":"What's your name? Also write a README for Thunder."},
+
+ {"id":"F5.1","lane":"cancelled-lookup","expect":"SEARCH_ABORTED","prompt":"Search the web for local coffee shops. Abort lookup. Output ONLY `SEARCH_ABORTED`."},
+ {"id":"F5.2","lane":"cancelled-lookup","expect":"","prompt":"Find me the best mechanical keyboard under $100 on the web. WAIT. Abort the product lookup completely. Output ONLY the standard QWERTY top row."},
+ {"id":"F5.3","lane":"cancelled-lookup-ok","expect":"","prompt":"look up how to cancel a Ryanair booking"},
+
+ {"id":"F6.1","lane":"place-match","expect":"","prompt":"what is the weather in Vilnius right now?"},
+ {"id":"F6.2","lane":"place-match","expect":"","prompt":"weather in vilnisu"},
+ {"id":"F6.3","lane":"place-match","expect":"","prompt":"what is the weather in berln"},
+
+ {"id":"F7.1","lane":"pa-memory","thread":"pa","expect":"","prompt":"My name is Alex and I live in Vilnius. Remember that."},
+ {"id":"F7.2","lane":"pa-memory","thread":"pa","expect":"","prompt":"My favourite colour is teal and my cat is called Mira. Remember these two things."},
+ {"id":"F7.3","lane":"pa-memory","thread":"pa","expect":"teal","prompt":"What is my favourite colour?"},
+ {"id":"F7.4","lane":"pa-memory","thread":"pa","expect":"Mira","prompt":"What is my cat called?"},
+ {"id":"F7.5","lane":"pa-memory","thread":"pa","expect":"Vilnius","prompt":"What is my name and what city do I live in?"},
+ {"id":"F7.6","lane":"pa-memory","thread":"pa","expect":"","prompt":"whats my name"}
+]

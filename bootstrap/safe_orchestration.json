@@ -1,0 +1,29 @@
+{
+  "expires_at": "2026-03-17T07:19:57.348211+00:00",
+  "published_at": "2026-03-17T07:04:57.348211+00:00",
+  "publisher_peer_id": "e5e1782db8d63f9a670447da6c8ebb4f1035425938d5f1a973ce461cd2ef9983",
+  "record_count": 1,
+  "records": [
+    {
+      "capabilities": [
+        "research",
+        "classification",
+        "ranking",
+        "validation"
+      ],
+      "capacity": 5,
+      "endpoint": {
+        "host": "188.69.178.21",
+        "port": 49152
+      },
+      "host_group_hint_hash": null,
+      "last_seen_at": "2026-03-17T07:04:27.035110+00:00",
+      "peer_id": "e5e1782db8d63f9a670447da6c8ebb4f1035425938d5f1a973ce461cd2ef9983",
+      "status": "idle",
+      "trust_score": 0.5
+    }
+  ],
+  "signature": "NcbvIXBlo1rWqSWW/TrOc4ovy9dqGv6rLn/lHpZofG5aVH0ph5r9HYvSJETx4WtsJH1V7yVRIW31n0n7e4KGBQ==",
+  "snapshot_hash": "5e8cd5d7f7276bd2ccd7ab04fbe467bcc1b1c64cd585396b88a7be14c9b2ff97",
+  "topic_name": "safe_orchestration"
+}

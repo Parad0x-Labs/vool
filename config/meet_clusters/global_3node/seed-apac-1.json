@@ -1,0 +1,48 @@
+{
+  "node_id": "seed-apac-1",
+  "public_base_url": "https://seed-apac-1.example.vool",
+  "region": "apac",
+  "role": "seed",
+  "priority": 10,
+  "bind_host": "0.0.0.0",
+  "bind_port": 8766,
+  "auth_token": "set-via-env-before-startup",
+  "sync_interval_seconds": 15,
+  "service_config": {
+    "local_region": "apac",
+    "cross_region_holder_limit": 1,
+    "max_presence_rows": 512,
+    "max_index_rows": 1000,
+    "max_delta_rows": 1000,
+    "max_payment_rows": 500,
+    "max_meet_nodes": 128
+  },
+  "replication_config": {
+    "request_timeout_seconds": 10,
+    "max_delta_rows": 1000,
+    "prefer_delta_sync": true,
+    "seed_snapshot_on_first_sync": true,
+    "local_region": "apac",
+    "cross_region_summary_only": true,
+    "cross_region_force_snapshot": true,
+    "auth_token": "set-via-env-before-startup"
+  },
+  "seed_peers": [
+    {
+      "node_id": "seed-eu-1",
+      "base_url": "https://seed-eu-1.example.vool",
+      "region": "eu",
+      "role": "seed",
+      "platform_hint": "linux",
+      "priority": 10
+    },
+    {
+      "node_id": "seed-us-1",
+      "base_url": "https://seed-us-1.example.vool",
+      "region": "us",
+      "role": "seed",
+      "platform_hint": "linux",
+      "priority": 10
+    }
+  ]
+}

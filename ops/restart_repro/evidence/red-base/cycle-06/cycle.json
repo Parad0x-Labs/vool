@@ -1,0 +1,489 @@
+{
+ "cycle": 6,
+ "ok_first_turn": false,
+ "ok_second_turn": false,
+ "stub_host": "192.168.1.73",
+ "boot1_ready_at": "2026-09-02T17:37:04.837754Z",
+ "turn1": {
+  "status": 200,
+  "content": "Locked in. I\u2019ll remember that."
+ },
+ "boot2_ready_at": "2026-09-02T17:37:06.910298Z",
+ "first_turn_after_restart": {
+  "status": 200,
+  "content": "I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered text as if it were fresh.",
+  "elapsed_s": 14.23,
+  "stub_model_calls_during_turn": 0
+ },
+ "second_turn_after_restart": {
+  "status": 200,
+  "content": "I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered text as if it were fresh."
+ },
+ "first_turn_routing_timeline": [
+  {
+   "event_type": "task_received",
+   "message": "Received request: Remember this code for our next exchange: RESTART-FIRST-2201.",
+   "ts": "2026-09-02T17:37:05.250655+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Fast-path response completed without model inference.",
+   "ts": "2026-09-02T17:37:05.536380+00:00",
+   "fallback_reason": "model_not_used",
+   "lane": "daily",
+   "task_kind": "fast_path"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Fast-path response ready: Locked in. I\u2019ll remember that.",
+   "ts": "2026-09-02T17:37:05.537424+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And now confirm you are back with: RESTART-SECOND-3302.",
+   "ts": "2026-09-02T17:37:07.250108+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:37:21.115258+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist",
+   "ranked_candidates": [
+    "ollama-local:restart-repro-stub",
+    "vllm-local:restart-repro-stub"
+   ]
+  },
+  {
+   "event_type": "model_routing_failed",
+   "message": "Autopilot blocked model execution before adapter invocation.",
+   "ts": "2026-09-02T17:37:21.117705+00:00",
+   "rejection_reason": "explicit_heavy_lane_unavailable",
+   "lane": "daily",
+   "task_kind": "normalization_assist",
+   "ranked_candidates": [
+    "ollama-local:restart-repro-stub",
+    "vllm-local:restart-repro-stub"
+   ]
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Autopilot blocked this lane before adapter invocation.",
+   "ts": "2026-09-02T17:37:21.119395+00:00",
+   "fallback_reason": "explicit_heavy_lane_unavailable",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered text as if it were fres",
+   "ts": "2026-09-02T17:37:21.152167+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And confirm once more that you still remember the code RESTART-THIRD-4403.",
+   "ts": "2026-09-02T17:37:21.303388+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:37:35.441220+00:00",
+   "lane": "daily",
+   "task_kind": "normalization_assist",
+   "ranked_candidates": [
+    "ollama-local:restart-repro-stub",
+    "vllm-local:restart-repro-stub"
+   ]
+  },
+  {
+   "event_type": "model_routing_failed",
+   "message": "Autopilot blocked model execution before adapter invocation.",
+   "ts": "2026-09-02T17:37:35.443120+00:00",
+   "rejection_reason": "explicit_heavy_lane_unavailable",
+   "lane": "daily",
+   "task_kind": "normalization_assist",
+   "ranked_candidates": [
+    "ollama-local:restart-repro-stub",
+    "vllm-local:restart-repro-stub"
+   ]
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Autopilot blocked this lane before adapter invocation.",
+   "ts": "2026-09-02T17:37:35.444782+00:00",
+   "fallback_reason": "explicit_heavy_lane_unavailable",
+   "lane": "daily",
+   "task_kind": "normalization_assist"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered text as if it were fres",
+   "ts": "2026-09-02T17:37:35.503598+00:00"
+  }
+ ],
+ "all_events": [
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-061d0d5072e840348b2c3303589ca9d0 created (unknown mode).",
+   "ts": "2026-09-02T17:37:05.213737+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: Remember this code for our next exchange: RESTART-FIRST-2201.",
+   "ts": "2026-09-02T17:37:05.250655+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Fast-path response completed without model inference.",
+   "ts": "2026-09-02T17:37:05.536380+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Fast-path response ready: Locked in. I\u2019ll remember that.",
+   "ts": "2026-09-02T17:37:05.537424+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 8 gates consulted, preempted by turn_frontdoor",
+   "ts": "2026-09-02T17:37:05.567268+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-061d0d5072e840348b2c3303589ca9d0 -> SUCCEEDED.",
+   "ts": "2026-09-02T17:37:05.568958+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:37:05.585512+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-0539a56a858a41d8bdbcce5858a150c9 created (unknown mode).",
+   "ts": "2026-09-02T17:37:07.227617+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And now confirm you are back with: RESTART-SECOND-3302.",
+   "ts": "2026-09-02T17:37:07.250108+00:00"
+  },
+  {
+   "event_type": "task_classified",
+   "message": "Task classified as unknown.",
+   "ts": "2026-09-02T17:37:07.432676+00:00"
+  },
+  {
+   "event_type": "web_retrieval_started",
+   "message": "Started an authorized web retrieval.",
+   "ts": "2026-09-02T17:37:07.461374+00:00"
+  },
+  {
+   "event_type": "web_retrieval_completed",
+   "message": "Web retrieval: Browser search \u00b7 4 sources",
+   "ts": "2026-09-02T17:37:14.371730+00:00"
+  },
+  {
+   "event_type": "web_retrieval_started",
+   "message": "Started an authorized web retrieval.",
+   "ts": "2026-09-02T17:37:14.373452+00:00"
+  },
+  {
+   "event_type": "web_retrieval_completed",
+   "message": "Web retrieval: Browser search \u00b7 3 sources",
+   "ts": "2026-09-02T17:37:21.071563+00:00"
+  },
+  {
+   "event_type": "evidence_bound_to_synthesis",
+   "message": "Bound 6 retrieved source(s) into the answering model call.",
+   "ts": "2026-09-02T17:37:21.082621+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:37:21.115258+00:00"
+  },
+  {
+   "event_type": "model_routing_failed",
+   "message": "Autopilot blocked model execution before adapter invocation.",
+   "ts": "2026-09-02T17:37:21.117705+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Autopilot blocked this lane before adapter invocation.",
+   "ts": "2026-09-02T17:37:21.119395+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered text as if it were fresh.",
+   "ts": "2026-09-02T17:37:21.152167+00:00"
+  },
+  {
+   "event_type": "grounding_required",
+   "message": "This turn needs current information; its grounding lifecycle is open.",
+   "ts": "2026-09-02T17:37:21.166995+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 9 gates consulted, preempted by nothing",
+   "ts": "2026-09-02T17:37:21.218355+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-0539a56a858a41d8bdbcce5858a150c9 -> SUCCEEDED.",
+   "ts": "2026-09-02T17:37:21.220252+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:37:21.264120+00:00"
+  },
+  {
+   "event_type": "grounding_publication",
+   "message": "Grounding lifecycle published: every stage reached.",
+   "ts": "2026-09-02T17:37:21.282400+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_created",
+   "message": "Runtime attempt attempt-554be08f7b554ba4886972ed8deb89e1 created (unknown mode).",
+   "ts": "2026-09-02T17:37:21.296764+00:00"
+  },
+  {
+   "event_type": "task_received",
+   "message": "Received request: And confirm once more that you still remember the code RESTART-THIRD-4403.",
+   "ts": "2026-09-02T17:37:21.303388+00:00"
+  },
+  {
+   "event_type": "task_classified",
+   "message": "Task classified as unknown.",
+   "ts": "2026-09-02T17:37:21.350557+00:00"
+  },
+  {
+   "event_type": "web_retrieval_started",
+   "message": "Started an authorized web retrieval.",
+   "ts": "2026-09-02T17:37:21.463674+00:00"
+  },
+  {
+   "event_type": "web_retrieval_completed",
+   "message": "Web retrieval: Browser search \u00b7 4 sources",
+   "ts": "2026-09-02T17:37:28.451791+00:00"
+  },
+  {
+   "event_type": "web_retrieval_started",
+   "message": "Started an authorized web retrieval.",
+   "ts": "2026-09-02T17:37:28.453664+00:00"
+  },
+  {
+   "event_type": "web_retrieval_completed",
+   "message": "Web retrieval: Browser search \u00b7 3 sources",
+   "ts": "2026-09-02T17:37:35.426636+00:00"
+  },
+  {
+   "event_type": "evidence_bound_to_synthesis",
+   "message": "Bound 6 retrieved source(s) into the answering model call.",
+   "ts": "2026-09-02T17:37:35.432532+00:00"
+  },
+  {
+   "event_type": "model_routing_started",
+   "message": "Autopilot routed normalization_assist through the daily lane.",
+   "ts": "2026-09-02T17:37:35.441220+00:00"
+  },
+  {
+   "event_type": "model_routing_failed",
+   "message": "Autopilot blocked model execution before adapter invocation.",
+   "ts": "2026-09-02T17:37:35.443120+00:00"
+  },
+  {
+   "event_type": "model_lane_proof",
+   "message": "Autopilot blocked this lane before adapter invocation.",
+   "ts": "2026-09-02T17:37:35.444782+00:00"
+  },
+  {
+   "event_type": "task_completed",
+   "message": "Completed task with final response: I couldn't get a usable model response in this run, so I'm not going to recycle cached or remembered text as if it were fresh.",
+   "ts": "2026-09-02T17:37:35.503598+00:00"
+  },
+  {
+   "event_type": "grounding_required",
+   "message": "This turn needs current information; its grounding lifecycle is open.",
+   "ts": "2026-09-02T17:37:35.526480+00:00"
+  },
+  {
+   "event_type": "semantic_resolution_receipt",
+   "message": "Resolution: 9 gates consulted, preempted by nothing",
+   "ts": "2026-09-02T17:37:35.578985+00:00"
+  },
+  {
+   "event_type": "runtime_attempt_completed",
+   "message": "Runtime attempt attempt-554be08f7b554ba4886972ed8deb89e1 -> SUCCEEDED.",
+   "ts": "2026-09-02T17:37:35.580824+00:00"
+  },
+  {
+   "event_type": "turn.trace_completed",
+   "message": "Turn trace completed.",
+   "ts": "2026-09-02T17:37:35.655860+00:00"
+  },
+  {
+   "event_type": "grounding_publication",
+   "message": "Grounding lifecycle published: every stage reached.",
+   "ts": "2026-09-02T17:37:35.682502+00:00"
+  }
+ ],
+ "stub_calls_full_log": [
+  {
+   "ts": 1788370624.752,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370624.753,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370625.012,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370625.261,
+   "path": "CONNECT api.coingecko.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370626.836,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370626.837,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370627.046,
+   "path": "/api/tags",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370627.259,
+   "path": "CONNECT api.coingecko.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370630.978,
+   "path": "CONNECT support.microsoft.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370630.98,
+   "path": "CONNECT account.live.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370634.368,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370634.37,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370637.797,
+   "path": "CONNECT www.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370637.799,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370641.067,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370641.07,
+   "path": "CONNECT www.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370641.105,
+   "path": "/api/ps",
+   "status": 200,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370645.03,
+   "path": "CONNECT support.google.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370645.033,
+   "path": "CONNECT support.google.com:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370648.448,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370648.45,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370652.207,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370652.209,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370655.423,
+   "path": "CONNECT en.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370655.425,
+   "path": "CONNECT www.wikipedia.org:443",
+   "status": 502,
+   "last_user": ""
+  },
+  {
+   "ts": 1788370655.439,
+   "path": "/api/ps",
+   "status": 200,
+   "last_user": ""
+  }
+ ]
+}
