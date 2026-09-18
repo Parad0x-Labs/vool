@@ -33,4 +33,4 @@ solders>=0.21
 # Apple Calendar (EventKit) native adapter: the pyobjc binding the packaged host needs on
 # macOS. Without it the eventkit adapter reports its typed os_binding_unavailable state and
 # Apple Calendar stays honestly unsupported; with it the adapter runs against the real store.
-pyobjc-framework-EventKit>=12.0; sys_platform == "darwin"
+pyobjc-framework-EventKit>=12.2.2; sys_platform == "darwin"
