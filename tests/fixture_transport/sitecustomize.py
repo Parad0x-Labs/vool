@@ -35,8 +35,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from email.message import Message
+from pathlib import Path
 
 _MANIFEST = os.environ.get("VOOL_FIXTURE_TRANSPORT_MANIFEST", "").strip()
 

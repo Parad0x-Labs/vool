@@ -29,6 +29,7 @@ import json
 import os
 import re
 import subprocess
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -422,6 +423,23 @@ def _boot(served_factory, workspace_files: dict[str, str], policy: GuidedRepair)
         provider.__exit__(None, None, None)
         pytest.skip(f"served daemon could not boot here: {exc}")
     run_in_home(rig["home"], SEED_MANIFEST.format(root=REPO_ROOT, base_url=provider.base_url, registered=[MODEL]))
+    # Certify the scripted stub for final-answer authorship the way an operator's probe run
+    # would (same authority as the wallet/blackbox rigs): the precall fence refuses an
+    # uncertified local author, and this rig's drives must be callable authors.
+    run_in_home(
+        rig["home"],
+        textwrap.dedent(
+            f'''
+            import sys
+            sys.path.insert(0, "{REPO_ROOT}")
+            from storage.model_provider_manifest import list_provider_manifests
+            from tests._authorship_certification import certify_for_authorship
+            for m in list_provider_manifests():
+                if m.model_name == "{MODEL}":
+                    print("certified", m.model_name, certify_for_authorship(m))
+            '''
+        ),
+    )
     provider.reset()
     rig.update(daemon=daemon, provider=provider)
     rig["made"].append((daemon, provider))
