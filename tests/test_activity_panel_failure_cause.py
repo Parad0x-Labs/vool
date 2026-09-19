@@ -66,13 +66,21 @@ def _slice(source: str, start: str, end: str) -> str:
 
 
 def _ledger_js() -> str:
-    """The real esc/panelRow/ledger* source, lifted verbatim out of the page."""
+    """The real esc/pageT/pageTF/panelRow/ledger* source, lifted verbatim out of the page."""
     source = _script()
     esc = re.search(r"^function esc\(t\) \{.*$", source, re.MULTILINE)
     assert esc, "esc() not found in the chat page script"
+    # The i18n bootstrap's mirrored formatter (walkBraced/branches/fmt) is lifted too and
+    # published as VOOLFMT exactly as the served page does, so pageTF's plural-carrying
+    # fallbacks format identically under node and in the browser.
+    fmt_helpers = _slice(source, "function walkBraced(", "function pick(")
     return "\n".join(
         [
             esc.group(0),
+            fmt_helpers,
+            "globalThis.VOOLFMT = fmt;",
+            _slice(source, "function pageT(", "function pageTF("),
+            _slice(source, "function pageTF(", "const queueEl"),
             _slice(source, "function panelRow(", "const LEDGER_SKIP"),
             _slice(source, "const LEDGER_SKIP", "function ledgerRanNoTool"),
         ]

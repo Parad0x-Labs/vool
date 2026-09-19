@@ -36,8 +36,12 @@ choose the burst mode. `ask` mode's per-call prompt is not wired yet in this bui
 
 ## Wallet says a network is inactive or disabled
 
-That is by design: the wallet is disabled by default, the x402 spend lane is disabled in this
-build, and mainnet is impossible by construction. See the
+That is by design: the wallet is disabled by default, and the two network environments
+(Mainnet / Test networks) never mix — a request for a network in the other environment is
+refused with nothing created or signed. Switch deliberately in Settings → Crypto → Developer
+options. The earlier claim that "mainnet is impossible by construction" predates the Crypto
+Pilot and is no longer true: mainnet rows exist (native-coin transfers; the sole mainnet token,
+USDC on Solana, exists for the x402 payment lane only). See the
 [Wallet & Web0 guide](WALLET_WEB0_GUIDE.md) for what is enabled and how.
 
 ## Reporting bugs safely

@@ -1,0 +1,368 @@
+{
+  "schema": "vool.localization-handoff/1",
+  "generated_for": "Worker B (localized strings & shared UI presentation)",
+  "fault_schema": "vool.fault.v1",
+  "catalog_version": 1,
+  "contract": [
+    "Machine codes (fault codes, effect states, storage states) are language-independent and never translated.",
+    "Keys are append-only: a key is never renamed; a meaning change bumps catalog_version and re-handoff.",
+    "A translated message must preserve the effect-state truth of the English source (no certainty the source does not claim).",
+    "This manifest is generated from core/faults/catalog.py; regenerate after registry changes, never hand-edit."
+  ],
+  "keys": [
+    {
+      "key": "fault.cancelled.message",
+      "english": "This was cancelled, so it did not finish.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'cancelled' reaches the user. Effect state 'uncertain' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.confinement_refusal.message",
+      "english": "A file change outside the allowed scope was blocked. Nothing outside the scope was touched.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'confinement_refusal' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.credential_failure.message",
+      "english": "A stored credential could not be read. Re-enter it in settings to continue.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'credential_failure' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.evidence_corruption.message",
+      "english": "This answer's supporting records failed a consistency check, so treat the answer as unverified.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'evidence_corruption' reaches the user. Effect state 'local' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.evm_pocket_custody_unavailable.message",
+      "english": "EVM keys cannot be held on this device: use watch-only or an external wallet signer. Nothing was created.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'evm_pocket_custody_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.integrity_verification_failure.message",
+      "english": "A record failed its tamper-evidence check. Nothing was silently accepted.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'integrity_verification_failure' reaches the user. Effect state 'local' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.permission_denied.message",
+      "english": "That action was not permitted, so nothing was changed.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'permission_denied' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.provider_exhausted.message",
+      "english": "The model provider's usage limit is reached. You can try again later.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'provider_exhausted' reaches the user. Effect state 'contacted' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.provider_unavailable.message",
+      "english": "The model provider could not be reached. You can try again in a moment.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'provider_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.timeout.message",
+      "english": "This took too long and was stopped. Trying again may succeed.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'timeout' reaches the user. Effect state 'uncertain' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.tool_unavailable.message",
+      "english": "That tool is not available right now, so this part was not done. Enabling it is needed before you retry.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'tool_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.unknown.message",
+      "english": "Something went wrong on this machine while handling that. You can try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'unknown' reaches the user. Effect state 'uncertain' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.unsupported_claim.message",
+      "english": "One or more statements were not supported by the retrieved sources and were withheld.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'unsupported_claim' reaches the user. Effect state 'local' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_amount_invalid.message",
+      "english": "That amount is not an exact amount this coin can hold, so nothing was proposed. Check the amount, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_amount_invalid' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_approval_rejected.message",
+      "english": "The approval for this payment was not accepted, so nothing was signed or sent.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_approval_rejected' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_backup_unavailable.message",
+      "english": "This wallet's backup key was already shown once, so it cannot be shown again. If you did not save it, cancel setup and do not send funds to this address.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_backup_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_broadcast_failed.message",
+      "english": "The payment could not be broadcast. Check its status before retrying.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_broadcast_failed' reaches the user. Effect state 'uncertain' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_caller_refused.message",
+      "english": "This wallet action can only be started from VOOL's own window on this computer, so nothing was changed, signed or sent. Open VOOL and try again there.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_caller_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_card_data_refused.message",
+      "english": "Card numbers and security codes are never stored here; only a provider token is accepted. Nothing was saved.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_card_data_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_chain_identity_mismatch.message",
+      "english": "The chain endpoint did not prove the identity of the network it claims to be, so nothing was signed or sent.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_chain_identity_mismatch' reaches the user. Effect state 'contacted' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_confirmation_required.message",
+      "english": "That step needs the typed confirmation first, so nothing was changed. Confirm it, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_confirmation_required' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_credential_mismatch.message",
+      "english": "The two entries did not match, so nothing was created. Enter the same PIN or password twice, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_credential_mismatch' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_dependency_unavailable.message",
+      "english": "This build cannot do EVM signing or ABI encoding: the Ethereum libraries are not installed on this machine. Nothing was signed or sent. Solana, custody and spend ceilings are unaffected; once the libraries are installed, try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_dependency_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_disabled.message",
+      "english": "The wallet is switched off, so no payment was proposed or sent. Enable it first, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_disabled' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_duplicate_payment.message",
+      "english": "This payment was already proposed or sent, so it was not sent again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_duplicate_payment' reaches the user. Effect state 'local' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_environment_inactive.message",
+      "english": "That network belongs to the other network environment (Mainnet or Test networks), so nothing was created, proposed or signed. Switch in Settings, Crypto, Developer options, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_environment_inactive' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_export_refused.message",
+      "english": "Private keys are never exported by this runtime. The recovery phrase is shown once at creation and nowhere else. Nothing was revealed.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_export_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_insufficient_funds.message",
+      "english": "The balance does not cover the amount plus the most this network fee can be, so nothing was prepared. Lower the amount or add funds, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_insufficient_funds' reaches the user. Effect state 'contacted' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_legacy_surface_retired.message",
+      "english": "That money path is retired: every payment goes through the wallet's proposal and approval flow. Nothing was signed or sent.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_legacy_surface_retired' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_limit_exceeded.message",
+      "english": "That payment is above a spending limit, so it was not sent.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_limit_exceeded' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_network_disabled.message",
+      "english": "That network is not one this wallet declares for this action, so nothing was created or sent.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_network_disabled' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_not_found.message",
+      "english": "That wallet, proposal or destination was not recognised, so nothing was done. Check it and try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_not_found' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_outbound_refused.message",
+      "english": "That request was not allowed to leave the wallet's approved endpoints, so no connection was made.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_outbound_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_pin_invalid.message",
+      "english": "The PIN did not meet the policy or did not unlock the wallet, so nothing was signed. Check the PIN and try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_pin_invalid' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_quote_expired.message",
+      "english": "This transfer preview expired or was replaced, so it cannot be approved and nothing was sent. Refresh the preview, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_quote_expired' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_quote_mismatch.message",
+      "english": "The approval no longer matches the transfer that was previewed, so nothing was signed or sent. Start again from a fresh preview.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_quote_mismatch' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_quote_unavailable.message",
+      "english": "The network did not give a complete answer for this transfer's balance or fee, so no approval was prepared and nothing was sent. Try again in a moment.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_quote_unavailable' reaches the user. Effect state 'contacted' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_recipient_refused.message",
+      "english": "That recipient cannot safely receive this transfer on this network, so nothing was prepared. Check the address, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_recipient_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_recovery_refused.message",
+      "english": "That recovery proof does not fit this wallet, so nothing was changed: the saved key must be the backup VOOL showed for this exact address, in the format it was shown. Check it and try again, or use the other options.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_recovery_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_request_ambiguous.message",
+      "english": "More than one account or network fits this transfer, so nothing was proposed. Say which account or network you mean, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_request_ambiguous' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_setup_state_invalid.message",
+      "english": "That setup step does not apply to this wallet right now, so nothing changed. Check the wallet's setup status, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_setup_state_invalid' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_signature_invalid.message",
+      "english": "The signature returned for this payment did not match the wallet's key, so it was not broadcast.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_signature_invalid' reaches the user. Effect state 'contacted' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_signing_unavailable.message",
+      "english": "This wallet cannot sign from here: it is watch-only or its external signer is not connected. Nothing was sent; connect a signer, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_signing_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_simulation_failed.message",
+      "english": "The payment did not pass simulation, so it was not sent. Check the balance and destination, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_simulation_failed' reaches the user. Effect state 'contacted' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_storage_class_refused.message",
+      "english": "This installation keeps its device key only in memory, so a wallet created here could not be opened after a restart. Nothing was created. Switch key storage to a lasting mode, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_storage_class_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_unlock_throttled.message",
+      "english": "There were too many wrong PIN or password attempts, so this wallet is locked for a while and nothing was unlocked. Wait, then try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_unlock_throttled' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.wallet_x402_cap_exceeded.message",
+      "english": "A paid resource asked for more than the automatic payment cap, so it was not paid.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_x402_cap_exceeded' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
+      "key": "fault.x402_scheme_unavailable.message",
+      "english": "This payment offer needs a scheme this wallet cannot prove end to end, so nothing was signed. Try an offer whose scheme, token and facilitator are verified for this network.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'x402_scheme_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    }
+  ],
+  "boundary_states": [
+    {
+      "boundary": "startup",
+      "codespace": "process exit + boot log"
+    },
+    {
+      "boundary": "update",
+      "codespace": "core.updater.status.UpdateFault"
+    },
+    {
+      "boundary": "project_workspace",
+      "codespace": "workspace root_reason"
+    },
+    {
+      "boundary": "filesystem_tool_execution",
+      "codespace": "vool.fault.v1"
+    },
+    {
+      "boundary": "permissions",
+      "codespace": "vool.fault.v1"
+    },
+    {
+      "boundary": "provider_credentials",
+      "codespace": "vool.fault.v1 + attempt evidence"
+    },
+    {
+      "boundary": "provider_network_limits",
+      "codespace": "vool.fault.v1 + ProviderErrorClass"
+    },
+    {
+      "boundary": "model_availability",
+      "codespace": "routing block reasons"
+    },
+    {
+      "boundary": "price_budget_approvals",
+      "codespace": "reservation denial codes"
+    },
+    {
+      "boundary": "wallet_payment",
+      "codespace": "vool.fault.v1 wallet family"
+    },
+    {
+      "boundary": "contacts",
+      "codespace": "ContactsError.reason"
+    },
+    {
+      "boundary": "plugin_skill_loading",
+      "codespace": "plugin storage states + typed contract violations"
+    },
+    {
+      "boundary": "attachments",
+      "codespace": "AttachmentRefused.code"
+    },
+    {
+      "boundary": "storage",
+      "codespace": "StoreVersionError.code"
+    },
+    {
+      "boundary": "voice",
+      "codespace": "DictationUnavailable.code"
+    },
+    {
+      "boundary": "reporting",
+      "codespace": "submission failure codes"
+    }
+  ]
+}

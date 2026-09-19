@@ -302,18 +302,27 @@ class ExecutionGate:
                     {"decision": "blocked", "reason": "Command contains blocked destructive markers."},
                     mode=mode,
                 )
-        if any(marker in text for marker in ("&&", "||", ";", "|", "`", "$(", "\n")):
-            return _receipted(
-                DECISION_DENIED,
-                {"decision": "blocked", "reason": "Compound shell syntax is not allowed in sandbox commands."},
-                mode=mode,
-            )
         try:
             argv = shlex.split(text, posix=True)
         except ValueError:
             return _receipted(
                 DECISION_DENIED,
-                {"decision": "blocked", "reason": "Command could not be parsed safely."},
+                {"decision": "blocked", "reason": "Compound shell syntax is not allowed in sandbox commands."},
+                mode=mode,
+            )
+        # TOKEN-LEVEL compound guard. The sandbox executes argv directly (never a shell),
+        # so a metacharacter inside a QUOTED argument (python -c 'import x; do_y()',
+        # grep 'foo|bar') is data, not composition. A marker as its OWN token — or a
+        # newline anywhere — still separates commands and stays blocked. The previous
+        # raw-text scan was quote-blind and refused every legitimate `python -c` repro
+        # step a code task produces.
+        if "\n" in text or any(
+            token in {"&&", "||", ";", "|", "`"} or token.startswith("$(")
+            for token in argv
+        ):
+            return _receipted(
+                DECISION_DENIED,
+                {"decision": "blocked", "reason": "Compound shell syntax is not allowed in sandbox commands."},
                 mode=mode,
             )
         if not argv:

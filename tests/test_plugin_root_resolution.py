@@ -304,7 +304,7 @@ def test_the_bundled_packs_skill_copy_is_a_valid_typed_contract(world, monkeypat
         "the pack's skill copy diverged from the native skill it mirrors"
     )
     # And the copy passes the same typed law the native library enforces.
-    from core.native_skill_library import contract_from_frontmatter, contract_violations, _frontmatter_of
+    from core.native_skill_library import _frontmatter_of, contract_from_frontmatter, contract_violations
 
     front = _frontmatter_of(copies[0])
     contract = contract_from_frontmatter(front, path=str(copies[0]), source="plugin:vool-database")

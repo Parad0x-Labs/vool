@@ -1,35 +1,59 @@
-# VOOL Docs
+---
+description: VOOL is a desktop AI assistant that runs AI models locally on your computer or connects to cloud models with your own key. Free, private, for Mac, Windows and Linux.
+---
 
-Shortest accurate path through the repo. VOOL is a local-first AI agent runtime (beta) —
-it runs on your machine, uses memory and tools, and can optionally reach further.
+# VOOL
+
+VOOL is a desktop AI assistant. It installs as an application on your computer and can
+run AI models locally on that machine, or connect to a cloud AI provider using your own
+API key. It keeps a readable record of every action it takes.
+
+It is free, works offline with local models, and runs on macOS, Windows and Linux.
+
+These docs cover installing VOOL, connecting a model, and the concepts behind how it
+handles your files, your memory, and your keys.
 
 ## Start here
 
-- [../README.md](../README.md) — product overview, install, first run
-- [INSTALL.md](INSTALL.md) — install options, manual launch, first local URLs
-- [STATUS.md](STATUS.md) — what is real, what is weak, what is still beta
-- [UPGRADE_NULLA_TO_VOOL.md](UPGRADE_NULLA_TO_VOOL.md) — upgrading from a NULLA install
+| If you want to | Read |
+| --- | --- |
+| Get VOOL running | [Install](getting-started/install.md) |
+| Understand the first screen | [First run](getting-started/first-run.md) |
+| Point it at a model | [Connect a model](getting-started/connect-a-model.md) |
+| Control what spending can happen | [Spending limits](guides/spending-limits.md) |
+| Know what leaves your machine | [Local and cloud](concepts/local-and-cloud.md) |
 
-## Understanding the system
+## What VOOL is
 
-- [RUNTIME_ARCHITECTURE_CONTRACT.md](RUNTIME_ARCHITECTURE_CONTRACT.md) — request flow, model selection, tools, permissions, money boundaries, storage, receipts
-- [SYSTEM_SPINE.md](SYSTEM_SPINE.md) — the one-system architecture view
-- [CONTROL_PLANE.md](CONTROL_PLANE.md) — canonical startup and runtime map
-- [REPO_MAP.md](REPO_MAP.md) — what lives where in this repository
-- [VOOL_IDENTITY_COMPATIBILITY_MAP.md](VOOL_IDENTITY_COMPATIBILITY_MAP.md) — what the NULLA→VOOL rename changed and what stayed frozen
+* **A desktop application.** It installs on your computer — not a browser tab, not a
+  hosted service.
+* **Works offline.** With a local model selected, VOOL needs no internet connection.
+* **Local by default.** With a local model selected, prompts and files are processed
+  on your machine.
+* **Model-agnostic.** Local runtimes and cloud providers are both selectable. You supply
+  the cloud key; it stays on your machine.
+* **Inspectable.** Every tool call is recorded with its inputs and results, so a run can
+  be read back after the fact.
 
-## Operating it
+{% hint style="warning" %}
+VOOL for macOS is out as a beta for Apple silicon. Beta installers are unsigned and the
+macOS build is not notarized — macOS will ask you to confirm on first launch. See
+[Release status](trust/release-status.md) before installing.
+{% endhint %}
 
-- [CONFIGURATION.md](CONFIGURATION.md) — settings and environment variables
-- [PROVIDERS.md](PROVIDERS.md) — BYOK, UsePod prepaid, wallet/x402 lanes
-- [WALLET_WEB0_GUIDE.md](WALLET_WEB0_GUIDE.md) — optional crypto: custody, spending controls, fees
-- [ERROR_BOOK.md](ERROR_BOOK.md) — every fault code, generated from the runtime catalog
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — common problems and fixes
-- [SAFE_BUG_REPORTER.md](SAFE_BUG_REPORTER.md) — the redacted, preview-gated bug reporter
+## Two modes, stated plainly
 
-## Deeper references
+VOOL distinguishes exactly two states, and the interface always shows which one is active:
 
-- [AUTHORITY_MAP.md](AUTHORITY_MAP.md), [TOOL_PERMISSION_AUTHORITY.md](TOOL_PERMISSION_AUTHORITY.md), [SANDBOX_PROCESS_CONFINEMENT.md](SANDBOX_PROCESS_CONFINEMENT.md), [TRUST.md](TRUST.md), [SPEND_CAPS.md](SPEND_CAPS.md)
-- Feature contracts: [BRAIN_HIVE_*.md](BRAIN_HIVE_ARCHITECTURE.md), [MEET_AND_GREET_*.md](MEET_AND_GREET_API_CONTRACT.md), [SEARCH_API_BYOK.md](SEARCH_API_BYOK.md), [x402-proof.md](x402-proof.md)
-- Platform honesty: [APPLE_CAPABILITY_MATRIX.md](APPLE_CAPABILITY_MATRIX.md), [WINDOWS_CAPABILITY_MATRIX.md](WINDOWS_CAPABILITY_MATRIX.md)
-- Legal: [LICENSING_MATRIX.md](LICENSING_MATRIX.md), [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)
+1. **Local** — the work stays on this computer.
+2. **Cloud** — the selected context is sent directly to the provider you selected,
+   from your machine, using your key.
+
+There is no third state, and there is no Parad0x-operated relay in between. The detail
+is in [Data handling](trust/data-handling.md).
+
+## Getting help
+
+* [FAQ](help/faq.md) — the questions that come up most
+* [Troubleshooting](help/troubleshooting.md) — when something does not start
+* [Discord](https://discord.gg/V9NkjP3Fzz) — ask the team

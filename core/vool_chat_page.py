@@ -1439,6 +1439,12 @@ const sendEl = document.getElementById('send');
 // Catalog lookup for the composer's own words: the deterministic i18n bundle resolves the
 // key when the UI locale carries it; otherwise the inline English is the honest fallback
 // (and a label never blanks because a catalog is missing).
+// The app UI locale as a BCP-47 tag for Intl formatting (dates, grouped numbers). Undefined
+// falls back to the host locale — the historical behavior — so a page without a bundle is
+// unchanged. Model ANSWER language is deliberately not consulted here.
+function appLocale() {
+  try { return (window.VOOL_I18N && window.VOOL_I18N.tag) || undefined; } catch (e) { return undefined; }
+}
 function pageT(key, fallback) {
   try {
     if (typeof VOOLT === 'function') {
@@ -1449,12 +1455,10 @@ function pageT(key, fallback) {
   return fallback;
 }
 // The {param}-carrying twin: the bundle's own formatter resolves the locale's
-// placeholders; the inline English fallback formats identically when no bundle ships.
+// placeholders AND its ICU-lite plurals; the inline English fallback formats identically
+// when no bundle ships (plural fallbacks need the same resolver, not a flat replace).
 function pageTF(key, fallback, params) {
   const t = pageT(key, fallback);
-  if (t === fallback) {
-    return String(t).replace(/\{(\w+)\}/g, (_, k) => ((params && params[k] != null) ? params[k] : ''));
-  }
   try {
     if (typeof VOOLFMT === 'function') return VOOLFMT(t, params || {});
   } catch (e) {}
@@ -2318,7 +2322,7 @@ function setMsgTime(el, tsIso) {
   let t = el.querySelector('.msg-time');
   if (!t) { t = document.createElement('span'); t.className = 'msg-time'; el.appendChild(t); }
   t.textContent = text;
-  t.title = new Date(tsIso).toLocaleString();
+  t.title = new Date(tsIso).toLocaleString(appLocale());
 }
 function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   const empty = logEl.querySelector('.empty');
@@ -3522,7 +3526,7 @@ function fmtElapsed(ms) {
   const m = Math.floor(s / 60), r = s % 60;
   return m + 'm ' + (r < 10 ? '0' : '') + r + 's';
 }
-function fmtUsd(c) { if (!c) return ''; const u = c.usd_actual; return (typeof u === 'number' && u > 0) ? ('$' + u.toFixed(4)) : ''; }
+function fmtUsd(c) { if (!c) return ''; const u = c.usd_actual; if (typeof u !== 'number' || !(u > 0)) return ''; try { return u.toLocaleString(appLocale(), { style: 'currency', currency: 'USD', minimumFractionDigits: 4, maximumFractionDigits: 4 }); } catch (e) { return '$' + u.toFixed(4); } }
 // Agent durations are routinely sub-second -- a live-data fetch measured 491ms on the served
 // surface -- and `fmtElapsed` floors to whole seconds, so every fast agent read "0s" and looked
 // like it had not run. Below a second, report milliseconds; above it, defer to the shared
@@ -4987,9 +4991,17 @@ function ledgerProviderName(e) {
 function ledgerUsePodReceipt(e) {
   const r = e.provider_receipt;
   if (!r || typeof r !== 'object' || String(r.schema || '') !== 'vool.usepod.receipt.v1') return '';
-  const bits = ['UsePod receipt'];
+  // Localized prose, deterministic values: every sentence resolves through the i18n bundle
+  // (pageTF) with the technical fragment as a structured parameter, so a locale changes the
+  // WORDS and never the amounts, identifiers or state codes. The amount params are exact
+  // pre-formatted strings — locale must never re-parse or round a charge.
+  const bits = [pageT('usepod.receipt.header', 'UsePod receipt')];
   const route = r.route || {};
-  if (route.class) bits.push('route ' + String(route.class) + (route.provider_id ? ' (' + String(route.provider_id).slice(0, 12) + '…)' : '') + (route.compliance ? ', ' + String(route.compliance) : ''));
+  if (route.class) bits.push(pageTF('usepod.receipt.route', 'route {route_class}{provider_part}{compliance_part}', {
+    route_class: String(route.class),
+    provider_part: route.provider_id ? ' (' + String(route.provider_id).slice(0, 12) + '…)' : '',
+    compliance_part: route.compliance ? ', ' + String(route.compliance) : '',
+  }));
   const cost = r.cost || {};
   const x = r.x402 || {};
   const accountless = String(r.transport_mode || '') === 'x402';
@@ -5005,46 +5017,51 @@ function ledgerUsePodReceipt(e) {
   const paidUnit = String(cost.unit || 'usdc_microunit');
   // Route ceilings and usage estimates are priced in USDC microunits whatever asset paid.
   const pricingUnit = String(r.pricing_unit || 'usdc_microunit');
-  if (cost.exact_atomic != null) bits.push('charged ' + amount(cost.exact_atomic, paidUnit) + ' exactly');
-  else if (cost.usage_upper_bound_atomic != null) bits.push('up to ' + amount(cost.usage_upper_bound_atomic, pricingUnit) + ' (usage at the approved ceiling — an upper bound, not the charge)');
-  else if (cost.liability_bound_atomic != null) bits.push('bounded at ' + amount(cost.liability_bound_atomic, paidUnit) + ' (no usage reported)');
-  if (cost.exact_atomic == null && cost.exact_state) bits.push('exact charge ' + String(cost.exact_state).replace(/_/g, ' '));
+  if (cost.exact_atomic != null) bits.push(pageTF('usepod.receipt.charged_exact', 'charged {amount} exactly', { amount: amount(cost.exact_atomic, paidUnit) }));
+  else if (cost.usage_upper_bound_atomic != null) bits.push(pageTF('usepod.receipt.charged_upper_bound', 'up to {amount} (usage at the approved ceiling — an upper bound, not the charge)', { amount: amount(cost.usage_upper_bound_atomic, pricingUnit) }));
+  else if (cost.liability_bound_atomic != null) bits.push(pageTF('usepod.receipt.charged_liability_bound', 'bounded at {amount} (no usage reported)', { amount: amount(cost.liability_bound_atomic, paidUnit) }));
+  if (cost.exact_atomic == null && cost.exact_state) bits.push(pageTF('usepod.receipt.exact_state', 'exact charge {state}', { state: String(cost.exact_state).replace(/_/g, ' ') }));
   if (accountless) {
     // An accountless call has no provider balance; what it has is a wallet payment, proven or not.
     const chain = x.chain_confirmation || {};
     const feeUnit = String(chain.fee_asset || 'SOL') === 'SOL' ? 'lamport' : 'usdc_microunit';
-    if (chain.state === 'recorded') bits.push('paid ' + amount(chain.wallet_outflow_atomic, paidUnit) + ' from your wallet · network fee ' + amount(chain.network_fee_atomic, feeUnit) + ' · chain-confirmed');
-    else if (x.wallet_outflow_atomic != null) bits.push('paid up to ' + amount(x.wallet_outflow_atomic, paidUnit) + ' from your wallet (chain confirmation ' + String(chain.state || 'not recorded').replace(/_/g, ' ') + ')');
+    if (chain.state === 'recorded') bits.push(pageTF('usepod.receipt.paid_chain_confirmed', 'paid {outflow} from your wallet · network fee {fee} · chain-confirmed', { outflow: amount(chain.wallet_outflow_atomic, paidUnit), fee: amount(chain.network_fee_atomic, feeUnit) }));
+    else if (x.wallet_outflow_atomic != null) bits.push(pageTF('usepod.receipt.paid_chain_unconfirmed', 'paid up to {outflow} from your wallet (chain confirmation {state})', { outflow: amount(x.wallet_outflow_atomic, paidUnit), state: String(chain.state || 'not recorded').replace(/_/g, ' ') }));
   } else {
     const bal = r.balance_remaining || {};
-    if (bal.state === 'reported' && bal.decimal != null && bal.unit === 'USDC') bits.push('balance ' + String(bal.decimal) + ' USDC after the call');
-    else if (bal.state === 'reported' && bal.raw != null) bits.push('provider returned a balance header; its unit is unverified');
-    else bits.push('balance not reported by the provider');
+    if (bal.state === 'reported' && bal.decimal != null && bal.unit === 'USDC') bits.push(pageTF('usepod.receipt.balance_reported', 'balance {balance} USDC after the call', { balance: String(bal.decimal) }));
+    else if (bal.state === 'reported' && bal.raw != null) bits.push(pageT('usepod.receipt.balance_header_unit_unverified', 'provider returned a balance header; its unit is unverified'));
+    else bits.push(pageT('usepod.receipt.balance_not_reported', 'balance not reported by the provider'));
   }
   // The payment transaction, the inference and any provider credit are three separate facts, never one.
   const inf = r.inference || {};
-  if (accountless && x.payment_retained && inf.state === 'result_unknown') bits.push('PAID, RESULT UNKNOWN — the wallet paid and no answer arrived; none was invented and no refund is assumed');
-  if (accountless && x.transaction_state) bits.push('transaction ' + (x.transaction_state === 'confirmed' ? 'confirmed on chain' : String(x.transaction_state).replace(/_/g, ' ')));
-  if (inf.state) bits.push('inference ' + String(inf.state).replace(/_/g, ' ') + (inf.finish_reason ? ' (' + String(inf.finish_reason) + ')' : ''));
+  if (accountless && x.payment_retained && inf.state === 'result_unknown') bits.push(pageT('usepod.receipt.paid_result_unknown', 'PAID, RESULT UNKNOWN — the wallet paid and no answer arrived; none was invented and no refund is assumed'));
+  if (accountless && x.transaction_state) bits.push(pageTF('usepod.receipt.transaction', 'transaction {state}', { state: x.transaction_state === 'confirmed' ? pageT('usepod.receipt.transaction_confirmed', 'confirmed on chain') : String(x.transaction_state).replace(/_/g, ' ') }));
+  if (inf.state) bits.push(pageTF('usepod.receipt.inference', 'inference {state}{finish_part}', { state: String(inf.state).replace(/_/g, ' '), finish_part: inf.finish_reason ? ' (' + String(inf.finish_reason) + ')' : '' }));
   const credit = r.provider_credit || {};
-  if (accountless && credit.state === 'credited') bits.push('provider credit ' + amount(credit.atomic, credit.unit) + ' on the provider account, not a wallet refund');
-  else if (accountless && credit.state) bits.push('provider credit ' + String(credit.state).replace(/_/g, ' '));
+  if (accountless && credit.state === 'credited') bits.push(pageTF('usepod.receipt.credit_credited', 'provider credit {amount} on the provider account, not a wallet refund', { amount: amount(credit.atomic, credit.unit) }));
+  else if (accountless && credit.state) bits.push(pageTF('usepod.receipt.credit_state', 'provider credit {state}', { state: String(credit.state).replace(/_/g, ' ') }));
   const fee = r.dna_fee || {};
-  if (accountless && fee.state === 'accrued_owed') bits.push('DNA service fee ' + String(fee.fee_exact) + ' ' + String(fee.asset || '') + ' (0.1% of the payment) accrued — owed to the treasury, collected with a later native payment when economical' + (fee.collection && fee.collection.planned ? (fee.collection.collected ? ' · previously accrued fees ' + String(fee.collection.amount_exact) + ' ' + String(fee.collection.asset || '') + ' collected with this payment' : ' · a collection of ' + String(fee.collection.amount_exact) + ' ' + String(fee.collection.asset || '') + ' rode this payment: ' + String(fee.collection.state_label || fee.collection.state)) : ''));
-  else if (accountless && fee.state === 'reserved_not_owed') bits.push('DNA service fee reserved (ceiling ' + String(fee.reserved_ceiling_atomic) + ' atomic), owed only once the payment is accepted');
-  else if (accountless && fee.state && fee.state !== 'not_charged') bits.push('DNA service fee ' + String(fee.state).replace(/_/g, ' '));
+  if (accountless && fee.state === 'accrued_owed') bits.push(pageTF('usepod.receipt.fee_accrued_owed', 'DNA service fee {fee_exact} {asset} (0.1% of the payment) accrued — owed to the treasury, collected with a later native payment when economical{collection_part}', {
+    fee_exact: String(fee.fee_exact), asset: String(fee.asset || ''),
+    collection_part: fee.collection && fee.collection.planned ? (fee.collection.collected
+      ? pageTF('usepod.receipt.fee_previously_collected', ' · previously accrued fees {amount} {asset} collected with this payment', { amount: String(fee.collection.amount_exact), asset: String(fee.collection.asset || '') })
+      : pageTF('usepod.receipt.fee_collection_riding', ' · a collection of {amount} {asset} rode this payment: {state}', { amount: String(fee.collection.amount_exact), asset: String(fee.collection.asset || ''), state: String(fee.collection.state_label || fee.collection.state) })) : '',
+  }));
+  else if (accountless && fee.state === 'reserved_not_owed') bits.push(pageTF('usepod.receipt.fee_reserved', 'DNA service fee reserved (ceiling {ceiling} atomic), owed only once the payment is accepted', { ceiling: String(fee.reserved_ceiling_atomic) }));
+  else if (accountless && fee.state && fee.state !== 'not_charged') bits.push(pageTF('usepod.receipt.fee_state', 'DNA service fee {state}', { state: String(fee.state).replace(/_/g, ' ') }));
   const settle = r.settlement || {};
-  if (settle.recording === 'retained_unknown') bits.push('LIABILITY RETAINED — outcome unknown, reconciled later');
-  else if (settle.recording === 'released_unsent') bits.push('released — nothing was sent');
-  else if (settle.recording === 'settled_with_evidence') bits.push('settled with evidence');
+  if (settle.recording === 'retained_unknown') bits.push(pageT('usepod.receipt.liability_retained', 'LIABILITY RETAINED — outcome unknown, reconciled later'));
+  else if (settle.recording === 'released_unsent') bits.push(pageT('usepod.receipt.released_unsent', 'released — nothing was sent'));
+  else if (settle.recording === 'settled_with_evidence') bits.push(pageT('usepod.receipt.settled_with_evidence', 'settled with evidence'));
   const links = [];
-  if (r.price_snapshot_sha256) links.push('snapshot ' + String(r.price_snapshot_sha256).slice(0, 10) + '…');
-  if (r.reservation_id) links.push('reservation ' + String(r.reservation_id).slice(0, 18));
-  if (r.route_approval_id) links.push('approval ' + String(r.route_approval_id).slice(0, 14) + '…');
-  if (x.network) links.push('network ' + String(x.network));
-  if (x.payment_signature) links.push('signature ' + String(x.payment_signature).slice(0, 10) + '…');
+  if (r.price_snapshot_sha256) links.push(pageTF('usepod.receipt.link_snapshot', 'snapshot {id}', { id: String(r.price_snapshot_sha256).slice(0, 10) + '…' }));
+  if (r.reservation_id) links.push(pageTF('usepod.receipt.link_reservation', 'reservation {id}', { id: String(r.reservation_id).slice(0, 18) }));
+  if (r.route_approval_id) links.push(pageTF('usepod.receipt.link_approval', 'approval {id}', { id: String(r.route_approval_id).slice(0, 14) + '…' }));
+  if (x.network) links.push(pageTF('usepod.receipt.link_network', 'network {network}', { network: String(x.network) }));
+  if (x.payment_signature) links.push(pageTF('usepod.receipt.link_signature', 'signature {id}', { id: String(x.payment_signature).slice(0, 10) + '…' }));
   if (links.length) bits.push(links.join(' · '));
-  if (r.monetary_authority) bits.push('money: ' + String(r.monetary_authority));
+  if (r.monetary_authority) bits.push(pageTF('usepod.receipt.monetary_authority', 'money: {authority}', { authority: String(r.monetary_authority) }));
   return bits.join(' · ');
 }
 // A failure row has to state its own cause. Measured: one audit turn failed on three provider lanes,
@@ -5376,16 +5393,32 @@ const ACTIVITY_RUNTIME_CATEGORY = ['runtime', 'Runtime'];
 const ACTIVITY_TOOL_START_TYPES = { tool_selected: 1 };
 const ACTIVITY_TOOL_END_TYPES = { tool_executed: 1, tool_failed: 1, audit_step: 1, audit_budget_refused: 1 };
 const ACTIVITY_CATEGORY_ORDER = ['changes', 'commands', 'tests', 'reads', 'edits', 'searches', 'tools', 'runtime'];
-const ACTIVITY_ROLLUP_PHRASE = {
-  changes: (n) => 'changed ' + n + ' file' + (n === 1 ? '' : 's'),
-  commands: (n) => 'ran ' + n + ' command' + (n === 1 ? '' : 's'),
-  tests: (n) => 'ran ' + n + ' test' + (n === 1 ? '' : 's'),
-  reads: (n) => 'read ' + n + ' file' + (n === 1 ? '' : 's'),
+// Localized rollups: one catalog key per category with the ICU-lite plural the engine and
+// the mirrored browser formatter both resolve. English fallbacks reproduce the historical
+// concatenation byte-for-byte (n === 1 → singular), so an unwired locale renders as before.
+const ACTIVITY_ROLLUP_KEYS = {
+  changes: 'activity.rollup.changes',
+  commands: 'activity.rollup.commands',
+  tests: 'activity.rollup.tests',
+  reads: 'activity.rollup.reads',
   // Deliberately NOT "changed N files": this counts attempts to edit, which is a different fact.
-  edits: (n) => 'made ' + n + ' edit tool call' + (n === 1 ? '' : 's'),
-  searches: (n) => 'ran ' + n + ' search' + (n === 1 ? '' : 'es'),
-  tools: (n) => 'used ' + n + ' tool' + (n === 1 ? '' : 's'),
+  edits: 'activity.rollup.edits',
+  searches: 'activity.rollup.searches',
+  tools: 'activity.rollup.tools',
 };
+const ACTIVITY_ROLLUP_FALLBACKS = {
+  changes: 'changed {n, plural, one {{n} file} other {{n} files}}',
+  commands: 'ran {n, plural, one {{n} command} other {{n} commands}}',
+  tests: 'ran {n, plural, one {{n} test} other {{n} tests}}',
+  reads: 'read {n, plural, one {{n} file} other {{n} files}}',
+  edits: 'made {n, plural, one {{n} edit tool call} other {{n} edit tool calls}}',
+  searches: 'ran {n, plural, one {{n} search} other {{n} searches}}',
+  tools: 'used {n, plural, one {{n} tool} other {{n} tools}}',
+};
+const ACTIVITY_ROLLUP_PHRASE = {};
+Object.keys(ACTIVITY_ROLLUP_KEYS).forEach((key) => {
+  ACTIVITY_ROLLUP_PHRASE[key] = (n) => pageTF(ACTIVITY_ROLLUP_KEYS[key], ACTIVITY_ROLLUP_FALLBACKS[key], { n: n });
+});
 // (event field, kv label). Only fields actually present on the row are ever shown -- nothing here
 // is computed or guessed, it is a read-only projection of what the server already sent.
 const ACTIVITY_DETAIL_FIELDS = [
@@ -5475,7 +5508,7 @@ function activityChangeSub(e, operations) {
   if (action) bits.push(action);
   const intent = String((e && e.tool_intent) || '').trim();
   if (intent) bits.push(intent);
-  if (operations > 1) bits.push(operations + ' operations');
+  if (operations > 1) bits.push(pageTF('activity.operations', '{n, plural, one {{n} operation} other {{n} operations}}', { n: operations }));
   return bits.join(' · ');
 }
 function activityDetailLines(e, skipText) {
@@ -5704,13 +5737,12 @@ function activityRollupText(tree) {
     const phrase = ACTIVITY_ROLLUP_PHRASE[cat.key];
     if (phrase) parts.push(phrase(cat.items.length));
   }
-  if (!parts.length) return tree.categories.length ? 'Runtime activity only' : 'No actions taken';
+  if (!parts.length) return tree.categories.length ? pageT('activity.rollup.runtime_only', 'Runtime activity only') : pageT('activity.rollup.none', 'No actions taken');
   const text = parts.join(', ');
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 function activityWorkLogSummary(tree) {
-  const n = tree.totalActions;
-  return 'Work log · ' + n + ' action' + (n === 1 ? '' : 's');
+  return pageTF('activity.worklog', 'Work log · {n, plural, one {{n} action} other {{n} actions}}', { n: tree.totalActions });
 }
 function stepsRollupText(steps) {
   if (!steps || !steps.length) return '';
@@ -5721,7 +5753,7 @@ function stepsRollupText(steps) {
     if (counts[key] == null) { counts[key] = 0; order.push(key); }
     counts[key] += 1;
   }
-  const parts = order.map((key) => (ACTIVITY_ROLLUP_PHRASE[key] || ((n) => n + ' action' + (n === 1 ? '' : 's')))(counts[key]));
+  const parts = order.map((key) => (ACTIVITY_ROLLUP_PHRASE[key] || ((n) => pageTF('activity.rollup.actions', '{n, plural, one {{n} action} other {{n} actions}}', { n: n })))(counts[key]));
   const text = parts.join(', ');
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -5798,7 +5830,7 @@ function activityCategoryHtml(cat, openState) {
   const openAttr = openState[cat.key] !== false ? ' open' : '';   // categories default OPEN
   const items = cat.items.map((it) => activityItemHtml(it, openState)).join('');
   return '<details class="xp-cat" data-node-id="' + esc(cat.key) + '"' + openAttr + '>'
-    + '<summary>' + esc(cat.label) + ' <span class="xp-cat-count">(' + cat.items.length + ')</span></summary>'
+    + '<summary>' + esc(pageT('activity.category.' + cat.key, cat.label)) + ' <span class="xp-cat-count">(' + cat.items.length + ')</span></summary>'
     + '<div class="xp-cat-body">' + items + '</div>'
     + '</details>';
 }
@@ -6693,7 +6725,7 @@ async function renderScopedReceipts(body) {
 function receiptIssuedText(issuedAt) {
   const seconds = Number(issuedAt);
   if (!isFinite(seconds) || seconds <= 0) return issuedAt || '';
-  try { return new Date(seconds * 1000).toLocaleString(); } catch (e) { return String(issuedAt); }
+  try { return new Date(seconds * 1000).toLocaleString(appLocale()); } catch (e) { return String(issuedAt); }
 }
 function receiptRowHtml(rc) {
   const cls = rc.verdict === 'clean' ? 'ok' : (rc.verdict === 'blocked_false_claim' ? 'fail' : 'run');
@@ -10296,7 +10328,7 @@ function _fmtBytes(n) {
   if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
   return (n / 1073741824).toFixed(2) + ' GB';
 }
-function _fmtDate(epoch) { try { return new Date(Number(epoch) * 1000).toLocaleString(); } catch (e) { return ''; } }
+function _fmtDate(epoch) { try { return new Date(Number(epoch) * 1000).toLocaleString(appLocale()); } catch (e) { return ''; } }
 function _typeIcon(t) { return t === 'image' ? '\u{1F5BC}' : (t === 'video' ? '\u{1F3AC}' : (t === 'doc' ? '\u{1F4C4}' : '\u{1F4E6}')); }
 function _fileRow(f) {
   const row = document.createElement('div'); row.className = 'file-row'; row.title = f.path;
@@ -10357,7 +10389,7 @@ async function openGeneratedFile(path) {
 // total, never a guess. Fail-soft: a fetch error shows a neutral note, not stale figures.
 let usageRange = 'today';
 const usageBodyEl = document.getElementById('usageBody');
-function fmtInt(n) { return Number(n || 0).toLocaleString(); }
+function fmtInt(n) { return Number(n || 0).toLocaleString(appLocale()); }
 function usageCard(cls, key, val) {
   const c = document.createElement('div'); c.className = 'u-card ' + cls;
   const k = document.createElement('div'); k.className = 'u-k'; k.textContent = key;

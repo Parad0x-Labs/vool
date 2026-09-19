@@ -55,7 +55,17 @@ if _PROJECT_ROOT not in sys.path:
 from installer.bundle import pet_native
 
 _WEBVIEW2_GUID = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
-_LOCK_HANDLE = None  # POSIX: keeps the flock held for the process lifetime
+_LOCK_HANDLES: list[int] = []  # POSIX: keep the flocks held for the process lifetime
+# The pre-rename app (NULLA-named builds already installed) single-instances on these SAME
+# names under ITS state dir/mutex namespace. The rename must not split that guard: an old
+# window and a VOOL window open at once fight over the one canonical runtime port, and the
+# newer host would take it over from the older window mid-session. Both generations must
+# exclude each other, so the VOOL host locks BOTH the canonical and the legacy name and
+# treats EITHER being held as "a window is already open". See
+# docs/VOOL_IDENTITY_COMPATIBILITY_MAP.md: the legacy lock paths are compatibility
+# identifiers, frozen exactly like the bundle id.
+_WIN_MUTEX_NAMES = ("Local\\VOOL_WINDOW_SINGLETON", "Local\\NULLA_WINDOW_SINGLETON")
+_POSIX_LOCK_STATE_DIRS = ("VOOL", "NULLA")  # state-dir names, canonical first
 
 
 def _state_dir() -> str:
@@ -77,34 +87,60 @@ def _log(message: str) -> None:
             handle.write(message.rstrip() + "\n")
 
 
+def _posix_lock_base() -> str:
+    """The base directory both generations' window locks live under (POSIX)."""
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support")
+    return os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
+
+
 def _single_instance() -> bool:
     """True if this is the only VOOL window; False if one is already open.
 
-    Windows holds a named mutex for the process lifetime; POSIX holds an exclusive flock on a
-    lockfile (the handle is kept in a module global so the lock lives as long as the window).
+    Windows holds named mutexes for the process lifetime; POSIX holds an exclusive flock on
+    a lockfile per state dir (the handles are kept in a module global so the locks live as
+    long as the window). BOTH the canonical and the legacy NULLA-named lock are taken, so a
+    pre-rename window and a VOOL window exclude each other instead of stacking two windows
+    that fight over the one canonical runtime port (see _WIN_MUTEX_NAMES above). The legacy
+    lock is CREATED even on machines that never had the old app: without holding it, an old
+    NULLA.app launched after the upgrade would open beside this window.
     Both fail OPEN on unexpected errors -- only a genuinely held lock reports False.
     """
     if sys.platform == "win32":
         try:
             kernel32 = ctypes.windll.kernel32
-            kernel32.CreateMutexW(None, False, "Local\\VOOL_WINDOW_SINGLETON")
-            return kernel32.GetLastError() != 183  # ERROR_ALREADY_EXISTS
+            for name in _WIN_MUTEX_NAMES:
+                kernel32.CreateMutexW(None, False, name)
+                if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+                    return False
+            return True
         except Exception:
             return True
-    global _LOCK_HANDLE
     try:
         import fcntl
-        # A raw fd (not a context-managed file) is deliberate: the flock lives exactly as long as
-        # this descriptor stays open, so it must outlive this function for the whole window session.
-        fd = os.open(os.path.join(_state_dir(), "window.lock"), os.O_CREAT | os.O_RDWR, 0o644)
     except Exception:
         return True  # cannot lock -> do not block the window
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        os.close(fd)
-        return False  # held by another VOOL window
-    _LOCK_HANDLE = fd
+    acquired: list[int] = []
+    for state_name in _POSIX_LOCK_STATE_DIRS:
+        lock_dir = os.path.join(_posix_lock_base(), state_name)
+        try:
+            os.makedirs(lock_dir, exist_ok=True)
+            # A raw fd (not a context-managed file) is deliberate: the flock lives exactly as
+            # long as this descriptor stays open, so it must outlive this function for the
+            # whole window session.
+            fd = os.open(os.path.join(lock_dir, "window.lock"), os.O_CREAT | os.O_RDWR, 0o644)
+        except Exception:
+            continue  # this one lock is unavailable -> fail open on it (documented philosophy)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            os.close(fd)
+            for held in acquired:
+                with contextlib.suppress(OSError):
+                    os.close(held)
+            return False  # held by another window -- this generation or the pre-rename one
+        acquired.append(fd)
+    _LOCK_HANDLES.extend(acquired)
     return True
 
 
@@ -1093,28 +1129,107 @@ def _sweep_stale_runtime_pidfile() -> None:
             _log(f"swept stale runtime pidfile naming dead pid {pid}")
 
 
+def _teardown_owned_runtime_and_exit(supervisor: object, owned_pid: dict[str, int | None], reason: str) -> None:
+    """The one teardown a termination signal runs: release the owned runtime, sweep, exit.
+
+    Shared by the Windows handler and the POSIX signal-watcher thread so there is exactly one
+    implementation of the contract, not two that can drift.
+    """
+    _log(reason)
+    with contextlib.suppress(Exception):
+        if supervisor is not None:
+            supervisor.shutdown()
+    with contextlib.suppress(Exception):
+        _sweep_owned_runtime_pidfile(owned_pid.get("pid"))
+    # A signal that lands before ensure_ready() returns has no captured owned pid, and a
+    # daemon SIGKILLed mid-graceful-shutdown never runs its own cleanup — the stale sweep
+    # (provably dead pid) is the fallback that keeps the state dir clean.
+    with contextlib.suppress(Exception):
+        _sweep_stale_runtime_pidfile()
+    _log("owned runtime released on signal")
+    os._exit(0)
+
+
 def _install_termination_handlers(supervisor: object, owned_pid: dict[str, int | None]) -> None:
     """SIGTERM/SIGINT/SIGHUP run the same teardown the normal-quit finally-block runs, then exit.
     The default disposition kills this host without unwinding, which is exactly how an external
-    SIGTERM used to orphan the owned daemon and its 11435 listener."""
-    def _terminate(signum: int, _frame: object) -> None:
-        _log(f"{signal.Signals(signum).name} received; tearing down the owned runtime")
-        with contextlib.suppress(Exception):
-            if supervisor is not None:
-                supervisor.shutdown()
-        with contextlib.suppress(Exception):
-            _sweep_owned_runtime_pidfile(owned_pid.get("pid"))
-        # A signal that lands before ensure_ready() returns has no captured owned pid, and a
-        # daemon SIGKILLed mid-graceful-shutdown never runs its own cleanup — the stale sweep
-        # (provably dead pid) is the fallback that keeps the state dir clean.
-        with contextlib.suppress(Exception):
-            _sweep_stale_runtime_pidfile()
-        _log("owned runtime released on signal")
-        os._exit(0)
+    SIGTERM used to orphan the owned daemon and its 11435 listener.
+
+    POSIX (measured 2026-09-19 on the packaged app): a Python-level handler NEVER RUNS while
+    the main thread is parked in webview.start()'s native run loop (NSApp.run and friends
+    never return to Python bytecode), so `kill -TERM <host>` was ignored outright — host,
+    owned daemon and the port all stayed up indefinitely. The teardown therefore runs on a
+    watcher thread woken by signal.set_wakeup_fd: CPython's C-level trampoline writes one
+    byte per caught signal to the pipe without needing the main thread, and the watcher does
+    the shutdown + sweeps + exit. The registered Python handlers stay as no-op markers so
+    the default disposition (death without unwinding) never applies. Windows keeps the
+    direct handler: its signal delivery is not blocked by a native run loop in the same way,
+    and that lane is not re-tested here.
+    """
+    if os.name != "posix":
+        def _terminate(signum: int, _frame: object) -> None:
+            _teardown_owned_runtime_and_exit(
+                supervisor, owned_pid, f"{signal.Signals(signum).name} received; tearing down the owned runtime"
+            )
+
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            with contextlib.suppress(Exception):
+                signal.signal(sig, _terminate)
+        return
+
+    read_fd, write_fd = os.pipe()
+    # The WRITE end must be non-blocking (CPython's signal trampoline writes to it from
+    # async-signal context and must never stall). The READ end stays BLOCKING so the
+    # watcher's os.read sleeps until a byte arrives — a non-blocking read on an empty pipe
+    # raises BlockingIOError (an OSError), which this watcher must not treat as fatal.
+    os.set_blocking(write_fd, False)
+    try:
+        signal.set_wakeup_fd(write_fd)
+    except (OSError, ValueError) as exc:
+        _log(f"signal wakeup pipe unavailable ({exc!r}); falling back to in-thread handlers")
+        with contextlib.suppress(OSError):
+            os.close(read_fd)
+        with contextlib.suppress(OSError):
+            os.close(write_fd)
+
+        def _fallback_terminate(signum: int, _frame: object) -> None:
+            _teardown_owned_runtime_and_exit(
+                supervisor, owned_pid, f"{signal.Signals(signum).name} received; tearing down the owned runtime"
+            )
+
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            with contextlib.suppress(Exception):
+                signal.signal(sig, _fallback_terminate)
+        return
+
+    def _mark(signum: int, _frame: object) -> None:
+        # The real work happens on the watcher thread; this handler exists only so CPython
+        # catches the signal (and writes the wakeup byte) instead of applying the default
+        # disposition. It must stay trivially cheap — some delivery contexts call it with
+        # locks held.
+        return
 
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         with contextlib.suppress(Exception):
-            signal.signal(sig, _terminate)
+            signal.signal(sig, _mark)
+
+    def _watch() -> None:
+        while True:
+            try:
+                woke = os.read(read_fd, 16)
+            except InterruptedError:
+                continue
+            except OSError:
+                return
+            if not woke:
+                return  # write end closed (process teardown) — nothing more to watch
+            _teardown_owned_runtime_and_exit(
+                supervisor, owned_pid,
+                "termination signal received (SIGTERM/SIGINT/SIGHUP) while the native run "
+                "loop owned the main thread; tearing down the owned runtime",
+            )
+
+    threading.Thread(target=_watch, name="nulla-signal-watcher", daemon=True).start()
 
 
 def _start_runtime_watchdog(supervisor: object, window: object, done: threading.Event) -> threading.Event:
@@ -1288,9 +1403,10 @@ def main() -> int:
                 _sweep_stale_runtime_pidfile()
             _log("native runtime ownership released")
         done.set()
-        with contextlib.suppress(Exception):
-            if _LOCK_HANDLE is not None:
-                os.close(_LOCK_HANDLE)
+        for held in list(_LOCK_HANDLES):
+            with contextlib.suppress(Exception):
+                os.close(held)
+        _LOCK_HANDLES.clear()
 
 
 if __name__ == "__main__":
