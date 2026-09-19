@@ -68,6 +68,16 @@ class TestCLI:
         )
         assert result.returncode != 0  # nothing is offered with no pinned publisher
 
+    def test_check_without_manifest_url_reports_unavailable(self, tmp_path, monkeypatch):
+        """The shipped feed is empty; `check` must still RUN and say so honestly.
+        A required --manifest-url argparse-rejected the command before the honest
+        "Updates are unavailable" state could ever be printed."""
+        monkeypatch.delenv("VOOL_UPDATE_PUBLISHER_KEYS", raising=False)
+        monkeypatch.delenv("VOOL_UPDATE_MANIFEST_URL", raising=False)
+        result = run_cli("check", "--data-dir", str(tmp_path))
+        assert result.returncode != 0  # unconfigured is a first-class failure, not success
+        assert "unavailable" in result.stdout.lower()
+
     def test_apply_refuses_without_explicit_press(self, tmp_path):
         result = run_cli(
             "apply",
