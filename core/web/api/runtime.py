@@ -994,17 +994,19 @@ def bootstrap_runtime_services(
     agent.start()
 
     from core.product_edition import edition_allows
+    from core.runtime_mode import mesh_daemon_boot_allowed
 
     mesh_edition_ok, mesh_edition_reason = edition_allows("mesh_daemon")
-    mesh_daemon_disabled = (not mesh_edition_ok) or env_bool("VOOL_DISABLE_MESH_DAEMON") or (
-        os.name == "nt" and not env_bool("VOOL_ENABLE_WINDOWS_MESH_DAEMON")
-    )
+    mesh_daemon_disabled = not mesh_daemon_boot_allowed(
+        edition_allows_mesh=mesh_edition_ok,
+        disable_env_set=bool(env_bool("VOOL_DISABLE_MESH_DAEMON")),
+    ) or (os.name == "nt" and not env_bool("VOOL_ENABLE_WINDOWS_MESH_DAEMON"))
     daemon: VoolDaemon | None = None
     if mesh_daemon_disabled:
         if not mesh_edition_ok:
             logger.info("Mesh daemon disabled by product edition: %s", mesh_edition_reason)
         else:
-            logger.info("Mesh daemon disabled for this API runtime.")
+            logger.info("Mesh daemon disabled: research networking not enabled (production build).")
     else:
         pool_cap = max(1, int(policy_engine.get("orchestration.local_worker_pool_max", 10)))
         daemon_capacity, _ = resolve_local_worker_capacity(requested=None, hard_cap=pool_cap)

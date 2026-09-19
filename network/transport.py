@@ -233,9 +233,25 @@ def _kill_stale_udp_holder_posix(port: int, my_pid: int) -> bool:
 
 
 def _kill_stale_udp_holder(port: int) -> bool:
-    """Find and kill a stale process holding a UDP port (Windows netstat/taskkill, POSIX lsof/kill)."""
+    """Find and kill a stale process holding a UDP port (Windows netstat/taskkill, POSIX lsof/kill).
+
+    Production/research boundary: killing ANOTHER process that happens to hold the
+    port is research-recovery behavior. A production build falls back to an
+    ephemeral port instead (core.runtime_mode).
+    """
     import subprocess
     import sys
+
+    from core.runtime_mode import stale_port_kill_allowed
+
+    if not stale_port_kill_allowed():
+        audit_logger.log(
+            "stale_port_kill_skipped_production",
+            target_id=f"udp:{int(port)}",
+            target_type="transport",
+            details={"fallback": "ephemeral_port"},
+        )
+        return False
 
     my_pid = os.getpid()
     if sys.platform != "win32":
@@ -373,9 +389,16 @@ class UDPTransportServer:
 
         bound_port = int(sock.getsockname()[1])
 
-        # Phase 23: STUN Public Endpoint Discovery
-        from network.stun_client import discover_public_endpoint
-        public_endpoint = discover_public_endpoint(sock)
+        # Phase 23: STUN Public Endpoint Discovery — research networking only.
+        # A production build never probes an external STUN service for a public
+        # endpoint; the mesh transport that consumed it does not run in production.
+        from core.runtime_mode import research_networking_enabled
+
+        public_endpoint = None
+        if research_networking_enabled():
+            from network.stun_client import discover_public_endpoint
+
+            public_endpoint = discover_public_endpoint(sock)
 
         if public_endpoint:
             self.public_host, self.public_port = public_endpoint

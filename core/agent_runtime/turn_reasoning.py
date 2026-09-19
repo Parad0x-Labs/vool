@@ -75,6 +75,12 @@ def _dispatch_background_swarm_query(
 ) -> None:
     if ranked and float(getattr(context_result, "retrieval_confidence_score", 0.0) or 0.0) >= 0.65:
         return
+    # Production/research boundary: broadcasting a swarm QUERY_SHARD to mesh peers
+    # is research networking. A production build never dispatches it.
+    from core.runtime_mode import research_networking_enabled
+
+    if not research_networking_enabled():
+        return
     try:
         query = build_generalized_query_fn(task, classification)
         request_relevant_holders_fn(

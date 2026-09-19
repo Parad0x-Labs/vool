@@ -1395,8 +1395,8 @@ class VoolAgent(
             logging.getLogger(__name__).exception("delivery retry sweep failed")
         ensure_memory_files()
         _ = load_active_persona(self.persona_id)
-        self._sync_public_presence(status=self._idle_public_presence_status())
         if self._background_runtime_threads_enabled():
+            self._sync_public_presence(status=self._idle_public_presence_status())
             self._start_public_presence_heartbeat()
             self._start_idle_commons_loop()
 
@@ -1412,7 +1412,15 @@ class VoolAgent(
             return False
         if str(self.device or "").strip().lower().endswith("-test"):
             return False
-        return not os.environ.get("PYTEST_CURRENT_TEST")
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return False
+        # Production/research boundary: the public-presence heartbeat, idle-commons
+        # and autonomous hive-research threads are research systems. They start only
+        # under the explicit research invocation (core.runtime_mode), never in a
+        # normal production build.
+        from core.runtime_mode import background_presence_threads_allowed
+
+        return background_presence_threads_allowed(is_test_runtime=False)
 
     def run_once(
         self,
