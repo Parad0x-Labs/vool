@@ -86,7 +86,11 @@ def _drive(agent: VoolAgent, text: str) -> tuple[list[tuple[str, str]], bool]:
 
     def recording_build(user_text, **kwargs):
         plan = real_build(user_text, **kwargs)
-        if plan is not None:
+        # The demand-ownership spine probes the planner as a COVERAGE binder
+        # (plan_id="coverage-binder") to learn which minted units the live family serves --
+        # a read, not a schedule, fired once per coverage query. Recording those would count
+        # one turn's quotes many times; only the lane's own execution plans are scheduling.
+        if plan is not None and kwargs.get("plan_id") != "coverage-binder":
             scheduled.extend((task.operation, task.entity) for task in plan.subtasks)
         return plan
 

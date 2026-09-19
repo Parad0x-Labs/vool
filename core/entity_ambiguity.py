@@ -219,6 +219,14 @@ def single_plain_know_question(
     if has_attachments:
         return False
     message = str(text or "").strip()
+    # A question that NAMES a file is the file lanes' material, bound or not: its context is a
+    # file's contents, and the disk lane's own "could not find" answer is the truthful outcome,
+    # not an adjudicated clarification. The token shape is answer_binder's filename recognizer,
+    # so this lane and the binder cannot drift on what a filename is.
+    from core.answer_binder import _FILENAME_RE
+
+    if _FILENAME_RE.search(message):
+        return False
     if not message or len(message) > 400:
         return False
     # Runtime facts have their own deterministic owner in the front door, which runs

@@ -6013,8 +6013,19 @@ class VoolAgent(
         try:
             # The referent authorities (follow-up intents, the live-data continuation) are
             # consulted inside the jurisdiction test: a turn about work already on the table
-            # is never adjudicated for entity ambiguity (FINDINGS F15).
-            if not single_plain_know_question(question, source_context=source_context):
+            # is never adjudicated for entity ambiguity (FINDINGS F15). A bound attachment
+            # pins the question's context to the file — the gate's own no-attachments rule —
+            # but the flag only bites if the caller supplies it: measured on the media rigs,
+            # attachment-backed questions were adjudicated, the scripted author returned no
+            # verdict, and the turn asked back while the receipt's OCR text never ran.
+            from core.agent_runtime.request_authority import bounded_evidence
+
+            turn_has_attachments = bool(
+                bounded_evidence((source_context or {}).get("external_evidence")).recognized
+            )
+            if not single_plain_know_question(
+                question, has_attachments=turn_has_attachments, source_context=source_context
+            ):
                 return None
             prior_events: list = []
             try:

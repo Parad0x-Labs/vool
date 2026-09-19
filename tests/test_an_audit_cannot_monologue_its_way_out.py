@@ -657,7 +657,7 @@ def _drive_grounded_turn(agent, *, source_context, resolve_decision):
     asked = "run a full audit on this codebase"
     adaptive = SimpleNamespace(
         enabled=False, tool_gap_note="", admitted_uncertainty=False, notes=[],
-        reason="not_needed", strategy="none", actions_taken=[],
+        reason="not_needed", strategy="none", actions_taken=[], queries_run=[],
         to_dict=lambda: {"enabled": False, "reason": "not_needed"},
     )
     task = SimpleNamespace(
