@@ -192,7 +192,11 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--platform", default="", help="override platform key (default: this machine)")
 
     check = sub.add_parser("check", parents=[common], help="check for an update (never installs)")
-    check.add_argument("--manifest-url", required=True)
+    # Optional on purpose: cmd_check reads the feed from the shipped config (and the
+    # VOOL_UPDATE_* staging overrides), never from this flag. Requiring it argparse-blocked
+    # the documented honest state — a feed-less install must be able to run `check`, learn
+    # "Updates are unavailable" and exit 1, not be rejected for a missing URL.
+    check.add_argument("--manifest-url", default="")
     check.set_defaults(func=cmd_check)
 
     status = sub.add_parser("status", parents=[common], help="print the current update status")
