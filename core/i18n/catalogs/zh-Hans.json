@@ -313,7 +313,7 @@
     "first_run.fact_01": "默认在您的机器上运行 — 除非您开启云,提示词绝不会离开本机。",
     "first_run.fact_02": "本地聊天免费 — 不按令牌计量。只在想要更大模型时才添加云密钥。",
     "first_run.fact_03": "没有订阅,也没有按条消息收费 — 它运行在您已有的硬件上。",
-    "first_run.fact_04": "在设备上生成图像 — 免费、无需密钥、不上传任何内容。",
+    "first_run.fact_04": "在本地编辑视频和音频 — 剪辑、裁剪、缩放、压缩；免费且无需密钥。",
     "first_run.fact_05": "读取、搜索并编辑您工作区中的文件,在沙盒中运行测试。",
     "first_run.fact_06": "问它一个文件夹,它读取的是真实文件 — 而不是猜测。",
     "first_run.fact_07": "将聊天绑定到项目文件夹,其记忆将限定在该项目内。",
@@ -575,7 +575,7 @@
     "proof.withheld": "不予发表(无依据)",
     "receipts.chain_invalid": "回执链无效 — 无法确认已记录操作与证据历史的完整性。",
     "receipts.chain_unchecked": "回执链未检查 — 回执不能证明答案正确。",
-    "receipts.chain_valid": "回执链有效 — 已记录的操作与证据历史完好。但这并不能证明答案正确。",
+    "receipts.chain_valid": "回执链有效 — 现存的回执相互一致。但这并不能证明历史是完整的，也不能证明答案正确。",
     "receipts.copy_hash": "复制哈希",
     "receipts.copy_receipt": "复制回执",
     "receipts.field_claimed_actions": "声明的操作",
@@ -956,7 +956,7 @@
     "wallet.testnet_badge": "测试网资金，非真实货币",
     "wallet.watch_only_hint": "仅观察：此提案可在外部钱包中批准，不能在此签名"
   },
-  "source_catalog_sha256": "f5feb2248d2fd9d21a460873c4d501541b090a6bd2fc2b9393aa073b40ad0884",
+  "source_catalog_sha256": "3be286b1a51cb3d3625ab3533a7cc77b436968d2c01c3c633b49c59f3d5f6ced",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

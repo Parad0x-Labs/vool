@@ -7,6 +7,20 @@ import types
 import pytest
 
 from core import credential_store, media_tools, runtime_paths, usage_quota
+
+from core.effect_gateway import named_background_effect_scope
+
+
+@pytest.fixture(autouse=True)
+def _media_calls_run_under_the_production_scope():
+    # Media generation is a priced effect: the gateway denies network fetches outside a
+    # turn/named scope (R2b1 fail-closed), and production always reaches these tools via
+    # execute_runtime_tool, which wraps them in named_background_effect_scope. These unit
+    # drives run under the SAME authority, so the tool's own behavior (meters, quotas,
+    # runpod wrapping) is what is under test; the scope grants nothing a real caller lacks.
+    with named_background_effect_scope("tests.media_tools"):
+        yield
+
 from core.runtime_execution_tools import _image_generate, _video_generate, execute_runtime_tool
 
 

@@ -42,7 +42,7 @@ def _router(answers: dict, fail: set | None = None, raise_on: set | None = None)
     raise_on = raise_on or set()
     router = MemoryFirstRouter.__new__(MemoryFirstRouter)
 
-    def _fake_invoke(*, manifest, request, output_mode, task, source_context):
+    def _fake_invoke(*, manifest, request, output_mode, task, source_context, task_kind=""):
         if manifest.model_name in raise_on:
             raise RuntimeError("build_adapter blew up before _invoke_manifest's own try")
         if manifest.model_name in fail:

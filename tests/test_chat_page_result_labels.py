@@ -27,6 +27,12 @@ function activityPanel(overrides) {
   view.run = cardRun(overrides);
   document.body.classList.add('panel-open');
   panelTab = 'Activity';
+  // renderPanelBody skips rebuilds with an unchanged signature; panels built in the same
+  // millisecond (same chatId/start/counts) would all render the FIRST one's bytes. Reset
+  // the skip guard so each case renders its own run — same law the live poll obeys by
+  // only skipping when the signature is truly unchanged for the SAME run.
+  lastActivityBodySig = '';
+  if (xpBodyEl && xpBodyEl.dataset) xpBodyEl.dataset.activityRendered = '0';
   renderPanelBody();
   return document.getElementById('xpBody').innerHTML;
 }
@@ -297,7 +303,11 @@ def test_receipt_copy_limits_the_integrity_claim() -> None:
     a valid chain. "Intact" was a completeness claim the check does not make.
     """
     assert "Receipts consistent" in HTML
+    # The old completeness claim is gone. The chain-INVALID message still names the
+    # evidence history — saying integrity could NOT be confirmed, the honest inverse —
+    # so the ban targets the exact old claim, not any mention of the history.
     assert "recorded action and evidence history is intact" not in HTML
+    assert "integrity could not be confirmed" in HTML
     assert "does not prove the history is complete" in HTML
     assert "This does not prove the answer is correct" in HTML
     assert "Chain verified ✓" not in HTML

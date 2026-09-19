@@ -313,7 +313,7 @@
     "first_run.fact_01": "Mặc định chạy trên máy của bạn — câu lệnh không bao giờ rời khỏi máy trừ khi bạn bật đám mây.",
     "first_run.fact_02": "Trò chuyện cục bộ miễn phí — không tính phí theo token. Chỉ thêm khóa đám mây khi bạn muốn mô hình lớn hơn.",
     "first_run.fact_03": "Không thuê bao, không phí mỗi tin nhắn — chạy trên phần cứng bạn đã có.",
-    "first_run.fact_04": "Tạo ảnh ngay trên thiết bị — miễn phí, không cần khóa, không tải gì lên.",
+    "first_run.fact_04": "Chỉnh sửa video và âm thanh ngay trên máy — cắt, crop, đổi kích thước, nén; miễn phí và không cần khóa.",
     "first_run.fact_05": "Đọc, tìm kiếm và chỉnh sửa tệp trong không gian làm việc của bạn, và chạy thử nghiệm trong sandbox.",
     "first_run.fact_06": "Hỏi về một thư mục và nó đọc tệp thật — không phải phỏng đoán.",
     "first_run.fact_07": "Gắn một cuộc trò chuyện vào thư mục dự án và bộ nhớ của nó chỉ nằm trong dự án đó.",
@@ -575,7 +575,7 @@
     "proof.withheld": "Giữ lại (không có bằng chứng)",
     "receipts.chain_invalid": "Chuỗi biên nhận không hợp lệ — không thể xác nhận tính toàn vẹn của lịch sử hành động và bằng chứng đã ghi.",
     "receipts.chain_unchecked": "Chuỗi biên nhận chưa kiểm tra — biên nhận không xác lập tính đúng đắn của câu trả lời.",
-    "receipts.chain_valid": "Chuỗi biên nhận hợp lệ — lịch sử hành động và bằng chứng đã ghi còn nguyên vẹn. Điều này không chứng minh câu trả lời đúng.",
+    "receipts.chain_valid": "Chuỗi biên nhận hợp lệ — các biên nhận hiện có nhất quán với nhau. Điều này không chứng minh lịch sử đầy đủ hay câu trả lời đúng.",
     "receipts.copy_hash": "Sao chép hash",
     "receipts.copy_receipt": "Sao chép biên nhận",
     "receipts.field_claimed_actions": "Hành động tuyên bố",
@@ -956,7 +956,7 @@
     "wallet.testnet_badge": "tiền của mạng thử nghiệm, không phải tiền thật",
     "wallet.watch_only_hint": "chỉ xem: đề xuất này có thể được phê duyệt trong một ví ngoài, không ký tại đây"
   },
-  "source_catalog_sha256": "f5feb2248d2fd9d21a460873c4d501541b090a6bd2fc2b9393aa073b40ad0884",
+  "source_catalog_sha256": "3be286b1a51cb3d3625ab3533a7cc77b436968d2c01c3c633b49c59f3d5f6ced",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

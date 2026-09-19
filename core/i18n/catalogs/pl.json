@@ -313,7 +313,7 @@
     "first_run.fact_01": "Domyślnie działa na twoim komputerze — twoje polecenia nigdy go nie opuszczają, chyba że włączysz chmurę.",
     "first_run.fact_02": "Lokalny czat jest darmowy — brak rozliczania za tokeny. Dodaj klucz chmury tylko wtedy, gdy chcesz większego modelu.",
     "first_run.fact_03": "Bez subskrypcji i bez opłat za wiadomości — działa na sprzęcie, który już masz.",
-    "first_run.fact_04": "Generuje obrazy na urządzeniu — bezpłatnie, bez klucza, nic nie jest wysyłane.",
+    "first_run.fact_04": "Edytuje wideo i dźwięk lokalnie — przycinanie, kadrowanie, skalowanie, kompresja; bezpłatnie i bez klucza.",
     "first_run.fact_05": "Czyta, przeszukuje i edytuje pliki w twojej przestrzeni roboczej oraz uruchamia testy w piaskownicy.",
     "first_run.fact_06": "Zapytaj go o folder, a przeczyta prawdziwe pliki — nie zgaduje.",
     "first_run.fact_07": "Powiąż czat z folderem projektu, a jego pamięć zostanie ograniczona do tego projektu.",
@@ -575,7 +575,7 @@
     "proof.withheld": "Wstrzymane (niepoparte)",
     "receipts.chain_invalid": "Łańcuch potwierdzeń nieprawidłowy — nie udało się potwierdzić integralności zapisanej historii działań i dowodów.",
     "receipts.chain_unchecked": "Łańcuch potwierdzeń niesprawdzony — potwierdzenia nie dowodzą poprawności odpowiedzi.",
-    "receipts.chain_valid": "Łańcuch potwierdzeń prawidłowy — zapisana historia działań i dowodów jest nienaruszona. To nie dowodzi, że odpowiedź jest poprawna.",
+    "receipts.chain_valid": "Łańcuch potwierdzeń prawidłowy — obecne potwierdzenia są spójne. To nie dowodzi ani kompletności historii, ani poprawności odpowiedzi.",
     "receipts.copy_hash": "Kopiuj hash",
     "receipts.copy_receipt": "Kopiuj potwierdzenie",
     "receipts.field_claimed_actions": "Deklarowane działania",
@@ -956,7 +956,7 @@
     "wallet.testnet_badge": "środki testowe, nie prawdziwe pieniądze",
     "wallet.watch_only_hint": "tylko podgląd: tę propozycję można zatwierdzić w portfelu zewnętrznym, tutaj podpisać się nie da"
   },
-  "source_catalog_sha256": "f5feb2248d2fd9d21a460873c4d501541b090a6bd2fc2b9393aa073b40ad0884",
+  "source_catalog_sha256": "3be286b1a51cb3d3625ab3533a7cc77b436968d2c01c3c633b49c59f3d5f6ced",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

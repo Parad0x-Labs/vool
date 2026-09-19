@@ -313,7 +313,7 @@
     "first_run.fact_01": "Roda na sua máquina por padrão — seus prompts nunca saem dela, a menos que você ative a nuvem.",
     "first_run.fact_02": "O chat local é grátis — sem cobrança por token. Adicione uma chave de nuvem só quando quiser um modelo maior.",
     "first_run.fact_03": "Sem assinatura e sem taxa por mensagem — roda em hardware que você já tem.",
-    "first_run.fact_04": "Gera imagens no próprio dispositivo — grátis, sem chave, nada é enviado.",
+    "first_run.fact_04": "Edita vídeo e áudio localmente — cortar, recortar, redimensionar, comprimir; grátis e sem chave.",
     "first_run.fact_05": "Lê, busca e edita arquivos no seu espaço de trabalho, e roda testes em um sandbox.",
     "first_run.fact_06": "Pergunte sobre uma pasta e ele lê os arquivos reais — não um palpite.",
     "first_run.fact_07": "Vincule um chat a uma pasta de projeto e a memória dele fica limitada a esse projeto.",
@@ -575,7 +575,7 @@
     "proof.withheld": "Retido (sem apoio)",
     "receipts.chain_invalid": "Cadeia de recibos inválida — não foi possível confirmar a integridade do histórico registrado de ações e evidências.",
     "receipts.chain_unchecked": "Cadeia de recibos não verificada — recibos não estabelecem a correção da resposta.",
-    "receipts.chain_valid": "Cadeia de recibos válida — o histórico registrado de ações e evidências está intacto. Isso não prova que a resposta esteja correta.",
+    "receipts.chain_valid": "Cadeia de recibos válida — os recibos presentes são consistentes. Isso não prova que o histórico esteja completo nem que a resposta esteja correta.",
     "receipts.copy_hash": "Copiar hash",
     "receipts.copy_receipt": "Copiar recibo",
     "receipts.field_claimed_actions": "Ações declaradas",
@@ -956,7 +956,7 @@
     "wallet.testnet_badge": "fundos de testnet, não é dinheiro real",
     "wallet.watch_only_hint": "somente leitura: esta proposta pode ser aprovada numa carteira externa, não assinada aqui"
   },
-  "source_catalog_sha256": "f5feb2248d2fd9d21a460873c4d501541b090a6bd2fc2b9393aa073b40ad0884",
+  "source_catalog_sha256": "3be286b1a51cb3d3625ab3533a7cc77b436968d2c01c3c633b49c59f3d5f6ced",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
