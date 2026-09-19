@@ -2063,11 +2063,35 @@ def handle_turn_frontdoor(
     # the siblings would vanish behind a one-clause answer (the clock/currency
     # measured class). Refused, the arm below records the live slice answer and
     # the composite seams own the whole unit plan.
+    # A whole claim is only true when the CANONICAL demand mint agrees: this lane's own slicer
+    # demotes an independent sibling to a chained step ("weather in Vilnius and calculate 37 x
+    # 19" reads as one weather request plus a step), and finalizing on that reading swallowed
+    # the sibling -- the arithmetic answered by nobody, or by the fast path's search road
+    # instead of the conductor. When the spine's own mint holds more than one REQUEST, the
+    # demand-owned composite owns the whole turn.
+    from core.agent_runtime.answer_coverage import KIND_REQUEST, demand_units
+
+    try:
+        _minted_requests = [
+            unit for unit in (demand_units(effective_input) or ())
+            if getattr(unit, "kind", KIND_REQUEST) == KIND_REQUEST
+        ]
+    except Exception:
+        _minted_requests = []
     _live_info_whole_claim = (
         live_info_coverage.covers_whole_turn
         and _lane_may_finalize("live_info_fast_path")
+        and len(_minted_requests) <= 1
     )
     live_info_wanted = _live_info_whole_claim or bool(live_info_coverage.consumed)
+    if live_info_wanted and not _live_info_whole_claim and len(_minted_requests) > 1 \
+            and not live_info_coverage.conflicting:
+        # The slice design answers a live clause BESIDE clauses other fast families serve
+        # (identity beside weather). When the sibling requests have no family -- the
+        # arithmetic the conductor computes -- this lane's search road answering the live
+        # clause first splits the turn, and the composite never runs its typed plan through
+        # the transport door. Siblings without an owner send the whole turn to the composite.
+        live_info_wanted = False
     live_info_status = None if (
         action_forbidden or not live_info_wanted
     ) else agent._maybe_handle_live_info_fast_path(
@@ -2086,6 +2110,14 @@ def handle_turn_frontdoor(
             reason="live_info_fast_path",
             consumed=live_info_coverage.consumed,
         )
+        live_info_status = None
+    if live_info_status is not None and live_info_status.get("live_info_refusal"):
+        # A whole-turn claim the lane then REFUSED (web lookup disabled on this runtime) may
+        # not finalize the turn, and -- measured -- may not CONSUME the demand either: a
+        # recorded slice answer marks the unit served, the demand-owned composite then skips
+        # it, and the arithmetic beside the weather answered while the weather quietly died.
+        # The refusal answers nothing; the turn continues so the lanes that can serve the
+        # demand (the typed live-data lane through the transport door) still own it.
         live_info_status = None
     if live_info_status is not None:
         return {"result": live_info_status}

@@ -39,6 +39,8 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
+import pytest
+
 from core.conductor import planner as conductor_planner
 from core.conductor.node import NodeFailureCode
 from core.conductor.scheduler import run_conductor_plan
@@ -448,6 +450,7 @@ def _drive_served_mixed_turn(session_id: str, *, server_url: str | None):
     return result, context, _finalize_like_the_transport(context, result)
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_served_mixed_weather_and_math_both_execute_when_transport_succeeds():
     """The amendment's headline proof, through the real spine: the mixed turn's
     live-data demand EXECUTES (the worker fetched through the door -- no
@@ -487,6 +490,7 @@ def test_served_mixed_weather_and_math_both_execute_when_transport_succeeds():
     assert "17" in joined and "loopback.test" in joined, joined[:400]
 
 
+@pytest.mark.usefixtures("enable_web")
 def test_served_transport_failure_fails_only_weather_with_the_real_reason():
     """When the transport GENUINELY fails, only the weather demand fails -- with the
     transport's own reason (connection refused on a closed port), never the missing-
