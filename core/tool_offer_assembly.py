@@ -491,7 +491,15 @@ def assemble_tool_offer(
             if f
         )
     )
-    offer = ToolOffer(specs=tuple(specs), skill_guidance=guidance, families=families)
+    offer = ToolOffer(
+        specs=tuple(specs),
+        skill_guidance=guidance,
+        families=families,
+        # The field's own contract: the turn navigation set this offer was built FROM. The
+        # expansions above already seat the families' tools in `specs`; without this the
+        # offer's record (and the audit dict below) said no family was ever expanded.
+        expanded_families=tuple(expansions),
+    )
     if isinstance(source_context, dict):
         source_context["_tool_offer"] = {
             "provenance": PROVENANCE,

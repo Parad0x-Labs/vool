@@ -128,12 +128,21 @@ def _scope_key(source_context: dict[str, Any] | None) -> tuple[str, str, str] | 
     a client chooses its visible turn ids, so two sessions may present the same one; the scope
     token separates two requests that present the same session and turn id (a retry, a resumed
     approval, a reused task id).
+
+    When the scope token is present it IS the key's identity: the spine re-stamps the context's
+    turn id with the canonical mint while a turn is running, and a key that still named the
+    caller's turn id orphaned the navigation set the same turn recorded (measured: a round's
+    offer lost the family the model had just asked to expand). The token is a fresh uuid per
+    navigation scope, so keying on it cannot collide across turns or sessions.
     """
     turn = _turn_id(source_context)
     if not turn:
         return None
     context = source_context or {}
-    return (_session_id(context), turn, str(context.get(TURN_SCOPE_KEY) or "").strip())
+    token = str(context.get(TURN_SCOPE_KEY) or "").strip()
+    if token:
+        return (_session_id(context), "scope", token)
+    return (_session_id(context), turn, "")
 
 
 def begin_turn_navigation(source_context: dict[str, Any] | None) -> str:
