@@ -175,14 +175,65 @@ def _rank_provider_candidates_internal(
             for manifest in base_ranked
             if not provider_capability_truth_for_manifest(manifest).hardware_fit_reason
         ]
+    # AUTHORSHIP ESCALATION ACROSS THE PREFERRED-MODEL FILTER. A preferred/pinned
+    # model narrows base_ranked to itself; when that ONE candidate is an uncertified
+    # local author (the precall fence will refuse it) and certified local authors
+    # exist in the registry, the ranking re-reads WITHOUT the pin so the turn
+    # escalates instead of failing on the only candidate it was handed (measured:
+    # tool_intent turns attempted exactly one provider, then failed the turn).
+    from core.final_answer_authorship import local_manifest_authorship_certified
+
+    def _any_certified_local(manifests: list[ModelProviderManifest]) -> bool:
+        return any(
+            manifest_is_local(m) and local_manifest_authorship_certified(m)
+            for m in manifests
+        )
+
+    if base_ranked and not _any_certified_local(base_ranked) and (
+        str(preferred_model or "").strip() or str(preferred_provider or "").strip()
+    ):
+        unfiltered = registry.rank_manifests(
+            ModelSelectionRequest(
+                task_kind=task_kind,
+                output_mode=output_mode,
+                preferred_source_types=["http", "local_path", "subprocess"],
+                allow_paid_fallback=resolved_allow_paid and not local_only,
+                min_trust=min_trust,
+                local_only=bool(local_only),
+            )
+        )
+        if _any_certified_local(unfiltered):
+            base_ranked = unfiltered
     if normalized_role == "auto":
         return base_ranked[:resolved_swarm_size] if limit_to_swarm_size else base_ranked
 
     total = max(len(base_ranked), 1)
     rescored: list[tuple[float, ModelProviderManifest]] = []
+    # AUTHORSHIP ESCALATION AT THE RANKING OWNER. The precall fence in
+    # memory_first_router refuses an uncertified local author one candidate at a
+    # time and relies on THIS order to escalate to a certified one. Ranking that
+    # put the auto-registered default above every certified local manifest made
+    # the "next candidate" the same refused candidate (measured: tool_intent
+    # turns attempted exactly one provider and failed the turn). A local manifest
+    # WITHOUT a completed final-answer certification ranks below every local
+    # manifest WITH one; the fence stays untouched as the backstop.
+    from core.final_answer_authorship import local_manifest_authorship_certified
+
+    local_certified = [
+        manifest
+        for manifest in base_ranked
+        if manifest_is_local(manifest) and local_manifest_authorship_certified(manifest)
+    ]
     for index, manifest in enumerate(base_ranked):
         base_score = float(total - index)
         role_bonus = _role_bonus(manifest, normalized_role)
+        if (
+            local_certified
+            and manifest_is_local(manifest)
+            and not local_manifest_authorship_certified(manifest)
+        ):
+            # Below every certified local author, still above nothing else changed.
+            base_score -= float(total) + 1.0
         rescored.append((base_score + role_bonus, manifest))
     rescored.sort(key=lambda item: (item[0], item[1].provider_name, item[1].model_name), reverse=True)
     ranked = [manifest for _, manifest in rescored]

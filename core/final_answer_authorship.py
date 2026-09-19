@@ -622,6 +622,27 @@ def resolve_author_role(
     return FINAL_ANSWER_ROLE
 
 
+def local_manifest_authorship_certified(manifest: Any) -> bool:
+    """Whether THIS local manifest carries a completed final-answer authorship certification.
+
+    A cheap, best-effort read for ranking order (provider_routing): True when the
+    certification question does not even arise for this manifest, and the actual
+    certification state otherwise. The authoritative refusal remains
+    ``precall_author_verdict`` at the call fence — this only helps candidate order
+    escalate to a certified author instead of re-offering a refused one.
+    """
+    try:
+        from core.local_model_tool_certification import certification_applies, certification_status
+
+        if not certification_applies(manifest):
+            return True
+        status = certification_status(manifest)
+        return str(getattr(status, "state", status) or "").strip().lower() == "verified"
+    except Exception:
+        # The fence owns the decision; ranking must never break on this read.
+        return True
+
+
 def precall_author_verdict(
     *,
     manifest: Any,

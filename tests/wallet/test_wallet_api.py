@@ -139,7 +139,7 @@ def _http(url: str, body: dict[str, Any] | None = None) -> tuple[int, dict[str, 
 def test_served_daemon_journey_watch_only_default_pocket_opt_in_capped_x402_and_one_broadcast(tmp_path: Path) -> None:
     from tests._blackbox_served_rig import REPO_ROOT, SEED_MANIFEST, ScriptedProvider, ServedDaemon, run_in_home
 
-    model = "qwen3-stub:2b"
+    model = "qwen3-stub:8b"
     home = tmp_path / "home"
     store_dir = tmp_path / "blackbox-store"
     provider = ScriptedProvider({model: "the model is never consulted on this journey"})

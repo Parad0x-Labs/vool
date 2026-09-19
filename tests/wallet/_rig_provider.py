@@ -9,7 +9,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-MODEL = "qwen3-stub:2b"
+MODEL = "qwen3-stub:8b"
 _PAY_RE = re.compile(r"pay\s+(?P<amount>\d+)\s+lamports?\s+to\s+(?P<dest>[1-9A-HJ-NP-Za-km-z]{32,44})(?:\s+for\s+(?P<memo>[^\n.?!]+))?", re.I)
 _SEND_RE = re.compile(r"send\s+(?P<amount>\d+(?:\.\d+)?)\s+(?P<asset>SOL|ETH|BNB)\s+(?:on\s+(?P<chain>solana|base|ethereum|bnb|robinhood)\s+)?to\s+(?P<dest>0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})(?:\s+on\s+(?P<chain2>solana|base|ethereum|bnb|robinhood))?(?:\s+for\s+(?P<memo>[^\n.?!]+))?", re.I)
 _PROPOSAL_RE = re.compile(r"\b(pay-[0-9a-f]{20})\b")
