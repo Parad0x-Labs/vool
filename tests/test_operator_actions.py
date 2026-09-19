@@ -113,11 +113,11 @@ class OperatorActionTests(unittest.TestCase):
                     f'find disk bloat in "{root}"',
                     source_context={"surface": "openclaw", "platform": "openclaw"},
                 )
-        # 2026-09-15, read-result truth: a completed read report ('find disk bloat') is a finished
-        # read -- `tool_executed`, the classification `core.execution.operator_tools` already gave
-        # it on the tool-intent path -- never a staged approval. The cleanup proposal INSIDE the
-        # response stays a pending action; only the read's own result class changed.
-        self.assertEqual(result["mode"], "tool_executed")
+        # Read-result truth (v6 storage-gate path-words, served): a disk read that STAGED a
+        # cleanup approval is `tool_preview` in substance -- its actionable outcome is the
+        # approval it holds, and painting it as a finished read would hide that approval. The
+        # scan's own text and the pending action still ride the same response.
+        self.assertEqual(result["mode"], "tool_preview")
         self.assertIn("Safe temp cleanup preview", result["response"])
         self.assertGreaterEqual(_count_pending_actions(), 1)
 
@@ -165,9 +165,9 @@ class OperatorActionTests(unittest.TestCase):
                     source_context={"surface": "openclaw", "platform": "openclaw"},
                 )
                 remaining_entries = list(temp_root.iterdir())
-        # The disk read itself is a finished read (see the read-result truth note above); the
-        # cleanup that follows is the mutating action under test.
-        self.assertEqual(preview["mode"], "tool_executed")
+        # The disk read stages the cleanup approval (`tool_preview`, the v6 storage-gate
+        # contract); the cleanup that follows is the mutating action under test.
+        self.assertEqual(preview["mode"], "tool_preview")
         self.assertEqual(result["mode"], "tool_executed")
         self.assertIn("Temp cleanup finished.", result["response"])
         self.assertEqual(before_shards + 1, _count_learning_shards())
@@ -204,9 +204,9 @@ class OperatorActionTests(unittest.TestCase):
                 preview = agent.run_once(f'find disk bloat in "{temp_root}"', source_context=ask_ctx)
                 result = agent.run_once("clean all temp files", source_context=ask_ctx)
                 remaining = list(temp_root.iterdir())
-        # The read still runs in Ask mode, and its finished report is a completed read
-        # (`tool_executed`), never a staged approval.
-        self.assertEqual(preview["mode"], "tool_executed")
+        # The read still runs in Ask mode; staging the cleanup proposal makes it a preview
+        # (the v6 storage-gate contract), but nothing was executed to stage it.
+        self.assertEqual(preview["mode"], "tool_preview")
         # The mutation is refused with a read-only message, nothing executed, nothing deleted.
         self.assertEqual(result.get("route"), "mode_read_only")
         self.assertIn("read-only", result["response"].lower())
@@ -231,8 +231,9 @@ class OperatorActionTests(unittest.TestCase):
                     session_id_override=session_id,
                     source_context={"surface": "openclaw", "platform": "openclaw"},
                 )
-        # The disk read is a finished read (`tool_executed`); the cleanup is the mutation.
-        self.assertEqual(preview["mode"], "tool_executed")
+        # The disk read stages the cleanup approval (`tool_preview` per the v6 storage-gate
+        # contract); the cleanup itself is the mutation and, once run, is `tool_executed`.
+        self.assertEqual(preview["mode"], "tool_preview")
         self.assertEqual(result["mode"], "tool_executed")
 
         conn = get_connection()
@@ -285,8 +286,11 @@ class OperatorActionTests(unittest.TestCase):
         self.assertIn("- operator: 20 available", response)  # 7 legacy + calendar/notes vertical + its read kinds declared 2026-09-15
         self.assertIn("- workspace:", response)
         self.assertIn("capability.expand_family", response)
-        # Disabled lanes stay visible as unavailable metadata with their reason.
-        self.assertIn("email.send: unavailable", response)
+        # Disabled lanes stay visible as unavailable metadata with their reason. The per-tool
+        # lines are sampled per family, so the stable pin is the family's own unavailable count
+        # plus the send flag its reason names.
+        self.assertIn("- email: 0 available", response)
+        self.assertIn("(set email.send_enabled)", response)
 
     def test_inspect_processes_reports_top_rows(self) -> None:
         agent = VoolAgent(backend_name="test-backend", device="openclaw-test", persona_id="default")

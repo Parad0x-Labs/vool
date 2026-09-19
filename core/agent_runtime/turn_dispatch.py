@@ -296,6 +296,16 @@ def prepare_turn_task_bundle(
         # message cannot grant this action the right to consume the whole turn.
         if not lane_may_claim_whole_turn(effective_input, "operator_action_dispatch"):
             operator_intent = None
+        # An explicitly pinned model outranks the text-shape fast path: the operator chose a
+        # brain for this chat -- and for a paid route, approved it -- so a parser match on the
+        # wording must not eat the turn (measured: a pinned, approved UsePod drive asking
+        # "write a short thank-you note..." was answered by the save-note ask-back instead of
+        # the paid model). The pinned lane serves it with the operator tools still in its
+        # catalog. Auto's per-chat stickiness is advisory, not a choice, and keeps the fast path.
+        _pinned_model = str((source_context or {}).get("requested_model") or "").strip()
+        _pin_kind = str((source_context or {}).get("model_selection") or "").strip().lower()
+        if operator_intent is not None and _pinned_model and _pin_kind != "sticky":
+            operator_intent = None
     if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
         # A conversational/no-action constraint is decided before dispatch.  Let the reasoning
         # layer answer independent explanatory siblings; constructing and then rejecting a tool
