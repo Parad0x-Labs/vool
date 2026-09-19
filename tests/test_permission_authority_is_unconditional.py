@@ -268,8 +268,13 @@ def test_invalid_mode_string_falls_to_manual_not_to_auto(tmp_path) -> None:
 
 def test_a_real_grant_still_produces_a_working_bypass(tmp_path) -> None:
     """The control proving the spoof tests above are not passing merely because bypass is broken."""
+    from core.mode_permission_policy import request_bypass_confirmation
+
+    _cid = request_bypass_confirmation(
+        session_id="sess-real-bypass", task_id="turn-1", scope="task", duration_seconds=120
+    )
     grant = activate_bypass_grant(
-        session_id="sess-real-bypass", task_id="turn-1", scope="task", duration_seconds=120, explicit_confirmation=True
+        session_id="sess-real-bypass", task_id="turn-1", scope="task", duration_seconds=120, confirmation_id=_cid
     )
     set_active_mode("sess-real-bypass", "bypass_permissions", client_turn_id="turn-1", bypass_token=grant["token"])
     context = {
@@ -504,8 +509,13 @@ def test_resolve_effective_mode_will_not_mint_bypass_without_a_grant() -> None:
 
 
 def test_resolve_effective_mode_honors_a_real_bypass_grant() -> None:
+    from core.mode_permission_policy import request_bypass_confirmation
+
+    _cid = request_bypass_confirmation(
+        session_id="sess-mint-ok", task_id="turn-1", scope="task", duration_seconds=120
+    )
     grant = activate_bypass_grant(
-        session_id="sess-mint-ok", task_id="turn-1", scope="task", duration_seconds=120, explicit_confirmation=True
+        session_id="sess-mint-ok", task_id="turn-1", scope="task", duration_seconds=120, confirmation_id=_cid
     )
     state = resolve_effective_mode(
         session_id="sess-mint-ok",
