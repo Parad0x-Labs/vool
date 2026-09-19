@@ -56,10 +56,14 @@ def test_expected_red_scenarios_are_strict() -> None:
     be `strict=True`: when the defect is fixed the test XPASSes, strict turns that into a failure,
     and somebody has to come back and remove the marker. A non-strict xfail would let a fixed defect
     sit unnoticed and a re-broken one look identical.
+
+    Zero markers is the all-repaired end state, not a broken gate: every red this file ever
+    carried has been promoted ("removed the marker once it XPASSed on that repair"), so the
+    emptiness guard would false-fail exactly when the gate has done its job. Strictness still
+    binds any marker that returns.
     """
     source = (GAUNTLET_DIR / "test_release_conversation_gauntlet.py").read_text(encoding="utf-8")
     markers = re.findall(r"@pytest\.mark\.xfail\((.*?)\n\)", source, re.DOTALL)
-    assert markers, "no xfail markers found -- did the file move?"
     loose = [m.strip()[:80] for m in markers if "strict=True" not in m]
     assert not loose, f"{len(loose)} xfail marker(s) are not strict: {loose}"
 

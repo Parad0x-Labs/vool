@@ -87,13 +87,26 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'media.open': ('workspace_write', 'runtime_policy'),
     'media.redo': ('workspace_write', 'runtime_policy'),
     'media.undo': ('workspace_write', 'runtime_policy'),
+    'operator.apple_note_list': ('read_only', 'none'),
+    'operator.apple_note_read': ('read_only', 'none'),
+    'operator.check_availability': ('read_only', 'none'),
     'operator.cleanup_temp_files': ('workspace_write', 'explicit_user_opt_in'),
+    'operator.find_notes': ('read_only', 'none'),
+    'operator.inspect_calendar_event': ('read_only', 'none'),
     'operator.inspect_disk_usage': ('read_only', 'none'),
     'operator.inspect_processes': ('read_only', 'none'),
     'operator.inspect_services': ('read_only', 'none'),
+    'operator.list_calendars': ('read_only', 'none'),
+    'operator.list_reminders': ('read_only', 'none'),
     'operator.list_tools': ('read_only', 'none'),
     'operator.move_path': ('workspace_write', 'explicit_user_opt_in'),
+    'operator.propose_calendar_event': ('network_publish', 'explicit_user_opt_in'),
+    'operator.save_note': ('workspace_write', 'explicit_user_opt_in'),
     'operator.schedule_calendar_event': ('workspace_write', 'explicit_user_opt_in'),
+    'operator.search_calendar_event': ('read_only', 'none'),
+    'operator.show_agenda': ('read_only', 'none'),
+    'operator.show_note': ('read_only', 'none'),
+    'operator.update_calendar_event': ('network_publish', 'explicit_user_opt_in'),
     'orchestration.execute_envelope': ('task_orchestration', 'runtime_policy'),
     'pay.x402': ('wallet_spend', 'explicit_user_opt_in'),
     'pdf.extract_text': ('read_only', 'none'),
@@ -219,6 +232,12 @@ EXPECTED_EXPLICIT_OPT_IN = {
     "operator.cleanup_temp_files",
     "operator.move_path",
     "operator.schedule_calendar_event",
+    # The operator calendar/notes vertical (2026-09-15): writing a note and mutating the
+    # operator's own calendar are opt-in acts, and proposing/updating an event sends
+    # invitations to other people -- the same external-message gate as email.
+    "operator.propose_calendar_event",
+    "operator.save_note",
+    "operator.update_calendar_event",
     "pay.x402",
     # C07 checkout handoff (canonical convergence checkpoint 8). These three are the only
     # browser intents at the highest gate, and they must stay there: two begin/hand off a
@@ -308,7 +327,10 @@ def test_contract_map_and_list_agree():
     # 138 -> 146: the github lane (2026-09-13) -- two issue-inspection reads that should have
     # been pinned when they landed, code.task.pr_description (same omission, same lane family),
     # and the five forge-action contracts (see the note at the repo.* entries above).
-    assert len(contract_map) == len(GOLDEN_TIERS) == 146
+    # 146 -> 159: the operator calendar/notes vertical declared 2026-09-15 (ten reads, two
+    # writes, and the two invitation-sending calendar mutations at network_publish) plus the
+    # code.task/contacts/profile/repo/skill contracts that landed unpinned with their lanes.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 170
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

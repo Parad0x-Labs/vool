@@ -36,8 +36,10 @@ DEFAULT_TIMEOUT_S = 120.0
 # `harness_control` joins it by the same rule: measured 149.9 s (rc 0, full evidence) once the
 # ambiguity probe's standing scripted verdict let every plain knowledge control turn run its
 # FULL answering path -- generation, composition, publication gates -- instead of the probe's
-# fast clarification short-circuit the original 120 s budget was calibrated for.
-GROUP_TIMEOUTS: dict[str, float] = {"g1_continuation": 240.0, "harness_control": 240.0}
+# fast clarification short-circuit the original 120 s budget was calibrated for. Measured again
+# on a slower reference box at ~290 s with full evidence and identical per-turn shapes: the
+# spread is machine latency, not work, so the budget sits at 2x that measurement.
+GROUP_TIMEOUTS: dict[str, float] = {"g1_continuation": 240.0, "harness_control": 600.0}
 
 # Environment the child must NOT inherit from whoever invoked pytest, or the run stops being
 # deterministic and starts depending on the developer's shell.
