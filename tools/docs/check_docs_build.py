@@ -120,7 +120,7 @@ def main(root, base="/docs"):
         prefix = os.path.dirname(ix)
         try:
             with open(ix, encoding="utf-8") as fh:
-    idx = json.load(fh)
+                idx = json.load(fh)
         except Exception as e:
             fails.append("%s: unreadable (%s)" % (ix, e))
             continue
