@@ -657,15 +657,14 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
             )
 
         payload = json.loads(response.body.decode("utf-8"))
-        text = payload["message"]["content"]
 
         self.assertEqual(response.status, 200)
-        run_agent_mock.assert_not_called()
-        self.assertIn("not as a normal ICANN/DNS purchase", text)
-        self.assertIn("null_registrar v2", text)
-        self.assertIn("NXgQhepFpDCu935H1D4g34g59ZYbo1jR4tBCZWhV8Np", text)
-        self.assertIn("vool resolve <name>.null", text)
-        self.assertNotIn("domain registrars that might support .null", text)
+        # The scripted web0/.null topic-answer interception was REMOVED by the owner's
+        # instruction (2026-09-16, core/web/api/service.py): it preempted real questions on
+        # keyword evidence far weaker than its authority. These tests now pin the CURRENT
+        # contract: .null registration questions reach the ordinary agent lanes (the model is
+        # invoked), and no topic matcher answers them wholesale.
+        run_agent_mock.assert_called_once()
 
     def test_pasted_fee_review_reaches_agent_through_both_chat_transports(self) -> None:
         prompt = (
@@ -729,11 +728,13 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
         self.assertIn("application/x-ndjson", response.content_type)
-        run_agent_mock.assert_not_called()
-        stream_mock.assert_not_called()
-        self.assertIn("ICANN/DNS", streamed_text)
-        self.assertIn("null_registrar", streamed_text)
-        self.assertIn("vool resolve <name>.null", streamed_text)
+        # The scripted web0/.null topic-answer interception was REMOVED by the owner's
+        # instruction (2026-09-16, core/web/api/service.py): it preempted real questions on
+        # keyword evidence far weaker than its authority. These tests now pin the CURRENT
+        # contract: .null registration questions reach the ordinary agent lanes (the model is
+        # invoked), and no topic matcher answers them wholesale.
+        stream_mock.assert_called_once()
+        self.assertEqual(streamed_text, "")  # the mocked lane streams nothing; content is the lane's job now
 
     def test_dispatch_post_answers_named_web0_null_registration_as_workflow(self) -> None:
         runtime = RuntimeServices(display_name="VOOL")
@@ -760,12 +761,12 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         text = payload["message"]["content"]
 
         self.assertEqual(response.status, 200)
-        run_agent_mock.assert_not_called()
-        self.assertIn("`test123.null`", text)
-        self.assertIn("vool resolve test123.null", text)
-        self.assertIn("will not sign, spend, or submit", text)
-        self.assertIn("wallet prompt", text)
-        self.assertNotIn("not as a normal ICANN/DNS purchase", text)
+        # The scripted web0/.null topic-answer interception was REMOVED by the owner's
+        # instruction (2026-09-16, core/web/api/service.py): it preempted real questions on
+        # keyword evidence far weaker than its authority. These tests now pin the CURRENT
+        # contract: .null registration questions reach the ordinary agent lanes (the model is
+        # invoked), and no topic matcher answers them wholesale.
+        run_agent_mock.assert_called_once()
 
     def test_dispatch_post_answers_runtime_model_status_from_runtime_truth(self) -> None:
         runtime = RuntimeServices(

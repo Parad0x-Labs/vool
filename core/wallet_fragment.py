@@ -12,7 +12,8 @@ The Wallet home follows the same law: the entry under Home and the panel exist o
 backend's wallet preference says enabled (one owner, no second flag), the panel reads the same
 status/balance/transfer doors Settings reads, and a send is only ever a proposal that the
 existing review sheet approves. The vendored offline QR generator (mobile_vendor/qrcode.js,
-qrcode-generator 2.0.4, MIT, unmodified) is spliced INSIDE the IIFE so it adds no global; if it
+qrcode-generator 2.0.4, MIT; license URLs normalized http->https for the no-http
+    page contract) is spliced INSIDE the IIFE so it adds no global; if it
 is absent the Receive view says so and offers the address and copy instead.
 """
 from __future__ import annotations
@@ -2656,7 +2657,8 @@ def _qr_vendor_js() -> str:
     """The already-vendored offline QR generator, served inline and scoped INSIDE the fragment IIFE.
 
     The same file the mobile companion page serves (core/web/api/mobile_vendor/qrcode.js,
-    qrcode-generator 2.0.4, MIT, unmodified). Splicing it just inside the IIFE keeps its
+    qrcode-generator 2.0.4, MIT; only its license URLs are normalized http->https to
+    satisfy the offline page's no-http contract). Splicing it just inside the IIFE keeps its
     ``var qrcode`` out of the global namespace (fragment law: one namespace). It never sends the
     encoded text anywhere: the QR is drawn locally from the matrix. An unreadable vendor file is
     not an error — the fragment degrades to address + copy and says so.

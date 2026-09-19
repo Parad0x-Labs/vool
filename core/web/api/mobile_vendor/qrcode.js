@@ -4,14 +4,14 @@
 //
 // Copyright (c) 2009 Kazuhiko Arase
 //
-// URL: http://www.d-project.com/
+// URL: https://www.d-project.com/
 //
 // Licensed under the MIT license:
-//  http://www.opensource.org/licenses/mit-license.php
+//  https://www.opensource.org/licenses/mit-license.php
 //
 // The word 'QR Code' is registered trademark of
 // DENSO WAVE INCORPORATED
-//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//  https://www.denso-wave.com/qrcode/faqpatent-e.html
 //
 //---------------------------------------------------------------------
 
@@ -524,7 +524,7 @@ var qrcode = function() {
       rect = 'l' + cellSize + ',0 0,' + cellSize +
         ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
 
-      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += '<svg version="1.1" xmlns="https://www.w3.org/2000/svg"';
       qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
       qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
       qrSvg += ' preserveAspectRatio="xMinYMin meet"';
@@ -2250,7 +2250,7 @@ var qrcode = function() {
 !function() {
 
   qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
-    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    // https://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
     function toUTF8Array(str) {
       var utf8 = [];
       for (var i=0; i < str.length; i++) {
