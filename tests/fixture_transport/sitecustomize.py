@@ -35,9 +35,15 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from email.message import Message
 
 _MANIFEST = os.environ.get("VOOL_FIXTURE_TRANSPORT_MANIFEST", "").strip()
+
+
+def _manifest_dir() -> str:
+    return os.path.dirname(os.path.abspath(_MANIFEST)) if _MANIFEST else ""
+
 _LOG = os.environ.get("VOOL_FIXTURE_TRANSPORT_LOG", "").strip()
 
 if _MANIFEST:
@@ -112,7 +118,13 @@ if _MANIFEST:
         if "json" in rule:
             return json.dumps(rule["json"]).encode("utf-8")
         if rule.get("body_file"):
-            with open(str(rule["body_file"]), "rb") as handle:
+            body_path = Path(str(rule["body_file"])).expanduser()
+            if not body_path.is_absolute():
+                # Relative body_file resolves against the manifest's own directory, so a
+                # fixture set is relocatable (the original manifests carried absolute
+                # builder-machine paths; canonical test fixtures use relative names).
+                body_path = Path(_manifest_dir()) / body_path
+            with open(body_path, "rb") as handle:
                 return handle.read()
         return str(rule.get("body") or "").encode("utf-8")
 

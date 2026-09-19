@@ -256,7 +256,7 @@ class ModelExecutionLayerTests(unittest.TestCase):
                 persona=self.persona,
                 force_model=False,
                 surface="openclaw",
-                source_context={"surface": "openclaw", "platform": "openclaw"},
+                source_context={"surface": "openclaw", "platform": "openclaw", "session_id": "mel-test-session", "turn_id": "mel-test-turn"},
             )
 
         self.assertEqual(decision.source, "provider_execution")
@@ -284,7 +284,7 @@ class ModelExecutionLayerTests(unittest.TestCase):
                 persona=self.persona,
                 force_model=False,
                 surface="openclaw",
-                source_context={"surface": "openclaw", "platform": "openclaw"},
+                source_context={"surface": "openclaw", "platform": "openclaw", "session_id": "mel-test-session", "turn_id": "mel-test-turn"},
             )
 
         self.assertEqual(decision.source, "no_provider_available")
@@ -421,7 +421,7 @@ class ModelExecutionLayerTests(unittest.TestCase):
                 persona=self.persona,
                 force_model=True,
                 surface="cli",
-                source_context={"surface": "cli", "platform": "cli"},
+                source_context={"surface": "cli", "platform": "cli", "session_id": "mel-test-session", "turn_id": "mel-test-turn"},
             )
 
         adapter.run_structured_task.assert_called_once()
@@ -517,7 +517,7 @@ class ModelExecutionLayerTests(unittest.TestCase):
                 persona=self.persona,
                 force_model=True,
                 surface="openclaw",
-                source_context={"surface": "openclaw", "platform": "openclaw"},
+                source_context={"surface": "openclaw", "platform": "openclaw", "session_id": "mel-test-session", "turn_id": "mel-test-turn"},
             )
 
         self.assertEqual(rank_candidates.call_args.kwargs["role"], "queen")
@@ -611,7 +611,7 @@ class ModelExecutionLayerTests(unittest.TestCase):
                 persona=self.persona,
                 force_model=True,
                 surface="openclaw",
-                source_context={"surface": "openclaw", "platform": "openclaw"},
+                source_context={"surface": "openclaw", "platform": "openclaw", "session_id": "mel-test-session", "turn_id": "mel-test-turn"},
             )
 
         self.assertEqual(decision.provider_name, queen_manifest.provider_name)
@@ -694,7 +694,7 @@ class ModelExecutionLayerTests(unittest.TestCase):
                 context_result=context_result,
                 persona=self.persona,
                 surface="openclaw",
-                source_context={"surface": "openclaw", "platform": "openclaw"},
+                source_context={"surface": "openclaw", "platform": "openclaw", "session_id": "mel-test-session", "turn_id": "mel-test-turn"},
             )
 
         adapter.run_structured_task.assert_called_once()
