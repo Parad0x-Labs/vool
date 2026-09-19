@@ -133,14 +133,24 @@ def test_every_shipped_locale_catalog_is_complete_and_current() -> None:
 
 #: Keys whose translation may legitimately equal the English source: closed vocabularies
 #: (Auto / Local only model options), unit symbols (min), technical identifiers (PIN,
-#: audio family names), and the short function words below where the natural word in the
-#: shipped languages is the same international computing term (Plugins, Tests, Chats,
-#: Update, Model, Local, no/total/Error:, mode names, Reversible, General) — forcing a
-#: synthetic synonym there would make the UI worse, not more translated. Copied English
-#: anywhere else is not a completed translation.
+#: audio family names), and short function words that are true homographs across the
+#: shipped languages (the French for "Conversation" IS "Conversation"; likewise
+#: Tests/Standard/General/Model/Casual/Mode/Contacts/Protection/Notifications/Agents/
+#: Actions/Sources/Verdict/Crypto/Humour/Pause/signature/transaction/route/minutes).
+#: Forcing a synthetic synonym there would make the UI worse, not more translated.
+#: Copied English anywhere else is not a completed translation.
 TECHNICALLY_IDENTICAL_KEYS = frozenset(
     {
+        "activity.category.runtime",
+        "activity.category.tests",
+        "activity.rollup.actions",
         "attach.audio_family",
+        "bypass.expiry_15",
+        "bypass.expiry_30",
+        "bypass.expiry_60",
+        "chat.log_aria",
+        "contacts.protection",
+        "contacts.title",
         "header.cloud_auto",
         "header.cloud_local",
         "header.model_auto_option",
@@ -156,8 +166,11 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "mode.js.plan",
         "mode.manual",
         "mode.plan",
+        "mode.popover_title",
         "model.js.auto",
         "model.js.local_only",
+        "notif.pop_aria",
+        "panel.tab_agents",
         "panel.tab_tests",
         "pay.minutes_short",
         "pay.row_reasoning",
@@ -165,18 +178,69 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "plugins.panel_plugins",
         "plugins.panel_skills",
         "plugins.title",
+        "proof.head_actions",
+        "proof.head_sources",
         "proof.model_row",
+        "receipts.field_verdict",
         "receipts.no",
         "run.error_prefix",
         "run.total_word",
         "session.general",
+        "settings.group.general.title",
+        "settings.group.notifications.title",
+        "settings.group.wallet.title",
+        "settings.row.boundaries_mode.option.standard",
+        "settings.row.communication_style.option.casual",
+        "settings.row.humor_percent.label",
+        "settings.row.model_pin.label",
+        "setup.copy.pause",
         "sidebar.chats",
+        "sidebar.contacts",
         "sidebar.plugins",
         "sidebar.skills",
         "update.version_line",
+        "usepod.receipt.link_signature",
+        "usepod.receipt.route",
+        "usepod.receipt.transaction",
         "wallet.pin_short",
+        "wallet.signature",
     }
 )
+
+
+# ---- a payment receipt carries identical VALUES in every locale ------------------------------
+
+
+def test_receipt_prose_localizes_but_the_exact_values_never_change() -> None:
+    """The same UsePod receipt fixture, resolved in every shipped locale: the prose is
+    the locale's, while every amount, unit, identifier and signature is byte-identical
+    everywhere — localization may never re-parse or round a charge."""
+    from core.i18n.catalog import CATALOGS_DIR, catalog_for, clear_catalog_cache
+
+    fixture = {
+        "usepod.receipt.paid_chain_confirmed": {
+            "outflow": "0.000420 USDC",
+            "fee": "0.000001205 SOL",
+        },
+        "usepod.receipt.charged_upper_bound": {"amount": "1.250000 USDC"},
+        "usepod.receipt.link_signature": {"id": "5Kd8Nh…"},
+    }
+    clear_catalog_cache()
+    for path in sorted(CATALOGS_DIR.glob("*.json")):
+        tag = path.stem
+        catalog = catalog_for(tag)
+        for key, params in fixture.items():
+            rendered = catalog.format(key, **params)
+            for value in params.values():
+                assert value in rendered, (
+                    f"{tag}: {key} lost the exact value {value!r} in {rendered!r}"
+                )
+    # And the prose really is localized, not copied English.
+    de = catalog_for("de").format("usepod.receipt.charged_upper_bound", amount="1.250000 USDC")
+    assert "1.250000 USDC" in de and de != "up to 1.250000 USDC (usage at the approved ceiling — an upper bound, not the charge)"
+
+
+# ---- copied English is not a translation -------------------------------------------------------
 
 
 def test_copied_english_is_not_counted_as_translation_outside_the_allowlist() -> None:
