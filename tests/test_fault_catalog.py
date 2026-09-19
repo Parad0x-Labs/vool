@@ -154,6 +154,7 @@ def test_the_catalog_exports_machine_readably_and_stably():
             "operator_action",
             "authority",
             "security_relevant",
+            "effect",
         }
         # The export must be re-readable as data: no nested objects, no Nones.
         assert all(isinstance(value, (str, bool, int)) for value in entry.values())
