@@ -304,7 +304,7 @@ def test_sigterm_before_ownership_capture_still_sweeps_the_dead_childs_pidfile(
     dead = _dead_pid()
     pid_file = _write_pidfile(tmp_path, "sigterm-early", dead)
     body = f"""
-        import importlib.util, os, sys
+        import importlib.util, os, sys, time
         spec = importlib.util.spec_from_file_location("nw", {str(WINDOW_SCRIPT)!r})
         nw = importlib.util.module_from_spec(spec); spec.loader.exec_module(nw)
 
@@ -318,9 +318,17 @@ def test_sigterm_before_ownership_capture_still_sweeps_the_dead_childs_pidfile(
         sup = FakeSupervisor()
         nw._install_termination_handlers(sup, {{"pid": None}})
         os.kill(os.getpid(), 15)
+        # The real host stays alive until the teardown ends it (the native run loop owns the
+        # main thread); a driver that just falls off the end exits before the signal-watcher
+        # thread is ever scheduled and proves nothing. Stay alive like the host does; the
+        # watcher's os._exit(0) is the only clean way out.
+        for _ in range(100):
+            time.sleep(0.1)
+        print("SURVIVED-SIGTERM")
     """
     done = _driver(tmp_path, "sigterm-early", body, timeout=30)
     assert done.returncode == 0, done.stdout + done.stderr
+    assert "SURVIVED-SIGTERM" not in done.stdout, "the signal teardown never ran"
     assert not pid_file.exists(), (
         "a SIGTERM before ownership capture must still sweep the dead child's pidfile"
     )

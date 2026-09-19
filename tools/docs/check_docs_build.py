@@ -53,10 +53,10 @@ def main(root, base="/docs"):
         print("no pages found in %s" % root)
         return 2
     def _read(path):
-    with open(path, encoding="utf-8") as fh:
-        return fh.read()
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
 
-pages = {f: _read(f) for f in files}
+    pages = {f: _read(f) for f in files}
     fails = []
 
     for f, s in pages.items():
