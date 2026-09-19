@@ -15,6 +15,8 @@ concurrency:
 
 jobs:
   verify:
+    # 35.9k tests on a 2-core hosted runner need far more than the default 30-minute shard deadline.
+    timeout-minutes: 360
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +38,7 @@ jobs:
       - name: Run authoritative verification
         run: >-
           python ops/verify.py --workers 4 --pytest-arg=--tb=short
-          --log-dir=.verification-logs --tail-lines=2000
+          --log-dir=.verification-logs --tail-lines=2000 --timeout-seconds 7200
       - name: Upload complete verification logs
         if: always()
         uses: actions/upload-artifact@v7
