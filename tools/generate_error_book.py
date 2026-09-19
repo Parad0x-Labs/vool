@@ -10,10 +10,29 @@ from __future__ import annotations
 
 import pathlib
 
-from core.faults.catalog import CATALOG_VERSION, FAULT_SCHEMA, catalog_digest, export_catalog
+from core.faults.boundaries import BOUNDARIES
+from core.faults.catalog import (
+    CATALOG_VERSION,
+    EFFECT_CONTACTED,
+    EFFECT_LOCAL,
+    EFFECT_NONE,
+    EFFECT_UNCERTAIN,
+    FAULT_SCHEMA,
+    catalog_digest,
+    export_catalog,
+)
 
 # Category display order — stable, so the doc diff is minimal across regenerations.
 _CATEGORY_ORDER = ("security", "integrity", "policy", "availability", "cancellation", "internal")
+
+#: The effect column, worded for a reader deciding whether to retry: never a guess, never
+#: certainty the code cannot claim.
+_EFFECT_WORDS = {
+    EFFECT_NONE: "Nothing was sent, signed or changed",
+    EFFECT_CONTACTED: "A request reached an external service; no payment moved",
+    EFFECT_UNCERTAIN: "Outcome unknown — check state before retrying",
+    EFFECT_LOCAL: "A local record/change happened",
+}
 
 _DOC_PATH = pathlib.Path(__file__).resolve().parents[1] / "docs" / "ERROR_BOOK.md"
 
@@ -63,23 +82,53 @@ def build_error_book_markdown() -> str:
         lines.append(f"## {category}")
         lines.append("")
         lines.append(
-            "| Code | Severity | Retryable | Retry | Security | Meaning | Operator action | Authority |"
+            "| Code | Severity | Retryable | Retry | Security | Meaning | What may already have happened | Operator action | Authority |"
         )
-        lines.append("|---|---|---|---|---|---|---|---|")
+        lines.append("|---|---|---|---|---|---|---|---|---|")
         for f in rows:
             lines.append(
-                "| `{code}` | {sev} | {retryable} | {retry} | {sec} | {msg} | {action} | `{auth}` |".format(
+                "| `{code}` | {sev} | {retryable} | {retry} | {sec} | {msg} | {effect} | {action} | `{auth}` |".format(
                     code=_cell(f.get("code")),
                     sev=_cell(f.get("severity")),
                     retryable=_yn(f.get("retryable")),
                     retry=_cell(f.get("retry")),
                     sec=_yn(f.get("security_relevant")),
                     msg=_cell(f.get("user_message")),
+                    effect=_cell(_EFFECT_WORDS.get(str(f.get("effect") or ""), "")),
                     action=_cell(f.get("operator_action")),
                     auth=_cell(f.get("authority")),
                 )
             )
         lines.append("")
+
+    # --- the coverage matrix: every user-facing failure boundary, classified or not -----------
+    lines.extend(
+        [
+            "## Boundary coverage",
+            "",
+            "Every user-facing failure boundary and the code space that classifies it. A boundary",
+            "keeps its OWN closed vocabulary when it predates or sits beside `vool.fault.v1`; what",
+            "this matrix promises is that none is silently unclassified -- a boundary with no code",
+            "space would have to show that here.",
+            "",
+            "| Boundary | Classified by | Codes | Where it is mapped | What the user reads | Recovery | Fault records |",
+            "|---|---|---|---|---|---|---|",
+        ]
+    )
+    for boundary in BOUNDARIES:
+        codes = ", ".join(f"`{code}`" for code in boundary.codespace.codes) or "—"
+        lines.append(
+            "| {name} | {kind} | {codes} | {mapped} | {surface} | {recovery} | {records} |".format(
+                name=_cell(boundary.name),
+                kind=_cell(boundary.codespace.kind),
+                codes=_cell(codes),
+                mapped=_cell(boundary.mapped_at),
+                surface=_cell(boundary.user_surface),
+                recovery=_cell(boundary.recovery),
+                records="yes" if boundary.files_fault_records else "own code space",
+            )
+        )
+    lines.append("")
 
     return "\n".join(lines) + "\n"
 

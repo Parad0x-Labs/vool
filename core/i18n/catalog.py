@@ -275,6 +275,10 @@ class MessageCatalog:
         self._source_messages: dict[str, str] = self._source["messages"]
         self._messages: dict[str, str] = dict(self._source_messages)
         self._html_keys: frozenset[str] = frozenset(self._source.get("html_keys", []))
+        # The keys this locale's own file supplied and the loader accepted. A key whose
+        # translation is byte-identical to English (a technical identifier such as "PIN")
+        # still counts as supplied — completeness measures the catalog file, not difference.
+        self._locale_keys: set[str] = set()
         if locale != SOURCE_LOCALE:
             self._apply_locale(locale)
 
@@ -314,8 +318,16 @@ class MessageCatalog:
                 reason = "markup in a non-html message"
             if reason is None:
                 self._messages[key] = value
+                self._locale_keys.add(key)
             else:
                 self.diagnostic.note(key, reason)
+
+    @property
+    def locale_keys(self) -> frozenset[str]:
+        """Keys this locale's own catalog file supplied (English source returns the full set)."""
+        if self.locale == SOURCE_LOCALE:
+            return frozenset(self._source_messages)
+        return frozenset(self._locale_keys)
 
     def text(self, key: str) -> str:
         """Resolved text for ``key``: locale → English → the key itself (never blank)."""
@@ -329,7 +341,7 @@ class MessageCatalog:
         return self._source_messages[key]
 
     def format(self, key: str, **params: Any) -> str:
-        return format_message(self.text(key), **params)
+        return format_message(self.text(key), params)
 
     def is_html_key(self, key: str) -> bool:
         return key in self._html_keys

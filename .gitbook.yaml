@@ -1,0 +1,13 @@
+# GitBook space configuration.
+# This file is the contract between the repo and any renderer:
+#   - GitBook.com reads it directly (GitHub Sync)
+#   - tools/build_docs.py reads it to build the static site for vool.dev/docs
+# Keep both consumers working: never move `root` without updating the builder.
+root: ./docs/
+
+structure:
+  readme: README.md
+  summary: SUMMARY.md
+
+redirects:
+  # old-path: new-folder/new-page.md

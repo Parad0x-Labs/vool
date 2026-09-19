@@ -4446,26 +4446,24 @@ def _locale_coverage_note(tag: str) -> str:
 
     A locale with a shipped catalog serves its strings; anything the catalog does not carry
     falls back to English VISIBLY (the i18n engine's law). The line states exactly that, so
-    the selector never implies a fully translated product it cannot deliver.
+    the selector never implies a fully translated product it cannot deliver. A catalog where
+    every key resolves in-locale is called complete — but surfaces not yet wired to the
+    catalog stay named here in English until they are, so "complete catalog" never gets read
+    as "every screen ships in this language".
     """
     from core.i18n.catalog import catalog_for
 
     catalog = catalog_for(tag)
     total = len(catalog.keys)
-    translated = sum(
-        1
-        for key in catalog.keys
-        if catalog.text(key) != catalog_for("en").text(key)
-    )
+    # Supplied-and-accepted keys, not text-difference: a technical identifier ("PIN") is a
+    # legitimate byte-identical translation and still counts toward completeness.
+    translated = len(catalog.locale_keys & set(catalog.keys))
     if tag == "en":
-        return f"{total} strings · English (the source language)"
+        return catalog.format("settings.language_coverage_en", total=total)
     fallback = total - translated
     if fallback == 0:
-        return f"Partial app translation · {translated}/{total} catalog entries translated. Some screens remain in English."
-    return (
-        f"Partial app translation · {translated}/{total} catalog entries translated; {fallback} fall back to English."
-        " Some screens are not yet in the catalog and remain in English."
-    )
+        return catalog.format("settings.language_coverage_complete", translated=translated, total=total)
+    return catalog.format("settings.language_coverage_partial", translated=translated, total=total, fallback=fallback)
 
 
 # The always-discoverable app-language control, top-left of Settings (top of the side nav,
@@ -4477,17 +4475,61 @@ def _locale_coverage_note(tag: str) -> str:
 # language (settings.language_help, an existing catalog key).
 _LOCALE_BLOCK = """<div id="uiLocaleWrap">
   <label class="loc-label" for="uiLocaleSelect"><span class="loc-globe" aria-hidden="true">&#127760;</span><span class="loc-word" data-i18n-html="settings.language_heading">Language <span class="set-sub">screens only &mdash; never the answer language</span></span></label>
-  <select id="uiLocaleSelect" aria-label="App language (temporarily unavailable in this beta build)" title="App language switching is temporarily unavailable in this beta build — it returns in an update." data-i18n-aria-label="settings.language_select_aria" data-i18n-title="settings.language_select_title" disabled></select>
+  <select id="uiLocaleSelect" aria-label="App language — these screens only, never the answer language" title="Choose the language of these screens and controls. It never changes the language VOOL answers in." data-i18n-aria-label="settings.language_select_aria" data-i18n-title="settings.language_select_title"></select>
   <p class="loc-note" data-i18n-html="settings.language_help">Choose the language of these screens and controls. It never changes the language VOOL answers in &mdash; that has its own setting.</p>
   <p class="loc-note" id="uiLocaleCoverage"></p>
 </div>
 """
 
 
+def _localized_settings_groups(ui_locale: str) -> list[dict]:
+    """The settings model with its operator-facing strings resolved through the i18n catalog.
+
+    English is byte-identical to ``settings_groups()`` — the model's own literals ARE the
+    English catalog source (a test pins the byte equality). Any other locale swaps each
+    group title/blurb and row label/help/placeholder/effect/option-label for the catalog
+    text under the stable ``settings.group.<id>.*`` / ``settings.row.<id>.*`` keys, falling
+    back visibly to English per the engine's law. Search keywords stay as authored: they
+    are a match aid against typed queries, not displayed prose, and translated keywords
+    would silently narrow what the search box finds.
+    """
+    import copy
+
+    from core.i18n.catalog import catalog_for
+
+    groups = settings_groups()
+    catalog = catalog_for(ui_locale)
+    if catalog.locale == "en":
+        return groups
+    en_keys = set(catalog_for("en").keys)
+
+    def resolved(key: str, fallback: str) -> str:
+        if key not in en_keys:
+            return fallback
+        return catalog.text(key)
+
+    localized = copy.deepcopy(groups)
+    for group in localized:
+        group["title"] = resolved(f"settings.group.{group['id']}.title", group["title"])
+        if group.get("blurb"):
+            group["blurb"] = resolved(f"settings.group.{group['id']}.blurb", group["blurb"])
+        for row in group.get("rows", []):
+            rid = row["id"]
+            row["label"] = resolved(f"settings.row.{rid}.label", row["label"])
+            for field in ("help", "placeholder", "effect"):
+                if row.get(field):
+                    row[field] = resolved(f"settings.row.{rid}.{field}", row[field])
+            for option in row.get("options") or []:
+                option["label"] = resolved(
+                    f"settings.row.{rid}.option.{option['value']}", option["label"]
+                )
+    return localized
+
+
 def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") -> str:
     """The Settings page: one declarative model, rendered by one script, bound to the authorities
     that already own each value."""
-    model = json.dumps(settings_groups(), separators=(",", ":"), ensure_ascii=False)
+    model = json.dumps(_localized_settings_groups(ui_locale), separators=(",", ":"), ensure_ascii=False)
     catalog = json.dumps(language_catalog(), separators=(",", ":"), ensure_ascii=False)
     from core.calendar_settings_fragment import render_calendar_settings_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment

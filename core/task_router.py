@@ -258,7 +258,7 @@ _CURRENT_CHAT_RECALL_RE = re.compile(
 )
 _ORDINARY_CONCEPTUAL_QUESTION_RE = re.compile(
     r"^\s*(?:why|how)\b"
-    r"|^\s*what\s+is\s+(?:one|a|an|some)\b"
+    r"|^\s*what\s+is\s+(?:one|a|an|some|meaning)\b"
     r"|^\s*tell\s+me\s+about\s+(?:why|how|what|whether)\b",
     re.IGNORECASE,
 )

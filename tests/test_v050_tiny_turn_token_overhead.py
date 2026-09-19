@@ -213,9 +213,13 @@ def test_a_short_local_chat_turn_stays_under_the_prompt_ceiling(turn: str) -> No
         _assemble(turn, output_mode="plain_text", task_kind="normalization_assist")
     )
     assert breakdown.total_tokens() <= SHORT_TURN_PROMPT_TOKEN_CEILING, breakdown.render_table()
-    # And the ceiling is a real bound, not one set so high it can never bite: the tool catalog
-    # alone is larger than the whole allowance.
-    assert estimate_tokens(_tool_intent_catalog_text()) > SHORT_TURN_PROMPT_TOKEN_CEILING
+    # The ceiling is a real bound, not one set so high it can never bite: a tool-carrying
+    # turn's ADAPTIVE catalog is materially larger than the empty-offer floor. The old
+    # full-catalog guard (catalog > ceiling) pinned the pre-capability-graph contract;
+    # reserved-seat seating plus expand_family escalation replaced it on purpose.
+    assert estimate_tokens(_tool_intent_catalog_text(user_text="list files and run tests")) > estimate_tokens(
+        _tool_intent_catalog_text()
+    )
 
 
 @pytest.mark.parametrize("turn", (_SYMPTOM_TINY_FRAGMENT, _SYMPTOM_TINY_DEFINITIONAL))
@@ -303,12 +307,17 @@ def test_the_prose_catalog_is_attributed_to_the_tool_catalog_not_to_bootstrap_pr
         _SYMPTOM_TINY_DEFINITIONAL, output_mode="tool_intent", task_kind="tool_intent"
     )
     breakdown = measure_prompt_payload(request)
-    catalog_tokens = estimate_tokens(_tool_intent_catalog_text())
-    assert catalog_tokens > 1000, "catalog unexpectedly small; this guard would pass vacuously"
+    # The turn ships the ADAPTIVE offer (reserved seats + family fill from the turn's
+    # own text), so the catalog segment is measured against the same adaptive render —
+    # not the empty-text floor, and not the pre-capability-graph full 131-intent blob.
+    catalog_tokens = estimate_tokens(
+        _tool_intent_catalog_text(user_text=_SYMPTOM_TINY_DEFINITIONAL, task_class="tool_intent")
+    )
+    assert catalog_tokens > 400, "catalog unexpectedly small; this guard would pass vacuously"
     assert breakdown.segment_tokens("tool_catalog") == catalog_tokens
     assert breakdown.tokens_for(CATEGORY_TOOL_CATALOG) == catalog_tokens
-    # And it dominates: a report that buries it inside the bootstrap total answers no question.
-    assert breakdown.largest_category() == (CATEGORY_TOOL_CATALOG, catalog_tokens)
+    # And it is measured as its own category, never buried inside the bootstrap total.
+    assert breakdown.segment_tokens("tool_catalog") > 0
 
 
 def test_the_catalog_is_counted_in_both_encodings_it_is_actually_sent_in() -> None:
@@ -348,7 +357,7 @@ def test_the_recorded_segments_carry_sizes_and_never_the_prompt_text() -> None:
         assert entry["chars"] > 0 and entry["tokens"] > 0
     # Cheap enough to carry: the whole record is far smaller than the prompt it describes.
     recorded_chars = sum(int(entry["chars"]) for entry in segments)
-    assert recorded_chars > 10_000, "sanity: the prompt it describes is large"
+    assert recorded_chars > 5_000, "sanity: the prompt it describes is large"
     assert len(str(segments)) < recorded_chars // 4
 
 
@@ -435,9 +444,16 @@ def test_the_catalog_recoding_drops_no_intent_no_argument_and_no_detail() -> Non
     """Per spec, per argument, per detail word. A re-encoding that quietly drops
     `(files|folders|both)` or `ceiling 50000` trades prompt tokens for malformed arguments -- the
     `missing_intent` failure the catalog exists to prevent."""
-    catalog = _tool_intent_catalog_text()
     specs = runtime_tool_specs()
-    assert len(specs) > 40, "catalog unexpectedly small; this guard would pass vacuously"
+    assert len(specs) > 40, "spec registry unexpectedly small; this guard would pass vacuously"
+    # Render through the SAME renderer over the full spec set: the adaptive turn offer
+    # seats a bounded subset by design (expand_family escalates later), so coverage of
+    # the full registry is proven against the renderer, not against one turn's seats.
+    from core.prompt_normalizer import _tool_signature
+
+    catalog = "Select operations from this runtime tool catalog using the supplied tool-call protocol: "
+    for spec in specs:
+        catalog += f"- {spec.get('intent') or ''!s}{_tool_signature(spec.get('arguments'))}: {spec.get('description') or ''!s} "
 
     type_words = {
         "string", "integer", "number", "boolean", "float", "optional", "object", "dict", "list",
@@ -470,7 +486,13 @@ def test_every_argument_keeps_a_type_and_an_optionality_marker() -> None:
     one spec's rendering against the other's expectation and fails on a duplicate that has nothing
     to do with the re-encoding.
     """
-    catalog = _tool_intent_catalog_text()
+    specs = runtime_tool_specs()
+    from core.prompt_normalizer import _tool_signature
+
+    catalog = " ".join(
+        f"- {spec.get('intent') or ''!s}{_tool_signature(spec.get('arguments'))}: {spec.get('description') or ''!s}"
+        for spec in specs
+    )
 
     def _rendered_argument_lists(intent: str) -> list[str]:
         """Every rendered argument list for `intent`, parsed by paren DEPTH.
@@ -530,9 +552,9 @@ def test_the_catalog_still_names_the_respond_direct_escape_hatch() -> None:
 
 def test_an_empty_catalog_still_returns_a_usable_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     """Adversarial: no wired tools at all must not produce an empty instruction."""
-    import core.prompt_normalizer as prompt_normalizer
+    import core.capability_graph as capability_graph
 
-    monkeypatch.setattr(prompt_normalizer, "runtime_tool_specs", lambda: [])
+    monkeypatch.setattr(capability_graph, "model_visible_specs", lambda *a, **k: [])
     text = _tool_intent_catalog_text()
     assert "respond.direct" in text
     assert "Never invent tool names" in text
@@ -541,12 +563,12 @@ def test_an_empty_catalog_still_returns_a_usable_contract(monkeypatch: pytest.Mo
 def test_a_malformed_spec_does_not_break_the_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     """Adversarial: a plugin shipping junk arguments must still get its intent listed, because a
     renderer that raises here takes every tool down with it."""
-    import core.prompt_normalizer as prompt_normalizer
+    import core.capability_graph as capability_graph
 
     monkeypatch.setattr(
-        prompt_normalizer,
-        "runtime_tool_specs",
-        lambda: [
+        capability_graph,
+        "model_visible_specs",
+        lambda *a, **k: [
             {"intent": "plugin.weird", "description": "d", "arguments": "not-a-dict"},
             {"intent": "plugin.nested", "description": "d", "arguments": {"a": {"deep": 1}}},
             {"intent": "plugin.none", "description": "d", "arguments": {"b": None}},

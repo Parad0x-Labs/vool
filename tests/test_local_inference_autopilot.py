@@ -854,6 +854,23 @@ def test_local_inference_ledger_failure_keeps_manifest_truth_available() -> None
     assert hydrated[0].measurement_source == "manifest"
 
 
+def _seed_registry_for_plan(*manifests) -> None:
+    """Persist the stub manifests the ranking mock returns.
+
+    The A9 plan mint reads the REAL registry (`list_manifests`), so a ranking mock over
+    manifests that exist nowhere leaves the plan's fallback ladder empty and the lane
+    fails closed as `no_ranked_provider` before the mock is ever consulted.
+    """
+    from storage.model_provider_manifest import upsert_provider_manifest
+    from tests._authorship_certification import certify_for_authorship
+
+    for manifest in manifests:
+        upsert_provider_manifest(manifest)
+        # The precall authorship fence refuses an uncertified local final-answer author;
+        # production certifies a model before it may author, so the stubs must be too.
+        certify_for_authorship(manifest)
+
+
 def test_memory_router_prioritizes_autopilot_lane_and_emits_runtime_plan() -> None:
     run_migrations()
     reset_provider_health()
@@ -905,6 +922,7 @@ def test_memory_router_prioritizes_autopilot_lane_and_emits_runtime_plan() -> No
         },
     )
     events: list[dict] = []
+    _seed_registry_for_plan(*[heavy, verifier])
     register_runtime_event_sink("autopilot-test-stream", events.append)
 
     adapter = mock.Mock()
@@ -950,7 +968,7 @@ def test_memory_router_prioritizes_autopilot_lane_and_emits_runtime_plan() -> No
                 allow_paid_fallback=False,
                 provider_role="queen",
                 surface="openclaw",
-                source_context={"runtime_event_stream_id": "autopilot-test-stream", "surface": "openclaw"},
+                source_context={"runtime_event_stream_id": "autopilot-test-stream", "surface": "openclaw", "session_id": "autopilot-test-session", "turn_id": "autopilot-test-stream-turn"},
             )
     finally:
         unregister_runtime_event_sink("autopilot-test-stream")
@@ -1027,6 +1045,7 @@ def test_memory_router_blocks_explicit_heavy_plan_without_adapter_fallback() -> 
         },
     )
     events: list[dict] = []
+    _seed_registry_for_plan(*[fallback])
     register_runtime_event_sink("autopilot-heavy-block-stream", events.append)
     task = SimpleNamespace(task_id="autopilot-heavy-block-task", task_summary="use 35b heavy local lane")
     interpretation = SimpleNamespace(reconstructed_text="use the 35b heavy local lane")
@@ -1055,7 +1074,7 @@ def test_memory_router_blocks_explicit_heavy_plan_without_adapter_fallback() -> 
                 allow_paid_fallback=False,
                 provider_role="queen",
                 surface="openclaw",
-                source_context={"runtime_event_stream_id": "autopilot-heavy-block-stream", "surface": "openclaw"},
+                source_context={"runtime_event_stream_id": "autopilot-heavy-block-stream", "surface": "openclaw", "session_id": "autopilot-test-session", "turn_id": "autopilot-heavy-block-stream-turn"},
             )
     finally:
         unregister_runtime_event_sink("autopilot-heavy-block-stream")
@@ -1114,6 +1133,7 @@ def test_memory_router_blocks_missing_planned_heavy_manifest_without_fallback() 
         },
     )
     events: list[dict] = []
+    _seed_registry_for_plan(*[fallback])
     register_runtime_event_sink("autopilot-heavy-missing-stream", events.append)
     task = SimpleNamespace(task_id="autopilot-heavy-missing-task", task_summary="use 35b heavy local lane")
     interpretation = SimpleNamespace(reconstructed_text="use the 35b heavy local lane")
@@ -1142,7 +1162,7 @@ def test_memory_router_blocks_missing_planned_heavy_manifest_without_fallback() 
                 allow_paid_fallback=False,
                 provider_role="queen",
                 surface="openclaw",
-                source_context={"runtime_event_stream_id": "autopilot-heavy-missing-stream", "surface": "openclaw"},
+                source_context={"runtime_event_stream_id": "autopilot-heavy-missing-stream", "surface": "openclaw", "session_id": "autopilot-test-session", "turn_id": "autopilot-heavy-missing-stream-turn"},
             )
     finally:
         unregister_runtime_event_sink("autopilot-heavy-missing-stream")
@@ -1228,6 +1248,7 @@ def test_memory_router_does_not_fallback_after_planned_heavy_lane_failure() -> N
         },
     )
     events: list[dict] = []
+    _seed_registry_for_plan(*[heavy, fallback])
     register_runtime_event_sink("autopilot-heavy-failed-stream", events.append)
     task = SimpleNamespace(task_id="autopilot-heavy-failed-task", task_summary="use heavy local lane")
     interpretation = SimpleNamespace(reconstructed_text="use the heavy local lane")
@@ -1261,7 +1282,7 @@ def test_memory_router_does_not_fallback_after_planned_heavy_lane_failure() -> N
                 allow_paid_fallback=False,
                 provider_role="queen",
                 surface="openclaw",
-                source_context={"runtime_event_stream_id": "autopilot-heavy-failed-stream", "surface": "openclaw"},
+                source_context={"runtime_event_stream_id": "autopilot-heavy-failed-stream", "surface": "openclaw", "session_id": "autopilot-test-session", "turn_id": "autopilot-heavy-failed-stream-turn"},
             )
     finally:
         unregister_runtime_event_sink("autopilot-heavy-failed-stream")
@@ -1348,6 +1369,7 @@ def test_auto_selected_large_cloud_model_failure_still_falls_back_to_healthy_loc
         },
     )
     events: list[dict] = []
+    _seed_registry_for_plan(*[large_free_cloud, healthy_local])
     register_runtime_event_sink("autopilot-auto-large-cloud-stream", events.append)
     task = SimpleNamespace(task_id="autopilot-auto-large-cloud-task", task_summary="what time is it")
     interpretation = SimpleNamespace(reconstructed_text="what time is it")
@@ -1381,7 +1403,7 @@ def test_auto_selected_large_cloud_model_failure_still_falls_back_to_healthy_loc
                 allow_paid_fallback=False,
                 provider_role="drone",
                 surface="openclaw",
-                source_context={"runtime_event_stream_id": "autopilot-auto-large-cloud-stream", "surface": "openclaw"},
+                source_context={"runtime_event_stream_id": "autopilot-auto-large-cloud-stream", "surface": "openclaw", "session_id": "autopilot-test-session", "turn_id": "autopilot-auto-large-cloud-stream-turn"},
             )
     finally:
         unregister_runtime_event_sink("autopilot-auto-large-cloud-stream")
@@ -1539,6 +1561,7 @@ def test_memory_router_marks_planned_actual_lane_mismatch_as_failed_proof() -> N
         },
     )
     events: list[dict] = []
+    _seed_registry_for_plan(*[actual])
     register_runtime_event_sink("autopilot-mismatch-stream", events.append)
 
     adapter = mock.Mock()
@@ -1590,7 +1613,7 @@ def test_memory_router_marks_planned_actual_lane_mismatch_as_failed_proof() -> N
                 allow_paid_fallback=False,
                 provider_role="auto",
                 surface="openclaw",
-                source_context={"runtime_event_stream_id": "autopilot-mismatch-stream", "surface": "openclaw"},
+                source_context={"runtime_event_stream_id": "autopilot-mismatch-stream", "surface": "openclaw", "session_id": "autopilot-test-session", "turn_id": "autopilot-mismatch-stream-turn"},
             )
     finally:
         unregister_runtime_event_sink("autopilot-mismatch-stream")
@@ -1653,6 +1676,7 @@ def test_memory_router_invokes_independent_verifier_lane_before_final_proof() ->
         },
     )
     events: list[dict] = []
+    _seed_registry_for_plan(*[primary, verifier])
     register_runtime_event_sink("autopilot-verifier-stream", events.append)
 
     primary_adapter = mock.Mock()
@@ -1709,7 +1733,7 @@ def test_memory_router_invokes_independent_verifier_lane_before_final_proof() ->
                 allow_paid_fallback=False,
                 provider_role="queen",
                 surface="openclaw",
-                source_context={"runtime_event_stream_id": "autopilot-verifier-stream", "surface": "openclaw"},
+                source_context={"runtime_event_stream_id": "autopilot-verifier-stream", "surface": "openclaw", "session_id": "autopilot-test-session", "turn_id": "autopilot-verifier-stream-turn"},
             )
     finally:
         unregister_runtime_event_sink("autopilot-verifier-stream")

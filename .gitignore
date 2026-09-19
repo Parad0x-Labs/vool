@@ -237,3 +237,4 @@ test_data/*.bin
 
 # First-run pact (2026-09-05): the sabotage harness and served journeys —
 # loopback-only, no IPs/secrets, must stay visible next to the keychain harness.
+docs-build/

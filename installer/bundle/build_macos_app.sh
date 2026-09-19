@@ -695,7 +695,30 @@ export PYTHONPATH="${RES}/app"
 # honours the env var; overwriting it here silently defeated every isolated home a launcher
 # or validation rig set, routing the daemon's data to the installed home instead (measured
 # 2026-09-08: an isolated acceptance home was never read and never written).
-export VOOL_HOME="${VOOL_HOME:-${SUPPORT}/runtime}"
+#
+# UPGRADE REUSE (2026-09-19): a user upgrading from a pre-rename build has their whole
+# profile — database, conversations, credentials, wallet references, permissions — under
+# ~/Library/Application Support/NULLA/runtime. The canonical home is chosen ONLY when it
+# already exists or no legacy home does; a legacy-only machine keeps its data (never a
+# second empty profile beside the old one). When BOTH exist the canonical home wins
+# deterministically (same rule as core.runtime_paths.user_runtime_default and the
+# .vool_local/.nulla_local reuse) and the decision names both directories in the log, so
+# the conflict is visible instead of silent. See docs/VOOL_IDENTITY_COMPATIBILITY_MAP.md.
+if [[ -z "${VOOL_HOME:-}" ]]; then
+  CANONICAL_RUNTIME="${SUPPORT}/runtime"
+  LEGACY_RUNTIME="${HOME}/Library/Application Support/NULLA/runtime"
+  if [[ -d "${CANONICAL_RUNTIME}" ]]; then
+    export VOOL_HOME="${CANONICAL_RUNTIME}"
+    if [[ -d "${LEGACY_RUNTIME}" ]]; then
+      echo "NOTE: profiles exist at both ${CANONICAL_RUNTIME} (used) and ${LEGACY_RUNTIME} (not used)."
+    fi
+  elif [[ -d "${LEGACY_RUNTIME}" ]]; then
+    export VOOL_HOME="${LEGACY_RUNTIME}"
+    echo "reusing the pre-rename runtime home: ${LEGACY_RUNTIME}"
+  else
+    export VOOL_HOME="${CANONICAL_RUNTIME}"
+  fi
+fi
 # Reuse an existing Ollama model store when the machine already has one, so a first launch does
 # not re-download several GB; otherwise keep the models inside the app's own support dir.
 if [[ -d "${HOME}/.ollama/models" ]]; then

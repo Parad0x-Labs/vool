@@ -66,6 +66,20 @@ LIFECYCLE_RAISED = "raised"      # mapped at the owning boundary, in flight
 LIFECYCLE_SERVED = "served"      # the safe user message reached a surface
 LIFECYCLE_RESOLVED = "resolved"  # a retry or an operator closed it
 
+# --- effect state: what the fault ITSELF can say about what already happened. -----------------
+#
+# The recovery path must not fabricate certainty. A refusal that stopped before any external
+# effect, a request that provably reached an external service, and a failure whose outcome
+# genuinely cannot be known from the failure itself are DIFFERENT facts -- and a user deciding
+# whether to retry (or whether money may have moved) must not have to guess which one they are
+# holding. Every catalog entry declares one of these, explicitly; a new code without one is a
+# construction error, never a silent default to a comforting "nothing happened".
+EFFECT_NONE = "none"            # stopped before any external effect: nothing sent, signed or written
+EFFECT_CONTACTED = "contacted"  # a request reached an external service; no payment moved, no local change
+EFFECT_UNCERTAIN = "uncertain"  # the failure cannot say whether the action completed: treat as unknown
+EFFECT_LOCAL = "local"          # a local change did happen (recorded, withheld, written) before the fault
+_VALID_EFFECTS = frozenset({EFFECT_NONE, EFFECT_CONTACTED, EFFECT_UNCERTAIN, EFFECT_LOCAL})
+
 _ALLOWED_LIFECYCLE_TRANSITIONS: dict[str, tuple[str, ...]] = {
     LIFECYCLE_RAISED: (LIFECYCLE_SERVED, LIFECYCLE_RESOLVED),
     LIFECYCLE_SERVED: (LIFECYCLE_RESOLVED,),
@@ -157,6 +171,10 @@ class FaultSpec:
     authority: str
     #: Whether recording this fault opens a security-event observation.
     security_relevant: bool = False
+    #: What may ALREADY have happened when this fault is served (one of ``EFFECT_*``). Empty
+    #: only transiently before the catalog applies its explicit effect table -- consumers read
+    #: it through the catalog, never off a hand-built spec.
+    effect: str = ""
 
     @property
     def retryable(self) -> bool:
@@ -461,7 +479,89 @@ _WALLET_SPECS: tuple[FaultSpec, ...] = (
               authority="core.wallet.x402"),
 )
 
-_CATALOG: dict[str, FaultSpec] = build_catalog((*_SPECS, *_WALLET_SPECS))
+#: The effect state of every code, EXPLICIT: one row per entry, no defaults. Applied (and
+#: validated) at construction so a spec can never silently imply "nothing happened". The row
+#: must agree with the entry's own user_message -- where the message says the network answered
+#: (a quote, a balance, a chain id, a provider limit) the state is CONTACTED; where it says a
+#: payment may or may not have landed, UNCERTAIN; where records/claims were written or withheld
+#: locally, LOCAL; everywhere the boundary stopped the action first, NONE.
+_EFFECT_BY_CODE: dict[str, str] = {
+    FAULT_PERMISSION_DENIED: EFFECT_NONE,
+    FAULT_PROVIDER_UNAVAILABLE: EFFECT_NONE,  # could not be reached: nothing billable left this machine
+    FAULT_PROVIDER_EXHAUSTED: EFFECT_CONTACTED,  # the provider itself answered with its limit
+    FAULT_TOOL_UNAVAILABLE: EFFECT_NONE,
+    FAULT_TIMEOUT: EFFECT_UNCERTAIN,  # a timeout cannot say whether the far side completed
+    FAULT_CANCELLED: EFFECT_UNCERTAIN,  # a stop mid-flight says nothing about in-flight effects
+    FAULT_CONFINEMENT_REFUSAL: EFFECT_NONE,
+    FAULT_EVIDENCE_CORRUPTION: EFFECT_LOCAL,  # local records failed their consistency check
+    FAULT_UNSUPPORTED_CLAIM: EFFECT_LOCAL,  # statements were withheld from a published answer
+    FAULT_CREDENTIAL_FAILURE: EFFECT_NONE,
+    FAULT_INTEGRITY_VERIFICATION_FAILURE: EFFECT_LOCAL,  # a local record failed its tamper check
+    FAULT_UNKNOWN: EFFECT_UNCERTAIN,  # unknown cause cannot promise nothing happened
+    FAULT_WALLET_DISABLED: EFFECT_NONE,
+    FAULT_WALLET_NETWORK_DISABLED: EFFECT_NONE,
+    FAULT_WALLET_NOT_FOUND: EFFECT_NONE,
+    FAULT_WALLET_SIGNING_UNAVAILABLE: EFFECT_NONE,
+    FAULT_WALLET_SIGNATURE_INVALID: EFFECT_CONTACTED,  # an external signer returned the mismatched signature
+    FAULT_WALLET_CONFIRMATION_REQUIRED: EFFECT_NONE,
+    FAULT_WALLET_PIN_INVALID: EFFECT_NONE,
+    FAULT_WALLET_LIMIT_EXCEEDED: EFFECT_NONE,
+    FAULT_WALLET_DUPLICATE_PAYMENT: EFFECT_LOCAL,  # the earlier proposal is a recorded local fact
+    FAULT_WALLET_APPROVAL_REJECTED: EFFECT_NONE,
+    FAULT_WALLET_X402_CAP_EXCEEDED: EFFECT_NONE,
+    FAULT_WALLET_CARD_DATA_REFUSED: EFFECT_NONE,
+    FAULT_WALLET_SIMULATION_FAILED: EFFECT_CONTACTED,  # simulation ran against the network before refusing
+    FAULT_WALLET_BROADCAST_FAILED: EFFECT_UNCERTAIN,  # "check its status before retrying" is the honest state
+    FAULT_WALLET_LEGACY_SURFACE_RETIRED: EFFECT_NONE,
+    FAULT_WALLET_EXPORT_REFUSED: EFFECT_NONE,
+    FAULT_WALLET_CHAIN_IDENTITY_MISMATCH: EFFECT_CONTACTED,  # the endpoint was queried and failed its proof
+    FAULT_WALLET_OUTBOUND_REFUSED: EFFECT_NONE,  # "no connection was made"
+    FAULT_EVM_POCKET_CUSTODY_UNAVAILABLE: EFFECT_NONE,
+    FAULT_X402_SCHEME_UNAVAILABLE: EFFECT_NONE,
+    FAULT_WALLET_DEPENDENCY_UNAVAILABLE: EFFECT_NONE,
+    FAULT_WALLET_ENVIRONMENT_INACTIVE: EFFECT_NONE,
+    FAULT_WALLET_AMOUNT_INVALID: EFFECT_NONE,
+    FAULT_WALLET_CALLER_REFUSED: EFFECT_NONE,
+    FAULT_WALLET_UNLOCK_THROTTLED: EFFECT_NONE,
+    FAULT_WALLET_BACKUP_UNAVAILABLE: EFFECT_NONE,
+    FAULT_WALLET_STORAGE_CLASS_REFUSED: EFFECT_NONE,
+    FAULT_WALLET_SETUP_STATE_INVALID: EFFECT_NONE,
+    FAULT_WALLET_CREDENTIAL_MISMATCH: EFFECT_NONE,
+    FAULT_WALLET_QUOTE_UNAVAILABLE: EFFECT_CONTACTED,  # "the network did not give a complete answer"
+    FAULT_WALLET_QUOTE_EXPIRED: EFFECT_NONE,
+    FAULT_WALLET_QUOTE_MISMATCH: EFFECT_NONE,
+    FAULT_WALLET_INSUFFICIENT_FUNDS: EFFECT_CONTACTED,  # the balance and fee ceiling came from the network
+    FAULT_WALLET_RECIPIENT_REFUSED: EFFECT_NONE,
+    FAULT_WALLET_REQUEST_AMBIGUOUS: EFFECT_NONE,
+    FAULT_WALLET_RECOVERY_REFUSED: EFFECT_NONE,
+}
+
+
+def _specs_with_effect() -> tuple[FaultSpec, ...]:
+    """Apply the effect table to the declared specs, validating it exhaustively.
+
+    Three refusals, at construction: a code with no effect row, a row naming an unknown code,
+    and a row outside the closed vocabulary. Every one of them is exactly the silent drift the
+    table exists to prevent.
+    """
+    from dataclasses import replace as _replace
+
+    known = {spec.code for spec in (*_SPECS, *_WALLET_SPECS)}
+    orphaned = sorted(set(_EFFECT_BY_CODE) - known)
+    if orphaned:
+        raise FaultVocabularyError(f"effect table names unknown fault codes: {orphaned}")
+    missing = sorted(known - set(_EFFECT_BY_CODE))
+    if missing:
+        raise FaultVocabularyError(f"fault codes without an effect row: {missing}")
+    invalid = sorted({code for code, effect in _EFFECT_BY_CODE.items() if effect not in _VALID_EFFECTS})
+    if invalid:
+        raise FaultVocabularyError(f"effect rows outside the closed vocabulary: {invalid}")
+    return tuple(
+        _replace(spec, effect=_EFFECT_BY_CODE[spec.code]) for spec in (*_SPECS, *_WALLET_SPECS)
+    )
+
+
+_CATALOG: dict[str, FaultSpec] = build_catalog(_specs_with_effect())
 
 
 def get_spec(code: str) -> FaultSpec:
@@ -507,6 +607,7 @@ def export_catalog() -> dict[str, object]:
                 "operator_action": spec.operator_action,
                 "authority": spec.authority,
                 "security_relevant": spec.security_relevant,
+                "effect": spec.effect,
             }
             for spec in all_specs()
         ],
