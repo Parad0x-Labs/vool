@@ -385,7 +385,7 @@ class Markdown:
             if task:
                 checked = " checked" if task.group(1).lower() == "x" else ""
                 prefix = '<input type="checkbox" disabled%s> ' % checked
-                item = [task.group(2)] + item[1:]
+                item = [task.group(2), *item[1:]]
             self._blocks(item, 0, len(item), body)
             inner = "\n".join(body)
             # In a tight list the item's leading paragraph is unwrapped, so
