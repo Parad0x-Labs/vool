@@ -38,6 +38,7 @@ row, a filesystem path, a peer registry, or an existing user's configuration.
 | Identifier | Kind | Why frozen |
 |---|---|---|
 | `ai.nulla.desktop` | macOS bundle identifier | Changing it makes the OS treat it as a different app: new prefs, new TCC grants, LaunchServices confusion for installed users. |
+| `~/Library/Application Support/NULLA/runtime`, `AS/NULLA/window.lock`, `Local\NULLA_WINDOW_SINGLETON` | macOS/Windows installed-base paths | A pre-rename install holds its whole profile under the NULLA-named support dir and single-instances on the NULLA-named lock/mutex. The VOOL launcher reuses the legacy runtime home when the canonical one does not exist (never a second profile), and the VOOL window holds BOTH generations' locks so the two app versions never stack windows (`installer/bundle/build_macos_app.sh`, `installer/bundle/vool_window.py`). |
 | `CFBundleExecutable: VOOL`, `Contents/MacOS/VOOL`, `~/Applications/VOOL.app` | Filesystem paths | Installed layout. The launcher and the daemon plist reference these. |
 | `VOOL_*` environment variables | Runtime config | **2026-09-19:** `VOOL_*` is canonical; the legacy `NULLA_*` spelling is read as a lower-precedence fallback (`core/env_compat.py`), so existing shells and launch agents keep working. |
 | `vool-local-product` | Repository name | Remotes, CI, clone paths, both lanes' tooling. |

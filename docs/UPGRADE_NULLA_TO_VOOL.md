@@ -31,6 +31,14 @@ Canonical names are now `VOOL_*`. Legacy `NULLA_*` names still work everywhere:
   opened — never duplicated, never orphaned (`storage/db.py`).
 - Install directories: `~/vool-local`, with reuse of an existing `~/nulla-local` (shell and
   PowerShell installers).
+- macOS app support home: the app's per-user home is `~/Library/Application Support/VOOL/runtime`.
+  When only the pre-rename `~/Library/Application Support/NULLA/runtime` exists, **it is reused
+  as-is** (the generated launcher in `installer/bundle/build_macos_app.sh` resolves this before
+  the runtime starts). When both exist, the canonical home is chosen deterministically and the
+  launch log names both directories, so the conflict is visible. The pre-rename
+  `Application Support/NULLA` **window lock and Windows mutex name stay frozen**: the VOOL
+  window claims both generations' locks so an old NULLA.app window and a VOOL window never
+  stack on one machine (`installer/bundle/vool_window.py`).
 
 ## Intentionally frozen identifiers (documented legacy)
 
