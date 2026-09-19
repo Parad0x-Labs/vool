@@ -132,8 +132,8 @@ jobs:
 
       - name: Run live LLM acceptance gate
         env:
-          NULLA_ALLOW_LIVE_OLLAMA_TESTS: "1"
-          NULLA_OLLAMA_NUM_GPU: "0"
+          VOOL_ALLOW_LIVE_OLLAMA_TESTS: "1"
+          VOOL_OLLAMA_NUM_GPU: "0"
         run: |
           python ops/llm_eval.py \
             --output-root reports/llm_eval/latest \
