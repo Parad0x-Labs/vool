@@ -38,7 +38,11 @@ def daemon(tmp_path: Path):
     store_dir = tmp_path / "blackbox-store"
     provider = PromptRoutedProvider()
     rpc = ScriptedRpc()
-    served = ServedDaemon(home, env_extra={"VOOL_ALWAYS_ON_CATALOG": "1", "VOOL_WALLET_ENABLED": "1", "VOOL_WALLET_NETWORK_ENVIRONMENT": "testnet", "VOOL_WALLET_TESTNET_RPC_URL": rpc.url, "VOOL_BLACKBOX_DIR": str(store_dir), "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url, "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat"})
+    served = ServedDaemon(home, env_extra={"VOOL_ALWAYS_ON_CATALOG": "1", "VOOL_WALLET_ENABLED": "1", "VOOL_WALLET_NETWORK_ENVIRONMENT": "testnet", "VOOL_WALLET_TESTNET_RPC_URL": rpc.url, "VOOL_BLACKBOX_DIR": str(store_dir), "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url, "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat",
+        # The scripted provider loads no weights; the load-gate's headroom floor is for
+        # real model loads, and a busy machine must not gate the stub out (same pattern
+        # as tests/test_vool_database_served_proof.py).
+        "VOOL_MODEL_LOAD_FLOOR_GB": "0.1"})
     provider.__enter__()
     rpc.__enter__()
     try:

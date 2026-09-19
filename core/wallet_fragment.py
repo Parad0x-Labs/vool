@@ -565,9 +565,12 @@ function buildSection(){
   points.appendChild(el('div', 'vw-point', '1. Protect your recovery material: the 12 words are shown once and VOOL cannot recover them for you.'));
   points.appendChild(el('div', 'vw-point', '2. Check the destination and network before sending: transfers are irreversible.'));
   form.appendChild(points);
+  // The custody warning is the authority fact of this decision, so it renders in the OPEN
+  // form body — never folded behind a collapsed <details> (inner text of a closed details
+  // is empty; the user must see the key/device warning before typing the confirmation).
+  var warn = el('div', 'vw-warn'); warn.id = 'vwWarning'; form.appendChild(warn);
   var learn = el('details', 'vw-learn'); learn.id = 'vwLearnMore';
   learn.appendChild(el('summary', null, 'Learn more before you create a wallet'));
-  var warn = el('div', 'vw-warn'); warn.id = 'vwWarning'; learn.appendChild(warn);
   learn.appendChild(el('div', 'vw-line', 'The tricks that empty wallets, explained shortly: Settings → Crypto → Stay safe.'));
   form.appendChild(learn);
   form.appendChild(el('label', null, 'Type this exact phrase to confirm:'));

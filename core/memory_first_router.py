@@ -5233,11 +5233,38 @@ class MemoryFirstRouter:
         # and produces the visible local/cloud ping-pong.  Auto routing still keeps its normal
         # fallback behavior because it has no resolved requested_manifest.
         if requested_manifest is not None:
-            ranked_manifests = [
+            pinned = [
                 manifest
                 for manifest in ranked_manifests
                 if manifest.provider_id == requested_manifest.provider_id
             ]
+            # AUTHORSHIP ESCALATION FOR THE PINNED CONTRACT. The pin above is the
+            # composer/model-menu contract and stays authoritative — UNLESS every pinned
+            # candidate is an uncertified local final-answer author the precall fence
+            # will refuse (e.g. the auto-registered default model after a home seeded
+            # with a certified stub). Refusing to widen here made the turn attempt one
+            # provider and fail (measured), when a certified local author was available.
+            # Keeping the pre-pin ordering (which ranks certified local authors first)
+            # is the escalation; the fence at the call remains the authority.
+            from core.final_answer_authorship import local_manifest_authorship_certified
+
+            _pinned_certified_local = any(
+                m is not None and not _manifest_is_local(m) or local_manifest_authorship_certified(m)
+                for m in pinned
+            ) if pinned else True
+            if pinned and not _pinned_certified_local:
+                _widened_certified = [
+                    manifest
+                    for manifest in ranked_manifests
+                    if _manifest_is_local(manifest)
+                    and local_manifest_authorship_certified(manifest)
+                ]
+                if _widened_certified:
+                    ranked_manifests = pinned + _widened_certified
+                else:
+                    ranked_manifests = pinned
+            else:
+                ranked_manifests = pinned
         # A9 P0 — the plan fence: ranking is intersected with the plan's ONE eligibility
         # decision AND its fallback ladder, BEFORE capability truth and the autopilot see
         # the candidate set, so no downstream reorder can resurrect a candidate the plan

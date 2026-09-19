@@ -110,6 +110,10 @@ def _ledger_js() -> str:
     return "\n".join(
         [
             esc.group(0),
+            # pageT/pageTF: ledger rows localize their labels through these; without
+            # them the lifted renderer throws ReferenceError under node.
+            _slice(source, "function pageT(", "function pageTF("),
+            _slice(source, "function pageTF(", "const queueEl"),
             _slice(source, "function panelRow(", "const LEDGER_SKIP"),
             _slice(source, "const LEDGER_SKIP", "function ledgerRanNoTool"),
             _slice(source, "const ACTIVITY_CATEGORY_RULES", "function activityCategoryFor("),
