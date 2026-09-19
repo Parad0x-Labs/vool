@@ -1749,6 +1749,7 @@ def _run_agent_locked(
         get_last_retrieval_telemetry,
         reset_retrieval_telemetry,
         update_retrieval_telemetry,
+        validate_capsule_exact_response,
     )
     from core.remote_fetch_policy import remote_fetch_attempt_count, remote_fetch_policy_scope
 
@@ -1827,6 +1828,45 @@ def _run_agent_locked(
                 session_id_override=session_id,
                 source_context=base_context,
             )
+        # UNSEALED results only (a caller driving run_agent with its own agent that did not
+        # commit): the sanitizer + capsule override are completed HERE, before any transport
+        # commit. A result that already carries its response.commit was sealed inside the
+        # agent and is untouchable -- the K-08 verifies below are exactly that law.
+        if not isinstance((result or {}).get("vool_response_commit"), dict):
+            _capsule = capsule_exact_response(
+                user_text,
+                get_last_retrieval_telemetry(),
+                session_id=session_id,
+            )
+            result = {**dict(result or {}), "_model_answer_pre_capsule": str((result or {}).get("response") or "")}
+            if _capsule:
+                # The override is REVALIDATED: the chat sanitizer vets the capsule's own bytes,
+                # and only a capsule that survives it (and the exact-response validator) ships --
+                # a sanitized override that fails keeps the model's answer untouched.
+                _sanitizer = getattr(runtime.agent, "_sanitize_user_chat_text", None)
+                if callable(_sanitizer):
+                    _response_class = getattr(
+                        getattr(runtime.agent, "ResponseClass", None),
+                        "GENERIC_CONVERSATION",
+                        "generic_conversation",
+                    )
+                    try:
+                        _sanitized_capsule = _sanitizer(_capsule, response_class=_response_class)
+                    except TypeError:
+                        _sanitized_capsule = _capsule
+                else:
+                    _sanitized_capsule = _capsule
+                if _sanitized_capsule and validate_capsule_exact_response(
+                    _sanitized_capsule, user_text, session_id=session_id
+                ):
+                    result = {
+                        **dict(result or {}),
+                        "response": _sanitized_capsule,
+                        "response_control": {
+                            "mode": "capsule_exact",
+                            "original_response_excerpt": str((result or {}).get("response") or "")[:120],
+                        },
+                    }
         # K-08 ORDERING-FROZEN verify-only assert: semantic transforms ran
         # INSIDE the sealing context before A2 admission (see
         # apps/vool_agent.py:_seal_semantic_result). Re-applying them here must
@@ -1844,9 +1884,19 @@ def _run_agent_locked(
             session_id=session_id,
         )
         if capsule_response and str(capsule_response) != str(result.get("response") or ""):
-            raise RuntimeError(
-                "K-08 violation: capsule transform would mutate post-admission bytes"
+            # The one legal non-match: an UNSEALED result whose capsule override was revalidated
+            # and REFUSED (the chat sanitizer or the exact validator rejected the capsule's own
+            # bytes). The model's answer stands; that is the override's contract, not a mutation.
+            _unsealed_refused = (
+                not isinstance((result or {}).get("vool_response_commit"), dict)
+                and str(result.get("response") or "") == str((result or {}).get("_model_answer_pre_capsule") or "\0")
             )
+            if not _unsealed_refused:
+                raise RuntimeError(
+                    "K-08 violation: capsule transform would mutate post-admission bytes"
+                )
+        if isinstance(result, dict):
+            result.pop("_model_answer_pre_capsule", None)
         # A-12/R-5: honesty + URL grounding ran INSIDE the sealing context
         # (pre-admit); these boundary re-applications are verify-only — any
         # divergence means post-admission mutation was about to happen.

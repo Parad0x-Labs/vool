@@ -61,12 +61,14 @@ def test_the_boundary_is_what_changes_these(monkeypatch) -> None:
     assert classifier.live_info_mode(None, HIVE, interpretation=None) == "fresh_lookup"
 
 
-# A SEPARATE, PRE-EXISTING OVER-CLAIM, recorded rather than fixed here.
+# A SEPARATE, PRE-EXISTING OVER-CLAIM, once recorded rather than fixed here.
 #
-# `looks_like_explicit_lookup_request` (core/task_router.py) claims bare phrases such as
+# `looks_like_explicit_lookup_request` (core/task_router.py) used to claim bare phrases such as
 # "the browser extension crashed" and "my browsers are all open" on its own, independently of these
-# markers. That predicate is not touched by this change and needs its own blast measurement before
-# anything is altered; noting it so the next reader does not mistake it for this defect returning.
+# markers. That over-claim was later altered WITH its own blast measurement (the predicate's
+# "browse" marker became a word-boundary match, measured served 2026-09-04, so "browser" stopped
+# reading as a lookup verb) -- exactly the measurement this pin was waiting for. The pinned state
+# is now the repaired one: these phrases claim nothing.
 @pytest.mark.parametrize(
     "text",
     ("the browser extension crashed", "my browsers are all open"),
@@ -74,8 +76,8 @@ def test_the_boundary_is_what_changes_these(monkeypatch) -> None:
 def test_a_second_predicate_still_claims_these_and_that_is_known(text: str) -> None:
     from core.task_router import looks_like_explicit_lookup_request
 
-    assert looks_like_explicit_lookup_request(text.lower()) is True
-    assert live_info_mode(None, text, interpretation=None) == "fresh_lookup"
+    assert looks_like_explicit_lookup_request(text.lower()) is False
+    assert live_info_mode(None, text, interpretation=None) == ""
 
 
 @pytest.mark.parametrize(
