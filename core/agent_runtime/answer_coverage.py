@@ -1074,6 +1074,11 @@ _CONVERSATIONAL_TOKENS = frozenset(
         # "what do you think about X" keeps "about" and "X" and still mints.
         "think", "thinks", "thought", "guess", "reckon", "suppose", "seem", "seems",
         "really", "pretty", "quite", "clever", "smart", "funny", "silly", "cheeky",
+        # Urgency/format adverbials. A fragment made ENTIRELY of these is a qualifier on the
+        # ask that follows it ("real quick, what can you do locally ..."), not a second demand:
+        # minting it blocked the single-unit deterministic lanes and the capability question
+        # fell through to a full model turn. A real ask keeps a token outside this set.
+        "real", "quick", "quickly", "briefly", "short", "simple", "shorter", "concise",
         "and", "then", "also", "just", "now", "still", "again", "separately",
         "am", "is", "are", "was", "were", "be", "been", "doing", "going", "help", "out",
         "how", "what", "whats", "up", "s", "to", "on", "in", "with", "that", "this",

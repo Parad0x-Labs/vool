@@ -476,6 +476,22 @@ def smalltalk_fast_path(agent: Any, normalized_input: str, *, source_surface: st
         return agent._help_capabilities_text()
     if phrase in {"kill me lol", "omfg just kill me", "omfg just kill me lol", "kms lol"}:
         return "You're frustrated. Let's fix the thing instead. If you want me to go by a different name, I'll use it."
+    # A capability-inventory question ("what can you do locally / on this machine / right now",
+    # optionally filler-wrapped or "one clean line") is answered from the runtime's OWN
+    # capability ledger — never the model, and never a canned blurb that could drift from what
+    # is actually wired (fast_command_surface renders both the compact one-liner and the full
+    # manifest from the same ledger).
+    from core.agent_runtime.fast_command_surface import (
+        _looks_like_capability_inventory_prompt,
+        _wants_compact_capability_inventory,
+        compact_capabilities_text,
+    )
+
+    capability_normalized = " ".join(str(phrase or "").split())
+    if _looks_like_capability_inventory_prompt(capability_normalized):
+        if _wants_compact_capability_inventory(capability_normalized):
+            return compact_capabilities_text(agent)
+        return agent._help_capabilities_text()
     # "what can we/you/i do|build" wrapped in filler ("no idea tbh what can we", "so what can you do")
     # — a SHORT friendly answer, not the full capability manifest (that's `help`), and never the
     # slow model.

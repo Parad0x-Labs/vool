@@ -441,7 +441,12 @@ class BuilderFacadeMixin:
             "shell_guidance",
             "unknown",
         } and not generic_bootstrap_request and not explicit_file_request and not workflow_supported_request:
-            return False
+            # The class gate may not swallow what the build-intent authority already recognized:
+            # "build a web scraper service ... and write the files" classifies outside this
+            # allowlist, yet it is an explicit build instruction (verb + thing-to-build +
+            # write evidence) — the same authority the mode-gated branch above trusts.
+            if not build_request_intent.is_build_instruction(lowered, scope="project"):
+                return False
         if not self._looks_like_builder_request(lowered) and not explicit_file_request and not workflow_supported_request:
             return False
         if _opt_out:
