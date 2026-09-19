@@ -771,6 +771,18 @@ def _stable_knowledge_exemptions(
     for claim in claim_map.claims:
         if str(getattr(claim, "status", "") or "") not in ("unsupported", "uncertain"):
             continue
+        # A claim the matcher adjudicated as a VALUE or QUANTITY MISMATCH was measured against a
+        # source that carries values for the subject and none agreed -- the turn's own evidence
+        # had something to say and it disagreed. Stable knowledge is the author's licence for
+        # what the sources do NOT discuss ("the Wall fell in 1989" against pages that never say);
+        # it is not an override for a contradiction already on the record (measured: the cities
+        # comparison's invented "Riga has a metro line since 2019" shipped under this exemption
+        # while its year made the numeric guard pass).
+        if any(
+            reason in ("value_mismatch", "quantity_mismatch")
+            for reason in (getattr(claim, "reasons", ()) or ())
+        ):
+            continue
         folded = _fold_render(str(claim.text or ""))
         if not folded:
             continue

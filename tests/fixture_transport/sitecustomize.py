@@ -191,8 +191,12 @@ if _GATE_LOG:
                 real_exec(module)
                 real_gate = module.gate_publishable_content
 
-                def recording_gate(content, *, turn_id=""):
-                    out = real_gate(content, turn_id=turn_id)
+                def recording_gate(content, *, turn_id="", **kwargs):
+                    # Full passthrough: the production gate grew a `runtime_notice` keyword,
+                    # and a recorder that does not accept it raises TypeError at call time,
+                    # which finalization catches as a gate failure and publishes UNGATED --
+                    # silently disabling the very gate this recorder exists to observe.
+                    out = real_gate(content, turn_id=turn_id, **kwargs)
                     try:
                         record = out[1] if isinstance(out, tuple) and len(out) > 1 else {}
                         publication = dict((record or {}).get("publication") or {})
