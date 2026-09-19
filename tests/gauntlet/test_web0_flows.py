@@ -31,7 +31,7 @@ def _model_must_not_run(*_args, **_kwargs):
     raise AssertionError("the model was invoked for a Web0 knowledge question that grounding should answer")
 
 
-def _post(content: str):
+def _post(content: str, run_agent_provider=None):
     return dispatch_post(
         path="/api/chat",
         body={"messages": [{"role": "user", "content": content}]},
@@ -39,32 +39,48 @@ def _post(content: str):
         runtime=RuntimeServices(display_name="VOOL"),
         model_name="vool",
         workspace_root_provider=lambda: "/tmp",
-        run_agent_provider=_model_must_not_run,
+        run_agent_provider=run_agent_provider or _model_must_not_run,
         resolve_null_domain_provider=lambda name: None,
     )
 
 
 # ---------------------------------------------------------------------------
-# HTTP-joined: deterministic .null safety knowledge never reaches the model
+# HTTP-joined: .null questions reach the ordinary lanes (owner instruction 2026-09-16)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("question", ["how much does it cost to buy a .null name?"])
-def test_web0_knowledge_is_grounded_without_invoking_the_model(question):
-    resp = _post(question)
-    assert resp.status == 200
-    body = json.loads(resp.body)
-    text = json.dumps(body).lower()
-    # a real, grounded answer came back (not an empty/error shell)
-    assert "web0" in text or "null" in text
+
+@pytest.mark.parametrize(
+    "question",
+    ["how much does it cost to buy a .null name?", "is registering a .null name free?"],
+)
+def test_web0_questions_reach_the_ordinary_lanes_not_a_transport_interceptor(question):
+    """The scripted .null topic-answer interception at the transport layer was REMOVED by the
+    owner's instruction (2026-09-16): its keyword evidence was weaker than its authority, and a
+    provider-health checker asking about model CLAIMs and request COSTs was answered wholesale
+    with registration-fee boilerplate. What must hold at this seam now is the INVERSE: nothing
+    here answers a .null question on its own -- the turn always reaches the ordinary lanes,
+    whose own grounding (canonical passages, the publication gate) governs the answer. The
+    deterministic responder stays a library, proven by the unit tests below."""
+    reached: list[str] = []
+
+    def _recording_agent(_runtime, user_text, **_kwargs):
+        reached.append(str(user_text))
+        return {"response": "ordinary lane answer", "model_calls": 1, "route": "test:ordinary"}
+
+    resp = _post(question, run_agent_provider=_recording_agent)
+    assert resp.status == 200, resp.body
+    assert reached == [question], "the transport intercepted a .null question before the ordinary lanes"
 
 
-def test_web0_cost_answer_is_honest_about_price_over_http():
-    resp = _post("is registering a .null name free?")
-    body = json.loads(resp.body)
-    text = json.dumps(body).lower()
-    # never claims it is free; names the real cost basis
-    assert "free" not in text or "not free" in text or "isn't free" in text
-    assert "sol" in text
+def test_web0_cost_honesty_is_carried_by_the_responder_not_the_transport():
+    """The price honesty itself (never claims free, names the SOL cost basis, no fake
+    on-chain claims) is the deterministic responder's own contract -- pinned directly,
+    because the transport no longer answers .null questions on its own."""
+    r = web0_null_project_response("is registering a .null name free?")
+    assert r is not None
+    low = r["response"].lower()
+    assert "free" not in low or "not free" in low or "isn't free" in low
+    assert "sol" in low
 
 
 # ---------------------------------------------------------------------------
@@ -92,13 +108,20 @@ def test_web0_constraints_stay_in_the_prompt_not_a_fixed_answer():
     assert web0_null_project_response(query) is None
 
 
-def test_runtime_run_agent_null_registration_grounding_does_not_invoke_model(tmp_path):
-    class _ModelMustNotRun:
-        def run_once(self, *_args, **_kwargs):
-            raise AssertionError(".null registration grounding should run before the model")
+def test_runtime_run_agent_null_registration_reaches_the_agent(tmp_path):
+    """The run_agent spine answers no .null question itself either (same 2026-09-16 removal):
+    the registration question must reach the agent's ordinary lanes, where the canonical
+    grounding requirement and the spend-gated tools govern it. The registration SAFETY copy
+    (approval before any spend) is the responder's contract, pinned by the unit tests below."""
+    reached: list[str] = []
 
-    runtime = RuntimeServices(agent=_ModelMustNotRun(), runtime_home=str(tmp_path))
-    result = run_agent(
+    class _RecordingAgent:
+        def run_once(self, _text, **_kwargs):
+            reached.append(_text)
+            return {"response": "ordinary lane answer", "model_calls": 1, "web_calls": 0}
+
+    runtime = RuntimeServices(agent=_RecordingAgent(), runtime_home=str(tmp_path))
+    run_agent(
         runtime,
         "How do I register a .null name? Do not spend anything.",
         session_id="null-register-runtime-grounding",
@@ -106,12 +129,12 @@ def test_runtime_run_agent_null_registration_grounding_does_not_invoke_model(tmp
         workspace_root_provider=lambda: str(tmp_path),
     )
 
-    text = result["response"].lower()
-    assert result["model_calls"] == 0
-    assert result["web_calls"] == 0
-    assert ".null" in text
-    assert "approval" in text or "approve" in text or "windows hello" in text
-    assert "automatically spend" not in text
+    assert reached == ["How do I register a .null name? Do not spend anything."]
+    r = web0_null_project_response("How do I register a .null name? Do not spend anything.")
+    assert r is not None
+    low = r["response"].lower()
+    assert "approval" in low or "approve" in low or "windows hello" in low
+    assert "automatically spend" not in low
 
 
 def test_null_cost_answer_makes_no_fake_completed_registration_claim():

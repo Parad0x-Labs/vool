@@ -94,15 +94,31 @@ def _matches_any(token: str, vocabulary: frozenset[str]) -> bool:
     )
 
 
+#: A phase-transition ask names the medium's CONSTANT, not a reading of it: "at what
+#: temperature does water freeze", "what is the boiling point of water". Those are timeless
+#: physics facts the knowledge lane answers; treating them as live water-temperature reads
+#: withheld the answer behind a grounding gate that no retrieval can satisfy (measured on the
+#: gauntlet's static-fact control). Every term here is a transition verb or its noun form.
+_PHASE_TRANSITION_RE = re.compile(
+    r"\b(?:freez(?:e|es|ing)|boil(?:s|ing)?|melt(?:s|ing)?|evaporat(?:e|es|ing)|"
+    r"freezing\s+point|boiling\s+point|melting\s+point)\b"
+)
+
+
 def requests_a_water_temperature(text: Any) -> bool:
     """Whether this request asks for the temperature OF WATER rather than of the air.
 
     Requires both halves: something that asks for a temperature, and a medium word saying the
     subject is water. "what is the temperature in Vilnius" has no medium and is untouched; "sea
-    conditions today" has a medium but asks for no temperature and is untouched.
+    conditions today" has a medium but asks for no temperature and is untouched. A
+    phase-transition ask ("at what temperature does water freeze?") is the medium's constant,
+    not a reading, and is left to the knowledge lane.
     """
 
-    tokens = [token for token in _TOKEN_RE.findall(_fold(text))]
+    folded = _fold(text)
+    if _PHASE_TRANSITION_RE.search(folded):
+        return False
+    tokens = [token for token in _TOKEN_RE.findall(folded)]
     if not tokens:
         return False
     wants_temperature = any(_matches_any(token, _TEMPERATURE_WORDS) for token in tokens)
@@ -110,7 +126,7 @@ def requests_a_water_temperature(text: Any) -> bool:
         # The colloquial form carries the temperature intent in the verb phrase,
         # not in a temperature word — check it BEFORE the medium requirement so
         # "how's the water" needs no second signal.
-        return bool(_HOWS_THE_MEDIUM_RE.search(_fold(text)))
+        return bool(_HOWS_THE_MEDIUM_RE.search(folded))
     return any(_matches_any(token, _WATER_MEDIA) for token in tokens)
 
 

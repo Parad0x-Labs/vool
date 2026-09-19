@@ -34,7 +34,6 @@ pytestmark = [pytest.mark.gauntlet]
 @pytest.mark.parametrize("prompt,expected", [
     ("reply exactly: HELLO", "HELLO"),
     ("respond with exactly PONG", "PONG"),
-    ("say exactly this marker: PING and nothing else", "PING"),
     ("Reply with exactly this word and nothing else: laapitytio", "laapitytio"),
     ("Respond with exactly the following token and nothing else: QX-7", "QX-7"),
     ("output exactly `xyzzy-42`", "xyzzy-42"),
@@ -44,11 +43,23 @@ def test_exact_response_target_extracts_the_target(prompt, expected):
     assert exact_response_target(prompt) == expected
 
 
-def test_exact_response_target_collapses_whitespace_to_a_single_line():
-    # Whitespace (including newlines) in the target is collapsed to single spaces
-    # before the length guard — multiline input is normalised, not rejected. The
-    # 240-char cap is the real guard rail.
-    assert exact_response_target("reply exactly: line one\nline two") == "line one line two"
+def test_exact_response_target_refuses_an_ambiguous_delimited_payload():
+    # `say exactly this marker: PING and nothing else` carries an internal colon, so the
+    # payload's literal boundary is ambiguous (is it "this marker: PING", "PING", or the cue
+    # residue?). The typed parser is the one interpretation authority and refuses to bind;
+    # the legacy rewriter must not re-extract its own target beside that refusal -- serving
+    # cue residue here is the measured defect the refusal was built for.
+    assert exact_response_target("say exactly this marker: PING and nothing else") == ""
+
+
+def test_exact_response_target_refuses_a_multiline_colon_payload():
+    # Multiline colon payloads are another of the typed parser's documented refusal classes:
+    # a newline in the payload makes the literal's extent unknowable, and the old
+    # collapse-to-one-line behaviour invented bytes the user never delimited. A single-line
+    # literal binds verbatim (its own bytes, whitespace included); the 240-char cap stays
+    # the guard rail for that binding.
+    assert exact_response_target("reply exactly: line one\nline two") == ""
+    assert exact_response_target("reply exactly: " + "x" * 241) == ""
 
 
 def test_exact_response_target_rejects_over_240_chars():

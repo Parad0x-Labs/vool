@@ -127,6 +127,15 @@ def main(argv: list[str]) -> int:
 
         H.install_unmanaged()   # the seams; no monkeypatch, nothing to undo
         H.runtime()             # the real bootstrap
+        # The authorship fence refuses an uncertified local author, so the harness's scripted
+        # models are certified the way every served rig certifies its stub -- otherwise a
+        # static knowledge fact is withheld behind "not certified to author" and the gauntlet
+        # measures the fence, not the scenario.
+        from core.model_registry import ModelRegistry
+        from tests._authorship_certification import certify_for_authorship
+
+        for _manifest in ModelRegistry().list_manifests(enabled_only=True):
+            certify_for_authorship(_manifest)
         H.reset_capture()
 
         facts = _self_test()

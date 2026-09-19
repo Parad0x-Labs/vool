@@ -437,7 +437,20 @@ def install(monkeypatch, *, machine: Any | None = None) -> None:
         from core.runtime_provider_defaults import default_runtime_model_tag
         from core.web.api.runtime import ensure_default_provider
 
-        ensure_default_provider(ModelRegistry(), default_runtime_model_tag())
+        registry = ModelRegistry()
+        ensure_default_provider(registry, default_runtime_model_tag())
+        # The storage reset between tests also deletes the certification rows bootstrap wrote,
+        # and bootstrap itself runs once per process -- so the restored default provider would
+        # be refused by the authorship fence on every turn after the first test. Re-certify the
+        # defaults here (the same authority bootstrap used); a scenario that wants to exercise
+        # refusal registers its own uncertified model.
+        from tests._authorship_certification import certify_for_authorship
+
+        for _manifest in registry.list_manifests():
+            try:
+                certify_for_authorship(_manifest)
+            except Exception:  # pragma: no cover - a manifest outside the probe's reach
+                continue
     except Exception:
         pass
 

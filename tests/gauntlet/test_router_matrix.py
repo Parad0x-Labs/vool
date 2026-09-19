@@ -58,13 +58,14 @@ def _model_must_not_run(*_args, **_kwargs):
 
 
 def test_http_stopx402_resolves_without_the_model(tmp_path, monkeypatch):
-    from core import runtime_paths, vool_wallet
+    from core import runtime_paths
     from core.web.api.runtime import RuntimeServices
     from core.web.api.service import dispatch_post
 
     monkeypatch.setenv("VOOL_HOME", str(tmp_path))
     monkeypatch.setattr(runtime_paths, "_VOOL_HOME_OVERRIDE", None, raising=False)
-    vool_wallet.get_or_create_wallet(runtime_home=tmp_path)  # real wallet in the tmp home
+    # The freeze is wallet-independent by design (`_set_frozen` loads no wallet; the legacy
+    # create-on-read door was retired and refuses typed), so the turn needs no wallet set up.
 
     resp = dispatch_post(
         path="/api/chat",

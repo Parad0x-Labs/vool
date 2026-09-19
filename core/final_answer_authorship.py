@@ -637,7 +637,11 @@ def local_manifest_authorship_certified(manifest: Any) -> bool:
         if not certification_applies(manifest):
             return True
         status = certification_status(manifest)
-        return str(getattr(status, "state", status) or "").strip().lower() == "verified"
+        # ``certification_status`` returns a DICT whose key holds the state; an attribute read
+        # with the dict as its own default made EVERY certified local manifest read as
+        # uncertified here, demoting in ranking the very authors the fence accepts.
+        state = str(status.get("state") or "") if isinstance(status, dict) else str(getattr(status, "state", "") or "")
+        return state.strip().lower() == "verified"
     except Exception:
         # The fence owns the decision; ranking must never break on this read.
         return True
