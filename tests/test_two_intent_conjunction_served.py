@@ -28,7 +28,7 @@ import pytest
 import tests._reader_served_rig as rig
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "validation-logs" / "two-intent-routing-20260907" / "fixtures" / "two_intent_manifest.json"
+MANIFEST = ROOT / "tests" / "fixtures" / "two_intent_routing" / "two_intent_manifest.json"
 SHIM = ROOT / "tests" / "fixture_transport"
 
 OPERATOR_WORDING = "get me latest on Iran and oil prices pls"

@@ -1,0 +1,223 @@
+{
+ "note": "Sealed transport for the two-intent served proof: quotes, a news feed, and the feed's own pages. Every other host is refused by tests/fixture_transport.",
+ "rules": [
+  {
+   "name": "coingecko-coin-index",
+   "host": "api.coingecko.com",
+   "path_prefix": "/api/v3/coins/markets",
+   "json": [
+    {
+     "id": "bitcoin",
+     "symbol": "btc",
+     "name": "Bitcoin",
+     "current_price": 63250.0,
+     "market_cap": 1250000000000,
+     "market_cap_rank": 1,
+     "price_change_percentage_24h": 0.82,
+     "last_updated": "2026-09-06T12:00:00.000Z"
+    },
+    {
+     "id": "ethereum",
+     "symbol": "eth",
+     "name": "Ethereum",
+     "current_price": 2495.68,
+     "market_cap": 300000000000,
+     "market_cap_rank": 2,
+     "price_change_percentage_24h": 0.76,
+     "last_updated": "2026-09-06T12:00:00.000Z"
+    }
+   ]
+  },
+  {
+   "name": "coingecko-simple-price",
+   "host": "api.coingecko.com",
+   "path_prefix": "/api/v3/simple/price",
+   "json": {
+    "bitcoin": {
+     "usd": 63250.0,
+     "eur": 58400.0,
+     "btc": 1.0,
+     "usd_24h_change": 0.82,
+     "usd_market_cap": 1250000000000,
+     "last_updated_at": 1788696000
+    },
+    "ethereum": {
+     "usd": 2495.68,
+     "eur": 2304.1,
+     "btc": 0.03946,
+     "usd_24h_change": 0.76,
+     "usd_market_cap": 300000000000,
+     "last_updated_at": 1788696000
+    }
+   }
+  },
+  {
+   "name": "coingecko-page",
+   "host": "www.coingecko.com",
+   "body": "<html><title>Bitcoin price</title><body>Fixture page 2026-09-06</body></html>",
+   "content_type": "text/html"
+  },
+  {
+   "name": "yahoo-brent",
+   "host": "query1.finance.yahoo.com",
+   "query_contains": "BZ=F",
+   "json": {
+    "chart": {
+     "result": [
+      {
+       "meta": {
+        "currency": "USD",
+        "symbol": "BZ=F",
+        "regularMarketPrice": 96.28,
+        "previousClose": 96.28,
+        "chartPreviousClose": 96.28,
+        "regularMarketTime": 1788696000
+       },
+       "timestamp": [
+        1788695940,
+        1788696000
+       ],
+       "indicators": {
+        "quote": [
+         {
+          "close": [
+           96.28,
+           96.28
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  {
+   "name": "yahoo-wti",
+   "host": "query1.finance.yahoo.com",
+   "query_contains": "CL=F",
+   "json": {
+    "chart": {
+     "result": [
+      {
+       "meta": {
+        "currency": "USD",
+        "symbol": "CL=F",
+        "regularMarketPrice": 92.11,
+        "previousClose": 92.11,
+        "chartPreviousClose": 92.11,
+        "regularMarketTime": 1788696000
+       },
+       "timestamp": [
+        1788695940,
+        1788696000
+       ],
+       "indicators": {
+        "quote": [
+         {
+          "close": [
+           92.11,
+           92.11
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  {
+   "name": "yahoo-gold",
+   "host": "query1.finance.yahoo.com",
+   "query_contains": "GC=F",
+   "json": {
+    "chart": {
+     "result": [
+      {
+       "meta": {
+        "currency": "USD",
+        "symbol": "GC=F",
+        "regularMarketPrice": 4476.6,
+        "previousClose": 4470.0,
+        "chartPreviousClose": 4470.0,
+        "regularMarketTime": 1788696000
+       },
+       "timestamp": [
+        1788695940,
+        1788696000
+       ],
+       "indicators": {
+        "quote": [
+         {
+          "close": [
+           4475.9,
+           4476.6
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  {
+   "name": "yahoo-silver",
+   "host": "query1.finance.yahoo.com",
+   "query_contains": "SI=F",
+   "json": {
+    "chart": {
+     "result": [
+      {
+       "meta": {
+        "currency": "USD",
+        "symbol": "SI=F",
+        "regularMarketPrice": 66.75,
+        "previousClose": 66.75,
+        "chartPreviousClose": 66.75,
+        "regularMarketTime": 1788696000
+       },
+       "timestamp": [
+        1788695940,
+        1788696000
+       ],
+       "indicators": {
+        "quote": [
+         {
+          "close": [
+           66.75,
+           66.75
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "error": null
+    }
+   }
+  },
+  {
+   "name": "yahoo-quote-page",
+   "host": "finance.yahoo.com",
+   "body": "<html><title>Quote</title><body>fixture 2026-09-07</body></html>",
+   "content_type": "text/html"
+  },
+  {
+   "name": "google-news-rss",
+   "host": "news.google.com",
+   "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><rss version=\"2.0\"><channel><title>fixture news</title><item><title>Talks on the nuclear file resume in Geneva - Fixture Wire</title><link>https://news-fixture.example/story-one</link><pubDate>Mon, 07 Sep 2026 06:00:00 GMT</pubDate><source url=\"https://news-fixture.example\">Fixture Wire</source></item><item><title>Regional shipping lanes reopen after a week of closures - Fixture Wire</title><link>https://news-fixture.example/story-two</link><pubDate>Sun, 06 Sep 2026 18:30:00 GMT</pubDate><source url=\"https://news-fixture.example\">Fixture Wire</source></item><item><title>Central bank holds its rate and signals a pause - Fixture Wire</title><link>https://news-fixture.example/story-three</link><pubDate>Sun, 06 Sep 2026 09:00:00 GMT</pubDate><source url=\"https://news-fixture.example\">Fixture Wire</source></item></channel></rss>",
+   "content_type": "application/rss+xml"
+  },
+  {
+   "name": "news-fixture-pages",
+   "host": "news-fixture.example",
+   "body": "<html><title>Fixture Wire</title><body>fixture story 2026-09-07</body></html>",
+   "content_type": "text/html"
+  }
+ ]
+}
