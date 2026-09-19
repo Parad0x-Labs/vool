@@ -1,0 +1,15 @@
+# healthz: {'ok': True, 'agent': 'VOOL', 'daemon': True, 'runtime': {'app_version': '0.6.0', 'release_version': '0.6.0-beta', 'minimum_compatible_release': '0.4.0-closed-test', 'protocol_version': 1, 'rollout_stage': 'beta', 'channel_name': 'beta', 'branch': 'main', 'commit': 'e1034c9b11b8', 'commit_full': 'e1034c9b11b89eb085b7e494e2feab8ff36b0974', 'dirty': True, 'platform': 'macos', 'build_id': '0.6.0-beta+macos+e1034c9b11b8.dirty', 'started_at': '2026-09-19T00:04:29.384945Z', 'pid': 95627, 'workstation_version': 'vool-workstation-2026-03-13-v1', 'default_model_tag': 'qwen2.5:7b', 'model_tag': 'qwen2.5:7b', 'model_pull': {'model': 'qwen2.5:7b', 'status': 'failed', 'percent': 0, 'detail': '<urlopen error [Errno 61] Connection refused>'}}, 'capabilities': {'provider_capability_truth': [{'schema': 'vool.provider_capability.v1', 'provider_id': 'ollama-local:qwen2.5:7b', 'model_id': 'qwen2.5:7b', 'role_fit': 'drone', 'context_window': 24576, 'tool_support': ['structured_json', 'tool_calls'], 'structured_output_support': True, 'tokens_per_second': 0.0, 'ram_budget_gb': 6.75, 'vram_budget_gb': 6.75, 'quantization': '', 'locality': 'local', 'privacy_class': 'local_private', 'queue_depth': 0, 'max_safe_concurrency': 1, 'availability_state': 'blocked', 'circuit_open': False, 'last_error': '<urlopen error [Errno 61] Connection refused>', 'measurement_source': 'model_pull_status', 'measured_at': '', 'hardware_fit': True, 'hardware_fit_reason': '', 'is_verified_free_cloud_tool_capable': False}], 'public_hive_auth': {'ok': True, 'status': 'hydrated_from_local_cluster'}}, 'plugins': {'state': 'missing', 'plugins_dir': '', 'detail': 'no `plugins/` directory at the configured root', 'loaded': [], 'attempts': 1, 'last_attempt_at': '2026-09-19T00:04:29.872043+00:00', 'in_flight': False}}
+# exit: 1
+[journey] pairing started — code=K4WVCVC4 ttl=300s page embeds same payload
+[journey] paired — device=phone:41ecd435961fdd1dbcc3 grant=ddaa11bc-7d0a-4104-9522-efba024bcef1 (proof of possession verified)
+[journey] sabotage: forged public key refused — 401 proof_of_possession_failed
+[journey] sabotage: stolen grant without device key refused — 401 device_signature_invalid
+[journey] status — model=vool cloud_state=no_key
+[journey] attachment staged — id=att_d03950c9583bbc582349f5031461293c bytes=67
+[journey] message sent — turn=req:http:mob-be5f73c1af3f42c987a8fe6bdcf28da0 done_reason=stop
+[journey] history — 2 rows; attachment present on user turn
+[journey] proof chip — state=VERIFIED actions=0
+
+[journey] FAILED: AssertionError [ERR_ASSERTION]: seeded approval must be pending
+    at main (file:///repo/mobile/e2e/journey.mjs:237:10)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)

@@ -1,0 +1,11 @@
+2026-09-01T12:00:00 INFO daemon started pid 4242 version 0.5.0
+2026-09-01T12:00:01 DEBUG config loaded from /home/dave/.config/nulla/policy.yaml
+2026-09-01T12:00:02 INFO peer handshake with 10.42.7.9:8443 via tunnel
+2026-09-01T12:00:03 WARN auth retry for user=dave
+2026-09-01T12:00:04 ERROR provider call failed: 401 unauthorized
+2026-09-01T12:00:05 INFO cookie session=SGVsbG8gZnJvbSB0aGUgb3RoZXIgc2lkZQ accepted
+2026-09-01T12:00:06 ERROR proxy header basic_auth=dXNlcjpodW50ZXIy rejected
+2026-09-01T12:00:07 INFO outbound to https://internal.corp.example:9200/_search basic_auth=dXNlcjpwYXNz
+2026-09-01T12:00:08 ERROR crash in adapter lane live_data_typed_plan turn 9182
+2026-09-01T12:00:09 INFO writing store to /home/dave/Library/Application Support/NULLA/nulla_web0_v2.db
+2026-09-01T12:00:10 ERROR stack: File "/home/dave/nulla/core/adapter.py", line 91, in call_model
