@@ -38,7 +38,7 @@ def disabled_live_info_result(
         "weather, or latest-news requests honestly."
     )
     _reason, confidence = _route_metadata(agent, source_context, 0.82)
-    return agent._fast_path_result(
+    result = agent._fast_path_result(
         session_id=session_id,
         user_input=user_input,
         response=disabled_response,
@@ -46,6 +46,11 @@ def disabled_live_info_result(
         source_context=source_context,
         reason=_reason,
     )
+    # A typed refusal marker: this lane did NOT serve the demand, so a caller arbitration
+    # (the frontdoor's whole-turn claim) must not let this text finalize sibling demands
+    # it never touched -- a refusal is recorded as a slice answer and the turn continues.
+    result["live_info_refusal"] = True
+    return result
 
 
 def live_info_result(
