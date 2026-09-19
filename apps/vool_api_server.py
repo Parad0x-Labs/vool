@@ -167,6 +167,13 @@ def _load_installed_plugins() -> None:
 
         state = discover_and_register(budget_s=BOOT_PROBE_BUDGET_S, reason="boot")
         status = str(state.get("state") or "")
+        # The BUNDLED packs load through the same door, whatever the external folder's state:
+        # a fresh profile with no Desktop installation still gets the packs the app ships.
+        bundled = list(state.get("bundled_loaded") or [])
+        if bundled:
+            logger.info("Loaded %d bundled plugin(s): %s", len(bundled), ", ".join(bundled))
+        for error in state.get("bundled_errors") or []:
+            logger.warning("Bundled plugin skipped: %s", error)
         if status == STORAGE_ACCESSIBLE:
             loaded = list(state.get("loaded") or [])
             if loaded:
@@ -174,7 +181,10 @@ def _load_installed_plugins() -> None:
             for error in state.get("errors") or []:
                 logger.warning("Plugin skipped: %s", error)
         elif status == STORAGE_MISSING:
-            logger.info("No plugins repo found; the runtime serves its built-in tools only.")
+            if bundled:
+                logger.info("No external plugins repo found; serving the bundled plugins only.")
+            else:
+                logger.info("No plugins repo found; the runtime serves its built-in tools only.")
         else:
             logger.warning(
                 "Plugin storage %s at %s (%s); serving without plugins until a rescan succeeds. %s",

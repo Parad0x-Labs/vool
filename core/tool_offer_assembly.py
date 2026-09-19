@@ -128,30 +128,18 @@ def reset_skill_cache() -> None:
 
 
 def _plugin_dirs() -> tuple[tuple[str, Path], ...]:
-    """(plugin_id, directory) for every enabled installed plugin. Fail-soft, never raises."""
+    """(plugin_id, directory) for every enabled plugin. Fail-soft, never raises.
+
+    Reads the ONE merged inventory (bundled + installed, identity-deduplicated) so the skills
+    this seam offers are exactly the packs the catalog lists. The bounded probe governs the
+    Desktop side: a plugin folder that stalls after boot cannot stall a tool offer (measured
+    2026-09-10, the boot-time twin of this walk hung the packaged app; see core.plugin_catalog).
+    """
     try:
-        from core.plugin_catalog import _disabled_ids, discovered_plugin_dirs
+        from core.plugin_catalog import _disabled_ids, discovered_plugin_sources
 
         disabled = _disabled_ids()
-        found: list[tuple[str, Path]] = []
-        # The bounded probe's listing, never a directory walk on the turn's thread: a plugin
-        # folder that stalls after boot cannot stall a tool offer (measured 2026-09-10, the
-        # boot-time twin of this walk hung the packaged app; see core.plugin_catalog).
-        for entry in discovered_plugin_dirs():
-            plugin_id = entry.name
-            manifest = entry / ".codex-plugin" / "plugin.json"
-            if manifest.is_file():
-                try:
-                    import json
-
-                    payload = json.loads(manifest.read_text(encoding="utf-8"))
-                    plugin_id = str(payload.get("name") or entry.name).strip() or entry.name
-                except Exception:
-                    plugin_id = entry.name
-            if plugin_id in disabled:
-                continue
-            found.append((plugin_id, entry))
-        return tuple(found)
+        return tuple((pid, path) for pid, path in discovered_plugin_sources() if pid not in disabled)
     except Exception:
         return ()
 

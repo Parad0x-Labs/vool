@@ -18,13 +18,80 @@ from typing import Any
 from core.runtime_paths import user_runtime_default
 
 _DEFAULT_PLUGINS_DIR = Path.home() / "Desktop" / "Vool-skills-plugins"
+# The pre-rename installation folder (NULLA -> VOOL, 2026-09). An existing installation there is
+# REUSED as-is -- never moved, never duplicated into the current name -- by the same law
+# core.runtime_paths.user_runtime_default applies to ~/.nulla_runtime: one installation, whichever
+# folder it already lives in. The current name wins only when both folders exist, so an operator
+# who deliberately migrates controls that transition; nothing here ever writes both.
+_LEGACY_PLUGINS_DIR = Path.home() / "Desktop" / "Nulla-skills-plugins"
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
-def plugins_root() -> Path | None:
+def _desktop_plugins_dirs() -> tuple[Path, Path]:
+    """(current, legacy) Desktop roots, resolved LAZILY so tests and relocated homes work.
+
+    The module-level constants above are import-time snapshots (kept for back-compat imports);
+    the resolver must not be pinned to the home of whichever process imported it first.
+    """
+    home = Path.home()
+    return home / "Desktop" / "Vool-skills-plugins", home / "Desktop" / "Nulla-skills-plugins"
+
+
+def configured_plugins_root() -> Path:
+    """The ONE configured external plugins root: explicit override, else current, else legacy.
+
+    Resolution order, deterministic:
+      1. ``VOOL_PLUGINS_DIR`` when set (tests, operators, isolated installs) -- used as-is;
+      2. ``~/Desktop/Vool-skills-plugins`` when it carries a ``plugins/`` tree;
+      3. ``~/Desktop/Nulla-skills-plugins`` when only the legacy folder carries one (reuse);
+      4. otherwise the current-named folder, as the write target a first install creates.
+    """
     override = str(os.environ.get("VOOL_PLUGINS_DIR") or "").strip()
-    root = Path(override) if override else _DEFAULT_PLUGINS_DIR
+    if override:
+        return Path(override).expanduser()
+    current, legacy = _desktop_plugins_dirs()
+    if (current / "plugins").is_dir():
+        return current
+    if (legacy / "plugins").is_dir():
+        return legacy
+    return current
+
+
+def plugins_root() -> Path | None:
+    root = configured_plugins_root()
     return root if (root / "plugins").is_dir() else None
+
+
+def bundled_plugins_root() -> Path | None:
+    """The first-party packs shipped INSIDE the runtime's own source tree.
+
+    The self-contained app stages ``plugins/`` beside ``core/`` (installer/bundle/
+    build_macos_app.sh SRC_PACKAGES), so the bundled packs are found from the same root the
+    runtime itself is loaded from -- in dev that is the checkout, in a packaged app it is
+    Contents/Resources/app. This tree is app-local and read-only, never user- or
+    Desktop-gated, so it is read directly and fail-soft: no bounded storage probe applies.
+    Override with ``VOOL_BUNDLED_PLUGINS_DIR`` (an empty directory disables the source).
+    """
+    from core.runtime_paths import PROJECT_ROOT
+
+    override = str(os.environ.get("VOOL_BUNDLED_PLUGINS_DIR") or "").strip()
+    root = Path(override).expanduser() if override else Path(PROJECT_ROOT) / "plugins"
+    try:
+        return root if root.is_dir() else None
+    except OSError:
+        return None
+
+
+def bundled_plugin_dirs() -> tuple[Path, ...]:
+    """Every bundled pack directory (a directory carrying ``.codex-plugin/plugin.json``)."""
+    root = bundled_plugins_root()
+    if root is None:
+        return ()
+    try:
+        entries = sorted((entry for entry in root.iterdir() if entry.is_dir()), key=lambda p: p.name)
+    except OSError:
+        return ()
+    return tuple(entry for entry in entries if (entry / ".codex-plugin" / "plugin.json").is_file())
 
 
 def _enabled_store_path() -> Path:
@@ -229,6 +296,11 @@ _PROBE_SOURCE = (
 
 _STORAGE_LOCK = threading.RLock()
 _PROBE_IN_FLIGHT = threading.Lock()
+#: Packs the BOOT door loaded from the bundled source (bookkeeping only; the registry is the
+#: authority for what is registered). Kept beside the storage state so /healthz and the boot
+#: log can report the bundled packs as LOADED rather than implying a plugins-free runtime.
+_BUNDLED_LOADED: tuple[str, ...] = ()
+_BUNDLED_ERRORS: tuple[str, ...] = ()
 _STORAGE: dict[str, Any] = {
     "state": STORAGE_PENDING,
     "root": "",
@@ -377,6 +449,8 @@ def storage_state() -> dict[str, Any]:
     snapshot["packs"] = list(snapshot.get("packs") or ())
     snapshot["loaded"] = list(snapshot.get("loaded") or ())
     snapshot["errors"] = list(snapshot.get("errors") or ())
+    snapshot["bundled_loaded"] = list(_BUNDLED_LOADED)
+    snapshot["bundled_errors"] = list(_BUNDLED_ERRORS)
     snapshot.pop("registered_root", None)
     snapshot.pop("registered_entries", None)
     return snapshot
@@ -460,16 +534,44 @@ def _probe_and_publish(*, budget_s: float, register: bool, reason: str) -> dict[
         _PROBE_IN_FLIGHT.release()
 
 
+def register_bundled_plugins() -> dict[str, Any]:
+    """Load the BUNDLED packs' tools through the same idempotent ``load_all`` the boot uses.
+
+    The app ships these packs, so their availability must not depend on any Desktop folder: a
+    fresh profile with no external installation still gets the bundled tools. A pack the owner
+    disabled registers as an explained absence (plugin_tools' "disabled is a state, not an
+    absence" law), and a duplicate identity never reaches the registry -- only the merged
+    inventory's survivor registers. Idempotent per process, like every ``load_all`` call.
+    """
+    global _BUNDLED_LOADED, _BUNDLED_ERRORS
+    from core.plugin_tools import load_all
+
+    bundled = bundled_plugin_dirs()
+    if not bundled:
+        _BUNDLED_LOADED, _BUNDLED_ERRORS = (), ()
+        return {"loaded": [], "errors": []}
+    surviving = {str(plugin_dir) for _pid, plugin_dir in discovered_plugin_sources()}
+    manifests = tuple(
+        plugin_dir / ".codex-plugin" / "plugin.json" for plugin_dir in bundled if str(plugin_dir) in surviving
+    )
+    loaded, errors = load_all(bundled[0].parent, manifests=manifests)
+    _BUNDLED_LOADED = tuple(sorted(item.plugin_id for item in loaded))
+    _BUNDLED_ERRORS = tuple(str(item) for item in errors)
+    return {"loaded": list(_BUNDLED_LOADED), "errors": list(_BUNDLED_ERRORS)}
+
+
 def discover_and_register(*, budget_s: float, reason: str = "") -> dict[str, Any]:
     """Probe the plugin folder within `budget_s` and, when it answers, load its packs.
 
-    The boot's and the rescan's door. It also marks this process as one that LOADS packs, so a
-    later probe by any reader (a catalog read, a tool offer) that finds a folder answering after
-    a stalled or denied boot loads the packs exactly as the boot would have -- recovery without
-    a relaunch. A process that never called this (a test, an in-process tool) only lists.
+    The boot's and the rescan's door. The BUNDLED source loads here too -- unconditionally,
+    because it is app-local and needs no probe; a missing or stalled Desktop folder can never
+    take the shipped packs down with it. This also marks the process as one that LOADS packs,
+    so a later probe by any reader that finds a folder answering after a stalled or denied
+    boot loads the packs exactly as the boot would have -- recovery without a relaunch.
     """
     global _REGISTRATION_WANTED
     _REGISTRATION_WANTED = True
+    register_bundled_plugins()
     return _probe_and_publish(budget_s=budget_s, register=True, reason=reason)
 
 
@@ -557,10 +659,96 @@ def discovered_manifests() -> tuple[Path, ...]:
     return tuple(plugins_dir / name / ".codex-plugin" / "plugin.json" for name in state.get("packs") or ())
 
 
+# --- the ONE merged inventory: bundled + installed, identity-deduplicated -------------------------
+#
+# The catalog the console reads and the packs the runtime loads must be the SAME inventory, or a
+# plugin can appear in the list while being unloadable (or load while invisible). Both sides read
+# this seam instead of walking folders themselves. Duplicate identities -- the same plugin id
+# declared by a bundled pack and an installed copy, or by two installed directories -- are dropped
+# deterministically (bundled first, then sorted directory order) and REPORTED, never silently
+# shadowed: the dropped location rides the catalog so the operator can see both.
+
+_IDENTITY_LOCK = threading.RLock()
+_IDENTITY_CACHE: dict[tuple[str, float], str] = {}
+_DUPLICATE_SOURCES: tuple[dict[str, str], ...] = ()
+
+
+def _plugin_identity(plugin_dir: Path) -> str:
+    """The id a pack directory declares (manifest ``name``), falling back to its directory name."""
+    import json as _json
+
+    manifest = Path(plugin_dir) / ".codex-plugin" / "plugin.json"
+    try:
+        key = (str(manifest), manifest.stat().st_mtime)
+    except OSError:
+        return Path(plugin_dir).name
+    with _IDENTITY_LOCK:
+        cached = _IDENTITY_CACHE.get(key)
+    if cached is not None:
+        return cached
+    try:
+        payload = _json.loads(manifest.read_text(encoding="utf-8"))
+        identity = str(payload.get("name") or "").strip() or Path(plugin_dir).name
+    except Exception:
+        identity = Path(plugin_dir).name
+    with _IDENTITY_LOCK:
+        if len(_IDENTITY_CACHE) > 256:  # bounded: a test session swaps many fixture trees
+            _IDENTITY_CACHE.clear()
+        _IDENTITY_CACHE[key] = identity
+    return identity
+
+
+def discovered_plugin_sources() -> tuple[tuple[str, Path], ...]:
+    """(plugin_id, directory) for EVERY pack this runtime can load, one identity each.
+
+    Bundled packs lead (the runtime ships them; an installed copy of the same id is the
+    duplicate, reported through ``duplicate_plugin_sources``), then the installed packs the
+    bounded probe named. Fail-soft on either side: an inaccessible Desktop folder yields no
+    directories without blocking -- the bundled source still answers.
+    """
+    global _DUPLICATE_SOURCES
+    found: list[tuple[str, Path]] = []
+    kept: dict[str, str] = {}
+    dropped: list[dict[str, str]] = []
+    for plugin_dir in (*bundled_plugin_dirs(), *discovered_plugin_dirs()):
+        plugin_id = _plugin_identity(plugin_dir)
+        if plugin_id in kept:
+            dropped.append(
+                {
+                    "id": plugin_id,
+                    "dir": str(plugin_dir),
+                    "reason": f"duplicate plugin identity; kept {kept[plugin_id]}",
+                }
+            )
+            continue
+        kept[plugin_id] = str(plugin_dir)
+        found.append((plugin_id, plugin_dir))
+    with _IDENTITY_LOCK:
+        _DUPLICATE_SOURCES = tuple(dropped)
+    return tuple(found)
+
+
+def duplicate_plugin_sources() -> tuple[dict[str, str], ...]:
+    """Packs dropped from the inventory for declaring an identity another pack already holds."""
+    with _IDENTITY_LOCK:
+        return tuple(_DUPLICATE_SOURCES)
+
+
+def active_plugin_manifests() -> tuple[Path, ...]:
+    """The manifests of the merged inventory (bundled + installed, deduplicated)."""
+    return tuple(
+        plugin_dir / ".codex-plugin" / "plugin.json" for _plugin_id, plugin_dir in discovered_plugin_sources()
+    )
+
+
 def reset_storage_state() -> None:
     """Tests only: forget every probe so the next call starts from `pending`."""
-    global _REGISTRATION_WANTED
+    global _REGISTRATION_WANTED, _BUNDLED_LOADED, _BUNDLED_ERRORS, _DUPLICATE_SOURCES
     _REGISTRATION_WANTED = False
+    _BUNDLED_LOADED, _BUNDLED_ERRORS = (), ()
+    with _IDENTITY_LOCK:
+        _IDENTITY_CACHE.clear()
+        _DUPLICATE_SOURCES = ()
     with _STORAGE_LOCK:
         _STORAGE.update(
             state=STORAGE_PENDING, root="", plugins_dir="", detail="", reason="", entries=(), packs=(), loaded=(),
@@ -571,11 +759,15 @@ def reset_storage_state() -> None:
 
 
 def read_plugin_catalog() -> dict[str, Any]:
-    """Return {installed, root, plugins, plugin_count, skill_count, reason, storage}.
+    """Return {installed, root, plugins, plugin_count, skill_count, reason, storage, duplicates}.
 
-    `installed` is True only when the plugin folder is ACCESSIBLE; otherwise `reason` says which
-    state it is in and what recovers it, and `storage` carries the typed state. The listing comes
-    from the bounded probe, never from a directory walk in the serving process.
+    `installed` is True only when the EXTERNAL plugin folder is ACCESSIBLE; otherwise `reason`
+    says which state it is in and what recovers it, and `storage` carries the typed state. The
+    listing itself is the merged inventory (bundled + installed) from the bounded probe and the
+    bundled source -- never a directory walk in the serving process -- so the console and the
+    runtime read the same packs. Bundled packs stay listed whatever the Desktop folder's state,
+    each with its `origin`; packs dropped for a duplicate identity are reported under
+    `duplicates` instead of silently shadowing or vanishing.
     """
     storage = ensure_discovered()
     root = plugins_root()
@@ -585,28 +777,27 @@ def read_plugin_catalog() -> dict[str, Any]:
     if native is not None:
         # The first-party library leads the catalog: it is the runtime's own capability set.
         plugins.append(native)
-    if root is None or storage.get("state") != STORAGE_ACCESSIBLE:
-        return {
-            "installed": False,
-            "root": "" if root is None else str(root),
-            "plugins": plugins if native is not None else [],
-            "plugin_count": len(plugins) if native is not None else 0,
-            "skill_count": sum(len(p["skills"]) for p in plugins) if native is not None else 0,
-            "reason": str(storage.get("reason") or _reason_for(STORAGE_MISSING, "", "", None)),
-            "storage": storage,
-        }
-    for plugin_dir in discovered_plugin_dirs():
-        entry = _plugin_entry(plugin_dir)
-        if entry is not None:
-            entry["enabled"] = entry["id"] not in disabled
+    bundled_root = bundled_plugins_root()
+    bundled_roots = bundled_plugin_dirs()
+    external_ok = root is not None and storage.get("state") == STORAGE_ACCESSIBLE
+    if external_ok or bundled_roots:
+        for plugin_id, plugin_dir in discovered_plugin_sources():
+            entry = _plugin_entry(plugin_dir)
+            if entry is None:
+                continue
+            entry["enabled"] = plugin_id not in disabled
+            entry["origin"] = "bundled" if (bundled_root is not None and plugin_dir.parent == bundled_root) else "installed"
+            entry["root"] = str(plugin_dir.parent.parent)
             plugins.append(entry)
+    duplicates = [dict(item) for item in duplicate_plugin_sources()]
     return {
-        "installed": True,
-        "root": str(root),
+        "installed": bool(external_ok),
+        "root": "" if root is None else str(root),
         "plugins": plugins,
         "plugin_count": len(plugins),
         "skill_count": sum(len(p["skills"]) for p in plugins),
-        "reason": "",
+        "reason": "" if external_ok else str(storage.get("reason") or _reason_for(STORAGE_MISSING, "", "", None)),
+        "duplicates": duplicates,
         "storage": storage,
     }
 
@@ -623,14 +814,21 @@ __all__ = [
     "STORAGE_MISSING",
     "STORAGE_PENDING",
     "STORAGE_STALLED",
+    "active_plugin_manifests",
+    "bundled_plugin_dirs",
+    "bundled_plugins_root",
+    "configured_plugins_root",
     "discover_and_register",
     "discovered_manifests",
     "discovered_plugin_dirs",
+    "discovered_plugin_sources",
+    "duplicate_plugin_sources",
     "ensure_discovered",
     "invalidate_storage_listing",
     "plugins_root",
     "probe_plugin_storage",
     "read_plugin_catalog",
+    "register_bundled_plugins",
     "reset_storage_state",
     "set_plugin_enabled",
     "storage_state",

@@ -653,6 +653,7 @@ def _plugin_storage_health_summary() -> dict[str, Any]:
             "plugins_dir": str(state.get("plugins_dir") or ""),
             "detail": str(state.get("detail") or ""),
             "loaded": list(state.get("loaded") or []),
+            "bundled_loaded": list(state.get("bundled_loaded") or []),
             "attempts": int(state.get("attempts") or 0),
             "last_attempt_at": str(state.get("last_attempt_at") or ""),
             "in_flight": bool(state.get("in_flight")),

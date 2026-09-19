@@ -307,16 +307,14 @@ def plugins_root() -> Path:
 
     `plugin_catalog.plugins_root()` returns None until a `plugins/` directory exists, which is
     exactly the state a first install has to be able to create — so the configured root is resolved
-    the same way here, and the existence check is left to the caller.
+    the same way here, and the existence check is left to the caller. That resolver also carries the
+    legacy-folder reuse rule (Nulla-skills-plugins before the rename), so staging, install and the
+    catalog agree on ONE tree.
     """
 
-    import os
+    from core.plugin_catalog import configured_plugins_root
 
-    from core.plugin_catalog import _DEFAULT_PLUGINS_DIR
-
-    override = str(os.environ.get("VOOL_PLUGINS_DIR") or "").strip()
-    root = Path(override) if override else Path(_DEFAULT_PLUGINS_DIR)
-    return root.expanduser()
+    return configured_plugins_root()
 
 
 def staging_root() -> Path:

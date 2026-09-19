@@ -19,10 +19,9 @@ from pathlib import Path
 
 from core.runtime_paths import user_runtime_default
 
-# Where the local-render skill's runtime script lives. Override with VOOL_LOCAL_RENDER_SCRIPT.
-_DEFAULT_PLUGIN_SCRIPT = (
-    Path.home() / "Desktop" / "Vool-skills-plugins" / "plugins" / "vool-local-render" / "runtime" / "render_sdxl.py"
-)
+# The local-render skill's runtime script is resolved at call time from the CONFIGURED plugins
+# tree (see local_render_script) — a fixed ~/Desktop/Vool-skills-plugins default missed every
+# pre-rename installation. Override with VOOL_LOCAL_RENDER_SCRIPT.
 _COMFY_SERVER = os.environ.get("VOOL_COMFY_SERVER", "127.0.0.1:8188")
 # A cold first render (after ComfyUI starts) loads a ~6.6GB SDXL checkpoint and can take minutes on
 # Apple Silicon; warm renders are ~1 min. Keep this generous so the first image never reports a false
@@ -107,8 +106,27 @@ _LOCAL_CUE_RE = re.compile(r"\b(local(?:ly)?|on\s+my\s+machine|on\s+device|offli
 
 def local_render_script() -> Path | None:
     override = str(os.environ.get("VOOL_LOCAL_RENDER_SCRIPT") or "").strip()
-    candidate = Path(override) if override else _DEFAULT_PLUGIN_SCRIPT
-    return candidate if candidate.is_file() else None
+    if override:
+        candidate = Path(override).expanduser()
+        return candidate if candidate.is_file() else None
+    # No override: the script lives inside whichever plugins tree is actually installed. The
+    # configured root carries the legacy-folder reuse rule (Nulla-skills-plugins before the
+    # VOOL rename), so a pre-rename installation renders instead of silently falling back to
+    # the cloud path (measured 2026-09-19: the fixed default missed the owner's existing tree).
+    try:
+        from core.plugin_catalog import configured_plugins_root
+
+        root = configured_plugins_root()
+    except Exception:
+        root = None
+    if root is not None:
+        candidate = root / "plugins" / "vool-local-render" / "runtime" / "render_sdxl.py"
+        if candidate.is_file():
+            return candidate
+        legacy_named = root / "plugins" / "nulla-local-render" / "runtime" / "render_sdxl.py"
+        if legacy_named.is_file():
+            return legacy_named
+    return None
 
 
 def local_render_available() -> bool:

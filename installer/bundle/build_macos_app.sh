@@ -61,7 +61,11 @@ case "${TARGET_ARCH}" in
   *)      UV_ARCH=""; UV_PLATFORM="" ;;
 esac
 # The same top-level runtime packages the Windows bundle ships (see build_bundle.ps1).
-SRC_PACKAGES=(apps core adapters storage network relay retrieval sandbox tools ops installer config)
+# `skills` (the native skill library core/native_skill_library.py resolves from the app root)
+# and `plugins` (the first-party bundled packs, e.g. vool-database) are runtime CONTENT, not
+# repositories of developer conveniences: a bundle without them ships a runtime whose catalog
+# and library are silently empty (measured on the e1034c9b bundle: neither directory present).
+SRC_PACKAGES=(apps core adapters storage network relay retrieval sandbox tools ops installer config skills plugins)
 
 # Version the bundle from the SHARED release manifest so it tracks the release instead of a
 # hardcoded 1.0. The Apple-numeric short version drops the channel suffix (0.4.2-closed-test ->

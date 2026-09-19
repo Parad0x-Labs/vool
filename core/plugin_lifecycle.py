@@ -263,17 +263,18 @@ def discover(root: Path | None = None) -> list[dict[str, Any]]:
     that has never been installed comes back at stage `discovered` and is not offered.
     """
 
-    from core.plugin_catalog import discovered_manifests, plugins_root
+    from core.plugin_catalog import active_plugin_manifests
     from core.plugin_tools import discover_manifests
 
-    base = Path(root) if root is not None else plugins_root()
-    if base is None:
-        return []
-    found: list[dict[str, Any]] = []
     # An explicit root is walked directly (a test's temporary tree, an operator's argument). The
-    # configured root comes from the bounded storage probe's listing, so the lifecycle snapshot
-    # a console reads cannot hang on a folder that stalls (see core.plugin_catalog).
-    listing = discover_manifests(Path(base)) if root is not None else discovered_manifests()
+    # configured world comes from the merged inventory (bundled packs + the bounded storage
+    # probe's listing of the external folder), so the lifecycle snapshot lists every pack this
+    # runtime knows without hanging on a Desktop folder that stalls (see core.plugin_catalog).
+    if root is not None:
+        listing = discover_manifests(Path(root))
+    else:
+        listing = active_plugin_manifests()
+    found: list[dict[str, Any]] = []
     for manifest in listing:
         pack = Path(manifest).parent.parent
         plugin_id = pack.name
