@@ -29,8 +29,12 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 
-V3_STAMP_SHA = "19762f15"  # the commit that introduced the user_version stamp — stamped 3
-PREVIOUS_CANDIDATE_SHA = "a6c8e3c4"  # the last binary whose migration pass ran unconditionally
+# The historical schema bytes of the two binaries this contract pins, captured verbatim as
+# static fixtures (v3-stamp era and the last unconditional-migration era). The original
+# SHAs live in the pre-sanitization private history, which this repository deliberately
+# does not carry; the fixture files hold the exact same SCHEMA_SQL those commits shipped.
+V3_STAMP_SQL = Path(__file__).parent / "fixtures" / "store_version_schemas" / "v3_stamp_19762f15.sql"
+PREVIOUS_CANDIDATE_SQL = Path(__file__).parent / "fixtures" / "store_version_schemas" / "pre_stamp_a6c8e3c4.sql"
 OLD_STAMP = 3
 
 # Objects that only exist because a migration ran AFTER the version-3 stamp was introduced.
@@ -42,14 +46,8 @@ POST_STAMP_COLUMNS = (
 )
 
 
-def _schema_sql_from_git(spec: str) -> str:
-    done = subprocess.run(
-        ["git", "-C", str(REPO), "show", f"{spec}:storage/migrations.py"],
-        capture_output=True, text=True, check=True,
-    )
-    match = re.search(r'SCHEMA_SQL = """(.*?)"""', done.stdout, re.DOTALL)
-    assert match, f"no SCHEMA_SQL in {spec}"
-    return match.group(1)
+def _schema_sql(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
 
 
 def _stamped_old_db(tmp_path: Path, spec: str, name: str) -> tuple[Path, dict[str, int]]:
@@ -60,7 +58,7 @@ def _stamped_old_db(tmp_path: Path, spec: str, name: str) -> tuple[Path, dict[st
     conn = sqlite3.connect(db)
     survivors: dict[str, int] = {}
     try:
-        conn.executescript(_schema_sql_from_git(spec))
+        conn.executescript(_schema_sql(spec))
         for table in ("runtime_sessions", "runtime_attempts", "peers"):
             if not conn.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (table,)).fetchone():
                 continue
@@ -153,7 +151,7 @@ def test_old_stamped_database_cannot_skip_new_migrations(tmp_path: Path) -> None
     from storage.db import STORE_USER_VERSION, get_connection
     from storage.migrations import run_migrations
 
-    db, survivors = _stamped_old_db(tmp_path, V3_STAMP_SHA, "stamped-3-at-the-stamp-commit.db")
+    db, survivors = _stamped_old_db(tmp_path, V3_STAMP_SQL, "stamped-3-at-the-stamp-commit.db")
     assert _missing_post_stamp_objects(db), "precondition: the version-3 shape lacks later objects"
 
     run_migrations(db_path=db)
@@ -169,7 +167,7 @@ def test_previous_candidate_database_upgrades_and_restamps(tmp_path: Path) -> No
     from storage.db import STORE_USER_VERSION, get_connection
     from storage.migrations import run_migrations
 
-    db, survivors = _stamped_old_db(tmp_path, PREVIOUS_CANDIDATE_SHA, "stamped-3-previous-candidate.db")
+    db, survivors = _stamped_old_db(tmp_path, PREVIOUS_CANDIDATE_SQL, "stamped-3-previous-candidate.db")
     run_migrations(db_path=db)
     assert _version(db) == STORE_USER_VERSION
     assert _version(db) != OLD_STAMP, "the previous candidate's stamp must not equal the new contract"
@@ -182,7 +180,7 @@ def test_previous_candidate_database_upgrades_and_restamps(tmp_path: Path) -> No
 def test_interrupted_upgrade_leaves_old_bytes_and_resumes_on_next_boot(tmp_path: Path, monkeypatch) -> None:
     from storage import migrations
 
-    db, survivors = _stamped_old_db(tmp_path, V3_STAMP_SHA, "interrupted.db")
+    db, survivors = _stamped_old_db(tmp_path, V3_STAMP_SQL, "interrupted.db")
     before = hashlib.sha256(db.read_bytes()).hexdigest()
     real_get_connection = migrations.get_connection
 
@@ -222,7 +220,7 @@ def test_interrupted_upgrade_leaves_old_bytes_and_resumes_on_next_boot(tmp_path:
 def test_repeated_upgrade_is_stable(tmp_path: Path) -> None:
     from storage.migrations import ledger_head_version, run_migrations
 
-    db, _survivors = _stamped_old_db(tmp_path, V3_STAMP_SHA, "repeated.db")
+    db, _survivors = _stamped_old_db(tmp_path, V3_STAMP_SQL, "repeated.db")
     run_migrations(db_path=db)
     first = _semantic_dump(db)
     run_migrations(db_path=db)  # stamped current: versioned no-op

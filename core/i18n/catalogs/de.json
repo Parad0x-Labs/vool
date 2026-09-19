@@ -313,7 +313,7 @@
     "first_run.fact_01": "Läuft standardmäßig auf deinem Rechner — deine Prompts verlassen ihn nie, außer du aktivierst die Cloud.",
     "first_run.fact_02": "Lokaler Chat ist kostenlos — keine Abrechnung pro Token. Füge einen Cloud-Schlüssel nur hinzu, wenn du ein größeres Modell willst.",
     "first_run.fact_03": "Kein Abo und keine Gebühr pro Nachricht — es läuft auf Hardware, die du schon besitzt.",
-    "first_run.fact_04": "Erzeugt Bilder direkt auf dem Gerät — kostenlos, ohne Schlüssel, nichts wird hochgeladen.",
+    "first_run.fact_04": "Bearbeitet Video und Audio lokal — Trimmen, Zuschneiden, Skalieren, Komprimieren; kostenlos und ohne Schlüssel.",
     "first_run.fact_05": "Liest, durchsucht und bearbeitet Dateien in deinem Workspace und führt Tests in einer Sandbox aus.",
     "first_run.fact_06": "Frag es nach einem Ordner und es liest die echten Dateien — kein Rätselraten.",
     "first_run.fact_07": "Binde einen Chat an einen Projektordner und sein Gedächtnis bleibt auf dieses Projekt begrenzt.",
@@ -575,7 +575,7 @@
     "proof.withheld": "Zurückgehalten (unbelegt)",
     "receipts.chain_invalid": "Belegkette ungültig — die Integrität der erfassten Aktions- und Beleghistorie konnte nicht bestätigt werden.",
     "receipts.chain_unchecked": "Belegkette nicht geprüft — Belege belegen nicht die Korrektheit der Antwort.",
-    "receipts.chain_valid": "Belegkette gültig — die erfasste Aktions- und Beleghistorie ist unversehrt. Das beweist nicht, dass die Antwort richtig ist.",
+    "receipts.chain_valid": "Belegkette gültig — die vorhandenen Belege sind konsistent. Das beweist weder die Vollständigkeit der Historie noch dass die Antwort richtig ist.",
     "receipts.copy_hash": "Hash kopieren",
     "receipts.copy_receipt": "Beleg kopieren",
     "receipts.field_claimed_actions": "Beanspruchte Aktionen",
@@ -956,7 +956,7 @@
     "wallet.testnet_badge": "Testnetz-Guthaben, kein echtes Geld",
     "wallet.watch_only_hint": "Nur-Ansicht: dieser Vorschlag kann in einem externen Wallet freigegeben werden, hier nicht signiert werden"
   },
-  "source_catalog_sha256": "f5feb2248d2fd9d21a460873c4d501541b090a6bd2fc2b9393aa073b40ad0884",
+  "source_catalog_sha256": "3be286b1a51cb3d3625ab3533a7cc77b436968d2c01c3c633b49c59f3d5f6ced",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -313,7 +313,7 @@
     "first_run.fact_01": "Fonctionne sur votre machine par défaut — vos prompts ne la quittent jamais, sauf si vous activez le cloud.",
     "first_run.fact_02": "La discussion locale est gratuite — pas de facturation au token. Ajoutez une clé cloud seulement quand vous voulez un modèle plus grand.",
     "first_run.fact_03": "Sans abonnement ni frais par message — tout tourne sur du matériel que vous possédez déjà.",
-    "first_run.fact_04": "Génère des images sur l'appareil — gratuit, sans clé, rien n'est envoyé.",
+    "first_run.fact_04": "Modifie vidéo et audio en local — découpe, recadrage, redimensionnement, compression ; gratuit et sans clé.",
     "first_run.fact_05": "Lit, recherche et modifie des fichiers dans votre espace de travail, et exécute des tests dans un sandbox.",
     "first_run.fact_06": "Demandez-lui un dossier et il lit les vrais fichiers — pas une supposition.",
     "first_run.fact_07": "Liez une discussion à un dossier de projet et sa mémoire reste cantonnée à ce projet.",
@@ -575,7 +575,7 @@
     "proof.withheld": "Retenu (non étayé)",
     "receipts.chain_invalid": "Chaîne de reçus invalide — l'intégrité de l'historique enregistré des actions et des preuves n'a pas pu être confirmée.",
     "receipts.chain_unchecked": "Chaîne de reçus non vérifiée — les reçus n'établissent pas l'exactitude de la réponse.",
-    "receipts.chain_valid": "Chaîne de reçus valide — l'historique enregistré des actions et des preuves est intact. Cela ne prouve pas que la réponse est correcte.",
+    "receipts.chain_valid": "Chaîne de reçus valide — les reçus présents sont cohérents. Cela ne prouve ni l'exhaustivité de l'historique ni que la réponse est correcte.",
     "receipts.copy_hash": "Copier le hash",
     "receipts.copy_receipt": "Copier le reçu",
     "receipts.field_claimed_actions": "Actions déclarées",
@@ -956,7 +956,7 @@
     "wallet.testnet_badge": "fonds de testnet, pas d'argent réel",
     "wallet.watch_only_hint": "lecture seule : cette proposition peut être approuvée dans un portefeuille externe, pas signée ici"
   },
-  "source_catalog_sha256": "f5feb2248d2fd9d21a460873c4d501541b090a6bd2fc2b9393aa073b40ad0884",
+  "source_catalog_sha256": "3be286b1a51cb3d3625ab3533a7cc77b436968d2c01c3c633b49c59f3d5f6ced",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

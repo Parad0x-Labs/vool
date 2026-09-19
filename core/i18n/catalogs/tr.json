@@ -313,7 +313,7 @@
     "first_run.fact_01": "Varsayılan olarak makinende çalışır — istemler, bulutu açmadıkça makineni asla terk etmez.",
     "first_run.fact_02": "Yerel sohbet ücretsizdir — token başına ücret yok. Daha büyük bir model istediğinde bir bulut anahtarı ekle.",
     "first_run.fact_03": "Abonelik yok, ileti başına ücret yok — zaten sahip olduğun donanımda çalışır.",
-    "first_run.fact_04": "Görselleri cihaz üzerinde üretir — ücretsiz, anahtar gerekmez, hiçbir şey yüklenmez.",
+    "first_run.fact_04": "Videoyi ve sesi yerel olarak düzenler — kırpma, boyutlandırma, yeniden boyutlandırma, sıkıştırma; ücretsiz ve anahtar gerekmez.",
     "first_run.fact_05": "Çalışma alanındaki dosyaları okur, arar ve düzenler; testleri korumalı bir alanda çalıştırır.",
     "first_run.fact_06": "Bir klasörü sor; gerçek dosyaları okur — tahmin değil.",
     "first_run.fact_07": "Bir sohbeti proje klasörüne bağla; belleği o projeye göre sınırlı kalır.",
@@ -575,7 +575,7 @@
     "proof.withheld": "Tutuldu (desteksiz)",
     "receipts.chain_invalid": "Makbuz zinciri geçersiz — kaydedilen eylem ve kanıt geçmişinin bütünlüğü doğrulanamadı.",
     "receipts.chain_unchecked": "Makbuz zinciri kontrol edilmedi — makbuzlar yanıtın doğruluğunu kanıtlamaz.",
-    "receipts.chain_valid": "Makbuz zinciri geçerli — kaydedilen eylem ve kanıt geçmişi bozulmamış. Bu, yanıtın doğru olduğunu kanıtlamaz.",
+    "receipts.chain_valid": "Makbuz zinciri geçerli — mevcut makbuzlar birbiriyle tutarlı. Bu, geçmişin eksiksiz olduğunu ya da yanıtın doğru olduğunu kanıtlamaz.",
     "receipts.copy_hash": "Hash'i kopyala",
     "receipts.copy_receipt": "Makbuzu kopyala",
     "receipts.field_claimed_actions": "Bildirilen eylemler",
@@ -956,7 +956,7 @@
     "wallet.testnet_badge": "testnet fonları, gerçek para değil",
     "wallet.watch_only_hint": "yalnızca izleme: bu teklif dış bir cüzdanda onaylanabilir, burada imzalanamaz"
   },
-  "source_catalog_sha256": "f5feb2248d2fd9d21a460873c4d501541b090a6bd2fc2b9393aa073b40ad0884",
+  "source_catalog_sha256": "3be286b1a51cb3d3625ab3533a7cc77b436968d2c01c3c633b49c59f3d5f6ced",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -313,7 +313,7 @@
     "first_run.fact_01": "Pagal numatymą veikia jūsų kompiuteryje — jūsų užklausos jo niekada nepalieka, nebent įjungsite debesį.",
     "first_run.fact_02": "Vietinis pokalbis nemokamas — jokio apmokėjimo už tokenus. Debesies raktą pridėkite tik tada, kai norite didesnio modelio.",
     "first_run.fact_03": "Be prenumeratos ir be mokesčio už žinutes — veikia įrangoje, kurią jau turite.",
-    "first_run.fact_04": "Kuria vaizdus įrenginyje — nemokamai, be rakto, niekas neišsiunčiama.",
+    "first_run.fact_04": "Redaguoja vaizdo ir garso įrašus vietoje — kirpimas, apkarpymas, dydžio keitimas, glaudinimas; nemokamai ir be rakto.",
     "first_run.fact_05": "Skaito, ieško ir redaguoja failus jūsų darbo srityje bei vykdo testus izoliuotoje aplinkoje.",
     "first_run.fact_06": "Paklauskite jos apie aplanką — ji perskaito realius failus, o ne spėja.",
     "first_run.fact_07": "Susiekite pokalbį su projekto aplanku, ir jo atmintis liks apribota to projekto.",
@@ -575,7 +575,7 @@
     "proof.withheld": "Sulaikyta (nepagrįsta)",
     "receipts.chain_invalid": "Kvitų grandinė netinkama — nepavyko patvirtinti įrašytų veiksmų ir įrodymų istorijos vientisumo.",
     "receipts.chain_unchecked": "Kvitų grandinė netikrinta — kvitai neįrodo atsakymo teisingumo.",
-    "receipts.chain_valid": "Kvitų grandinė tinkama — įrašyta veiksmų ir įrodymų istorija išliko nepažeista. Tai neįrodo, kad atsakymas teisingas.",
+    "receipts.chain_valid": "Kvitų grandinė tinkama — esami kvitai tarpusavyje suderinti. Tai neįrodo nei istorijos išsamumo, nei atsakymo teisingumo.",
     "receipts.copy_hash": "Kopijuoti hašą",
     "receipts.copy_receipt": "Kopijuoti kvitą",
     "receipts.field_claimed_actions": "Deklaruoti veiksmai",
@@ -956,7 +956,7 @@
     "wallet.testnet_badge": "testiniai pinigai, ne tikri",
     "wallet.watch_only_hint": "tik stebėjimo režimas: šį pasiūlymą galima patvirtinti išorinėje piniginėje, čia pasirašyti negalima"
   },
-  "source_catalog_sha256": "f5feb2248d2fd9d21a460873c4d501541b090a6bd2fc2b9393aa073b40ad0884",
+  "source_catalog_sha256": "3be286b1a51cb3d3625ab3533a7cc77b436968d2c01c3c633b49c59f3d5f6ced",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

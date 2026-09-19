@@ -492,13 +492,20 @@ class DisabledRouterContractTests(unittest.TestCase):
     def _resolve(self, source_context, task_text: str = "design swarm topology with resilient regions"):
         task = create_task_record(task_text)
         classification = classify(task.task_summary, context=self.interpretation.as_context())
+        # Door-stamped turn identity: the A9 plan mint refuses unnamed turns BEFORE
+        # ranking (fail-closed), so a direct drive without it never reaches the lane.
+        stamped = {
+            "session_id": "disable-contract-suite",
+            "turn_id": f"disable-contract-{abs(hash(task_text)) % 10**8}",
+            **source_context,
+        }
         return self.router.resolve(
             task=task,
             classification=classification,
             interpretation=self.interpretation,
             context_result=self._context_result(),
             persona=self.persona,
-            source_context=source_context,
+            source_context=stamped,
         )
 
     def test_explicit_local_pin_refuses_typed_when_disabled(self) -> None:
