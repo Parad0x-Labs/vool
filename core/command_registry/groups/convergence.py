@@ -534,7 +534,7 @@ class BypassActivateInput:
     duration_seconds: int = 900
     project_id: str = ""
     task_id: str = ""
-    explicit_confirmation: bool = False
+    confirmation_id: str = ""
     until_off: bool = False
     workspace_root: str = ""
 
@@ -559,7 +559,7 @@ def _handle_bypass_activate(inp, ctx):
         task_id=inp.task_id,
         scope=inp.scope,
         duration_seconds=int(inp.duration_seconds),
-        explicit_confirmation=bool(inp.explicit_confirmation),
+        confirmation_id=str(inp.confirmation_id or ""),
         until_off=bool(inp.until_off),
         workspace_root=str(inp.workspace_root or ""),
     )
@@ -979,8 +979,14 @@ def _gate_operator_approval(inp, ctx) -> ApprovalDecision:
 def _gate_bypass_confirmation(inp, ctx) -> AuthorityDecision:
     if str(ctx.principal or "") != "operator":
         return AuthorityDecision(granted=False, reason="operator-only command")
-    if not bool(getattr(inp, "explicit_confirmation", False)):
-        return AuthorityDecision(granted=False, reason="bypass grants require explicit operator confirmation")
+    # A caller-asserted boolean is not user presence. Activation requires a
+    # server-minted, single-use confirmation_id bound to this exact action; the
+    # handler consumes it atomically (core.mode_permission_policy).
+    if not str(getattr(inp, "confirmation_id", "") or "").strip():
+        return AuthorityDecision(
+            granted=False,
+            reason="bypass activation requires a single-use confirmation_id minted by the local VOOL UI",
+        )
     return AuthorityDecision(granted=True)
 
 

@@ -16,6 +16,7 @@ from core.mode_permission_policy import (
     activate_bypass_grant,
     active_mode_state,
     decide_tool_call,
+    request_bypass_confirmation,
     reset_mode_permission_state,
     resolve_approval,
     revoke_bypass_grant,
@@ -150,8 +151,9 @@ def test_two_chats_keep_independent_live_modes_and_restart_falls_back_to_explici
 
 def test_bypass_requires_confirmation_is_scoped_expires_revokes_and_keeps_hard_boundaries() -> None:
     with pytest.raises(PermissionError):
-        activate_bypass_grant(session_id="chat-a", task_id="turn-a", explicit_confirmation=False)
-    grant = activate_bypass_grant(session_id="chat-a", task_id="turn-a", scope="task", duration_seconds=60, explicit_confirmation=True)
+        activate_bypass_grant(session_id="chat-a", task_id="turn-a", confirmation_id="")
+    _cid = request_bypass_confirmation(session_id="chat-a", task_id="turn-a", scope="task", duration_seconds=60)
+    grant = activate_bypass_grant(session_id="chat-a", task_id="turn-a", scope="task", duration_seconds=60, confirmation_id=_cid)
     assert validate_bypass_grant(grant["token"], session_id="chat-a", task_id="turn-a")
     assert validate_bypass_grant(grant["token"], session_id="chat-a", task_id="turn-b") is None
     set_active_mode("chat-a", "bypass_permissions", client_turn_id="turn-a", bypass_token=grant["token"])

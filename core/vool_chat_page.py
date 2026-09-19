@@ -1328,7 +1328,7 @@ body:not(.panel-open) #xpanel { display:none; }
         <h3>Behaviour <span class="set-sub">how VOOL talks &amp; acts</span></h3>
         <div class="set-field"><label for="setHumor">Humour <span id="setHumorVal" class="set-num">20%</span></label><input type="range" id="setHumor" min="0" max="100" step="5" class="set-range"></div>
         <div class="set-field row"><label for="setCommStyle">Talk style</label><select id="setCommStyle" class="set-input" style="max-width:200px"><option value="casual">Casual</option><option value="business">Business</option><option value="cheeky">Cheeky</option></select></div>
-        <div class="set-field row"><label for="setAutonomy">Autonomy</label><select id="setAutonomy" class="set-input" style="max-width:220px"><option value="hands_off">Hands-off — ask before acting</option><option value="balanced">Balanced</option><option value="strict">Strict</option></select></div>
+        <div class="set-field row"><label for="setAutonomy">Autonomy</label><select id="setAutonomy" class="set-input" style="max-width:220px"><option value="hands_off">Hands-off — reads run unprompted, actions ask</option><option value="balanced">Balanced</option><option value="strict">Strict</option></select></div>
         <div class="set-field row"><label for="setDeepReason">Deep reasoning <span class="set-sub2">slower, thinks first</span></label><input type="checkbox" id="setDeepReason" class="set-check"></div>
       </section>
       <section class="set-sec">
@@ -8096,13 +8096,24 @@ async function confirmBypass() {
   if (btn) btn.disabled = true;
   try {
     const chatId = displayedChat, owner = chatState(chatId);   // bound before the await
+    // Two-step activation: mint a single-use, 60-second confirmation bound to THIS
+    // exact action, then activate with it. A caller-asserted boolean let any local
+    // process confirm on the user's behalf; the nonce is consumed once and only for
+    // these exact bindings.
+    const minted = await postMode({
+      op: 'request_bypass_confirmation',
+      scope: scope ? scope.value : 'task',
+      duration_seconds: untilOff ? 0 : seconds,
+      until_off: untilOff,
+      workspace_root: untilOff ? String(owner.workspaceRoot || '') : ''
+    });
     const data = await postMode({
       op: 'activate_bypass',
       scope: scope ? scope.value : 'task',
       duration_seconds: untilOff ? 0 : seconds,
       until_off: untilOff,
       workspace_root: untilOff ? String(owner.workspaceRoot || '') : '',
-      explicit_confirmation: true
+      confirmation_id: minted.confirmation_id
     });
     owner.bypassGrant = data.grant;
     await setModeController('bypass_permissions', owner.bypassGrant.token);

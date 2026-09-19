@@ -975,6 +975,88 @@ def resolve_effective_mode(
     )
 
 
+#: Server-minted, single-use, exact-bindings confirmations for bypass activation.
+#: A confirmation is minted ONLY by the local UI route (op=request_bypass_confirmation),
+#: lives 60 seconds, and is consumed exactly once by activate_bypass_grant with MATCHING
+#: bindings. A caller-asserted boolean can never again stand in for the user's click:
+#: replayed confirmations die with the nonce, a confirmation minted for one action cannot
+#: approve another (bindings), and there is no phrase to say.
+_PENDING_BYPASS_CONFIRMATIONS: dict[str, dict[str, Any]] = {}
+_BYPASS_CONFIRMATION_TTL_SECONDS = 60.0
+
+
+def request_bypass_confirmation(
+    *,
+    session_id: str,
+    project_id: str = "",
+    task_id: str = "",
+    scope: str = "task",
+    duration_seconds: int = 900,
+    until_off: bool = False,
+    workspace_root: str = "",
+) -> str:
+    """Mint a single-use confirmation for THIS exact bypass activation.
+
+    Minting grants nothing; only the matching activate consumes it.
+    """
+    clean_session = str(session_id or "").strip()
+    if not clean_session:
+        raise ValueError("session_id is required")
+    confirmation_id = secrets.token_urlsafe(24)
+    now = time.time()
+    with _LOCK:
+        stale = [
+            cid for cid, record in _PENDING_BYPASS_CONFIRMATIONS.items()
+            if now - float(record.get("minted_at") or 0.0) > _BYPASS_CONFIRMATION_TTL_SECONDS
+        ]
+        for cid in stale:
+            _PENDING_BYPASS_CONFIRMATIONS.pop(cid, None)
+        _PENDING_BYPASS_CONFIRMATIONS[confirmation_id] = {
+            "session_id": clean_session,
+            "project_id": str(project_id or "").strip(),
+            "task_id": str(task_id or "").strip(),
+            "scope": str(scope or "task").strip().lower(),
+            "duration_seconds": int(duration_seconds or 900),
+            "until_off": bool(until_off),
+            "workspace_root": str(workspace_root or "").strip(),
+            "minted_at": now,
+        }
+    return confirmation_id
+
+
+def _consume_bypass_confirmation(
+    confirmation_id: str,
+    *,
+    session_id: str,
+    project_id: str,
+    task_id: str,
+    scope: str,
+    duration_seconds: int,
+    until_off: bool,
+    workspace_root: str,
+) -> tuple[bool, str]:
+    record = None
+    with _LOCK:
+        record = _PENDING_BYPASS_CONFIRMATIONS.pop(str(confirmation_id or ""), None)
+    if record is None:
+        return False, "confirmation not found, already used, or expired"
+    if time.time() - float(record.get("minted_at") or 0.0) > _BYPASS_CONFIRMATION_TTL_SECONDS:
+        return False, "confirmation expired"
+    expected = {
+        "session_id": str(session_id or "").strip(),
+        "project_id": str(project_id or "").strip(),
+        "task_id": str(task_id or "").strip(),
+        "scope": str(scope or "task").strip().lower(),
+        "duration_seconds": int(duration_seconds or 900),
+        "until_off": bool(until_off),
+        "workspace_root": str(workspace_root or "").strip(),
+    }
+    for key, value in expected.items():
+        if record.get(key) != value:
+            return False, f"confirmation was minted for different {key}"
+    return True, ""
+
+
 def activate_bypass_grant(
     *,
     session_id: str,
@@ -982,12 +1064,25 @@ def activate_bypass_grant(
     task_id: str = "",
     scope: str = "task",
     duration_seconds: int = 900,
-    explicit_confirmation: bool,
+    confirmation_id: str = "",
     until_off: bool = False,
     workspace_root: str = "",
 ) -> dict[str, Any]:
-    if not explicit_confirmation:
-        raise PermissionError("Explicit confirmation is required for bypass permissions.")
+    ok, reason = _consume_bypass_confirmation(
+        confirmation_id,
+        session_id=session_id,
+        project_id=project_id,
+        task_id=task_id,
+        scope=scope,
+        duration_seconds=duration_seconds,
+        until_off=until_off,
+        workspace_root=workspace_root,
+    )
+    if not ok:
+        raise PermissionError(
+            "Bypass activation requires a current, single-use confirmation minted for "
+            f"this exact action ({reason}). Request one from the local VOOL UI."
+        )
     clean_session = str(session_id or "").strip()
     clean_scope = str(scope or "task").strip().lower()
     if not clean_session:

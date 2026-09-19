@@ -37,7 +37,7 @@ def test_mode_options_are_limited_to_the_handled_modes() -> None:
 
 def test_bypass_permissions_has_real_confirmation_expiry_and_revoke_controls() -> None:
     assert 'data-mode="bypass"' not in HTML
-    for token in ('id="bypassOverlay"', 'id="bypassDuration"', 'id="bypassConfirm"', 'id="bypassRevoke"', "explicit_confirmation: true", "op: 'activate_bypass'", "op: 'revoke_bypass'"):
+    for token in ('id="bypassOverlay"', 'id="bypassDuration"', 'id="bypassConfirm"', 'id="bypassRevoke"', "op: 'request_bypass_confirmation'", "confirmation_id: minted.confirmation_id", "op: 'activate_bypass'", "op: 'revoke_bypass'"):
         assert token in HTML
     assert "Automatic expiry" in HTML
     assert "Highest-risk mode" in HTML

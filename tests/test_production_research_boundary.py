@@ -26,7 +26,6 @@ from core.runtime_mode import (
     background_presence_threads_allowed,
     mesh_daemon_boot_allowed,
     research_networking_enabled,
-    stale_port_kill_allowed,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -80,11 +79,7 @@ def test_background_presence_threads_require_research_mode(monkeypatch):
     assert background_presence_threads_allowed(is_test_runtime=True) is False
 
 
-def test_stale_port_kill_requires_research_mode(monkeypatch):
-    monkeypatch.delenv("VOOL_RESEARCH_NETWORKING", raising=False)
-    assert stale_port_kill_allowed() is False
-    monkeypatch.setenv("VOOL_RESEARCH_NETWORKING", "1")
-    assert stale_port_kill_allowed() is True
+
 
 
 # ------------------------------------------------------------------ choke points
@@ -140,12 +135,29 @@ def test_swarm_query_dispatch_is_gated(monkeypatch):
     assert calls == {"dispatch": 0, "holders": 0}, "production must not dispatch or request holders"
 
 
-def test_udp_transport_does_not_kill_port_holder_in_production(monkeypatch):
-    """Bind-conflict recovery falls back to an ephemeral port instead of killing."""
-    monkeypatch.delenv("VOOL_RESEARCH_NETWORKING", raising=False)
+def test_udp_transport_never_kills_the_port_holder(monkeypatch):
+    """Bind-conflict recovery reports the holder and fails cleanly — the killer is
+    gone entirely (production AND research: VOOL never terminates an unrelated
+    process for a port)."""
     from network import transport
 
-    assert transport._kill_stale_udp_holder(49152) is False
+    assert not hasattr(transport, "_kill_stale_udp_holder")
+    assert not hasattr(transport, "_kill_stale_udp_holder_posix")
+
+    # A conflicting bind raises a clean, informative error for this subsystem.
+    import socket as _socket
+
+    with _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM) as holder:
+        holder.bind(("127.0.0.1", 0))
+        held_port = int(holder.getsockname()[1])
+        server = transport.UDPTransportServer(host="127.0.0.1", port=held_port)
+        try:
+            server.start()
+        except OSError as exc:
+            assert "in use" in str(exc), exc
+        else:
+            server.stop()
+            raise AssertionError("bind conflict must fail this subsystem cleanly")
 
 
 def test_udp_transport_skips_stun_in_production(monkeypatch):
@@ -300,3 +312,24 @@ def test_live_default_boot_binds_no_mesh_ports_and_runs_no_presence_threads(tmp_
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait(timeout=15)
+
+
+def test_production_browser_argv_never_disables_the_chromium_sandbox(monkeypatch):
+    """Security review P0: the agent browser launched Chromium with --no-sandbox
+    unconditionally — a booby-trapped page rendered by the browser tool would run
+    with the user's full permissions. The flag is removed; the ONLY escape hatch is
+    an explicit test/container env var, asserted absent by default here."""
+    import importlib
+    import os as _os
+
+    monkeypatch.delenv("VOOL_TEST_BROWSER_NO_SANDBOX", raising=False)
+    browser_render = importlib.import_module("tools.browser.browser_render")
+    argv, _ = browser_render._chrome_argv(
+        "/usr/bin/chromium",
+        "https://example.test",
+        user_agent="voool-test",
+        virtual_time_ms=10,
+        screenshot_path=None,
+    )
+    forbidden = {"--no-sandbox", "--disable-setuid-sandbox"}
+    assert not (set(argv) & forbidden), argv

@@ -198,99 +198,26 @@ def _raise_udp_bind_conflict(host: str, port: int, exc: OSError) -> None:
     ) from exc
 
 
-def _kill_stale_udp_holder_posix(port: int, my_pid: int) -> bool:
-    """POSIX (macOS/Linux): reclaim a UDP port from a stale holder via lsof + SIGTERM/SIGKILL.
+def _report_udp_port_conflict(port: int) -> None:
+    """Identify (never terminate) the process holding a UDP port we could not bind.
 
-    Mirrors installer/vool_stop.py:kill_listener_posix (tcp -> udp). netstat -ano / taskkill are
-    Windows-only, so without this branch macOS/Linux silently fall through to an ephemeral port.
+    Correct conflict behavior everywhere — production AND research: report who
+    holds the port, fail this subsystem's startup cleanly, never kill an
+    unrelated process.
     """
-    import signal
     import subprocess
 
     try:
-        res = subprocess.run(["lsof", "-ti", f"udp:{int(port)}"], capture_output=True, text=True, timeout=5)
+        res = subprocess.run(["lsof", "-nP", "-i", f"udp:{int(port)}"], capture_output=True, text=True, timeout=5)
+        holders = (res.stdout or "").strip()
     except Exception:
-        return False
-    killed = False
-    for tok in (res.stdout or "").split():
-        tok = tok.strip()
-        if not tok.isdigit():
-            continue
-        holder_pid = int(tok)
-        if holder_pid <= 0 or holder_pid == my_pid:
-            continue
-        audit_logger.log(
-            "killing_stale_port_holder",
-            target_id=f"pid={holder_pid}",
-            target_type="transport",
-            details={"port": port},
-        )
-        for sig in (signal.SIGTERM, signal.SIGKILL):
-            with contextlib.suppress(Exception):
-                os.kill(holder_pid, sig)
-        killed = True
-    return killed
-
-
-def _kill_stale_udp_holder(port: int) -> bool:
-    """Find and kill a stale process holding a UDP port (Windows netstat/taskkill, POSIX lsof/kill).
-
-    Production/research boundary: killing ANOTHER process that happens to hold the
-    port is research-recovery behavior. A production build falls back to an
-    ephemeral port instead (core.runtime_mode).
-    """
-    import subprocess
-    import sys
-
-    from core.runtime_mode import stale_port_kill_allowed
-
-    if not stale_port_kill_allowed():
-        audit_logger.log(
-            "stale_port_kill_skipped_production",
-            target_id=f"udp:{int(port)}",
-            target_type="transport",
-            details={"fallback": "ephemeral_port"},
-        )
-        return False
-
-    my_pid = os.getpid()
-    if sys.platform != "win32":
-        return _kill_stale_udp_holder_posix(port, my_pid)
-    try:
-        result = subprocess.run(
-            ["netstat", "-ano", "-p", "UDP"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        for line in (result.stdout or "").splitlines():
-            if "UDP" not in line or f":{port}" not in line:
-                continue
-            parts = line.split()
-            if len(parts) < 3:
-                continue
-            try:
-                holder_pid = int(parts[-1])
-            except ValueError:
-                continue
-            if holder_pid == my_pid or holder_pid == 0:
-                continue
-            audit_logger.log(
-                "killing_stale_port_holder",
-                target_id=f"pid={holder_pid}",
-                target_type="transport",
-                details={"port": port},
-            )
-            with contextlib.suppress(Exception):
-                subprocess.run(
-                    ["taskkill", "/F", "/PID", str(holder_pid)],
-                    capture_output=True,
-                    timeout=5,
-                )
-            return True
-    except Exception:
-        pass
-    return False
+        holders = ""
+    audit_logger.log(
+        "udp_port_conflict",
+        target_id=f"udp:{int(port)}",
+        target_type="transport",
+        details={"holders": holders[:500] if holders else "unknown"},
+    )
 
 
 def _is_bind_conflict(error: OSError) -> bool:
@@ -475,42 +402,16 @@ class UDPTransportServer:
         bind_err: OSError,
     ) -> socket.socket:
         if _is_bind_conflict(bind_err) and requested_port > 0:
-            killed = _kill_stale_udp_holder(requested_port)
-            if killed:
-                time.sleep(0.5)
-                try:
-                    sock.bind((self.host, requested_port))
-                except OSError as retry_err:
-                    if not _is_bind_conflict(retry_err):
-                        sock.close()
-                        raise
-                    sock.close()
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    _configure_udp_socket_buffers(sock)
-                    try:
-                        sock.bind((self.host, 0))
-                    except OSError as fallback_err:
-                        sock.close()
-                        _raise_udp_bind_conflict(self.host, requested_port, fallback_err)
-            else:
-                sock.close()
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                _configure_udp_socket_buffers(sock)
-                try:
-                    sock.bind((self.host, 0))
-                except OSError as fallback_err:
-                    sock.close()
-                    _raise_udp_bind_conflict(self.host, requested_port, fallback_err)
-            audit_logger.log(
-                "transport_bind_conflict_fallback",
-                target_id=f"{self.host}:{requested_port}",
-                target_type="transport",
-                details={"requested_port": requested_port, "resolved_port": int(sock.getsockname()[1])},
-            )
-        else:
             sock.close()
-            raise bind_err
-        return sock
+            _report_udp_port_conflict(requested_port)
+            raise OSError(
+                errno.EADDRINUSE,
+                f"UDP port {requested_port} is already in use (by another process; "
+                "VOOL never terminates the holder). Start the transport on another "
+                "port or stop the conflicting service.",
+            ) from bind_err
+        sock.close()
+        raise bind_err
 
     def _bind_ephemeral_pair(self) -> tuple[socket.socket, StreamTransportServer, StreamEndpoint]:
         last_error: Exception | None = None

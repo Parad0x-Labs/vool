@@ -209,6 +209,9 @@ class BrowserProfileUnavailableError(RuntimeError):
     """
 
 
+_TEST_ONLY_BROWSER_NO_SANDBOX_ENV = "VOOL_TEST_BROWSER_NO_SANDBOX"
+
+
 def _chrome_argv(
     binary: str,
     url: str,
@@ -225,7 +228,6 @@ def _chrome_argv(
         argv.append("--headless=new")
     argv += [
         "--disable-gpu",
-        "--no-sandbox",
         # Credential isolation, imported from the ONE authority rather than repeated.
         # A disposable --user-data-dir is NOT enough on macOS: Chrome still initialises
         # "Chrome Safe Storage" against the real Keychain and raises a dialog per
@@ -240,6 +242,15 @@ def _chrome_argv(
         f"--virtual-time-budget={int(virtual_time_ms)}",
         f"--user-agent={user_agent}",
     ]
+    # Chromium's sandbox stays ON in production. Historically this argv carried
+    # --no-sandbox unconditionally — a booby-trapped page rendered by the agent's
+    # browser tool would then run with the user's full permissions. The ONLY
+    # escape hatch is an explicit test/container environment variable, which no
+    # product launcher sets and which the production invariant test asserts is
+    # absent from the default argv.
+    if os.environ.get(_TEST_ONLY_BROWSER_NO_SANDBOX_ENV, "").strip().lower() in {"1", "true", "yes"}:
+        argv.append("--no-sandbox")
+
     # Profile isolation seam (C15, 2026-09-03): when the unattended preflight has set
     # VOOL_BROWSER_PROFILE_DIR, EVERY render gets a FRESH empty subdirectory of it
     # (--user-data-dir) — no cookies, no logins, no signed-in profile, no "Chrome Safe
