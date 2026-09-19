@@ -28,11 +28,18 @@ def sync_presence(
         status=status,
         transport_mode=transport_mode,
     )
-    return bridge._post_many(
-        "/v1/presence/register",
-        payload=request.model_dump(mode="json", exclude_defaults=True, exclude_none=True),
-        base_urls=bridge.config.meet_seed_urls,
-    )
+    # This public door IS the owning entry point of the presence fetches (a caller may be a
+    # test, an embedder or the agent's start handshake): the named background scope lets the
+    # transport's own fences -- pytest's live-network block included -- decide, instead of the
+    # effect gateway denying the fetch as outside any turn before they ever run.
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("public_hive.presence.sync"):
+        return bridge._post_many(
+            "/v1/presence/register",
+            payload=request.model_dump(mode="json", exclude_defaults=True, exclude_none=True),
+            base_urls=bridge.config.meet_seed_urls,
+        )
 
 
 def heartbeat_presence(

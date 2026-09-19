@@ -1395,8 +1395,12 @@ class VoolAgent(
             logging.getLogger(__name__).exception("delivery retry sweep failed")
         ensure_memory_files()
         _ = load_active_persona(self.persona_id)
+        # The ONE-TIME presence sync is the join handshake, not a background thread: it runs on
+        # every start (a test runtime included) so an agent's first boot still registers before
+        # any turn. Only the RECURRING research threads (heartbeat, idle-commons) sit behind the
+        # production/research boundary gate.
+        self._sync_public_presence(status=self._idle_public_presence_status())
         if self._background_runtime_threads_enabled():
-            self._sync_public_presence(status=self._idle_public_presence_status())
             self._start_public_presence_heartbeat()
             self._start_idle_commons_loop()
 
