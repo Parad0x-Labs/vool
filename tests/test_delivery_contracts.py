@@ -12,16 +12,19 @@ def _load_yaml(relative_path: str) -> dict:
 
 
 def test_ci_authoritative_gate_no_longer_relies_on_pythonpath_hack() -> None:
+    """The CI gate runs through the installed package and the repo's own ops tooling -- no step
+    anywhere in the workflow may carry a PYTHONPATH env (the hack this test once removed), and
+    the fast verify leg's checks (pinned ruff, canonical collection) are the repo's own
+    entry points. The full authoritative EXECUTION is the shard matrix this verify leg feeds."""
     workflow = _load_yaml(".github/workflows/ci.yml")
+    for job_name, job in workflow["jobs"].items():
+        for step in job.get("steps") or []:
+            env = step.get("env") or {}
+            assert not env.get("PYTHONPATH"), f"job {job_name} step {step.get('name')} PYTHONPATH hack"
     verify_job = workflow["jobs"]["verify"]
-    run_step = next(
-        step
-        for step in verify_job["steps"]
-        if step.get("name") == "Run authoritative verification"
-    )
-
-    assert run_step.get("env") in (None, {})
-    assert "ops/verify.py" in run_step["run"]
+    runs = "\n".join(str(step.get("run") or "") for step in verify_job["steps"])
+    assert "ruff check ." in runs
+    assert "ops/pytest_manifest.py" in runs
 
 
 def test_ci_build_job_smokes_the_built_wheel_outside_repo_checkout() -> None:
