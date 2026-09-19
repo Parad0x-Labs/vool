@@ -2097,7 +2097,7 @@ class CodeTaskRuntime:
                     return self._result(
                         task,
                         ok=False,
-                        status=drift,
+                        status=_INVALIDATION_STATUS.get(drift, drift),
                         text=_DESTINATION_REFUSALS[drift].format(path=drift_path),
                         proposal_id=proposal.proposal_id,
                     )
@@ -2228,7 +2228,11 @@ class CodeTaskRuntime:
                 # attempt, and again inside the pinned directory immediately before the rename.
                 drift, drift_path = _destination_drift(task, proposal, reviewed_bytes=False)
                 if drift:
-                    return drift, _DESTINATION_REFUSALS[drift].format(path=drift_path), None
+                    return (
+                        _INVALIDATION_STATUS.get(drift, drift),
+                        _DESTINATION_REFUSALS[drift].format(path=drift_path),
+                        None,
+                    )
                 return "", "", proposal
         if live:
             holder = live[0]
@@ -4136,6 +4140,11 @@ _DESTINATION_REFUSALS = {
         "This proposal was recorded before its destinations were, so there is no reviewed file to hold "
         "it to: re-propose it and approve what it will change. Nothing was approved or written."
     ),
+    "legacy_approval_without_reviewed_base": (
+        "This legacy approval carries no reviewed base the journal evidence can bind, so nothing it "
+        "names may execute: re-read the file through `code.task.step`, propose the repair against "
+        "its current content, and approve that proposal. Nothing was approved or written."
+    ),
     "destination_changed": (
         "`{path}` no longer resolves to what was reviewed. Nothing was approved or written; re-propose "
         "against the files as they are now."
@@ -4201,7 +4210,22 @@ def _destination_drift(task: CodeTask, proposal: Proposal, *, reviewed_bytes: bo
         return "", ""
     recorded = [row for row in list((proposal.preview or {}).get("destinations") or []) if isinstance(row, dict)]
     if not recorded:
-        return "destination_unrecorded", ""
+        # A MIGRATED approval predates preview destination records, and the journal migration
+        # bound its targets and reviewed base from the journal's own evidence (source
+        # ``legacy_*``) after checking the recorded path still resolves where it did. That
+        # binding IS the review record for it; refusing `destination_unrecorded` here would
+        # deadlock the checkpoint law -- the write is owed `checkpoint_required`, not a
+        # destination refusal -- while the unbound legacy shapes stay withdrawn upstream.
+        legacy_bound = bool(proposal.targets) and all(
+            str((proposal.base.get(target) or {}).get("source") or "").startswith("legacy_")
+            for target in proposal.targets
+        )
+        if not legacy_bound:
+            # Fails closed the way a withdrawn legacy approval does (the migration invalidates
+            # this shape at load; the filesystem can change after load): the refusal is a
+            # demand for review, not a destination complaint.
+            return "legacy_approval_without_reviewed_base", ""
+        return "", ""
     for record in recorded:
         path = str(record.get("path") or "")
         live = _destination_record(proposal.intent, path, task.workspace_root)

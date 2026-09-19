@@ -701,11 +701,14 @@ def test_no_navigation_path_consults_a_running_turn() -> None:
         assert "if (busy) return;" not in head, f"{fn} still refuses to navigate while something runs"
         assert "isChatBusy" not in head.split("\n")[0], f"{fn} gates navigation on a run"
     assert "if (sid && sid !== displayedChat) openSession(sid);" in source
-    # And no process-global busy flag survives anywhere.
+    # And no process-global busy flag survives anywhere. `aria-busy` is excluded: it is the
+    # a11y attribute the model picker sets on ONE button while that row's switch is in flight
+    # -- per-element UI state that gates nothing, not a busy flag the page consults.
     offenders = [
         line.strip() for line in source.splitlines()
         if re.search(r"(?<![.\w])busy(?![\w])", line)
         and not line.strip().startswith("//")
         and "isChatBusy" not in line and "busyChatIds" not in line and "ledgerBusy" not in line
+        and "aria-busy" not in line
     ]
     assert offenders == [], f"a global busy flag is still in play: {offenders}"
