@@ -28,7 +28,7 @@ jobs:
       - name: Install verification dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,browser]"
+          python -m pip install -e ".[dev,browser,companion]"
       - name: Provision the served-browser lane (Playwright chromium)
         # The required served-chat-UI suites fail the authoritative lane when this binary is
         # absent (required-suite gate), so provisioning here is what keeps the lane executed, not skipped.
@@ -36,7 +36,7 @@ jobs:
       - name: Run authoritative verification
         run: >-
           python ops/verify.py --workers 4 --pytest-arg=--tb=short
-          --log-dir=.verification-logs --tail-lines=200
+          --log-dir=.verification-logs --tail-lines=2000
       - name: Upload complete verification logs
         if: always()
         uses: actions/upload-artifact@v7
@@ -61,7 +61,7 @@ jobs:
       - name: Install compatibility dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,browser]"
+          python -m pip install -e ".[dev,browser,companion]"
       - name: Provision the served-browser lane (Playwright chromium)
         # Compatibility is a full-scope (required-suite gate) lane too: required suites execute, never skip.
         run: python -m playwright install --with-deps chromium
