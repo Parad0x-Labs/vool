@@ -79,6 +79,12 @@ def language_catalog() -> list[dict]:
     return [{"code": code, "label": name} for code, name in sorted(LANGUAGE_NAMES.items(), key=lambda kv: kv[1])]
 
 
+def _research_networking() -> bool:
+    from core.runtime_mode import research_networking_enabled
+
+    return research_networking_enabled()
+
+
 def _row(**kw) -> dict:
     """One settings row. Unset optional keys stay absent so the JSON stays small."""
     return {k: v for k, v in kw.items() if v is not None}
@@ -613,8 +619,22 @@ def _settings_groups() -> list[dict]:
             "id": "network",
             "icon": "◇",
             "title": "Agent Network",
-            "blurb": "Whether VOOL works with other agents when you are not using it.",
+            "blurb": "Unfinished research — not part of the production runtime.",
             "rows": [
+                _row(
+                    id="network_research_note",
+                    label="Research only - not active in this build",
+                    help=(
+                        "Agent-to-agent networking (shared tasks, idle research, the agent "
+                        "commons) is unfinished research. It does not run, connect or "
+                        "advertise in a production VOOL build, and these switches have no "
+                        "effect here. It becomes available only under an explicit research "
+                        "invocation (VOOL_RESEARCH_NETWORKING=1)."
+                    ),
+                    kind="note",
+                    keywords="research unfinished mesh hive swarm network agents disabled",
+                ),
+                *([] if not _research_networking() else [
                 _row(
                     id="accept_hive_tasks",
                     label="Take shared research tasks",
@@ -662,6 +682,7 @@ def _settings_groups() -> list[dict]:
                     effect=EFFECT_IMMEDIATE,
                     keywords="commons social agents brainstorm hangout socialise socialize",
                 ),
+                ])
             ],
         },
         {

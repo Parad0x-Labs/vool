@@ -374,12 +374,39 @@ class ExecutionGate:
                 },
                 mode=mode,
             )
-        if ExecutionGate._command_requires_approval(
+        requires_approval = ExecutionGate._command_requires_approval(
             base_cmd,
             read_only=read_only,
             destructive=destructive,
             autonomy_mode=policy.autonomy_mode,
-        ):
+        )
+        if not requires_approval and not read_only:
+            # Operating-mode authority has the final word on side effects. The turn's
+            # mode (Manual/Review-edits by default) requires approval for
+            # side-effecting commands in MODE_PERMISSION_MATRIX; the autonomy
+            # preference's hands_off convenience (for interpreters, builds, anything
+            # absent from a destructive-marker list) must not bypass that promise.
+            # "Hands-off — ask before acting" now means what it says: only proven
+            # read-only commands run unprompted outside Auto mode.
+            from core.mode_permission_policy import (
+                MODE_PERMISSION_MATRIX,
+                OperatingMode,
+                PermissionEffect,
+                _command_actions,
+            )
+
+            try:
+                operating_mode = OperatingMode(str(getattr(policy, "mode", "") or "").strip().lower())
+            except ValueError:
+                operating_mode = OperatingMode.MANUAL
+            actions = _command_actions(text)
+            if PermissionEffect.REQUIRE_APPROVAL in [
+                MODE_PERMISSION_MATRIX[operating_mode][action] for action in actions
+            ] or PermissionEffect.DENY in [
+                MODE_PERMISSION_MATRIX[operating_mode][action] for action in actions
+            ]:
+                requires_approval = True
+        if requires_approval:
             return _receipted(
                 DECISION_DENIED,
                 {

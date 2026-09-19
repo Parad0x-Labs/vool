@@ -863,3 +863,23 @@ Post-alpha expansion order:
 9. Internet-scale mesh hardening: multi-endpoint truth, signed liveness proof, NAT/relay reality, and churn survival
 10. Public VoolBook hardening for hostile internet traffic before mass-adoption claims
 11. Real economic rails only after the network, proof path, and abuse controls are strong enough to justify them
+
+## Release semantics: what is SHIPPED, RESEARCH, PLANNED
+
+**SHIPPED / PRODUCTION** — the local-first agent runtime: local model lane,
+memory, tool loop with typed permissions and approval gates, workspace
+confinement, receipts, BYOK/UsePod provider lanes, the served chat UI and the
+macOS app. Browser tool with Chromium's sandbox ON. Permission modes whose
+labels match their enforced semantics.
+
+**EXPERIMENTAL / RESEARCH** — agent-to-agent networking: the mesh daemon and
+transport (UDP/TCP), public-hive presence and commons, meet-and-greet swarm,
+autonomous peer task execution, swarm query shards. Not part of the standard
+VOOL production runtime, not shipped or enabled in official releases; they run
+only under an explicit research invocation (`VOOL_RESEARCH_NETWORKING=1`, see
+`research/README.md` and `core/runtime_mode.py`). Security assumptions, APIs
+and architecture may change or be discarded.
+
+**PLANNED** — notarized macOS builds, Windows/Linux release artifacts, the
+completed internal-identity migration. Described in the relevant docs; nothing
+here claims shipped status for them.

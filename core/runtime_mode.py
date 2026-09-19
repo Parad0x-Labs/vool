@@ -17,7 +17,6 @@ This module is the ONE authority every production choke point consults:
 * :func:`mesh_daemon_boot_allowed` — may the API runtime boot the mesh daemon?
 * :func:`background_presence_threads_allowed` — may the agent start the
   presence heartbeat / idle-commons / autonomous-research threads?
-* :func:`stale_port_kill_allowed` — may a bind conflict kill another process?
 
 Research runners (``apps.vool_daemon``, ``apps.meet_and_greet_node``,
 ``apps.brain_hive_watch_server``, the ops cluster tooling) export the variable
@@ -77,12 +76,3 @@ def background_presence_threads_allowed(
     return research_networking_enabled(environ)
 
 
-def stale_port_kill_allowed(environ: dict[str, str] | None = None) -> bool:
-    """May a port bind conflict kill the process holding the port?
-
-    Killing an unrelated OS process (``lsof`` + SIGTERM/SIGKILL on ANY holder)
-    from a normal app launch is never production behavior. Production falls
-    back to an ephemeral port; only the research invocation may reclaim a
-    held port.
-    """
-    return research_networking_enabled(environ)

@@ -60,3 +60,24 @@ invocation of the library code and does not affect shipped builds.
 production boot: no mesh listener on UDP 49152 or TCP 49153, no presence
 heartbeat threads, no swarm dispatch, no stale-port kills, no STUN probe —
 including a live subprocess boot of the real API server.
+
+## External data-flow audit (security review §9)
+
+Every pathway by which user input can leave the machine, categorized:
+
+| Pathway | Category | Status |
+|---|---|---|
+| Chat turn to a selected/pinned cloud model (BYOK) | A. explicit model/provider request | Shipped; requires the user's own key and an explicit lane choice |
+| User-requested web search / research / fetch / page render | B. explicit user-requested web call | Shipped; queries derived from the request, receipted, rate-fenced |
+| Web fetch inside tool loop answering the user's ask | B. explicit user-requested web call | Shipped (current-information requirement gates it) |
+| Swarm QUERY_SHARD broadcast on weak retrieval | D. research-only networking | Removed from production reachability (runtime_mode gate) |
+| Mesh knowledge summaries answering peer queries | D. research-only networking | Same; plus share_scope now enforced on the candidate listing too |
+| Public-hive presence heartbeat (every 120 s) | D. research-only networking | Removed from production (no threads, no startup sync) |
+| Idle commons / autonomous hive research (web searches + posting under the user's identity) | D. research-only networking | Removed from production |
+| Hive task execution for remote peers (searches from the user's IP) | D. research-only networking | Removed from production (daemon never boots) |
+| STUN public-endpoint probe at transport start | D. research-only networking | Removed from production |
+| Request fragments to mesh peers, word for word | E. claimed unintended leakage | NOT VERIFIED: QUERY_SHARD carries a SHA-256 problem signature, never raw text |
+| "First words of messages to public search engines" | E. claimed unintended leakage | NOT VERIFIED as a distinct path: search queries are derived from the request the user asked to research; no prefix-truncation egress exists |
+
+Category E contains no verified finding. Category D is unreachable in a
+production build and requires the explicit research invocation.

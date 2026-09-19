@@ -4192,6 +4192,40 @@ def _dispatch_post_inner(
             "session_id": mode_session,
             "cancel_turn_id": client_turn_id,
         }
+        if op == "request_bypass_confirmation":
+            # Step 1 of the two-step activation: mint a single-use, 60-second
+            # confirmation bound to THIS exact activation. Minting grants nothing;
+            # only the matching activate consumes it. The old caller-asserted
+            # `explicit_confirmation` boolean let any local process (or a model
+            # driving the shell lane) confirm on the user's behalf.
+            from core.mode_permission_policy import request_bypass_confirmation as _mint_confirmation
+
+            body_until_off_mint = body.get("until_off") is True
+            _mint_root = ""
+            if body_until_off_mint:
+                from core.context_namespace import authoritative_chat_workspace as _acw
+
+                _mint_root, _mint_root_reason = _acw(mode_session)
+                if _mint_root_reason == "deleted_chat":
+                    return apply_runtime_headers(
+                        json_response(409, {"error": "this chat was deleted, so no bypass can be granted in it"}), runtime
+                    )
+            try:
+                _cid = _mint_confirmation(
+                    session_id=mode_session,
+                    project_id=project_id,
+                    task_id=client_turn_id,
+                    scope=str(body.get("scope") or "task"),
+                    duration_seconds=int(body.get("duration_seconds") or 900),
+                    until_off=body_until_off_mint,
+                    workspace_root=_mint_root,
+                )
+            except ValueError as exc:
+                return apply_runtime_headers(json_response(400, {"error": str(exc)}), runtime)
+            return apply_runtime_headers(
+                json_response(200, {"ok": True, "confirmation_id": _cid, "expires_in_seconds": 60}),
+                runtime,
+            )
         if op == "activate_bypass":
             # WORKSPACE AUTHORITY IS SERVER-OWNED. A client body may carry a workspace string,
             # but it is a CONSISTENCY ASSERTION at most: the root a bypass grant binds to is
@@ -4270,7 +4304,7 @@ def _dispatch_post_inner(
                         "task_id": client_turn_id,
                         "scope": str(body.get("scope") or "task"),
                         "duration_seconds": int(body.get("duration_seconds") or 900),
-                        "explicit_confirmation": body.get("explicit_confirmation") is True,
+                        "confirmation_id": str(body.get("confirmation_id") or "").strip(),
                         "until_off": body_until_off,
                         # Server-resolved root only: timed scopes are not workspace-bound, and
                         # the client-supplied string never becomes grant authority.
