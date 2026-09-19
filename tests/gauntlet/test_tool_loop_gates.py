@@ -141,6 +141,7 @@ def test_native_call_ids_do_not_hide_a_repeated_semantic_tool_call(make_agent):
         ok=True,
         status="executed",
         response_text="Workspace tree under `.`:\n- notes.txt",
+        user_safe_response_text="",
         mode="tool_executed",
         tool_name="workspace.list_tree",
         details={
@@ -191,6 +192,7 @@ def test_exhausted_tool_budget_is_not_reported_as_completed(make_agent):
             ok=True,
             status="executed",
             response_text=f"Files under {path}: example.py",
+            user_safe_response_text="",
             mode="tool_executed",
             tool_name="workspace.list_files",
             details={
@@ -279,7 +281,10 @@ def test_full_loop_writes_a_real_file_on_disk(make_agent, allow_workspace_writes
         result = agent.run_once(
             "save the notes to workspace file loop_output.txt",
             session_id_override="openclaw:loop-write",
-            source_context={**_OPENCLAW, "workspace": tmpdir},
+            # A turn with no mode resolves to MANUAL, and a workspace write in MANUAL is
+            # approval-gated by design -- the loop would correctly stop at a preview. The
+            # loop's write path is exercised under AUTO, the mode the served drives use.
+            source_context={**_OPENCLAW, "workspace": tmpdir, "operating_mode": "auto"},
         )
 
         assert result["mode"] == "tool_executed"

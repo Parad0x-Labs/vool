@@ -101,6 +101,30 @@ def _run_public_presence_sync_now(
     get_agent_display_name_fn: Callable[[], str],
     audit_log_fn: Callable[..., Any],
 ) -> None:
+    # The presence handshake is the owning entry point of its own fetches: without a named
+    # background scope the effect gateway denies them as outside any turn (R2b1) before the
+    # pytest live-network fence ever sees them, so the sync could not even be blocked BY the
+    # authority that reports it.
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("agent.presence.sync"):
+        _run_public_presence_sync_now_inner(
+            agent,
+            status=status,
+            source_context=source_context,
+            get_agent_display_name_fn=get_agent_display_name_fn,
+            audit_log_fn=audit_log_fn,
+        )
+
+
+def _run_public_presence_sync_now_inner(
+    agent: Any,
+    *,
+    status: str,
+    source_context: dict[str, object] | None,
+    get_agent_display_name_fn: Callable[[], str],
+    audit_log_fn: Callable[..., Any],
+) -> None:
     try:
         if agent._public_presence_registered:
             result = agent.public_hive_bridge.heartbeat_presence(
