@@ -346,6 +346,7 @@ def handle_query_shard(daemon: Any, payload: dict[str, Any], addr: tuple[str, in
             FROM learning_shards
             WHERE problem_class = ?
               AND quarantine_status = 'active'
+              AND share_scope IN ('hive_mind', 'public_knowledge')
             ORDER BY trust_score DESC, quality_score DESC, updated_at DESC
             LIMIT ?
             """,
@@ -354,6 +355,11 @@ def handle_query_shard(daemon: Any, payload: dict[str, Any], addr: tuple[str, in
     finally:
         conn.close()
 
+    # share_scope is a privacy marking, not a ranking hint: only shards whose owner
+    # marked them shareable (hive_mind / public_knowledge — the same vocabulary
+    # privacy_guard.share_scope_is_public enforces) may be listed to a peer, even as
+    # candidates. The full-shard transport path already enforced this
+    # (load_canonical_shareable_shard_payload); the candidate listing now agrees.
     candidates: list[dict[str, Any]] = []
     for row in rows:
         candidates.append(

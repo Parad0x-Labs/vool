@@ -18,6 +18,14 @@ if _repo_root not in _bootstrap_sys.path:
 from core.env_compat import apply_legacy_nulla_env
 
 apply_legacy_nulla_env()  # NULLA_* shells keep working; VOOL_* wins (see core/env_compat.py)
+import os as _research_os
+
+_research_os.environ.setdefault("VOOL_RESEARCH_NETWORKING", "1")  # explicit research invocation
+
+"""Experimental research. Not part of the standard VOOL production runtime.
+Not shipped or enabled in official releases. Security assumptions, APIs and
+architecture may change or be discarded. See research/README.md and
+core/runtime_mode.py for the production/research boundary."""
 from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.web.watch.app import create_watch_app
 from core.web.watch.config import BrainHiveWatchServerConfig
