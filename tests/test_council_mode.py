@@ -163,10 +163,7 @@ def test_council_requires_exactly_one_judge():
     with pytest.raises(CouncilSpecError):
         CouncilSpec(
             name="twojudges",
-            seats=seats + (
-                SeatSpec("j1", "J1", Role.JUDGE, Tier.PAID),
-                SeatSpec("j2", "J2", Role.JUDGE, Tier.PAID),
-            ),
+            seats=(*seats, SeatSpec("j1", "J1", Role.JUDGE, Tier.PAID), SeatSpec("j2", "J2", Role.JUDGE, Tier.PAID)),
             final_judge_seat_id="j1",
         )
 
@@ -295,12 +292,12 @@ def test_observer_never_invoked_and_challenger_gets_only_briefs():
     spec, rt, models = make_council()
     obs_model = RecordingModel(r1="I saw nothing")
     spec.seats.__class__  # noqa
-    from core.council import CapsuleMaterial  # noqa: F401
+    from core.council import CapsuleMaterial
 
     # add observer post-hoc via a new spec
     spec2 = CouncilSpec(
         name="t-council-obs",
-        seats=spec.seats + (SeatSpec("watcher", "Watcher", Role.OBSERVER, Tier.LOCAL),),
+        seats=(*spec.seats, SeatSpec("watcher", "Watcher", Role.OBSERVER, Tier.LOCAL)),
         final_judge_seat_id="sol",
         policy=spec.policy,
     )

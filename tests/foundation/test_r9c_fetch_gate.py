@@ -13,7 +13,7 @@ def test_machine_download_refused_under_remote_fetch_veto(monkeypatch):
     import urllib.request as _ur
 
     import core.agent_runtime.fast_paths_machine as fpm
-    from core.remote_fetch_policy import RemoteFetchRefusedError, _REMOTE_FETCH_FORBIDDEN
+    from core.remote_fetch_policy import _REMOTE_FETCH_FORBIDDEN, RemoteFetchRefusedError
 
     class _Agent:
         def _fast_path_result(self, **kw):

@@ -15,11 +15,9 @@ assertions hold with or without egress.
 from __future__ import annotations
 
 import json
-import time
 import sqlite3
+import time
 from urllib.request import Request, urlopen
-
-import pytest
 
 from kit_lib import GOLD_ANSWER, GOLD_QUESTION
 

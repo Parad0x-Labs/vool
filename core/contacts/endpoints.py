@@ -214,9 +214,7 @@ def normalize_messaging(raw: object, *, channel: object, provider_account: objec
     if not text:
         raise EndpointError("messaging_identity_required", f"Enter {spec['hint']}.")
     invalid = EndpointError("invalid_messaging_identity", f"'{text[:60]}' is not {spec['hint']} for {spec['label']}.")
-    if key in {"whatsapp", "sms"}:
-        value, canonical = normalize_phone(text)
-    elif key in {"telegram", "signal", "imessage"} and looks_like_phone(text):
+    if key in {"whatsapp", "sms"} or (key in {"telegram", "signal", "imessage"} and looks_like_phone(text)):
         value, canonical = normalize_phone(text)
     elif key == "telegram":
         handle = text.lstrip("@")

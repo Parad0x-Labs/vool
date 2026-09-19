@@ -392,9 +392,7 @@ def mention_is_negated(
             if _DISCOURSE_REFUSAL_RE.match(cue.group(0)) and _PUNCTUATION_GAP_RE.match(gap):
                 return False
             from core.followup_subject_continuity import CORRECTION_OPENING_RE
-            if CORRECTION_OPENING_RE.match(gap.lstrip(" ,.:;!-")):
-                return False
-            return True
+            return not CORRECTION_OPENING_RE.match(gap.lstrip(" ,.:;!-"))
         # +1 for the single terminator character the split consumed (runs of terminators are
         # rare in a request; a miss here errs toward NOT negating, the conservative direction).
         offset = end + 1
@@ -409,7 +407,7 @@ def mention_is_negated(
 _DEGREE_FOLLOWERS = frozenset({
     "is", "are", "was", "were", "am", "be", "does", "do", "did", "has", "have", "had", "will",
     "would", "should", "could", "can", "might", "may", "must", "for", "to", "per", "in", "at",
-    "of", "would", "'s", "s", "the",
+    "of", "'s", "s", "the",
 })
 _HOW_MUCH_RE = re.compile(r"^how\s+(?:much|many)$", re.IGNORECASE)
 _NEXT_WORD_RE = re.compile(r"^\s*([A-Za-z']+)")

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 
 import pytest
+
 from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 from tests.wallet.test_crypto_pilot_dispatch_evm import (
     BASE_MAINNET,

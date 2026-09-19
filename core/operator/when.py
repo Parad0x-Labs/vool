@@ -1,7 +1,7 @@
 """Timezone-aware due-time parsing for the operator scheduling lane.
 
 One deterministic authority that turns "remind me tomorrow at 9am", "2026-09-14 09:30",
-"in 20 minutes" and "next monday 8:15 Europe/Berlin" into an exact UTC instant, and --
+"in 20 minutes" and "next monday 8:15 Europe/Athens" into an exact UTC instant, and --
 just as important -- says WHY it could not when it cannot. It never guesses: an ambiguous
 or nonexistent local time (DST fold/gap), an unknown zone, or a missing time yields a typed
 clarification request, not an invented instant.
@@ -12,12 +12,15 @@ so every artifact and receipt can show the operator their own words back.
 """
 from __future__ import annotations
 
-import re
+import contextlib
 import math
+import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
+
 from core.time_authority import CLOCK
 
 # Zone words users actually type. An IANA path always contains "/" (no English word does),
@@ -66,10 +69,9 @@ def format_due_time(due_at_utc: str, tz_name: str = "", due_wall: str = "") -> s
     if instant.tzinfo is None:
         return raw
     if tz_name:
-        try:
+        # Preserve the stored offset if a legacy zone cannot be resolved.
+        with contextlib.suppress(ZoneInfoNotFoundError, ValueError):
             instant = instant.astimezone(ZoneInfo(tz_name))
-        except (ZoneInfoNotFoundError, ValueError):
-            pass  # Preserve the stored offset if a legacy zone cannot be resolved.
     return instant.strftime("%d %b %Y at %H:%M:%S %Z")
 
 
@@ -168,7 +170,7 @@ def parse_when_expression(
 
     return WhenResolution(
         ok=False,
-        problem="I could not read a date or time in that. Try 'tomorrow at 9:00', 'in 20 minutes', or '2026-09-14 09:30' (you can add a named timezone like Europe/Berlin).",
+        problem="I could not read a date or time in that. Try 'tomorrow at 9:00', 'in 20 minutes', or '2026-09-14 09:30' (you can add a named timezone like Europe/Athens).",
         tz_name=tz_name,
     )
 
@@ -193,7 +195,7 @@ def _resolve_zone(text: str, host_zone: Any) -> tuple[str, Any]:
             return candidate, ZoneInfo(candidate)
         except (ZoneInfoNotFoundError, ValueError, KeyError):
             raise ValueError(f"I could not recognize timezone {candidate}. Give me a valid named timezone.") from None
-    # An IANA path token ("Europe/Berlin") with no "time" word after it.
+    # An IANA path token ("Europe/Athens") with no "time" word after it.
     for slash_match in _ZONE_SLASH_RE.finditer(text):
         candidate = slash_match.group(1)
         try:

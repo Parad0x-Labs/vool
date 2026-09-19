@@ -8,7 +8,7 @@ from unittest import mock
 import pytest
 
 from adapters.base_adapter import ModelRequest, ModelResponse
-from apps.vool_agent import ChatTurnResult, VoolAgent, ResponseClass
+from apps.vool_agent import ChatTurnResult, ResponseClass, VoolAgent
 from core.exact_output_seal import validated_exact_output_seal
 from core.memory_first_router import (
     VERIFIER_DRAFT_CAVEAT,

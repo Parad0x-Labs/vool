@@ -9,6 +9,7 @@ only the stub can produce.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -60,13 +61,13 @@ class _StubHandler(BaseHTTPRequestHandler):
     server_version = "restart-repro-stub/1"
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+    def log_message(self, format: str, *args: Any) -> None:
         return
 
     def _record(self, path: str, status: int | None, last_user: str = "") -> None:
         self.server.stub.calls.append(StubCall(time.time(), path, status, last_user))  # type: ignore[attr-defined]
 
-    def do_CONNECT(self) -> None:  # noqa: N802
+    def do_CONNECT(self) -> None:
         payload = json.dumps({"error": "restart-repro: external network contained"}).encode("utf-8")
         self.send_response(502)
         self.send_header("Content-Type", "application/json")
@@ -75,7 +76,7 @@ class _StubHandler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
         self._record("CONNECT " + self.path, 502)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         path = self.path.split("?")[0]
         if path.endswith("/models"):
             payload = {"object": "list", "data": [{"id": STUB_MODEL, "object": "model"}]}
@@ -105,7 +106,7 @@ class _StubHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
         self._record(path, status)
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         stub = self.server.stub  # type: ignore[attr-defined]
         path = self.path.split("?")[0]
         length = int(self.headers.get("Content-Length") or 0)
@@ -158,7 +159,7 @@ class _StubHandler(BaseHTTPRequestHandler):
 
 
 class _QuietServer(ThreadingHTTPServer):
-    def handle_error(self, request, client_address) -> None:  # noqa: ARG002, D102
+    def handle_error(self, request, client_address) -> None:
         return
 
 
@@ -344,7 +345,7 @@ class Daemon:
                 if status == 200 and isinstance(payload, dict):
                     runtime = dict(payload.get("runtime") or {})
                     return runtime
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
             time.sleep(0.25)
         self.terminate()
@@ -354,21 +355,15 @@ class Daemon:
         if self.process is None:
             return
         if self.process.poll() is None:
-            try:
+            with contextlib.suppress(ProcessLookupError):
                 os.kill(self.process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
             try:
                 self.process.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                try:
+                with contextlib.suppress(ProcessLookupError):
                     os.kill(self.process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                try:
+                with contextlib.suppress(subprocess.TimeoutExpired):
                     self.process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    pass
         self.process = None
 
     def chat(

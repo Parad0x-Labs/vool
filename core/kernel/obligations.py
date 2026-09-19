@@ -277,7 +277,7 @@ class CommitResult:
         return f"{self.status}: " + "; ".join(bits)
 
 
-class CommitRefused(RuntimeError):  # noqa: N818 — name is the kernel contract (core/kernel/__init__.py)
+class CommitRefused(RuntimeError):
     """commit() found open obligations.
 
     Carries and names exactly the open ids so the refusal cannot be summarized into

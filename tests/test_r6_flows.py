@@ -1,4 +1,4 @@
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
+
 """Revision-6 flows: the four residual contracts of the revision-5 review.
 
 The review's own probes (its test_residuals.py / test_recovery_residual.py) stay the original
@@ -16,7 +16,7 @@ import json
 import pytest
 
 from tests._credential_intelligence_support import FakeProviderServer
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 from tests.test_quarantine_destination_isolation import _begin_classify, _point_custom_at
 from tests.test_r5_flows import _openai_chat, _store_and_descriptor
 
@@ -291,7 +291,7 @@ class _ReadFailingKeyring:
     """An in-memory Keychain stand-in whose reads can fail the way a real backend does when it
     cannot answer: an exception that is neither a timeout nor an authorization denial."""
 
-    class errors:  # noqa: N801 (mirrors keyring.errors)
+    class errors:
         class PasswordDeleteError(Exception):
             pass
 

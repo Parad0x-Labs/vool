@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 TASK_PROMPT = "Create welcome-notes.txt containing Welcome to VOOL."
 
@@ -70,8 +70,9 @@ def test_a_tampered_receipt_is_refused_even_though_it_exists(pact_rig):
     receipts = list_honesty_receipts(pact_rig.canonical_session())
     assert receipts, "the turn must have produced a receipt"
     # Tamper the LAST receipt in the ledger file: flip a byte inside its signed content.
-    from core.runtime_paths import active_data_dir
     import hashlib
+
+    from core.runtime_paths import active_data_dir
 
     ledger_dir = active_data_dir() / "honesty_receipts"
     ledger_file = ledger_dir / (hashlib.sha256(pact_rig.canonical_session().encode()).hexdigest()[:24] + ".jsonl")

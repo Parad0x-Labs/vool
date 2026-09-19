@@ -7,7 +7,6 @@ from core.agent_runtime import fast_paths_machine
 from core.execution.constants import machine_display_intent
 from core.execution.planner import plan_tool_workflow
 
-
 QUESTION = "What is on screen at 0:05 in the attached video?"
 BOUND_CONTEXT = {
     "runtime_session_id": "display-arbitration",

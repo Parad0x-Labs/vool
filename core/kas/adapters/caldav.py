@@ -201,7 +201,7 @@ def _split_unquoted(text: str, separator: str) -> list[str]:
 
 
 def _split_property(line: str) -> tuple[str, dict[str, str], str]:
-    """`DTSTART;TZID=Europe/Berlin:20260915T140000` -> (name, params, value).
+    """`DTSTART;TZID=Europe/Athens:20260915T140000` -> (name, params, value).
 
     The value starts after the first colon outside quotes, so `LABEL="Room: 17"` stays a parameter.
     """

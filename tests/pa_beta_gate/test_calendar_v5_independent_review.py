@@ -1,12 +1,14 @@
 """Independent boundary probes. Synthetic providers/native runners; no owner app access."""
-import json
 import http.client
+import json
 from types import SimpleNamespace
+
 import pytest
-from core.operator import apple_notes, notes
-from core.operator.models import OperatorActionIntent
+
 from core.kas.contract import CalendarRefusedError
 from core.kas.transport import build_transport
+from core.operator import apple_notes, notes
+from core.operator.models import OperatorActionIntent
 from tests.pa_beta_gate.test_calendar_v2_independent_review import adapter, response
 from tests.pa_beta_gate.test_v5_calendar_effect_phase import _stage, _stored
 from tests.pa_beta_gate.test_v5_calendar_operation_ownership import _execute
@@ -40,8 +42,9 @@ def test_unreadable_calendar_is_not_empty_availability(payload):
     graph=adapter('graph',lambda req:response(payload))
     try:
         rows=graph.events_in_range('work',start_utc='2026-09-15T12:00:00+00:00',end_utc='2026-09-15T13:00:00+00:00')
-        from core.operator.calendar_provider import compute_free_slots
         from datetime import datetime
+
+        from core.operator.calendar_provider import compute_free_slots
         slots=compute_free_slots(rows,window_start=datetime.fromisoformat('2026-09-15T12:00:00+00:00'),window_end=datetime.fromisoformat('2026-09-15T13:00:00+00:00'),duration_minutes=30,tz_name='UTC')
     except (CalendarRefusedError,ValueError,TypeError) as exc:
         # A typed refusal is required, not a downstream parse accident.

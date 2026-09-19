@@ -16,7 +16,7 @@ never ambient visibility.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from core.council.seats import Role
 

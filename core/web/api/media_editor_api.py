@@ -15,7 +15,6 @@ availability alone never authorizes anything.
 from __future__ import annotations
 
 import html
-import json
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +24,6 @@ from core.media_studio_service import (
     apply_edit,
     ensure_proxy,
     export_project,
-    get_project,
     inspect,
     list_projects,
     open_project,
@@ -272,7 +270,7 @@ def handle_media_editor_page() -> Any:
     from core.web.api.service import html_response
 
     try:
-        projects = list_projects(limit=1)
+        list_projects(limit=1)
         status = f"{len(list_projects(limit=50))} saved project(s)"
     except Exception:
         status = ""

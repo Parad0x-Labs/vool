@@ -115,7 +115,7 @@ def _run_discharge_channel(
     served: str,
     *,
     ok_entities: set[str],
-    fail_entities: set[str] = set(),
+    fail_entities: set[str] | None = None,
 ):
     """The whole channel on real seams: plan -> execution outcome -> discharge -> consumer.
 
@@ -123,6 +123,8 @@ def _run_discharge_channel(
     failed. The runner (the network) is the one part not driven live; the states it
     produces are exactly what every downstream seam reads.
     """
+    if fail_entities is None:
+        fail_entities = set()
     plan = build_live_data_plan(request, plan_id="livedata-discharge", attempt_id="attempt-discharge")
     assert plan is not None, "the typed lane declined a turn this test needs it to claim"
     outcomes: list[SubtaskOutcome] = []

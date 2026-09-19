@@ -38,7 +38,7 @@ RECOVERY: dict[str, str] = {
 class ImportSourceError(Exception):
     """Why a source could not be read. ``reason`` is one of the REASON_* values."""
 
-    def __init__(self, reason: str, detail: str = "", *, retry_after: int | None = None, partial: tuple["ImportedPerson", ...] = ()) -> None:
+    def __init__(self, reason: str, detail: str = "", *, retry_after: int | None = None, partial: tuple[ImportedPerson, ...] = ()) -> None:
         super().__init__(detail or reason)
         self.reason = reason
         self.detail = detail
@@ -99,7 +99,20 @@ class ContactSourceAdapter(Protocol):
 
 
 __all__ = [
-    "ContactSourceAdapter", "ImportSourceError", "ImportedEntry", "ImportedPerson", "RECOVERY", "REASON_BINDING_REQUIRED", "REASON_NEEDS_RECONNECT",
-    "REASON_OS_BINDING_UNAVAILABLE", "REASON_PERMISSION_DENIED", "REASON_PERMISSION_NOT_DETERMINED", "REASON_PERMISSION_RESTRICTED",
-    "REASON_PROVIDER_UNAVAILABLE", "REASON_RATE_LIMITED", "REASON_READ_FAILED", "REASON_SCOPE_MISSING", "SourceAccount",
+    "REASON_BINDING_REQUIRED",
+    "REASON_NEEDS_RECONNECT",
+    "REASON_OS_BINDING_UNAVAILABLE",
+    "REASON_PERMISSION_DENIED",
+    "REASON_PERMISSION_NOT_DETERMINED",
+    "REASON_PERMISSION_RESTRICTED",
+    "REASON_PROVIDER_UNAVAILABLE",
+    "REASON_RATE_LIMITED",
+    "REASON_READ_FAILED",
+    "REASON_SCOPE_MISSING",
+    "RECOVERY",
+    "ContactSourceAdapter",
+    "ImportSourceError",
+    "ImportedEntry",
+    "ImportedPerson",
+    "SourceAccount",
 ]

@@ -44,9 +44,9 @@ from core.windows_quiet_subprocess import enable_quiet_subprocess
 
 enable_quiet_subprocess()
 
-from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.runtime_capabilities import runtime_capability_snapshot
 from core.runtime_provider_defaults import default_runtime_model_tag
+from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.web.api.app import create_api_app
 from core.web.api.runtime import (
     MODEL_NAME,
@@ -181,7 +181,7 @@ def _load_installed_plugins() -> None:
                 status,
                 state.get("plugins_dir") or state.get("root") or "?",
                 state.get("detail") or "no detail",
-                "The probe process is still exiting (pid %s)." % state.get("probe_pid")
+                "The probe process is still exiting (pid {}).".format(state.get("probe_pid"))
                 if state.get("probe_lingering")
                 else "",
             )

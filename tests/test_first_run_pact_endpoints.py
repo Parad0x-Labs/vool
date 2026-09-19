@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def test_get_pact_serves_the_full_projection_with_live_authority_truth(pact_rig):

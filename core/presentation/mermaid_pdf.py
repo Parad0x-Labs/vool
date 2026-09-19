@@ -12,11 +12,11 @@ diagram family keeps its typed refusal -- nothing is silently replaced by source
 """
 from __future__ import annotations
 
+import heapq
 import math
 import re
-import heapq
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from core.presentation.render_pdf import PdfRefused
 
@@ -397,7 +397,7 @@ def _return_route(start, end, obstacles):
 def mermaid_pdf_flows(text: str, *, available_width: float, available_height: float,
                       label_check: Callable[[str], None]) -> list:
     """Project a Mermaid flowchart into reportlab flowables, or refuse with a typed reason."""
-    from reportlab.graphics.shapes import Drawing, Line, Polygon, PolyLine, Rect, String, Circle, Ellipse, Path
+    from reportlab.graphics.shapes import Circle, Drawing, Ellipse, Line, Path, Polygon, PolyLine, Rect, String
     from reportlab.lib import colors
     from reportlab.pdfbase import pdfmetrics
 
@@ -456,7 +456,7 @@ def mermaid_pdf_flows(text: str, *, available_width: float, available_height: fl
     centers = {}
     major = 0.0
     minor_extent = 0.0
-    for row, axis_size in zip(ordered, axis_sizes):
+    for row, axis_size in zip(ordered, axis_sizes, strict=False):
         row_extent = sum((boxes[node_id][1] if horizontal else boxes[node_id][0]) + gap_minor
                          for node_id in row) - gap_minor
         minor_extent = max(minor_extent, row_extent)
@@ -469,7 +469,7 @@ def mermaid_pdf_flows(text: str, *, available_width: float, available_height: fl
             cross += span + gap_minor
         major += axis_size + gap_major
     total_major = max(major - gap_major, 1.0)
-    total_minor = max(minor_extent, 1.0)
+    max(minor_extent, 1.0)
     if horizontal and diagram.direction == 'RL':
         for node_id, (cx, cy) in centers.items():
             centers[node_id] = (total_major - cx, cy)
@@ -513,44 +513,44 @@ def mermaid_pdf_flows(text: str, *, available_width: float, available_height: fl
         raise PdfRefused('Mermaid diagram is too large for a readable PDF page; no diagram was silently replaced')
 
     # Emit in PAGE coordinates directly (y grows upward): a flipped Group transform would
-    # also mirror String glyphs, so conceptual (x, y-down) maps through X()/Y() instead.
+    # also mirror String glyphs, so conceptual (x, y-down) maps through _x()/_y() instead.
     drawing = Drawing(available_width, height * scale)
 
-    def X(value: float) -> float:
+    def _x(value: float) -> float:
         return (value - x_min) * scale
 
-    def Y(value: float) -> float:   # conceptual y grows downward; the page's y grows upward
+    def _y(value: float) -> float:   # conceptual y grows downward; the page's y grows upward
         return (height - (value - y_min)) * scale
 
     for cluster_id, title in diagram.clusters.items():
         if cluster_id not in cluster_boxes:
             continue
         x0, y0, x1, y1 = cluster_boxes[cluster_id]
-        drawing.add(Rect(X(x0), Y(y1), (x1 - x0) * scale, (y1 - y0) * scale, fillColor=cluster_fill,
+        drawing.add(Rect(_x(x0), _y(y1), (x1 - x0) * scale, (y1 - y0) * scale, fillColor=cluster_fill,
                          strokeColor=cluster_stroke, strokeWidth=0.8, rx=8 * scale))
-        drawing.add(String(X(x0 + 8), Y(y0 + 15), title, fontName=bold,
+        drawing.add(String(_x(x0 + 8), _y(y0 + 15), title, fontName=bold,
                            fontSize=10 * scale, fillColor=stroke))
 
     for node_id, node in diagram.nodes.items():
         w, h, lines = boxes[node_id]
         cx, cy = centers[node_id]
         x0, y0 = cx - w / 2, cy - h / 2
-        page_x0, page_y0 = X(x0), Y(y0 + h)
+        page_x0, page_y0 = _x(x0), _y(y0 + h)
         page_w, page_h = w * scale, h * scale
         if node.shape in ('rounded', 'stadium'):
             radius = (h / 2 if node.shape == 'stadium' else 8) * scale
             drawing.add(Rect(page_x0, page_y0, page_w, page_h, rx=radius, ry=radius,
                              fillColor=colors.white, strokeColor=stroke, strokeWidth=1.1))
         elif node.shape == 'diamond':
-            drawing.add(Polygon([X(cx), Y(y0), X(x0 + w), Y(cy), X(cx), Y(y0 + h), X(x0), Y(cy)],
+            drawing.add(Polygon([_x(cx), _y(y0), _x(x0 + w), _y(cy), _x(cx), _y(y0 + h), _x(x0), _y(cy)],
                                 fillColor=colors.white, strokeColor=stroke, strokeWidth=1.1))
         elif node.shape == 'hexagon':
             cut = w * 0.12
-            drawing.add(Polygon([X(x0 + cut), Y(y0), X(x0 + w - cut), Y(y0), X(x0 + w), Y(cy),
-                                 X(x0 + w - cut), Y(y0 + h), X(x0 + cut), Y(y0 + h), X(x0), Y(cy)],
+            drawing.add(Polygon([_x(x0 + cut), _y(y0), _x(x0 + w - cut), _y(y0), _x(x0 + w), _y(cy),
+                                 _x(x0 + w - cut), _y(y0 + h), _x(x0 + cut), _y(y0 + h), _x(x0), _y(cy)],
                                 fillColor=colors.white, strokeColor=stroke, strokeWidth=1.1))
         elif node.shape == 'circle':
-            drawing.add(Circle(X(cx), Y(cy), w * scale / 2,
+            drawing.add(Circle(_x(cx), _y(cy), w * scale / 2,
                                fillColor=colors.white, strokeColor=stroke, strokeWidth=1.1))
         elif node.shape == 'cylinder':
             # Large Rect corner radii self-intersect in reportlab's PDF renderer.
@@ -564,23 +564,23 @@ def mermaid_pdf_flows(text: str, *, available_width: float, available_height: fl
             outline.lineTo(page_x0 + page_w, top)
             outline.closePath()
             drawing.add(outline)
-            drawing.add(Ellipse(X(cx), Y(y0 + 5), page_w / 2, 5 * scale,
+            drawing.add(Ellipse(_x(cx), _y(y0 + 5), page_w / 2, 5 * scale,
                                 fillColor=colors.white, strokeColor=stroke, strokeWidth=1.1))
         elif node.shape == 'asymmetric':
-            drawing.add(Polygon([X(x0 + 10), Y(y0), X(x0 + w), Y(y0), X(x0 + w), Y(y0 + h),
-                                 X(x0 + 10), Y(y0 + h), X(x0), Y(cy)],
+            drawing.add(Polygon([_x(x0 + 10), _y(y0), _x(x0 + w), _y(y0), _x(x0 + w), _y(y0 + h),
+                                 _x(x0 + 10), _y(y0 + h), _x(x0), _y(cy)],
                                 fillColor=colors.white, strokeColor=stroke, strokeWidth=1.1))
         else:
             drawing.add(Rect(page_x0, page_y0, page_w, page_h, fillColor=colors.white,
                              strokeColor=stroke, strokeWidth=1.1))
             if node.shape == 'subroutine':
                 for offset in (6, w - 6):
-                    drawing.add(Line(X(x0 + offset), Y(y0), X(x0 + offset), Y(y0 + h),
+                    drawing.add(Line(_x(x0 + offset), _y(y0), _x(x0 + offset), _y(y0 + h),
                                      strokeColor=stroke, strokeWidth=0.8))
         size = font_size * scale
         text_y = cy - (len(lines) - 1) * line_height / 2 + font_size * 0.35
         for line in lines:
-            drawing.add(String(X(cx), Y(text_y), line, fontName=font, fontSize=size,
+            drawing.add(String(_x(cx), _y(text_y), line, fontName=font, fontSize=size,
                                fillColor=ink, textAnchor='middle'))
             text_y += line_height
 
@@ -601,16 +601,16 @@ def mermaid_pdf_flows(text: str, *, available_width: float, available_height: fl
         style = dict(strokeColor=stroke, strokeWidth=2.6 if edge.kind == 'equals' else 1.1)
         if edge.kind == 'dotted':
             style['strokeDashArray'] = [3, 3]
-        px1, py1, px2, py2 = X(x1), Y(y1), X(x2), Y(y2)
+        px1, py1, px2, py2 = _x(x1), _y(y1), _x(x2), _y(y2)
         if edge.back:
             sx, sy = source_center
             tx, ty = target_center
-            px1, py1 = X(sx + boxes[edge.source][0] / 2), Y(sy)
-            px2, py2 = X(tx + boxes[edge.target][0] / 2), Y(ty)
+            px1, py1 = _x(sx + boxes[edge.source][0] / 2), _y(sy)
+            px2, py2 = _x(tx + boxes[edge.target][0] / 2), _y(ty)
             if edge.source == edge.target:
-                py1, py2 = Y(sy - 8), Y(ty + 8)
-            obstacles = [(X(cx - boxes[n][0] / 2), Y(cy + boxes[n][1] / 2),
-                          X(cx + boxes[n][0] / 2), Y(cy - boxes[n][1] / 2))
+                py1, py2 = _y(sy - 8), _y(ty + 8)
+            obstacles = [(_x(cx - boxes[n][0] / 2), _y(cy + boxes[n][1] / 2),
+                          _x(cx + boxes[n][0] / 2), _y(cy - boxes[n][1] / 2))
                          for n, (cx, cy) in centers.items()]
             route = _return_route((px1, py1), (px2, py2), obstacles)
             drawing.add(PolyLine([v for point in route for v in point], **style))
@@ -625,7 +625,7 @@ def mermaid_pdf_flows(text: str, *, available_width: float, available_height: fl
                                 fillColor=stroke, strokeColor=None))
         if edge.label:
             lines = wrap(edge.label, 220)
-            label_x = X(return_x) if edge.back else (px1 + px2) / 2
+            label_x = _x(return_x) if edge.back else (px1 + px2) / 2
             top = (py1 + py2) / 2 + len(lines) * line_height * scale / 2
             for index, label in enumerate(lines):
                 drawing.add(String(label_x, top - (index + 1) * line_height * scale, label, fontName=font,

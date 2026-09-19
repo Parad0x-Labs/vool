@@ -52,7 +52,7 @@ class DAGCycleRefused(TaskDagError):
 class OverlappingWriterRefused(RuntimeError):
     """Another live lease already owns overlapping scope."""
 
-    def __init__(self, conflicting_lease: "WriterLease") -> None:
+    def __init__(self, conflicting_lease: WriterLease) -> None:
         super().__init__(
             f"task {conflicting_lease.task_id} holds a live writer lease on "
             f"{sorted(conflicting_lease.scope)} until {conflicting_lease.expires_at:.0f} "

@@ -22,6 +22,7 @@ row leaves no import at all.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import uuid
@@ -101,11 +102,10 @@ def _import_verified(
     *,
     resumed_has_state: str | None,
 ) -> dict[str, Any]:
-    from core.context_namespace import ensure_chat_namespace
     from core.memory.learning import _ensure_memory_files
     from core.runtime_paths import ensure_runtime_dirs
-    from core.session_portability.api import PortabilityRefused
     from core.session_portability import signing
+    from core.session_portability.api import PortabilityRefused
     from storage import dialogue_memory
     from storage.migrations import run_migrations
 
@@ -368,7 +368,7 @@ def _session_exists(session_id: str) -> bool:
 
 def _derived_session_id(bundle_id: str, source_session_id: str) -> str:
     digest = hashlib.sha256(
-        f"session-portability:{bundle_id}:{source_session_id}".encode("utf-8")
+        f"session-portability:{bundle_id}:{source_session_id}".encode()
     ).hexdigest()
     return f"openclaw:{digest[:20]}"
 
@@ -433,9 +433,8 @@ def _record_ledger(
     trust: str,
     signer_fingerprint: str,
 ) -> None:
-    from storage.db import get_connection
-
     from core.session_portability.collect import _utcnow
+    from storage.db import get_connection
 
     conn = get_connection()
     try:
@@ -634,10 +633,8 @@ def _stage_attachments(
         manifest_tmp = stage_dir / f"{attachment_id}.json.tmp-{bundle_id_ref(payload)[:8]}"
         if not bytes_tmp.exists():
             bytes_tmp.write_bytes(data)
-            try:
+            with contextlib.suppress(OSError):
                 bytes_tmp.chmod(0o600)
-            except OSError:
-                pass
         if not manifest_tmp.exists():
             manifest_tmp.write_text(json.dumps(manifest, sort_keys=True))
         staged.append(

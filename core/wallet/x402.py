@@ -118,7 +118,6 @@ def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: d
 
 # --- the paid-resource flow: fetch -> 402 -> capped proposal -> (operator approval) -> retry with X-PAYMENT -> bound receipt ---
 
-import hashlib
 import uuid
 from urllib.parse import urlsplit
 

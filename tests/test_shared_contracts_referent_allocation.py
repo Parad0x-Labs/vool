@@ -19,7 +19,6 @@ import pytest
 from core.conductor import operations as op
 from core.conductor import planner
 
-
 # --- 1. allocation / dependency representation -------------------------------------------------
 
 OWNER_ALLOCATION = (
@@ -172,7 +171,7 @@ def test_the_allocation_binds_every_share_from_retrieved_figures_only() -> None:
     ))
     text = compose_answer(plan, outcomes, decision).text
     # 250 EUR = 275 USD at the scripted rate: ADA 275 / 0.21, gold 275 / 4402.
-    assert "275" in text and "1,309." in text or "1309." in text, text
+    assert ("275" in text and "1,309." in text) or "1309." in text, text
     assert "0.0625" in text, text
     assert "1,950" in text or "1950" in text, text  # 250 EUR x 7.8 = 1950 CNY
     assert "no price source for tesla" in text, text

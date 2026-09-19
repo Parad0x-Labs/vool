@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.product_edition import is_school
-from core.school import assistance, quota, service, store
+from core.school import assistance, quota, store
 from core.school.policy import EffectiveSchoolPolicy, resolve_policy
 from core.school.session import SchoolSession, session_from_headers
 

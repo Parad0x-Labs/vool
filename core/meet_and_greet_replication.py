@@ -144,7 +144,7 @@ class HttpMeetClient:
         auth_token = self._auth_token_for_url(url)
         if auth_token:
             request.add_header("X-Vool-Meet-Token", auth_token)
-        context = self._ssl_context_for_url(url)
+        self._ssl_context_for_url(url)
         # ONE outbound HTTP door (veto before any socket + per-turn reporting); the computed TLS
         # ``context`` is not forwarded, matching the other rebound lanes' door convention.
         from core.remote_fetch_policy import open_remote

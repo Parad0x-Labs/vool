@@ -132,8 +132,8 @@ def _approve_route(home) -> None:
 def _production_authority():
     """The suite's autouse fixture resets the authority to Unavailable for isolation; these
     tests exercise the PRODUCTION gate, so they install the money-law authority explicitly."""
-    from core.usepod.money_law import AUTHORITY_LABEL, EffectBudgetMonetaryAuthority
     from core.usepod.monetary import install_monetary_authority, reset_monetary_authority
+    from core.usepod.money_law import AUTHORITY_LABEL, EffectBudgetMonetaryAuthority
 
     authority = EffectBudgetMonetaryAuthority()
     install_monetary_authority(authority, label=AUTHORITY_LABEL)

@@ -1398,7 +1398,7 @@ def explicit_path_in(text: str) -> str:
 
 _QUOTED_PATH_VALUE_RE = re.compile(r"""(["'`])((?:~|\.{1,2})?/[^"'`\n]*|[A-Za-z]:\\[^"'`\n]*)\1""")
 _WINDOWS_PATH_TOKEN_RE = re.compile(r"""\b[A-Za-z]:\\[^\s'"`,;]*""")
-# `explicit_path_in`'s shape, anchored: a slash inside a word ("and/or", "Europe/Berlin",
+# `explicit_path_in`'s shape, anchored: a slash inside a word ("and/or", "Europe/Athens",
 # "standup/meeting") joins words; it does not start a path.
 _RECOGNITION_PATH_RE = re.compile(r"(?<!\w)" + _EXPLICIT_PATH_RE.pattern)
 
@@ -1855,7 +1855,8 @@ _INTO_PATH_RE = re.compile(
 # literal-versus-brief write-demand authority (P0 simple-file-write, audit of 59aa5ee7).
 # These re-exports keep every existing importer (planner.py, the machine-tool audit test)
 # working unchanged; new code should import from the resolver, not from here.
-from core.execution.write_demand import (  # noqa: E402
+
+from core.execution.write_demand import (  # noqa: F401  (deliberate re-exports)
     _APPEND_CONTENT_ONLY_RE,
     _APPEND_FILE_RE,
     _APPEND_TEXT_TO_FILE_RE,

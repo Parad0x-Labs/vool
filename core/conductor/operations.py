@@ -25,6 +25,7 @@ go through that seam.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
@@ -1157,7 +1158,7 @@ def _anaphoric_arithmetic_binding(
             continue
     if len(numeric) != 1:
         return None
-    dep_name, dep_value = numeric[0]
+    _dep_name, dep_value = numeric[0]
     for pattern, op in _ANAPHORIC_OPS:
         match = pattern.search(text)
         if match is None:
@@ -1577,7 +1578,7 @@ def _unit_dimension(unit: str) -> str:
     return entry[1] if entry is not None else ""
 
 
-def _payment_unit_problem(unit: str, role: "PurchaseRole | None") -> str:
+def _payment_unit_problem(unit: str, role: PurchaseRole | None) -> str:
     """Why a stated quantity unit cannot measure `role`, or "" when it can (or none was stated).
 
     A unit is a claim about the asset's dimension. Kilograms measure silver (priced per troy ounce)
@@ -1602,7 +1603,7 @@ def _payment_unit_problem(unit: str, role: "PurchaseRole | None") -> str:
 
 
 def _quantity_in_price_unit(
-    quantity: float, unit: str, role: "PurchaseRole"
+    quantity: float, unit: str, role: PurchaseRole
 ) -> tuple[float, str, str]:
     """(quantity expressed in the asset's price unit, that unit, conversion note or "").
 
@@ -2647,7 +2648,7 @@ _NOT_A_TARGET_WORDS = frozenset(
 )
 
 
-def _missing_target_problem(body: str, payment: "PurchaseRole | None") -> str:
+def _missing_target_problem(body: str, payment: PurchaseRole | None) -> str:
     """The reason a direct purchase names no target this runtime can price.
 
     Two different facts wear one sentence otherwise: "the asset to buy is not named" is TRUE for
@@ -2787,7 +2788,7 @@ def distributed_purchase_roles(text: str) -> tuple[PurchaseRoles, ...]:
     if len(positions) != len(candidates):
         return ()
     elliptical = False
-    for (start, role), (next_start, _next_role) in zip(positions, positions[1:]):
+    for (start, role), (next_start, _next_role) in itertools.pairwise(positions):
         between = folded[start + len(role.text) : next_start]
         if re.search(r"\bor\b", between):
             return ()
@@ -3340,7 +3341,7 @@ def _fx_chain_amount_fallback(
     price_value: float | None = None
     price_currency = ""
     converted_candidates: list[tuple[str, float]] = []
-    for dep_id, result in dict(ctx.dependency_results or {}).items():
+    for _dep_id, result in dict(ctx.dependency_results or {}).items():
         if not isinstance(result, Mapping):
             continue
         if price_value is None and result.get("price") is not None:

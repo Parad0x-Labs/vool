@@ -461,7 +461,6 @@ def _liability_request(liability: ProviderLiability, *, grant_id: str) -> Any:
         correlation["fee_policy"] = str(fee_terms["policy_id"])
         correlation["fee_rate_bps"] = str(int(fee_terms["rate_bps"]))
         correlation["fee_treasury"] = str(fee_terms["treasury_owner"])
-    from core.effect_budget_money import MoneyIdentity
 
     return LiabilityRequest(
         operation_id=liability.operation_id,
@@ -683,7 +682,8 @@ class EffectBudgetMonetaryAuthority:
             raise _wrap_refusal(exc) from None
 
     def settle(self, reservation: MonetaryReservation, evidence: SettlementEvidence) -> None:
-        from core.effect_budget_money import CreditLine, SettlementEvidence as LawEvidence, settle_liability
+        from core.effect_budget_money import CreditLine, settle_liability
+        from core.effect_budget_money import SettlementEvidence as LawEvidence
 
         liability_id = str(reservation.reservation_id)
         self._guard_claim_owned(reservation, action="settlement")
@@ -760,8 +760,10 @@ class EffectBudgetMonetaryAuthority:
             EVIDENCE_PROVIDER_REFUSAL_RECORD,
             FLOW_INFERENCE_EXPENSE,
             FLOW_PROVIDER_CREDIT_DEBIT,
-            SettlementEvidence as LawEvidence,
             settle_liability,
+        )
+        from core.effect_budget_money import (
+            SettlementEvidence as LawEvidence,
         )
 
         code = str(refusal_code or "")
@@ -845,7 +847,12 @@ class EffectBudgetMonetaryAuthority:
         pending or unknown liability would close an operation whose provider outcome is not proven. The provider receipt
         and the chain receipt stay two evidence items on one liability; a replay is idempotent, and a different amount
         under the same signature is refused."""
-        from core.effect_budget_money import LIABILITY_SETTLED, MONEY_STATE_ERROR, liability_for_operation, settle_liability
+        from core.effect_budget_money import (
+            LIABILITY_SETTLED,
+            MONEY_STATE_ERROR,
+            liability_for_operation,
+            settle_liability,
+        )
         from core.effect_budget_money import SettlementEvidence as LawEvidence
 
         liability = reservation.liability
@@ -924,9 +931,11 @@ def recover_admission_refusal_holds(*, limit: int = 500) -> list[dict[str, Any]]
         FLOW_INFERENCE_EXPENSE,
         FLOW_PROVIDER_CREDIT_DEBIT,
         LIABILITY_UNKNOWN,
-        SettlementEvidence as LawEvidence,
         liabilities,
         settle_liability,
+    )
+    from core.effect_budget_money import (
+        SettlementEvidence as LawEvidence,
     )
 
     changes: list[dict[str, Any]] = []
@@ -1000,9 +1009,9 @@ def money_law_status() -> dict[str, Any]:
 
 
 __all__ = [
-    "AUTHORITY_LABEL",
     "ADMISSION_REFUSAL_NO_CHARGE_CODES",
     "ADMISSION_REFUSAL_STATUS_BY_CODE",
+    "AUTHORITY_LABEL",
     "LIQUIDITY_FRESH_SECONDS",
     "EffectBudgetMonetaryAuthority",
     "active_prepaid_grants",
@@ -1011,6 +1020,6 @@ __all__ = [
     "money_law_status",
     "recover_admission_refusal_holds",
     "service_fee_summary",
-    "x402_payment_bounds",
     "unresolved_x402_operations",
+    "x402_payment_bounds",
 ]

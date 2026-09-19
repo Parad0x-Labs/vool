@@ -60,7 +60,7 @@ from core.runtime_task_outcome import (
 )
 from tests.conductor_product import compose_product, decide
 from tests.semantic_proposer import coordinated, frame, proposer, role
-from tests.test_canonical_obligation_floor import (  # noqa: F401  (fetchers is a fixture)
+from tests.test_canonical_obligation_floor import (
     _clause,
     _Generation,
     fetchers,

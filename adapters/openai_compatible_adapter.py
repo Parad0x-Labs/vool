@@ -1356,7 +1356,12 @@ class OpenAICompatibleAdapter(ModelAdapter):
         # paying the full input twice for one answer. `max_tokens` is a ceiling and only emitted
         # tokens are billed, so the lift costs nothing when the answer is short, and the policy's
         # own targets bound it (paid 760, verified-free 1800) before the physical caps.
-        from core.output_budget_policy import FREE_CLOUD, PAID_CLOUD, lane_resolved_output_tokens, manifest_lane_capability
+        from core.output_budget_policy import (
+            FREE_CLOUD,
+            PAID_CLOUD,
+            lane_resolved_output_tokens,
+            manifest_lane_capability,
+        )
 
         if manifest_lane_capability(self.manifest).cost_class in {FREE_CLOUD, PAID_CLOUD}:
             return lane_resolved_output_tokens(

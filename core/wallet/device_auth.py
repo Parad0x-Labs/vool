@@ -39,11 +39,11 @@ TOOL_NAME = "vool-devauth"
 TOOL_VERSION = "2"
 
 
-class DeviceAuthUnavailable(Exception):  # noqa: N818 - established name, raised across the wallet package
+class DeviceAuthUnavailable(Exception):
     """No device authentication on this machine (no helper, no Swift toolchain, not macOS)."""
 
 
-class DeviceAuthDenied(Exception):  # noqa: N818 - established name, raised across the wallet package
+class DeviceAuthDenied(Exception):
     """The person cancelled or failed Touch ID / the password prompt."""
 
 

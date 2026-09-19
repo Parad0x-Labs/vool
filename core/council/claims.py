@@ -60,7 +60,7 @@ class Claim:
     numbers: tuple[str, ...]   # normalized (comma-stripped)
     causal: bool
     token_order: tuple[str, ...]
-    sem: "object | None" = None   # SemanticClaim (structured identity), set by extractor
+    sem: object | None = None   # SemanticClaim (structured identity), set by extractor
 
 
 def _jaccard(a: frozenset[str], b: frozenset[str]) -> float:

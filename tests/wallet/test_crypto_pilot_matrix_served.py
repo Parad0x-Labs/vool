@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from tests.wallet._rig import DEVNET_GENESIS, MAINNET_GENESIS, ScriptedRpc
 from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 from tests.wallet._rig_provider import MODEL, PromptRoutedProvider, seed_daemon

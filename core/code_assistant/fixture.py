@@ -124,8 +124,8 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
 __all__ = [
     "DEFECT_OLD_TEXT",
     "DEFECT_STATS_PY",
-    "FIX_NEW_TEXT",
     "FIXED_STATS_PY",
+    "FIX_NEW_TEXT",
     "NARROW_TEST_COMMAND",
     "OWNER_PATH",
     "REGRESSION_COMMAND",

@@ -167,7 +167,7 @@ def _rejected(code: int, *, validated: bool = True):
         (lambda: urllib.error.HTTPError("http://rpc", 500, "boom", {}, None), False, "http_500"),
         (lambda: urllib.error.HTTPError("http://rpc", 400, "bad", {}, None), False, "http_400"),
         (lambda: TimeoutError("read timed out"), False, "TimeoutError"),
-        (lambda: urllib.error.URLError(socket.timeout("timed out")), False, "TimeoutError"),  # socket.timeout is TimeoutError on 3.10+
+        (lambda: urllib.error.URLError(TimeoutError("timed out")), False, "TimeoutError"),  # socket.timeout is TimeoutError on 3.10+
         (lambda: http.client.RemoteDisconnected("closed"), False, "RemoteDisconnected"),
         (lambda: ConnectionResetError(), False, "ConnectionResetError"),
         (lambda: RuntimeError("rpc_error:sendTransaction:-32002"), False, "RuntimeError"),

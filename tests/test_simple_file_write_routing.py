@@ -341,8 +341,9 @@ def _approval_token(result: dict) -> str:
     if found:
         return found
     # The served payload redacts the token; the durable pending-approval mirror holds it.
-    from core.mode_permission_policy import _pending_approvals_path
     import json as _json
+
+    from core.mode_permission_policy import _pending_approvals_path
 
     path = _pending_approvals_path()
     if path is not None and path.exists():

@@ -332,7 +332,7 @@ def water_temperature_lookup(
         temps = list(hourly.get("sea_surface_temperature") or [])
         now_iso = _time.strftime("%Y-%m-%dT%H:%M", _time.gmtime())
         best_index, best_time = None, ""
-        for index, (stamp, temp) in enumerate(zip(times, temps)):
+        for index, (stamp, temp) in enumerate(zip(times, temps, strict=False)):
             if temp is None:
                 continue
             if str(stamp) <= now_iso:

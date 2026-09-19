@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest import mock
 
-from apps.vool_agent import ChatTurnResult, VoolAgent, ResponseClass
+from apps.vool_agent import ChatTurnResult, ResponseClass, VoolAgent
 from core.agent_runtime import orchestrator
 
 

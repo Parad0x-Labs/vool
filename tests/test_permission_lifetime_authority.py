@@ -12,6 +12,9 @@ from pathlib import Path
 import pytest
 
 from core.mode_permission_policy import (
+    _BYPASS_GRANTS,
+    _CHAT_WORKSPACE_AUTHORITY,
+    _INTERNAL_AUTHORITY,
     PermissionAction,
     PermissionEffect,
     activate_bypass_grant,
@@ -20,15 +23,10 @@ from core.mode_permission_policy import (
     grant_chat_workspace_authority,
     revoke_bypass_grant,
     revoke_chat_workspace_authority,
+    revoke_internal_authority,
     revoke_session_bypass_grants,
     set_active_mode,
     validate_bypass_grant,
-    revoke_internal_authority,
-)
-from core.mode_permission_policy import (
-    _BYPASS_GRANTS,
-    _CHAT_WORKSPACE_AUTHORITY,
-    _INTERNAL_AUTHORITY,
 )
 
 
@@ -734,10 +732,9 @@ def test_a_legacy_store_without_the_journal_stamp_still_restores(tmp_path):
     """The upgrade path: an envelope written before the journal existed carries no stamp and no
     journal, and no journalled revocation can exist for it -- it restores exactly as it always
     did. Failing closed here would delete every owner's grant at the upgrade boundary."""
-    import json as _json
-
     import hashlib as _hashlib
     import hmac as _hmac
+    import json as _json
 
     from core import mode_permission_policy as policy
 

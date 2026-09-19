@@ -309,7 +309,7 @@ def select_account(kind: str, *, account: str = "", principal: str | None = None
         return AccountSelection(ok=True, account=LEGACY_DEFAULT, source="legacy_default",
                                 message="No email account is configured yet.")
     if len(records) == 1:
-        (name, record), = records.items()
+        (_name, record), = records.items()
         return _check(record, kind, "only_account", records)
     return _refusal("account_required",
                     "Several email accounts are configured and none is chosen as the default.", kind, records)

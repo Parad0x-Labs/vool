@@ -18,8 +18,8 @@ the loop records its attempts, the record carries them, and the refusal names th
 from __future__ import annotations
 
 from core.final_answer_authorship import (
-    AuthorshipDecision,
     REASON_BLOCKED_BEFORE_GENERATION,
+    AuthorshipDecision,
     authorship_record_for_publication,
     gate_authored_content,
     record_authorship_attempts,

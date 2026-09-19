@@ -16,12 +16,12 @@ import uuid
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from core.wallet.errors import WalletFault
 from tests.wallet._rig import DEVNET_GENESIS, ScriptedRpc
 from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 from tests.wallet.test_crypto_pilot_usepod import _count, _pilot, _requirement
 from tests.wallet.test_crypto_pilot_usepod import home as usepod_home
-
-from core.wallet.errors import WalletFault
 
 pytestmark = [pytest.mark.safety]
 

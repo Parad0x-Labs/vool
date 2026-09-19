@@ -14,6 +14,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
+
 from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 
 pytestmark = [pytest.mark.safety, pytest.mark.served]

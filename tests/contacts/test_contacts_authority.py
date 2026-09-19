@@ -88,7 +88,7 @@ def test_an_authorization_is_single_use_and_bound_to_its_own_operation() -> None
     assert wrong_op.value.reason == "authorization_not_for_this_change"
     authority.commit(first["operation_id"], authorization_id=granted["authorization_id"])
     # and it cannot be replayed to commit anything else afterwards
-    third = _propose_wallet_change(other["contact_id"], _sol_key()) if False else None  # noqa: E731 (kept explicit)
+    third = _propose_wallet_change(other["contact_id"], _sol_key()) if False else None
     assert third is None
 
 

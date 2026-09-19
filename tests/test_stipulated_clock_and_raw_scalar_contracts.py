@@ -175,7 +175,7 @@ def test_sloppy_fixed_offset_clock_variants(prompt: str, target_minutes: int) ->
 @pytest.mark.parametrize(
     "prompt",
     (
-        "What time is it now in Europe/Berlin?",
+        "What time is it now in Europe/Athens?",
         (
             "Assume it is 2100. Mars Standard Time is usually about 3 hours ahead of Earth's UTC. "
             "If it is 12:00 PM UTC on Earth, what time is it on Mars?"

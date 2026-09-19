@@ -13,9 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 import tempfile
-import threading
 import urllib.request
 from pathlib import Path
 
@@ -48,10 +46,7 @@ def _schema_docs_parse() -> None:
 def _case_result_contract() -> None:
     from ops.served_reality.schema import (
         FAILURE_CLASSES,
-        VERDICT_FAIL,
         VERDICT_PASS,
-        VERDICT_SKIP_EXPECTED,
-        VERDICT_SKIP_UNEXPECTED,
         CaseResult,
         TurnIdentity,
     )
@@ -197,7 +192,14 @@ def _stub_determinism() -> None:
 
 @check("app-patch mutation anchors still apply to the product sources")
 def _mutation_anchors() -> None:
-    from ops.served_reality.mutations import MUTATION_CONTROLS, _M2_ANCHOR, _M2_REPLACEMENT, _M3_ANCHOR, _M3_REPLACEMENT, anchor_path_for
+    from ops.served_reality.mutations import (
+        _M2_ANCHOR,
+        _M2_REPLACEMENT,
+        _M3_ANCHOR,
+        _M3_REPLACEMENT,
+        MUTATION_CONTROLS,
+        anchor_path_for,
+    )
 
     for mutation_id, anchor, replacement in (
         ("m2-bypassed-permission", _M2_ANCHOR, _M2_REPLACEMENT),
@@ -270,7 +272,7 @@ def run_all() -> int:
         try:
             fn()
             print(f"[SELFTEST-PASS] {name}", flush=True)
-        except Exception as exc:  # noqa: BLE001 - report and continue
+        except Exception as exc:
             failed += 1
             print(f"[SELFTEST-FAIL] {name}: {type(exc).__name__}: {exc}", flush=True)
     print(f"selftest: {len(_checks) - failed}/{len(_checks)} passed", flush=True)

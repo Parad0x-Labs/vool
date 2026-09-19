@@ -2,11 +2,14 @@
 No unapproved write, native acceptance or external effect is performed.
 """
 from pathlib import Path
+
 import pytest
+
 from core.mode_permission_policy import PermissionEffect
 from tests.repoops._harness import context
 from tests.repoops.test_forge_actions import world
-from tests.test_approval_destination_binding_r5 import _approved, _decide, _step, BUGGY_MONEY
+from tests.test_approval_destination_binding_r5 import BUGGY_MONEY, _approved, _decide, _step
+
 
 @pytest.mark.parametrize('kind',['file-link','directory-link'])
 def test_approved_path_cannot_follow_a_retargeted_link(world,kind):
@@ -38,7 +41,7 @@ def test_existence_gate_uses_the_same_context_root_as_the_writer(world,tmp_path,
     unrelated=tmp_path/'empty-context-root';unrelated.mkdir()
     ctx=context(root,session='root-conflict')
     ctx['workspace']=str(root);ctx['workspace_root']=str(unrelated)
-    from core.runtime_execution_tools import _workspace_root,_resolve_workspace_path
+    from core.runtime_execution_tools import _resolve_workspace_path, _workspace_root
     assert _resolve_workspace_path(path,workspace_root=_workspace_root(ctx))==actual.resolve()
     result=_decide('workspace.write_file',{'path':path,'content':'unapproved replacement\n'},ctx)
     assert result is PermissionEffect.REQUIRE_APPROVAL, ('Existence check used the empty alternate root and allowed overwrite of the writer target',path,result)

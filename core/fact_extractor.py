@@ -11,10 +11,10 @@ from typing import Literal
 
 import requests
 
-from core.vool_memory import VoolMemory
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
 )
+from core.vool_memory import VoolMemory
 
 FactAction = Literal["ADD", "UPDATE", "DELETE", "NOOP"]
 

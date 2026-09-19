@@ -245,7 +245,7 @@ def test_the_transport_override_widens_but_still_respects_the_turn_deadline():
 
 def test_the_widened_retry_carries_the_transport_override():
     """The retry request itself must carry the widened transport floor."""
-    from core.memory_first_router import MemoryFirstRouter  # noqa: F401  (import path proof)
+    from core.memory_first_router import MemoryFirstRouter
 
     source = (
         Path("core/memory_first_router.py").read_text(encoding="utf-8")

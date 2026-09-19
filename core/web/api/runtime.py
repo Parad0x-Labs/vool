@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import hashlib
 import json
@@ -21,8 +22,8 @@ from core import policy_engine
 from core.agent_runtime.agent import VoolAgent
 from core.agent_runtime.daemon import VoolDaemon
 from core.app_version import VOOL_VERSION
-from core.compute_mode import ComputeModeDaemon
 from core.chat_session_identity import fold_chat_session_id, is_canonical_chat_session_id
+from core.compute_mode import ComputeModeDaemon
 from core.daemon import DaemonConfig
 from core.error_surface import safe_error_text
 from core.hardware_tier import probe_machine
@@ -121,10 +122,8 @@ class RuntimeServices:
         agent = self.agent
         stop = getattr(agent, "stop_background_runtime_threads", None) if agent is not None else None
         if callable(stop):
-            try:
+            with contextlib.suppress(Exception):
                 stop()
-            except Exception:
-                pass
         if self.daemon:
             self.daemon.stop()
 

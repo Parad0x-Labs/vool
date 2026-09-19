@@ -7,12 +7,11 @@ Pins the census mechanism of the recorded incident as executable facts:
 """
 from __future__ import annotations
 
-from core.agent_runtime.answer_coverage import demand_units, units_matching_needle
-from core.live_data_plan import build_live_data_plan
-
 from kit_lib import GOLD_ANSWER, GOLD_QUESTION, VW_QUESTION, context, gold_thread
 
 import core.live_data_continuation as live_data_continuation
+from core.agent_runtime.answer_coverage import demand_units, units_matching_needle
+from core.live_data_plan import build_live_data_plan
 
 
 def test_severed_guard_reproduces_the_incident_census_exactly():

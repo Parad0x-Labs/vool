@@ -546,7 +546,7 @@ def _unmarked_spans(text: str, quoted: tuple[bool, ...]) -> tuple[tuple[int, int
 def parse_turn_ir(
     user_text: str,
     *,
-    response_shape_parser: ResponseShapeParser | None | object = _DEFAULT_SHAPE_PARSER,
+    response_shape_parser: ResponseShapeParser | object | None = _DEFAULT_SHAPE_PARSER,
 ) -> TurnIR:
     """Parse one turn without changing its words or claiming planner-level semantics.
 

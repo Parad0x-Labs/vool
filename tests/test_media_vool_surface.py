@@ -78,7 +78,7 @@ def test_v3_implementations_remain_nebula_media():
 
 # ---------------------------------------------------------------- V5
 def test_v5_unavailable_worker_reported_truthfully():
-    from core.media_worker_client import NebulaWorkerClient, MediaWorkerUnavailable
+    from core.media_worker_client import MediaWorkerUnavailable, NebulaWorkerClient
 
     client = NebulaWorkerClient(python="/nonexistent/python-binary")
     with pytest.raises(MediaWorkerUnavailable):
@@ -157,7 +157,11 @@ class TestLiveService:
         import hashlib
 
         from core.media_studio_service import (
-            apply_edit, export_project, get_project, inspect, open_project,
+            apply_edit,
+            export_project,
+            get_project,
+            inspect,
+            open_project,
             undo,
         )
         from core.media_worker_client import reset_media_worker
@@ -195,9 +199,9 @@ class TestLiveService:
         assert len(get_project(project.project_id).effective_ops()) == 1
 
     def test_worker_unavailable_is_truthful_in_chat_tools(self, env, monkeypatch):
-        from core.media_worker_client import reset_media_worker
         from core.media_studio_chat_tools import media_inspect
         from core.media_studio_service import open_project
+        from core.media_worker_client import reset_media_worker
 
         reset_media_worker()
         project = open_project(str(env["clip"]))

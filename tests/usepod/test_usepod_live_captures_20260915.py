@@ -42,7 +42,7 @@ def _block_page(host: str, ray: str) -> bytes:
         '<div id="cf-error-details"><h2><span data-translate="unable_to_access">You are unable to access</span> '
         f'{host}</h2><span class="cf-footer-item">Cloudflare Ray ID: <strong class="font-semibold">{ray}</strong></span>'
         "</div></body></html>"
-    ).encode("utf-8")
+    ).encode()
 
 
 def _response(status: int, body: bytes, content_type: str) -> tp.UsePodResponse:

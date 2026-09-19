@@ -72,7 +72,7 @@ class DivergenceError(RuntimeError):
         self.reason = reason
 
 
-class ReplayedEffectFailure(RuntimeError):  # noqa: N818 — a replayed OUTCOME, not a new error; suffix would misname it
+class ReplayedEffectFailure(RuntimeError):
     """The recorded run FAILED at this effect; replay re-raises that outcome faithfully.
 
     Failures are outcomes. The first design ("a failed effect must not poison the tape")
@@ -91,7 +91,7 @@ class ReplayedEffectFailure(RuntimeError):  # noqa: N818 — a replayed OUTCOME,
         self.error_message = message
 
 
-class EffectOutcomeUnknown(RuntimeError):  # noqa: N818 — an OUTCOME (attempted, unknown), not a new error
+class EffectOutcomeUnknown(RuntimeError):
     """GOBLIN inv 11 (EXTERNAL EFFECT HONESTY). An effect fn raises this to declare that it
     was ATTEMPTED but its outcome is genuinely unknowable — e.g. an external POST was
     dispatched and no acknowledgement came back. This is neither a success (we must not
@@ -105,7 +105,7 @@ class EffectOutcomeUnknown(RuntimeError):  # noqa: N818 — an OUTCOME (attempte
         self.detail = detail
 
 
-class ReplayedEffectUnknown(RuntimeError):  # noqa: N818 — a replayed OUTCOME, not a new error
+class ReplayedEffectUnknown(RuntimeError):
     """Replay re-raises a recorded EFFECT_UNKNOWN faithfully — replay must never resolve an
     ambiguity the live run could not, so it reproduces the unknown at the same position."""
 

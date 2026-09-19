@@ -149,7 +149,7 @@ def _page(browser, facts: Facts):
         elif path == "/api/wallet/status":
             reply(route, {"status": facts.status})
         elif path == "/api/wallet/balance":
-            wallet_id = str((url.split("wallet_id=", 1)[1].split("&", 1)[0] if "wallet_id=" in url else ""))
+            wallet_id = str(url.split("wallet_id=", 1)[1].split("&", 1)[0] if "wallet_id=" in url else "")
             delay = facts.balance_delay.get(wallet_id, 0)
             if delay:
                 time.sleep(delay)
@@ -171,12 +171,7 @@ def _page(browser, facts: Facts):
         elif path == "/api/wallet/propose":
             facts.proposals.append(dict(body))
             # the real door leaves the proposal pending in the status the page polls; so do the facts
-            facts.status["pending"] = list(facts.status.get("pending") or []) + [{
-                "proposal_id": "pay-panel", "amount_minor": body.get("amount_minor"), "asset": body.get("asset"),
-                "destination": body.get("destination"), "origin": body.get("origin"), "memo": body.get("memo", ""),
-                "created_at": time.time(), "network": body.get("network"), "state": "pending_approval", "meaning": None,
-                "pilot_transfer": True, "purpose": None, "open_quote_id": "", "quote_expires_at": 0, "recipient": {},
-            }]
+            facts.status["pending"] = [*list(facts.status.get("pending") or []), {"proposal_id": "pay-panel", "amount_minor": body.get("amount_minor"), "asset": body.get("asset"), "destination": body.get("destination"), "origin": body.get("origin"), "memo": body.get("memo", ""), "created_at": time.time(), "network": body.get("network"), "state": "pending_approval", "meaning": None, "pilot_transfer": True, "purpose": None, "open_quote_id": "", "quote_expires_at": 0, "recipient": {}}]
             reply(route, {"ok": True, "proposal": {"proposal_id": "pay-panel", "wallet_id": body.get("wallet_id"), "state": "pending_approval", **{k: body.get(k) for k in ("destination", "amount_minor", "asset", "network", "origin", "memo")}}, "duplicate": False})
         else:
             reply(route, {"ok": True, "sessions": [], "items": [], "plugins": [], "skills": [], "files": [], "mode": "manual", "state": "ready", "notifications": [], "models": [], "projects": []})

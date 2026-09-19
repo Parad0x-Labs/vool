@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import pytest
 
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import served_env  # noqa: F401 -- fixture
-from tests.pa_beta_gate.test_served_notes_scope_reading import (  # noqa: F401 -- fixture
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import served_env
+from tests.pa_beta_gate.test_served_notes_scope_reading import (
     _ACCOUNT_SEED,
     _FOLDER_SEED,
     _NOVEL_SEED,

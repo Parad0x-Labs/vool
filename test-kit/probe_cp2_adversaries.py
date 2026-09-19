@@ -6,10 +6,10 @@ audit records observed behavior before tests pin it. Not a regression test: an i
 """
 from __future__ import annotations
 
+from kit_lib import context, gold_thread, plan_operations, weather_thread
+
 from core.execution_requirements import requirements_for
 from core.live_data_continuation import continuation_inherits_live_data
-
-from kit_lib import context, gold_thread, plan_operations, sid, weather_thread
 
 GOLD = "what is gold price now?"
 GOLD_ANS = "Gold: USD 4,476.60 per troy ounce. Source: [Yahoo Finance](https://finance.yahoo.com/quote/GC=F)."

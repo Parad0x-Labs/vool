@@ -138,4 +138,4 @@ def daily_presence_signal(day: str, turn_key: str, fact_id: str) -> dict[str, An
     }
 
 
-FAMILIES = tuple(TOOL_FAMILIES) + ("unknown", "long", "presence", "model")
+FAMILIES = (*tuple(TOOL_FAMILIES), "unknown", "long", "presence", "model")

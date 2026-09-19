@@ -85,8 +85,8 @@ _READABLE_RANGES = [
     pytest.param("google", [{"kind": "calendar#events", "summary": "Work"}], [], id="google-empty-page-without-items"),
     pytest.param("google", [{"items": [{"id": "series1_20260915T100000Z", "status": "cancelled", "recurringEventId": "series1"}, _VALID_G]}], ["g-ok"],
                  id="google-cancelled-instance-set-aside"),
-    pytest.param("google", [{"items": [_timed("series2_20260915T120000Z", {"dateTime": "2026-09-15T15:00:00+03:00", "timeZone": "Europe/Berlin"},
-                                              {"dateTime": "2026-09-15T15:45:00+03:00", "timeZone": "Europe/Berlin"})]}], ["series2_20260915T120000Z"],
+    pytest.param("google", [{"items": [_timed("series2_20260915T120000Z", {"dateTime": "2026-09-15T15:00:00+03:00", "timeZone": "Europe/Athens"},
+                                              {"dateTime": "2026-09-15T15:45:00+03:00", "timeZone": "Europe/Athens"})]}], ["series2_20260915T120000Z"],
                  id="google-recurring-instance"),
     pytest.param("google", [{"items": [_timed("g-zero", {"dateTime": "2026-09-15T16:00:00Z"}, {"dateTime": "2026-09-15T16:00:00Z"})]}], ["g-zero"], id="google-zero-duration"),
     pytest.param("google", [{"items": [_timed("g-day", {"date": "2026-09-15"}, {"date": "2026-09-16"})]}], ["g-day"], id="google-all-day"),
@@ -108,13 +108,13 @@ def test_readable_range_forms_stay_usable(provider, pages, uids):
 
 def test_supported_zone_shapes_translate_to_the_same_instant():
     rows = _read_range("graph", {"value": [
-        _timed("a", {"dateTime": "2026-09-15T15:00:00.0000000", "timeZone": "Europe/Berlin"}, {"dateTime": "2026-09-15T15:30:00.0000000", "timeZone": "Europe/Berlin"}),
+        _timed("a", {"dateTime": "2026-09-15T15:00:00.0000000", "timeZone": "Europe/Athens"}, {"dateTime": "2026-09-15T15:30:00.0000000", "timeZone": "Europe/Athens"}),
         _timed("b", {"dateTime": "2026-09-15T12:00:00.0000000", "timeZone": "UTC"}, {"dateTime": "2026-09-15T12:30:00.0000000", "timeZone": "UTC"}),
         _timed("c", {"dateTime": "2026-09-15T15:00:00+03:00"}, {"dateTime": "2026-09-15T15:30:00+03:00"}),
         _timed("d", {"dateTime": "2026-09-15T12:00:00Z"}, {"dateTime": "2026-09-15T12:30:00Z"}),
     ]})
     assert {row.start_utc for row in rows} == {"2026-09-15T12:00:00+00:00"}
-    assert {row.uid: row.tz_name for row in rows} == {"a": "Europe/Berlin", "b": "UTC", "c": "", "d": ""}
+    assert {row.uid: row.tz_name for row in rows} == {"a": "Europe/Athens", "b": "UTC", "c": "", "d": ""}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -223,12 +223,12 @@ def test_caldav_readable_forms_and_authentic_absence():
         _caldav(empty).get_event("/dav/user/work/", "missing-uid")
     assert absent.value.reason == "not_found" and not isinstance(absent.value, CalendarReadUnusableError)
     reply = _multistatus(
-        _row("zoned", _vcal("UID:zoned", "DTSTART;TZID=Europe/Berlin:20260915T150000", "DTEND;TZID=Europe/Berlin:20260915T153000")),
+        _row("zoned", _vcal("UID:zoned", "DTSTART;TZID=Europe/Athens:20260915T150000", "DTEND;TZID=Europe/Athens:20260915T153000")),
         _row("day", _vcal("UID:day", "DTSTART;VALUE=DATE:20260915")),
         _row("instant", _vcal("UID:instant", "DTSTART:20260915T130000Z")),
     )
     rows = {row.uid: row for row in _caldav(reply).events_in_range("/dav/user/work/", **_WINDOW)}
-    assert (rows["zoned"].start_utc, rows["zoned"].tz_name) == ("2026-09-15T12:00:00+00:00", "Europe/Berlin")
+    assert (rows["zoned"].start_utc, rows["zoned"].tz_name) == ("2026-09-15T12:00:00+00:00", "Europe/Athens")
     assert rows["day"].all_day and (rows["day"].start_date, rows["day"].end_date) == ("2026-09-15", "2026-09-16")
     assert rows["instant"].end_utc == rows["instant"].start_utc, "RFC 5545: a timed DTSTART without DTEND has zero duration"
     assert _caldav(reply).get_event("/dav/user/work/", "zoned").uid == "zoned"

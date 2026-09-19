@@ -194,13 +194,13 @@ def make_provider_server(state: ProviderState) -> tuple[ThreadingHTTPServer, int
             self.end_headers()
             self.wfile.write(raw)
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if self.path.startswith("/models"):
                 self._json({"object": "list", "data": [{"id": PROVIDER_MODEL, "object": "model"}]})
             else:
                 self._json({"error": "not found"}, 404)
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             length = int(self.headers.get("content-length") or 0)
             raw = self.rfile.read(length)
             try:
@@ -247,7 +247,7 @@ class ServedDaemon:
     def base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
 
-    def start(self, *, wait: bool = True) -> "ServedDaemon":
+    def start(self, *, wait: bool = True) -> ServedDaemon:
         env = dict(os.environ)
         env.update(
             {
@@ -267,7 +267,7 @@ class ServedDaemon:
         env.update(self.extra_env)
         for key in ("VOOL_MCP_CONFIG", "VOOL_NATIVE_SKILLS_DIR"):
             env.pop(key, None)  # the daemon must load the REPO's shipped library
-        log = open(self.home / "daemon.log", "ab")  # noqa: SIM115
+        log = open(self.home / "daemon.log", "ab")
         self.proc = subprocess.Popen(
             [VENV_PYTHON, str(REPO_ROOT / "apps" / "vool_api_server.py"),
              "--port", str(self.port), "--bind", "127.0.0.1"],

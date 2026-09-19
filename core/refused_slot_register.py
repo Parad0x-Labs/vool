@@ -478,7 +478,7 @@ def anchor_match_kind(
         if len(clean) < _FUZZY_MIN_LEN or len(token) < _FUZZY_MIN_LEN:
             continue
         shared = 0
-        for a, b in zip(clean, token):
+        for a, b in zip(clean, token, strict=False):
             if a != b:
                 break
             shared += 1

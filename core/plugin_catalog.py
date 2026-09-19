@@ -7,14 +7,15 @@ raised exception. Override the repo location with VOOL_PLUGINS_DIR.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
 import threading
-
-from core.runtime_paths import user_runtime_default
 from pathlib import Path
 from typing import Any
+
+from core.runtime_paths import user_runtime_default
 
 _DEFAULT_PLUGINS_DIR = Path.home() / "Desktop" / "Vool-skills-plugins"
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
@@ -306,10 +307,8 @@ def probe_plugin_storage(plugins_dir: Path, *, budget_s: float) -> dict[str, Any
         out, err = proc.communicate(timeout=max(0.05, float(budget_s)))
     except subprocess.TimeoutExpired:
         lingering = False
-        try:
+        with contextlib.suppress(OSError):
             proc.kill()
-        except OSError:
-            pass
         try:
             proc.wait(timeout=_KILL_WAIT_S)
         except subprocess.TimeoutExpired:

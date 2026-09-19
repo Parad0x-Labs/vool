@@ -115,11 +115,9 @@ class CaseResult:
             return True
         if self.verdict == VERDICT_SKIP_UNEXPECTED:
             return True
-        if self.verdict == VERDICT_SKIP_EXPECTED and self.required:
-            # A required case can never be skipped for a known reason either;
-            # only optional cases may skip.
-            return True
-        return False
+        # A required case can never be skipped for a known reason either;
+        # only optional cases may skip.
+        return bool(self.verdict == VERDICT_SKIP_EXPECTED and self.required)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)

@@ -150,7 +150,7 @@ def test_unbacked_counterexample_is_an_opinion_not_a_trump(isolated_store):
 
 
 def test_advisor_reports_feed_judges_but_never_vote(isolated_store):
-    bench = _bench() + [Seat("a1", "verifier", "cheap-model", False)]
+    bench = [*_bench(), Seat("a1", "verifier", "cheap-model", False)]
     seats = ScriptedSeats({
         ("s1", 1): _report(DIAG),
         ("s2", 1): _report("investigating"),
@@ -167,12 +167,12 @@ def test_advisor_reports_feed_judges_but_never_vote(isolated_store):
     assert outcome["result"] == "adjudicated"
     assert outcome["agree"] == 3 and outcome["disagree"] == 0, "advisor verdicts never count"
     assert "advisor evidence audit" in seats.prompts[("s1", 2)], "advisor reports must reach the judges"
-    tally = [e for e in run.store.read_events() if e["type"] == "tally"][0]
+    tally = next(e for e in run.store.read_events() if e["type"] == "tally")
     assert tally["voting_seats"] == 3
 
 
 def test_advisor_counterexample_still_trumps(isolated_store):
-    bench = _bench() + [Seat("a1", "verifier", "cheap-model", False)]
+    bench = [*_bench(), Seat("a1", "verifier", "cheap-model", False)]
     seats = ScriptedSeats({
         ("s1", 1): _report(DIAG),
         ("s2", 1): _report("investigating"),
@@ -257,7 +257,7 @@ def test_truncated_verdict_is_evidence_incomplete_never_agree(isolated_store):
 
 def test_tally_law_unanimity_small_majority_large(isolated_store):
     # Four voting seats, 3 AGREE / 1 DISAGREE: unanimity required — must NOT converge.
-    bench4 = _bench() + [Seat("s4", "verifier", "m", True)]
+    bench4 = [*_bench(), Seat("s4", "verifier", "m", True)]
     script = {(f"s{i}", 1): _report(DIAG if i == 1 else "x") for i in range(1, 5)}
     for round_no in (2, 3):
         for i in range(1, 4):
@@ -267,7 +267,7 @@ def test_tally_law_unanimity_small_majority_large(isolated_store):
     assert run4.run()["result"] == "no_convergence"
 
     # Five voting seats, 3 AGREE / 2 DISAGREE: strict majority — converges.
-    bench5 = bench4 + [Seat("s5", "adjudicator", "m", True)]
+    bench5 = [*bench4, Seat("s5", "adjudicator", "m", True)]
     script5 = {(f"s{i}", 1): _report(DIAG if i == 1 else "x") for i in range(1, 6)}
     for i in range(1, 4):
         script5[(f"s{i}", 2)] = _report("VERDICT: AGREE")
@@ -278,7 +278,7 @@ def test_tally_law_unanimity_small_majority_large(isolated_store):
 
 
 def test_adjudicator_diet_never_contains_workspace_or_exhibits(isolated_store):
-    bench = _bench() + [Seat("s4", "adjudicator", "m", True)]
+    bench = [*_bench(), Seat("s4", "adjudicator", "m", True)]
     script = {(f"s{i}", 1): _report(DIAG if i == 1 else "x") for i in range(1, 5)}
     for i in range(1, 5):
         script[(f"s{i}", 2)] = _report("VERDICT: AGREE")

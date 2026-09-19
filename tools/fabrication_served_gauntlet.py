@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import shutil
 import subprocess
@@ -159,14 +160,10 @@ def main() -> int:
         return proc.returncode
     finally:
         if daemon is not None:
-            try:
+            with contextlib.suppress(Exception):
                 daemon.stop()
-            except Exception:
-                pass
-        try:
+        with contextlib.suppress(Exception):
             provider.__exit__(None, None, None)
-        except Exception:
-            pass
         shutil.rmtree(scratch, ignore_errors=True)
         print(f"cleanup: scratch removed = {not scratch.exists()}")
 

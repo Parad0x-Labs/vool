@@ -110,9 +110,7 @@ def requests_a_water_temperature(text: Any) -> bool:
         # The colloquial form carries the temperature intent in the verb phrase,
         # not in a temperature word — check it BEFORE the medium requirement so
         # "how's the water" needs no second signal.
-        if _HOWS_THE_MEDIUM_RE.search(_fold(text)):
-            return True
-        return False
+        return bool(_HOWS_THE_MEDIUM_RE.search(_fold(text)))
     return any(_matches_any(token, _WATER_MEDIA) for token in tokens)
 
 

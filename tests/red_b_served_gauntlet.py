@@ -39,8 +39,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 AUDIT_PREFIX = "audit-AUD-20260829-003-RED1-"
 
@@ -155,10 +156,7 @@ def _rome_answered(body: str) -> bool:
         return False
     # The temperature must be on the SAME line as Rome, or the Rome mention is only the
     # restated question while some other town's reading stands in for it (the S1 defect).
-    for line in body.splitlines():
-        if _has(line, "Rome", "Roma") and _TEMP_RE.search(line):
-            return True
-    return False
+    return any(_has(line, "Rome", "Roma") and _TEMP_RE.search(line) for line in body.splitlines())
 
 
 def _rome_grounded(body: str) -> bool:
@@ -234,10 +232,7 @@ def _fx_usd_answered(body: str) -> bool:
 
 
 def _berlin_answered(body: str) -> bool:
-    for line in body.splitlines():
-        if _has(line, "Berlin", "berling") and _TEMP_RE.search(line):
-            return True
-    return False
+    return any(_has(line, "Berlin", "berling") and _TEMP_RE.search(line) for line in body.splitlines())
 
 
 def _berlin_grounded(body: str) -> bool:
@@ -407,7 +402,7 @@ def _post(url: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
     req = urllib.request.Request(
         url, data=data, headers={"Content-Type": "application/json"}, method="POST"
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - localhost only
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
 
 
@@ -487,7 +482,7 @@ class InProcessFrontDoor:
     def __init__(self, tree: str) -> None:
         tree = os.path.realpath(tree)
         sys.path.insert(0, tree)
-        import core  # noqa: PLC0415
+        import core
 
         assert os.path.realpath(core.__file__).startswith(tree + os.sep), core.__file__
         self.core_file = core.__file__
@@ -496,18 +491,18 @@ class InProcessFrontDoor:
         # "no such table: invocation_requests", and -- more quietly -- the runtime's own
         # `_arm_demand_set_for_entrance` swallows "no such table: obligation_sets" and returns
         # None, so entrance certification silently never runs on a first-ever turn.
-        from storage.migrations import run_migrations  # noqa: PLC0415
+        from storage.migrations import run_migrations
 
         run_migrations()
 
-        from apps.vool_agent import VoolAgent  # noqa: PLC0415
+        from apps.vool_agent import VoolAgent
 
         self.agent = VoolAgent(
             backend_name="red1-audit", device="openclaw-test", persona_id="default"
         )
 
     def send(self, prompt: str, chat_id: str) -> Served:
-        import tempfile  # noqa: PLC0415
+        import tempfile
 
         t0 = time.time()
         with tempfile.TemporaryDirectory() as workspace:
@@ -536,8 +531,8 @@ class InProcessFrontDoor:
             # because binding the caller's request is the ingress's job, not the runtime's. A
             # harness that skips it is not embedding the runtime, it is bypassing its front
             # door.
-            from core.invocation.ledger import accept_invocation  # noqa: PLC0415
-            from core.turn_contract import TURN_REQUEST_KEY, TurnRequest  # noqa: PLC0415
+            from core.invocation.ledger import accept_invocation
+            from core.turn_contract import TURN_REQUEST_KEY, TurnRequest
 
             accepted = accept_invocation(
                 external_kind="http",
@@ -572,7 +567,7 @@ class InProcessFrontDoor:
                 result = self.agent.run_once(
                     prompt, session_id_override=chat_id, source_context=ctx
                 )
-            except Exception as exc:  # noqa: BLE001 -- a transport failure is a finding
+            except Exception as exc:
                 served = Served(self.name, prompt, chat_id, "", {}, {}, time.time() - t0)
                 served.transport_error = f"{type(exc).__name__}: {exc}"
                 return served
@@ -583,7 +578,7 @@ class InProcessFrontDoor:
             # there is no transport, so the same authority is invoked directly -- never a
             # second finalizer, and never a hand-built certificate.
             try:
-                from core.web.api.runtime import _response_commit  # noqa: PLC0415
+                from core.web.api.runtime import _response_commit
 
                 commit = _response_commit(result, source_context=ctx)
             except Exception:

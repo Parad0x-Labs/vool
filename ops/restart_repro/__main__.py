@@ -68,7 +68,7 @@ def run_cycle(index: int, *, app_dir: Path, python_bin: str, root: Path, first_t
         boot1 = daemon.start(python_bin=python_bin)
         record["boot1_ready_at"] = boot1.get("started_at") or ""
 
-        t1_started = time.time()
+        time.time()
         turn1 = daemon.chat(
             f"Remember this code for our next exchange: {FIRST_MARKER}.",
             chat_id="restart-1",
@@ -129,7 +129,7 @@ def run_cycle(index: int, *, app_dir: Path, python_bin: str, root: Path, first_t
             }
             for e in events
         ]
-    except Exception as exc:  # noqa: BLE001 - record every cycle honestly
+    except Exception as exc:
         record["cycle_error"] = f"{type(exc).__name__}: {exc}"
     finally:
         record["stub_calls_full_log"] = stub.dump()

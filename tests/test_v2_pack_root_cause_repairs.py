@@ -14,23 +14,22 @@ the raw-output contract (fence unwrapped, no appended decoration).
 
 from __future__ import annotations
 
-from core.agent_runtime.answer_coverage import coverage_for, FAMILY_CURRENCY
+from core.agent_runtime.answer_coverage import FAMILY_CURRENCY, coverage_for
 from core.agent_runtime.fast_paths_currency import currency_fast_path
 from core.agent_runtime.fast_paths_machine import looks_like_machine_specs_question
+from core.conductor.node import ConductorNode, NodeLifecycle, NodeOutcome
 from core.conductor.realization import (
     BoundExecutionPlan,
     NonExecutionEvidence,
-    RealizationLedger,
+    NonExecutionReason,
     RealizationBinding,
+    RealizationLedger,
     RealizationState,
     RequirementRealization,
     reduce_bound_plan,
 )
-from core.conductor.node import ConductorNode, NodeLifecycle, NodeOutcome
-from core.conductor.realization import NonExecutionReason
 from core.execution.constants import asks_runtime_for_a_fact
 from core.raw_output_contract import parse_raw_output_contract
-
 
 # ── Class B: hardware word ≠ hardware question ──────────────────────────────
 
@@ -258,9 +257,10 @@ def test_multi_city_time_ask_answers_every_named_city():
     # THE operator's broken ask (watch session 2026-08-29T1150Z): answered
     # Rome only, Paris dropped. Sabotage: reduce the loop back to first-match
     # and this fails naming the dropped city.
-    from core.agent_runtime import fast_paths_utility as fpu
     import datetime
     from zoneinfo import ZoneInfo
+
+    from core.agent_runtime import fast_paths_utility as fpu
 
     frozen = datetime.datetime(2026, 8, 29, 14, 0, 0, tzinfo=ZoneInfo("Europe/Rome"))
     reply = fpu.date_time_fast_path(
@@ -275,9 +275,10 @@ def test_multi_city_time_ask_answers_every_named_city():
 
 
 def test_multi_city_time_zone_math_is_per_city():
-    from core.agent_runtime import fast_paths_utility as fpu
     import datetime
     from zoneinfo import ZoneInfo
+
+    from core.agent_runtime import fast_paths_utility as fpu
 
     frozen = datetime.datetime(2026, 8, 29, 14, 0, 0, tzinfo=ZoneInfo("Europe/Rome"))
     reply = fpu.date_time_fast_path(
@@ -291,9 +292,10 @@ def test_multi_city_time_zone_math_is_per_city():
 
 
 def test_single_city_and_no_place_clock_answers_unchanged():
-    from core.agent_runtime import fast_paths_utility as fpu
     import datetime
     from zoneinfo import ZoneInfo
+
+    from core.agent_runtime import fast_paths_utility as fpu
 
     frozen = datetime.datetime(2026, 8, 29, 14, 0, 0, tzinfo=ZoneInfo("Europe/Rome"))
     single = fpu.date_time_fast_path(

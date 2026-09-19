@@ -19,9 +19,9 @@ from core.brain_hive_dashboard import render_dashboard_html, render_not_found_ht
 from core.public_landing_page import render_public_landing_page_html
 from core.public_site_shell import redirect_to_canonical_public_host
 from core.public_status_page import render_public_status_page_html
+from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote
 
 from ..request_ids import log_http_request, resolve_request_id, response_headers_with_request_id
-from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote
 from .config import BrainHiveWatchServerConfig
 
 logger = logging.getLogger("vool.watch.http")

@@ -197,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         c_rc, c_failed, c_summary = controls[targets]
         this_control_ok = c_rc == 0 and not c_failed
         control_ok = control_ok and this_control_ok
-        rc, failed, summary = _run(targets, name)
+        _rc, failed, summary = _run(targets, name)
         bites = bool(failed) and this_control_ok
         verdicts.append(bites)
         out.append(f"{'BITES ' if bites else 'NO-BITE'} {name}: {what}")

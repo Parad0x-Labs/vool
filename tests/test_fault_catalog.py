@@ -341,7 +341,7 @@ def test_context_is_allowlisted_redacted_and_truncated():
     assert "sk-live" not in rendered
     assert "hunter2" not in rendered
     assert "Bearer abc" not in rendered
-    assert "saulius" not in rendered
+    assert "example-user" not in rendered  # the sanitized fixture home prefix must not leak
     assert "alice" not in rendered
     assert leaked["tool_name"] == "web.fetch", "safe structure that reproduction needs is kept"
     assert leaked["provider_id"] == "openrouter"

@@ -370,7 +370,7 @@ def test_the_settings_door_owns_the_threshold_and_rejecting_the_payment_releases
     assert status == 200, quoted
     companion = quoted["quote"]["fields"]["companion"]
     assert companion is not None and companion["amount_minor"] >= 3_000, quoted["quote"]["fields"]["dna_fee"]["collection"]
-    row = [r for r in _pending_state(daemon)["pending"] if r["proposal_id"] == pending["proposal_id"]][0]
+    row = next(r for r in _pending_state(daemon)["pending"] if r["proposal_id"] == pending["proposal_id"])
     assert row["companion_collection"]["state"] == "offered" and row["companion_collection"]["collection_id"] == companion["collection_id"]
     sends = node.distinct_sends()
     status, rejected = daemon.door("POST", "/api/wallet/reject", {"proposal_id": pending["proposal_id"]})

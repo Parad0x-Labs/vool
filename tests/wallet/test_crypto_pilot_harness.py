@@ -19,7 +19,7 @@ from tests.wallet._rig import DEVNET_GENESIS, MAINNET_GENESIS, ScriptedRpc, key_
 def _rpc(url: str, method: str, params: list | None = None) -> dict:
     body = json.dumps({"jsonrpc": "2.0", "id": 7, "method": method, "params": params or []}).encode()
     request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310 - loopback rig
+    with urllib.request.urlopen(request, timeout=5) as response:
         return json.loads(response.read())
 
 

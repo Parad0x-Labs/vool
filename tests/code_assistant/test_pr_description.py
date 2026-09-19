@@ -14,6 +14,8 @@ projection assembles the PR-ready text from the journal. The law this pack pins:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 

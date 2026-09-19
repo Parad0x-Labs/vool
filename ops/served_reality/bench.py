@@ -18,23 +18,24 @@ import hashlib
 import json
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from ops.served_reality.appstage import StagedApp, clone_staging, stage_app
 from ops.served_reality.classify import BenchError, ProductAssertionError
-from ops.served_reality.daemon import DaemonHandle, launch_daemon, read_pending_approvals, terminate_tree
+from ops.served_reality.daemon import DaemonHandle, launch_daemon, read_pending_approvals
 from ops.served_reality.provider_stub import ProviderStub, StubPlan
 from ops.served_reality.schema import (
     FAILURE_CLASS_VOOL,
-    CaseResult,
-    TurnIdentity,
     VERDICT_FAIL,
     VERDICT_PASS,
+    CaseResult,
+    TurnIdentity,
     WireRef,
 )
-from ops.served_reality.wire import HttpExchange, WireClient, WireLog, free_port
+from ops.served_reality.wire import HttpExchange, WireClient, WireLog
 
 TURN_TIMEOUT_S = 90.0
 
@@ -89,7 +90,7 @@ class TurnRecord:
 class CaseContext:
     """The API a corpus case drives. One instance per case."""
 
-    def __init__(self, rig: "BenchRig", result: CaseResult) -> None:
+    def __init__(self, rig: BenchRig, result: CaseResult) -> None:
         self.rig = rig
         self.result = result
         self.identities: list[TurnIdentity] = []
@@ -352,7 +353,6 @@ class BenchRig:
         if self.app_dir_override is not None:
             # Mutation runs launch a pre-patched copy; the SHA claim is about
             # the pristine staging it was cloned from.
-            from ops.served_reality.appstage import census_tree
 
             self.staged_for_manifest = {"path": str(self.app_dir_override), "mutated": True}
             app_dir = self.app_dir_override
@@ -439,7 +439,7 @@ class BenchRig:
         self.wire_log.close()
 
     # -- case driving -------------------------------------------------------
-    def run_case(self, case: "Case", provider_mode: str = "deterministic", product_sha: str = "") -> CaseResult:
+    def run_case(self, case: Case, provider_mode: str = "deterministic", product_sha: str = "") -> CaseResult:
         result = CaseResult(
             case_id=case.case_id,
             title=case.title,
@@ -463,7 +463,7 @@ class BenchRig:
                 stub_state["calls_before"] = len(self.stub.chat_calls())
             case.run(ctx)
             result.verdict = VERDICT_PASS
-        except Exception as exc:  # noqa: BLE001 - classified below
+        except Exception as exc:
             result.verdict = VERDICT_FAIL
             result.failure_class = classify_exception(exc)
             result.reason = str(exc)[:500]

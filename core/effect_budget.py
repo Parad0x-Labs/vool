@@ -1289,10 +1289,8 @@ def reserve_effect_units(
     except EffectBudgetRefusedError:
         raise
     except Exception as exc:
-        try:
+        with contextlib.suppress(Exception):
             conn.rollback()
-        except Exception:
-            pass
         with _STORE_LOCK:
             _STORE_FAILURES["count"] += 1
             _STORE_FAILURES["last_error"] = f"reserve: {type(exc).__name__}: {exc}"
@@ -1363,7 +1361,7 @@ def consume_reservation(reservation_id: str) -> bool:
             raise EffectBudgetRefusedError(
                 REFUSAL_STATE,
                 f"reservation {reservation_id!r} was released "
-                f"({str(row['settle_reason'] or 'released')}); a released unit "
+                f"({row['settle_reason'] or 'released'!s}); a released unit "
                 "cannot be consumed — the effect must re-reserve",
             )
         now_epoch = _utcnow_epoch()
@@ -1397,10 +1395,8 @@ def consume_reservation(reservation_id: str) -> bool:
     except EffectBudgetRefusedError:
         raise
     except Exception as exc:
-        try:
+        with contextlib.suppress(Exception):
             conn.rollback()
-        except Exception:
-            pass
         with _STORE_LOCK:
             _STORE_FAILURES["count"] += 1
             _STORE_FAILURES["last_error"] = f"consume: {type(exc).__name__}: {exc}"
@@ -1453,10 +1449,8 @@ def release_reservation(reservation_id: str, *, reason: str = "released") -> boo
         conn.commit()
         return True
     except Exception as exc:
-        try:
+        with contextlib.suppress(Exception):
             conn.rollback()
-        except Exception:
-            pass
         with _STORE_LOCK:
             _STORE_FAILURES["count"] += 1
             _STORE_FAILURES["last_error"] = f"release: {type(exc).__name__}: {exc}"
@@ -1601,10 +1595,8 @@ def consume_effect_reservations(effect_id: str, *, budget_class: str = "") -> in
     except EffectBudgetRefusedError:
         raise
     except Exception as exc:
-        try:
+        with contextlib.suppress(Exception):
             conn.rollback()
-        except Exception:
-            pass
         with _STORE_LOCK:
             _STORE_FAILURES["count"] += 1
             _STORE_FAILURES["last_error"] = f"consume effect: {type(exc).__name__}: {exc}"
@@ -1920,10 +1912,8 @@ def reconcile_effect_cost(
     except EffectBudgetRefusedError:
         raise
     except Exception as exc:
-        try:
+        with contextlib.suppress(Exception):
             conn.rollback()
-        except Exception:
-            pass
         with _STORE_LOCK:
             _STORE_FAILURES["count"] += 1
             _STORE_FAILURES["last_error"] = f"cost reconcile: {type(exc).__name__}: {exc}"
@@ -1994,13 +1984,8 @@ def reset_effect_budget_process_state() -> None:
 __all__ = [
     "BUDGET_CLASSES",
     "BUDGET_SCOPES",
-    "BudgetAdjustment",
-    "BudgetRule",
     "EVENT_RETENTION_SECONDS",
-    "EffectBudgetRefusedError",
     "INSTANCE_STALE_SECONDS",
-    "OperatorBudgetToken",
-    "PreviewResult",
     "REFUSAL_AUTHORITY",
     "REFUSAL_BUDGET_EXCEEDED",
     "REFUSAL_STATE",
@@ -2010,8 +1995,6 @@ __all__ = [
     "RESERVATION_RELEASED",
     "RESERVATION_RESERVED",
     "RESERVATION_RETENTION_SECONDS",
-    "ReservationReceipt",
-    "RuleStatus",
     "SCOPE_AGENT",
     "SCOPE_GLOBAL",
     "SCOPE_PRECEDENCE",
@@ -2023,28 +2006,34 @@ __all__ = [
     "SCOPE_TURN",
     "SCOPE_WINDOW",
     "WALLET_CONTRACT_SEQUENCE",
+    "BudgetAdjustment",
+    "BudgetRule",
     "EffectBudgetContract",
+    "EffectBudgetRefusedError",
+    "OperatorBudgetToken",
+    "PreviewResult",
+    "ReservationReceipt",
+    "RuleStatus",
     "active_budgets",
     "apply_operator_adjustment",
     "bind_reservation_effect",
     "budget_events",
     "budget_status",
-    "budget_status",
     "budget_store_status",
-    "wallet_effect_budget_contract",
-    "reconcile_effect_cost",
-    "consume_reservation",
     "consume_effect_reservations",
+    "consume_reservation",
     "current_budget_instance_id",
     "effect_reservation_states",
     "gateway_budget_class",
     "grant_operator_budget_authority",
     "preview_effect",
+    "reconcile_effect_cost",
     "reconcile_stale_reservations",
     "release_reservation",
     "release_unconsumed_for_owner",
-    "reset_effect_budget_process_state",
     "reservation_rows",
     "reserve_effect_units",
+    "reset_effect_budget_process_state",
     "shutdown_effect_budget_instance",
+    "wallet_effect_budget_contract",
 ]

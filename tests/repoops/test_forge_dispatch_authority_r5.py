@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from tests.repoops._harness import build_repo, context, door, git, head
-from tests.repoops.test_forge_actions import (  # noqa: F401 -- world is a fixture
+from tests.repoops.test_forge_actions import (
     _armed_session,
     _calls,
     _comment_payload,

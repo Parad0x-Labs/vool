@@ -30,7 +30,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -60,7 +60,7 @@ def test_reviewed_attendees_are_named_in_the_preview_and_the_receipt(home, monke
     try:
         _choose_google(base)
         session = "attendees"
-        proposal = _run('propose "Roadmap review" on 2026-09-22 15:00 Europe/Berlin for 45m with ana@fixture.test and bo@fixture.test',
+        proposal = _run('propose "Roadmap review" on 2026-09-22 15:00 Europe/Athens for 45m with ana@fixture.test and bo@fixture.test',
                         session_id=session)
         assert proposal.status == "approval_required", proposal.response_text
         assert "ana@fixture.test" in proposal.response_text and "bo@fixture.test" in proposal.response_text, proposal.response_text
@@ -79,8 +79,8 @@ def test_reviewed_attendees_are_named_in_the_preview_and_the_receipt(home, monke
         assert "Invitation requests" in approved.response_text and "accepted" in approved.response_text, approved.response_text
         assert "not each guest's delivery" in approved.response_text, approved.response_text
 
-        inspected = _run(f'show the event "Roadmap review"', session_id=session)
-        assert inspected.ok and "ana@fixture.test" in inspected.response_text.lower() or inspected.ok, inspected.response_text
+        inspected = _run('show the event "Roadmap review"', session_id=session)
+        assert (inspected.ok and "ana@fixture.test" in inspected.response_text.lower()) or inspected.ok, inspected.response_text
     finally:
         server.shutdown(); server.server_close()
 
@@ -94,7 +94,7 @@ def test_no_attendees_no_invitation_and_deduplication(home, monkeypatch):
     try:
         _choose_google(base)
         session = "attendees-ctl"
-        plain = _run('propose "Solo work" on 2026-09-23 09:00 Europe/Berlin for 30m', session_id=session)
+        plain = _run('propose "Solo work" on 2026-09-23 09:00 Europe/Athens for 30m', session_id=session)
         assert "no invitations are requested" in plain.response_text, plain.response_text
         approved = _run(f"approve calendar {plain.details['action_id']}", session_id=session)
         assert approved.ok and not approved.details.get("attendees"), approved.response_text
@@ -102,7 +102,7 @@ def test_no_attendees_no_invitation_and_deduplication(home, monkeypatch):
         assert row["event"].get("attendees") is None
         assert row.get("invitation_request") is None, "no attendees means no invitation request at all"
 
-        twice = _run('propose "Dedupe" on 2026-09-23 11:00 Europe/Berlin for 30m with cy@fixture.test and CY@fixture.test',
+        twice = _run('propose "Dedupe" on 2026-09-23 11:00 Europe/Athens for 30m with cy@fixture.test and CY@fixture.test',
                      session_id=session + "b")
         assert twice.response_text.count("cy@fixture.test") == 1, twice.response_text
         approved2 = _run(f"approve calendar {twice.details['action_id']}", session_id=session + "b")
@@ -128,7 +128,7 @@ def test_caldav_attendees_rfc5545_lines_and_graph_recipients(home, monkeypatch):
         calendar_accounts.set_opt_in(account["account_id"], sync_enabled=True, alerts_enabled=False)
 
         session = "attendees-caldav"
-        proposal = _run('propose "Vendor sync" on 2026-09-24 10:00 Europe/Berlin for 30m with dee@fixture.test', session_id=session)
+        proposal = _run('propose "Vendor sync" on 2026-09-24 10:00 Europe/Athens for 30m with dee@fixture.test', session_id=session)
         assert "dee@fixture.test" in proposal.response_text and "RFC 5545 ATTENDEE" in proposal.response_text, proposal.response_text
         approved = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
         assert approved.ok, approved.response_text
@@ -141,7 +141,7 @@ def test_caldav_attendees_rfc5545_lines_and_graph_recipients(home, monkeypatch):
         assert calendar_accounts.discover_calendars(account_g["account_id"])["ok"]
         assert calendar_accounts.select_calendar(account_g["account_id"], "team-graph", selected=True, default_write=True)["ok"]
         calendar_accounts.set_opt_in(account_g["account_id"], sync_enabled=True, alerts_enabled=False)
-        g = _run('propose "Partner sync" on 2026-09-25 13:00 Europe/Berlin for 30m with ef@fixture.test', session_id=session + "g")
+        g = _run('propose "Partner sync" on 2026-09-25 13:00 Europe/Athens for 30m with ef@fixture.test', session_id=session + "g")
         assert g.status == "approval_required" and "ef@fixture.test" in g.response_text, g.response_text
         ga = _run(f"approve calendar {g.details['action_id']}", session_id=session + "g")
         assert ga.ok, ga.response_text

@@ -14,6 +14,7 @@ Trust model:
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import json
 from pathlib import Path
@@ -65,10 +66,8 @@ def add_trusted_fingerprint(fingerprint: str) -> None:
     if fingerprint not in current:
         current.append(fingerprint)
     path.write_text(json.dumps({"fingerprints": current}, indent=1) + "\n")
-    try:
+    with contextlib.suppress(OSError):
         path.chmod(0o600)
-    except OSError:
-        pass
 
 
 def sign_manifest(manifest_bytes: bytes) -> dict[str, Any]:

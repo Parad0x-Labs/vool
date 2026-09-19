@@ -49,7 +49,7 @@ class ReaderError(Exception):
         }
 
 
-class ReaderUnavailable(ReaderError):  # noqa: N818 — a typed OUTCOME (format BLOCKED), not an error suffix
+class ReaderUnavailable(ReaderError):
     """No decoder for this format on this machine. The format is BLOCKED, not implemented-and-empty.
 
     Raised *before* any byte is interpreted, so a caller can never mistake the result for a read
@@ -59,7 +59,7 @@ class ReaderUnavailable(ReaderError):  # noqa: N818 — a typed OUTCOME (format 
     code = "decoder_unavailable"
 
 
-class ReaderRefused(ReaderError):  # noqa: N818 — a typed REFUSAL about the FILE, not an error suffix
+class ReaderRefused(ReaderError):
     """The bytes were reached and refused: password-protected, corrupt, hostile, or over a bound.
 
     A refusal is a fact about the file, and it is actionable: the operator learns which file, what
@@ -69,7 +69,7 @@ class ReaderRefused(ReaderError):  # noqa: N818 — a typed REFUSAL about the FI
     code = "reader_refused"
 
 
-class ReaderFailed(ReaderError):  # noqa: N818 — matches the sibling outcomes above
+class ReaderFailed(ReaderError):
     """The decoder ran and failed. A sandbox kill, a timeout, an internal decoder fault."""
 
     code = "reader_failed"

@@ -27,10 +27,9 @@ import json
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 from core.device_link import identity
-
 
 # --------------------------------------------------------------------------
 # Envelopes (unchanged from tether control)
@@ -50,7 +49,7 @@ ENVELOPE_ORDER = [
     ENVELOPE_FULL_REMOTE_CONTROL,
 ]
 
-VERB_CATALOG: Dict[str, str] = {
+VERB_CATALOG: dict[str, str] = {
     "fs.list": "list a directory",
     "fs.read": "read a file",
     "fs.write": "write/create a file",
@@ -77,7 +76,7 @@ VERB_CATALOG: Dict[str, str] = {
 }
 
 # Cumulative ladder: each rung ADDS its verbs to everything below it.
-ENVELOPE_VERBS: Dict[str, set] = {
+ENVELOPE_VERBS: dict[str, set] = {
     ENVELOPE_VIEW_ONLY: {
         "fs.list", "fs.read", "git.status", "git.log", "git.diff",
         "app.list", "screen.snapshot", "screen.view", "clip.read", "vool.action",
@@ -109,7 +108,7 @@ TetherGrantError = GrantError
 
 def verbs_for_envelope(envelope: str) -> set:
     if envelope not in ENVELOPE_ORDER:
-        raise ValueError("unknown envelope: %r" % (envelope,))
+        raise ValueError(f"unknown envelope: {envelope!r}")
     granted = set()
     for step in ENVELOPE_ORDER[: ENVELOPE_ORDER.index(envelope) + 1]:
         granted |= ENVELOPE_VERBS[step]
@@ -173,12 +172,12 @@ def issue_grant(
 ) -> dict:
     """Mint a grant signed by the desktop authority's Ed25519 identity key."""
     if envelope not in ENVELOPE_ORDER:
-        raise GrantError("unknown envelope: %r" % (envelope,))
+        raise GrantError(f"unknown envelope: {envelope!r}")
     if scope_kind not in (
         SCOPE_ONE_ACTION, SCOPE_ONE_SESSION, SCOPE_ONE_PROJECT,
         SCOPE_ONE_PATHS, SCOPE_UNTIL_REVOKED,
     ):
-        raise GrantError("unknown scope kind: %r" % (scope_kind,))
+        raise GrantError(f"unknown scope kind: {scope_kind!r}")
     if scope_kind == SCOPE_ONE_ACTION:
         max_uses = 1
     if scope_kind == SCOPE_ONE_PROJECT and not allowed_paths:
@@ -254,10 +253,10 @@ class GrantRegistry:
     """Active-grant bookkeeping with use counting and instant revocation."""
 
     def __init__(self):
-        self._grants: Dict[str, dict] = {}
-        self._used_counts: Dict[str, int] = {}
+        self._grants: dict[str, dict] = {}
+        self._used_counts: dict[str, int] = {}
         self._nonces: set = set()
-        self._revoked: Dict[str, dict] = {}
+        self._revoked: dict[str, dict] = {}
 
     def register(self, grant: dict) -> None:
         self._grants[grant["grant_id"]] = grant
@@ -336,20 +335,20 @@ class GrantRegistry:
         return False
 
     def authorize(self, *, grant: dict, verb: str, params: dict, nonce: str,
-                  timestamp: str, signature: str) -> Tuple[bool, str, dict]:
+                  timestamp: str, signature: str) -> tuple[bool, str, dict]:
         """Full decision pipeline. Returns (ok, reason, decision_detail)."""
         gid = str(grant.get("grant_id") or "")
         detail = {"envelope": grant.get("envelope"), "scope_kind": grant.get("scope_kind")}
 
         if self.is_revoked(gid):
-            return False, "grant revoked: %s" % self._revoked[gid]["reason"], detail
+            return False, "grant revoked: {}".format(self._revoked[gid]["reason"]), detail
 
         if not verify_grant_self_signature(grant):
             return False, "grant signature invalid (not minted by this desktop)", detail
 
         expires_at = parse_iso(str(grant.get("expires_at") or ""))
         if expires_at is not None and expires_at <= _utcnow():
-            return False, "grant expired at %s" % grant["expires_at"], detail
+            return False, "grant expired at {}".format(grant["expires_at"]), detail
 
         used = self._used_counts.get(gid, 0)
         if used >= int(grant["max_uses"]):
@@ -371,13 +370,12 @@ class GrantRegistry:
             return False, "request HMAC invalid (wrong grant secret or tampered body)", detail
 
         if verb not in VERB_CATALOG:
-            return False, "unknown verb: %r" % (verb,), detail
+            return False, f"unknown verb: {verb!r}", detail
 
         envelope = str(grant.get("envelope") or "")
         if verb not in verbs_for_envelope(envelope):
             return False, (
-                "verb %r requires envelope %s; grant carries %s"
-                % (verb, envelope_for_verb(verb), envelope)), detail
+                f"verb {verb!r} requires envelope {envelope_for_verb(verb)}; grant carries {envelope}"), detail
 
         err = check_scope_paths(grant, params)
         if err:
@@ -412,5 +410,5 @@ def check_scope_paths(grant: dict, params: dict) -> Optional[str]:
     for cand in candidates:
         real = os.path.realpath(os.path.expanduser(cand))
         if not any(real == r or real.startswith(r.rstrip(os.sep) + os.sep) for r in norm_roots):
-            return "path %r escapes grant scope roots" % cand
+            return f"path {cand!r} escapes grant scope roots"
     return None

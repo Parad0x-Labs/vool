@@ -16,17 +16,16 @@ from types import SimpleNamespace
 from unittest import mock
 
 from core import policy_engine
-from core.execution_gate import ExecutionGate
-from core.runtime_execution_tools import (
-    execute_runtime_tool,
-    _safe_machine_roots,
-    _machine_home,
-    _home_relative_label,
-)
 from core.agent_runtime.fast_paths_machine import (
     maybe_handle_direct_machine_write_request,
 )
-
+from core.execution_gate import ExecutionGate
+from core.runtime_execution_tools import (
+    _home_relative_label,
+    _machine_home,
+    _safe_machine_roots,
+    execute_runtime_tool,
+)
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -387,6 +386,7 @@ class SabotageBase(unittest.TestCase):
     @classmethod
     def _reload_module(cls):
         import importlib
+
         import core.runtime_execution_tools
         importlib.reload(core.runtime_execution_tools)
 

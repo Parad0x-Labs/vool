@@ -4,6 +4,38 @@ import unittest
 
 from core.dashboard.workstation import render_workstation_dashboard_html
 from core.dashboard.workstation_render import render_workstation_document
+from core.dashboard.workstation_render_shell_card_styles import (
+    WORKSTATION_RENDER_SHELL_CARD_STYLES,
+)
+from core.dashboard.workstation_render_shell_components import (
+    WORKSTATION_RENDER_SHELL_COMPONENTS,
+)
+from core.dashboard.workstation_render_shell_footer_styles import (
+    WORKSTATION_RENDER_SHELL_FOOTER_STYLES,
+)
+from core.dashboard.workstation_render_shell_inspector_styles import (
+    WORKSTATION_RENDER_SHELL_INSPECTOR_STYLES,
+)
+from core.dashboard.workstation_render_shell_layout import (
+    WORKSTATION_RENDER_SHELL_LAYOUT,
+)
+from core.dashboard.workstation_render_shell_learning_styles import (
+    WORKSTATION_RENDER_SHELL_LEARNING_STYLES,
+)
+from core.dashboard.workstation_render_shell_primitives import (
+    WORKSTATION_RENDER_SHELL_PRIMITIVES,
+)
+from core.dashboard.workstation_render_shell_responsive_styles import (
+    WORKSTATION_RENDER_SHELL_RESPONSIVE_STYLES,
+)
+from core.dashboard.workstation_render_shell_stat_styles import (
+    WORKSTATION_RENDER_SHELL_STAT_STYLES,
+)
+from core.dashboard.workstation_render_shell_workbench_styles import (
+    WORKSTATION_RENDER_SHELL_WORKBENCH_STYLES,
+)
+from core.dashboard.workstation_render_styles import WORKSTATION_RENDER_STYLES
+from core.dashboard.workstation_render_tab_markup import WORKSTATION_RENDER_TAB_MARKUP
 from core.dashboard.workstation_render_voolbook_content_styles import (
     WORKSTATION_RENDER_VOOLBOOK_CONTENT_STYLES,
 )
@@ -40,38 +72,6 @@ from core.dashboard.workstation_render_voolbook_feed_styles import (
 from core.dashboard.workstation_render_voolbook_mode_styles import (
     WORKSTATION_RENDER_VOOLBOOK_MODE_STYLES,
 )
-from core.dashboard.workstation_render_shell_card_styles import (
-    WORKSTATION_RENDER_SHELL_CARD_STYLES,
-)
-from core.dashboard.workstation_render_shell_components import (
-    WORKSTATION_RENDER_SHELL_COMPONENTS,
-)
-from core.dashboard.workstation_render_shell_footer_styles import (
-    WORKSTATION_RENDER_SHELL_FOOTER_STYLES,
-)
-from core.dashboard.workstation_render_shell_inspector_styles import (
-    WORKSTATION_RENDER_SHELL_INSPECTOR_STYLES,
-)
-from core.dashboard.workstation_render_shell_layout import (
-    WORKSTATION_RENDER_SHELL_LAYOUT,
-)
-from core.dashboard.workstation_render_shell_learning_styles import (
-    WORKSTATION_RENDER_SHELL_LEARNING_STYLES,
-)
-from core.dashboard.workstation_render_shell_primitives import (
-    WORKSTATION_RENDER_SHELL_PRIMITIVES,
-)
-from core.dashboard.workstation_render_shell_responsive_styles import (
-    WORKSTATION_RENDER_SHELL_RESPONSIVE_STYLES,
-)
-from core.dashboard.workstation_render_shell_stat_styles import (
-    WORKSTATION_RENDER_SHELL_STAT_STYLES,
-)
-from core.dashboard.workstation_render_shell_workbench_styles import (
-    WORKSTATION_RENDER_SHELL_WORKBENCH_STYLES,
-)
-from core.dashboard.workstation_render_styles import WORKSTATION_RENDER_STYLES
-from core.dashboard.workstation_render_tab_markup import WORKSTATION_RENDER_TAB_MARKUP
 from core.dashboard.workstation_state import build_workstation_initial_state_payload
 
 

@@ -7,7 +7,7 @@ can pass a rule it exceeds, whichever order they are checked in.
 from __future__ import annotations
 
 from core import effect_budget as eb
-from tests.effect_budget.conftest import *  # noqa: F401,F403 — fixtures
+from tests.effect_budget.conftest import *  # noqa: F403 — fixtures
 
 
 def _res(budget_class: str, **identity) -> None:

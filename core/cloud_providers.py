@@ -289,10 +289,7 @@ def env_key_present(provider_id: str) -> bool:
     the value."""
     import os
 
-    for name in key_env_names(provider_id):
-        if str(os.environ.get(name) or "").strip():
-            return True
-    return False
+    return any(str(os.environ.get(name) or "").strip() for name in key_env_names(provider_id))
 
 
 def provider_for_slot(slot: str) -> str:

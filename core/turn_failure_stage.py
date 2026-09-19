@@ -182,7 +182,7 @@ def _as_int(value: Any) -> int:
 def _receipt_source_count(event: dict[str, Any]) -> int:
     """Sources a `web_retrieval_completed` event reports: a flat typed receipt's `source_count`, or
     the sum over the live-data plan's nested `receipts`."""
-    if str(event.get("schema") or "") == "vool.web_retrieval_receipt.v1" or "source_count" in event and not isinstance(event.get("receipts"), list):
+    if str(event.get("schema") or "") == "vool.web_retrieval_receipt.v1" or ("source_count" in event and not isinstance(event.get("receipts"), list)):
         return _as_int(event.get("source_count"))
     nested = event.get("receipts")
     if isinstance(nested, list):

@@ -41,13 +41,10 @@ from typing import Any
 
 from core.incomplete_answer import inspect_answer_completeness
 from core.response_constraints import (
-    CONSTRAINT_ORIGINS,
     SURFACE_RENDERS_PRESENTATION,
-    _MARKDOWN_TABLE_RE,
     _presentation_answer_has_format,
     response_constraint_from_metadata,
 )
-from core.turn_ir import ResponseConstraint
 
 #: The closed automatic vocabulary. Superset of nothing: ``prose`` and the
 #: auto-derived shapes exist only here; the explicit vocabulary in
@@ -279,9 +276,7 @@ def _answer_has_elected_shape(text: str, elected: str) -> bool:
         return count_ordered_marker_lines(cleaned) >= 2
     if elected in ("table", "timeline", "tree"):
         return _presentation_answer_has_format(cleaned, elected)
-    if elected == "prose":
-        return True
-    return False
+    return elected == "prose"
 
 
 def _is_matrix_table(text: str) -> bool:
@@ -395,9 +390,7 @@ def _orderable_date_keys(line: str) -> set[tuple[int, ...]]:
         month = re.match(r"[A-Za-z]+", token)
         if numeric:
             parts = re.split(r"[-/.]", token)
-            if len(parts[2]) == 4:
-                keys.add((int(parts[2]), int(parts[1]), int(parts[0])))
-            elif parts[2].startswith(("19", "20")):
+            if len(parts[2]) == 4 or parts[2].startswith(("19", "20")):
                 keys.add((int(parts[2]), int(parts[1]), int(parts[0])))
         elif year and month and month.group(0).casefold()[:3] in _MONTHS:
             keys.add((int(year.group(0)), _MONTHS[month.group(0).casefold()[:3]], 0))

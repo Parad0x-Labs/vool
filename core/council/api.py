@@ -183,7 +183,7 @@ def _start_run_thread(
         original_pin = read_current_pin(base_url)
         try:
             orchestrator.run()
-        except Exception as exc:  # noqa: BLE001 — a crashed run is stated, never hidden
+        except Exception as exc:
             orchestrator.store.append_event("run_crashed", error=f"{type(exc).__name__}: {exc}")
             orchestrator.store.write_state({
                 "state": "crashed",

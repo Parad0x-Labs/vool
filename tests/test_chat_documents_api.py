@@ -207,7 +207,11 @@ def test_oversized_binary_and_non_utf8_pastes_fail_visibly_at_the_door(data: byt
 
 def test_a_document_only_turn_is_answered_truthfully_it_is_kept_not_dropped() -> None:
     """The front-door gate for a turn with no request must not claim a pasted document was dropped."""
-    from core.agent_runtime.empty_turn import describe_turn_attachments, empty_turn_reply, turn_carries_retained_document
+    from core.agent_runtime.empty_turn import (
+        describe_turn_attachments,
+        empty_turn_reply,
+        turn_carries_retained_document,
+    )
 
     app = _app()
     _, payload = _paste(app)

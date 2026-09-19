@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.chat_page_js_harness import DOM, run_node, script
-from tests.usepod.test_usepod_money_law import law, _mint_grant, _approved_consent, MODEL
+from tests.usepod.test_usepod_money_law import MODEL, _approved_consent, _mint_grant, law
 
 
 @pytest.fixture(autouse=True)
@@ -21,9 +21,9 @@ def _prepaid(monkeypatch, account):
 
 
 def test_expired_real_grant_requires_fresh_explicit_consent(law, monkeypatch):
-    from core.usepod import spend_approval as s
     from core.effect_budget_money import money_grants
     from core.mode_permission_policy import resolve_approval
+    from core.usepod import spend_approval as s
     aid = _approved_consent(law, monkeypatch)
     first = s.confirm_spend_grant(aid)
     old = next(g for g in money_grants() if g.grant_id == first['grant_id'])
@@ -46,9 +46,9 @@ def test_expired_real_grant_requires_fresh_explicit_consent(law, monkeypatch):
 
 
 def test_preflight_uses_account_model_revocation_and_real_remaining_envelope(law, monkeypatch):
-    from core.usepod import spend_approval as s
     from core.effect_budget import grant_operator_budget_authority
     from core.effect_budget_money import revoke_money_authority
+    from core.usepod import spend_approval as s
     grant = _mint_grant()
     _prepaid(monkeypatch, 'different-account')
     assert s.prepaid_spend_readiness(MODEL)['state'] == 'missing'

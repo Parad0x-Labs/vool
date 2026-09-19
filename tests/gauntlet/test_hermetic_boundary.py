@@ -227,7 +227,7 @@ def test_a_parent_monkeypatch_cannot_be_claimed_as_a_child_mutation(monkeypatch)
     the child's evidence, every mutation result from here on would be suspect.
     """
     import core.runtime_evidence as parent_module
-    from core.runtime_evidence import _ACTIVITY_WINDOW  # noqa: F401 - parent-side import is the point
+    from core.runtime_evidence import _ACTIVITY_WINDOW
 
     monkeypatch.setattr(parent_module, "_ACTIVITY_WINDOW", 999999, raising=True)
     assert parent_module._ACTIVITY_WINDOW == 999999

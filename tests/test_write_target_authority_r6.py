@@ -28,7 +28,7 @@ from core.mode_permission_policy import (
     grant_internal_authority,
 )
 from tests.repoops._harness import context, door
-from tests.repoops.test_forge_actions import world  # noqa: F401 -- fixture
+from tests.repoops.test_forge_actions import world
 from tests.test_approval_destination_binding_r5 import BUGGY_MONEY, FIXED_MONEY, MONEY, _approved, _step
 
 ALLOW, PROMPT = PermissionEffect.ALLOW, PermissionEffect.REQUIRE_APPROVAL

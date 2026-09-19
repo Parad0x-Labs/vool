@@ -44,7 +44,6 @@ from core.agent_runtime.research_tool_loop_facade import (
     _MAX_MODEL_ROUNDS_PER_TURN,
 )
 
-
 # Real workspace files used by the tools.
 FILES = {
     "file_a.py": "UNIQ_00\n",
@@ -497,8 +496,7 @@ def test_L12_identical_state_terminates() -> None:
     ws = _make_workspace()
     # 12 scripts — enough to show that without the gate, the loop would
     # consume all 12 rounds.  With the gate, it stops after ≤3.
-    names = list(FILES.keys()) + ["file_e.py", "file_f.py", "file_g.py", "file_h.py",
-                                  "file_i.py", "file_j.py", "file_k.py", "file_l.py"]
+    names = [*list(FILES.keys()), "file_e.py", "file_f.py", "file_g.py", "file_h.py", "file_i.py", "file_j.py", "file_k.py", "file_l.py"]
     for name in names:
         if name not in FILES:
             (ws / name).write_text(f"# {name}\nUNIQ_{name}\n", encoding="utf-8")

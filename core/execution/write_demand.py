@@ -411,7 +411,11 @@ def resolve_write_demand(text: str, *, workspace_root: str = "") -> WriteDemand 
 
     base_dir = ""
     try:
-        from core.execution.planner import _extract_workspace_parent_directory, _DIRECTORY_CREATE_MARKERS, _extract_workspace_bootstrap_path
+        from core.execution.planner import (
+            _DIRECTORY_CREATE_MARKERS,
+            _extract_workspace_bootstrap_path,
+            _extract_workspace_parent_directory,
+        )
 
         # Only a sentence that WRITES may name the destination folder. Read over the whole
         # message, "Create a.txt containing hi. Also, what is the weather in Rome right now?"
@@ -592,7 +596,6 @@ def resolve_write_demand(text: str, *, workspace_root: str = "") -> WriteDemand 
 
     append_first = _APPEND_FILE_RE.search(raw)
     if append_first is not None:
-        from core.execution.planner import _recover_last_workspace_path_from_history
 
         raw_path = str(append_first.group("path") or "").strip()
         if not raw_path:

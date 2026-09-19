@@ -152,7 +152,7 @@ def test_unsourced_live_value_answer_is_still_replaced():
     assert "would be invented" in final_text
 
 
-# ------------------------------------------------------------------------------------ 
+# ------------------------------------------------------------------------------------
 # The five materially different controls from the 2026-09-18 follow-up: the law is that
 # supplied premises and supported computations CAN be published -- never that any output from
 # a supplied-data turn is automatically supported. Each control below is a DIFFERENT shape

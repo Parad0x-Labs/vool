@@ -387,9 +387,9 @@ def render_reconstructed_answer(
     reader can mistake restored history for a this-turn observation. Recall is licensed by the
     request not requiring a current reading -- never by manufactured evidence.
     """
+    from core.agent_runtime.live_data_render import render_live_data_answer
     from core.attempt_retry import _subtask_from_row
     from core.live_data_plan import LiveDataPlan, SubtaskLifecycle, SubtaskOutcome
-    from core.agent_runtime.live_data_render import render_live_data_answer
 
     plan_id = str(attempt.get("plan_id") or "reconstructed")
     outcomes: list[SubtaskOutcome] = []

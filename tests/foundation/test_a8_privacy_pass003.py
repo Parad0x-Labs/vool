@@ -98,8 +98,8 @@ def _erase(fid):
 def _make_delay_gate(sha_of_payload):
     """Deterministic interleave: while armed, a governed-hash call on thread
     'p3-racer' parks until released, returning its PRE-ERASE verdict."""
-    from core.finalization import payload_availability_for_hash as orig_fn
     import core.finalization as fin
+    from core.finalization import payload_availability_for_hash as orig_fn
 
     state = {"armed": False, "entered": threading.Event(), "release": threading.Event()}
 
@@ -137,10 +137,12 @@ def test_u1_sync_task_result_lane_cannot_resurrect_after_erase(a8_env):
     P = "u1 sync secret ROMEO-2222"
     fid = _admit_finalize(P)["finalization_id"]
     import uuid
-    from datetime import datetime, timezone as _tz
-    from storage.db import get_connection
-    from network.assist_router import _store_task_result
+    from datetime import datetime
+    from datetime import timezone as _tz
+
     from network.assist_models import TaskResult
+    from network.assist_router import _store_task_result
+    from storage.db import get_connection
 
     task_id = f"task-u1-{uuid.uuid4().hex[:12]}"
     conn = get_connection()
@@ -203,12 +205,12 @@ def test_u2_runtime_event_and_checkpoint_writers_cannot_resurrect_after_erase(a8
     fid = _admit_finalize(P)["finalization_id"]
     from core.runtime_continuity import (
         CheckpointTransitionRefused,
+        _conn,
         append_runtime_event,
         create_runtime_checkpoint,
         get_runtime_checkpoint,
         update_runtime_checkpoint,
     )
-    from core.runtime_continuity import _conn
 
     # event leg: parked pre-erase verdict must not durably land erased bytes
     gate = _make_delay_gate("sha256:" + _sha_hex(P))
@@ -241,7 +243,7 @@ def test_u2_runtime_event_and_checkpoint_writers_cannot_resurrect_after_erase(a8
     ckpt = create_runtime_checkpoint(session_id="s-u2", request_text="resume u2")
     with pytest.raises(CheckpointTransitionRefused):
         update_runtime_checkpoint(ckpt["checkpoint_id"], final_response=P, status="completed")
-    assert P != str(get_runtime_checkpoint(ckpt["checkpoint_id"])["final_response"] or "")
+    assert str(get_runtime_checkpoint(ckpt["checkpoint_id"])["final_response"] or "") != P
 
 
 def test_u2b_parked_checkpoint_writer_cannot_commit_after_erase(a8_env):
@@ -252,11 +254,11 @@ def test_u2b_parked_checkpoint_writer_cannot_commit_after_erase(a8_env):
     fid = _admit_finalize(P)["finalization_id"]
     from core.runtime_continuity import (
         CheckpointTransitionRefused,
+        _conn,
         create_runtime_checkpoint,
         get_runtime_checkpoint,
         update_runtime_checkpoint,
     )
-    from core.runtime_continuity import _conn
 
     ckpt = create_runtime_checkpoint(session_id="s-u2b", request_text="park me")
 
@@ -369,7 +371,7 @@ def test_u4_unlineaged_nodes_fts_memory_blocks_die_on_erase(a8_env):
         return out
 
     before = residue()
-    assert any(P_MAIN == n for n in before["nodes"]) and len(before["nodes"]) == 2
+    assert any(n == P_MAIN for n in before["nodes"]) and len(before["nodes"]) == 2
 
     result = _erase(fid)
     assert result["transitioned"] and result["sweep_complete"], result["sweep"]
@@ -387,8 +389,9 @@ def test_u4_unlineaged_nodes_fts_memory_blocks_die_on_erase(a8_env):
     assert "CANARY-P3-U4" not in prompt_view
 
     # FTS derivative is co-deleted
-    from core.runtime_paths import data_path
     import sqlite3 as _sq
+
+    from core.runtime_paths import data_path
 
     mconn = _sq.connect(data_path("memory", "vool_memory.db"))
     try:
@@ -519,7 +522,7 @@ def test_u6_checkpoint_state_json_shadow_and_interrupted_retention_die(a8_env):
 def test_u7_details_json_and_last_message_gated_at_rest_and_serve(a8_env):
     P = "u7 runtime secret WHISKEY-8888"
     fid = _admit_finalize(P)["finalization_id"]
-    from core.finalization import set_availability, AVAILABILITY_WITHHELD
+    from core.finalization import AVAILABILITY_WITHHELD, set_availability
     from core.runtime_continuity import (
         append_runtime_event,
         list_runtime_session_events,
@@ -565,8 +568,8 @@ def test_u7_details_json_and_last_message_gated_at_rest_and_serve(a8_env):
 def test_u8_operator_snapshot_archive_reader_suppresses_withheld_bytes(a8_env):
     P = "u8 archive secret XRAY-9999"
     fid = _admit_finalize(P)["finalization_id"]
+    from core.finalization import AVAILABILITY_WITHHELD, set_availability
     from storage.dialogue_memory import archive_dialogue_topic, recent_archived_dialogue_topics
-    from core.finalization import set_availability, AVAILABILITY_WITHHELD
 
     archive_dialogue_topic(
         "s-u8",
@@ -629,9 +632,9 @@ def test_u9_receipt_oracle_keyed_and_legacy_unsalted_suppressed(a8_env):
     assert result["sweep_complete"]
     stored = "\n".join(l for l in ledger.read_text().splitlines() if l.strip())
     # low-entropy dictionary attack against EVERY retained digest form fails
-    for guess in DICT + [TARGET]:
+    for guess in [*DICT, TARGET]:
         assert guess not in stored.replace("erasure_digest_suppressed", "")
-    assert '"response_hash": "%s"' % raw_hex not in stored
+    assert f'"response_hash": "{raw_hex}"' not in stored
     assert "digest_suppressed_by_erasure" in stored, "suppression marker missing"
 
 
@@ -682,7 +685,7 @@ def test_u10_duplicate_request_id_prevented_or_refused_fail_closed(a8_env):
     )
     conn.commit()
     conn.close()
-    from core.finalization import get_finalization_by_request_id, ReplayAmbiguityRefused
+    from core.finalization import ReplayAmbiguityRefused, get_finalization_by_request_id
     with pytest.raises(ReplayAmbiguityRefused):
         get_finalization_by_request_id("http:req-u10-dup", principal="owner_local")
     with pytest.raises(Exception):
@@ -696,7 +699,7 @@ def test_u10_duplicate_request_id_prevented_or_refused_fail_closed(a8_env):
 def test_u11_served_boundaries_fail_closed_when_privacy_store_crashes(a8_env, monkeypatch):
     P = "u11 outage secret ZULU-1212"
     fid = _admit_finalize(P)["finalization_id"]
-    from core.finalization import set_availability, AVAILABILITY_WITHHELD
+    from core.finalization import AVAILABILITY_WITHHELD, set_availability
     from core.runtime_continuity import append_runtime_event, list_runtime_sessions
 
     set_availability(fid, AVAILABILITY_WITHHELD)

@@ -18,7 +18,7 @@ from core import runtime_paths
 class FakeKeyring:
     """Minimal in-memory stand-in for the keyring module (service, account -> password)."""
 
-    class errors:  # noqa: N801  (mirrors keyring.errors namespace)
+    class errors:
         class PasswordDeleteError(Exception):
             pass
 

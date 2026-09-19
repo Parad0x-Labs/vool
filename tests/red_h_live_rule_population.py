@@ -102,8 +102,8 @@ def main() -> int:
     print(f"tree       : {tree}")
     print(f"module     : {resolved}")
     print(f"population : {len(population)} distinct prompt-shaped literals (from RED-A)")
-    print(f"live rule  : unit_answer_evidence / unit_anchors  "
-          f"(units_present_in_answer has no production caller)")
+    print("live rule  : unit_answer_evidence / unit_anchors  "
+          "(units_present_in_answer has no production caller)")
     print()
 
     unit_hist: Counter[int] = Counter()

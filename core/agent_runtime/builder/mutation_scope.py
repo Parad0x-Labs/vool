@@ -235,10 +235,7 @@ def object_phrase_widens(text: str) -> bool:
     where, not what. This replaces noun-anywhere promotion, which handed literal one-file
     writes to the multi-file scaffolder under an OPEN scope.
     """
-    for sentence in build_request_intent.imperative_build_sentences(text):
-        if _object_phrase_widens(sentence):
-            return True
-    return False
+    return any(_object_phrase_widens(sentence) for sentence in build_request_intent.imperative_build_sentences(text))
 
 
 def scope_root(text: str, *, workspace_root: str = "") -> str:

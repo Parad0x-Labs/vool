@@ -29,7 +29,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -57,7 +57,7 @@ def test_migration_idempotent_and_effects_survive_restart(home, monkeypatch):
         assert calendar_accounts.select_calendar(account["account_id"], WORK_CAL, selected=True, default_write=True)["ok"]
         calendar_accounts.set_opt_in(account["account_id"], sync_enabled=True, alerts_enabled=True)
 
-        proposed = _run('propose "Persisted" on 2026-09-22 15:00 Europe/Berlin for 30m', session_id="r28")
+        proposed = _run('propose "Persisted" on 2026-09-22 15:00 Europe/Athens for 30m', session_id="r28")
         assert proposed.status == "approval_required", proposed.response_text
         reminded = _run("remind me to stretch on 2026-10-24 17:00 every day", session_id="r28")
         assert reminded.ok, reminded.response_text
@@ -112,7 +112,7 @@ def test_two_accounts_do_not_leak_into_each_other(home, monkeypatch):
         entries = [row for row in agenda.details["events"] if row["summary"] == "Private appointment"]
         assert entries and entries[0]["calendar"] == "Personal", entries
 
-        proposed = _run('propose "Work only" on 2026-09-23 10:00 Europe/Berlin for 30m', session_id="leak")
+        proposed = _run('propose "Work only" on 2026-09-23 10:00 Europe/Athens for 30m', session_id="leak")
         approved = _run(f"approve calendar {proposed.details['action_id']}", session_id="leak")
         assert approved.ok, approved.response_text
         assert list(state_b.snapshot()[OTHER_CAL.rstrip("/") + "/"]) == ["priv@f"], "the personal account never received it"

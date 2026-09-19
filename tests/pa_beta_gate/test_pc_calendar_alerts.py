@@ -69,7 +69,7 @@ def home(tmp_path, monkeypatch):
     run_migrations()
     from core.user_preferences import save_user_timezone
 
-    assert save_user_timezone("Europe/Berlin")
+    assert save_user_timezone("Europe/Athens")
     return tmp_path
 
 
@@ -143,7 +143,7 @@ def test_event_created_outside_vool_alerts_in_the_bell_and_survives_a_restart(go
     state, base = google
     clock = Clock(T0, monkeypatch)
     state.seed_event(WORK, "evt-design-review", summary="Design review", start=T0 + timedelta(minutes=40), minutes=30,
-                     tz_name="Europe/Berlin")
+                     tz_name="Europe/Athens")
     account_id = _connect("google", base, clock, select=[WORK])
     from core.operator import calendar_alerts
 
@@ -195,7 +195,7 @@ def test_moved_then_deleted_event_supersedes_and_cancels_its_alerts(graph, monke
     state, base = graph
     clock = Clock(T0 + timedelta(hours=2), monkeypatch)
     start = clock.now + timedelta(minutes=50)
-    state.seed_event(OPERATIONS, "AAMkSupplierCall=", summary="Supplier call", start=start, minutes=20, tz_name="Europe/Berlin")
+    state.seed_event(OPERATIONS, "AAMkSupplierCall=", summary="Supplier call", start=start, minutes=20, tz_name="Europe/Athens")
     account_id = _connect("graph", base, clock, select=[OPERATIONS], lead=(30, 5))
     from core.operator import calendar_alerts
 
@@ -214,7 +214,7 @@ def test_moved_then_deleted_event_supersedes_and_cancels_its_alerts(graph, monke
 
     # Moved outside VOOL: the obsolete alert never fires for the old time.
     state.seed_event(OPERATIONS, "AAMkSupplierCall=", summary="Supplier call", start=start + timedelta(minutes=60), minutes=20,
-                     tz_name="Europe/Berlin")
+                     tz_name="Europe/Athens")
     report = calendar_alerts.sync_account(account_id, now_fn=clock)
     assert report["alerts_scheduled"] == 1 and report["alerts_superseded"] == 1, report
     clock.advance(minutes=45)

@@ -45,9 +45,9 @@ from core.mode_permission_policy import (
     resolve_approval,
     set_active_mode,
 )
-from core.vool_chat_page import render_vool_chat_html
 from core.task_event_model import build_task_event
 from core.tool_intent_executor import ToolIntentExecution
+from core.vool_chat_page import render_vool_chat_html
 
 # The mixed scaffold: one directory, then files inside it. This is the plan shape the live surface
 # offered no batch for.

@@ -38,14 +38,14 @@ from core.model_selection_policy import (
     rank_providers,
 )
 from storage.model_provider_manifest import ModelProviderManifest
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,
     pin_the_signing_key_passphrase,
     reseal_network_after_function_fixtures,
 )
-from tests.test_v050_fast_path_costs_no_speculative_inference import (  # noqa: F401
+from tests.test_v050_fast_path_costs_no_speculative_inference import (
     ProviderInvocations,
     arbiter_is_reachable,
     invocations,
@@ -537,7 +537,7 @@ def project(tmp_path: Path) -> Path:
 
 
 def _drive(
-    make_agent_module: Any,  # noqa: F811 - pytest fixture request
+    make_agent_module: Any,
     project: Path,
     text: str,
     *,
@@ -586,7 +586,7 @@ class TestDrivenTurns:
         ],
     )
     def test_a_currency_definition_is_answered_with_no_provider_call_at_all(
-        self, make_agent_module, invocations, arbiter_is_reachable, project, text: str  # noqa: F811
+        self, make_agent_module, invocations, arbiter_is_reachable, project, text: str
     ) -> None:
         """A three-letter definition is a deterministic local answer. Local Only must not turn it
         into a refusal — the mode removes the cloud, not the runtime's own knowledge."""
@@ -597,7 +597,7 @@ class TestDrivenTurns:
 
     @pytest.mark.parametrize("text", ["what is your name?", "who are you?", "what should I call you"])
     def test_an_identity_question_is_answered_locally_with_no_provider_call(
-        self, make_agent_module, invocations, arbiter_is_reachable, project, text: str  # noqa: F811
+        self, make_agent_module, invocations, arbiter_is_reachable, project, text: str
     ) -> None:
         result, context = _drive(make_agent_module, project, text, session=f"who-{abs(hash(text)) % 99999}", local_only=True)
         assert invocations.count == 0, f"{text!r} bought inference: {invocations.timeline}"
@@ -614,7 +614,7 @@ class TestDrivenTurns:
         ],
     )
     def test_a_live_or_current_question_never_reaches_a_cloud_lane(
-        self, make_agent_module, invocations, arbiter_is_reachable, project, text: str  # noqa: F811
+        self, make_agent_module, invocations, arbiter_is_reachable, project, text: str
     ) -> None:
         """The answer's wording and web tools are separate concerns; this asserts the model boundary.
         Whatever the turn does, no cloud AI provider may be called to plan, verify or answer it."""
@@ -631,7 +631,7 @@ class TestDrivenTurns:
         assert response.strip(), f"{text!r} produced an empty response"
 
     def test_a_local_file_read_still_works_under_the_mode(
-        self, make_agent_module, invocations, arbiter_is_reachable, project  # noqa: F811
+        self, make_agent_module, invocations, arbiter_is_reachable, project
     ) -> None:
         """Local deterministic tools are explicitly ALLOWED. A mode that blocked them would satisfy
         every 'no cloud' assertion in this file by doing nothing at all."""

@@ -259,7 +259,7 @@ def test_visual_repair_cannot_invent_a_word_limit(prompt):
 # label the renderer reads.  The lab draft did the same in a bare ``` block and wrapped its
 # ```mermaid block in a second fence.  The pins below are those drafts.
 # ---------------------------------------------------------------------------------------------
-from tests.test_presentation_fences import DEPOT_DRAFT, LAB_DRAFT, LAB_RETRY_DRAFT  # noqa: E402
+from tests.test_presentation_fences import DEPOT_DRAFT, LAB_DRAFT, LAB_RETRY_DRAFT
 
 
 @pytest.mark.parametrize("prompt,draft", [(DEPOT_PROMPT, DEPOT_DRAFT), (NOVEL_PROMPT, LAB_DRAFT)])

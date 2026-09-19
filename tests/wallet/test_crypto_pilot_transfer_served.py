@@ -21,10 +21,10 @@ from urllib.request import Request, urlopen
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from tests.wallet._rig import DEVNET_GENESIS, ScriptedRpc
-from tests.wallet._rig_provider import MODEL, PromptRoutedProvider, seed_daemon
 
 from tests import served_browser
+from tests.wallet._rig import DEVNET_GENESIS, ScriptedRpc
+from tests.wallet._rig_provider import MODEL, PromptRoutedProvider, seed_daemon
 
 pytestmark = [pytest.mark.safety, pytest.mark.served]
 

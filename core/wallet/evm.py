@@ -374,11 +374,24 @@ def authorization_for_proposal(proposal: Any, *, account: str, nonce: str, valid
 
 
 __all__ = [
+    "AUTHORITY",
+    "PERMIT2_ADDRESS",
+    "TRANSFER_METHOD_EIP3009",
+    "TRANSFER_METHOD_PERMIT2",
+    "TRANSFER_WITH_AUTHORIZATION_TYPES",
+    "X402_PERMIT2_PROXY",
+    "address_for_private_key",
+    "authorization_for_proposal",
+    "domain_separator_of",
+    "open_evm_signing_request",
+    "recover_authorization_signer",
+    "require_asset_transfer_method",
+    "sign_authorization",
+    "transfer_with_authorization_typed_data",
+    "typed_data_digest",
     "v1_payment_header",
-    "AUTHORITY", "PERMIT2_ADDRESS", "TRANSFER_METHOD_EIP3009", "TRANSFER_METHOD_PERMIT2", "TRANSFER_WITH_AUTHORIZATION_TYPES",
-    "X402_PERMIT2_PROXY", "address_for_private_key", "authorization_for_proposal", "domain_separator_of",
-    "open_evm_signing_request", "recover_authorization_signer", "require_asset_transfer_method", "sign_authorization",
-    "transfer_with_authorization_typed_data", "typed_data_digest", "verify_authorization_signature", "verify_evm_submission",
+    "verify_authorization_signature",
+    "verify_evm_submission",
 ]
 
 

@@ -8,7 +8,7 @@ import pytest
 
 from core import first_run_pact
 from core.first_run_pact import PactFault
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture: isolated home + real runtime
+from tests.first_run_pact_rig import pact_rig
 
 
 def test_a_fresh_home_seeds_absent_and_a_used_home_seeds_not_applicable(pact_rig):

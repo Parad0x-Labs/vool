@@ -14,11 +14,11 @@ import threading
 import pytest
 
 from core.council.cost_ladder import (
+    DEFAULT_LADDER,
     BudgetExhausted,
     CostLadderError,
     CostPolicy,
     CostTier,
-    DEFAULT_LADDER,
     ExhaustionReason,
     OperatorEscalation,
     SpendCeilings,

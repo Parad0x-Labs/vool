@@ -32,7 +32,7 @@ from core.conductor.scheduler import run_conductor_plan
 from core.runtime_task_outcome import FulfillmentStatus, terminal_fulfillment_outcome
 from tests.conductor_product import compose_product, decide
 from tests.semantic_proposer import coordinated, frame, proposer, role
-from tests.test_canonical_obligation_floor import (  # noqa: F401  (fetchers is a fixture)
+from tests.test_canonical_obligation_floor import (
     _clause,
     _Generation,
     fetchers,

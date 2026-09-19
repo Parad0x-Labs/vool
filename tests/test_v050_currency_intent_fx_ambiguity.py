@@ -609,7 +609,7 @@ def test_a_currency_turn_is_answered_locally_with_no_model_call(prompt: str) -> 
 def test_a_currency_turn_does_not_buy_a_heavy_lane(prompt: str) -> None:
     """Even if the fast path were bypassed, none of these may reach the deep/unbounded lane."""
 
-    import core.agent_runtime  # noqa: F401  (package init is import-order sensitive on this base)
+    import core.agent_runtime
     from core.local_inference_autopilot import _resolve_lane
     from core.memory_first_router import resolve_fallback_budget_seconds
     from core.reasoning_engine import explicit_planner_style_requested

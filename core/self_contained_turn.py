@@ -166,6 +166,4 @@ def turn_supplies_its_data(text: str) -> bool:
     if edges >= _MIN_DATA_ROWS:
         return True
     labeled = len(_LABELED_VALUE_RE.findall(raw))
-    if labeled >= _MIN_DATA_ROWS:
-        return True
-    return False
+    return labeled >= _MIN_DATA_ROWS

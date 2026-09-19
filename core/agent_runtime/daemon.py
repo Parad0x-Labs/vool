@@ -15,7 +15,6 @@ import threading
 from datetime import datetime, timezone
 from typing import Any
 
-
 from core import audit_logger, policy_engine
 from core.capability_tokens import expire_stale_capability_tokens
 from core.daemon import DaemonConfig, NodeRuntime

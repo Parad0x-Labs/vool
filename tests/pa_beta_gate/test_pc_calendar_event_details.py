@@ -69,7 +69,7 @@ def caldav(home):
 
 
 def _google_when(instant):
-    return {"dateTime": instant.astimezone(timezone.utc).isoformat(timespec="seconds"), "timeZone": "Europe/Berlin"}
+    return {"dateTime": instant.astimezone(timezone.utc).isoformat(timespec="seconds"), "timeZone": "Europe/Athens"}
 
 
 def _graph_when(instant):
@@ -188,7 +188,7 @@ def test_caldav_conference_location_url_and_cancelled_status(caldav, monkeypatch
     clock = Clock(T0, monkeypatch)
     state.put_event(TEAM, "planning-1", _ics(
         "UID:planning-1", "SUMMARY:Sprint planning",
-        "DTSTART;TZID=Europe/Berlin:20260921T104500", "DTEND;TZID=Europe/Berlin:20260921T113000",
+        "DTSTART;TZID=Europe/Athens:20260921T104500", "DTEND;TZID=Europe/Athens:20260921T113000",
         "LOCATION:Room 1\\, Floor 2",
         "CONFERENCE;VALUE=URI;FEATURE=PHONE;LABEL=Dial-in:tel:+370-5-200-0001",
         'CONFERENCE;VALUE=URI;FEATURE=VIDEO,SCREEN;LABEL="Room: 17":https://meet.example.org/room-17',

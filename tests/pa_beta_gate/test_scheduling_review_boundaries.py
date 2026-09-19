@@ -16,7 +16,7 @@ NOW = datetime(2026, 9, 12, 12, tzinfo=timezone.utc)
 
 
 @pytest.mark.parametrize("text", [
-    "2026-10-25 03:30 Europe/Berlin",
+    "2026-10-25 03:30 Europe/Athens",
     "remind me to check the locks on 2026-11-01 01:30 America/New_York",
 ])
 def test_ambiguous_clock_requires_a_choice(text):
@@ -26,7 +26,7 @@ def test_ambiguous_clock_requires_a_choice(text):
 
 
 @pytest.mark.parametrize("text", [
-    "2035-09-14 09:30 Europe/Berlin",
+    "2035-09-14 09:30 Europe/Athens",
     "remind me about the inspection on 2029-01-03 17:20 America/Chicago",
     "in 9999999999999999999999999999999999999999999 weeks",
     "2026-09-14",
@@ -45,7 +45,7 @@ def test_horizon_is_relative_to_now_and_preserves_valid_boundaries():
     limit = NOW + timedelta(days=MAX_FUTURE_DAYS)
     assert parse_when_expression(limit.strftime("%Y-%m-%d %H:%M"), now_fn=lambda: NOW).ok
     assert not parse_when_expression((limit + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M"), now_fn=lambda: NOW).ok
-    normal = parse_when_expression("tomorrow at 9:15 Europe/Berlin", now_fn=lambda: NOW)
+    normal = parse_when_expression("tomorrow at 9:15 Europe/Athens", now_fn=lambda: NOW)
     assert normal.ok and normal.due_at_utc == "2026-09-13T06:15:00+00:00"
     # A path in the note is not a timezone declaration.
     assert parse_when_expression("remind me to archive src/main in 20 minutes", now_fn=lambda: NOW).ok
@@ -172,6 +172,7 @@ def test_scheduling_honors_disabled_local_actions(store, monkeypatch, text):
 def test_calendar_move_preserves_uid_and_original_duration_on_repeated_edits(store):
     import re
     from pathlib import Path
+
     from tests.pa_beta_gate.test_reminder_vertical import _create_calendar_draft
     made = _create_calendar_draft("review-calendar")
     assert made.ok
@@ -182,7 +183,7 @@ def test_calendar_move_preserves_uid_and_original_duration_on_repeated_edits(sto
         start = re.search(r"(?m)^DTSTART:(.*)$", text).group(1)
         end = re.search(r"(?m)^DTEND:(.*)$", text).group(1)
         return datetime.strptime(end, "%Y%m%dT%H%M%SZ") - datetime.strptime(start, "%Y%m%dT%H%M%SZ")
-    for date in ("2026-09-16 10:15 Europe/Berlin", "2026-09-17 12:40 Europe/Berlin"):
+    for date in ("2026-09-16 10:15 Europe/Athens", "2026-09-17 12:40 Europe/Athens"):
         result = dispatch_operator_action(parse_operator_action_intent("move the meeting to " + date), task_id="move", session_id="review-calendar")
         assert result.ok, result.response_text
         after = path.read_text()
@@ -193,12 +194,13 @@ def test_calendar_move_preserves_uid_and_original_duration_on_repeated_edits(sto
 @pytest.mark.parametrize('verb', ['cancel', 'move'])
 def test_calendar_mutation_never_guesses_between_two_drafts(store, verb):
     from pathlib import Path
+
     from tests.pa_beta_gate.test_reminder_vertical import _create_calendar_draft
     first = _create_calendar_draft('two-drafts')
     second = _create_calendar_draft('two-drafts')
     paths = [Path(result.details['ics_path']) for result in (first, second)]
     before = [p.read_bytes() for p in paths]
-    suffix = ' to 2026-09-18 10:00 Europe/Berlin' if verb == 'move' else ''
+    suffix = ' to 2026-09-18 10:00 Europe/Athens' if verb == 'move' else ''
     result = dispatch_operator_action(parse_operator_action_intent(f'{verb} the calendar draft{suffix}'), task_id='ambiguous', session_id='two-drafts')
     assert not result.ok
     assert [p.read_bytes() for p in paths] == before
@@ -210,6 +212,7 @@ def test_calendar_mutation_never_guesses_between_two_drafts(store, verb):
 @pytest.mark.parametrize('target', ['00000000-0000-0000-0000-000000000000', '"Dentist"'])
 def test_calendar_unknown_explicit_target_never_falls_back(store, target):
     from pathlib import Path
+
     from tests.pa_beta_gate.test_reminder_vertical import _create_calendar_draft
     made = _create_calendar_draft('explicit-draft')
     path = Path(made.details['ics_path'])
@@ -220,17 +223,18 @@ def test_calendar_unknown_explicit_target_never_falls_back(store, target):
 
 def test_explicit_utc_is_not_interpreted_in_the_host_zone():
     from zoneinfo import ZoneInfo
-    now = NOW.astimezone(ZoneInfo('Europe/Berlin'))
+    now = NOW.astimezone(ZoneInfo('Europe/Athens'))
     parsed = parse_when_expression('2026-10-25 01:30 UTC', now_fn=lambda: now)
     assert parsed.ok and parsed.due_at_utc == '2026-10-25T01:30:00+00:00'
 
 
 def test_saved_timezone_owns_future_schedules_across_dst(store, monkeypatch):
-    from core.local_operator_actions import _parse_when
-    from core.user_preferences import save_user_timezone
-    from core.time_authority import TimeAuthority
     from zoneinfo import ZoneInfo
-    assert save_user_timezone('Europe/Berlin')
+
+    from core.local_operator_actions import _parse_when
+    from core.time_authority import TimeAuthority
+    from core.user_preferences import save_user_timezone
+    assert save_user_timezone('Europe/Athens')
     monkeypatch.setattr(TimeAuthority, 'now_for_timezone', lambda self, name: NOW.astimezone(ZoneInfo(name)))
     parsed = _parse_when('2026-12-12 09:00')
     assert parsed.ok and parsed.due_at_utc == '2026-12-12T07:00:00+00:00'
@@ -238,7 +242,8 @@ def test_saved_timezone_owns_future_schedules_across_dst(store, monkeypatch):
 
 def test_stale_calendar_selection_cannot_cancel_a_moved_draft(store):
     from pathlib import Path
-    from core.local_operator_actions import _load_executed_calendar_draft, _cancel_calendar_artifact
+
+    from core.local_operator_actions import _cancel_calendar_artifact, _load_executed_calendar_draft
     from tests.pa_beta_gate.test_reminder_vertical import _create_calendar_draft
     made = _create_calendar_draft('stale-draft')
     old = _load_executed_calendar_draft(session_id='stale-draft')

@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from core.runtime_paths import active_vool_home, configure_runtime_home
-from storage.db import configure_default_db_path, resolve_runtime_db_filename
+from storage.db import active_default_db_path, configure_default_db_path, resolve_runtime_db_filename
 
 _SCOPE_LOCK = threading.RLock()
 

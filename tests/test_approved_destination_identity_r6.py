@@ -31,7 +31,7 @@ from core.code_assistant import task_runtime as task_runtime_module
 from core.code_assistant.task_runtime import code_task_runtime, task_dir
 from core.mode_permission_policy import PermissionEffect, decide_tool_call
 from tests.repoops._harness import context, door
-from tests.repoops.test_forge_actions import world  # noqa: F401 -- fixture
+from tests.repoops.test_forge_actions import world
 
 ALLOW, PROMPT = PermissionEffect.ALLOW, PermissionEffect.REQUIRE_APPROVAL
 TAX_BUGGY = "def vat(net):\n    return net * 2\n"

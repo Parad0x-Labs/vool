@@ -26,17 +26,17 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Protocol
 
 from core.council.capsule import CapsuleMaterial, ContextCapsule, KernelFact, TaskInput
-from core.council.claims import Claim, Delta, Dispute, extract_delta
+from core.council.claims import Delta, Dispute, extract_delta
 from core.council.policy import (
+    QUALIFYING_KINDS,
     AdjudicationAuthorization,
     EscalationGate,
     EscalationRefused,
-    QUALIFYING_KINDS,
 )
-from core.council.seats import ANSWERING_ROLES, CouncilSpec, Role, SeatSpec, Tier
+from core.council.seats import CouncilSpec, Role, SeatSpec, Tier
 
 
 class LiveSeatError(RuntimeError):
@@ -422,7 +422,7 @@ class CouncilRuntime:
         if challenge_material:
             for seat in self.spec.by_role(Role.CHALLENGER):
                 raw = self._invoke(seat, self._capsule(seat, PHASE_CHALLENGE, challenge_material))
-                for k, (dispute_id, position, ref) in enumerate(
+                for _k, (dispute_id, position, ref) in enumerate(
                     parse_challenges(raw, {d.dispute_id for d in contested})
                 ):
                     challenges.append(
@@ -431,7 +431,7 @@ class CouncilRuntime:
         self.transcript.challenges = tuple(challenges)
 
         # coverage gaps settle by ballot majority as PREFERENCE (never truth)
-        preference_verdicts = self._settle_coverage(delta, ballots)
+        self._settle_coverage(delta, ballots)
 
         # Phase 4b — ADVISORY phase: advisors see candidates, disputes and
         # challenge records (never a hidden answer key) and emit analysis.
@@ -705,8 +705,8 @@ __all__ = [
     "DoubleCommitRefused",
     "KernelFactTampered",
     "RoleViolation",
-    "SeatModel",
     "SealedReceipt",
+    "SeatModel",
     "Verdict",
     "assemble_answer",
     "parse_ballot",

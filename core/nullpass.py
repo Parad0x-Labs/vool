@@ -24,8 +24,8 @@ import json
 from collections.abc import Callable
 from typing import Any, Optional
 
-from core.vool_wallet import b58decode
 from core.proof_of_execution import ProofReceipt, verify_proof_receipt
+from core.vool_wallet import b58decode
 from core.web0_work_receipt import Web0WorkReceipt
 from core.x402.client import X402Receipt
 

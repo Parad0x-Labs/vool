@@ -413,7 +413,7 @@ def test_concurrent_remember_forget_preserves_unrelated_entries(isolated_home: P
             add_memory_fact(
                 f"Harbor lantern {word} burns steadiest.", session_id=CHAT, access_policy=policy
             )
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             errors.append(exc)
 
     def _forget() -> None:
@@ -421,7 +421,7 @@ def test_concurrent_remember_forget_preserves_unrelated_entries(isolated_home: P
             barrier.wait()
             add_memory_fact(FACT_TEXT, session_id=CHAT, access_policy=policy)
             forget_memory(CANARY, access_policy=policy)
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             errors.append(exc)
 
     threads = [threading.Thread(target=_remember, args=(i,)) for i in range(3)]
@@ -766,7 +766,7 @@ def test_remember_forget_interleave_cannot_resurrect_through_lost_update(
                 session_id=CHAT,
                 access_policy=policy,
             )
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             failures.append(exc)
         finally:
             remember_done.set()
@@ -780,7 +780,7 @@ def test_remember_forget_interleave_cannot_resurrect_through_lost_update(
     def _forget() -> None:
         try:
             forget_memory(CANARY, access_policy=policy)
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             failures.append(exc)
         finally:
             forget_done.set()
@@ -961,7 +961,7 @@ def test_two_simultaneous_forgets_are_idempotent_and_truthful(isolated_home: Pat
         try:
             barrier.wait()
             results.append(forget_memory(CANARY, access_policy=policy))
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             errors.append(exc)
 
     threads = [threading.Thread(target=_forget) for _ in range(2)]

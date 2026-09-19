@@ -13,13 +13,13 @@ import json
 from datetime import datetime, timezone
 
 from tests.pa_beta_gate import _caldav_service
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import (  # noqa: F401 -- served_env is a fixture, requested via getfixturevalue
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import (
     VILNIUS_CAL,
     _approval_id,
     _turn,
     served_env,
 )
-from tests.pa_beta_gate.test_v6_served_outcome_recovery import (  # noqa: F401 -- served_graph_env is a fixture, requested via getfixturevalue
+from tests.pa_beta_gate.test_v6_served_outcome_recovery import (
     GRAPH_CAL,
     _approval_row,
     _graph_titled,
@@ -82,7 +82,7 @@ def test_served_graph_create_whose_reply_body_is_cut_off_rests_accepted_and_reap
     env = request.getfixturevalue("served_graph_env")
     harness, state, workspace, server = env["harness"], env["state"], env["workspace"], env["server"]
     posts = _count(monkeypatch, server.RequestHandlerClass, "POST")
-    action_id = _approval_id(_turn(harness, 'propose "Transformer review" on 2026-09-16 11:00 Europe/Berlin for 30m', workspace))
+    action_id = _approval_id(_turn(harness, 'propose "Transformer review" on 2026-09-16 11:00 Europe/Athens for 30m', workspace))
     _cut_off_next_success_reply(monkeypatch, server, "POST")
 
     accepted = _turn(harness, f"approve calendar {action_id}", workspace)
@@ -103,7 +103,7 @@ def test_served_caldav_create_whose_reply_never_arrives_is_unknown_and_reapprova
     harness, state, workspace = env["harness"], env["state"], env["workspace"]
     puts = _count(monkeypatch, _caldav_service._Handler, "PUT")
     title = "Novel compressor swap"
-    action_id = _approval_id(_turn(harness, f'propose "{title}" on 2026-09-16 13:00 Europe/Berlin for 45m', workspace))
+    action_id = _approval_id(_turn(harness, f'propose "{title}" on 2026-09-16 13:00 Europe/Athens for 45m', workspace))
     _drop_next_success_reply(monkeypatch, "PUT")
 
     unknown = _turn(harness, f"approve calendar {action_id}", workspace)
@@ -123,7 +123,7 @@ def test_served_graph_update_whose_reply_body_is_cut_off_is_accepted_and_reappro
     harness, state, workspace, server = env["harness"], env["state"], env["workspace"], env["server"]
     state.seed_event(GRAPH_CAL, "survey@fixture", summary="Novel valve survey", start=datetime(2026, 9, 15, 7, 0, tzinfo=timezone.utc), minutes=30)
     patches = _count(monkeypatch, server.RequestHandlerClass, "PATCH")
-    action_id = _approval_id(_turn(harness, 'move the "Novel valve survey" event to Friday at 11:00 Europe/Berlin', workspace))
+    action_id = _approval_id(_turn(harness, 'move the "Novel valve survey" event to Friday at 11:00 Europe/Athens', workspace))
     _cut_off_next_success_reply(monkeypatch, server, "PATCH")
 
     accepted = _turn(harness, f"approve calendar {action_id}", workspace)

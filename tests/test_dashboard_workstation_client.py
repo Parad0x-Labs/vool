@@ -35,7 +35,6 @@ from core.dashboard.workstation_learning_program_trading_market_runtime import (
 from core.dashboard.workstation_learning_program_trading_overview_runtime import (
     WORKSTATION_LEARNING_PROGRAM_TRADING_OVERVIEW_RUNTIME,
 )
-from core.dashboard.workstation_voolbook_runtime import WORKSTATION_VOOLBOOK_RUNTIME
 from core.dashboard.workstation_overview_home_board_runtime import (
     WORKSTATION_OVERVIEW_HOME_BOARD_RUNTIME,
 )
@@ -68,6 +67,7 @@ from core.dashboard.workstation_trading_presence_runtime import (
 from core.dashboard.workstation_trading_surface_runtime import (
     WORKSTATION_TRADING_SURFACE_RUNTIME,
 )
+from core.dashboard.workstation_voolbook_runtime import WORKSTATION_VOOLBOOK_RUNTIME
 
 
 class DashboardWorkstationClientTests(unittest.TestCase):

@@ -110,9 +110,10 @@ def test_report_without_secrets_declares_zero_redactions(repo: Path) -> None:
 
 @pytest.mark.parametrize('secret', [SHAPED, CUSTOM])
 def test_pr_description_scrubs_chat_and_durable_body(repo: Path, secret: str) -> None:
-    from core.secret_redaction import register_exact_secret
     from core.code_assistant.task_runtime import code_task_runtime
-    from tests.code_assistant.test_pr_description import _drive_to_report, _ctx as pr_context
+    from core.secret_redaction import register_exact_secret
+    from tests.code_assistant.test_pr_description import _ctx as pr_context
+    from tests.code_assistant.test_pr_description import _drive_to_report
 
     register_exact_secret(secret)
     ctx = pr_context(repo)

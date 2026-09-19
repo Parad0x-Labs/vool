@@ -56,4 +56,4 @@ def workspace(tmp_path: Path) -> Path:
     return root
 
 
-from tests.blackbox_coverage._ctx import ctx  # noqa: F401  (tests import ctx by package path)
+from tests.blackbox_coverage._ctx import ctx

@@ -76,14 +76,14 @@ from core.currency_intent import (
     render_fx_conversion,
     render_homograph_phrase,
 )
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,
     pin_the_signing_key_passphrase,
     reseal_network_after_function_fixtures,
 )
-from tests.test_v050_fast_path_costs_no_speculative_inference import (  # noqa: F401
+from tests.test_v050_fast_path_costs_no_speculative_inference import (
     ProviderInvocations,
     invocations,
 )
@@ -111,7 +111,7 @@ REPORTED_ROUTES = (
 
 
 def _drive(
-    make_agent_module: Any,  # noqa: F811 - pytest's fixture request, not a redefinition
+    make_agent_module: Any,
     workspace: Path,
     text: str,
     *,
@@ -137,9 +137,9 @@ def workspace(tmp_path: Path) -> Path:
 
 
 def test_the_reported_session_runs_end_to_end_with_no_provider_call(
-    make_agent_module: Any,  # noqa: F811
+    make_agent_module: Any,
     workspace: Path,
-    invocations: ProviderInvocations,  # noqa: F811
+    invocations: ProviderInvocations,
 ) -> None:
     """The exact live sequence, one session, through the real front door.
 
@@ -173,9 +173,9 @@ def test_the_reported_session_runs_end_to_end_with_no_provider_call(
 
 
 def test_the_same_session_never_reaches_the_heavy_local_model(
-    make_agent_module: Any,  # noqa: F811
+    make_agent_module: Any,
     workspace: Path,
-    invocations: ProviderInvocations,  # noqa: F811
+    invocations: ProviderInvocations,
 ) -> None:
     """No model was selected at all, so no model NAME can appear — qwen3:14b least of all."""
 
@@ -190,9 +190,9 @@ def test_the_same_session_never_reaches_the_heavy_local_model(
 
 
 def test_a_fresh_chat_gets_none_of_the_context_benefit(
-    make_agent_module: Any,  # noqa: F811
+    make_agent_module: Any,
     workspace: Path,
-    invocations: ProviderInvocations,  # noqa: F811
+    invocations: ProviderInvocations,
 ) -> None:
     """The control for the test above: with no prior currency turn, neither follow-up is claimed.
 
@@ -571,9 +571,9 @@ def test_the_reader_survives_an_unreadable_event_log() -> None:
 
 
 def test_the_footer_on_every_new_route_says_no_model_ran(
-    make_agent_module: Any,  # noqa: F811
+    make_agent_module: Any,
     workspace: Path,
-    invocations: ProviderInvocations,  # noqa: F811
+    invocations: ProviderInvocations,
 ) -> None:
     """A turn that ran no model must say so, including the two routes added here."""
 
@@ -601,7 +601,7 @@ def test_none_of_the_reported_turns_buys_an_unbounded_lane(prompt: str) -> None:
     fallback loop from being reintroduced behind the fast path.
     """
 
-    import core.agent_runtime  # noqa: F401  (package init is import-order sensitive on this base)
+    import core.agent_runtime
     from core.local_inference_autopilot import _resolve_lane
     from core.memory_first_router import resolve_fallback_budget_seconds
     from core.reasoning_engine import explicit_planner_style_requested

@@ -1,5 +1,6 @@
 """Run the Settings picker itself, including provider identity through paid confirmation."""
 from pathlib import Path
+
 from tests.chat_page_js_harness import DOM, run_node
 
 

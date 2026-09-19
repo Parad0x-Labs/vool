@@ -1571,10 +1571,7 @@ def payload_availability_for_hash(content_hash: str) -> str | None:
                 (str(reg["finalization_id"]),),
             ).fetchone()
             resolved = str(grow["availability"] or "").strip() if grow else ""
-            return resolved if resolved in _UNSERVEABLE_AVAILABILITY + (
-                AVAILABILITY_AVAILABLE,
-                AVAILABILITY_LEGACY_UNKNOWN,
-            ) else AVAILABILITY_ERASED
+            return resolved if resolved in (*_UNSERVEABLE_AVAILABILITY, AVAILABILITY_AVAILABLE, AVAILABILITY_LEGACY_UNKNOWN) else AVAILABILITY_ERASED
         return None
 
 
@@ -2740,7 +2737,7 @@ def _digest_representations_match(canonical_prefixed_digest: str, stored_digest:
     digest = str(canonical_prefixed_digest or "")
     clean = digest[len("sha256:"):] if digest.startswith("sha256:") else ""
     stored = str(stored_digest)
-    if stored == digest or stored == clean:
+    if stored in (digest, clean):
         return True
     try:
         return bool(clean) and _keyed_tombstone_value("sha256:" + clean) == stored
@@ -2749,10 +2746,7 @@ def _digest_representations_match(canonical_prefixed_digest: str, stored_digest:
 
 
 def _stored_digest_matches_erasure(digest_forms: set[str], stored_digest: str) -> bool:
-    for form in digest_forms:
-        if _digest_representations_match(form, stored_digest):
-            return True
-    return False
+    return any(_digest_representations_match(form, stored_digest) for form in digest_forms)
 
 
 def _pre_erasure_plaintext_for(finalization_id: str) -> str:
@@ -3076,7 +3070,7 @@ def _sweep_step_runtime_events(
                 continue
             if str(row["event_type"]) == "model_output_chunk":
                 chunks[str(row["session_id"])].append((int(row["seq"]), int(row["_rid"]), message))
-        for session_key, chunk_list in chunks.items():
+        for _session_key, chunk_list in chunks.items():
             # Reconstruction law: the erased payload may be spread across
             # consecutive chunk events; hash any contiguous window (bounded)
             # so a split copy is as dead as a verbatim one.
@@ -3173,7 +3167,7 @@ def _sweep_step_checkpoint_evidence(content_hash: str, plaintext: str = "") -> s
         for row in rows:
             updates: dict[str, Any] = {}
 
-            def _scrub_json_column(column: str) -> None:
+            def _scrub_json_column(column: str, *, row: dict = row, updates: dict = updates) -> None:
                 raw = str(row[column] or "")
                 if not raw or raw == "{}":
                     return
@@ -3605,11 +3599,8 @@ def _sweep_step_honesty_receipts(content_hash: str, plaintext: str = "") -> str:
     bare = content_hash[len("sha256:"):] if content_hash.startswith("sha256:") else content_hash
     oracle_forms = {f"sha256:{bare}", bare} if bare else set()
     if plaintext:
-        try:
+        with contextlib.suppress(Exception):
             oracle_forms.add(_keyed_tombstone_value(_sha256_hex(plaintext)))
-        except Exception:
-            pass
-    changed_any = False
     for path in sorted(ledger_dir.glob("*.jsonl")):
         try:
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -3648,7 +3639,6 @@ def _sweep_step_honesty_receipts(content_hash: str, plaintext: str = "") -> str:
                 except ValueError:
                     kept.append(stripped)
                 changed = True
-                changed_any = True
                 continue
             kept.append(line)
         if changed:

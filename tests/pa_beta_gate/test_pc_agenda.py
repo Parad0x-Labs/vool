@@ -29,7 +29,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -76,7 +76,7 @@ def test_today_agenda_spans_both_selected_calendars(servers, monkeypatch):
     assert "12:30" in text, text  # 09:00 UTC stand-up = 12:30 Vilnius
     assert "Room 5" not in text, "tomorrow's event is outside today's window"
     assert text.count("join.fixture.test") == 0  # the join link is on tomorrow's event, not today's
-    assert result.details["zone"] == "Europe/Berlin"
+    assert result.details["zone"] == "Europe/Athens"
     assert {row["calendar"] for row in result.details["events"]} == {"Work", "Personal"}
 
 

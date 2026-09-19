@@ -104,7 +104,7 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         recipient_line = f"To wallet {short_address(to_address)} (not a saved contact; the full address is under View details)"
         recipient_kind = "unidentified_wallet"
         primary = "Approve and send"
-    source_line = f"From {str(fields.get('from_label') or 'your wallet')} {short_address(fields.get('from_address'))}"
+    source_line = f"From {fields.get('from_label') or 'your wallet'!s} {short_address(fields.get('from_address'))}"
     fee_line = ""
     collection_line = ""
     if fee:

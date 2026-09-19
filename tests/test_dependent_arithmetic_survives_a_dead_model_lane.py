@@ -27,10 +27,10 @@ from __future__ import annotations
 
 import json
 
-from tests.conductor_product import compose_product
 from core.conductor.planner import plan_conductor_turn
 from core.conductor.registry import NodeContext
 from core.conductor.scheduler import run_conductor_plan
+from tests.conductor_product import compose_product
 
 MESSAGE = "What is 12 times 8? Now take that result and divide it by 6."
 

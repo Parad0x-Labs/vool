@@ -30,7 +30,7 @@ from tests._served_skill_rig import (
     ServedDaemon,
     make_provider_server,
 )
-from tests.test_native_skill_library import _iso_home  # noqa: F401
+from tests.test_native_skill_library import _iso_home
 
 REPO_SKILLS = Path(__file__).resolve().parents[1] / "skills"
 
@@ -285,7 +285,7 @@ def test_e2e_feature_build_workflow_served(served_rig, tmp_path) -> None:
     served_rig.state.requests.clear()
     reply = served_rig.daemon.chat(
         "Create the file greet.py in this workspace with a function greet(name) that returns "
-        f"'hello ' + name. Then verify it exists.",
+        "'hello ' + name. Then verify it exists.",
         model=LOCAL_MODEL,
         mode="auto",
         workspace=str(project),
@@ -301,7 +301,7 @@ def test_e2e_feature_build_workflow_served(served_rig, tmp_path) -> None:
         assert ("greet" in answer or "can't publish" in answer
                 or "not certified" in answer or "no text matches" in answer), answer[:300]
     event = served_rig.daemon.skill_event(session)
-    assert event is not None or True  # chat-lane turns record the offer event when the loop runs
+    assert True  # chat-lane turns record the offer event when the loop runs
 
 
 @_LIVE_LOCAL_MODEL

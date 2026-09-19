@@ -145,7 +145,7 @@ def _erasure_digest_text(text: str) -> str:
 
 def _salted_erasure_digest(salt: str, text: str) -> str:
     return hashlib.sha256(
-        f"{salt}:{_erasure_digest_text(text)}".encode("utf-8")
+        f"{salt}:{_erasure_digest_text(text)}".encode()
     ).hexdigest()
 
 
@@ -162,7 +162,7 @@ def _text_is_erased(text: str) -> bool:
         if not salt or not digest:
             continue
         candidate = hashlib.sha256(
-            f"{salt}:{normalized}".encode("utf-8")
+            f"{salt}:{normalized}".encode()
         ).hexdigest()
         if hmac.compare_digest(candidate, digest):
             return True

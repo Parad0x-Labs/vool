@@ -15,8 +15,9 @@ Law:
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 AUTHORITY_CLASSES = frozenset({"system", "user", "assistant", "tool", "memory", "derived"})
 EXPOSURE_CLASSES = frozenset({"PUBLIC", "LOCAL_ONLY", "SECRET"})
@@ -37,7 +38,7 @@ class EgressSegment:
     principal_scope: str
     exposure_class: str
 
-    def validated(self) -> "EgressSegment":
+    def validated(self) -> EgressSegment:
         if self.authority_class not in AUTHORITY_CLASSES:
             raise EgressRefused(f"unclassified authority_class: {self.authority_class!r}")
         if self.exposure_class not in EXPOSURE_CLASSES:
@@ -52,9 +53,7 @@ def _destination_allows(exposure_class: str, destination_class: str) -> bool:
     # LOCAL_ONLY never leaves the process. SECRET is owner-local eyes only.
     if destination_class == "local_process":
         return True
-    if exposure_class in ("LOCAL_ONLY", "SECRET"):
-        return False
-    return True
+    return exposure_class not in ("LOCAL_ONLY", "SECRET")
 
 
 def project_for_destination(

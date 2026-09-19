@@ -480,8 +480,8 @@ def import_solana_pilot_wallet(
     profile; a crash before commit leaves no partially imported wallet. Approval
     and signing subsequently use the same credential, throttle and signer as Create.
     """
-    from core.vool_wallet import b58decode, b58encode
     from core.secret_redaction import register_exact_secret
+    from core.vool_wallet import b58decode, b58encode
     from network.signer import key_storage_mode
 
     custody.require_enabled(source_context=source_context)

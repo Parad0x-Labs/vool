@@ -56,7 +56,7 @@ def stage_layers(stage: str) -> tuple[str, ...]:
         return ("underglow", "aura_back", "body", "growth_rings", "core",
                 "face", "crest", "outline")
     if stage == "form":
-        return LAYER_ORDER[:11] + ("outline",)
+        return (*LAYER_ORDER[:11], "outline")
     return LAYER_ORDER  # specialized / ascended: full stack
 
 

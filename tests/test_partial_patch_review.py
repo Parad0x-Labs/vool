@@ -1,13 +1,20 @@
 """Independent rollback proof through real proposal, approval and task execution."""
 import os
 from pathlib import Path
+
 import pytest
-from tests.repoops.test_forge_actions import world
+
 from tests.repoops._harness import context, door
+from tests.repoops.test_forge_actions import world
 from tests.test_approved_destination_identity_r6 import (
-    _billing_world, _approved_patch, _patch_step,
-    VAT_RATE_PATCH, TAX_BUGGY, RATE_BUGGY,
+    RATE_BUGGY,
+    TAX_BUGGY,
+    VAT_RATE_PATCH,
+    _approved_patch,
+    _billing_world,
+    _patch_step,
 )
+
 
 @pytest.mark.parametrize('new_path,new_text', [
     ('billing/created_note.txt', 'reviewed invoice note'),

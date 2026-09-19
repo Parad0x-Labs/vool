@@ -52,7 +52,7 @@ def main() -> int:
     run_migrations(db)       # obligation_sets lives in the migration set
 
     from core.agent_runtime.answer_coverage import demand_units, unit_answer_evidence
-    from core.conductor import obligation_ledger as L
+    from core.conductor import obligation_ledger as ledger
 
     request = "Just tell me the EUR/USD rate."
     failed_bytes = (
@@ -67,7 +67,7 @@ def main() -> int:
     ladder = unit_answer_evidence(request, failed_bytes)
     print(f"\nEVIDENCE LADDER on the served bytes : {ladder}")
 
-    obset = L.open_obligation_set(
+    obset = ledger.open_obligation_set(
         obligations=[{"obligation_id": f"demand:{u.unit_id}", "kind": "demand",
                       "unit_id": u.unit_id, "text": u.text, "state": "open"}
                      for u in units],
@@ -77,14 +77,14 @@ def main() -> int:
     sid, ver = obset["set_id"], obset["version"]
 
     # ARM 1 -- no receipt. The ladder must decide, and it says the slot was not answered.
-    rows = L.sweep_demand_obligations(sid, ver, states=dict(ladder))
-    census_no_receipt = dict(L.demand_census(sid, ver))
+    rows = ledger.sweep_demand_obligations(sid, ver, states=dict(ladder))
+    census_no_receipt = dict(ledger.demand_census(sid, ver))
     print(f"\nARM 1  sweep WITHOUT a receipt : "
           f"{[(r['unit_id'], r['state']) for r in rows]}")
     print(f"       census                  : {census_no_receipt}")
 
     # ARM 2 -- identical bytes, identical ladder verdict, but a lane wrote a receipt first.
-    obset2 = L.open_obligation_set(
+    obset2 = ledger.open_obligation_set(
         obligations=[{"obligation_id": f"demand:{u.unit_id}", "kind": "demand",
                       "unit_id": u.unit_id, "text": u.text, "state": "open"}
                      for u in units],
@@ -93,10 +93,10 @@ def main() -> int:
     )
     sid2, ver2 = obset2["set_id"], obset2["version"]
     for u in units:
-        L.record_slice_consumption(sid2, ver2, unit_id=u.unit_id,
+        ledger.record_slice_consumption(sid2, ver2, unit_id=u.unit_id,
                                    family="currency", evidence="slice_coverage")
-    rows2 = L.sweep_demand_obligations(sid2, ver2, states=dict(ladder))
-    census_receipt = dict(L.demand_census(sid2, ver2))
+    rows2 = ledger.sweep_demand_obligations(sid2, ver2, states=dict(ladder))
+    census_receipt = dict(ledger.demand_census(sid2, ver2))
     print(f"\nARM 2  sweep WITH a lane receipt : "
           f"{[(r['unit_id'], r['state']) for r in rows2]}")
     print(f"       census                    : {census_receipt}")

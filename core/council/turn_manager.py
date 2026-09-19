@@ -39,10 +39,10 @@ from __future__ import annotations
 
 import itertools
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
-
+from typing import Any
 
 # ---------------------------------------------------------------- events ----
 
@@ -139,7 +139,8 @@ class SeatResult:
 
 #: Default structural validation: non-empty content. Stages may supply a
 #: stricter validator; a validator raising means MALFORMED.
-DefaultValidator: Callable[[str], bool] = lambda text: bool(text and text.strip())
+def default_validator(text: str) -> bool:
+    return bool(text and text.strip())
 
 
 # ------------------------------------------------------------ seat config ----
@@ -194,7 +195,7 @@ class TurnManager:
         configs: dict[str, SeatRuntimeConfig],
         judge_worker: Callable[[str, float], str],
         judge_config: SeatRuntimeConfig | None = None,
-        final_validator: Callable[[str], bool] = DefaultValidator,
+        final_validator: Callable[[str], bool] = default_validator,
         bus: EventBus | None = None,
         task_text: str = "",
     ) -> None:
@@ -270,7 +271,7 @@ class TurnManager:
                 break
             try:
                 text = worker(prompt, cfg.timeout_s)
-                res = self._classify(text, DefaultValidator)
+                res = self._classify(text, default_validator)
             except TimeoutError:
                 res = SeatResult(Outcome.TIMED_OUT, error=f"deadline {cfg.timeout_s}s")
             except Exception as exc:  # transport/provider failure
@@ -323,7 +324,7 @@ class TurnManager:
                 t.start()
 
         import time as _time
-        t0 = _time.monotonic()
+        _time.monotonic()
         _launch_all()
 
         if TurnManager.PROGRESSION_MODE == "event":

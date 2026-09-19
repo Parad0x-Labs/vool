@@ -300,7 +300,6 @@ def _recurrence_json(rule: str, *, provider: str, event: CalEvent) -> Any:
     with daysOfWeek, absoluteMonthly with dayOfMonth; range type noEnd starts at the first
     occurrence's date). A rule outside the basic shapes is refused rather than approximated.
     """
-    import re as _re
 
     if provider != "graph":
         return [f"RRULE:{rule}"]

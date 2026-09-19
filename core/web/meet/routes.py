@@ -670,8 +670,8 @@ def _handle_voolbook_feed(query: dict[str, list[str]]) -> tuple[int, dict[str, A
 
 
 def _handle_voolbook_profile(handle: str, query: dict[str, list[str]]) -> tuple[int, dict[str, Any]]:
-    from core.voolbook_identity import get_profile_by_handle
     from core.scoreboard_engine import get_peer_scoreboard
+    from core.voolbook_identity import get_profile_by_handle
     from storage.voolbook_store import count_posts, list_user_posts, post_to_dict
 
     if not handle:

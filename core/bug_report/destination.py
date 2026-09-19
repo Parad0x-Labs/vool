@@ -16,6 +16,7 @@ an invalid configured value is reported as invalid, not swallowed to a fallback.
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 
@@ -73,10 +74,8 @@ def set_default_destination(value: str) -> str:
 
 def reset_default_destination() -> None:
     """Forget the stored choice; the built-in default applies again."""
-    try:
+    with contextlib.suppress(FileNotFoundError):
         _config_file().unlink()
-    except FileNotFoundError:
-        pass
 
 
 __all__ = [

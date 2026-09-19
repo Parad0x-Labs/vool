@@ -21,7 +21,7 @@ from core.runtime_task_outcome import (
     FulfillmentStatus,
     terminal_fulfillment_outcome,
 )
-from tests.test_obligation_floor_production_dispatch import (  # noqa: F401
+from tests.test_obligation_floor_production_dispatch import (
     PROMPT,
     _dispatch,
     agent,
@@ -31,7 +31,7 @@ from tests.test_obligation_floor_production_dispatch import (  # noqa: F401
 
 
 @pytest.fixture()
-def dispatched(agent, fetchers, model_seams):  # noqa: F811
+def dispatched(agent, fetchers, model_seams):
     """The decision a real turn produced, as it crosses the serialization boundary.
 
     Only the decision travels: the full result also carries the live source context, which holds a
@@ -80,7 +80,7 @@ def test_a_real_turn_whose_halves_disagree_fails_closed(dispatched):
 
 
 @pytest.mark.usefixtures("fetchers", "model_seams")
-def test_a_claimed_integrity_failure_persists_as_failed(agent):  # noqa: F811
+def test_a_claimed_integrity_failure_persists_as_failed(agent):
     """The other real disposition this path produces, end to end."""
     from unittest import mock
 

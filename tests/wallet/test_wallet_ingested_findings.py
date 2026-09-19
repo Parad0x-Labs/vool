@@ -98,8 +98,8 @@ def test_f3_the_signing_door_refuses_a_conflicting_domain_even_if_selection_was_
     """Belt-and-braces: with a pinned asset, the signing door itself refuses a binding
     whose domain differs from the pin (selection is one door, not the only one)."""
     from core.wallet import custody, proposals
-    from core.wallet.errors import WalletFault
     from core.wallet import x402 as wallet_x402
+    from core.wallet.errors import WalletFault
     from core.wallet.lifecycle import default_lifecycle
     from core.wallet.store import connection
 
@@ -279,10 +279,9 @@ def _open_awaiting_signature(app_post, amount_minor: int = 1000):
 
 def test_f2_expire_is_a_cas_and_reports_whether_it_won(wallet_env, monkeypatch):
     monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
-    from tests.asgi_harness import asgi_request
-
     from apps.vool_api_server import create_app
     from core.web.api.runtime import RuntimeServices
+    from tests.asgi_harness import asgi_request
 
     app = create_app(RuntimeServices(display_name="VOOL"))
 
@@ -308,12 +307,11 @@ def test_f2_the_reaper_releases_only_when_it_won_the_cas(wallet_env, monkeypatch
     import unittest.mock
 
     monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
-    from tests.asgi_harness import asgi_request
-
     from apps.vool_api_server import create_app
     from core.wallet import external_signing, limits, proposals
     from core.wallet.store import connection
     from core.web.api.runtime import RuntimeServices
+    from tests.asgi_harness import asgi_request
 
     app = create_app(RuntimeServices(display_name="VOOL"))
 
@@ -345,11 +343,10 @@ def test_f2_reject_after_claim_loses_the_cas_safely(wallet_env, monkeypatch):
     """Reject while a submit concurrently consumed the request: no release, no fake
     'rejected' — the honest answer is that a submission is in flight."""
     monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
-    from tests.asgi_harness import asgi_request
-
     from apps.vool_api_server import create_app
     from core.wallet import external_signing, limits, proposals
     from core.web.api.runtime import RuntimeServices
+    from tests.asgi_harness import asgi_request
 
     app = create_app(RuntimeServices(display_name="VOOL"))
 

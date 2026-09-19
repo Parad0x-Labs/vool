@@ -245,7 +245,7 @@ def test_state_record_lists_start_empty_never_guessed(make_agent):
 
 def test_a_live_data_turn_records_its_typed_claim(make_agent):
     """THE fail-on-old-defect pin for slice 3: no proposal recording, no claim."""
-    from core.turn_contract import LaneProposal, TURN_STATE_KEY
+    from core.turn_contract import TURN_STATE_KEY, LaneProposal
 
     _result, context = _run(
         make_agent,
@@ -889,7 +889,7 @@ def test_no_proposal_at_all_is_the_named_anomaly():
 def test_the_spine_carries_the_ledger_on_every_turn(make_agent):
     """THE wiring pin: the kernel decision is computed at the run_once spine
     from the lanes' own recorded proposals — the TurnState carries it."""
-    from core.lane_registry import ClaimLedger, DECISION_CLAIMED
+    from core.lane_registry import DECISION_CLAIMED, ClaimLedger
     from core.turn_contract import TURN_STATE_KEY
 
     _result, context = _run(
@@ -946,9 +946,8 @@ def test_a_superseded_lane_records_the_typed_refusal_not_a_double_claim():
     AWAY, the recorded proposal is a typed refusal naming the superseder —
     exactly ONE lane's claim survives per unit (the double-claim shape that
     made ownership ambiguous is gone)."""
-    from core.turn_contract import LaneProposal, TURN_PROPOSALS_KEY
-
     from core.agent_runtime.agent import VoolAgent
+    from core.turn_contract import TURN_PROPOSALS_KEY, LaneProposal
 
     agent = VoolAgent.__new__(VoolAgent)
     context: dict = {}
@@ -1002,7 +1001,7 @@ def test_the_live_data_lane_declines_when_the_kernel_refuses():
     kernel before executing and declines — the typed consult refusal is
     recorded and the lane does not execute its plan."""
     from core.agent_runtime.agent import VoolAgent
-    from core.turn_contract import LaneProposal, TURN_PROPOSALS_KEY
+    from core.turn_contract import TURN_PROPOSALS_KEY, LaneProposal
 
     agent = VoolAgent.__new__(VoolAgent)
     context: dict = {
@@ -1032,7 +1031,7 @@ def test_consult_before_serve_blocks_the_execute(make_agent):
     units makes the live-data turn return None (no plan executed) with the
     typed consult refusal recorded — the earlier lane's service stands."""
     from core.agent_runtime.answer_coverage import demand_units
-    from core.turn_contract import LaneProposal, TURN_PROPOSALS_KEY
+    from core.turn_contract import TURN_PROPOSALS_KEY, LaneProposal
 
     text = "what is the price of gold and silver?"
     units = demand_units(text)
@@ -1066,10 +1065,10 @@ def test_the_frontdoor_claims_turn_ids_not_slice_ids():
     """The id-space law: the frontdoor's claimed ids resolve against the
     TURN's canonical set (by unit-text containment), never a slice-local
     mint — u1-of-the-slice and u1-of-the-turn are different demands."""
+    from core.agent_runtime.answer_coverage import demand_units
     from core.agent_runtime.fast_live_info_runtime_flow import (
         _frontdoor_claimed_units,
     )
-    from core.agent_runtime.answer_coverage import demand_units
 
     full = "what is the price of gold and silver? also write a poem"
     slice_text = "what is the price of gold and silver?"
@@ -1095,7 +1094,7 @@ def test_the_conductor_declines_when_the_kernel_refuses():
     conductor plan binds makes the conductor CONSULT-decline before executing
     (typed refusal recorded; the earlier lane's service stands)."""
     from core.agent_runtime.agent import VoolAgent
-    from core.turn_contract import LaneProposal, TURN_PROPOSALS_KEY
+    from core.turn_contract import TURN_PROPOSALS_KEY, LaneProposal
 
     agent = VoolAgent.__new__(VoolAgent)
     context: dict = {

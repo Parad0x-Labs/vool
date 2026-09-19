@@ -384,10 +384,9 @@ def test_case8_unknown_explicit_pin_fails_visibly(free_openrouter_lane, posts) -
 # 9. Auto still uses the available free fallback (the control that must stay green under sabotage).
 # ============================================================================================
 def test_case9_auto_still_uses_the_free_boost(free_openrouter_lane, posts) -> None:
-    from core.cloud_provider_contract import CloudTaskRequirements, PrivacyClass
-
     from unittest import mock
 
+    from core.cloud_provider_contract import CloudTaskRequirements, PrivacyClass
     from core.memory_first_router import MemoryFirstRouter
 
     _set_policy(mode="auto", daily_cap=25, free_cloud_enabled=True, auto_free_model="vendor/free-chat:free")

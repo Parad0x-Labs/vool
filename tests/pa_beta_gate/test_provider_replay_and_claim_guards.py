@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.pa_beta_gate.test_calendar_provider_vertical import (  # noqa: F401 -- vilnius_env is a pytest fixture
+from tests.pa_beta_gate.test_calendar_provider_vertical import (
     VILNIUS_CAL,
     _provider_events,
     _run,
@@ -27,7 +27,7 @@ def test_uncertain_create_replay_recovers_without_duplicate(vilnius_env, monkeyp
     reconciles the SAME durable identity — recovered, never duplicated."""
     session = "replay-recover"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "Maybe" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Maybe" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     intent_uid = _scope_of(vilnius_env, session, proposal.details["action_id"])["intent_uid"]
     assert intent_uid, "the UID is minted at PROPOSAL time (durable intent identity)"
 
@@ -55,7 +55,7 @@ def test_uncertain_create_replay_refires_when_it_never_landed(vilnius_env):
     re-approval creates the exact proposed event under the same identity."""
     session = "replay-refire"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "Never landed" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Never landed" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     action_id = proposal.details["action_id"]
     intent_uid = _scope_of(vilnius_env, session, action_id)["intent_uid"]
 
@@ -82,7 +82,7 @@ def test_concurrent_duplicate_approval_executes_once(vilnius_env):
     """Two approvals race: the atomic claim lets exactly one through."""
     session = "concurrent-claim"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "Single flight" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Single flight" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     action_id = proposal.details["action_id"]
 
     from core.local_operator_actions import _claim_pending_action
@@ -101,7 +101,7 @@ def test_approval_is_bound_to_the_reviewed_provider_and_account(vilnius_env, mon
     """An approval staged against one account must not execute against another."""
     session = "binding"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "Bound" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Bound" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     action_id = proposal.details["action_id"]
 
     # The runtime is re-pointed at a DIFFERENT provider account between preview and approval.

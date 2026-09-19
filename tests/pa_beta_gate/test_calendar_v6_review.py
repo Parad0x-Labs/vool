@@ -1,7 +1,9 @@
 """Independent semantic receipt probes; no native app, credentials or provider I/O."""
 import json
 from types import SimpleNamespace
+
 import pytest
+
 from core.operator import apple_notes, notes
 from core.operator.models import OperatorActionIntent
 

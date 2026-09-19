@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import re
 
-from core.vool_chat_page import _VOOL_CHAT_HTML, render_vool_chat_html
 from core.ui_chip_fragment import render_chip_fragment
+from core.vool_chat_page import _VOOL_CHAT_HTML, render_vool_chat_html
 
 
 def test_rendered_page_mounts_every_fragment_in_order() -> None:

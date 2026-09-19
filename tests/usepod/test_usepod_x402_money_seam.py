@@ -72,10 +72,9 @@ class SyntheticWalletAuthority:
         self.proof_calls.append({"operation_id": envelope.operation_id, "amount": option.amount_atomic, "claim_token": str(getattr(reservation, "claim_token", "") or "")})
         if self.refuse_proof:
             raise PaymentAuthorityRefusedError(self.refuse_proof)
+        from core.usepod.transport import X402PaymentProof
         from tests.usepod._usepod_doubles import synthetic_signature
         from tests.usepod.strict_usepod_service import SYNTHETIC_PAY_TO
-
-        from core.usepod.transport import X402PaymentProof
 
         signature = synthetic_signature(envelope.operation_id)
         # The synthetic chain confirms the payment before the paid retry carries the signature.
@@ -382,7 +381,12 @@ def test_a_used_consent_in_one_asset_does_not_shadow_a_fresh_consent_in_the_othe
 
 def test_a_lost_paid_answer_is_resumed_with_the_same_bytes_and_proof_and_is_never_paid_twice(x402_rig) -> None:
     from core.effect_budget_money import liability_for_operation
-    from core.usepod.transport import DISPATCH_OUTCOME_UNKNOWN, X402_COMPLETED, X402_OUTCOME_UNKNOWN, X402OperationStateError
+    from core.usepod.transport import (
+        DISPATCH_OUTCOME_UNKNOWN,
+        X402_COMPLETED,
+        X402_OUTCOME_UNKNOWN,
+        X402OperationStateError,
+    )
 
     service, _authority, wallet, _token = x402_rig
     _mint_x402_grant()

@@ -294,7 +294,7 @@ class TestFailureVocabulary(unittest.TestCase):
         )
 
     def test_failure_rows_round_trip_with_their_kind(self) -> None:
-        from core.turn_routing import record_routing_failure, latest_routing_failure
+        from core.turn_routing import latest_routing_failure, record_routing_failure
 
         with tempfile.TemporaryDirectory() as tmp:
             import os
@@ -326,7 +326,7 @@ class TestFailureVocabulary(unittest.TestCase):
                     os.environ["VOOL_HOME"] = old
 
     def test_latest_failure_excludes_the_current_turn(self) -> None:
-        from core.turn_routing import record_routing_failure, latest_routing_failure
+        from core.turn_routing import latest_routing_failure, record_routing_failure
 
         with tempfile.TemporaryDirectory() as tmp:
             import os
@@ -392,7 +392,7 @@ class TestRetryGenerationLinkage(unittest.TestCase):
         )
 
     def test_retry_plan_links_original_identity_and_generation(self) -> None:
-        from core.turn_routing import mint_turn_routing_plan, mint_retry_plan
+        from core.turn_routing import mint_retry_plan, mint_turn_routing_plan
 
         original = self._original()
         retry = mint_retry_plan(
@@ -408,7 +408,7 @@ class TestRetryGenerationLinkage(unittest.TestCase):
         self.assertEqual(retry.context_identity, "ctx-1")
 
     def test_retry_never_widens_the_original_fences(self) -> None:
-        from core.turn_routing import mint_turn_routing_plan, mint_retry_plan
+        from core.turn_routing import mint_retry_plan, mint_turn_routing_plan
 
         original = mint_turn_routing_plan(
             turn_id="turn-1",
@@ -737,7 +737,7 @@ class TestBootstrapContextRelevanceGates(unittest.TestCase):
     """bootstrap/self-knowledge context must be relevance-gated, not unconditional."""
 
     @staticmethod
-    def _items_for(turn_text: str) -> dict[str, "object"]:
+    def _items_for(turn_text: str) -> dict[str, object]:
         from types import SimpleNamespace
 
         from core.bootstrap_context import build_bootstrap_context

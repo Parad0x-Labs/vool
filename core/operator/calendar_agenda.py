@@ -13,9 +13,10 @@ text, and a join address is shown only when it is https.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable
+from typing import Any
 from zoneinfo import ZoneInfo
 
 AGENDA_READ_SCOPE_NAME = "calendar.agenda_read"
@@ -288,7 +289,7 @@ def _explicit_date(lowered: str, *, now_fn: Callable[[], Any]):
 
 
 def busy_cal_events(*, start_utc: datetime, end_utc: datetime,
-                    exclude: "AgendaSource | None" = None,
+                    exclude: AgendaSource | None = None,
                     get_connection_fn: Callable[[], Any] | None = None) -> tuple[list[Any], list[dict[str, Any]], list[AgendaSource]]:
     """(events, failures, sources) across the opted-in selected calendars, for free/busy math.
 
@@ -315,7 +316,17 @@ def busy_cal_events(*, start_utc: datetime, end_utc: datetime,
     return events, failures, sources
 
 
-__all__ = ["SelectionsUnavailableError",
-    "AGENDA_READ_SCOPE_NAME", "MAX_EVENTS_PER_SOURCE", "MAX_SEARCH_RESULTS", "SEARCH_DAYS_AHEAD", "SEARCH_DAYS_BACK",
-    "AgendaSource", "agenda", "busy_cal_events", "parse_agenda_window", "search", "selected_sources",
+__all__ = [
+    "AGENDA_READ_SCOPE_NAME",
+    "MAX_EVENTS_PER_SOURCE",
+    "MAX_SEARCH_RESULTS",
+    "SEARCH_DAYS_AHEAD",
+    "SEARCH_DAYS_BACK",
+    "AgendaSource",
+    "SelectionsUnavailableError",
+    "agenda",
+    "busy_cal_events",
+    "parse_agenda_window",
+    "search",
+    "selected_sources",
 ]

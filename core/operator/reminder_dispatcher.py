@@ -24,11 +24,13 @@ delivery is never promised.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import threading
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable
+from typing import Any
 
 from core import audit_logger
 from core.operator import reminders as operator_reminders
@@ -432,10 +434,8 @@ def reminders_for_session(session_id: str, *, include_delivered: bool = True) ->
     )
     for row in rows:
         if row.get("delivery_receipt_json"):
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 row["delivery_receipt"] = json.loads(str(row["delivery_receipt_json"]))
-            except json.JSONDecodeError:
-                pass
     return rows
 
 

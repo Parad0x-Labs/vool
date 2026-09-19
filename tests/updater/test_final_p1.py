@@ -34,7 +34,7 @@ from core.updater.trust import TrustedPublishers
 from core.updater.work import WorkCoordinator
 
 from .helpers import build_manifest, generate_publisher_keypair, manifest_bytes, sha256_hex, sign_bytes
-from .test_e2e_sandbox import SandboxServer, _artifact_zip, _http_fetch, sandbox  # noqa: F401  (fixture)
+from .test_e2e_sandbox import SandboxServer, _artifact_zip, _http_fetch, sandbox
 
 NEW_SHA = "b" * 40
 OLD_SHA = "a" * 40
@@ -172,7 +172,7 @@ class TestChannelsExplicit:
 
 class TestExactShaGate:
     @pytest.fixture()
-    def sha_sandbox(self, tmp_path, sandbox):  # noqa: F811  (pytest fixture by name)
+    def sha_sandbox(self, tmp_path, sandbox):
         """The standard sandbox rig, but /healthz speaks the CURRENT schema with the
         on-disk bundle's exact SHA inside runtime.commit_full."""
         box = sandbox

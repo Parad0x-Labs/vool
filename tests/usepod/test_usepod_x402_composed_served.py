@@ -27,7 +27,15 @@ from urllib.request import Request, urlopen
 import pytest
 
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
-from tests.usepod.test_usepod_served_flow import MARKET, MARKET_ID, MODEL, _answer_text, _completed_receipts, _keep, _session
+from tests.usepod.test_usepod_served_flow import (
+    MARKET,
+    MARKET_ID,
+    MODEL,
+    _answer_text,
+    _completed_receipts,
+    _keep,
+    _session,
+)
 from tests.usepod.test_usepod_settings_ui import CENTRAL, PlainServedDaemon
 from tests.wallet._simulated_solana import MAINNET_GENESIS, USDC_MAINNET_MINT, SimulatedSolanaNode
 
@@ -486,7 +494,7 @@ def test_two_concurrent_turns_under_one_single_payment_consent_pay_exactly_once(
     for session_id in sessions:
         _pin_for(daemon, session_id)
     prompts = ("Name one reason lighthouses flash in patterns.", "Name one reason ports dredge their channels.")
-    turns = [_chat_in_background(daemon, prompt, session_id) for prompt, session_id in zip(prompts, sessions)]
+    turns = [_chat_in_background(daemon, prompt, session_id) for prompt, session_id in zip(prompts, sessions, strict=False)]
     deadline = time.monotonic() + 120.0
     pending: list[dict] = []
     while time.monotonic() < deadline:

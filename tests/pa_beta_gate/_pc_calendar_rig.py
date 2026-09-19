@@ -28,7 +28,7 @@ class Clock:
         self.now += timedelta(**delta)
 
 
-def prepare_home(tmp_path, monkeypatch, *, zone: str = "Europe/Berlin"):
+def prepare_home(tmp_path, monkeypatch, *, zone: str = "Europe/Athens"):
     monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("VOOL_WORKSPACE_ROOT", str(tmp_path / "workspace"))
     from core import runtime_paths

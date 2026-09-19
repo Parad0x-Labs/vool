@@ -139,7 +139,7 @@ from typing import Any
 # something earlier in their own import chain already establishes the package. A monitor script
 # easily can, so it is done here, once, defensively, rather than left to whoever calls this module
 # first.
-import core.agent_runtime  # noqa: F401  (import-order fix, not used directly)
+import core.agent_runtime
 
 
 @dataclass(frozen=True)

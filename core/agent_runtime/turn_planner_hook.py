@@ -168,7 +168,7 @@ def _context_turn_id(source_context: dict[str, Any] | None) -> str:
 #: artifacts and pay TWO generations of the same classification question (measured: conductor's
 #: clause ask and the generic planner's ask on one turn). This registry is the cross-copy view:
 #: one artifact per turn_id, bounded to the most recent turns of this process.
-_ARTIFACTS_BY_TURN: dict[str, "SharedPlannerArtifact"] = {}
+_ARTIFACTS_BY_TURN: dict[str, SharedPlannerArtifact] = {}
 _ARTIFACT_REGISTRY_MAX = 64
 
 

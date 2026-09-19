@@ -68,7 +68,6 @@ _STOPWORDS = frozenset(
 _ENTITY_TOKENS = frozenset(
     {
         "vool",
-        "vool",
         "parad0x",
         "web0",
         "openrouter",

@@ -25,7 +25,7 @@ import pytest
 from tests import _network_seal as network_seal
 
 # Imported rather than discovered -- see `_fixtures` for why this is not a conftest.
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     SEAL_REASON,
     block_outbound_network,
     keep_the_checkout_clean,

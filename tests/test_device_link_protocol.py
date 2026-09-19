@@ -17,16 +17,16 @@ from core.device_link import (
     ENVELOPE_FULL_REMOTE_CONTROL,
     ENVELOPE_ORDER,
     ENVELOPE_VIEW_ONLY,
-    GrantError,
-    GrantRegistry,
     SCOPE_ONE_ACTION,
     SCOPE_ONE_PROJECT,
+    GrantError,
+    GrantRegistry,
     issue_grant,
     load_or_create,
     public_hex,
     sign_request,
-    verify_grant_self_signature,
     verbs_for_envelope,
+    verify_grant_self_signature,
 )
 from core.device_link import ctl as devicectl
 

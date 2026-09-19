@@ -116,7 +116,7 @@ def test_A_forest_class_plus_one_converges(monkeypatch):
     assert "COMMIT: committed" in tr
     # provenance: every original word kept, in order
     assert "a large area trees grow"[:11] in ans or all(
-        w in ans.split() for w in "a large area trees grow".split())
+        w in ans.split() for w in ["a", "large", "area", "trees", "grow"])
 
 
 # ===================================================== B. fresh unseen +1 variants
@@ -223,7 +223,7 @@ def test_H1_repaired_answer_preserves_model_words_in_order(monkeypatch):
     judge = _judge_plus_one(5, repaired)
     tr, ans, _ = _turn(monkeypatch, judge, _ledger(6), question="define forest")
     words = _bare(ans).split()
-    original = "a large area trees grow".split()
+    original = ["a", "large", "area", "trees", "grow"]
     # original words appear in their original relative order
     idx = [words.index(w) for w in original if w in words]
     assert idx == sorted(idx) and len(idx) == 5, (

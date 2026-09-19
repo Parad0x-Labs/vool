@@ -22,10 +22,10 @@ from core.usepod.monetary import MonetaryAuthorityRefusedError
 from tests.usepod._usepod_doors import post as _post
 from tests.usepod.strict_usepod_service import Listing, default_reply
 from tests.usepod.test_usepod_money_law import (
+    CENTRAL,
     GRANT_NOTE,
     MARKET,
     MARKET_ID,
-    CENTRAL,
     MODEL,
     _fingerprint,
     _liability,

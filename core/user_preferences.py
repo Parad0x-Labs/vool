@@ -29,7 +29,7 @@ class UserPreferences:
     social_commons: bool = True
     ram_reserve_pct: int = 20       # RAM % the governor keeps free for the user (higher = VOOL uses less)
     daily_token_budget: int = 0     # soft cap on cloud tokens/day (0 = unlimited); surfaced against real usage
-    timezone: str = ""              # IANA timezone identity, e.g. "Europe/Berlin"; empty = UTC fallback
+    timezone: str = ""              # IANA timezone identity, e.g. "Europe/Athens"; empty = UTC fallback
     wallet_enabled: bool = False    # 🧪 experimental crypto wallet -- OFF by default; the Settings switch, not an env var
     wallet_enabled_generation: int = 0  # counts changes of the switch; a signed wallet transfer compares it before sending
     speech_notice_dismissed: bool = False  # durable even in private native web sessions

@@ -99,7 +99,7 @@ def test_an_exact_count_request_is_answered_with_the_counted_facts(agent, counte
     assert "python files" in reply.lower(), reply
     assert ".py" in reply, reply
     assert "3" in reply, reply
-    assert f"deep/nested/core_impl.py" in reply, reply
+    assert "deep/nested/core_impl.py" in reply, reply
     assert "19" in reply, reply
     assert "line" in reply.lower(), reply
 

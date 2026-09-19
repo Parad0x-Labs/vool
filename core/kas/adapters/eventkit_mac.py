@@ -36,7 +36,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from core.kas.registry import register_adapter
 from core.kas.contract import (
     AdapterConfig,
     CalCalendar,
@@ -47,6 +46,7 @@ from core.kas.contract import (
     CalEvent,
     accepted_write_error,
 )
+from core.kas.registry import register_adapter
 
 _PERMISSION_GUIDE = (
     "grant Calendars access in System Settings > Privacy & Security > Calendars "

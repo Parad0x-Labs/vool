@@ -15,7 +15,7 @@ MAX_PAGES = 100
 _FONT_LOCK = threading.Lock()
 
 
-class PdfRefused(ValueError):  # noqa: N818 - matches the export door's typed refusal vocabulary
+class PdfRefused(ValueError):
     """No partial document may be delivered after a representation failure."""
 
 

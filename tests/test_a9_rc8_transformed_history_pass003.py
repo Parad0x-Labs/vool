@@ -72,11 +72,11 @@ class _IsolatedStoresTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         import os
 
-        from core.runtime_paths import configure_runtime_home
         from core.runtime_continuity import (
             configure_runtime_continuity_db_path,
             reset_runtime_continuity_state,
         )
+        from core.runtime_paths import configure_runtime_home
 
         reset_runtime_continuity_state()
         configure_runtime_continuity_db_path(None)
@@ -359,11 +359,11 @@ class PersistedRepresentationRestartTests(_GovernanceHarness):
 
         # Simulated restart: tear down process-global state, re-point at the
         # SAME durable DB, reassemble.
-        from core.runtime_paths import configure_runtime_home
         from core.runtime_continuity import (
             configure_runtime_continuity_db_path,
             reset_runtime_continuity_state,
         )
+        from core.runtime_paths import configure_runtime_home
 
         reset_runtime_continuity_state()
         configure_runtime_continuity_db_path(None)

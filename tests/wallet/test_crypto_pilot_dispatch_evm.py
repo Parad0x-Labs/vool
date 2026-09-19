@@ -15,9 +15,9 @@ import json
 import uuid
 
 import pytest
-from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 
 from core.wallet.errors import WalletFault
+from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 
 pytestmark = [pytest.mark.safety]
 

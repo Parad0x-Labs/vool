@@ -1,7 +1,8 @@
 """Independent checks; imports the delivered controls unchanged. No network required."""
 import pytest
-from tests.test_code_task_purposeful_verification import *
-from tests.test_code_task_purposeful_verification import Task, _door, _journal, _wrong_fix_task
+
+from tests.test_code_task_purposeful_verification import *  # noqa: F403 — inherits the delivered suite's fixtures/helpers verbatim
+from tests.test_code_task_purposeful_verification import CHECK, Task, _door, _journal, _wrong_fix_task
 
 
 @pytest.mark.parametrize('intent,command', [

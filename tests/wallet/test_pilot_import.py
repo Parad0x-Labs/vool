@@ -6,7 +6,7 @@ from solders.keypair import Keypair
 
 from core.wallet import pilot_custody as pilot
 from core.wallet.errors import WalletFault
-from tests.wallet.test_crypto_pilot_custody import PIN, SOLANA_MAINNET, _rows, pilot_home  # noqa: F401
+from tests.wallet.test_crypto_pilot_custody import PIN, SOLANA_MAINNET, _rows, pilot_home
 
 
 def adopt(key, **overrides):

@@ -110,7 +110,7 @@ def _served_draft_flow(make_agent, api_server, *, provider: str, account: str, a
                        inbox_entry: dict, request_text: str, draft_body: str, subject_expected: str) -> None:
     """ingress → routing → [captured-model replay: tool selection] → permission
     → provider transport → receipts/history → truthful answer."""
-    from tests.provider_api_fixture import ProviderApiServer  # noqa: F401
+    from tests.provider_api_fixture import ProviderApiServer
 
     _store_account(api_server, provider, account, address)
     if provider == "gmail":

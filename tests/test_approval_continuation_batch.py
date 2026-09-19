@@ -37,9 +37,9 @@ from core.mode_permission_policy import (
     resolve_approval,
     set_active_mode,
 )
-from core.vool_chat_page import render_vool_chat_html
 from core.task_event_model import build_task_event
 from core.tool_intent_executor import ToolIntentExecution
+from core.vool_chat_page import render_vool_chat_html
 
 WRITES = tuple(
     {"intent": "workspace.write_file", "arguments": {"path": f"src/mod_{index}.py", "content": f"# module {index}\n"}}

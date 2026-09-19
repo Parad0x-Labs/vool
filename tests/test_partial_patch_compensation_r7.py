@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 
 from tests.repoops._harness import context, door
-from tests.repoops.test_forge_actions import world  # noqa: F401 -- fixture
+from tests.repoops.test_forge_actions import world
 from tests.test_approved_destination_identity_r6 import _new_effects, _patch_step, _turn_ids
 
 STOCK_BUGGY = "def reorder_point(daily_use, lead_days):\n    return daily_use + lead_days\n"
@@ -158,7 +158,7 @@ def _decoy(root: Path) -> None:
 
 @pytest.mark.skipif(os.name != "posix" or os.geteuid() == 0,
                     reason="a directory without write permission refuses a write only to an unprivileged POSIX process")
-def test_a_patch_stopped_by_a_directory_it_may_not_write_removes_its_new_files_and_restores_the_rest(world) -> None:  # noqa: F811 -- the imported fixture
+def test_a_patch_stopped_by_a_directory_it_may_not_write_removes_its_new_files_and_restores_the_rest(world) -> None:
     root, _bare, _forge = world
     _inventory_world(root)
     ctx = context(root, session="compensation-read-only-directory")
@@ -193,7 +193,7 @@ def test_a_patch_stopped_by_a_directory_it_may_not_write_removes_its_new_files_a
 
 
 @pytest.mark.parametrize("interference", ["edited-in-place", "saved-atomically-with-the-same-bytes", "replaced-by-a-link-outside"])
-def test_a_new_file_another_writer_touched_before_compensation_is_kept_and_reported(world, tmp_path, monkeypatch, interference) -> None:  # noqa: F811 -- the imported fixture
+def test_a_new_file_another_writer_touched_before_compensation_is_kept_and_reported(world, tmp_path, monkeypatch, interference) -> None:
     """Injected timing: at the refusal of the last file (see `_retarget_shipping_on_open`) another writer touches
     the patch's new `inventory/restock_policy.md`: rewrites it in place, atomically saves the very bytes the patch
     wrote (a new entry under the same name), or replaces it with a link to a file outside the workspace."""
@@ -252,7 +252,7 @@ def test_a_new_file_another_writer_touched_before_compensation_is_kept_and_repor
     assert all(outcomes.get(path) == "refused" for path in ("inventory/stock.py", "inventory/thresholds.csv")), outcomes
 
 
-def test_an_entry_replaced_while_the_compensation_removes_it_is_put_back_and_reported(world, monkeypatch) -> None:  # noqa: F811 -- the imported fixture
+def test_an_entry_replaced_while_the_compensation_removes_it_is_put_back_and_reported(world, monkeypatch) -> None:
     """Injected timing inside the compensation itself: between the removal's examination of the patch's new
     `inventory/thresholds.csv` (it is still the file the patch created) and the removal, another writer atomically
     saves different bytes under that name. The removal must not take the other writer's file with it."""
@@ -293,7 +293,7 @@ def test_an_entry_replaced_while_the_compensation_removes_it_is_put_back_and_rep
     assert "inventory/thresholds.csv" in refused.response_text.split("NOT restored", 1)[-1], refused.response_text
 
 
-def test_a_legitimate_creation_in_an_approved_patch_still_applies(world) -> None:  # noqa: F811 -- the imported fixture
+def test_a_legitimate_creation_in_an_approved_patch_still_applies(world) -> None:
     root, _bare, _forge = world
     _inventory_world(root)
     ctx = context(root, session="compensation-control-creation")

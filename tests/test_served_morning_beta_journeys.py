@@ -23,7 +23,6 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import Any
-
 from urllib.error import HTTPError
 
 import pytest
@@ -337,8 +336,8 @@ def test_a_different_bounded_file_task_and_a_destructive_refusal_control(scaffol
 
 def test_fault_wording_served_401_403_429_retry_after(tmp_path):
     """Served turns against a loopback provider that answers typed HTTP refusals."""
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     statuses: dict[str, tuple[int, str]] = {}
     handler_calls: list[str] = []

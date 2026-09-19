@@ -18,7 +18,7 @@ import pytest
 
 from core import effect_budget as eb
 from core.effect_budget import wallet_effect_budget_contract
-from tests.effect_budget.conftest import *  # noqa: F401,F403 — fixtures
+from tests.effect_budget.conftest import *  # noqa: F403 — fixtures
 
 
 def test_the_contract_is_typed_and_names_both_operations():

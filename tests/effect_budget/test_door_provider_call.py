@@ -14,7 +14,7 @@ import threading
 import pytest
 
 from core import effect_budget as eb
-from tests.effect_budget.conftest import *  # noqa: F401,F403 — fixtures
+from tests.effect_budget.conftest import *  # noqa: F403 — fixtures
 
 
 @pytest.fixture()

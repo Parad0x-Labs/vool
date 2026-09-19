@@ -22,7 +22,7 @@ import pytest
 
 from tests._credential_intelligence_support import (
     FakeProviderServer,
-    isolated_home,  # noqa: F401 — registers the fixture for this module
+    isolated_home,
 )
 
 PROVIDER_KEY = "sk-or-v1-" + "d" * 56
@@ -63,7 +63,7 @@ ANTHROPIC_LIST = {
 
 
 @pytest.fixture
-def home(isolated_home):  # noqa: F811 - parameter, not a redefinition
+def home(isolated_home):
     return isolated_home
 
 

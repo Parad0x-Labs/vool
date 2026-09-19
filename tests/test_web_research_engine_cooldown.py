@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from tools.web import web_research as wr
-from tools.web.searxng_client import SearXNGUnavailableError, SearchResult
+from tools.web.searxng_client import SearchResult, SearXNGUnavailableError
 
 
 @pytest.fixture(autouse=True)

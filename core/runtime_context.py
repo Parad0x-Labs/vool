@@ -15,8 +15,8 @@ from core.runtime_paths import (
     configure_runtime_home,
     resolve_workspace_root,
 )
-from storage.db import resolve_runtime_db_filename as _resolve_runtime_db
 from storage.db import configure_default_db_path
+from storage.db import resolve_runtime_db_filename as _resolve_runtime_db
 
 
 @dataclass(frozen=True)

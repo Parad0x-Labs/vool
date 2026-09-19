@@ -74,8 +74,8 @@ that was actually served rather than a call that was merely attempted.
 
 from __future__ import annotations
 
+import contextlib
 import re
-
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -204,7 +204,7 @@ class AuthorshipDecision:
             "detail": str(self.detail),
         }
 
-    def refusal_text(self, *, attempted_failed: "tuple[str, ...] | list[str] | None" = None) -> str:
+    def refusal_text(self, *, attempted_failed: tuple[str, ...] | list[str] | None = None) -> str:
         """What ships instead of the model's bytes. Names the model, the role and the cause.
 
         ``attempted_failed`` carries the certified authors this turn DID call and that failed
@@ -1180,10 +1180,8 @@ def _runtime_tool_names() -> dict[str, str]:
     names: list[tuple[str, str]] = []
     try:
         from core import capability_graph as graph
-        try:
+        with contextlib.suppress(Exception):
             graph.ensure_registry_bootstrap()
-        except Exception:
-            pass
         # Every REGISTERED implementation, not only the ones offered to the model this turn: a
         # reply that presents a run of a tool the runtime owns is a claim about the runtime
         # whether or not that tool was on this turn's menu (the served rig hides web.search
@@ -1359,12 +1357,9 @@ def reset_for_tests() -> None:
 
 __all__ = [
     "CERTIFICATION_SOURCE_MEASURED",
-    "EXECUTION_CLAIM_NOTICE_LEAD",
-    "execution_claims",
-    "gate_execution_claims",
-    "record_runtime_support",
     "CERTIFICATION_SOURCE_NONE",
     "CERTIFICATION_SOURCE_OPERATOR",
+    "EXECUTION_CLAIM_NOTICE_LEAD",
     "FINAL_ANSWER_ROLE",
     "REASON_AUTHOR_UNRESOLVED",
     "REASON_BLOCKED_BEFORE_GENERATION",
@@ -1388,8 +1383,11 @@ __all__ = [
     "authorship_record_for_publication",
     "decide_final_answer_author",
     "escalation_target",
+    "execution_claims",
     "gate_authored_content",
+    "gate_execution_claims",
     "invalidate_author_certification",
     "record_authorship_decision",
+    "record_runtime_support",
     "reset_for_tests",
 ]

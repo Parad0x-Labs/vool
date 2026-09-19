@@ -25,6 +25,7 @@ plugin running outside the sandbox) is not a generic tool, and nothing here cons
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import stat
 from pathlib import Path
@@ -42,14 +43,10 @@ def _dedupe(paths: list[Path]) -> tuple[Path, ...]:
 
 def _forms(path: Path) -> list[Path]:
     forms: list[Path] = []
-    try:
+    with contextlib.suppress(OSError, ValueError):
         forms.append(Path(os.path.abspath(path)))
-    except (OSError, ValueError):
-        pass
-    try:
+    with contextlib.suppress(OSError, RuntimeError, ValueError):
         forms.append(path.resolve())
-    except (OSError, RuntimeError, ValueError):
-        pass
     return list(_dedupe(forms))
 
 
@@ -77,10 +74,8 @@ def code_write_exemptions() -> tuple[Path, ...]:
     from core import runtime_paths
 
     candidates = [Path(runtime_paths.WORKSPACE_DIR)]
-    try:
+    with contextlib.suppress(Exception):
         candidates.append(runtime_paths.active_workspace_dir())
-    except Exception:
-        pass
     roots = protected_code_roots()
     exempt = [form for candidate in candidates for form in _forms(candidate) if any(root in form.parents for root in roots)]
     return _dedupe(exempt)

@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from core import first_run_pact, policy_engine
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def test_the_composite_flips_every_authority_store_never_the_pact_file(pact_rig):

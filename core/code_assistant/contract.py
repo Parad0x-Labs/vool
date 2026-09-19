@@ -87,7 +87,7 @@ class CodeAssistantProposal:
     dialect: str = "canonical"
     origin: str = ""
 
-    def with_stage(self, stage: str, rationale: str = "") -> "CodeAssistantProposal":
+    def with_stage(self, stage: str, rationale: str = "") -> CodeAssistantProposal:
         return CodeAssistantProposal(
             intent=self.intent,
             arguments=dict(self.arguments),
@@ -157,8 +157,6 @@ def validate_proposal(proposal: CodeAssistantProposal) -> str:
 
 
 __all__ = [
-    "CodeAssistantProposal",
-    "ContractRefused",
     "FAMILY_INTENTS",
     "INTENT_FAMILY",
     "READ_ONLY_FAMILIES",
@@ -166,7 +164,9 @@ __all__ = [
     "REASON_FORGED_TRUST_KEY",
     "REASON_INVALID_ARGUMENTS",
     "REASON_NOT_IN_SCOPE",
-    "REASON_UNKNOWN_INTENT",
     "REASON_UNCONFINED_PATH",
+    "REASON_UNKNOWN_INTENT",
+    "CodeAssistantProposal",
+    "ContractRefused",
     "validate_proposal",
 ]

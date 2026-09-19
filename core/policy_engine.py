@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import os
 from threading import RLock
@@ -711,10 +712,8 @@ def _write_operator_values_locked(values: dict[str, Any]) -> dict[str, Any]:
         except OSError:
             pass
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
     load(force_reload=True)

@@ -46,22 +46,26 @@ touching the law.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable
+from typing import Any
 
 from core.council import containment
 from core.council.attempts import AttemptOutcome, RetryPolicy
-from core.council.roles import DEFAULT_JUDGE_ROLES, ROLE_REGISTRY, role_brief
 from core.council.roles import (
+    DEFAULT_JUDGE_ROLES,
     DIET_CANDIDATE,
     DIET_EXHIBITS,
     DIET_PEER_REPORTS,
     DIET_PROBLEM,
     DIET_WORKSPACE,
+    ROLE_REGISTRY,
+    role_brief,
 )
 from core.council.run_store import CouncilRunStore
 
@@ -406,10 +410,8 @@ class CouncilOrchestrator:
         state.update(extra)
         self.store.write_state(state)
         if self.on_transition is not None:
-            try:
+            with contextlib.suppress(Exception):  # a progress listener must never kill the run
                 self.on_transition({"run_id": self.run_id, "state": state_name, **extra})
-            except Exception:
-                pass  # a progress listener must never kill the run
 
     # ------------------------------------------------------------------ seats
     def seat_by_id(self, seat_id: str) -> Seat | None:
@@ -662,7 +664,7 @@ class CouncilOrchestrator:
         """One seat turn, classified. Never raises: every fault becomes a typed outcome."""
         try:
             result = self.seat_turn(seat, prompt, round_no, self.run_id) or {}
-        except Exception as exc:  # noqa: BLE001 — every fault becomes a typed outcome
+        except Exception as exc:
             declared = str(getattr(exc, "attempt_outcome", "") or "")
             if declared in AttemptOutcome.__members__:
                 outcome = AttemptOutcome[declared]
@@ -802,7 +804,7 @@ class CouncilOrchestrator:
                         "candidate": self.candidate,
                     }, event="no_convergence", max_rounds=self.max_rounds)
                 self.round_no += 1
-                self.rounds = self.rounds[: self.round_no - 1] + [[]]
+                self.rounds = [*self.rounds[:self.round_no - 1], []]
                 self.round_open = True
                 self.store.append_event("round_opened", round_no=self.round_no, phase=self.phase)
                 self._persist("round_open", round_no=self.round_no, phase=self.phase)

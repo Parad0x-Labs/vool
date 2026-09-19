@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from tests.repoops._harness import door
-from tests.repoops.test_forge_actions import world, _calls, _operator_authorizes
+from tests.repoops.test_forge_actions import _calls, _operator_authorizes, world
 from tests.repoops.test_forge_integration_review import prepare
 
 

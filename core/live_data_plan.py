@@ -29,10 +29,11 @@ after already passing through the same plausibility guard the live fetch itself 
 from __future__ import annotations
 
 import re
-from core.turn_contract import LaneProposal
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
+from core.turn_contract import LaneProposal
 
 
 class SubtaskLifecycle(str, Enum):
@@ -418,8 +419,6 @@ def build_live_data_plan(
             )
 
     if "weather" in requirements.allowed_toolsets:
-        from tools.web.web_research import _extract_weather_locations_with_confidence
-
         # Water asks are extracted FIRST and their spans blanked before the weather
         # extractor reads the same text: "sea temp near Palma" is a water-temperature
         # clause, and letting the weather family claim it produced exactly the
@@ -427,6 +426,7 @@ def build_live_data_plan(
         # on" for sea asks; solo water asks fell to the model, which improvised
         # unsourced prose). One text, two families, disjoint spans.
         from core.fresh_data.water_temperature import extract_water_asks
+        from tools.web.web_research import _extract_weather_locations_with_confidence
 
         weather_text = candidate_text
         for water_place, (span_start, span_end) in extract_water_asks(candidate_text):
@@ -535,7 +535,7 @@ def _within_edit_distance_one(token: str, target: str) -> bool:
     if abs(length_token - length_target) > 1:
         return False
     if length_token == length_target:  # one substitution
-        return sum(1 for a, b in zip(token, target) if a != b) == 1
+        return sum(1 for a, b in zip(token, target, strict=False) if a != b) == 1
     shorter, longer = (token, target) if length_token < length_target else (target, token)
     index_short = index_long = 0
     skipped = False

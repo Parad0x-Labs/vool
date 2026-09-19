@@ -43,14 +43,14 @@ from unittest import mock
 
 import pytest
 
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,
     pin_the_signing_key_passphrase,
     reseal_network_after_function_fixtures,
 )
-from tests.test_v050_fast_path_costs_no_speculative_inference import (  # noqa: F401
+from tests.test_v050_fast_path_costs_no_speculative_inference import (
     ProviderInvocations,
     arbiter_is_reachable,
     invocations,
@@ -88,7 +88,7 @@ def project(tmp_path: Path) -> Path:
 
 
 def _drive(
-    make_agent_module: Any,  # noqa: F811 - pytest's fixture request, not a redefinition
+    make_agent_module: Any,
     project: Path,
     text: str,
     *,
@@ -166,7 +166,7 @@ _SEARCH_PHRASINGS_NOT_ANSWERED_BY_A_LISTING = [
 
 @pytest.mark.parametrize("text", _SEARCH_PHRASINGS_NOT_ANSWERED_BY_A_LISTING)
 def test_a_search_request_is_never_answered_with_a_directory_listing(
-    make_agent_module, invocations, arbiter_is_reachable, project, text: str  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project, text: str
 ) -> None:
     """A request that names something to look for is not a request to list the container.
 
@@ -186,7 +186,7 @@ def test_a_search_request_is_never_answered_with_a_directory_listing(
 
 @pytest.mark.parametrize(("family", "text", "expected_tools", "evidence"), _FAMILIES)
 def test_a_deterministic_local_operation_enters_no_provider_call(
-    make_agent_module, invocations, arbiter_is_reachable, project,  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project,
     family: str, text: str, expected_tools: set[str], evidence: str,
 ) -> None:
     """The rule, stated once and applied to every family.
@@ -236,7 +236,7 @@ _LIVE_CONTROLS = [
 
 @pytest.mark.parametrize("text", _SEMANTIC_CONTROLS + _LIVE_CONTROLS)
 def test_a_negative_control_is_not_answered_by_a_local_operation_lane(
-    make_agent_module, invocations, arbiter_is_reachable, project, text: str  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project, text: str
 ) -> None:
     """None of these is a local operation, so none may be answered as though it were.
 
@@ -262,7 +262,7 @@ def test_a_negative_control_is_not_answered_by_a_local_operation_lane(
 
 @pytest.mark.parametrize("text", _SEMANTIC_CONTROLS)
 def test_a_semantic_control_still_reaches_the_model_lane(
-    make_agent_module, invocations, arbiter_is_reachable, project, text: str  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project, text: str
 ) -> None:
     """Semantic work still goes to a model. The fix removes speculation, not interpretation.
 

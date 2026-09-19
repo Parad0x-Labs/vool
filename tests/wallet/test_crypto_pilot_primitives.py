@@ -26,6 +26,7 @@ import time
 import uuid
 
 import pytest
+
 from tests.wallet._rig import DESTINATION
 
 pytestmark = [pytest.mark.safety]

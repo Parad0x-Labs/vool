@@ -83,7 +83,7 @@ _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z']*")
 # characters in the stories users tell ("the ship AI can teleport the crew"), so treating them as
 # self-reference would refuse a description of somebody else's fictional machine.
 _RUNTIME_SUBJECT_TOKENS = frozenset(
-    {"you", "youre", "youve", "youll", "yourself", "yourselves", "u", "vool", "vool", "runtime"}
+    {"you", "youre", "youve", "youll", "yourself", "yourselves", "u", "vool", "runtime"}
 )
 
 # Tokens that carry no subject of their own, so the agent of an action is whatever lies behind

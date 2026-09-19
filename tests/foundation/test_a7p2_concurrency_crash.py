@@ -6,8 +6,8 @@ scripts/a7p2_mutation_ledger.py / MUTATION_LEDGER.md).
 """
 from __future__ import annotations
 
-import hashlib
 import contextvars
+import hashlib
 import threading
 
 import pytest
@@ -180,7 +180,7 @@ def test_sigkill_between_persist_and_read_still_consistent(fresh_store, tmp_path
             "-c",
             (
                 "import storage.db as sdb;"
-                "sdb.configure_default_db_path(%r);"
+                f"sdb.configure_default_db_path({str(db_path)!r});"
                 "from storage.migrations import run_migrations; run_migrations();"
                 "from core.runtime_continuity import configure_runtime_continuity_db_path;"
                 "from storage.db import active_default_db_path;"
@@ -191,8 +191,7 @@ def test_sigkill_between_persist_and_read_still_consistent(fresh_store, tmp_path
                 "c = finalize_answer(turn_id='t', canonical_content='killed bytes');"
                 "print(c['finalization_id'], flush=True);"
                 "import os, signal; os.kill(os.getpid(), signal.SIGKILL)"
-            )
-            % str(db_path),
+            ),
         ],
         stdout=subprocess.PIPE,
         text=True,

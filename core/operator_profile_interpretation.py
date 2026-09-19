@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from core.operator_profile import CATEGORIES
 from core.user_preferences import _clean_requested_name, _looks_like_real_name

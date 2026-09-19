@@ -24,7 +24,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from core.session_portability.schema import SCHEMA_NAME, bundle_digest, canonical_json
+from core.session_portability.schema import bundle_digest, canonical_json
 
 MANIFEST_MEMBER = "manifest.json"
 PAYLOAD_MEMBER = "bundle.json"
@@ -131,7 +131,7 @@ def seal_envelope(raw: bytes, passphrase: str, manifest_digest: str) -> bytes:
     key = PBKDF2HMAC(
         algorithm=hashes.SHA256(), length=32, salt=salt, iterations=KDF_ITERATIONS
     ).derive(passphrase.encode("utf-8"))
-    aad = f"{ENVELOPE_FORMAT}:{manifest_digest}".encode("utf-8")
+    aad = f"{ENVELOPE_FORMAT}:{manifest_digest}".encode()
     ciphertext = AESGCM(key).encrypt(nonce, raw, aad)
     return canonical_json(
         {

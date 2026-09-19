@@ -16,7 +16,6 @@ from core.code_assistant.review import summarize_effects
 
 from .conftest import SESSION, door, drive_to_approved_proposal
 
-
 # ---------------------------------------------------------------- permission
 
 

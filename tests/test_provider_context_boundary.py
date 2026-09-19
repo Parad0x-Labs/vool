@@ -10,12 +10,12 @@ import pytest
 from adapters.base_adapter import ModelRequest, ModelResponse
 from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
 from core.memory_first_router import MemoryFirstRouter
-from core.vool_memory import VoolMemory
 from core.provider_invocation_gateway import (
     load_provider_manifest,
     payload_hash,
 )
 from core.runtime_paths import configure_runtime_home
+from core.vool_memory import VoolMemory
 from storage.db import get_connection
 from storage.model_provider_manifest import ModelProviderManifest
 

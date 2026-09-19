@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -99,7 +98,7 @@ MUTATIONS = [
         "zero-accidental-bytes guard (empty content never a valid answer)",
         '    content = str(canonical_content or "")\n    if not content.strip():\n        raise NoAnswerContent(',
         '    content = str(canonical_content or "")\n    if False:\n        raise NoAnswerContent(',
-        f"tests/foundation/test_f1e_delivery_terminal.py::test_blank_done_only_stream_never_generic_success",
+        "tests/foundation/test_f1e_delivery_terminal.py::test_blank_done_only_stream_never_generic_success",
     ),
 ]
 

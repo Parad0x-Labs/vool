@@ -16,17 +16,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.runtime_continuity import (  # noqa: E402
+from core.runtime_continuity import (
     configure_runtime_continuity_db_path,
     reset_runtime_continuity_state,
 )
-from storage.db import (  # noqa: E402
+from storage.db import (
     active_default_db_path,
     configure_default_db_path,
     get_connection,
     reset_default_connection,
 )
-from storage.migrations import run_migrations  # noqa: E402
+from storage.migrations import run_migrations
 
 # Tables the kit writes through the pure-function seams (obligation memory, attempts,
 # events, dialogue rows, finalizations). Tolerant DELETEs: a fresh database may not have
@@ -58,7 +58,7 @@ def kit_storage_reset():
     try:
         for table in KIT_TABLES:
             try:
-                conn.execute(f"DELETE FROM {table}")  # noqa: S608
+                conn.execute(f"DELETE FROM {table}")
             except Exception:
                 continue
         conn.commit()

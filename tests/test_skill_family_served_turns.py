@@ -31,7 +31,7 @@ from tests._served_skill_rig import (
     ServedDaemon,
     make_provider_server,
 )
-from tests.test_native_skill_library import _iso_home  # noqa: F401
+from tests.test_native_skill_library import _iso_home
 
 REPO_SKILLS = Path(__file__).resolve().parents[1] / "skills"
 

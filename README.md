@@ -9,10 +9,6 @@ optional wallet/contacts integrations, and remembers across sessions — all fre
 model, and nothing leaves your computer unless you act to send it out. The cloud burst is
 **opt-in and uses your *own* API key**, paid straight to your provider (never through us).
 
-> **VOOL was previously developed under the internal name NULLA.** Existing NULLA installs,
-> profiles and data keep working — see the
-> [NULLA → VOOL upgrade guide](docs/UPGRADE_NULLA_TO_VOOL.md).
-
 **A private AI agent that runs on your machine — no sign-up, no accounts, no API keys to start.**
 
 ## ⚡ Install
@@ -450,7 +446,6 @@ VOOL works out of the box on a local model. Three opt-in lanes:
 | [docs/WALLET_WEB0_GUIDE.md](docs/WALLET_WEB0_GUIDE.md) | Optional crypto: custody, spending controls, fees |
 | [docs/ERROR_BOOK.md](docs/ERROR_BOOK.md) | Every error code, meaning, recovery action |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common problems and fixes |
-| [docs/UPGRADE_NULLA_TO_VOOL.md](docs/UPGRADE_NULLA_TO_VOOL.md) | Upgrading from a NULLA install (data preserved) |
 | [SECURITY.md](SECURITY.md) | Security policy and reporting |
 | [docs/STATUS.md](docs/STATUS.md) | Beta status and known limitations |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup and testing |

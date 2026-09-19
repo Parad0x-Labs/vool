@@ -101,7 +101,7 @@ function seatRows(){
     return '<div class="vcc-seat" data-i="' + index + '">' +
       '<select data-k="role">' + roleOptions(seat.role_id) + '</select>' +
       '<input data-k="model" list="vccModels" value="' + esc(seat.model) + '" ' +
-        'placeholder="provider\/model \\u2014 cloud only" spellcheck="false">' +
+        'placeholder="provider\\/model \\u2014 cloud only" spellcheck="false">' +
       '<span class="vcc-vote ' + (seat.votes ? 'vcc-judge' : '') + '">' + (seat.votes ? 'JUDGE' : 'ADVISOR') + '</span>' +
       '<button type="button" class="vcc-x" title="Remove seat">\\u00d7</button>' +
       '</div>';
@@ -112,7 +112,7 @@ function renderForm(root){
   root.innerHTML = '<h4>Convene a council</h4>' +
     '<p class="vcc-note">Seats are roles, not personalities \\u2014 the model behind a seat is replaceable, ' +
     'the role is not. Judges vote; advisors report without a vote. One receipt-backed counterexample beats ' +
-    'any vote count. The council adjudicates \\u2014 promotion, merge and spend stay with you. Cloud seats only on this machine \\u2014 the server refuses auto\/local seats.</p>' +
+    'any vote count. The council adjudicates \\u2014 promotion, merge and spend stay with you. Cloud seats only on this machine \\u2014 the server refuses auto\\/local seats.</p>' +
     '<div id="vccSeats">' + seatRows() + '</div>' +
     '<datalist id="vccModels"></datalist>' +
     '<div class="vcc-add">' +

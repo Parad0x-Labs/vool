@@ -18,7 +18,6 @@ import contextlib
 import errno
 import hashlib
 import hmac
-import http.client
 import json
 import socket
 import sqlite3
@@ -1713,11 +1712,11 @@ class PaymentLifecycle:
             # the OFFICIAL v1 wire: X-PAYMENT carries the EIP-3009 authorization payload
             legacy_names = spec.legacy_names or (spec.network,)
             header = evm.v1_payment_header(typed_data, signature_hex=signature_hex, network_name=legacy_names[0])
-            header_name, response_name = "X-PAYMENT", "x-payment-response"
+            header_name, _response_name = "X-PAYMENT", "x-payment-response"
         else:
             payload = x402_v2.build_payment_payload_v2(entry, family=chains.FAMILY_EVM, account=record["public_key"], signature_hex=signature_hex, typed_data=typed_data)
             header = x402_v2.payment_header_v2(payload, resource_url=entry.resource_url)
-            header_name, response_name = x402_v2.HEADER_PAYMENT_SIGNATURE, x402_v2.HEADER_PAYMENT_RESPONSE.lower()
+            header_name, _response_name = x402_v2.HEADER_PAYMENT_SIGNATURE, x402_v2.HEADER_PAYMENT_RESPONSE.lower()
         base = self._base(proposal)
         receipts.journal_intended({**base, "state": proposals.STATE_SIGNED}, source_context=self.source_context)
         self._begin_attempt(effect)
@@ -1832,7 +1831,8 @@ def v2_binding_for(proposal_id: str) -> dict[str, Any] | None:
 def evm_binding_for(proposal_id: str) -> dict[str, Any] | None:
     """The x402 binding for this proposal when it rides an EVM network — v1 OR v2 wire.
     The EVM signing/settlement engine is one engine; the wire version is a binding fact."""
-    from core.wallet import chains, x402 as wallet_x402
+    from core.wallet import chains
+    from core.wallet import x402 as wallet_x402
 
     binding = wallet_x402.binding_for_proposal(str(proposal_id))
     if not binding:

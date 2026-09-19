@@ -31,6 +31,7 @@ boundary and not merely against another window of the same app.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
@@ -70,7 +71,7 @@ def _now() -> str:
 
 
 def _near(a: tuple[int, int, int], b: tuple[int, int, int], tol: int = 10) -> bool:
-    return all(abs(int(x) - int(y)) <= tol for x, y in zip(a, b))
+    return all(abs(int(x) - int(y)) <= tol for x, y in zip(a, b, strict=False))
 
 
 # --------------------------------------------------------------------------- backdrop subprocess
@@ -123,7 +124,7 @@ def _primary_height() -> float:
 
 def _appkit_rect_to_quartz(x: float, y: float, w: float, h: float) -> tuple[int, int, int, int]:
     """AppKit (bottom-left origin, y up) -> screencapture -R (top-left origin, y down)."""
-    return int(round(x)), int(round(_primary_height() - (y + h))), int(round(w)), int(round(h))
+    return round(x), round(_primary_height() - (y + h)), round(w), round(h)
 
 
 def _capture(rect_appkit: tuple[float, float, float, float], path: Path) -> bool:
@@ -154,9 +155,9 @@ def _backdrop_owns_capture(
     from PIL import Image
 
     image = Image.open(png).convert("RGB")
-    bx, by, bw, bh = backdrop_rect
+    _bx, _by, bw, _bh = backdrop_rect
     scale = image.width / float(bw)
-    inset = max(2, int(round(5 * scale)))
+    inset = max(2, round(5 * scale))
     probes = []
     for fx in (0.02, 0.25, 0.5, 0.75, 0.98):
         probes.append((min(image.width - 1, max(0, int(fx * image.width))), inset))
@@ -192,10 +193,10 @@ def _analyse(
     backdrop_rgb = measured_backdrop
 
     # AppKit y grows up; image y grows down.
-    left = int(round((px - bx) * scale))
-    top = int(round(((by + bh) - (py + ph)) * scale))
-    width = int(round(pw * scale))
-    height = int(round(ph * scale))
+    left = round((px - bx) * scale)
+    top = round(((by + bh) - (py + ph)) * scale)
+    width = round(pw * scale)
+    height = round(ph * scale)
     crop = image.crop((left, top, left + width, top + height))
     pixels = crop.load()
 
@@ -226,7 +227,7 @@ def _analyse(
             widest_caption_run = max(widest_caption_run, run_c)
 
     # Corner probes: 6 points into each corner of the pet window. These are pure margin.
-    inset = max(3, int(round(6 * scale)))
+    inset = max(3, round(6 * scale))
     corners = {
         "top_left": pixels[inset, inset],
         "top_right": pixels[width - 1 - inset, inset],
@@ -335,7 +336,7 @@ def on_main(fn, timeout: float = 10.0):
     def _run():
         try:
             box["value"] = fn()
-        except BaseException as exc:  # noqa: BLE001 - reported, never swallowed
+        except BaseException as exc:
             box["error"] = exc
         finally:
             done.set()
@@ -401,7 +402,7 @@ def _drive(state: dict) -> None:
                 backdrop = state["backdrop_window"]
                 ns_backdrop = _ns_window(backdrop)
                 backdrop.evaluate_js(f"document.body.style.background={css_colour!r}")
-                def _place():
+                def _place(*, ns_backdrop=ns_backdrop, backdrop_rect=backdrop_rect, pet_rect=pet_rect):
                     # One level under the pet, but above every ordinary application window, so the
                     # captured region is owned by this harness and not by the operator's desktop.
                     ns_backdrop.setLevel_(pet_native.PET_WINDOW_LEVEL - 1)
@@ -461,7 +462,7 @@ def _drive(state: dict) -> None:
                     )
                 other_app_number = int(json.loads(line)["backdrop_window_number"])
                 time.sleep(0.8)
-                def _repin_pet():
+                def _repin_pet(*, pet_rect=pet_rect):
                     # Re-place AND re-raise the pet for this scenario. Relying on it still sitting
                     # where an earlier scenario left it produced a run where the pet was simply not
                     # over the capture at all, which reads as a perfect pass on every pixel metric.
@@ -515,10 +516,10 @@ def _drive(state: dict) -> None:
                 # OS say which window a click there would reach. Same for a cursor on the character.
                 margin_inside = controller.apply_for_cursor(*margin_point)
                 time.sleep(0.15)
-                margin_hit = on_main(lambda: _hit_test(*margin_point))
+                margin_hit = on_main(lambda mp=margin_point: _hit_test(*mp))
                 body_inside = controller.apply_for_cursor(*body_point)
                 time.sleep(0.15)
-                body_hit = on_main(lambda: _hit_test(*body_point))
+                body_hit = on_main(lambda bp=body_point: _hit_test(*bp))
                 entry["hit_test"] = {
                     "pet_window_number": on_main(lambda: int(ns_pet.windowNumber())),
                     "other_app_window_number": other_app_number,
@@ -629,10 +630,8 @@ def _drive(state: dict) -> None:
         import webview as _wv
 
         for window in list(_wv.windows):
-            try:
+            with contextlib.suppress(Exception):
                 window.destroy()
-            except Exception:
-                pass
 
 
 def main() -> int:
@@ -677,7 +676,6 @@ def main() -> int:
     )
     # The pet window is created with the SAME flags the runtime uses, read from the runtime module
     # so this harness cannot drift from production.
-    from installer.bundle import pet_native
     from installer.bundle.vool_window import COMPANION_WINDOW_FLAGS
 
     report["companion_window_flags"] = {k: v for k, v in COMPANION_WINDOW_FLAGS.items()}

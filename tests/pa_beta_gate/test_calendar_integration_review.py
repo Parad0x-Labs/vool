@@ -18,7 +18,7 @@ def test_update_has_one_vevent_component(title, new_title):
     adapter = _adapter()
     event = CalEvent(provider_id="caldav", uid="review-event", calendar_id=VILNIUS_CAL,
                      summary=title, start_utc="2026-09-15T13:00:00+00:00",
-                     end_utc="2026-09-15T13:30:00+00:00", tz_name="Europe/Berlin")
+                     end_utc="2026-09-15T13:30:00+00:00", tz_name="Europe/Athens")
     original = adapter._render_event(event, uid=event.uid)
     assert original.count("BEGIN:VEVENT") == 1
     current = _parse_vevent(original, provider_id="caldav", calendar_id=VILNIUS_CAL,
@@ -65,13 +65,13 @@ def test_notes_never_follow_a_symlink_outside_the_workspace(tmp_path, monkeypatc
 @pytest.mark.parametrize("title,hour", [("Project review", 11), ("Site inspection", 14)])
 def test_move_rechecks_new_slot_conflicts_after_preview(vilnius_env, title, hour):
     session = "review-conflict-" + str(hour)
-    _, proposal = _run(f'propose "{title}" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _, proposal = _run(f'propose "{title}" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     assert proposal.status == "approval_required", proposal.response_text
     _, created = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
     assert created.ok, created.response_text
     uid = created.details["uid"]
     before = vilnius_env["state"].snapshot()[VILNIUS_CAL][uid]["start_utc"]
-    _, move = _run(f'move the "{title}" event to Friday at {hour}:00 Europe/Berlin', session_id=session)
+    _, move = _run(f'move the "{title}" event to Friday at {hour}:00 Europe/Athens', session_id=session)
     assert move.status == "approval_required", move.response_text
     vilnius_env["state"].seed_event(VILNIUS_CAL, "late-conflict", summary="New conflicting event",
                                    start=datetime(2026, 9, 11, hour - 3, tzinfo=timezone.utc), minutes=60)

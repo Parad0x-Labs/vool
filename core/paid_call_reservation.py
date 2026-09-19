@@ -518,7 +518,7 @@ def _authorize_money_law_pick(manifest: Any, *, task: Any, denial: dict[str, str
     ``core.effect_budget_money.reserve_liability`` at dispatch, before any byte leaves. A refusal
     here names the money law's code so the router surfaces the real reason.
     """
-    from core.usepod import money_law, monetary
+    from core.usepod import monetary, money_law
 
     model_id = str(getattr(manifest, "model_name", "") or "").strip()
 
@@ -580,7 +580,7 @@ def _authorize_money_law_pick(manifest: Any, *, task: Any, denial: dict[str, str
         class _PassthroughPick:
             """The marker for a lane whose installed monetary authority gates the call itself."""
 
-            __slots__ = ("escalation", "reservation", "model_call_id", "provider_id")
+            __slots__ = ("escalation", "model_call_id", "provider_id", "reservation")
 
             def __init__(self) -> None:
                 self.escalation = type("_E", (), {"model_id": model_id, "capsule": type("_C", (), {"task_id": str(getattr(task, "task_id", "") or "")})()})()
@@ -636,7 +636,7 @@ def _authorize_money_law_pick(manifest: Any, *, task: Any, denial: dict[str, str
         return None
 
     class _MoneyLawEscalation:
-        __slots__ = ("model_id", "capsule")
+        __slots__ = ("capsule", "model_id")
 
         def __init__(self) -> None:
             self.model_id = model_id
@@ -646,7 +646,7 @@ def _authorize_money_law_pick(manifest: Any, *, task: Any, denial: dict[str, str
         # An intentionally EMPTY model_call_id: no legacy ledger row exists for this call, so
         # every legacy release/settle path (which all guard on a non-empty id) is a no-op. The
         # durable monetary truth is the money law's liability under the operation id.
-        __slots__ = ("status", "model_call_id")
+        __slots__ = ("model_call_id", "status")
 
         def __init__(self) -> None:
             self.status = "reserved"
@@ -659,7 +659,7 @@ def _authorize_money_law_pick(manifest: Any, *, task: Any, denial: dict[str, str
         the operator's money grant, and its uncertain outcomes are held by the money law.
         """
 
-        __slots__ = ("escalation", "reservation", "model_call_id", "provider_id")
+        __slots__ = ("escalation", "model_call_id", "provider_id", "reservation")
 
         def __init__(self) -> None:
             self.escalation = _MoneyLawEscalation()

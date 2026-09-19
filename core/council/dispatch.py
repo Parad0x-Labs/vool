@@ -169,7 +169,7 @@ def restore_pin(base_url: str, model: str, capability: str = "") -> None:
     if not str(model or "").strip():
         return
     # Restoring what was already pinned re-affirms at most an already-accepted ceiling.
-    status, payload = _post_json(base_url, "/api/cloud/model", {"model": model}, capability=capability)
+    status, _payload = _post_json(base_url, "/api/cloud/model", {"model": model}, capability=capability)
     if status == 409 and _acceptance_recorded(model):
         _post_json(
             base_url, "/api/cloud/model", {"model": model, "confirm_paid": True},

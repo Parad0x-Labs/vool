@@ -21,15 +21,15 @@ import hashlib
 import json
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from ops.served_reality.bench import Case, CaseContext, TurnRecord
 from ops.served_reality.classify import (
-    ModelExpectationError,
     ProductAssertionError,
 )
-from ops.served_reality.provider_stub import StubPlan, StubRule
+from ops.served_reality.provider_stub import StubPlan
 
 CLOUD_MODEL = "served-reality/cloud-stub"
 LOCAL_MODEL = "served-reality-stub"
@@ -352,7 +352,7 @@ def _case_simultaneous_isolation(ctx: CaseContext) -> None:
     def _turn(key: str, marker: str, chat_id: str) -> None:
         try:
             results[key] = ctx.chat(f"{marker}: who am I talking with?", chat_id=chat_id, timeout_s=120.0)
-        except BaseException as exc:  # noqa: BLE001 - collected and asserted
+        except BaseException as exc:
             errors[key] = exc
 
     threads = [
@@ -558,7 +558,7 @@ def _case_file_write_approval(ctx: CaseContext) -> None:
     else:
         # No write happened: the product must have said so truthfully rather
         # than claiming success.
-        claimed = "created" in record.content.lower() or "wrote" in record.content.lower() and "not" not in record.content.lower()
+        claimed = "created" in record.content.lower() or ("wrote" in record.content.lower() and "not" not in record.content.lower())
         ctx.require(
             "no_write_claim_without_write",
             not claimed,
@@ -840,7 +840,7 @@ def _case_cancellation(ctx: CaseContext) -> None:
     def _slow_turn() -> None:
         try:
             box["record"] = ctx.chat("SLOW: take your time answering.", chat_id="cancel-1", timeout_s=150.0)
-        except BaseException as exc:  # noqa: BLE001 - asserted below
+        except BaseException as exc:
             box["error"] = exc
 
     worker = threading.Thread(target=_slow_turn, daemon=True)

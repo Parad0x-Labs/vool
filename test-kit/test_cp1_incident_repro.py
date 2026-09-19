@@ -18,11 +18,11 @@ the same chain the raw events show in the wild.
 from __future__ import annotations
 
 import pytest
+from kit_lib import GOLD_ANSWER, GOLD_QUESTION, VW_QUESTION, context, gold_thread, plan_operations
 
 import core.live_data_continuation as live_data_continuation
 from core.execution_requirements import requirements_for
 from core.live_data_continuation import continuation_inherits_live_data
-from kit_lib import GOLD_ANSWER, GOLD_QUESTION, VW_QUESTION, context, gold_thread, plan_operations
 
 
 def test_incident_sequence_at_head_is_declined_everywhere():

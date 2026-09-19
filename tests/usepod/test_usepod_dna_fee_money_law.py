@@ -173,7 +173,8 @@ def test_an_unknown_outcome_holds_the_fee_ceiling_and_accrues_nothing_until_evid
     authority.retain_unknown(reservation, _settlement(liability, outcome="outcome_unknown"))
     fee = _fee(liability.operation_id)
     assert fee["state"] == "reserved_not_owed" and fee["fee_numerator"] is None and fee["position"] is None, "reservation is not revenue"
-    from core.effect_budget_money import AssetIdentity, SettlementEvidence as LawEvidence, liability_for_operation, settle_liability
+    from core.effect_budget_money import AssetIdentity, liability_for_operation, settle_liability
+    from core.effect_budget_money import SettlementEvidence as LawEvidence
 
     # the law's own recovery route: chain evidence on an UNKNOWN outcome proves the payment reached the provider
     liability_id = liability_for_operation(liability.operation_id)["liability_id"]
@@ -218,8 +219,8 @@ def test_provider_credit_spent_later_by_a_prepaid_call_is_never_charged_again(la
     # the credit is spent later through the PREPAID lane: no fee line exists on that operation kind
     from core.effect_budget import grant_operator_budget_authority
     from core.effect_budget_money import AssetIdentity, MoneyGrantSpec, grant_money_authority, liability_for_operation
-    from core.usepod.money_law import USEPOD_ACCOUNT_NETWORK
     from core.usepod.monetary import ProviderLiability
+    from core.usepod.money_law import USEPOD_ACCOUNT_NETWORK
 
     grant_money_authority(
         grant_operator_budget_authority(note=NOTE),
@@ -250,7 +251,8 @@ def test_a_proven_refund_reverses_only_that_operations_fee_and_the_law_journals_
     second, second_reservation = _pay(authority, 1_000_000)
     authority.settle(second_reservation, _settlement(second))
     from core.effect_budget import EffectBudgetRefusedError
-    from core.effect_budget_money import SettlementEvidence as LawEvidence, liability_for_operation, reverse_service_fee, service_fee_position
+    from core.effect_budget_money import SettlementEvidence as LawEvidence
+    from core.effect_budget_money import liability_for_operation, reverse_service_fee, service_fee_position
 
     key = _fee(first.operation_id)["identity_key"]
     assert service_fee_position(key)["owed_atomic"] == 5_000

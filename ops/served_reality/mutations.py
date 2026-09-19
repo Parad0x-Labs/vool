@@ -27,16 +27,15 @@ from __future__ import annotations
 
 import json
 import shutil
-
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from ops.served_reality.bench import BenchRig, Case
 from ops.served_reality.corpus import CORPUS
-from ops.served_reality.schema import VERDICT_FAIL, VERDICT_PASS, CaseResult
 from ops.served_reality.provider_stub import StubPlan
+from ops.served_reality.schema import VERDICT_FAIL, VERDICT_PASS, CaseResult
 
 MUTATIONS_RUN_DIR_NAME = "mutations"
 
@@ -365,7 +364,7 @@ def run_mutation_controls(parent_rig: BenchRig, *, timeout_s: float = 300.0) -> 
                 detail = f"{detail} | {why}"
             finally:
                 rig.teardown()
-        except Exception as exc:  # noqa: BLE001 - control failure reporting
+        except Exception as exc:
             detected = False
             detail += f" | control error: {type(exc).__name__}: {exc}"[:1000]
         result.verdict = VERDICT_PASS if detected else VERDICT_FAIL

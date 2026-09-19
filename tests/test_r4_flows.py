@@ -1,4 +1,4 @@
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
+
 """Revision-4 flows: for each repaired contract, the original shape, a genuinely different
 novel case, and refusal/preservation controls -- through the real store, the real intake
 dispatcher and real isolated vault, with loopback providers only.
@@ -11,7 +11,7 @@ import json as _json
 import pytest
 
 from tests._credential_intelligence_support import FakeProviderServer
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 from tests.test_quarantine_destination_isolation import (
     LATER_KEY,
     THIRD_KEY,

@@ -164,9 +164,12 @@ def test_served_local_and_cloud_dialects_normalize_identically(served_factory) -
 
             def scripted_dialect_turn(
                 session: str = session, model: str = model, dialect: str = dialect,
-                text: str = "", name: str = "", arguments: dict = {}, call_id: str = "",
+                provider=provider, daemon=daemon, served=served,
+                text: str = "", name: str = "", arguments: dict | None = None, call_id: str = "",
             ) -> dict:
                 """Emit the SAME tool call in the model's dialect and drive one chat turn."""
+                if arguments is None:
+                    arguments = {}
                 if dialect == "cloud":
                     provider.table[model] = _call(name, arguments, call_id)
                 else:

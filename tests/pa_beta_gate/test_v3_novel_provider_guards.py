@@ -119,12 +119,12 @@ def test_google_all_day_wire_keeps_google_shape_as_control():
 
 def test_graph_all_day_exclusive_end_survives_round_trip():
     """NOVEL all-day case: a three-day Graph event round-trips with the exclusive end."""
-    e = CalEvent(provider_id="graph", calendar_id="work", uid="d1", all_day=True, start_date="2026-10-08", end_date="2026-10-11", tz_name="Europe/Berlin")
+    e = CalEvent(provider_id="graph", calendar_id="work", uid="d1", all_day=True, start_date="2026-10-08", end_date="2026-10-11", tz_name="Europe/Athens")
     body = cal_to_json(e, uid="", provider="graph")
     assert body["isAllDay"] is True
     assert body["start"]["dateTime"].startswith("2026-10-08T00:00:00")
     assert body["end"]["dateTime"].startswith("2026-10-11T00:00:00")
-    assert body["start"]["timeZone"] == "Europe/Berlin"
+    assert body["start"]["timeZone"] == "Europe/Athens"
     back = json_event_to_cal({"id": "d1", "subject": "Away", "isAllDay": True, "start": body["start"], "end": body["end"]}, provider_id="graph", calendar_id="work", etag='"v9"', href="")
     assert back.all_day and back.start_date == "2026-10-08" and back.end_date == "2026-10-11"
 

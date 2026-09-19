@@ -9,6 +9,8 @@ shows its verdict. The families and the sibling's own cases are pinned here agai
 
 from __future__ import annotations
 
+import itertools
+
 import pytest
 
 from core import chat_attachments as ca
@@ -84,7 +86,7 @@ def test_windows_are_exact_line_ranges_that_tile_the_document() -> None:
     text = "".join(f"line {i}\n" for i in range(1000))
     windows = ca._line_windows(text)
     assert windows[0][0] == 1 and windows[-1][1] == 1000
-    assert all(b[0] == a[1] + 1 for a, b in zip(windows, windows[1:], strict=False)), "windows must tile without gaps or overlap"
+    assert all(b[0] == a[1] + 1 for a, b in itertools.pairwise(windows)), "windows must tile without gaps or overlap"
     assert "".join(w[2] for w in windows) == text, "windows must reproduce the document byte for byte"
     assert all(w[1] - w[0] + 1 <= ca.CHUNK_LINES for w in windows)
 

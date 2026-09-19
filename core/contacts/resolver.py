@@ -462,6 +462,18 @@ def _filter_args(filters: dict[str, str]) -> dict[str, str]:
 
 
 __all__ = [
-    "Resolution", "STATUS_AMBIGUOUS_CONTACT", "STATUS_AMBIGUOUS_ENDPOINT", "STATUS_EXPLICIT", "STATUS_INVALID", "STATUS_NOT_FOUND", "STATUS_NO_ENDPOINT",
-    "STATUS_RESOLVED", "SnapshotCheck", "contact_snapshot", "describe_snapshot", "explicit_snapshot", "resolve", "verify_snapshot",
+    "STATUS_AMBIGUOUS_CONTACT",
+    "STATUS_AMBIGUOUS_ENDPOINT",
+    "STATUS_EXPLICIT",
+    "STATUS_INVALID",
+    "STATUS_NOT_FOUND",
+    "STATUS_NO_ENDPOINT",
+    "STATUS_RESOLVED",
+    "Resolution",
+    "SnapshotCheck",
+    "contact_snapshot",
+    "describe_snapshot",
+    "explicit_snapshot",
+    "resolve",
+    "verify_snapshot",
 ]

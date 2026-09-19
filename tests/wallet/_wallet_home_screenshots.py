@@ -40,7 +40,7 @@ def main(out: pathlib.Path) -> int:
     home = pathlib.Path(tempfile.mkdtemp(prefix="vw-shots-")) / "home"
 
     def door(path: str, body: dict):
-        request = Request("http://127.0.0.1:{port}".format(port=daemon.port) + path, data=json.dumps(body).encode(),
+        request = Request(f"http://127.0.0.1:{daemon.port}" + path, data=json.dumps(body).encode(),
                           method="POST", headers={"Origin": daemon.base_url, "Content-Type": "application/json"})
         try:
             with urlopen(request, timeout=60) as response:
@@ -92,8 +92,8 @@ def main(out: pathlib.Path) -> int:
         page.screenshot(path=str(out / "03-one-time-backup.png"))
         page.locator("#vwCxBackupSaved").click()
         page.wait_for_selector("#vwHomeAccount", timeout=15_000)
-        created = [a for a in json.load(urlopen(daemon.base_url + "/api/wallet/status", timeout=30))["status"]["accounts"]
-                   if a["label"] == "Everyday wallet"][0]
+        created = next(a for a in json.load(urlopen(daemon.base_url + "/api/wallet/status", timeout=30))["status"]["accounts"]
+                   if a["label"] == "Everyday wallet")
         chain.balances[created["public_key"]] = LAMPORTS
 
         # a watch-only observation account beside it

@@ -758,7 +758,7 @@ def sync_useful_outputs(db_path: str | None = None) -> dict[str, Any]:
         # by content hash, and BOTH a withheld/erased verdict AND an
         # unreadable governance store block re-import (and delete any
         # previously derived row).
-        from core.finalization import writer_may_persist_text, payload_availability_for_text
+        from core.finalization import writer_may_persist_text
 
         def _commit_time_veto(text: str) -> bool:
             """PASS003 (CE06) ERASE-dominance, split into its two real halves.

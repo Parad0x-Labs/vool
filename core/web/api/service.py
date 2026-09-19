@@ -22,8 +22,6 @@ from core.mode_permission_policy import (
     set_active_mode,
     supported_mode_values,
 )
-from core.vool_agent_brake import maybe_handle_agent_brake
-from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.persistent_memory import augment_history_from_session_log
 from core.request_trust import OWNER_LOCAL_KEY, is_loopback_host, strip_reserved_trust_keys
 from core.response_provenance import strip_provenance_footer as strip_provenance_footer_str
@@ -40,8 +38,10 @@ from core.runtime_task_events import (
 )
 from core.runtime_task_rail import render_runtime_task_rail_html
 from core.self_update_offer import maybe_handle_update_offer
-from core.web.api.response_control import apply_exact_response_control
+from core.vool_agent_brake import maybe_handle_agent_brake
+from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.web.api import diagnostics
+from core.web.api.response_control import apply_exact_response_control
 from storage.adaptation_store import (
     list_adaptation_eval_runs,
     list_adaptation_job_events,
@@ -3318,10 +3318,8 @@ def dispatch_upload(
         declared = _header_value(headers, "x-vool-bundle-name").strip() or "bundle.voolsession"
         staged_path = incoming / f"import-{_uuid.uuid4().hex}.voolsession"
         staged_path.write_bytes(data)
-        try:
+        with contextlib.suppress(OSError):
             staged_path.chmod(0o600)
-        except OSError:
-            pass
         return _out(
             json_response(
                 201,
@@ -3825,9 +3823,8 @@ def _usepod_owner_action(normalized_path: str, body: dict[str, Any], headers: di
             return 400, {"error": f"grant mint refused: {exc}", "code": "spend_grant_refused"}
     if normalized_path == "/api/cloud/usepod/lane":
         from core.runtime_provider_defaults import refresh_path_token_lanes
-        from core.usepod.lane import LanePreference, save_lane_preference
-
         from core.usepod import discovery as usepod_discovery
+        from core.usepod.lane import LanePreference, save_lane_preference
 
         fields = dict(body or {})
         try:
@@ -3853,7 +3850,11 @@ def _usepod_owner_action(normalized_path: str, body: dict[str, Any], headers: di
         operation_id = str(body.get("operation_id") or "").strip()
         if not operation_id:
             return 400, {"error": "missing operation_id", "code": "operation_id_required"}
-        from adapters.usepod_adapter import UsePodDispatchRefusedError, UsePodRouteNotCompliantError, resume_x402_operation
+        from adapters.usepod_adapter import (
+            UsePodDispatchRefusedError,
+            UsePodRouteNotCompliantError,
+            resume_x402_operation,
+        )
         from core.usepod.transport import UsePodTransportError, X402OperationStateError
 
         try:
@@ -4239,10 +4240,10 @@ def _dispatch_post_inner(
                     )
                 claimed_root = str(body.get("workspace_root") or "").strip()
                 if claimed_root:
-                    from pathlib import Path as _P
+                    from pathlib import Path as _Path
 
                     try:
-                        matches = _P(claimed_root).expanduser().resolve() == _P(authoritative_root).resolve()
+                        matches = _Path(claimed_root).expanduser().resolve() == _Path(authoritative_root).resolve()
                     except (OSError, RuntimeError):
                         matches = False
                     if not matches:
@@ -4382,10 +4383,8 @@ def _dispatch_post_inner(
                     )
                 claimed_root = str(body.get("workspace_root") or "").strip()
                 if claimed_root:
-                    from pathlib import Path as _P
-
                     try:
-                        matches = _P(claimed_root).expanduser().resolve() == _P(workspace_root).resolve()
+                        matches = _Path(claimed_root).expanduser().resolve() == _Path(workspace_root).resolve()
                     except (OSError, RuntimeError):
                         matches = False
                     if not matches:
@@ -5918,8 +5917,8 @@ def _dispatch_post_inner(
         sp_unknown = set(body.keys()) - {"session_id", "path", "passphrase", "confirm_untrusted"}
         if sp_unknown:
             return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(sp_unknown)}"}), runtime)
-        from core.session_portability import api as session_portability
         from core import runtime_paths
+        from core.session_portability import api as session_portability
 
         sp_passphrase = str(body.get("passphrase") or "")
         try:
@@ -6389,6 +6388,23 @@ def _dispatch_post_inner(
                     from core import message_pins
 
                     message_pins.drop_session_pins(session_id)
+                    # A deleted chat takes its standing authority with it (same law as the
+                    # chat-delete route): grants bound to this session are revoked server-side,
+                    # with the durable-mirror failure surfaced as a warning instead of a crash.
+                    authority_warning = ""
+                    try:
+                        from core.mode_permission_policy import (
+                            revoke_chat_workspace_authority,
+                            revoke_session_bypass_grants,
+                        )
+
+                        revoke_session_bypass_grants(session_id)
+                        revoke_chat_workspace_authority(session_id)
+                    except Exception as exc:
+                        authority_warning = (
+                            "chat deleted, but its bypass revocation could not be recorded durably "
+                            f"({exc}); if the app restarts before storage is fixed, revoke bypass again"
+                        )
                     return apply_runtime_headers(
                         json_response(
                             200,
@@ -6514,7 +6530,7 @@ def _dispatch_post_inner(
 
                 revoke_session_bypass_grants(session_id)
                 revoke_chat_workspace_authority(session_id)
-            except Exception as exc:  # noqa: BLE001 - named to the operator, never swallowed
+            except Exception as exc:
                 # The in-memory revocation happened; the durable mirror write failed, so an
                 # until-off grant CAN return with the profile after a restart. Deleting the chat
                 # still succeeds -- the answer says what did not.
@@ -7137,7 +7153,7 @@ def _dispatch_post_inner(
             # leave - the handoff row asserts what actually happened.
             try:
                 from core.finalization import (
-                    DELIVERY_ATTEMPTED_UNKNOWN as _buf_attempted,
+                    DELIVERY_ATTEMPTED_UNKNOWN as _DELIVERY_ATTEMPTED_UNKNOWN,
                 )
                 from core.finalization import (
                     set_delivery_status as _buf_sds,
@@ -7147,7 +7163,7 @@ def _dispatch_post_inner(
                     (result.get("vool_response_commit") or {}).get("finalization_id") or ""
                 )
                 if _buf_fid:
-                    _buf_sds(_buf_fid, _buf_attempted)
+                    _buf_sds(_buf_fid, _DELIVERY_ATTEMPTED_UNKNOWN)
             except Exception:
                 pass
             return apply_runtime_headers(json_response(200, payload), runtime)
@@ -7229,7 +7245,7 @@ def _dispatch_post_inner(
             # leave - the handoff row asserts what actually happened.
             try:
                 from core.finalization import (
-                    DELIVERY_ATTEMPTED_UNKNOWN as _buf_attempted,
+                    DELIVERY_ATTEMPTED_UNKNOWN as _DELIVERY_ATTEMPTED_UNKNOWN,
                 )
                 from core.finalization import (
                     set_delivery_status as _buf_sds,
@@ -7239,7 +7255,7 @@ def _dispatch_post_inner(
                     (result.get("vool_response_commit") or {}).get("finalization_id") or ""
                 )
                 if _buf_fid:
-                    _buf_sds(_buf_fid, _buf_attempted)
+                    _buf_sds(_buf_fid, _DELIVERY_ATTEMPTED_UNKNOWN)
             except Exception:
                 pass
             return apply_runtime_headers(json_response(200, payload), runtime)
@@ -7383,7 +7399,7 @@ def _dispatch_post_inner(
         # leave - the handoff row asserts what actually happened.
         try:
             from core.finalization import (
-                DELIVERY_ATTEMPTED_UNKNOWN as _buf_attempted,
+                DELIVERY_ATTEMPTED_UNKNOWN as _DELIVERY_ATTEMPTED_UNKNOWN,
             )
             from core.finalization import (
                 set_delivery_status as _buf_sds,
@@ -7398,7 +7414,7 @@ def _dispatch_post_inner(
             if _buf_fid:
                 _buf_sds(
                     _buf_fid,
-                    _buf_attempted,
+                    _DELIVERY_ATTEMPTED_UNKNOWN,
                     execution_identity=(
                         result.get("_execution_identity")
                         if isinstance(result.get("_execution_identity"), dict)

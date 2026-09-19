@@ -20,7 +20,6 @@ from core import user_preferences
 from core.context_namespace import ensure_chat_namespace
 from core.human_input_adapter import HumanInputInterpretation
 from core.identity_manager import load_active_persona
-from core.vool_memory import VoolMemory
 from core.onboarding import get_agent_display_name
 from core.prompt_normalizer import normalize_prompt
 from core.request_trust import OWNER_LOCAL_KEY
@@ -35,6 +34,7 @@ from core.user_identity_authority import (
     saved_user_name,
     user_identity_answer,
 )
+from core.vool_memory import VoolMemory
 from core.web.api.runtime import RuntimeServices, _memory_recall_response, run_agent
 from storage.dialogue_memory import record_dialogue_turn
 

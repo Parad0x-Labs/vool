@@ -67,10 +67,10 @@ def test_b3_the_testnet_flag_cannot_be_caller_overridden(wallet_env):
     from core.wallet import chains
 
     spec = chains.resolve_network(BASE_SEPOLIA)
-    with pytest.raises(Exception):  # noqa: B017 - any refusal is the bite
+    with pytest.raises(Exception):
         object.__setattr__  # noqa: B018 - existence is not the test; mutation below is
         spec.testnet = False  # type: ignore[misc] - frozen dataclass must refuse
-    with pytest.raises(Exception):  # noqa: B017 - any refusal is the bite
+    with pytest.raises(Exception):
         chains.resolve_network(BASE_SEPOLIA, testnet=False)  # type: ignore[call-arg]
     assert chains.resolve_network(BASE_SEPOLIA).testnet is True
 
@@ -130,7 +130,7 @@ def test_b6_assets_are_explicit_and_chain_qualified(wallet_env):
     assert len(rows) == 2
     # BSC testnet's x402 asset set stays native-only until an official token row carries its
     # chain/asset/facilitator evidence — a missing row is a typed refusal, never a guess
-    with pytest.raises(Exception):  # noqa: B017 - any refusal is the bite
+    with pytest.raises(Exception):
         chains.asset_for(BSC_TESTNET, "USDC")
 
 
@@ -226,11 +226,11 @@ def test_b11_rpc_origin_policy_gates_every_endpoint(wallet_env):
 
     spec = chains.resolve_network(ETHEREUM_SEPOLIA)
     assert chains.rpc_origin_allowed(spec, "https://ethereum-sepolia-rpc.publicnode.com")
-    with pytest.raises(Exception):  # noqa: B017 - any refusal is the bite
+    with pytest.raises(Exception):
         chains.rpc_origin_allowed_or_refuse(spec, "https://mainnet.infura.io/v3/x")
-    with pytest.raises(Exception):  # noqa: B017 - any refusal is the bite
+    with pytest.raises(Exception):
         chains.rpc_origin_allowed_or_refuse(spec, "http://169.254.169.254/latest")  # metadata
-    with pytest.raises(Exception):  # noqa: B017 - any refusal is the bite
+    with pytest.raises(Exception):
         chains.rpc_origin_allowed_or_refuse(spec, "ftp://example.test")
 
 
@@ -268,5 +268,5 @@ def test_b13_explorer_links_exist_only_for_public_ids(wallet_env):
     assert url.startswith("https://sepolia.basescan.org/tx/")
     svm_url = chains.explorer_tx_url(DEVNET_CAIP2, "5" * 87)
     assert "devnet" in svm_url
-    with pytest.raises(Exception):  # noqa: B017 - any refusal is the bite
+    with pytest.raises(Exception):
         chains.explorer_tx_url(BASE_SEPOLIA, "with spaces; not an id")

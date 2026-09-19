@@ -189,7 +189,7 @@ def test_cookie_locale_survives_a_fresh_render_of_every_surface() -> None:
     ]:
         clear_catalog_cache()
         headers = {"cookie": f"vool_ui_locale={tag}"}
-        for path, renderer in [
+        for path, _renderer in [
             ("/chat", None), ("/settings", None), ("/setup", None),
         ]:
             html = _rendered(path, headers=headers)

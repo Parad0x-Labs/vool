@@ -1,20 +1,18 @@
 # Changelog
 
-All notable changes to VOOL. Dates are YYYY-MM-DD. The product was developed under the
-internal name NULLA before 2026-09-19; older internal history is not republished here.
+All notable changes to VOOL. Dates are YYYY-MM-DD. Earlier internal development
+history is not republished here.
 
 ## [0.6.0-beta] — 2026-09-19
 
 First public-facing VOOL beta tree (macOS, Apple Silicon).
 
 ### Changed
-- Product identity migrated NULLA → VOOL across modules, entrypoints, launchers, installers,
-  UI and documentation. Compatibility: `VOOL_*` env canonical with `NULLA_*` honored; legacy
-  runtime homes and database filenames reused (never duplicated); macOS bundle id
-  `ai.nulla.desktop`, keychain service `nulla-credentials` and plist integrity keys frozen
-  (see docs/UPGRADE_NULLA_TO_VOOL.md).
-- Bundled macOS app: `VOOL.app` with entry point `Contents/MacOS/VOOL`, ad-hoc code
-  signature, builder-home paths scrubbed from the bundle by a binary-safe build gate.
+- Initial public tree: runtime, memory, tool loop, permissions, receipts, providers and the
+  bundled macOS app (`VOOL.app`, entry point `Contents/MacOS/VOOL`, ad-hoc code signature,
+  builder-home paths scrubbed from the bundle by a binary-safe build gate). Legacy
+  compatibility identifiers are frozen deliberately — see
+  docs/VOOL_IDENTITY_COMPATIBILITY_MAP.md for the engineering record.
 
 ### Fixed
 - Provider invocation manifests: canonical marker hashing is now idempotent. Previously a

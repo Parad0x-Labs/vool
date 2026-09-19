@@ -13,6 +13,7 @@ Every query:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -20,7 +21,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from core.time_range_resolver import TimeRange, resolve as _resolve_range
+from core.time_range_resolver import TimeRange
+from core.time_range_resolver import resolve as _resolve_range
 from storage.db import get_connection
 
 _log = logging.getLogger(__name__)
@@ -130,10 +132,8 @@ def _query_session_events(
         ).fetchall()
         for row in rows:
             detail = {}
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 detail = json.loads(row["details_json"] or "{}")
-            except (json.JSONDecodeError, TypeError):
-                pass
             events.append(
                 TimelineEvent(
                     source="runtime_session_events",
@@ -177,10 +177,8 @@ def _query_execution_facts(
         ).fetchall()
         for row in rows:
             detail = {}
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 detail = json.loads(row["detail_json"] or "{}")
-            except (json.JSONDecodeError, TypeError):
-                pass
             events.append(
                 TimelineEvent(
                     source="execution_facts",
@@ -400,10 +398,8 @@ def latest(
                 rows = conn.execute(sql, params).fetchall()
                 for row in rows:
                     detail = {}
-                    try:
+                    with contextlib.suppress(json.JSONDecodeError, TypeError):
                         detail = json.loads(row["details_json"] or "{}")
-                    except (json.JSONDecodeError, TypeError):
-                        pass
                     ev = TimelineEvent(
                         source="runtime_session_events",
                         event_id=f"{row['session_id']}:{row['seq']}",
@@ -440,10 +436,8 @@ def latest(
                 rows2 = conn.execute(sql, params2).fetchall()
                 for row in rows2:
                     detail = {}
-                    try:
+                    with contextlib.suppress(json.JSONDecodeError, TypeError):
                         detail = json.loads(row["detail_json"] or "{}")
-                    except (json.JSONDecodeError, TypeError):
-                        pass
                     fact = TimelineEvent(
                         source="execution_facts",
                         event_id=str(row["fact_id"]),

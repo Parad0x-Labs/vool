@@ -27,14 +27,11 @@ L8  Privacy: the schema has no free-text fields; names are bounded tokens;
 L9  Non-transferable: a lifeform is bound to its owner identity and can never
     be traded; competition inputs are simulation-only.
 """
-from core.companion.lifeform.schema import (
-    SCHEMA_VERSION,
-    LifeformError,
-    LifeformV1,
-    migrate,
-    new_lifeform_v1,
-    to_json,
-    from_json,
+from core.companion.lifeform.genesis import (
+    EGG_EVIDENCE_MIN_FACTS,
+    EGG_EVIDENCE_MIN_TURN_KEYS,
+    evidence_gate,
+    genesis_seed,
 )
 from core.companion.lifeform.progression import (
     DAILY_ENERGY_CAP,
@@ -48,19 +45,36 @@ from core.companion.lifeform.progression import (
     sign_snapshot,
     verify_snapshot,
 )
-from core.companion.lifeform.genesis import (
-    EGG_EVIDENCE_MIN_FACTS,
-    EGG_EVIDENCE_MIN_TURN_KEYS,
-    evidence_gate,
-    genesis_seed,
+from core.companion.lifeform.schema import (
+    SCHEMA_VERSION,
+    LifeformError,
+    LifeformV1,
+    from_json,
+    migrate,
+    new_lifeform_v1,
+    to_json,
 )
 
 __all__ = [
-    "SCHEMA_VERSION", "LifeformError", "LifeformV1", "migrate", "new_lifeform_v1",
-    "to_json", "from_json",
-    "DAILY_ENERGY_CAP", "HATCH_THRESHOLD", "RULESET_VERSION", "STAGES",
-    "append_event", "derive_event_id", "make_event", "reduce_events",
-    "sign_snapshot", "verify_snapshot",
-    "EGG_EVIDENCE_MIN_FACTS", "EGG_EVIDENCE_MIN_TURN_KEYS", "evidence_gate",
+    "DAILY_ENERGY_CAP",
+    "EGG_EVIDENCE_MIN_FACTS",
+    "EGG_EVIDENCE_MIN_TURN_KEYS",
+    "HATCH_THRESHOLD",
+    "RULESET_VERSION",
+    "SCHEMA_VERSION",
+    "STAGES",
+    "LifeformError",
+    "LifeformV1",
+    "append_event",
+    "derive_event_id",
+    "evidence_gate",
+    "from_json",
     "genesis_seed",
+    "make_event",
+    "migrate",
+    "new_lifeform_v1",
+    "reduce_events",
+    "sign_snapshot",
+    "to_json",
+    "verify_snapshot",
 ]

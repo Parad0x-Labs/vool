@@ -6,7 +6,7 @@ production doors; the stale-runtime tests have distinct caches and locks.
 import pytest
 
 from tests.repoops._harness import context, door, git, remote_ref
-from tests.repoops.test_forge_actions import world, _calls
+from tests.repoops.test_forge_actions import _calls, world
 from tests.repoops.test_forge_integration_review import prepare
 from tests.repoops.test_repoops_unknown_effect import _drive_to_authorized_push
 

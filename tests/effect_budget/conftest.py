@@ -131,7 +131,7 @@ def operator_home():
 
 def _real_home_snapshot() -> dict:
     """Names directly inside the operator's real machine-lane directories."""
-    from pathlib import Path  # noqa: F401 - Path is used via operator_home()
+    from pathlib import Path
 
     real_home = operator_home()
     snapshot: dict[str, frozenset] = {}

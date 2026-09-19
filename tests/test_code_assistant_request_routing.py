@@ -1,6 +1,8 @@
 """Short repair instructions must reach the existing tool lane without turning advice into actions."""
 import pytest
+
 from core.agent_runtime.runtime_checkpoint_lane_policy import explicit_runtime_workflow_request
+
 
 @pytest.mark.parametrize("prompt", [
     "Find why the test fails and repair the root cause.",

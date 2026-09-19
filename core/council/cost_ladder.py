@@ -52,9 +52,9 @@ LADDER_TERMINAL = "pause"
 
 class _EscalationSentinel:
     __slots__ = ()
-    _instance: "_EscalationSentinel | None" = None
+    _instance: _EscalationSentinel | None = None
 
-    def __new__(cls) -> "_EscalationSentinel":
+    def __new__(cls) -> _EscalationSentinel:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -242,7 +242,7 @@ class SpendMeter:
             self._calls_used += 1
             return self._calls_used
 
-    def record_usage(self, *, tokens: int = 0, cost_usd: float = 0.0) -> "SpendMeter":
+    def record_usage(self, *, tokens: int = 0, cost_usd: float = 0.0) -> SpendMeter:
         """Book what a completed call consumed. Returns self for test ergonomics.
 
         Usage is booked as-is — a call that crossed the token ceiling mid-flight
@@ -271,14 +271,14 @@ class SpendMeter:
 
 
 __all__ = [
+    "DEFAULT_LADDER",
+    "LADDER_TERMINAL",
     "BudgetExhausted",
     "CostLadderError",
     "CostPolicy",
     "CostTier",
-    "DEFAULT_LADDER",
     "EscalationRefused",
     "ExhaustionReason",
-    "LADDER_TERMINAL",
     "OperatorEscalation",
     "SpendCeilings",
     "SpendMeter",

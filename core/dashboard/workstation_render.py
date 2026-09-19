@@ -3,12 +3,12 @@ from __future__ import annotations
 from core.dashboard.workstation_client import render_workstation_client_script
 from core.dashboard.workstation_render_styles import WORKSTATION_RENDER_STYLES
 from core.dashboard.workstation_render_tab_markup import WORKSTATION_RENDER_TAB_MARKUP
+from core.public_site_shell import render_public_canonical_meta
 from core.vool_workstation_ui import (
     render_workstation_header,
     render_workstation_script,
     render_workstation_styles,
 )
-from core.public_site_shell import render_public_canonical_meta
 
 WORKSTATION_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">

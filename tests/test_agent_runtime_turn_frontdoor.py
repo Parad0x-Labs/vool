@@ -472,7 +472,7 @@ def test_handle_turn_frontdoor_uses_app_level_utility_state_override() -> None:
     ), mock.patch.object(
         agent,
         "_extract_utility_timezone",
-        return_value=("Europe/Berlin", "Vilnius"),
+        return_value=("Europe/Athens", "Vilnius"),
     ), mock.patch(
         "core.agent_runtime.agent.set_hive_interaction_state",
     ) as set_hive_interaction_state_mock, mock.patch.object(
@@ -495,7 +495,7 @@ def test_handle_turn_frontdoor_uses_app_level_utility_state_override() -> None:
     set_hive_interaction_state_mock.assert_called_once_with(
         "turn-frontdoor-session",
         mode="utility",
-        payload={"utility_kind": "time", "timezone": "Europe/Berlin", "label": "Vilnius"},
+        payload={"utility_kind": "time", "timezone": "Europe/Athens", "label": "Vilnius"},
     )
     fast_path_result.assert_called_once_with(
         session_id="turn-frontdoor-session",

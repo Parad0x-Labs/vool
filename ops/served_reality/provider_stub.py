@@ -125,10 +125,10 @@ class _Handler(BaseHTTPRequestHandler):
     server_version = "served-reality-stub/1"
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+    def log_message(self, format: str, *args: Any) -> None:
         return
 
-    def do_CONNECT(self) -> None:  # noqa: N802
+    def do_CONNECT(self) -> None:
         """The bench's network-containment gate.
 
         With HTTP(S)_PROXY pointed here (and NO_PROXY covering loopback),
@@ -186,7 +186,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(exchange, status, json.dumps(obj).encode("utf-8"), "application/json")
 
     # -- routes ----------------------------------------------------------
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         stub: ProviderStub = self.server.stub  # type: ignore[attr-defined]
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
@@ -263,7 +263,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(exchange, 404, {"error": f"stub: no GET route {path}"})
         stub.record(exchange)
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         stub: ProviderStub = self.server.stub  # type: ignore[attr-defined]
         path = urllib.parse.urlparse(self.path).path
         proto = "openai" if "/chat/completions" in path else "ollama"
@@ -340,7 +340,7 @@ class _QuietHTTPServer(ThreadingHTTPServer):
     cancelled turns) is expected bench traffic, not an error to print.
     """
 
-    def handle_error(self, request, client_address) -> None:  # noqa: D102, ARG002
+    def handle_error(self, request, client_address) -> None:
         return
 
 
@@ -435,19 +435,19 @@ class StubPlan:
 
     rules: list[StubRule] = field(default_factory=list)
 
-    def answer(self, content: str, match: str | None = None) -> "StubPlan":
+    def answer(self, content: str, match: str | None = None) -> StubPlan:
         self.rules.append(StubRule(content=content, match=match))
         return self
 
-    def fail(self, status: int, error: str, match: str | None = None) -> "StubPlan":
+    def fail(self, status: int, error: str, match: str | None = None) -> StubPlan:
         self.rules.append(StubRule(fail={"status": status, "error": error}, match=match))
         return self
 
-    def stall(self, delay_s: float, content: str = "", match: str | None = None) -> "StubPlan":
+    def stall(self, delay_s: float, content: str = "", match: str | None = None) -> StubPlan:
         self.rules.append(StubRule(content=content, match=match, delay_s=delay_s))
         return self
 
-    def malformed(self, body: str, match: str | None = None) -> "StubPlan":
+    def malformed(self, body: str, match: str | None = None) -> StubPlan:
         self.rules.append(StubRule(malformed=body, match=match))
         return self
 

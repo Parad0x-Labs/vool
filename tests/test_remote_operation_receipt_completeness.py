@@ -442,7 +442,7 @@ def test_a_synthetic_remote_capability_without_metadata_is_reported() -> None:
 
 
 def test_the_declared_remote_set_is_exactly_the_registry_declaration() -> None:
-    import core.conductor.operations  # noqa: F401 — registers the built-in set
+    import core.conductor.operations
     from core.conductor.capabilities import REMOTE_FETCH_EFFECT_CLASS
     from core.conductor.registry import known_operations
 

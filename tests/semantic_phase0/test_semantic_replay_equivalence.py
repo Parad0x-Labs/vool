@@ -41,7 +41,7 @@ import pytest
 from ops.semantic_generalization_corpus import replay_texts
 
 # Imported rather than discovered -- see `_fixtures` for why this is not a conftest.
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,
@@ -111,7 +111,7 @@ _NONDETERMINISTIC = "nondeterministic"
 
 
 @pytest.fixture(scope="module")
-def replayed(make_agent_module):  # noqa: F811 - the parameter is pytest's fixture request, not a redefinition
+def replayed(make_agent_module):
     """Every corpus turn under OFF and ON, classified by whether its bytes can be compared at all.
 
     Returns rows of `(text, off, on, exclusion)`. One exclusion: `nondeterministic`, meaning the turn
@@ -172,7 +172,7 @@ def test_the_excluded_turns_are_named_and_few(replayed, deterministic) -> None:
     print(f"\nbyte-compared: {covered}/{len(replayed)}; excluded ({len(excluded)}): {excluded!r}")
 
 
-def test_a_per_run_identity_is_the_only_thing_this_hides(make_agent_module, deterministic) -> None:  # noqa: F811
+def test_a_per_run_identity_is_the_only_thing_this_hides(make_agent_module, deterministic) -> None:
     """`turn_id` is excluded from the byte comparison. This is what makes that safe.
 
     An exclusion is where a proof goes to die quietly, so the two properties that justify this one
@@ -236,7 +236,7 @@ def test_no_corpus_turn_raises_any_more(deterministic) -> None:
     )
 
 
-def test_a_forced_fault_fails_identically_with_instrumentation_on_and_off(make_agent_module) -> None:  # noqa: F811
+def test_a_forced_fault_fails_identically_with_instrumentation_on_and_off(make_agent_module) -> None:
     """The identical-failure half of the proof, driven by a fault instead of by a defect.
 
     "Both configurations fail the same way" is as much a part of identical behaviour as "both

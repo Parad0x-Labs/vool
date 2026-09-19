@@ -236,7 +236,7 @@ def _is_typo_of(token: str, target: str) -> bool:
     if abs(len(source) - len(goal)) > 1:
         return False
     if len(source) == len(goal):
-        return sum(1 for a, b in zip(source, goal) if a != b) == 1
+        return sum(1 for a, b in zip(source, goal, strict=False) if a != b) == 1
     shorter, longer = (source, goal) if len(source) < len(goal) else (goal, source)
     index_short = index_long = 0
     skipped = False

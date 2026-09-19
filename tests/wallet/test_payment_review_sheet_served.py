@@ -119,7 +119,7 @@ def test_the_sheet_is_a_compact_review_with_one_collapsed_details_disclosure_tha
         assert sheet.locator('[data-field="to"] .vw-sheet-value').text_content() == recipient, "the full recipient address is in the details even while they are closed"
         assert sheet.locator('[data-field="from"] .vw-sheet-value').text_content().endswith(wallet["address"])
         before = _get(daemon, "/api/wallet/status")["status"]
-        row_before = [row for row in before["pending"] if row["proposal_id"] == proposal_id][0]
+        row_before = next(row for row in before["pending"] if row["proposal_id"] == proposal_id)
         toggle.focus()
         page.keyboard.press("Enter")
         assert toggle.get_attribute("aria-expanded") == "true" and details.is_visible() and toggle.text_content() == "Hide details"
@@ -127,7 +127,7 @@ def test_the_sheet_is_a_compact_review_with_one_collapsed_details_disclosure_tha
         toggle.click()
         assert toggle.get_attribute("aria-expanded") == "false" and not details.is_visible()
         after = _get(daemon, "/api/wallet/status")["status"]
-        row_after = [row for row in after["pending"] if row["proposal_id"] == proposal_id][0]
+        row_after = next(row for row in after["pending"] if row["proposal_id"] == proposal_id)
         assert row_after["open_quote_id"] == row_before["open_quote_id"] == quote["quote_id"], "opening and closing the details never re-mints or supersedes the quote"
         assert not page.locator("#vwSheetApprove").is_disabled()
 

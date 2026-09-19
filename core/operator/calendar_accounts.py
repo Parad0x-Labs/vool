@@ -604,7 +604,23 @@ def settings_view(*, now_fn: Callable[[], str] = _utcnow, get_connection_fn: Cal
 
 
 __all__ = [
-    "PROVIDERS", "RECOVERY", "add_account", "list_credential_bindings", "presented", "settings_view", "build_adapter", "classify_calendar_error", "decode_minutes", "disconnect_account",
-    "discover_calendars", "list_accounts", "list_selections", "load_account", "present_account", "reconnect_account",
-    "record_sync_result", "select_calendar", "set_opt_in",
+    "PROVIDERS",
+    "RECOVERY",
+    "add_account",
+    "build_adapter",
+    "classify_calendar_error",
+    "decode_minutes",
+    "disconnect_account",
+    "discover_calendars",
+    "list_accounts",
+    "list_credential_bindings",
+    "list_selections",
+    "load_account",
+    "present_account",
+    "presented",
+    "reconnect_account",
+    "record_sync_result",
+    "select_calendar",
+    "set_opt_in",
+    "settings_view",
 ]

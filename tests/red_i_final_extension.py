@@ -121,7 +121,7 @@ def _post(url: str, payload: dict, timeout: float) -> dict:
         url, data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"}, method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - localhost
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
 
 
@@ -136,16 +136,19 @@ def main() -> int:
 
     tree = os.path.realpath(args.tree)
     sys.path.insert(0, tree)
-    import core  # noqa: PLC0415
+    import core
 
     resolved = os.path.realpath(core.__file__)
     if not resolved.startswith(tree + os.sep):
         raise SystemExit(f"REFUSING: asked for {tree}, core resolved to {resolved}")
 
-    from core.agent_runtime.answer_coverage import (  # noqa: PLC0415
-        answering_body, demand_units, unit_anchors, unit_answer_evidence,
+    from core.agent_runtime.answer_coverage import (
+        answering_body,
+        demand_units,
+        unit_anchors,
+        unit_answer_evidence,
     )
-    from core.raw_output_contract import parse_raw_output_contract  # noqa: PLC0415
+    from core.raw_output_contract import parse_raw_output_contract
 
     head = subprocess.run(["git", "-C", tree, "rev-parse", "HEAD"],
                           capture_output=True, text=True, check=False).stdout.strip()

@@ -208,8 +208,7 @@ def test_an_invalid_plugin_typed_contract_is_refused_by_the_same_law(
 
 def test_legacy_plugin_skills_stay_lexical_and_untouched(skill_world, tmp_path, monkeypatch) -> None:
     """A plugin skill WITHOUT typed frontmatter is not forced into the typed contract."""
-    from tests._toolchain_fixtures import make_plugin
-    from tests._toolchain_fixtures import widget_skill
+    from tests._toolchain_fixtures import make_plugin, widget_skill
 
     make_plugin(tmp_path, skills={"widget-report": widget_skill()})
     monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path))

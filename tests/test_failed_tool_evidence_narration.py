@@ -18,7 +18,7 @@ import uuid
 from types import SimpleNamespace
 
 from apps.vool_agent import VoolAgent
-from tests.test_tool_loop_liveness import _Router, _call, _tool_decision
+from tests.test_tool_loop_liveness import _call, _Router, _tool_decision
 
 SAVE_INPUT = "Save Alex Chen as a contact: work email alex.chen@example.test, Telegram alexchen_kiln."
 UPDATE_INPUT = "Update the contact Alex Chen: work email not-a-valid-email."

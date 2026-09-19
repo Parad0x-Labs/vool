@@ -136,7 +136,7 @@ def test_preview_refuses_tampered_file_before_import(app):
     payload = json.loads(members["bundle.json"])
     payload["turns"][0]["assistant"] += " (edited)"
     members["bundle.json"] = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    tampered = "/tmp/sb-tampered-%s.voolsession" % __import__("uuid").uuid4().hex
+    tampered = "/tmp/sb-tampered-{}.voolsession".format(__import__("uuid").uuid4().hex)
     with zipfile.ZipFile(tampered, "w") as zf:
         for name, data in members.items():
             zf.writestr(name, data)
@@ -176,12 +176,12 @@ def test_download_route_is_confined_to_session_bundles(app, tmp_path):
 
 def test_import_route_accepts_confirm_untrusted(app):
     """The unknown-signer acknowledgement travels as an explicit boolean on the import body."""
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
     import base64
     import hashlib
     import zipfile
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     from core.session_portability import signing
 
@@ -207,7 +207,7 @@ def test_import_route_accepts_confirm_untrusted(app):
         "signature": base64.b64encode(foreign.sign(manifest)).decode(),
     }
     members["signature.json"] = json.dumps(sig, sort_keys=True).encode()
-    foreign_path = "/tmp/sb-foreign-%s.voolsession" % __import__("uuid").uuid4().hex
+    foreign_path = "/tmp/sb-foreign-{}.voolsession".format(__import__("uuid").uuid4().hex)
     with zipfile.ZipFile(foreign_path, "w") as zf:
         for name, data in members.items():
             zf.writestr(name, data)

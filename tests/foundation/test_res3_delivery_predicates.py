@@ -32,11 +32,10 @@ def fresh_store(tmp_path):
 
 
 def _commit_with_identity():
+    from core.conductor import obligation_ledger as ol
     from core.finalization import finalize_answer
     from core.semantic.semantic_admissions import set_execution_context
     from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
-
-    from core.conductor import obligation_ledger as ol
 
     obset = ol.open_obligation_set(
         obligations=[{"obligation_id": "ob:answer", "text": "t", "kind": "prose"}]

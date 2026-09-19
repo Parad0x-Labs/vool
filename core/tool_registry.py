@@ -143,8 +143,8 @@ def _validate_mutation_declaration(contract: RuntimeToolContract) -> None:
 
 def _seat_coverage_capability(contract: RuntimeToolContract) -> None:
     """Seat the contract's mutation declaration in the coverage registry beside it."""
-    from core.blackbox.coverage.capability import MutationCapability
     from core.blackbox.coverage import registry as coverage_registry
+    from core.blackbox.coverage.capability import MutationCapability
 
     declared = getattr(contract, "mutation", None)
     capability = MutationCapability.from_dict(declared) if isinstance(declared, dict) else None

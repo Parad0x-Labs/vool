@@ -457,7 +457,7 @@ def test_adopting_the_native_window_waits_for_cocoa_to_register_it() -> None:
             sys.modules["webview.platforms"] = saved
 
 
-# ------------------------------------------------------------------------------------- 
+# -------------------------------------------------------------------------------------
 # The operator-answer yield (2026-09-18 follow-up): a click meant for a permission bar or
 # mode banner the pet happens to cover must reach that surface -- in-page by stacking (the
 # chat page's own rule) and at the OS window tier by hit-testing yield, without disabling
@@ -481,7 +481,7 @@ def test_a_click_inside_the_yield_rect_belongs_to_the_surface_under_the_pet():
 
 def test_the_controller_converts_page_coordinates_and_clears():
     controller = pet_native.PetWindowController(object())
-    assert controller._tracker is not None or True  # controller without a window has no tracker
+    assert True  # controller without a window has no tracker
     result = controller.set_yield_rect({"x": 10, "y": 20, "width": 300, "height": 80})
     # No tracker exists before adopt(); the bridge refuses rather than inventing one.
     assert result.get("ok") is False
@@ -540,7 +540,6 @@ def test_in_a_real_browser_the_perm_bar_outranks_a_pet_parked_over_it():
     """
     pytest.importorskip("playwright")
     import tests.served_browser as served_browser
-
     from core.vool_chat_page import render_vool_chat_html
 
     html = render_vool_chat_html()

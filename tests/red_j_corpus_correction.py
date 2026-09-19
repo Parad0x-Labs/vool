@@ -129,7 +129,7 @@ def main() -> int:
     args = ap.parse_args()
 
     sys.path.insert(0, __file__.rsplit("/", 1)[0])
-    from red_c_adversarial_corpus import CORPUS  # noqa: PLC0415
+    from red_c_adversarial_corpus import CORPUS
 
     by_key = {e.key: e for e in CORPUS}
     capture = json.load(open(args.capture, encoding="utf-8"))
@@ -138,7 +138,7 @@ def main() -> int:
     print(f"captured at  : {capture['captured_at']}")
     print()
 
-    from core.agent_runtime.answer_coverage import demand_units  # noqa: PLC0415
+    from core.agent_runtime.answer_coverage import demand_units
 
     tot_raw = tot_new = 0
     lying_raw: list[str] = []

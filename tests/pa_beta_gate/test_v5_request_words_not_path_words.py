@@ -34,7 +34,7 @@ def test_words_inside_a_path_never_choose_the_action_and_the_path_argument_is_un
     ("find notes about the /srv/calendar migration", "find_notes"),
     ('cancel the "Ops/Infra sync" meeting', "cancel_calendar_event"),
     ("move my standup/meeting to Friday", "move_calendar_event"),
-    ("remind me at 16:00 Europe/Berlin to call the depot", "schedule_reminder"),
+    ("remind me at 16:00 Europe/Athens to call the depot", "schedule_reminder"),
     ("move '/tmp/a.txt' to '/tmp/b/'", "move_path"),
     ("check Tuesday afternoon for a free 30-minute slot", "check_availability"),
     ('propose "Q3/Q4 planning"', "propose_calendar_event"),
@@ -54,6 +54,6 @@ def test_path_blind_text_hides_path_and_url_words_but_keeps_quotes_titles_and_sl
                          ("move '/tmp/reminders/a.txt' to '/tmp/b/'", "reminders")):
         blind = text_without_paths(text)
         assert hidden not in blind and "path" in blind, (text, blind)
-    for unchanged in ("remind me at 16:00 Europe/Berlin to call the depot", 'cancel the "Ops/Infra sync" meeting',
+    for unchanged in ("remind me at 16:00 Europe/Athens to call the depot", 'cancel the "Ops/Infra sync" meeting',
                       "move my standup/meeting to Friday", "check Tuesday afternoon for a free 30-minute slot"):
         assert text_without_paths(unchanged) == unchanged

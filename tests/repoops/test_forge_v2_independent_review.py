@@ -5,9 +5,9 @@ documented ordinary losing-CAS result, distinct from an exception in that ledger
 """
 import pytest
 
-from tests.repoops.test_forge_actions import world, _calls, _operator_authorizes, _pr_payload, _comment_payload
-from tests.repoops.test_forge_integration_review import prepare
 from tests.repoops._harness import door
+from tests.repoops.test_forge_actions import _calls, _comment_payload, _operator_authorizes, _pr_payload, world
+from tests.repoops.test_forge_integration_review import prepare
 
 
 @pytest.mark.parametrize('action',['create','comment'])
@@ -67,10 +67,11 @@ def test_proven_unsent_marker_error_can_resume_after_journal_recovers(world,monk
 
 @pytest.mark.parametrize('provider',['github','gitlab'])
 def test_both_forges_wrap_typed_conversion_after_success(provider):
+    import json
+
     from core.kas.adapters.github import GitHubForgeAdapter
     from core.kas.adapters.gitlab import GitLabForgeAdapter
-    from core.kas.contract import AdapterConfig,ForgeAcceptedUnreadableError,KasResponse
-    import json
+    from core.kas.contract import AdapterConfig, ForgeAcceptedUnreadableError, KasResponse
     body={'id':901,'body':'Novel release note','user':43,'author':47}
     cls=GitHubForgeAdapter if provider=='github' else GitLabForgeAdapter
     adapter=cls(config=AdapterConfig(provider_id=provider,base_url='https://forge.example.test/api',namespace='synthetic/project'),

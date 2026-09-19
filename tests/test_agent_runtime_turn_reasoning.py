@@ -8,8 +8,8 @@ import pytest
 
 from apps.vool_agent import (
     ChatTurnResult,
-    VoolAgent,
     ResponseClass,
+    VoolAgent,
     adapt_user_input,
     append_conversation_event,
     audit_logger,

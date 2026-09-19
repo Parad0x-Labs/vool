@@ -435,12 +435,12 @@ def test_observed_reasoning_teaches_the_next_sizing_without_invention() -> None:
     and a DIFFERENT model on the same lane is untouched (no blind ceiling growth)."""
     from core.output_budget_policy import (
         LaneCapability,
+        OutputBudgetIntent,
         manifest_declares_reasoning,
         note_observed_reasoning,
         observed_reasoning,
         reset_observed_reasoning,
         resolve_output_budget,
-        OutputBudgetIntent,
     )
 
     reset_observed_reasoning()

@@ -173,7 +173,7 @@ def test_oauth_account_repoint_cannot_reuse_old_approval(monkeypatch,provider):
 def test_control_simple_graph_body_and_gmail_raw_body_survive(monkeypatch):
     for provider in ('graph','gmail'):
         configure(monkeypatch,provider);sent=[]
-        def wire(req,**kwargs):sent.append(json.loads(req.data));return Reply(b'{"id":"sent-control"}')
+        def wire(req,_sent=sent,**kwargs):_sent.append(json.loads(req.data));return Reply(b'{"id":"sent-control"}')
         monkeypatch.setattr(urllib.request,'urlopen',with_profile(wire))
         result=email_drafts.send_draft(draft(body='Short plain text.',subject=provider+' control'),session_id=SESSION)
         assert result.ok

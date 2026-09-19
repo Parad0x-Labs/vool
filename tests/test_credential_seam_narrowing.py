@@ -14,10 +14,9 @@
 """
 from __future__ import annotations
 
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
 import pytest
 
-from tests._credential_intelligence_support import isolated_home  # noqa: F401 (fixture)
+from tests._credential_intelligence_support import isolated_home
 
 FAKE_OR_KEY = "sk-or-v1-" + "d" * 56
 UNRECOGNIZED_KEY = "qz7-" + "nobody-claims-this-shape-0123456789"

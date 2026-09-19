@@ -18,6 +18,7 @@ carries any authority.
 """
 from __future__ import annotations
 
+import contextlib
 import math
 import threading
 import time
@@ -187,7 +188,7 @@ def default_pet_frame(visible_frames: list[Rect]) -> Rect:
     width, height = float(PET_WINDOW_WIDTH), float(PET_WINDOW_HEIGHT)
     if not visible_frames:
         return (0.0, 0.0, width, height)
-    sx, sy, sw, sh = visible_frames[0]
+    sx, sy, sw, _sh = visible_frames[0]
     return (sx + sw - width - 48.0, sy + 96.0, width, height)
 
 
@@ -214,7 +215,7 @@ def on_main_thread(fn, timeout: float = 5.0):
     def _run():
         try:
             box["value"] = fn()
-        except BaseException as exc:  # noqa: BLE001 - surfaced to the caller, never swallowed
+        except BaseException as exc:
             box["error"] = exc
         finally:
             done.set()
@@ -544,11 +545,9 @@ class PetWindowController:
         callback, payload = self.on_position_settled, tuple(origin)
 
         def _persist():
-            try:
+            # Persistence is best-effort; it must never take the native timer down.
+            with contextlib.suppress(Exception):
                 callback(payload)
-            except Exception:
-                # Persistence is best-effort; it must never take the native timer down.
-                pass
 
         threading.Thread(target=_persist, name="vool-pet-drop-settle", daemon=True).start()
 

@@ -143,7 +143,7 @@ def _run_water_subtask(subtask: LiveDataSubtask, *, timeout_s: float) -> Subtask
     place = str(subtask.arguments.get("place") or "")
     try:
         result = water_temperature_lookup(place, timeout_s=timeout_s)
-    except Exception as exc:  # noqa: BLE001 — typed failure, message truncated like weather's
+    except Exception as exc:
         return SubtaskOutcome(
             subtask=subtask,
             state=SubtaskLifecycle.FAILED,

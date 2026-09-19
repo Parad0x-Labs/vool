@@ -22,7 +22,6 @@ successful bench. Assertions are never weakened to green a run.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import threading
 import time
@@ -51,7 +50,7 @@ def _run_with_timeout(fn, timeout_s: float):
     def _worker() -> None:
         try:
             box["value"] = fn()
-        except BaseException as exc:  # noqa: BLE001 - returned to caller
+        except BaseException as exc:
             box["error"] = exc
         finally:
             done.set()

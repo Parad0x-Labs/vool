@@ -21,7 +21,9 @@ import uuid
 import pytest
 
 from tests.wallet._simulated_solana import MAINNET_GENESIS, USDC_MAINNET_MINT, SimulatedSolanaNode
-from tests.wallet.test_wallet_limits_and_approval_ui_served import PIN  # the wallet suites' disposable fixture PIN, defined once
+from tests.wallet.test_wallet_limits_and_approval_ui_served import (
+    PIN,  # the wallet suites' disposable fixture PIN, defined once
+)
 
 SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 MODEL = "meridian-synth-chat"
@@ -52,10 +54,11 @@ def lane(monkeypatch, tmp_path):
     for name in ("VOOL_WALLET_NETWORK_ENVIRONMENT", "VOOL_WALLET_TESTNET_RPC_URL", "VOOL_WALLET_GLOBAL_DAILY_MINOR", "VOOL_DNA_FEE_COLLECT_MIN_ATOMIC"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("VOOL_BLACKBOX_DIR", str(tmp_path / "blackbox"))
+    from solders.keypair import Keypair
+
     from core.blackbox import store as store_module
     from core.wallet import chains, environment, lifecycle
     from core.web.api import wallet_api
-    from solders.keypair import Keypair
 
     monkeypatch.setattr(lifecycle, "_CONFIRM_BUDGET_SECONDS", 2.0)
     wallet_api.reset_caller_binding_for_tests()
@@ -94,8 +97,8 @@ def _accrue(payer: str, amount: int) -> str:
     from core.effect_budget import grant_operator_budget_authority
     from core.effect_budget_money import AssetIdentity, MoneyGrantSpec, grant_money_authority
     from core.service_fee_ledger import fee_ceiling_atomic
-    from core.usepod.money_law import EffectBudgetMonetaryAuthority
     from core.usepod.monetary import EXACT_COST_NOT_SUPPLIED, ProviderLiability, SettlementEvidence
+    from core.usepod.money_law import EffectBudgetMonetaryAuthority
 
     ceiling = amount + fee_ceiling_atomic(amount, 10)
     grant_money_authority(
@@ -140,8 +143,9 @@ def _bound(numerator: int, denominator: int, *, seconds: float = 3600.0) -> dict
 def _x402_payment(node, wallet: dict, *, amount: int) -> dict:
     """One native x402 provider payment of ``amount`` µUSDC as the wallet's UsePod door mints it: a pending pilot proposal
     to a fresh provider pay-to key whose USDC account is open on the simulation chain."""
-    from core.wallet import usepod
     from solders.keypair import Keypair
+
+    from core.wallet import usepod
 
     pay_to = str(Keypair().pubkey())
     node.fund_sol(pay_to, 5_000_000)
@@ -326,9 +330,10 @@ def test_an_expiry_read_on_a_snapshot_never_releases_a_collection_the_approval_c
 
 
 def test_a_treasury_change_after_the_plan_refuses_the_approval_and_rejecting_the_payment_gives_the_debt_back(lane) -> None:
+    from solders.keypair import Keypair
+
     from core.wallet import dna_fees, proposals, settlement
     from core.wallet.errors import WalletFault
-    from solders.keypair import Keypair
 
     node, treasury = lane.node, lane.treasury
     wallet = _payer(node)
@@ -368,7 +373,7 @@ def test_the_designated_production_owner_is_bound_and_a_missing_treasury_account
     lane.monkeypatch.delenv("VOOL_DNA_FEE_TREASURY_OWNER")
     binding = dna_fees.treasury_binding(SOLANA_MAINNET)
     assert binding == {"owner": "9vDnXsPonRJa7yAmvwRGMAdxt8W13Qbm7HZuvauM3Ya3", "source": "designated_production_owner", "state": "configured", "reason": "", "network": SOLANA_MAINNET}
-    assert dna_fees.DESIGNATED_TREASURY_OWNER == binding["owner"] and len(b58decode(binding["owner"])) == 32
+    assert binding["owner"] == dna_fees.DESIGNATED_TREASURY_OWNER and len(b58decode(binding["owner"])) == 32
     assert dna_fees.treasury_binding("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")["state"] == "unconfigured", "no other row is designated"
     # the fixture identity's debt never migrates to the designated owner: nothing is collectible under it yet
     payment = _x402_payment(node, wallet, amount=15_000)

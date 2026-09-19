@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from core.vool_wallet import WALLET_FILENAME, VoolWallet, reveal_wallet_secret_key_base58
 from core.os_consent_gate import set_consent_override_for_tests
+from core.vool_wallet import WALLET_FILENAME, VoolWallet, reveal_wallet_secret_key_base58
 from core.wallet.errors import WalletFault
 
 EXPORT = "wallet_export_refused"
@@ -69,8 +69,8 @@ def test_reveal_never_consults_the_gate_or_the_legacy_loader(tmp_path: Path, mon
         raise AssertionError("the closed export door must not reach consent or key loading")
 
     set_consent_override_for_tests(_must_not_be_called)
-    import core.vool_wallet as wallet_mod
     import core.os_consent_gate as gate_mod
+    import core.vool_wallet as wallet_mod
 
     monkeypatch.setattr(wallet_mod, "get_or_create_wallet", _must_not_be_called)
     monkeypatch.setattr(gate_mod, "require_os_user_consent", _must_not_be_called)

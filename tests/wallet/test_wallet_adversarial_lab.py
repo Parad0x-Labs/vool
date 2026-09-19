@@ -70,7 +70,8 @@ def test_settled_payment_with_a_failed_delivery_stays_visible_and_never_repays(r
         # the broken delivery (500) carries no settlement header, so the client truthfully
         # reports the payment as submitted-but-unproven — never confirmed, never re-paid
         assert receipt.state == "broadcast", receipt.to_dict()
-        from core.wallet import receipts as receipt_store, x402
+        from core.wallet import receipts as receipt_store
+        from core.wallet import x402
         from core.wallet.errors import WalletFault
 
         stored = [r for r in receipt_store.list_receipts() if r.get("proposal_id") == proposal_id][-1]

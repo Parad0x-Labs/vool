@@ -16,6 +16,7 @@ tests/test_first_run_pact_correction.py).
 """
 from __future__ import annotations
 
+import contextlib
 import os
 
 IS_WINDOWS = os.name == "nt"
@@ -45,7 +46,7 @@ class PublicationLock:
         self._path = os.fspath(path)
         self._fh = None
 
-    def __enter__(self) -> "PublicationLock":
+    def __enter__(self) -> PublicationLock:
         # The WHOLE acquisition — directory creation, lock-file open, and the lock
         # call itself — sits inside ONE fail-closed boundary: every failure becomes
         # LockUnavailable. Exceptions raised by the PROTECTED mutation body never
@@ -70,10 +71,8 @@ class PublicationLock:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except (OSError, ImportError) as exc:
             if fh is not None:
-                try:
+                with contextlib.suppress(OSError):
                     fh.close()
-                except OSError:
-                    pass
             raise LockUnavailable(self._path, str(exc)) from exc
         self._fh = fh
         return self
@@ -95,8 +94,6 @@ class PublicationLock:
         except OSError:
             pass
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 fh.close()
-            except OSError:
-                pass
         return False

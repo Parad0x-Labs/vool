@@ -1,4 +1,4 @@
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
+
 """Save-for-later: an EXPLICIT unverified store, quarantined from every execution consumer.
 
 THE LAWS UNDER TEST
@@ -21,7 +21,7 @@ import dataclasses
 import hashlib
 
 from tests._credential_intelligence_support import FakeProviderServer
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def _synthetic(label: str, prefix: str, length: int) -> str:
@@ -172,7 +172,7 @@ def test_delete_removes_the_quarantined_key_only(pact_rig, monkeypatch):
         _point_openrouter_at(monkeypatch, f"{openrouter.url}/api/v1")
         session_id = _begin_classify_preview(pact_rig, OPENROUTER_KEY)
         pact_rig.post("/api/intake/complete", {"session_id": session_id, "persist": "later"})
-        status, deleted = pact_rig.post("/api/intake/quarantine/delete", {"provider_id": "openrouter"})  # noqa: RUF059
+        status, deleted = pact_rig.post("/api/intake/quarantine/delete", {"provider_id": "openrouter"})
         assert status == 200 and deleted["deleted"] is True
 
         from core import credential_store

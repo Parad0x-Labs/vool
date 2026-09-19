@@ -63,7 +63,7 @@ class FreeToolLaneService:
     def base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
 
-    def start(self) -> "FreeToolLaneService":
+    def start(self) -> FreeToolLaneService:
         self._thread.start()
         return self
 
@@ -71,7 +71,7 @@ class FreeToolLaneService:
         self._server.shutdown()
         self._server.server_close()
 
-    def __enter__(self) -> "FreeToolLaneService":
+    def __enter__(self) -> FreeToolLaneService:
         return self.start()
 
     def __exit__(self, *_exc) -> None:

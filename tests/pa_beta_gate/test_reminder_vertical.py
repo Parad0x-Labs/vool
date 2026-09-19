@@ -46,7 +46,7 @@ def isolated_home(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime_paths, "_VOOL_HOME_OVERRIDE", None, raising=False)
     run_migrations()
     from core.user_preferences import save_user_timezone
-    assert save_user_timezone('Europe/Berlin')
+    assert save_user_timezone('Europe/Athens')
     return tmp_path
 
 
@@ -112,10 +112,10 @@ class _Collector:
 
 def test_when_absolute_with_named_timezone():
     result = parse_when_expression(
-        "remind me on 2026-09-14 09:30 Europe/Berlin", now_fn=lambda: _fixed_now()
+        "remind me on 2026-09-14 09:30 Europe/Athens", now_fn=lambda: _fixed_now()
     )
     assert result.ok, result.problem
-    assert result.tz_name == "Europe/Berlin"
+    assert result.tz_name == "Europe/Athens"
     assert result.due_at_utc.startswith("2026-09-14T06:30:00")  # 09:30+03:00
     assert result.due_wall.startswith("2026-09-14T09:30")
 
@@ -155,18 +155,18 @@ def test_when_month_and_year_boundary():
 
 
 def test_when_dst_gap_is_refused_with_a_clarification_not_a_guess():
-    # In Europe/Berlin, 2026-03-29 03:30 does not exist (clocks jump 03:00 -> 04:00).
+    # In Europe/Athens, 2026-03-29 03:30 does not exist (clocks jump 03:00 -> 04:00).
     result = parse_when_expression(
-        "2026-03-29 03:30 Europe/Berlin", now_fn=lambda: _fixed_now()
+        "2026-03-29 03:30 Europe/Athens", now_fn=lambda: _fixed_now()
     )
     assert not result.ok
     assert "does not exist" in result.problem
 
 
 def test_when_dst_fold_requires_an_unambiguous_choice():
-    # In Europe/Berlin, 2026-10-25 03:30 happens twice (04:00 CEST -> 03:00 EET).
+    # In Europe/Athens, 2026-10-25 03:30 happens twice (04:00 CEST -> 03:00 EET).
     result = parse_when_expression(
-        "2026-10-25 03:30 Europe/Berlin", now_fn=lambda: _fixed_now()
+        "2026-10-25 03:30 Europe/Athens", now_fn=lambda: _fixed_now()
     )
     assert not result.ok and "occurs twice" in result.problem
     assert result.details.get("dst") == "ambiguous"
@@ -191,7 +191,7 @@ def test_reminder_lifecycle_schedule_list_move_cancel(isolated_home):
     sid = _sid("lifecycle")
 
     _, created = _run_turn(
-        "remind me to submit the visa application tomorrow at 9:30 Europe/Berlin",
+        "remind me to submit the visa application tomorrow at 9:30 Europe/Athens",
         session_id=sid,
     )
     assert created.ok and created.status == "executed"
@@ -418,7 +418,7 @@ def test_calendar_draft_move_and_cancel(isolated_home):
     original = Path(ics_path).read_text(encoding="utf-8")
     assert "20260914T123000Z" in original  # 15:30 +03:00 host zone -> 12:30 UTC
 
-    _, moved = _run_turn("move the meeting to 2026-09-15 10:00 Europe/Berlin", session_id=sid)
+    _, moved = _run_turn("move the meeting to 2026-09-15 10:00 Europe/Athens", session_id=sid)
     assert moved.ok and moved.status == "executed", moved.response_text
     rewritten = Path(ics_path).read_text(encoding="utf-8")
     assert "20260915T070000Z" in rewritten  # 10:00 +03:00 -> 07:00 UTC

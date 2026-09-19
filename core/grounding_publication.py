@@ -63,7 +63,6 @@ The notice is the marker -- content that already carries it is passed through un
 from __future__ import annotations
 
 import re
-
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -1139,11 +1138,11 @@ __all__ = [
     "EXIT_PARTIAL",
     "EXIT_REFUSED",
     "UNSUPPORTED_WORK_NOTICE_LEAD",
-    "is_typed_refusal_text",
     "PublicationVerdict",
     "already_gated",
     "compose_partial_truth",
     "gate_publishable_content",
+    "is_typed_refusal_text",
     "publication_verdict",
     "typed_refusal",
     "unsupported_work_notice",

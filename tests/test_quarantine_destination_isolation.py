@@ -1,4 +1,4 @@
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
+
 """Reproductions for the review's higher-priority defect: a REJECTED save-for-later must not
 repoint the live custom endpoint, and quarantine retry/promote/delete must be bound to the
 generation they were saved under.
@@ -13,7 +13,7 @@ import dataclasses
 import hashlib
 
 from tests._credential_intelligence_support import FakeProviderServer
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 LIVE_KEY = "nv1_live-verified-" + hashlib.sha256(b"correction-live").hexdigest()[:32]
 LATER_KEY = "nv1_unverified-" + hashlib.sha256(b"correction-later").hexdigest()[:32]
@@ -241,6 +241,7 @@ def test_reconcile_adopts_a_late_quarantine_write_as_quarantined(pact_rig, monke
     restart, reconcile adopts it as exactly one honest QUARANTINED row bound to its own
     destination — never a generic unverified row, never near a real slot."""
     import json as _json
+
     from core.credential_intelligence.provider_registry import default_registry
     from core.credential_intelligence.store import CredentialStore, quarantine_generation_for
 
@@ -285,6 +286,7 @@ def test_reconcile_drops_a_quarantine_shadow_of_an_active_binding(pact_rig, monk
     is active and the leftover quarantine value is a shadow — reconcile removes it, and the
     product can no longer claim the key remains quarantined."""
     import hashlib
+
     from core.credential_intelligence.provider_registry import default_registry
     from core.credential_intelligence.store import CredentialStore
 

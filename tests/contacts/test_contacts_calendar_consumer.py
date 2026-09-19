@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import pytest
 
-from core.contacts.store import reset_contacts_for_tests
-
 from core.contacts import store as contacts_store
 from core.contacts.attendees import attendees_from_request
+from core.contacts.store import reset_contacts_for_tests
 
 
 @pytest.fixture(autouse=True)

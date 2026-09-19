@@ -184,7 +184,7 @@ def main() -> int:
                 assert _sha256(path) != before_hash, "mutation did not change the file"
 
                 code, output = _pytest(test)
-                control_code, control_output = _pytest(CONTROL)
+                control_code, _control_output = _pytest(CONTROL)
                 entry["named_test_exit"] = code
                 entry["control_exit"] = control_code
                 errored = "error" in output.lower() and " failed" not in output.lower()

@@ -34,10 +34,10 @@ from apps.vool_api_server import (
     create_app,
     main,
 )
-from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.persistent_memory import augment_history_from_session_log
 from core.provider_routing import ProviderCapabilityTruth
 from core.runtime_task_events import emit_runtime_event
+from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.web.api.runtime import (
     RuntimeServices,
     bootstrap_runtime_services,

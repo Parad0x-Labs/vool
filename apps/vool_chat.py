@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 
 # Repo-root bootstrap: allow running as a file (python3 apps/<x>.py), not just -m.

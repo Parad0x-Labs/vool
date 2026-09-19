@@ -7,7 +7,7 @@ from core.conductor.planner import ProposedClause, build_plan_from_clauses
 from core.conductor.scheduler import run_conductor_plan
 from core.live_data_plan import SubtaskLifecycle, SubtaskOutcome
 from tests.conductor_product import compose_product
-from tests.test_answer_integrity_incidents import _mint, _sweep, fresh_store  # noqa: F401
+from tests.test_answer_integrity_incidents import _mint, _sweep, fresh_store
 
 OWNER = "what is weather in warsaw and moscow? which one is warmer?"
 NOVEL = "Get the ETH and ADA market changes. Which is the largest mover?"

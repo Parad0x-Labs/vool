@@ -22,7 +22,7 @@ from core.effect_gateway import (
     named_background_effect_scope,
     open_effect_receipt_scope,
 )
-from tests.effect_budget.conftest import *  # noqa: F401,F403 — fixtures
+from tests.effect_budget.conftest import *  # noqa: F403 — fixtures
 
 
 def _authorized_receipt(effect_class: str = EFFECT_NETWORK_FETCH) -> EffectReceipt:

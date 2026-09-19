@@ -25,7 +25,7 @@ from urllib.parse import unquote, urlparse
 import pytest
 
 from tests.pa_beta_gate.test_pc_notes_identity import FakeNotes
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import (  # noqa: F401 -- served_env is a fixture, requested by name
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import (
     VILNIUS_CAL,
     _approval_id,
     _turn,
@@ -118,7 +118,7 @@ def test_served_occurrence_move_and_accepted_cancellation_report_what_the_provid
                                                                SERIES_MASTER, "END:VCALENDAR"]) + CRLF)
 
     # MOVE: the 2026-09-22 occurrence, two days later, on approval.
-    proposal = _turn(harness, 'move the "Retro" event to 2026-09-24 12:00 Europe/Berlin (the 2026-09-22 occurrence)', workspace)
+    proposal = _turn(harness, 'move the "Retro" event to 2026-09-24 12:00 Europe/Athens (the 2026-09-22 occurrence)', workspace)
     moved = _turn(harness, f"approve calendar {_approval_id(proposal)}", workspace)
     assert "Event updated on the provider and verified: the 2026-09-22 occurrence of 'Retro'" in moved, moved
     assert writes == [f"{VILNIUS_CAL}retro-served@f.ics"], writes

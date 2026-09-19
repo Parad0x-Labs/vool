@@ -13,11 +13,10 @@ CT-302  a subtask's unit binding is minted in the EFFECTIVE text's unit space an
 """
 from __future__ import annotations
 
-from core.agent_runtime.answer_coverage import demand_units
-from core.live_data_plan import build_live_data_plan
-
 from kit_lib import GOLD_ANSWER, GOLD_QUESTION, context, gold_thread, weather_thread
 
+from core.agent_runtime.answer_coverage import demand_units
+from core.live_data_plan import build_live_data_plan
 
 # ------------------------------------------------------------------ CT-301 dimension collapse
 

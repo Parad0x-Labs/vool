@@ -20,7 +20,7 @@ import pytest
 from tests.repoops._forge_fixture import github_pull_request
 from tests.repoops._harness import FIXED, context, door, git, head, remote_ref
 from tests.repoops.test_forge_v3_independent_review import fail_session_storage
-from tests.repoops.test_repoops_unknown_effect import world  # noqa: F401 -- real-push world fixture
+from tests.repoops.test_repoops_unknown_effect import world
 
 OPEN = {"provider": "github", "namespace": "o/r", "reviewer_model": "anthropic/claude-sonnet-4"}
 REF = "release-candidate"

@@ -580,4 +580,4 @@ def build_exact_file_facts(
     return "\n".join(lines)
 
 
-__all__ = ["build_folder_overview", "build_exact_file_facts", "measure_workspace_files"]
+__all__ = ["build_exact_file_facts", "build_folder_overview", "measure_workspace_files"]

@@ -58,7 +58,7 @@ class LiquefyStoreError(RuntimeError):
     """Base class for typed store failures."""
 
 
-class EntryNotFound(LiquefyStoreError):  # noqa: N818 - 'not found' is an outcome, not a fault
+class EntryNotFound(LiquefyStoreError):
     pass
 
 

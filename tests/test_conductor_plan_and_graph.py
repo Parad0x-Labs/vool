@@ -401,7 +401,7 @@ def test_a_projected_family_its_operation_refuses_does_not_become_a_node() -> No
     ]
     assert any(node.operation == "factual_explanation" for node in berlin), (
         "the F41 repair regressed: a plain KNOW clause died unresolved beside a refusing "
-        f"projection: {[(n.operation, n.request_text) for node in berlin]}"
+        f"projection: {[(node.operation, node.request_text) for node in berlin]}"
     )
 
 
@@ -444,8 +444,7 @@ def test_an_independent_knowledge_clause_survives_a_plan_that_serves_its_sibling
     SITE: a stranded clause is retried with the named resolver only after every clause is resolved,
     and only in a plan that already serves something else.
     """
-    from core.conductor.planner import build_plan_from_clauses
-    from core.conductor.planner import ProposedClause
+    from core.conductor.planner import ProposedClause, build_plan_from_clauses
     from core.conductor.registry import UNRESOLVED_OPERATION
 
     served_sibling = build_plan_from_clauses(
@@ -472,8 +471,7 @@ def test_a_dependent_clause_is_not_rescued_as_generic_prose() -> None:
     "Explain the calculation briefly." AND for an independent knowledge question. Serving the
     dependent one with none of its sibling's computed value is the harm the narrow gate prevents.
     """
-    from core.conductor.planner import build_plan_from_clauses
-    from core.conductor.planner import ProposedClause
+    from core.conductor.planner import ProposedClause, build_plan_from_clauses
     from core.conductor.registry import UNRESOLVED_OPERATION
 
     plan = build_plan_from_clauses(
@@ -571,7 +569,7 @@ def test_the_rescue_pass_does_not_loosen_admission_at_the_real_entry_point() -> 
     for label, text, proposed in must_decline:
         plan = plan_conductor_turn(
             text,
-            ask_model=lambda _system, _user, _payload=json.dumps(proposed): _payload,
+            ask_model=lambda _system, _user, _payload=json.dumps(proposed): _payload,  # noqa: B008 — binds THIS iteration's proposal
             plan_id=f"admission-{label[:12]}",
         )
         assert plan is None, (

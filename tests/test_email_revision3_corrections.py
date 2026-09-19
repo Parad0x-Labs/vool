@@ -32,7 +32,7 @@ import pytest
 
 from core import credential_store, email_drafts, runtime_paths
 from tests import test_email_live_workflow as _live_module
-from tests.test_email_live_workflow import _isolated, _raw  # noqa: F401
+from tests.test_email_live_workflow import _isolated, _raw
 
 # The real local-mail fixture, re-exported so pytest resolves `mail_service` here too.
 mail_service = _live_module.mail_service

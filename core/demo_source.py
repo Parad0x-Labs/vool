@@ -8,6 +8,7 @@ A model may later refine the feature list, but the heuristic gives a solid brief
 
 from __future__ import annotations
 
+import contextlib
 import html as _htmllib
 import re
 
@@ -68,10 +69,8 @@ def _bounded_get(url: str, headers: dict) -> str:
                 break
             collected.extend(chunk)
         charset = "utf-8"
-        try:
+        with contextlib.suppress(Exception):
             charset = resp.headers.get_content_charset() or "utf-8"
-        except Exception:
-            pass
     return bytes(collected[:_MAX_FETCH_BYTES]).decode(charset, errors="replace")
 
 

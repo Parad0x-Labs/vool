@@ -191,7 +191,7 @@ _WEBP_PRIVATE_CHUNKS = frozenset({b"EXIF", b"XMP "})
 _LOCK = threading.RLock()
 
 
-class AttachmentRefused(Exception):  # noqa: N818 — a typed REFUSAL (code + message + status), not an error suffix
+class AttachmentRefused(Exception):
     """A typed refusal: a stable ``code`` for machines, a plain ``message`` for people."""
 
     def __init__(self, code: str, message: str, *, http_status: int = 422) -> None:

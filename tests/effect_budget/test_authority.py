@@ -11,7 +11,7 @@ import pytest
 
 from core import effect_budget as eb
 from core.effect_gateway import named_background_effect_scope, open_effect_receipt_scope
-from tests.effect_budget.conftest import *  # noqa: F401,F403 — fixtures
+from tests.effect_budget.conftest import *  # noqa: F403 — fixtures
 
 
 def test_operator_can_set_and_remove_budgets(operator_token):

@@ -178,15 +178,15 @@ def die_now(result: dict[str, Any]) -> None:
 
 
 def _warm_unit() -> None:
-    from core import effect_budget  # noqa: F401
+    from core import effect_budget
 
 
 def _warm_paid() -> None:
-    from core import model_spend_ledger, paid_call_reservation  # noqa: F401
+    from core import model_spend_ledger, paid_call_reservation
 
 
 def _warm_wallet() -> None:
-    from core.wallet import limits  # noqa: F401
+    from core.wallet import limits
 
 
 @worker("legacy_unit_reserve", warm=_warm_unit)
@@ -612,7 +612,7 @@ def prepare_shared_store(home: Path) -> None:
 
 
 def _warm_money() -> None:
-    from core import effect_budget_money  # noqa: F401
+    from core import effect_budget_money
 
 
 @worker("money_reserve", warm=_warm_money)

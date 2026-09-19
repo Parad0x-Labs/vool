@@ -134,7 +134,7 @@ out(res);
     assert "every published price is an explicit $0" in html, "free qualification basis"
     assert "131k tokens context" in html, "known context length"
     assert "tools \u2713" in html and "images \u2717" in html, "observed capabilities"
-    assert "2026-09-17T09:59:00Z".split("T")[0] not in html  # rendered as locale time, not raw
+    assert ["2026-09-17", "09:59:00Z"][0] not in html  # rendered as locale time, not raw
     assert "openrouter_catalog" in html, "source feed"
     assert "https://openrouter.ai/api/v1/models" in html, "source URL"
     # Not a certification; approvals still rule.

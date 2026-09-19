@@ -1,7 +1,9 @@
 """Exercise the displayed budget form and its existing approval door without live spend."""
-from pathlib import Path
 import json
+from pathlib import Path
+
 import pytest
+
 from tests.chat_page_js_harness import DOM, run_node
 
 SOURCE = Path('core/vool_settings_page.py').read_text()

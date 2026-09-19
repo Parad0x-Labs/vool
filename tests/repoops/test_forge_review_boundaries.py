@@ -2,7 +2,7 @@
 import pytest
 
 from core.kas.contract import ForgeRefusedError
-from tests.repoops.test_forge_listing_truth import _ScriptedWire, _github_adapter, _gitlab_adapter, _run
+from tests.repoops.test_forge_listing_truth import _github_adapter, _gitlab_adapter, _run, _ScriptedWire
 
 
 @pytest.mark.parametrize('factory', [_github_adapter, _gitlab_adapter])

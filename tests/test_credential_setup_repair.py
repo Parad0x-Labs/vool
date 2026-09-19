@@ -1,4 +1,4 @@
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
+
 """Settings key setup (2026-09-14): valid keys rejected by "Auto-detect".
 
 Measured before this repair (validation-logs/autodetection-20260914, baseline replay):
@@ -30,13 +30,13 @@ import json
 
 import pytest
 
-from tests._credential_intelligence_support import (  # noqa: F401 (fixtures resolve via module namespace)
+from tests._credential_intelligence_support import (
     FakeProviderServer,
     isolated_home,
     sweep_home_for_secret,
     vault_home,
 )
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def _synthetic(label: str, prefix: str, length: int) -> str:

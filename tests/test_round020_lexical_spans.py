@@ -11,7 +11,6 @@ import pytest
 
 from core.kernel.lexical_spans import LexicalSpan, has_quantity, lex_spans, quantity_values
 
-
 # ---------------------------------------------------------------------------
 # Q — real quantities must survive
 # ---------------------------------------------------------------------------
@@ -340,17 +339,17 @@ class TestCrossSourceValidation:
     """S9 — cross-source contamination in full claim validation."""
 
     def test_url_unit_cannot_ground_claim(self) -> None:
-        from core.kernel.evidence_types import validate_claims, TypedClaim
+        from core.kernel.evidence_types import TypedClaim, validate_claims
         receipt = "There are 24 files at https://host.example/24GB"
         claim = "The storage amount is 24 GB."
         try:
             validate_claims([TypedClaim(text=claim, ctype="observed", ref="r1")], {"r1": receipt})
-            assert False, "Cross-source claim must be rejected"
+            raise AssertionError("Cross-source claim must be rejected")
         except Exception:
             pass  # Expected — number 24 IS in receipt but unit grounding fails
 
     def test_real_24_gb_validates(self) -> None:
-        from core.kernel.evidence_types import validate_claims, TypedClaim
+        from core.kernel.evidence_types import TypedClaim, validate_claims
         receipt = "The machine uses 24 GB DDR5 RAM"
         claim = "It has 24 GB of memory."
         validate_claims([TypedClaim(text=claim, ctype="observed", ref="r1")], {"r1": receipt})  # must not raise

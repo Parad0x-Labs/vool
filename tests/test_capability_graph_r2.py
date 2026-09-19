@@ -13,18 +13,18 @@ import pytest
 
 from core import capability_graph as cg
 from core.capability_graph import (
-    Capability,
-    CapabilityCandidate,
-    CapabilityId,
-    CapabilityFamily,
-    DiscoveryRequest,
-    DiscoveryResult,
-    Implementation,
-    ImplementationId,
     _ALWAYS_VISIBLE,
     _DEFAULT_MAX_CANDIDATES,
     _FAMILY_REPRESENTATIVE,
     _TOOLSET_HINT_TO_FAMILY,
+    Capability,
+    CapabilityCandidate,
+    CapabilityFamily,
+    CapabilityId,
+    DiscoveryRequest,
+    DiscoveryResult,
+    Implementation,
+    ImplementationId,
     capabilities_for_skill,
     discover,
     family_hint_from_task_class,
@@ -354,7 +354,7 @@ def test_S1_restore_global_runtime_tool_specs_makes_R1_red() -> None:
         from core.tool_intent_executor import runtime_tool_specs
         return runtime_tool_specs()
 
-    setattr(cg, "model_visible_specs", malicious_specs)
+    cg.model_visible_specs = malicious_specs
     try:
         specs = cg.model_visible_specs(family_hint="filesystem")
         # SABOTAGE EFFECTIVE: global catalog restored
@@ -378,7 +378,7 @@ def test_S2_unknown_returns_all_tools_makes_R4_red() -> None:
         from core.tool_intent_executor import runtime_tool_specs
         return runtime_tool_specs()
 
-    setattr(cg, "model_visible_specs", malicious_specs)
+    cg.model_visible_specs = malicious_specs
     try:
         specs = cg.model_visible_specs()  # No hint
         # SABOTAGE EFFECTIVE: unknown requirement returns full catalog
@@ -403,7 +403,7 @@ def test_S3_materialize_all_schemas_before_filtering_makes_R1_red() -> None:
         # Then filter (too late — already materialized)
         return all_specs[:max_candidates]
 
-    setattr(cg, "model_visible_specs", malicious_specs)
+    cg.model_visible_specs = malicious_specs
     try:
         specs = cg.model_visible_specs(family_hint="filesystem")
         # In the malicious version we still get bounded output, but the harm
@@ -448,7 +448,7 @@ def test_S4_offline_filter_ignored_makes_R5_red() -> None:
                        toolset_hints=toolset_hints, offline_mode=False,
                        max_candidates=max_candidates)
 
-    setattr(cg, "model_visible_specs", malicious_specs)
+    cg.model_visible_specs = malicious_specs
     try:
         specs = cg.model_visible_specs(family_hint="web", offline_mode=True)
         cloud = [s for s in specs if s.get("intent", "") == "web.search.cloud"]
@@ -498,7 +498,7 @@ def test_S5_discovery_result_treated_as_authorization_makes_R10_red() -> None:
         )
         return result
 
-    setattr(cg, "discover", malicious_discover)
+    cg.discover = malicious_discover
     try:
         result = cg.discover(DiscoveryRequest(family="filesystem"))
         # R10 requires no authorization flags — the honest result has none
@@ -527,7 +527,7 @@ def test_S6_replace_implementation_id_with_label_makes_R8_red() -> None:
             s["intent"] = old_intent.replace("_", " ").replace(".", " > ").title()
         return specs
 
-    setattr(cg, "model_visible_specs", malicious_specs)
+    cg.model_visible_specs = malicious_specs
     try:
         specs = cg.model_visible_specs(family_hint="filesystem")
         # The sabotage replaced all intents with display labels.

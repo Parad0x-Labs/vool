@@ -304,9 +304,7 @@ def append_runtime_event(
                 except Exception:
                     return True
 
-            governed_strings: list[str] = [clean_message] + list(
-                _iter_tree_strings(clean_details)
-            )
+            governed_strings: list[str] = [clean_message, *list(_iter_tree_strings(clean_details))]
             if any(
                 text and _durable_veto(text) for text in governed_strings
             ):
@@ -1670,7 +1668,7 @@ def create_runtime_attempt(
         terminal chain was refused. Harmless while the answering attempt had its own
         unfenced root; load-bearing now that a turn's answer shares the turn root's fence,
         which is terminal by the time a later turn asks to retry it."""
-        from core.attempt_followup import RETRY_ATTEMPT, REPEAT_ORIGINAL_REQUEST
+        from core.attempt_followup import REPEAT_ORIGINAL_REQUEST, RETRY_ATTEMPT
 
         if str(intent or "") not in (RETRY_ATTEMPT, REPEAT_ORIGINAL_REQUEST):
             return False

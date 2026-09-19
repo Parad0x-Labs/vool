@@ -101,7 +101,7 @@ def _publish_records_eligible(records: list[dict[str, Any]]) -> bool:
     """A8 canonical availability check for snapshot records about to be
     durably written to (or served from) this relay. WITHHELD/ERASED governed
     bytes are refused; store failure FAILS CLOSED (ineligible)."""
-    from core.finalization import payload_availability_for_hash, _sha256_hex
+    from core.finalization import _sha256_hex, payload_availability_for_hash
 
     try:
         for record in records:

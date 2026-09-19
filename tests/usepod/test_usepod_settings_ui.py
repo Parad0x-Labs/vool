@@ -40,7 +40,7 @@ class PlainServedDaemon(UsePodServedDaemon):
     """The same served daemon WITHOUT the monetary test double: the authorities the panel reports
     are the production ones (unavailable), which is what the dependency lines must say."""
 
-    def start(self, timeout: float = 240.0) -> "PlainServedDaemon":
+    def start(self, timeout: float = 240.0) -> PlainServedDaemon:
         self.home.mkdir(parents=True, exist_ok=True)
         env = self.env()
         env.pop("USEPOD_SERVED_DOUBLE_JOURNAL", None)

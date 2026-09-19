@@ -133,19 +133,18 @@ def test_twin_engagements_produce_identical_journals_and_bytes(tmp_path, monkeyp
     import hashlib
 
     from core.blackbox import store as store_module
-    from core.mode_permission_policy import reset_mode_permission_state, set_active_mode
-
     from core.code_assistant.fixture import (
         DEFECT_OLD_TEXT,
+        DEFECT_STATS_PY,
         FIX_NEW_TEXT,
         NARROW_TEST_COMMAND,
-        REGRESSION_COMMAND,
         OWNER_PATH,
-        DEFECT_STATS_PY,
+        REGRESSION_COMMAND,
     )
+    from core.mode_permission_policy import reset_mode_permission_state, set_active_mode
 
     summaries: list[dict] = []
-    for dialect, raw in (
+    for dialect, _raw in (
         ("cloud", {"tool_calls": None}),  # placeholder; calls built below
         ("local", None),
     ):
@@ -185,13 +184,18 @@ def test_twin_engagements_produce_identical_journals_and_bytes(tmp_path, monkeyp
             "operating_mode": "auto",
         }
 
-        def raw_call(step_id: str, intent: str, arguments: dict):
+        from core.runtime_execution_tools import execute_runtime_tool
+
+        opened = execute_runtime_tool("code.task.open", {"objective": "twin"}, source_context=ctx)
+        task_id = opened.details["task_id"]
+
+        def raw_call(step_id: str, intent: str, arguments: dict, *, dialect=dialect):
             """The same proposal, emitted in THIS dialect's wire shape."""
             if dialect == "cloud":
                 return {"tool_calls": [{"call_id": step_id, "name": intent, "arguments": arguments}]}
             return json.dumps({"tool": intent, "arguments": arguments, "call_id": step_id})
 
-        def propose_step(step_id: str, intent: str, arguments: dict, *, needs_approval: bool = False) -> None:
+        def propose_step(step_id: str, intent: str, arguments: dict, *, needs_approval: bool = False, dialect=dialect, task_id=task_id, ctx=ctx) -> None:
             """The same proposal, emitted in THIS dialect, normalized, then proposed, approved
             (mutations only) and executed as a step -- the full canonical path."""
             call = canonical_call(raw_call(step_id, intent, arguments), stage="fix", rationale="dialect twin")
@@ -221,10 +225,6 @@ def test_twin_engagements_produce_identical_journals_and_bytes(tmp_path, monkeyp
             )
             assert result.ok, (dialect, step_id, result.response_text)
 
-        from core.runtime_execution_tools import execute_runtime_tool
-
-        opened = execute_runtime_tool("code.task.open", {"objective": "twin"}, source_context=ctx)
-        task_id = opened.details["task_id"]
         # reproduce
         repro = canonical_call(
             (

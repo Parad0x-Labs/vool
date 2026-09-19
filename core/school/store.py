@@ -14,9 +14,10 @@ from __future__ import annotations
 import json
 import secrets
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Iterator
+from typing import Any
 
 from storage.db import get_connection
 

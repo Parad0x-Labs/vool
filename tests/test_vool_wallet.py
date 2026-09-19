@@ -31,7 +31,7 @@ from core.vool_wallet import (
     verify_wallet_signature,
 )
 from core.wallet.errors import WalletFault
-from tests.wallet._rig import rpc  # noqa: F401 - scripted devnet RPC fixture (no real chain)
+from tests.wallet._rig import rpc
 
 LEGACY = "wallet_legacy_surface_retired"
 EXPORT = "wallet_export_refused"
@@ -282,7 +282,7 @@ def test_legacy_view_when_wallet_is_disabled_is_empty_and_read_only(monkeypatch,
     _no_key_file(tmp_path)
 
 
-def test_legacy_view_reports_the_registered_core_wallet_without_minting(monkeypatch, tmp_path: Path, rpc) -> None:  # noqa: F811
+def test_legacy_view_reports_the_registered_core_wallet_without_minting(monkeypatch, tmp_path: Path, rpc) -> None:
     monkeypatch.setenv("VOOL_WALLET_ENABLED", "1")
     monkeypatch.setenv("VOOL_WALLET_NETWORK_ENVIRONMENT", "testnet")
     monkeypatch.setenv("VOOL_WALLET_TESTNET_RPC_URL", rpc.url)

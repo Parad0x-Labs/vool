@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from core.memory.files import utcnow
+from core.routing_authority_v2 import RoutingAuthorityV2ShadowStore
 from core.runtime_paths import data_path
 
 _LOG_FILE = "routing_decisions.jsonl"
@@ -109,7 +110,7 @@ def record_decision(
     try:
         import hashlib
 
-        from core.routing_authority_v2 import RoutingAuthorityV2ShadowStore, RoutingDecisionShadowV2
+        from core.routing_authority_v2 import RoutingDecisionShadowV2
 
         record = RoutingDecisionShadowV2(
             recorded_at_unix_ms=_unix_ms_now(row["ts"]),
@@ -141,10 +142,10 @@ def _unix_ms_now(ts: Any) -> int:
 
 
 _SHADOW_LOCK = threading.Lock()
-_SHADOW_STORE: "RoutingAuthorityV2ShadowStore | None" = None
+_SHADOW_STORE: RoutingAuthorityV2ShadowStore | None = None
 
 
-def _shadow_store() -> "RoutingAuthorityV2ShadowStore":
+def _shadow_store() -> RoutingAuthorityV2ShadowStore:
     """Lazy singleton over the owner-local shadow database (created on first use)."""
     global _SHADOW_STORE
     if _SHADOW_STORE is None:

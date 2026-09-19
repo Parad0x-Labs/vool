@@ -1354,7 +1354,7 @@ def test_sabotage_restoring_the_bad_import_makes_the_probe_raise(monkeypatch) ->
     from core.agent_runtime import answer_coverage as ac
 
     def broken(clause: str) -> bool:
-        from core.agent_runtime.builder.small_project_plan import (  # noqa: F401
+        from core.agent_runtime.builder.small_project_plan import (
             small_project_plan,
         )
 

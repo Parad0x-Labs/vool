@@ -23,8 +23,8 @@ from core import capability_graph as cg
 from core.capability_graph import (
     Capability,
     CapabilityCandidate,
-    CapabilityId,
     CapabilityFamily,
+    CapabilityId,
     DiscoveryRequest,
     DiscoveryResult,
     Implementation,
