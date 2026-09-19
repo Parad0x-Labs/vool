@@ -276,3 +276,37 @@ def test_the_local_render_bridge_prefers_the_current_named_pack(world, tmp_path)
     from core import local_media_render
 
     assert local_media_render.local_render_script() == current / "plugins" / "vool-local-render" / "runtime" / "render_sdxl.py"
+
+
+# --- the bundled pack's own bytes ----------------------------------------------------------------
+
+
+def test_the_bundled_packs_skill_copy_is_a_valid_typed_contract(world, monkeypatch) -> None:
+    """The pack ships its own skill copy so an installed pack is self-contained -- and that
+    copy went stale once: the native skill was repaired to typed prerequisites/verification
+    while the pack copy kept prose frontmatter that fails the same law (invisible until the
+    merged inventory read it). The pack copy must LOAD as a valid contract, byte-equal to the
+    native skill so the two can never drift again."""
+    import filecmp
+
+    monkeypatch.delenv("VOOL_BUNDLED_PLUGINS_DIR", raising=False)
+    from core.plugin_catalog import bundled_plugin_dirs
+    from core.runtime_paths import PROJECT_ROOT
+
+    native = PROJECT_ROOT / "skills" / "vool-database" / "SKILL.md"
+    copies = [
+        plugin_dir / "skills" / "vool-database" / "SKILL.md"
+        for plugin_dir in bundled_plugin_dirs()
+        if plugin_dir.name == "vool-database"
+    ]
+    assert copies, "the bundled vool-database pack lost its skill copy"
+    assert filecmp.cmp(str(native), str(copies[0]), shallow=False), (
+        "the pack's skill copy diverged from the native skill it mirrors"
+    )
+    # And the copy passes the same typed law the native library enforces.
+    from core.native_skill_library import contract_from_frontmatter, contract_violations, _frontmatter_of
+
+    front = _frontmatter_of(copies[0])
+    contract = contract_from_frontmatter(front, path=str(copies[0]), source="plugin:vool-database")
+    violations = contract_violations(contract)
+    assert violations == (), violations

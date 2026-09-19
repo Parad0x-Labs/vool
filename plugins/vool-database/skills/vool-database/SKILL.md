@@ -11,17 +11,21 @@ risk-class: workspace_write
 priority: 20
 triggers: [database, sqlite, sql, schema, query the data, explain plan, index, migration, migrate the schema, backup, restore, table, rows]
 allowed-tools: [vool-database.connect, vool-database.db.create, vool-database.schema, vool-database.query, vool-database.explain, vool-database.migrate.preview, vool-database.migrate.apply, vool-database.backup, vool-database.restore]
-capabilities: [database.read, database.schema, database.migrate, database.backup]
+# capabilities: intentionally none. `database.*` are not capability ids this runtime's
+# ontology defines, so declaring them made _unmet_capabilities return all four on every
+# turn and this skill was permanently `capability_unavailable` -- skipped BEFORE scoring,
+# so no phrasing could ever select it. The real gate is the `plugin:vool-database`
+# prerequisite below, which is what actually has to be installed and enabled.
 permissions: [read_files, create_files, modify_files]
 effects: [read_only, workspace_write]
 inputs: [database_name, sql, statements, backup_name]
 outputs: [schema_report, query_rows, explain_plan, migration_diff, backup_receipt]
 stop-conditions: [the user's data question is answered from real rows, a migration is applied and verified or refused with the exact reason, a destructive request without approval is rejected and explained, no query runs without its row and time limits]
 recovery: [a failed migration rolls back automatically - verify with a fresh query and keep the recovery backup, restore from a named backup when the user asks, re-run a cancelled query narrowed or with a higher explicit time limit]
-prerequisites: [plugin vool-database installed and enabled]
+prerequisites: [plugin:vool-database]
 expected-outputs: [schema_report, query_rows, migration_diff, backup_receipt]
-verification: [rows come from vool-database.query receipts, migrations from preview-then-apply receipts with integrity ok]
-task-families: [data]
+verification: [typed_receipts, deterministic_evidence]
+stopping-conditions: [the user's data question is answered from real query receipts, a migration is applied and post-verified or refused with the exact reason, a destructive request without approval is rejected and explained, no query runs without its row and time limits]
 capability-families: [database]
 tool-intents: [vool-database.connect, vool-database.db.create, vool-database.schema, vool-database.query, vool-database.explain, vool-database.migrate.preview, vool-database.migrate.apply, vool-database.backup, vool-database.restore]
 permitted-tools: [vool-database.connect, vool-database.db.create, vool-database.schema, vool-database.query, vool-database.explain, vool-database.migrate.preview, vool-database.migrate.apply, vool-database.backup, vool-database.restore]
