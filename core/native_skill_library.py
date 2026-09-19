@@ -884,6 +884,14 @@ def skill_inventory(root: Path | None = None) -> list[dict[str, Any]]:
             }
         )
     for error in library.invalid:
+        # An invalid row whose id a VALID contract already owns is the cross-source duplicate
+        # report (native kept, plugin/mcp dropped) -- not a second state of that skill. The
+        # inventory is keyed by id, so emitting it here would shadow the valid row for every
+        # consumer that looks the skill up, presenting an available skill as broken. The
+        # duplicate stays visible where it belongs: on LibraryLoad.invalid (the load's own
+        # report) and on the catalog's duplicates/provenance fields.
+        if any(contract.id == error.id for contract in library.contracts):
+            continue
         rows.append(
             {
                 "id": error.id,
