@@ -37,7 +37,8 @@ def test_an_injected_timeout_maps_records_and_reads_back_with_its_contract(fault
         TimeoutError("simulated engine stall"), authority="tests.representative", turn_key="turn-e2e-1"
     )
     assert record.code == "timeout"
-    assert record.effect == "uncertain", "a timeout may not promise nothing happened"
+    from core.faults.catalog import get_spec
+    assert get_spec(record.code).effect == "uncertain", "a timeout may not promise nothing happened"
     record_fault(record)
 
     rows = _recorded("turn-e2e-1")
@@ -54,9 +55,9 @@ def test_a_wrapped_failure_cannot_be_reclassified_by_an_upstream_handler(fault_h
         PermissionError("simulated policy stop"), authority="tests.owner", turn_key="turn-e2e-2"
     )
     assert owned.code == "permission_denied"
-    rewritten = map_exception(
-        RuntimeError("turn failed") from FaultError(owned), authority="tests.upstream", turn_key="turn-e2e-2"
-    )
+    wrapped = RuntimeError("turn failed")
+    wrapped.__cause__ = FaultError(owned)
+    rewritten = map_exception(wrapped, authority="tests.upstream", turn_key="turn-e2e-2")
     assert rewritten.code == "permission_denied", "an upstream wrapper re-classified an owned failure"
 
 
@@ -77,12 +78,12 @@ def test_a_missing_credential_is_worded_as_a_local_refusal_not_a_model_failure()
             {
                 "requested_model": "openrouter:some-model",
                 "attempted": ["openrouter:some-model"],
-                "attempt_details": [
-                    {"provider": "openrouter", "error": "provider_credential_unavailable", "kind": "local refusal"}
-                ],
+                # The fields the ROUTER actually writes: one attempt, its typed reason, its kind.
+                "attempted_error_reasons": ["provider_credential_unavailable"],
+                "attempt_kinds": ["local refusal before the wire"],
             }
         ),
-        user_input="hello",
+        user_input="",
     )
     assert "API key was not available" in text and "before sending" in text
     assert "nothing was charged" in text.lower()
@@ -104,7 +105,7 @@ def test_an_unknown_paid_outcome_says_unknown_and_points_at_the_resume_path() ->
         _execution_with(
             {
                 "requested_model": "usepod:some-model",
-                "block_reason": "paid_result_unknown: the paid answer never arrived",
+                "block_reason": "usepod_x402_paid_result_unknown: the paid answer never arrived",
             }
         )
     )
@@ -156,17 +157,18 @@ def test_exported_fault_evidence_carries_codes_not_context(fault_home) -> None:
 
 
 def test_bug_report_redaction_preserves_meaning_while_removing_identity() -> None:
-    from core.bug_report.redaction import redact_for_report
+    from core.bug_report.redaction import redact_text
 
     raw = (
         "Failed calling provider from /Users/alice/Projects/app for alice@example.com "
         "with token ghp_0123456789abcdef at 192.168.1.4: connection reset"
     )
-    redacted = redact_for_report(raw)
+    redacted, summary = redact_text(raw)
     for secret in ("/Users/alice", "alice@example.com", "ghp_0123456789abcdef", "192.168.1.4"):
         assert secret not in redacted, f"{secret} survived redaction"
     for meaning in ("Failed calling provider", "connection reset"):
         assert meaning in redacted, f"redaction destroyed useful meaning: lost {meaning!r}"
+    assert summary.total_replacements > 0, "the summary must disclose that redaction happened"
 
 
 # --- 4. recovery actions do not bypass authority -------------------------------------------
