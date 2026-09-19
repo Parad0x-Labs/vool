@@ -47,6 +47,18 @@ from storage.db import active_default_db_path, configure_default_db_path, get_co
 from storage.migrations import run_migrations
 from tests import _network_seal as network_seal
 
+# Plugin-discovery hermeticity (2026-09-19). The suite used to be clean only by accident: the
+# default external root ~/Desktop/Vool-skills-plugins happened not to exist on dev machines, so
+# every un-isolated probe reported MISSING. The legacy-folder reuse rule (Nulla-skills-plugins,
+# the pre-rename installation) plus the bundled source (the repo's own plugins/) made that
+# assumption false: an un-isolated test would probe the operator's REAL Desktop tree and see the
+# owner's packs, and the repo's bundled packs would ride into every turn. Pin the session to a
+# Desktop-free, bundle-free world unless a test (or an operator) explicitly sets either
+# variable: setdefault, so monkeypatch.setenv and a deliberate env still win.
+_HERMETIC_PLUGINS = Path(tempfile.mkdtemp(prefix="vool_pytest_plugins_"))
+os.environ.setdefault("VOOL_PLUGINS_DIR", str(_HERMETIC_PLUGINS / "no-desktop-tree"))
+os.environ.setdefault("VOOL_BUNDLED_PLUGINS_DIR", str(_HERMETIC_PLUGINS / "no-bundled-tree"))
+
 # storage/db.py has no pytest-specific path override, so without this, every test in
 # this session would share the SAME on-disk SQLite file a live `apps.vool_api_server`
 # process may be connected to (active_default_db_path() resolves to the real runtime

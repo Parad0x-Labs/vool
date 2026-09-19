@@ -828,6 +828,39 @@ def test_release_staging_bytes_come_from_the_commit_not_the_worktree(tmp_path: P
     assert "NON-RELEASE" in src.upper()
 
 
+def test_the_staged_source_carries_the_native_skill_library_and_bundled_plugins(tmp_path: Path) -> None:
+    """`skills/` and `plugins/` are runtime CONTENT, and SRC_PACKAGES decides what ships.
+
+    core.native_skill_library resolves the native library from the APPLICATION SOURCE ROOT's
+    skills/ directory and core.plugin_catalog reads the bundled packs from the same root's
+    plugins/ -- a bundle that stages neither ships a runtime whose library and catalog are
+    silently empty (measured on the e1034c9b Mac bundle: neither directory present, while the
+    commit carried 26 native skills and the first-party vool-database pack).
+    """
+    import re
+
+    src = BUILD_SCRIPT.read_text(encoding="utf-8")
+    match = re.search(r"^SRC_PACKAGES=\(([^)]*)\)", src, re.MULTILINE)
+    assert match, "SRC_PACKAGES declaration not found in the build script"
+    staged = set(match.group(1).split())
+    assert "skills" in staged, "the native skill library no longer ships inside the app"
+    assert "plugins" in staged, "the bundled first-party packs no longer ship inside the app"
+    # What ships must exist in the repo at this commit: the build's own pre-package check
+    # enforces it for every name, so a stale name here fails the BUILD, not the first launch.
+    for package in staged:
+        assert (REPO / package).is_dir(), f"SRC_PACKAGES names {package}, absent from the repo"
+
+
+def test_the_windows_staging_list_carries_the_same_content_trees(tmp_path: Path) -> None:
+    """build_bundle.ps1 stages the same runtime content trees, and a listed package that is
+    missing from the repo fails the build instead of silently shipping without it."""
+    ps1 = REPO / "installer" / "bundle" / "build_bundle.ps1"
+    src = ps1.read_text(encoding="utf-8")
+    for name in ('"skills"', '"plugins"'):
+        assert name in src, f"{name} missing from the Windows staging list"
+    assert '"channels"' not in src, "the deleted channels package is still listed (stale staging list)"
+
+
 def test_build_manifest_and_runtime_stamp_share_one_build_identity(tmp_path: Path) -> None:
     """Invariant: /healthz and BUILD_MANIFEST agree byte-for-byte on SHA/build identity. The
     bundled config/build-source.json is the runtime's SHA source, so the build must verify the

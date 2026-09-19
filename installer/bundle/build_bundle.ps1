@@ -72,10 +72,15 @@ $appDir = Join-Path $Stage "app"
 if (Test-Path $appDir) { Remove-Item $appDir -Recurse -Force }
 New-Item -ItemType Directory -Force $appDir | Out-Null
 # All top-level runtime packages the server imports (verified by running the staged bundle),
-# plus config data. Excludes tests and dev-only trees to keep the bundle lean.
-foreach ($d in @("apps", "core", "adapters", "storage", "network", "relay", "retrieval", "sandbox", "tools", "channels", "ops", "installer", "config")) {
+# plus config data. Excludes tests and dev-only trees to keep the bundle lean. `skills` and
+# `plugins` are runtime CONTENT (the native skill library and the bundled first-party packs,
+# e.g. vool-database) resolved from the app root at run time -- a bundle without them ships a
+# runtime with an empty library and catalog. `channels` was deleted from the tree (e7b1bd31)
+# and is removed here with them added, mirroring build_macos_app.sh's SRC_PACKAGES.
+foreach ($d in @("apps", "core", "adapters", "storage", "network", "relay", "retrieval", "sandbox", "tools", "ops", "installer", "config", "skills", "plugins")) {
   $src = Join-Path $RepoRoot $d
-  if (Test-Path $src) { Copy-Item $src (Join-Path $appDir $d) -Recurse -Force }
+  if (-not (Test-Path $src)) { throw "staging list names a package absent from the repo: $d" }
+  Copy-Item $src (Join-Path $appDir $d) -Recurse -Force
 }
 # Canonical project grounding reads only this small allowlist. Ship the same sources in the
 # installed bundle so a release build has the grounding that a source checkout has.
