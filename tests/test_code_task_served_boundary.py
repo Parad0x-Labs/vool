@@ -350,7 +350,9 @@ class GuidedProvider(ScriptedProvider):
         super().__init__({MODEL: "ok"})
         self.policy = policy
 
-    def reply_for(self, model: str, *, has_tool_result: bool) -> Any:
+    def reply_for(
+        self, model: str, *, has_tool_result: bool, body: dict[str, Any] | None = None
+    ) -> Any:
         with self._lock:
             last = self.calls[-1] if self.calls else None
         if last is None or not last.get("tools"):
@@ -413,6 +415,14 @@ def _boot(served_factory, workspace_files: dict[str, str], policy: GuidedRepair)
             "OLLAMA_HOST": provider.base_url,
             "VOOL_OLLAMA_URL": provider.base_url,
             "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat",
+            # The session fence dead-ends every endpoint var a launcher leaves unset
+            # (setdefault), and RAW outranks OLLAMA_HOST -- without these three the
+            # daemon's inventory, pull and residency probes all hit a dead port, the
+            # stub reads as not-resident, and turns come back tool-less.
+            "VOOL_RAW_OLLAMA_API_URL": provider.base_url,
+            "VOOL_OLLAMA_TAGS_URL": f"{provider.base_url}/api/tags",
+            "VOOL_OLLAMA_PS_URL": f"{provider.base_url}/api/ps",
+            "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "1",
         },
     )
     _stub_models_are_resident(provider)

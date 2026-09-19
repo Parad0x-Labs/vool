@@ -24,6 +24,7 @@ No native window is driven and no packet leaves the machine.
 from __future__ import annotations
 
 import json
+import textwrap
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -53,7 +54,16 @@ class TranscriptProvider(ScriptedProvider):
         super().__init__({MODEL: ""}, after_tool_result={MODEL: ""})
         self.transcript: list[Any] = []
 
-    def reply_for(self, model: str, *, has_tool_result: bool) -> Any:
+    def reply_for(
+        self, model: str, *, has_tool_result: bool, body: dict[str, Any] | None = None
+    ) -> Any:
+        with self._lock:
+            last = self.calls[-1] if self.calls else None
+        if last is None or not last.get("tools"):
+            # The classifier call: plain text, as the rig's own fixtures answer it. Popping
+            # the transcript here would spend the scripted tool call on a turn that cannot
+            # carry one, and the tool turn would then answer "done" -- no journal, no call.
+            return "shell_guidance"
         if self.transcript:
             return self.transcript.pop(0)
         return "done"
@@ -179,6 +189,12 @@ def served(tmp_path: Path):
             "OLLAMA_HOST": provider.base_url,
             "VOOL_OLLAMA_URL": provider.base_url,
             "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat",
+            # The session fence dead-ends every endpoint var a launcher leaves unset, and
+            # RAW outranks OLLAMA_HOST -- without these the daemon's inventory, pull and
+            # residency probes hit a dead port and turns come back tool-less.
+            "VOOL_RAW_OLLAMA_API_URL": provider.base_url,
+            "VOOL_OLLAMA_TAGS_URL": f"{provider.base_url}/api/tags",
+            "VOOL_OLLAMA_PS_URL": f"{provider.base_url}/api/ps",
         },
     )
     # A scripted stub occupies no memory; report its models resident so the resource governor
@@ -201,6 +217,22 @@ def served(tmp_path: Path):
         except Exception as exc:  # pragma: no cover - environment, not the runtime
             pytest.skip(f"served daemon could not boot here: {exc}")
         run_in_home(home, SEED_MANIFEST.format(root=REPO_ROOT, base_url=provider.base_url, registered=[MODEL]))
+        # Certify the scripted stub for final-answer authorship (same authority as the other
+        # served rigs): the precall fence refuses an uncertified local author.
+        run_in_home(
+            home,
+            textwrap.dedent(
+                f'''
+                import sys
+                sys.path.insert(0, "{REPO_ROOT}")
+                from storage.model_provider_manifest import list_provider_manifests
+                from tests._authorship_certification import certify_for_authorship
+                for m in list_provider_manifests():
+                    if m.model_name == "{MODEL}":
+                        print("certified", m.model_name, certify_for_authorship(m))
+                '''
+            ),
+        )
         provider.reset()
         yield {"home": home, "workspace": workspace, "daemon": daemon, "provider": provider,
                "forge": forge, "sessions_dir": home / "repo_sessions"}
