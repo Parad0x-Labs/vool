@@ -34,7 +34,7 @@ jobs:
       - name: Install verification dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,browser,companion]"
+          python -m pip install -e ".[dev,browser,companion,evm]"
       - name: Lint (pinned ruff)
         run: python -m ruff check .
       - name: Canonical pytest collection
@@ -64,7 +64,7 @@ jobs:
       - name: Install verification dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,browser,companion]"
+          python -m pip install -e ".[dev,browser,companion,evm]"
       - name: Provision the served-browser lane (Playwright chromium)
         run: python -m playwright install --with-deps chromium
       - name: Resolve this shard's test files

@@ -153,6 +153,15 @@ _EMPTY_RESPONSE_RETRY_POLICY = RetryPolicy(max_attempts=2)
 _NO_USABLE_GPU_CACHE: bool | None = None
 
 
+def _manifest_is_local(manifest: Any) -> bool:
+    try:
+        from core.provider_routing import manifest_is_local
+
+        return manifest_is_local(manifest)
+    except Exception:
+        return False
+
+
 def audit_turn_metadata(source_context: dict[str, Any] | None) -> dict[str, Any]:
     """`{"workspace_audit_turn": True}` when this turn is a workspace audit, else nothing.
 
@@ -5249,7 +5258,7 @@ class MemoryFirstRouter:
             from core.final_answer_authorship import local_manifest_authorship_certified
 
             _pinned_certified_local = any(
-                m is not None and not _manifest_is_local(m) or local_manifest_authorship_certified(m)
+                (m is not None and (not _manifest_is_local(m) or local_manifest_authorship_certified(m)))
                 for m in pinned
             ) if pinned else True
             if pinned and not _pinned_certified_local:

@@ -217,7 +217,6 @@ def _rank_provider_candidates_internal(
     # turns attempted exactly one provider and failed the turn). A local manifest
     # WITHOUT a completed final-answer certification ranks below every local
     # manifest WITH one; the fence stays untouched as the backstop.
-    from core.final_answer_authorship import local_manifest_authorship_certified
 
     local_certified = [
         manifest
