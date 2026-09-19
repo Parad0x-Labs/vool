@@ -221,10 +221,25 @@ def _fulfilment_gaps(turn_events: list[dict[str, Any]], fin_row: Any) -> list[st
         if code not in gaps:
             gaps.append(code)
 
-    for event in turn_events:
+    # A turn that resumed after an approval round-trip writes SEVERAL trace_completed rows for
+    # the same turn key: the earlier ones are superseded attempts (blocked on the approval the
+    # operator then granted), and the LAST row is the turn's terminal truth. Reading every row
+    # let a superseded "blocked" trace INCOMPLETE a turn that went on to fulfil (measured on
+    # the first-run pact's task receipt claim).
+    last_trace_index = max(
+        (
+            index
+            for index, event in enumerate(turn_events)
+            if _clean(event.get("event_type")) == "turn.trace_completed"
+        ),
+        default=-1,
+    )
+    for index, event in enumerate(turn_events):
         event_type = _clean(event.get("event_type"))
         if event_type in _UNFULFILLED_EVENT_TYPES:
             note(_UNFULFILLED_EVENT_TYPES[event_type])
+        if event_type == "turn.trace_completed" and index != last_trace_index:
+            continue
         if event_type == "turn.trace_completed":
             from core.runtime_task_outcome import output_validation_outcome
 
