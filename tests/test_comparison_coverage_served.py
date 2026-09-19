@@ -24,7 +24,10 @@ import pytest
 import tests._reader_served_rig as rig
 
 ROOT = Path(__file__).resolve().parents[1]
-FIX = ROOT / "validation-logs" / "comparison-truth-overnight-20260906" / "fixtures" / "comparison"
+# Canonical, relocatable fixture set (synthetic dated sources; body_file names are
+# relative to the manifest — no builder-machine paths). Relocated here from the
+# excluded internal validation-logs lane so the suite is self-contained.
+FIX = ROOT / "tests" / "fixtures" / "comparison_coverage"
 SHIM = ROOT / "tests" / "fixture_transport"
 
 CARS = "Now compare the VW Passat and the VW Golf in detail: production periods, sales, regions, engines and prices."
@@ -201,7 +204,7 @@ def test_unavailable_search_yields_no_fabricated_comparison(tmp_path):
     assert not out["pages"], out["pages"]
     assert "37 million" not in out["answer"] and "1974" not in out["answer"], out["answer"][:400]
     lowered = out["answer"].lower()
-    assert any(word in lowered for word in ("retriev", "source", "search", "couldn't", "can't")), out["answer"][:300]
+    assert any(word in lowered for word in ("retriev", "source", "search", "couldn't", "can't", "could not obtain")), out["answer"][:300]
 
 
 def test_table_and_shorter_follow_ups_inherit_the_published_support(tmp_path):

@@ -36,7 +36,12 @@ from unittest import mock
 from storage.db import configure_default_db_path, get_connection
 from storage.migrations import run_migrations
 
-TERMINAL_ATTEMPT_STATES = {"SUCCEEDED", "FAILED_PROVIDER", "CANCELLED"}
+# Aligned with the runtime's own terminal vocabulary (core/runtime_continuity.AttemptLifecycle):
+# PARTIAL_SUCCESS is the terminal for a turn that answered with a stated non-fulfilment
+# (FINDINGS F14.5/F15 — a truthful close, not a zombie), and FAILED_TOOL is the terminal
+# for tool-lane failures. The A9 RC-3 law this set enforces is "no zombie
+# RECEIVED/PLANNED/RUNNING rows" — those states are exactly what is NOT in the set.
+TERMINAL_ATTEMPT_STATES = {"SUCCEEDED", "FAILED_PROVIDER", "FAILED_TOOL", "PARTIAL_SUCCESS", "CANCELLED", "ABANDONED", "FAILED_SYNTHESIS", "FAILED_VALIDATION"}
 TERMINAL_EXECUTION_STATES = {"COMPLETED", "FAILED", "CANCELLED"}
 
 SESSION_HANDLE = "served-req-token-pass001"

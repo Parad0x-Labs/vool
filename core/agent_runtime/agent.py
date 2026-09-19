@@ -1517,6 +1517,14 @@ class VoolAgent(
         else:
             _r2_turn_value = ""
             _turn_id = ""
+        # The terminal boundary (finally below) reads TURN_STATE_KEY even when the inner
+        # call raises before its own import at the M4 seam; importing here first means an
+        # aborted turn still finalizes its attempt instead of leaving a RUNNING row forever.
+        try:
+            from core.turn_contract import TURN_STATE_KEY as _TURN_STATE_KEY_EARLY
+            TURN_STATE_KEY = _TURN_STATE_KEY_EARLY
+        except Exception:
+            pass
         observed_context: dict = {}
         try:
             # Observation only: records which gate got to decide this turn, and writes one
