@@ -495,11 +495,24 @@ stage_self_contained() {
       say "        rewrote libpython install name to @rpath"
     fi
   done
-  # (c) console-script shebangs in python/bin point into the builder's home. The app never
-  #     invokes these CLIs (it runs the interpreter directly); rewrite them to env-based
-  #     shebangs so no home path survives, deleting nothing.
+  # (c) console scripts in python/bin embed the interpreter path they were generated with, which
+  #     is under $HOME whenever the artifact is built to (or the interpreter staged from) a home-
+  #     nested path. TWO forms exist and both must die:
+  #       * the classic absolute shebang  -> rewritten to an env-based shebang;
+  #       * uv's newer #!/bin/sh exec-wrapper, whose SECOND line is a python string constant
+  #         ('''exec' '<abs interpreter>' "$0" "$@") -- invisible to a shebang rewrite, carried
+  #         into any bytecode compiled from the script, and a text grep over line 1 misses it.
+  #         The quoted interpreter path becomes 'python3' (sh resolves it from PATH; python
+  #         still sees a harmless string). The scrubbed scripts are then recompiled by (d), so
+  #         bytecode regenerated from them carries no home bytes either.
   while IFS= read -r -d '' macho; do
-    if head -c 2 "${macho}" | grep -q '#!' && head -1 "${macho}" | grep -q "${HOME}"; then
+    if ! head -c 400 "${macho}" 2>/dev/null | grep -q -F "${HOME}"; then
+      continue
+    fi
+    if [[ "$(head -1 "${macho}")" == "#!/bin/sh" ]]; then
+      sed -i '' "s|'${HOME}[^']*'|'python3'|g" "${macho}" \
+        || die "could not scrub the exec-wrapper interpreter path in ${macho}"
+    else
       sed -i '' "1s|.*|#!/usr/bin/env python3|" "${macho}"
     fi
   done < <(find "${res}/python/bin" -maxdepth 1 -type f -print0)
