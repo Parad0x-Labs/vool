@@ -701,11 +701,16 @@ def test_media_cloud_generation_runs_through_one_seam_without_double_execution(
 
 def _fx_context(mode: str, fetches: list[tuple[str, float | None]]) -> dict[str, Any]:
     def _fake_fetch(url: str, timeout_s: float = 8.0, headers: Any = None) -> dict[str, Any]:
+        from datetime import date
+
         fetches.append((url, timeout_s))
         return {
             "amount": 1.0,
             "base": "USD",
-            "date": "2026-09-01",
+            # A rate is only usable while it is fresh: a hardcoded observation date goes stale
+            # against the freshness window as the calendar moves, and the quote this stub
+            # serves would turn STALE -- so the observation is dated TODAY.
+            "date": date.today().isoformat(),
             "rates": {"EUR": 0.92},
         }
 
