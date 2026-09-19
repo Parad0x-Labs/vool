@@ -7,8 +7,9 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed
 from datetime import datetime
 from urllib import request
 
-from .tls import normalize_base_url, ssl_context_for_url
 from core.remote_fetch_policy import open_remote
+
+from .tls import normalize_base_url, ssl_context_for_url
 
 
 def agent_is_online(agent: dict[str, object]) -> bool:

@@ -40,7 +40,7 @@ def _pocket(custody):
 
 def _eth_account_present() -> bool:
     try:
-        import eth_account  # noqa: F401
+        import eth_account
         return True
     except Exception:
         return False

@@ -4468,9 +4468,9 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
     that already own each value."""
     model = json.dumps(settings_groups(), separators=(",", ":"), ensure_ascii=False)
     catalog = json.dumps(language_catalog(), separators=(",", ":"), ensure_ascii=False)
-    from core.settings_extras_fragment import render_settings_extras_fragment
     from core.calendar_settings_fragment import render_calendar_settings_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
+    from core.settings_extras_fragment import render_settings_extras_fragment
     from core.wallet_fragment import render_wallet_fragment
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live

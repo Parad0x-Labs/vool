@@ -481,7 +481,7 @@ def test_failed_verification_preserves_evidence_and_reopens_review(fixture_repo)
     revised = _door("code.task.propose", {
         "task_id": task_id, "proposal_id": "p2", "intent": "workspace.write_file",
         "arguments": {"path": "math.js", "content": fixed,
-                      "expected_hash": _hl.sha256("exports.add = (a, b) => a * b;\n".encode()).hexdigest()},
+                      "expected_hash": _hl.sha256(b"exports.add = (a, b) => a * b;\n").hexdigest()},
         "rationale": "Owner math.js: the first operator remains wrong; restore addition"}, ctx)
     assert revised.ok, revised.response_text
     assert (fixture_repo / "math.js").read_text() == "exports.add = (a, b) => a * b;\n"
@@ -502,7 +502,7 @@ def test_recovery_requires_a_fresh_approval_for_changed_bytes(fixture_repo):
     _door("code.task.propose", {
         "task_id": task_id, "proposal_id": "p2", "intent": "workspace.write_file",
         "arguments": {"path": "math.js", "content": fixed,
-                      "expected_hash": _hl.sha256("exports.add = (a, b) => a * b;\n".encode()).hexdigest()},
+                      "expected_hash": _hl.sha256(b"exports.add = (a, b) => a * b;\n").hexdigest()},
         "rationale": "Owner math.js: restore addition"}, ctx)
     # The FIRST proposal's approval does not cover the revised bytes: executing p2's
     # arguments without approving p2 must be refused byte-for-byte.

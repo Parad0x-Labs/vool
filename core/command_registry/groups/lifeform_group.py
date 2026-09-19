@@ -38,12 +38,12 @@ _SIGNING_KEY_ID = "lifeform-local-v1"
 
 
 def _gate_operator(inp, ctx) -> AuthorityDecision:
-    from core.command_registry.spec import AuthorityDecision as _AD
+    from core.command_registry.spec import AuthorityDecision as _AuthorityDecision
 
     if str(getattr(ctx, "principal", "") or "") != "operator":
-        return _AD(granted=False,
+        return _AuthorityDecision(granted=False,
                    reason="only the local operator may mint or change a lifeform")
-    return _AD(granted=True)
+    return _AuthorityDecision(granted=True)
 
 
 def _probe_lifeform_store(context: dict) -> tuple[bool, str]:
@@ -58,7 +58,7 @@ def _probe_lifeform_store(context: dict) -> tuple[bool, str]:
         ok = probe.read_text() == "ok"
         probe.unlink(missing_ok=True)
         return ok, "lifeform store writable" if ok else "data dir rejected the probe write"
-    except Exception as exc:  # noqa: BLE001 — probe evidence, never a crash
+    except Exception as exc:
         return False, f"data dir unavailable: {exc}"
 
 
@@ -79,8 +79,9 @@ def _owner_id() -> str:
 def _signing_key() -> bytes:
     """Local HMAC key, file-backed in the runtime home (0600). Stage-0
     tamper-EVIDENCE only — see core.companion.lifeform.progression docstring."""
-    from core.runtime_paths import active_data_dir
     from pathlib import Path
+
+    from core.runtime_paths import active_data_dir
 
     key_path = Path(active_data_dir()) / "lifeform_signing.key"
     if key_path.exists():
@@ -148,9 +149,12 @@ def _genome_card(doc: dict, state: dict, manifest: str) -> str:
 
 def _handle_egg(inp, ctx):
     from core.companion.lifeform import (
-        evidence_gate, genesis_seed, new_lifeform_v1, to_json,
+        evidence_gate,
+        genesis_seed,
+        new_lifeform_v1,
+        progression,
+        to_json,
     )
-    from core.companion.lifeform import progression
     from storage import lifeform_store
 
     owner = _owner_id()

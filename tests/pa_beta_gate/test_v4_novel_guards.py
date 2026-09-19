@@ -125,7 +125,7 @@ def test_graph_provider_assigned_identity_recovered_by_content_not_echo():
             raise TransportUnknownError("reply_lost_after_acceptance")
         if "calendarview" in req.url or "/events?" in req.url:
             return KasResponse(status=200, body=json.dumps({"value": list(stored.values())}).encode())
-        return KasResponse(status=200, body=json.dumps(list(stored.values())[0]).encode()) if stored else KasResponse(status=404, body=b"{}")
+        return KasResponse(status=200, body=json.dumps(next(iter(stored.values()))).encode()) if stored else KasResponse(status=404, body=b"{}")
 
     from tests.pa_beta_gate.test_calendar_v2_independent_review import adapter as make_adapter
 

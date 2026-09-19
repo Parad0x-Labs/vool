@@ -42,13 +42,13 @@ class _DoorCapture:
         self.urls.append(str(getattr(request, "full_url", "")))
 
         class _Resp:
-            def __enter__(self_inner):
-                return self_inner
+            def __enter__(self):
+                return self
 
-            def __exit__(self_inner, *a):
+            def __exit__(self, *a):
                 return False
 
-            def read(self_inner, n=-1):
+            def read(self, n=-1):
                 return b"<html>ok</html>"
 
         return _Resp()
@@ -74,13 +74,13 @@ def test_ddg_instant_goes_through_door(monkeypatch):
         captured["url"] = str(getattr(request, "full_url", ""))
 
         class _Resp:
-            def __enter__(self_inner):
-                return self_inner
+            def __enter__(self):
+                return self
 
-            def __exit__(self_inner, *a):
+            def __exit__(self, *a):
                 return False
 
-            def read(self_inner, n=-1):
+            def read(self, n=-1):
                 return json.dumps({"AbstractText": "an answer"}).encode()
 
         return _Resp()
@@ -139,18 +139,18 @@ def test_web_fetch_tool_success_still_through_door(monkeypatch):
         real_note(seen["url"])
 
         class _Resp:
-            def __enter__(self_inner):
-                return self_inner
+            def __enter__(self):
+                return self
 
-            def __exit__(self_inner, *a):
+            def __exit__(self, *a):
                 return False
 
-            def geturl(self_inner):
+            def geturl(self):
                 return seen["url"]
 
             headers = {"content-type": "text/html"}
 
-            def read(self_inner, n=-1):
+            def read(self, n=-1):
                 return b"<html>hello page</html>"
 
         return _Resp()

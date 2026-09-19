@@ -25,7 +25,6 @@ from core.platform.broker import ExecutionBroker, PlatformRevocations
 from core.repoops.identity import RepositoryWorkspace
 from core.repoops.local_lifecycle import (
     LocalLifecycle,
-    OperationInProgressError,
     bound_diff,
     capture_snapshot,
     list_worktrees,
@@ -50,7 +49,8 @@ def seed_repo(root):
     git(root, "config", "user.email", "n@x")
     git(root, "config", "user.name", "Ninja")
     for name in ("app.py", "util.py"):
-        open(os.path.join(root, name), "w").write(f"# {name} v1\n")
+        with open(os.path.join(root, name), "w") as fh:
+            fh.write(f"# {name} v1\n")
     git(root, "add", "-A")
     git(root, "commit", "-m", "base")
 
@@ -82,9 +82,12 @@ def main():
     print(f"1. workspace {ws.key}\n   HEAD {snap.head_sha[:12]} branch={snap.branch} dirty={snap.dirty}")
 
     # 2 make the two requested changes PLUS an unrelated dirty file
-    open(f"{root}/app.py", "w").write("# app.py v2 — repaired\n")
-    open(f"{root}/util.py", "w").write("# util.py v2 — repaired\n")
-    open(f"{root}/notes.txt", "w").write("unrelated scratch\n")
+    with open(f"{root}/app.py", "w") as fh:
+        fh.write("# app.py v2 — repaired\n")
+    with open(f"{root}/util.py", "w") as fh:
+        fh.write("# util.py v2 — repaired\n")
+    with open(f"{root}/notes.txt", "w") as fh:
+        fh.write("unrelated scratch\n")
     snap = capture_snapshot(ws)
     print(f"2. dirty paths now: {snap.unstaged_paths}")
 
@@ -144,7 +147,8 @@ def main():
     # 10 cherry-pick CONFLICT case — truthful state, no lying about effect
     git(root, "branch", "rival", pre_repair)
     git(root, "switch", "rival")
-    open(f"{root}/util.py", "w").write("# RIVAL edit\n")
+    with open(f"{root}/util.py", "w") as fh:
+        fh.write("# RIVAL edit\n")
     git(root, "commit", "-am", "rival edit")
     rival_head = capture_snapshot(ws).head_sha
     git(root, "switch", "integration")      # util.py differs here -> conflict

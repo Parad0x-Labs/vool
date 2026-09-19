@@ -55,8 +55,9 @@ def _manifest(provider_name: str, model_name: str, *, cost_class: str = "free_lo
 
 
 LOCAL = lambda: _manifest("local-a", "m1")  # noqa: E731
-PAID = lambda: _manifest("cloud-paid", "big", cost_class="paid_cloud",
-                         base_url="https://api.example.invalid/v1")  # noqa: E731
+def PAID():
+    return _manifest("cloud-paid", "big", cost_class="paid_cloud",
+                         base_url="https://api.example.invalid/v1")
 
 
 class _HomeTestCase(unittest.TestCase):

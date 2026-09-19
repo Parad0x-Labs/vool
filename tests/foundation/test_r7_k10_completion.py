@@ -126,9 +126,9 @@ def test_buffered_lane_marks_attempted_unknown(fresh_store, monkeypatch):
     import json
 
     from apps.vool_api_server import create_app
+    from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
     from core.web.api.runtime import RuntimeServices
     from core.web.api.service import dispatch_post
-    from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
     from tests.asgi_harness import asgi_request
 
     def stub(*a, **k):

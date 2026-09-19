@@ -33,7 +33,6 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Union
 
 
 class ModelProvenanceError(ValueError):
@@ -235,7 +234,7 @@ class ProvenanceRecord:
         return self.actual if self.actual is not None else self.requested
 
 
-IndependenceItem = Union[ModelIdentity, ProvenanceRecord]
+IndependenceItem = ModelIdentity | ProvenanceRecord
 
 
 def _effective_identity(item: IndependenceItem) -> ModelIdentity:

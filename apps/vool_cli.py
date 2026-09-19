@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 import getpass
 import json
@@ -2166,7 +2167,12 @@ def cmd_bug_report(args: argparse.Namespace) -> int:
         return _emit({"ok": True, "report_id": cleared.report_id, "consent": None if cleared.consent is None else "present"})
 
     if action == "destination":
-        from core.bug_report.destination import BUILTIN_DESTINATION, default_destination, reset_default_destination, set_default_destination
+        from core.bug_report.destination import (
+            BUILTIN_DESTINATION,
+            default_destination,
+            reset_default_destination,
+            set_default_destination,
+        )
 
         new_value = str(getattr(args, "set", "") or "").strip()
         if new_value:

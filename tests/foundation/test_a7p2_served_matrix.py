@@ -151,9 +151,8 @@ def test_provider_retry_fallback_cannot_overwrite_sealed_truth(fresh_store):
 
 
 def test_no_answer_stream_frame_is_typed_zero_prose(fresh_store):
-    from core.web.api.runtime import no_answer_terminal_line
-
     from core.finalization import no_answer_terminal
+    from core.web.api.runtime import no_answer_terminal_line
 
     terminal = no_answer_terminal(turn_id="t-na2", reason_code="provider_no_content")
     line = no_answer_terminal_line(terminal).decode("utf-8")

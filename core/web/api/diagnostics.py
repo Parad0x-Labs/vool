@@ -35,6 +35,7 @@ a sent-but-unknown-outcome is a 504 gateway timeout.
 """
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -212,10 +213,8 @@ def diagnostic_envelope(
     if upstream_status is not None:
         envelope["upstream_status"] = int(upstream_status)
     if retry_after_seconds is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             envelope["retry_after_seconds"] = max(0.0, float(retry_after_seconds))
-        except (TypeError, ValueError):
-            pass
     return envelope
 
 
@@ -287,10 +286,10 @@ def model_pin_refusal(message: str) -> tuple[int, str] | None:
 
 __all__ = [
     "DIAGNOSTIC_SCHEMA",
-    "NAMESPACE",
     "DISPATCH_NOT_SENT",
     "DISPATCH_OUTCOME_UNKNOWN",
     "DISPATCH_RESPONSE_RECEIVED",
+    "NAMESPACE",
     "RequestCondition",
     "condition_codes",
     "diagnostic_envelope",

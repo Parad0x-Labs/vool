@@ -14,6 +14,7 @@ This first import reads the default contacts folder (``/me/contacts``); other co
 """
 from __future__ import annotations
 
+import contextlib
 import urllib.parse
 from typing import Any
 
@@ -70,10 +71,8 @@ class MicrosoftContactsAdapter:
     def _error(self, response: Any, partial: tuple[ImportedPerson, ...]) -> ImportSourceError:
         status = int(response.status)
         code = ""
-        try:
+        with contextlib.suppress(Exception):
             code = str(((response.json() or {}).get("error") or {}).get("code") or "")
-        except Exception:
-            pass
         if status == 401:
             reason = REASON_NEEDS_RECONNECT
         elif status == 403:

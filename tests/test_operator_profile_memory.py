@@ -490,7 +490,7 @@ def test_legacy_settings_field_migrates_into_the_profile_once(profile_env):
         ("keep it short here", ("response_style", "concise", "weak", "chat")),
         ("reply in Lithuanian from now on", ("language", "Lithuanian", "explicit", "global")),
         ("reply in Lithuanian", ("language", "Lithuanian", "strong", "global")),
-        ("my timezone is Europe/Berlin", ("timezone", "Europe/Berlin", "strong", "global")),
+        ("my timezone is Europe/Athens", ("timezone", "Europe/Athens", "strong", "global")),
         ("remember my signature: Alex — Parad0x Labs", ("email_signature", "Alex — Parad0x Labs", "explicit", "global")),
         ("my email signature is: Alex, Parad0x Labs", ("email_signature", "Alex, Parad0x Labs", "explicit", "global")),
         ("use my work inbox by default", ("default_account.email", "work", "explicit", "global")),

@@ -55,10 +55,11 @@ def _stub_agent_result() -> dict:
 
 
 def _chat_app(monkeypatch):
+    import functools
+
     from apps.vool_api_server import create_app
     from core.web.api.runtime import RuntimeServices
     from core.web.api.service import dispatch_post
-    import functools
 
     runtime = RuntimeServices(display_name="VOOL")
     app = create_app(runtime)

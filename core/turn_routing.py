@@ -47,16 +47,17 @@ DESIGN LAWS
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
-from enum import Enum
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from core.enum_compat import StrEnum
 
@@ -807,10 +808,8 @@ def _append_event(row: dict[str, Any]) -> None:
         rotate = path.exists() and path.stat().st_size > 4 * 1024 * 1024
         if rotate:
             rotated = path.with_suffix(".jsonl.1")
-            try:
+            with contextlib.suppress(OSError):
                 rotated.write_bytes(path.read_bytes())
-            except OSError:
-                pass
             path.write_text("", encoding="utf-8")
         with path.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
@@ -1086,7 +1085,7 @@ def _current_rules() -> list[TemporaryRoutingRule]:
         # process armed/cancelled a rule since this process last looked: the cache must
         # never leak either (process-sticky routing contamination is exactly what this
         # authority exists to prevent).
-        if _RULES_CACHE is None or _RULES_CACHE_PATH != str(_rules_path()):
+        if _RULES_CACHE is None or str(_rules_path()) != _RULES_CACHE_PATH:
             return reload_rules()
         if _rules_store_mtime_ns() != _RULES_CACHE_MTIME_NS:
             return reload_rules()
@@ -1135,7 +1134,7 @@ def arm_rule(
 
 def _current_rules_uncached() -> list[TemporaryRoutingRule]:
     global _RULES_CACHE
-    if _RULES_CACHE is None or _RULES_CACHE_PATH != str(_rules_path()) or _rules_store_mtime_ns() != _RULES_CACHE_MTIME_NS:
+    if _RULES_CACHE is None or str(_rules_path()) != _RULES_CACHE_PATH or _rules_store_mtime_ns() != _RULES_CACHE_MTIME_NS:
         reload_rules()
     assert _RULES_CACHE is not None
     return list(_RULES_CACHE)
@@ -1287,23 +1286,23 @@ def reset_for_tests() -> None:
 
 
 __all__ = [
+    "ROUTING_EVENTS_FILENAME",
+    "RULES_STORE_RELNAME",
+    "TURN_ROUTING_PLAN_KEY",
+    "TURN_ROUTING_RETRY_KEY",
+    "CandidateEligibility",
     "LocalityCeiling",
     "PinKind",
     "PlanCostClass",
     "PrivacyCeiling",
+    "RetryPolicy",
     "RoutingFailureKind",
     "RoutingIdentityError",
     "RoutingPlanRefused",
     "RuleDirective",
     "RuleState",
-    "RULES_STORE_RELNAME",
-    "ROUTING_EVENTS_FILENAME",
-    "CandidateEligibility",
-    "RetryPolicy",
     "TemporaryRoutingRule",
     "TurnRoutingPlan",
-    "TURN_ROUTING_PLAN_KEY",
-    "TURN_ROUTING_RETRY_KEY",
     "active_rules_for",
     "arm_rule",
     "assert_manifest_within_plan",
@@ -1314,8 +1313,8 @@ __all__ = [
     "latest_routing_failure",
     "mint_retry_plan",
     "mint_turn_routing_plan",
-    "plan_from_context",
     "plan_by_id",
+    "plan_from_context",
     "plans_for_session",
     "provenance_for_turn",
     "record_routing_failure",

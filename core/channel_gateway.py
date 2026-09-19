@@ -180,7 +180,7 @@ def process_channel_request(agent: Any, request: ChannelRequest) -> ChannelGatew
         )
 
         reset_admission()
-        admitted = admit_semantic_result(dict(result or {}))
+        admit_semantic_result(dict(result or {}))
         _sr = ""
         _rec = current_admission()
         if _rec is not None:

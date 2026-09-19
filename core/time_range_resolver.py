@@ -19,11 +19,11 @@ Unsupported expressions:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum, auto
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 
 class TimeRangeKind(Enum):
@@ -168,7 +168,7 @@ _MONTH_INDEX = {
     "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
     "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
     "december": 12,
-    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6,
     "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
 }
 
@@ -195,7 +195,7 @@ def _resolve_today(now_utc: datetime, tz: ZoneInfo) -> TimeRange:
     """today = local midnight → next local midnight."""
     start = _local_midnight(now_utc, tz)
     end = _next_local_midnight(now_utc, tz)
-    tz_name = str(tz) if hasattr(tz, "key") else tz.tzname(now_utc)
+    str(tz) if hasattr(tz, "key") else tz.tzname(now_utc)
     return TimeRange(
         start_utc=start,
         end_utc=end,
@@ -295,7 +295,7 @@ def _resolve_week_month(
 ) -> TimeRange:
     """Resolve "this week", "last week", "this month", "last month"."""
     local_dt = now_utc.astimezone(tz)
-    tz_name = str(tz)
+    str(tz)
 
     if unit == "week":
         # Week starts on Monday (weekday() == 0)
@@ -366,7 +366,7 @@ def _resolve_iso_date(
     year: int, month: int, day: int, now_utc: datetime, tz: ZoneInfo
 ) -> TimeRange:
     """Resolve a concrete ISO date to a calendar-day range."""
-    local_dt = now_utc.astimezone(tz)
+    now_utc.astimezone(tz)
     # Construct the date in the user timezone
     try:
         date_local = datetime(year, month, day, tzinfo=tz)

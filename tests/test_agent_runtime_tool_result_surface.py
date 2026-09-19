@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from apps.vool_agent import VoolAgent, ResponseClass
+from apps.vool_agent import ResponseClass, VoolAgent
 from core.agent_runtime import (
     tool_result_history_surface,
     tool_result_text_surface,

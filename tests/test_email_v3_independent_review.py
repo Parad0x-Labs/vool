@@ -11,7 +11,12 @@ import pytest
 from core import email_drafts, email_tools
 from core.email_providers.base import _OAuthClient
 from tests.test_email_v2_independent_review import (
-    SESSION, Reply, configure, draft, isolated, with_profile,
+    SESSION,
+    Reply,
+    configure,
+    draft,
+    isolated,
+    with_profile,
 )
 
 # Capture before fixtures replace token acquisition; the identity probe runs real refresh logic.

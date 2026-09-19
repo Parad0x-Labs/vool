@@ -55,7 +55,7 @@ class MoneyLawDaemon(UsePodServedDaemon):
         env["USEPOD_MONEY_TEST_OPERATOR_TOKEN"] = str(self.operator_token_path)
         return env
 
-    def start(self, timeout: float = 240.0) -> "MoneyLawDaemon":
+    def start(self, timeout: float = 240.0) -> MoneyLawDaemon:
         self.home.mkdir(parents=True, exist_ok=True)
         handle = self.log_path.open("ab")
         self.process = subprocess.Popen(
@@ -467,7 +467,8 @@ def test_a_served_402_storm_settles_at_zero_and_keeps_the_envelope_usable(served
     # with both expense lines exact at zero. (An account-wide envelope may carry OTHER in-flight
     # work in this shared daemon -- background lanes also reserve -- so the bound here is the
     # storm's own footprint, read through the store the adopted process shares with the daemon.)
-    from core.effect_budget_money import grant_headroom, liabilities as _liabilities
+    from core.effect_budget_money import grant_headroom
+    from core.effect_budget_money import liabilities as _liabilities
 
     rows = _liabilities(grant_id=grant_id)
     _keep("money_served_402_storm_grant_rows.json", {"rows": rows})

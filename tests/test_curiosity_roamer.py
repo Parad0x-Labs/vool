@@ -94,7 +94,7 @@ class CuriosityRoamerTests(unittest.TestCase):
             config=roamer.config,
         )
         candidate_ids = []
-        for topic_id, topic in zip(result.queued_topic_ids, topics):
+        for topic_id, topic in zip(result.queued_topic_ids, topics, strict=False):
             candidate_id, _cached = roamer._execute_topic(
                 topic_id=topic_id,
                 topic=topic,

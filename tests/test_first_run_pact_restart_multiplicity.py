@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
 from core import first_run_pact
 from core.first_run_pact import PactFault
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def test_sigkill_between_writes_never_leaves_a_half_written_file(pact_rig):
@@ -125,14 +125,13 @@ def test_a_subprocess_writer_converges_under_flock_hygiene(pact_rig, tmp_path):
     writer = tmp_path / "pact_writer.py"
     writer.write_text(
         "import sys, os, json\n"
-        "sys.path.insert(0, %r)\n"
-        "os.environ['VOOL_HOME'] = %r\n"
+        f"sys.path.insert(0, {str(Path(__file__).resolve().parents[1])!r})\n"
+        f"os.environ['VOOL_HOME'] = {str(pact_rig.home)!r}\n"
         "from core.runtime_paths import configure_runtime_home\n"
-        "configure_runtime_home(%r)\n"
+        f"configure_runtime_home({str(pact_rig.home)!r})\n"
         "from core import first_run_pact\n"
         "first_run_pact.begin()\n"
         "print(json.dumps({'state': first_run_pact.load_state()['state']}))\n"
-        % (str(Path(__file__).resolve().parents[1]), str(pact_rig.home), str(pact_rig.home))
     )
     proc = subprocess.run([sys.executable, str(writer)], capture_output=True, text=True, timeout=120)
     assert proc.returncode == 0, proc.stderr[-400:]

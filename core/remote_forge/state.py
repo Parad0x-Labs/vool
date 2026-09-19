@@ -14,7 +14,7 @@ The failures this closes (each a measured agent failure mode):
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 
 from core.remote_forge.identity import RepoIdentity
 
@@ -101,7 +101,7 @@ class RepoSnapshot:
                 return pr
         raise KeyError(f"PR #{number} not in snapshot of {self.identity.slug()}")
 
-    def require_fresh(self, *, max_age_seconds: float = 120.0) -> "RepoSnapshot":
+    def require_fresh(self, *, max_age_seconds: float = 120.0) -> RepoSnapshot:
         """Refuse to serve stale truth. Returns an equivalent snapshot or raises."""
         if time.time() - self.fetched_at > max_age_seconds:
             raise StaleStateError(

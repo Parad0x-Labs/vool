@@ -14,6 +14,7 @@ from core.runtime_continuity import (
     AttemptLifecycle,
     MintRefused,
     claim_runtime_attempt,
+    compute_logical_effect_id,
     create_runtime_attempt,
     get_runtime_attempt,
     mark_effect_dispatched,
@@ -21,7 +22,6 @@ from core.runtime_continuity import (
     resolve_unresolved_effect,
     update_runtime_attempt,
 )
-from core.runtime_continuity import compute_logical_effect_id
 
 
 @pytest.fixture()
@@ -82,7 +82,7 @@ def test_mint_refused_over_unreconciled_unknown_effect(fresh_store):
     )
     mark_effect_dispatched(
         logical_effect_id=leid,
-        effect_instance_id=reserve_logical_effect.__defaults__ and "" or "",  # placeholder
+        effect_instance_id=(reserve_logical_effect.__defaults__ and "") or "",  # placeholder
     ) if False else None
     from core.runtime_continuity import find_active_unresolved_effect
 

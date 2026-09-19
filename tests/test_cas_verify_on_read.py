@@ -689,7 +689,7 @@ def test_cas_read_and_write_paths_make_no_network_or_model_calls(chunk_root, liq
 
     monkeypatch.setattr(socket, "socket", refuse)
     monkeypatch.setattr(socket, "create_connection", refuse)
-    import core.liquefy_cas as lq  # noqa: F401 - guards against a lazy model import below
+    import core.liquefy_cas as lq
     for banned in ("core.model_router", "core.model_bridge", "core.agent_runtime"):
         assert banned not in inspect.getsource(liquefy) and banned not in inspect.getsource(cas), (
             f"CAS boundary imports {banned}"

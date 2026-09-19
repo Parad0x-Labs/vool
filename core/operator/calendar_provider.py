@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
@@ -40,11 +41,9 @@ from core.kas.contract import (
     TransportDeniedError,
     TransportUnknownError,
 )
+from core.operator.calendar_agenda import SelectionsUnavailableError
 from core.operator.effect_lifecycle import PHASE_ACCEPTED, PHASE_DISPATCHING, phase_rank
 from core.operator.models import OperatorActionIntent, OperatorActionResult
-import sqlite3
-
-from core.operator.calendar_agenda import SelectionsUnavailableError
 
 _MAX_SLOT_OPTIONS = 6
 _AVAILABILITY_SLOT_STEP_MINUTES = 15
@@ -472,7 +471,7 @@ def _other_selected_conflicts(config: CalendarProviderConfig | None, calendar_id
     the effect. A source that cannot be read is returned as a failure -- availability is never
     claimed from a partial read.
     """
-    from core.operator.calendar_agenda import AgendaSource, SelectionsUnavailableError, busy_cal_events
+    from core.operator.calendar_agenda import AgendaSource, busy_cal_events
 
     target = AgendaSource(
         account_id="", provider=str(config.provider if config is not None else ""), base_url=str(config.base_url if config is not None else ""),
@@ -533,7 +532,7 @@ def _named_occurrence(text: str, matching: list[Any]) -> tuple[list[Any], str]:
 
         # resolve the year against the nearest future occurrence of that month/day
         candidates = sorted({str(getattr(event, "start_utc", "") or "")[:10] for event in matching})
-        for stamp in candidates + [f"{_date.today().year + 1}-{month:02d}-{day:02d}"]:
+        for stamp in [*candidates, f"{_date.today().year + 1}-{month:02d}-{day:02d}"]:
             if stamp.endswith(f"-{month:02d}-{day:02d}"):
                 target = stamp
                 break
@@ -680,7 +679,7 @@ def check_availability(
         # Row 6: busy is EVERY opted-in selected calendar's busy, not only the create
         # target's. A conflict on another chosen calendar makes the slot occupied there too,
         # and each calendar that could not be read is reported, never assumed empty.
-        from core.operator.calendar_agenda import AgendaSource, SelectionsUnavailableError, busy_cal_events
+        from core.operator.calendar_agenda import AgendaSource, busy_cal_events
 
         target_source = AgendaSource(
             account_id="", provider=config.provider, base_url=config.base_url, auth_binding=config.auth_binding,

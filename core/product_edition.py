@@ -97,7 +97,7 @@ def _edition_from_config() -> ProductEdition | None:
     except Exception:
         return None
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             raw = json.load(fh)
         value = str(raw.get("edition", "")).strip().lower()
     except Exception:
@@ -173,10 +173,10 @@ def edition_profanity_ceiling() -> int:
 
 
 __all__ = [
-    "ProductEdition",
-    "SCHOOL_FLOOR_SURFACES",
     "SCHOOL_FLOOR_INTENT_PREFIXES",
     "SCHOOL_FLOOR_SERVICES",
+    "SCHOOL_FLOOR_SURFACES",
+    "ProductEdition",
     "active_edition",
     "edition_allows",
     "edition_intent_allowed",

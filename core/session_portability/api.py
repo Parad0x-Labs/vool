@@ -13,23 +13,22 @@ from core.session_portability.paths import scoped_home
 from core.session_portability.schema import (
     BOUNDS,
     CURRENT_SCHEMA_VERSION,
-    SCOPE_NOTE,
     SCHEMA_NAME,
-    bundle_digest,
+    SCOPE_NOTE,
 )
 
 #: Re-exported so callers (and tests) can pin against the seam without reaching into internals.
 __all__ = [
-    "SCHEMA_NAME",
+    "BOUNDS",
     "CURRENT_SCHEMA_VERSION",
+    "SCHEMA_NAME",
     "SCOPE_NOTE",
     "PortabilityRefused",
-    "BOUNDS",
-    "preview_export",
     "export_session",
+    "import_bundle",
     "inspect_bundle",
     "load_payload",
-    "import_bundle",
+    "preview_export",
 ]
 
 
@@ -57,7 +56,7 @@ def preview_export(session_id: str, *, env: dict[str, str] | None = None) -> dic
     from core.session_portability.collect import OverBound, SessionNotFound, collect_session
 
     try:
-        payload, attachment_bytes, counts, redactions = collect_session(session_id)
+        payload, _attachment_bytes, counts, redactions = collect_session(session_id)
     except SessionNotFound as exc:
         raise PortabilityRefused(
             "SESSION_NOT_FOUND", f"No session '{session_id}' exists in this home."
@@ -136,7 +135,7 @@ def inspect_bundle(
     from core.session_portability import signing
     from core.session_portability.bundle import read_bundle
 
-    payload, manifest, attachment_members, signature_record = read_bundle(
+    payload, manifest, _attachment_members, signature_record = read_bundle(
         Path(path), passphrase=passphrase
     )
     receipts = payload.get("receipts") or {}
@@ -213,7 +212,7 @@ def preview_import(
     )
 
     with scoped_home(home):
-        payload, manifest, attachment_members, signature_record = read_bundle(
+        payload, _manifest, attachment_members, signature_record = read_bundle(
             Path(path), passphrase=passphrase
         )
         trust_origin = signing.classify_origin(signature_record)

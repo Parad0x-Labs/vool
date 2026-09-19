@@ -72,8 +72,8 @@ def _read_consumers() -> dict[str, bool]:
     from adapters.openrouter_cloud_provider import OpenRouterCloudProvider
     from core import cloud_runtime
     from core.agent_runtime.fast_command_surface import _cloud_key_configured
-    from core.cloud_credential_broker import CloudCredentialBroker
     from core.cloud_connection_state import _resolve_key
+    from core.cloud_credential_broker import CloudCredentialBroker
     from core.memory_first_router import _openrouter_key_present
 
     broker = cloud_runtime.build_default_cloud_broker()

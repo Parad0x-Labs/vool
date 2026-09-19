@@ -32,9 +32,9 @@ class EscalationRefused(PermissionError):
 
 class _GateSentinel:
     __slots__ = ()
-    _instance: "_GateSentinel | None" = None
+    _instance: _GateSentinel | None = None
 
-    def __new__(cls) -> "_GateSentinel":
+    def __new__(cls) -> _GateSentinel:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -129,9 +129,9 @@ class EscalationGate:
 
 
 __all__ = [
+    "QUALIFYING_KINDS",
     "AdjudicationAuthorization",
     "EscalationGate",
     "EscalationPolicy",
     "EscalationRefused",
-    "QUALIFYING_KINDS",
 ]

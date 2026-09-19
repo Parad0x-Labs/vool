@@ -51,8 +51,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Optional
 
 from core.kernel.lexical_spans import lex_spans
 
@@ -92,7 +92,7 @@ class ContextUndercovered(RuntimeError):
     the one failure this law exists to make impossible.
     """
 
-    def __init__(self, uncovered: Tuple[Tuple[str, str], ...], budget_chars: int) -> None:
+    def __init__(self, uncovered: tuple[tuple[str, str], ...], budget_chars: int) -> None:
         self.uncovered = uncovered
         self.budget_chars = budget_chars
         named = ", ".join(f"{oid} ({desc})" for oid, desc in uncovered)
@@ -115,7 +115,7 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _anchors(text: str) -> Tuple[str, ...]:
+def _anchors(text: str) -> tuple[str, ...]:
     """Deterministic anchor set: the canonical opaque/identity spans, lowercased.
 
     Every anchor is a byte span the kernel already owns — URLs and IDENTIFIERs from
@@ -147,7 +147,7 @@ class Page:
     user_text: str
     answer_text: str
     sha256: str
-    anchors: Tuple[str, ...]
+    anchors: tuple[str, ...]
 
     @property
     def text(self) -> str:
@@ -188,7 +188,7 @@ class CoverageProof:
     the ``used_chars`` figure is measured on the exact shipped text, never estimated.
     """
 
-    rows: Tuple[CoverageRow, ...]
+    rows: tuple[CoverageRow, ...]
     budget_chars: int
     used_chars: int
     dense_chars: int    # what the same session would have cost sent verbatim (dense)
@@ -235,8 +235,8 @@ class PagedSession:
         self._hot_window = hot_window
         self._header_chars = recall_header_chars
         self._supplement_budget = supplement_char_budget
-        self._pages: List[Page] = []
-        self._index: Dict[str, set[str]] = {}
+        self._pages: list[Page] = []
+        self._index: dict[str, set[str]] = {}
         self._counter = 0
 
     # -- admission ---------------------------------------------------------------------
@@ -300,8 +300,8 @@ class PagedSession:
         self,
         question: str,
         *,
-        ledger_rows: Optional[List[dict]] = None,
-        hot_history: Optional[List[Tuple[str, str]]] = None,
+        ledger_rows: Optional[list[dict]] = None,
+        hot_history: Optional[list[tuple[str, str]]] = None,
         budget_chars: int = 6000,
         guard: bool = True,
     ) -> ContextAssembly:
@@ -313,8 +313,8 @@ class PagedSession:
         check is load-bearing — production paths never pass it.
         """
         ledger_rows = ledger_rows or []
-        rows: List[CoverageRow] = []
-        parts: List[str] = []
+        rows: list[CoverageRow] = []
+        parts: list[str] = []
         used = 0
 
         # SPINE FIRST — the non-negotiable part. Verbatim ledger rows, exactly the
@@ -347,7 +347,7 @@ class PagedSession:
         remaining = budget_chars - used
 
         # HOT — newest turns verbatim, newest last (the caller's `history[-4:]` shape).
-        hot: List[Tuple[str, str, str]] = []  # (label_user, label_answer, page_id or "")
+        hot: list[tuple[str, str, str]] = []  # (label_user, label_answer, page_id or "")
         if hot_history:
             for q, a in hot_history[-self._hot_window:]:
                 hot.append((q, a, ""))
@@ -382,7 +382,7 @@ class PagedSession:
 
         # PREVIOUS ANSWER artifact — numbered, so deixis has real referents (existing law).
         if hot:
-            last_q, last_a, _ = hot[-1]
+            _last_q, last_a, _ = hot[-1]
             prev_lines = [ln.strip() for ln in last_a.splitlines() if ln.strip()][:10]
             if prev_lines:
                 numbered = "\n".join(f"  {i}. {ln[:120]}" for i, ln in enumerate(prev_lines, 1))
@@ -398,15 +398,15 @@ class PagedSession:
         # COLD HITS — sparse retrieval: only pages sharing an anchor with THIS turn,
         # newest first, capped by the supplement budget. Headers only; bytes stay cold.
         question_anchors = set(_anchors(question))
-        supplement: List[str] = []
+        supplement: list[str] = []
         if question_anchors and self._supplement_budget > 0:
-            matched: List[Page] = []
+            matched: list[Page] = []
             # Whatever is already in the hot tier never repeats as a cold hit — with a
             # caller-rendered hot window the recent STORED pages are still hot.
             hot_ids = {pid for _, _, pid in hot if pid} or {
                 page.page_id for page in self._pages[-self._hot_window:]
             }
-            anchor_hits: Dict[str, int] = {}
+            anchor_hits: dict[str, int] = {}
             for page in reversed(self._pages):
                 if page.page_id in hot_ids:
                     continue
@@ -469,6 +469,6 @@ class PagedSession:
         return len(self._pages)
 
 
-def recall_handles(text: str) -> Tuple[str, ...]:
+def recall_handles(text: str) -> tuple[str, ...]:
     """Every ``pNNNN`` handle embedded in an answer, so the UI can offer one-click recall."""
     return tuple(sorted(set(re.findall(rf"\b{_RECALL_PREFIX}\d{{4}}\b", text))))

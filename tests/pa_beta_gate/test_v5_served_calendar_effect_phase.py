@@ -15,7 +15,7 @@ import time
 
 import pytest
 
-from tests.pa_beta_gate.test_calendar_provider_vertical import (  # noqa: F401 -- vilnius_env is a fixture, requested via getfixturevalue
+from tests.pa_beta_gate.test_calendar_provider_vertical import (
     _provider_events,
     _run,
     vilnius_env,
@@ -37,7 +37,7 @@ def _titled(state, title: str) -> list[str]:
 def test_served_put_accepted_then_read_back_throttled_keeps_uid_and_verifies_on_reapproval(request):
     session = "served-accepted-unverified"
     state = request.getfixturevalue("vilnius_env")["state"]
-    _intent, proposal = _run('propose "Novel boiler bleed" on 2026-09-16 09:30 Europe/Berlin for 45m', session_id=session)
+    _intent, proposal = _run('propose "Novel boiler bleed" on 2026-09-16 09:30 Europe/Athens for 45m', session_id=session)
     assert proposal.status == "approval_required", proposal.response_text
     action_id = proposal.details["action_id"]
     intent_uid = json.loads(_row(session, action_id)["scope_json"])["intent_uid"]
@@ -60,7 +60,7 @@ def test_served_put_accepted_then_read_back_throttled_keeps_uid_and_verifies_on_
 def test_served_definitive_write_refusal_returns_to_pending_and_reapproval_creates_once(request):
     session = "served-definitive-refusal"
     state = request.getfixturevalue("vilnius_env")["state"]
-    _intent, proposal = _run('propose "Novel gate code change" on 2026-09-16 11:00 Europe/Berlin for 20m', session_id=session)
+    _intent, proposal = _run('propose "Novel gate code change" on 2026-09-16 11:00 Europe/Athens for 20m', session_id=session)
     action_id = proposal.details["action_id"]
     state.refuse_writes_with = 403
     try:
@@ -128,7 +128,7 @@ def test_served_worker_killed_after_the_provider_applied_the_write_is_recovered_
     runtime_continuity.configure_runtime_continuity_db_path(store_path)
     try:
         run_migrations()
-        assert save_user_timezone("Europe/Berlin")
+        assert save_user_timezone("Europe/Athens")
         _served_killed_worker_scenario(session, state, tmp_path, active_default_db_path())
     finally:
         configure_default_db_path(previous_store)
@@ -137,7 +137,7 @@ def test_served_worker_killed_after_the_provider_applied_the_write_is_recovered_
 
 def _served_killed_worker_scenario(session, state, tmp_path, store_path):
     title = "Novel sprinkler valve test"
-    _intent, proposal = _run(f'propose "{title}" on 2026-09-16 14:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run(f'propose "{title}" on 2026-09-16 14:00 Europe/Athens for 30m', session_id=session)
     assert proposal.status == "approval_required", proposal.response_text
     action_id = proposal.details["action_id"]
     ctx = multiprocessing.get_context("spawn")

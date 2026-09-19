@@ -138,7 +138,7 @@ SPEC = ConversationSpec(provider="graph", address=WORK, inbox=NOVEL_GRAPH.inbox,
 class TwoAccountConversation(EmailConversation):
     """The served conversation with two configured accounts and no `default` slot."""
 
-    def open(self) -> "TwoAccountConversation":
+    def open(self) -> TwoAccountConversation:
         self.api.gmail_inbox(PERSONAL, [dict(entry) for entry in ORIGINAL_GMAIL.inbox])
         super().open()
         return self

@@ -1,4 +1,4 @@
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
+
 """P0 credential intelligence — secret-exposure redaction across every persistence surface.
 
 THE LAW UNDER TEST
@@ -19,7 +19,7 @@ import json
 
 import pytest
 
-from tests._credential_intelligence_support import (  # noqa: F401 (fixtures resolve via module namespace)
+from tests._credential_intelligence_support import (
     ODD_KEY,
     isolated_home,
     vault_home,

@@ -392,7 +392,7 @@ def test_a_topic_that_cannot_finish_three_times_is_exhausted_not_requeued_foreve
         return [NOTE]
 
     outcomes = []
-    for attempt in range(CURIOSITY_TOPIC_MAX_ATTEMPTS):
+    for _attempt in range(CURIOSITY_TOPIC_MAX_ATTEMPTS):
         agent = _agent(roam_seconds=1)
         with mock.patch(SEARCH, side_effect=_slow):
             report, _ = _tick(agent)

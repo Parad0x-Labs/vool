@@ -8,7 +8,6 @@ from __future__ import annotations
 import pytest
 
 import storage.db as sdb
-
 from core.conductor import obligation_ledger as _ol_teardown
 from core.invocation.ledger import (
     accept_invocation,

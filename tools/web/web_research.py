@@ -4,12 +4,12 @@ import json
 import os
 import re
 import threading
-from collections import OrderedDict
 import time
 import unicodedata
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from collections import OrderedDict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -2908,7 +2908,7 @@ def _accept_search_hits(query: str, provider: str, hits: list[WebHit]) -> tuple[
 # tries everything again. Measured 2026-09-06: three research rounds each waited ~50 s on engines
 # that had already failed for the turn. Keyed by the bound request id; bounded in size.
 _ENGINE_MEMORY_MAX_TURNS = 64
-_ENGINE_FAILURES: "OrderedDict[str, dict[str, str]]" = OrderedDict()
+_ENGINE_FAILURES: OrderedDict[str, dict[str, str]] = OrderedDict()
 _ENGINE_LOCK = threading.Lock()
 
 

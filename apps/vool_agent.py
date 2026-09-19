@@ -23,7 +23,7 @@ apply_legacy_nulla_env()  # NULLA_* shells keep working; VOOL_* wins (see core/e
 from core.env_compat import apply_legacy_nulla_env
 
 apply_legacy_nulla_env()  # NULLA_* shells keep working; VOOL_* wins (see core/env_compat.py)
-from core.agent_runtime.agent import *  # noqa: F401,F403  (public surface)
+from core.agent_runtime.agent import *  # noqa: F403  (public surface)
 from core.agent_runtime.agent import (  # noqa: F401  (underscore names tests drive)
     _arm_demand_set_for_entrance,
     _certify_entrance_turn,

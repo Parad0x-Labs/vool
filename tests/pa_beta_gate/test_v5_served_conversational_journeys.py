@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import (  # noqa: F401 -- served_env is a fixture, requested via getfixturevalue
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import (
     VILNIUS_CAL,
     _approval_id,
     _turn,
@@ -55,7 +55,7 @@ def test_served_original_journey_note_sourced_proposal_review_link_inspect_renam
     state.seed_event(VILNIUS_CAL, "busy-sync@fixture", summary="Standing sync", start=datetime(2026, 9, 15, 11, 0, tzinfo=timezone.utc), minutes=60)
 
     first = _turn(harness, 'Check Tuesday afternoon for a free 30-minute slot and save a note titled "Supplier review prep" with: '
-                           "[action] supplier review Tuesday at 16:00 Europe/Berlin", workspace)
+                           "[action] supplier review Tuesday at 16:00 Europe/Athens", workspace)
     assert "Standing sync" in first and "Free 30-minute options" in first, first
     note_files = [path for path in (workspace / "notes").glob("*.md") if "supplier review Tuesday" in path.read_text(encoding="utf-8")]
     assert len(note_files) == 1, first
@@ -163,7 +163,7 @@ def test_served_note_body_is_persisted_in_the_users_own_words_and_its_action_sti
     env = request.getfixturevalue("served_env")
     harness, workspace = env["harness"], env["workspace"]
     session = harness.session_id
-    body = "[action] ask u to bring the north star gauge Friday at 11:00 Europe/Berlin"
+    body = "[action] ask u to bring the north star gauge Friday at 11:00 Europe/Athens"
 
     saved = _turn(harness, f'save a note titled "Crane lift plan" with: {body}', workspace)
     assert saved.startswith("Note saved: 'Crane lift plan' at "), saved

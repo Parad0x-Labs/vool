@@ -17,14 +17,13 @@ import pytest
 
 from core.time_authority import CLOCK, TimeAuthority
 from core.time_range_resolver import (
+    UNRESOLVED,
     TimeInstant,
     TimeRange,
     TimeRangeKind,
-    UNRESOLVED,
     resolve,
 )
 from core.timeline import TimelineEvent, TimelineResult, events_between, history_on, latest
-
 
 # =============================================================================
 # Helpers
@@ -37,16 +36,16 @@ def _epoch_to_iso(ts: float) -> str:
 
 PIN = datetime(2026, 8, 25, 10, 0, 0, tzinfo=timezone.utc)
 # 2026-08-25 is a Tuesday.
-# In Europe/Berlin (UTC+3 in summer), local time is 13:00 EEST (UTC+3).
+# In Europe/Athens (UTC+3 in summer), local time is 13:00 EEST (UTC+3).
 
 
 # =============================================================================
-# T1: time.now with Europe/Berlin
+# T1: time.now with Europe/Athens
 # =============================================================================
 
 
 class TestT1_TimeNow:
-    """time.now with Europe/Berlin → UTC + correct local representation, no model/tool call."""
+    """time.now with Europe/Athens → UTC + correct local representation, no model/tool call."""
 
     def test_now_utc_returns_aware(self):
         now = CLOCK.now_utc()
@@ -54,16 +53,16 @@ class TestT1_TimeNow:
         assert now.tzinfo.utcoffset(now) is not None
 
     def test_now_for_timezone_returns_correct_zone(self):
-        now = CLOCK.now_for_timezone("Europe/Berlin")
+        now = CLOCK.now_for_timezone("Europe/Athens")
         assert now.tzinfo is not None
-        assert now.tzinfo.key == "Europe/Berlin"
+        assert now.tzinfo.key == "Europe/Athens"
 
     def test_now_info_includes_fields(self):
-        info = CLOCK.now_info("Europe/Berlin")
+        info = CLOCK.now_info("Europe/Athens")
         assert "utc_iso" in info
         assert "local_iso" in info
         assert "timezone" in info
-        assert info["timezone"] == "Europe/Berlin"
+        assert info["timezone"] == "Europe/Athens"
         assert info["source"] == "time_authority.clock"
 
     def test_now_info_no_timezone(self):
@@ -90,15 +89,15 @@ class TestT2_TimezonePersistence:
     def test_save_and_load_round_trip(self):
         from core.user_preferences import load_user_timezone, save_user_timezone
 
-        saved = save_user_timezone("Europe/Berlin")
+        saved = save_user_timezone("Europe/Athens")
         assert saved is True
         loaded = load_user_timezone()
-        assert loaded == "Europe/Berlin"
+        assert loaded == "Europe/Athens"
 
     def test_restart_survival(self):
         """The JSON file on disk survives a fresh load."""
-        from core.user_preferences import save_user_timezone
         from core.runtime_paths import data_path
+        from core.user_preferences import save_user_timezone
 
         save_user_timezone("America/New_York")
         prefs_path = data_path("user_preferences.json")
@@ -128,7 +127,7 @@ class TestT2_TimezonePersistence:
 
 class TestT3_InvalidTimezone:
     def test_bogus_zone_rejected(self):
-        from core.user_preferences import save_user_timezone, load_user_timezone
+        from core.user_preferences import load_user_timezone, save_user_timezone
 
         result = save_user_timezone("Mars/Olympus")
         assert result is False
@@ -136,7 +135,7 @@ class TestT3_InvalidTimezone:
         assert loaded == ""  # unchanged
 
     def test_previous_valid_setting_unchanged(self):
-        from core.user_preferences import save_user_timezone, load_user_timezone
+        from core.user_preferences import load_user_timezone, save_user_timezone
 
         save_user_timezone("Europe/London")
         save_user_timezone("Bogus/Zone")
@@ -151,7 +150,7 @@ class TestT3_InvalidTimezone:
     def test_validate_timezone_function(self):
         from core.user_preferences import _validate_timezone
 
-        assert _validate_timezone("Europe/Berlin") == "Europe/Berlin"
+        assert _validate_timezone("Europe/Athens") == "Europe/Athens"
         assert _validate_timezone("") == ""
         assert _validate_timezone("   ") == ""
         assert _validate_timezone("Fake/City") == ""
@@ -168,7 +167,7 @@ class TestT4_Today:
         # 2026-08-25 10:00 UTC = 13:00 Vilnius (UTC+3)
         # local-midnight = 2026-08-25 00:00 EEST = 2026-08-24 21:00 UTC
         # next local-midnight = 2026-08-26 00:00 EEST = 2026-08-25 21:00 UTC
-        result = resolve("today", now_utc=PIN, timezone_name="Europe/Berlin")
+        result = resolve("today", now_utc=PIN, timezone_name="Europe/Athens")
         assert isinstance(result, TimeRange)
         assert result.kind == TimeRangeKind.CALENDAR_RANGE
         assert result.start_utc.tzinfo is not None
@@ -200,7 +199,7 @@ class TestT5_Yesterday:
         # PIN = 2026-08-25 10:00 UTC = 13:00 Vilnius
         # yesterday = 2026-08-24 local calendar day
         # local midnight 2026-08-24 00:00 EEST = 2026-08-23 21:00 UTC
-        result = resolve("yesterday", now_utc=PIN, timezone_name="Europe/Berlin")
+        result = resolve("yesterday", now_utc=PIN, timezone_name="Europe/Athens")
         assert isinstance(result, TimeRange)
         assert result.description == "yesterday"
         assert result.kind == TimeRangeKind.CALENDAR_RANGE
@@ -306,7 +305,7 @@ class TestT8_LastThreeHours:
         assert isinstance(point_result, TimeInstant)
         assert isinstance(range_result, TimeRange)
         # They are different shapes: one is Point, one is Range
-        assert type(point_result) != type(range_result)
+        assert type(point_result) is not type(range_result)
 
 
 # =============================================================================
@@ -351,8 +350,8 @@ class TestT9_Unsupported:
 class TestT10_DST:
     """Test DST correctness using real known DST transitions.
 
-    Spring-forward 2026: March 29 (Europe/Berlin: UTC+2 → UTC+3)
-    Fall-back 2026: October 25 (Europe/Berlin: UTC+3 → UTC+2)
+    Spring-forward 2026: March 29 (Europe/Athens: UTC+2 → UTC+3)
+    Fall-back 2026: October 25 (Europe/Athens: UTC+3 → UTC+2)
     """
 
     def test_spring_forward_day(self):
@@ -364,11 +363,11 @@ class TestT10_DST:
         # At 06:00 UTC, Vilnius is 08:00 EET (UTC+2)
         # Local-midnight for Mar 29 = 2026-03-28 22:00 UTC (EET)
         # Next local-midnight for Mar 30 = 2026-03-29 21:00 UTC (EEST, UTC+3)
-        result = resolve("today", now_utc=spring_morning, timezone_name="Europe/Berlin")
+        result = resolve("today", now_utc=spring_morning, timezone_name="Europe/Athens")
         assert isinstance(result, TimeRange)
 
         # The range should be exactly the local calendar day
-        vilnius_tz = ZoneInfo("Europe/Berlin")
+        vilnius_tz = ZoneInfo("Europe/Athens")
 
         # Verify start is local midnight in Vilnius
         local_start = result.start_utc.astimezone(vilnius_tz)
@@ -388,10 +387,10 @@ class TestT10_DST:
     def test_fall_back_day(self):
         """October 25 2026 — clocks fall back, day has 25 hours."""
         fall_morning = datetime(2026, 10, 25, 6, 0, tzinfo=timezone.utc)
-        result = resolve("today", now_utc=fall_morning, timezone_name="Europe/Berlin")
+        result = resolve("today", now_utc=fall_morning, timezone_name="Europe/Athens")
         assert isinstance(result, TimeRange)
 
-        vilnius_tz = ZoneInfo("Europe/Berlin")
+        vilnius_tz = ZoneInfo("Europe/Athens")
 
         # Verify local midnight boundaries
         local_start = result.start_utc.astimezone(vilnius_tz)
@@ -410,7 +409,7 @@ class TestT10_DST:
     def test_daylight_not_now_minus_24h(self):
         """If the resolver used now - 24h, DST day would fail."""
         spring_morning = datetime(2026, 3, 29, 6, 0, tzinfo=timezone.utc)
-        result = resolve("today", now_utc=spring_morning, timezone_name="Europe/Berlin")
+        result = resolve("today", now_utc=spring_morning, timezone_name="Europe/Athens")
         assert isinstance(result, TimeRange)
         # now - 24h would be 2026-03-28 06:00 UTC
         naive_minus_24 = spring_morning - __import__("datetime").timedelta(hours=24)
@@ -602,7 +601,7 @@ class TestT18_DifferentTimezones:
         for different timezone settings."""
         pin = PIN
         # UTC+3 = Vilnius summer, UTC-4 = New York summer (EDT)
-        vilnius = resolve("today", now_utc=pin, timezone_name="Europe/Berlin")
+        vilnius = resolve("today", now_utc=pin, timezone_name="Europe/Athens")
         new_york = resolve("today", now_utc=pin, timezone_name="America/New_York")
 
         assert isinstance(vilnius, TimeRange)
@@ -621,7 +620,7 @@ class TestT18_DifferentTimezones:
         # 2026-08-24 21:00 NY (previous day EDT, UTC-4)
         near_midnight = datetime(2026, 8, 25, 1, 0, tzinfo=timezone.utc)
 
-        vilnius_range = resolve("today", now_utc=near_midnight, timezone_name="Europe/Berlin")
+        vilnius_range = resolve("today", now_utc=near_midnight, timezone_name="Europe/Athens")
         new_york_range = resolve("today", now_utc=near_midnight, timezone_name="America/New_York")
 
         assert isinstance(vilnius_range, TimeRange)
@@ -630,7 +629,7 @@ class TestT18_DifferentTimezones:
         # Vilnius "today" = Aug 25 local day
         # NY "today" = Aug 24 local day (still Aug 24 at 21:00 EDT on Aug 25 01:00 UTC)
         # So the calendar-day ranges should cover different dates in UTC
-        vilnius_local_start = vilnius_range.start_utc.astimezone(ZoneInfo("Europe/Berlin"))
+        vilnius_local_start = vilnius_range.start_utc.astimezone(ZoneInfo("Europe/Athens"))
         ny_local_start = new_york_range.start_utc.astimezone(ZoneInfo("America/New_York"))
 
         # Both should be local midnight
@@ -647,8 +646,8 @@ class TestT18_DifferentTimezones:
 def test_utility_clock_reads_through_the_time_authority():
     from core.agent_runtime.fast_paths_utility import utility_now_for_timezone
 
-    now = utility_now_for_timezone("Europe/Berlin")
-    assert getattr(now.tzinfo, "key", "") == "Europe/Berlin"
+    now = utility_now_for_timezone("Europe/Athens")
+    assert getattr(now.tzinfo, "key", "") == "Europe/Athens"
 
 
 def test_utility_clock_stays_fail_closed_on_unknown_zones():

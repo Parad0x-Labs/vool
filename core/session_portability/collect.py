@@ -13,7 +13,6 @@ from typing import Any
 
 from core.session_portability.redaction import RedactionReport, redact_record
 from core.session_portability.schema import (
-    BOUNDS,
     IMPORTED_EVIDENCE_FRESHNESS_POLICY,
     SCOPE_NOTE,
     ExportCounts,
@@ -67,7 +66,7 @@ def _db_rows(sql: str, params: tuple) -> list[dict[str, Any]]:
         conn.close()
 
 
-def sqlite_row_factory(cursor, row):  # noqa: ANN001 - sqlite3 signature
+def sqlite_row_factory(cursor, row):
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
 
@@ -323,7 +322,7 @@ def _model_provider_projection(session_events: list[dict[str, Any]]) -> list[dic
             "route": str(details.get("route") or ""),
             "request_id": str(details.get("request_id") or ""),
         }
-        if any((record[k] for k in ("model", "provider_id", "route"))):
+        if any(record[k] for k in ("model", "provider_id", "route")):
             out.append(record)
     return out
 

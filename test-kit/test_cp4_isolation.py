@@ -8,10 +8,10 @@ Laws pinned here:
 """
 from __future__ import annotations
 
+from kit_lib import GOLD_ANSWER, GOLD_QUESTION, context, gold_thread, plan_operations, weather_thread
+
 from core.context_history_authority import is_current_user_message
 from core.live_data_continuation import continuation_inherits_live_data
-
-from kit_lib import GOLD_ANSWER, GOLD_QUESTION, context, gold_thread, plan_operations, weather_thread
 
 
 def test_two_interleaved_sessions_keep_their_obligations_disjoint():

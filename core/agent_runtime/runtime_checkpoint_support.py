@@ -136,8 +136,8 @@ class RuntimeCheckpointSupportMixin:
     ) -> None:
         import logging
 
-        from core.runtime_continuity import CheckpointTransitionRefused
         from core import audit_logger
+        from core.runtime_continuity import CheckpointTransitionRefused
 
         try:
             runtime_checkpoint_io_adapter.finalize_runtime_checkpoint(

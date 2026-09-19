@@ -292,8 +292,9 @@ def test_t04_erase_dominates_inflight_publish(a8_env, monkeypatch):
     thread.start()
     assert started.wait(timeout=10), "writer never reached eligibility check"
     # ERASE commits while the publisher sits between its check and its write.
-    from core.finalization import erase_finalization_payload, erasure_sweep_status
     import time as _time
+
+    from core.finalization import erase_finalization_payload, erasure_sweep_status
 
     eraser = threading.Thread(
         target=lambda: result.setdefault(
@@ -451,9 +452,9 @@ def _file_contains(path, needle):
 
 
 def Path_exists(p):
-    from pathlib import Path as _P
+    from pathlib import Path as _Path
 
-    return _P(str(p)).exists()
+    return _Path(str(p)).exists()
 
 
 # ---------------------------------------------------------------------------
@@ -518,11 +519,10 @@ def _erase_plaintext_row():
 
 
 def _sync_blocks_verbatim_source(home, *, kind, insert):
-    from storage.db import get_connection
-    from storage.useful_output_store import sync_useful_outputs
-
     from core.finalization import finalize_answer
     from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
+    from storage.db import get_connection
+    from storage.useful_output_store import sync_useful_outputs
 
     reset_admission()
     admit_semantic_result({"response": P, "route_reason": "model_lane"})
@@ -750,8 +750,8 @@ def test_t15_checkpoint_external_evidence_erased(a8_env):
 
 
 def test_t16_legacy_dialogue_archive_erase_fallback(a8_env):
-    from storage.db import get_connection
     from storage import dialogue_memory as dm
+    from storage.db import get_connection
 
     dm._init_tables()
     commit = _admit_finalize(P)
@@ -835,8 +835,9 @@ def test_t18_sweep_resume_after_restart(a8_env):
 
     # Availability transition committed, then crash BEFORE traversal.
     assert set_availability(fid, AVAILABILITY_ERASED, reason="crash mid-flight")
-    from core.message_pins import pins_path
     import json as _json
+
+    from core.message_pins import pins_path
 
     path = pins_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -862,8 +863,8 @@ def test_t18_resume_wired_into_startup_lifecycle():
 
 
 def test_t19_fail_closed_on_store_failure(a8_env, monkeypatch):
-    from core import message_pins
     import core.finalization as fin
+    from core import message_pins
 
     def boom(*_a, **_k):
         raise RuntimeError("a8 store unreachable")
@@ -898,8 +899,7 @@ def test_t20_duplicate_request_id_full_set_erased(a8_env):
     tests/foundation/test_a8_privacy_pass003.py::test_u10_*
     (uniqueness + ambiguity fail-closed) plus the sibling-recursion inside
     erase_finalization_payload."""
-    from core.finalization import FinalizationRejected, get_connection
-    from core.finalization import finalize_answer
+    from core.finalization import FinalizationRejected, finalize_answer, get_connection
     from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
 
     rid = "req:dup:t20"

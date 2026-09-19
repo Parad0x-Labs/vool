@@ -31,7 +31,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -64,7 +64,7 @@ def test_conflict_added_on_a_second_selected_calendar_after_approval_stops_the_c
         _choose("caldav", base_w, WORK_CAL, "Work account", default_write=True)
         _choose("caldav", base_o, OTHER_CAL, "Other account")
         session = "recheck"
-        proposal = _run('propose "Roadmap" on 2026-09-22 at 15:00 Europe/Berlin for 60m', session_id=session)
+        proposal = _run('propose "Roadmap" on 2026-09-22 at 15:00 Europe/Athens for 60m', session_id=session)
         assert proposal.status == "approval_required", proposal.response_text
 
         state_o.seed_event(OTHER_CAL, "blocker@fixture", summary="Director review",
@@ -90,7 +90,7 @@ def test_unreadable_selected_calendar_blocks_without_claiming_availability(home,
         _choose("caldav", base_w, WORK_CAL, "Work account", default_write=True)
         _choose("caldav", base_o, OTHER_CAL, "Other account")
         session = "recheck-offline"
-        proposal = _run('propose "Sync" on 2026-09-23 at 10:00 Europe/Berlin for 30m', session_id=session)
+        proposal = _run('propose "Sync" on 2026-09-23 at 10:00 Europe/Athens for 30m', session_id=session)
         assert proposal.status == "approval_required", proposal.response_text
 
         server_o.shutdown()  # the account stays configured and selected; its provider stops answering
@@ -117,7 +117,7 @@ def test_second_source_conflict_across_providers(home, monkeypatch):
         _choose("google", base_g, "team-graph", "Team account", default_write=True)
         _choose("caldav", base_c, OTHER_CAL, "Other account")
         session = "recheck-cross"
-        proposal = _run('propose "Launch brief" on 2026-09-24 at 09:00 Europe/Berlin for 45m', session_id=session)
+        proposal = _run('propose "Launch brief" on 2026-09-24 at 09:00 Europe/Athens for 45m', session_id=session)
         assert proposal.status == "approval_required", proposal.response_text
 
         state_c.seed_event(OTHER_CAL, "clash@fixture", summary="On-call handover",

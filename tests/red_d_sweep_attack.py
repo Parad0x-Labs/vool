@@ -80,7 +80,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 AUDIT_PREFIX = "audit-AUD-20260829-003-RED2-"
@@ -349,7 +349,7 @@ def analyse(entry: Entry, body: str, verdict: dict[str, Any]) -> dict[str, Any]:
         if served and denied_rows:
             findings.append("FALSE_DENIAL")
     else:
-        for label, toks in entry.slots:
+        for _label, toks in entry.slots:
             answered_line = any(
                 all(t.lower() in tokens_of(line) for t in toks)
                 for line in answering.splitlines()
@@ -369,7 +369,7 @@ def analyse(entry: Entry, body: str, verdict: dict[str, Any]) -> dict[str, Any]:
 
     # --- SILENT_DROP: an annotated slot with no answer line and no row anywhere. ---
     dropped: list[str] = []
-    for label, toks in entry.slots:
+    for _label, toks in entry.slots:
         answered = any(
             all(t.lower() in tokens_of(line) for t in toks)
             for line in answering.splitlines()
@@ -380,7 +380,7 @@ def analyse(entry: Entry, body: str, verdict: dict[str, Any]) -> dict[str, Any]:
             for r in layers["sweep"] + layers["compose"]
         )
         if not answered and not named:
-            dropped.append(label)
+            dropped.append(_label)
     if dropped:
         findings.append("SILENT_DROP")
 

@@ -356,7 +356,7 @@ def test_s13_sabotaged_freeze_door_lets_a_claimed_payment_submit(wallet_env):
         import unittest.mock
 
         with unittest.mock.patch.object(lifecycle.PaymentLifecycle, "_require_not_frozen", lambda self, proposal, *, door: None):
-            engine.submit_external_signature  # the saboted door below would broadcast
+            _ = engine.submit_external_signature  # the saboted door below would broadcast
         # restore-and-prove: the real door still refuses (the request was consumed above, so
         # this asserts the door itself, not the replay fence)
         with pytest.raises(WalletFault):
@@ -428,14 +428,14 @@ def test_s16_sabotaged_wire_selection_speaks_v2_to_a_v1_server(wallet_env, monke
 
 def test_s17_sabotaged_reaper_leaves_a_stranded_hold(wallet_env):
     """With reaping disabled, a crash between claim and submit strands the daily budget."""
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    import importlib
     import time as _time
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     from core.vool_wallet import b58encode
     from core.wallet import custody, lifecycle, limits, proposals
     from core.wallet.store import connection
-
-    import importlib
 
     key = Ed25519PrivateKey.generate()
     profile = custody.register_external_signer_wallet(b58encode(key.public_key().public_bytes_raw()))

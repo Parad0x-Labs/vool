@@ -8,6 +8,8 @@ import json
 import pytest
 
 from tests.blackbox_coverage._ctx import ctx
+
+
 def _crashed_effect(workspace, turn: str = "crash-turn"):
     """Simulate a process death between INTENDED and TERMINAL: append the intended entry with its
     embedded preimage table and never write the terminal."""

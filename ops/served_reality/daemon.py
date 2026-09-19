@@ -307,7 +307,7 @@ def launch_daemon(
             )
         try:
             exchange = client.healthz(timeout_s=3.0)
-        except Exception as exc:  # noqa: BLE001 - poll loop
+        except Exception as exc:
             last_error = f"{type(exc).__name__}: {exc}"
             exchange = None
         if exchange is not None and exchange.status == 200:

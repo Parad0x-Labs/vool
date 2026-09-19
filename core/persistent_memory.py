@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import time
-
 import logging
 import re
 import threading
+import time
 from typing import Any
 
 from core.context_scope import ContextAccessPolicy
@@ -119,21 +118,18 @@ def has_relevant_memory_candidate(
 
 __all__ = [
     "ARTIFACT_KIND_COUNCIL_SUMMARY",
+    "TRANSCRIPT_COMMIT_BOUNDARY_KEY",
     "add_memory_fact",
     "append_assistant_artifact_event",
     "append_conversation_event",
-    "TRANSCRIPT_COMMIT_BOUNDARY_KEY",
-    "flush_staged_conversation_events",
-    "open_transcript_commit_boundary",
-    "transcript_commit_boundary_open",
-    "has_staged_conversation_event",
-    "persist_staged_conversation_event",
     "augment_history_from_session_log",
     "conversation_log_path",
     "describe_session_memory_policy",
     "ensure_memory_files",
+    "flush_staged_conversation_events",
     "forget_memory",
     "has_relevant_memory_candidate",
+    "has_staged_conversation_event",
     "list_memory_entries",
     "load_memory_excerpt",
     "load_operator_dense_profile",
@@ -141,7 +137,9 @@ __all__ = [
     "memory_entries_path",
     "memory_lifecycle_snapshot",
     "memory_path",
+    "open_transcript_commit_boundary",
     "operator_dense_profile_path",
+    "persist_staged_conversation_event",
     "recent_conversation_events",
     "refresh_operator_dense_profile",
     "search_relevant_memory",
@@ -151,6 +149,7 @@ __all__ = [
     "session_summaries_path",
     "set_session_memory_policy",
     "summarize_memory",
+    "transcript_commit_boundary_open",
     "user_heuristics_path",
 ]
 

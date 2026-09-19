@@ -21,7 +21,7 @@ from core.vool_wallet import WALLET_FILENAME, b58encode
 from core.web.api.runtime import RuntimeServices
 from core.web.api.service import _attach_work_receipt, dispatch_get, dispatch_post
 from core.web.meet.routes import dispatch_request, resolve_static_route
-from tests.wallet._rig import rpc  # noqa: F401 - scripted devnet RPC (balances), no real chain
+from tests.wallet._rig import rpc
 
 LEGACY = "wallet_legacy_surface_retired"
 
@@ -129,7 +129,7 @@ def test_get_wallet_info_without_a_registered_wallet_has_an_empty_pubkey_and_min
     assert custody.default_wallet() is None
 
 
-def test_get_wallet_info_reports_the_registered_core_wallet(monkeypatch, rpc) -> None:  # noqa: F811
+def test_get_wallet_info_reports_the_registered_core_wallet(monkeypatch, rpc) -> None:
     pubkey = _register_watch_only(monkeypatch, rpc)
     status, data = _meet_get("/v1/wallet/info")
     assert status == 200
@@ -169,7 +169,7 @@ def test_service_wallet_info_is_the_read_only_adapter(path: str) -> None:
     assert "error" not in body
 
 
-def test_service_wallet_info_reports_the_registered_core_wallet(monkeypatch, rpc) -> None:  # noqa: F811
+def test_service_wallet_info_reports_the_registered_core_wallet(monkeypatch, rpc) -> None:
     pubkey = _register_watch_only(monkeypatch, rpc)
     for path in ("/v1/wallet/info", "/api/wallet/info"):
         body = json.loads(dispatch_get(path=path, query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1").body)
@@ -287,7 +287,7 @@ def _receipt_recipient(session_id: str) -> str:
     return payment.get("recipient_wallet") or ""
 
 
-def test_attach_receipt_uses_the_registered_core_wallet_pubkey(monkeypatch, rpc) -> None:  # noqa: F811
+def test_attach_receipt_uses_the_registered_core_wallet_pubkey(monkeypatch, rpc) -> None:
     pubkey = _register_watch_only(monkeypatch, rpc)
     assert _receipt_recipient("wiring-test") == pubkey
     assert rpc.send_count() == 0
@@ -329,7 +329,7 @@ def _legacy_receipts() -> list:
     return [f for f in list_faults(limit=200) if f.code == LEGACY]
 
 
-def test_receipt_path_never_anchors_even_with_the_flag_on(monkeypatch, rpc) -> None:  # noqa: F811
+def test_receipt_path_never_anchors_even_with_the_flag_on(monkeypatch, rpc) -> None:
     _register_watch_only(monkeypatch, rpc)
     receipts_before = len(_legacy_receipts())
     with mock.patch.dict("os.environ", {"VOOL_ANCHOR_RECEIPTS": "1"}):

@@ -14,10 +14,10 @@ import contextlib
 import json
 import logging
 import os
-import re
 
 # Repo-root bootstrap: allow running as a file (python3 apps/<x>.py), not just -m.
 import os as _bootstrap_os
+import re
 import sys as _bootstrap_sys
 import threading
 import time
@@ -30,7 +30,7 @@ _repo_root = _bootstrap_os.path.dirname(_bootstrap_os.path.dirname(_bootstrap_os
 if _repo_root not in _bootstrap_sys.path:
     _bootstrap_sys.path.insert(0, _repo_root)
 
-from core import audit_logger, feedback_engine, policy_engine
+from core import audit_logger, feedback_engine, policy_engine, runtime_active_clock
 from core.agent_runtime import fast_command_surface as agent_fast_command_surface
 from core.agent_runtime import hive_followups as agent_hive_followups
 from core.agent_runtime import hive_runtime as agent_hive_runtime
@@ -56,7 +56,6 @@ from core.agent_runtime.empty_turn import (
 from core.agent_runtime.fast_path_facade import FastPathFacadeMixin
 from core.agent_runtime.hive_review_runtime import HiveReviewRuntimeMixin
 from core.agent_runtime.hive_topic_facade import HiveTopicFacadeMixin
-from core.agent_runtime.voolbook_runtime import VoolBookRuntimeMixin
 from core.agent_runtime.proceed_intent_support import ProceedIntentSupportMixin
 from core.agent_runtime.public_hive_support import PublicHiveSupportMixin
 from core.agent_runtime.request_authority import bounded_evidence_items, turn_command_text
@@ -64,6 +63,7 @@ from core.agent_runtime.research_tool_loop_facade import ResearchToolLoopFacadeM
 from core.agent_runtime.runtime_checkpoint_support import RuntimeCheckpointSupportMixin
 from core.agent_runtime.task_persistence_support import TaskPersistenceSupportMixin
 from core.agent_runtime.tool_result_surface import ToolResultSurfaceMixin
+from core.agent_runtime.voolbook_runtime import VoolBookRuntimeMixin
 from core.autonomous_topic_research import pick_autonomous_research_signal, research_topic_from_signal
 from core.channel_actions import dispatch_outbound_post_intent, parse_channel_post_intent
 from core.credit_ledger import (
@@ -122,7 +122,6 @@ from core.runtime_continuity import (
     sweep_stale_checkpoints_if_due,
     update_runtime_checkpoint,
 )
-from core import runtime_active_clock
 from core.runtime_task_events import emit_runtime_event
 from core.semantic import reach as semantic_reach
 from core.semantic.semantic_result_seam import (
@@ -145,7 +144,7 @@ from core.tool_intent_executor import (
     render_capability_truth_response,
     should_attempt_tool_intent,
 )
-from core.turn_contract import TURN_REQUEST_KEY, TURN_STATE_KEY, TurnRequest
+from core.turn_contract import TURN_REQUEST_KEY, TurnRequest
 from core.user_preferences import load_preferences, maybe_handle_preference_command
 from core.within_turn_retraction import intake_request_text
 from network import signer as signer_mod
@@ -1435,9 +1434,7 @@ class VoolAgent(
         # the invocation ONLY when no request context is already bound.
         import hashlib as _r2_hashlib
 
-        from core.semantic.semantic_admissions import (
-            _CURRENT_REQUEST_ID as _req_var,
-        )
+        from core.semantic.semantic_admissions import _CURRENT_REQUEST_ID as _REQ
         from core.semantic.semantic_admissions import (
             set_request_context as _bind_req,
         )
@@ -1448,7 +1445,7 @@ class VoolAgent(
         # door's token — the door resets it in its own finally (service.py).
         _req_token = None
         _provider_terminal = None
-        if not str(_req_var.get() or "").strip():
+        if not str(_REQ.get() or "").strip():
             # ARCH-TRUTH-R1c: minted in the DIALOGUE-TURN id space (a uuid4), because this
             # is the turn's one canonical identity and `record_dialogue_turn` now persists
             # it verbatim. A `turn-<hex>` shape here would have been a second id space
@@ -1699,7 +1696,7 @@ class VoolAgent(
             except Exception:
                 pass
             if _req_token is not None:
-                _req_var.reset(_req_token)
+                _REQ.reset(_req_token)
             try:
                 from core.semantic.semantic_admissions import clear_execution_context
 
@@ -2469,15 +2466,13 @@ class VoolAgent(
                 # text), not the locals above. Re-derive it from the ORIGINAL request —
                 # the same `record_user_turn=False` seam the resume arm above uses, so
                 # the substituted execution never files a second user dialogue row.
-                try:
+                with contextlib.suppress(Exception):
                     interpreted = adapt_user_input(
                         effective_input,
                         session_id=session_id,
                         turn_id=turn_request.turn_id,
                         record_user_turn=False,
                     )
-                except Exception:
-                    pass
 
         # Currency identity is stable local knowledge; currency VALUE is an observation.  Enforce
         # that boundary before the conductor, planner, or model can turn an unavailable rate into

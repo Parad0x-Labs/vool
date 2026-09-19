@@ -86,7 +86,7 @@ def test_a_google_account_set_up_through_the_settings_routes_reaches_alerts(goog
     Clock(T0, monkeypatch)
     _write_binding(BINDING, provider_id="fixture_google")
     state.require_bearer = SECRET
-    state.seed_event(WORK, "evt-planning", summary="Planning", start=T0 + timedelta(minutes=40), minutes=30, tz_name="Europe/Berlin")
+    state.seed_event(WORK, "evt-planning", summary="Planning", start=T0 + timedelta(minutes=40), minutes=30, tz_name="Europe/Athens")
 
     status, empty = api_get("/api/calendar/accounts")
     assert status == 200 and empty["ok"] and empty["accounts"] == [], empty

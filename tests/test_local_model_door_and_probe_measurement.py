@@ -18,7 +18,6 @@ from core.local_model_tool_certification import run_local_model_tool_certificati
 from core.web.api.runtime import RuntimeServices
 from core.web.api.service import dispatch_get, dispatch_post
 from storage.model_provider_manifest import ModelProviderManifest
-
 from tests.test_local_model_tool_certification import ProbeExchange, _manifest
 
 
@@ -43,7 +42,7 @@ class _CapturePost:
     def __init__(self) -> None:
         self.payloads: list[dict[str, Any]] = []
 
-    def __call__(self, url: str, json=None, headers=None, timeout=None):  # noqa: A002
+    def __call__(self, url: str, json=None, headers=None, timeout=None):
         self.payloads.append({"url": url, "json": json})
 
         class _Response:

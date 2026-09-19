@@ -14,11 +14,11 @@ from unittest import mock
 
 import pytest
 
-from tests._credential_intelligence_support import isolated_home  # noqa: F401 — fixture registration
+from tests._credential_intelligence_support import isolated_home
 
 
 @pytest.fixture
-def rig(isolated_home, monkeypatch):  # noqa: F811 - parameter, not a redefinition
+def rig(isolated_home, monkeypatch):
     """The real discovery module over a temp state file, with synthetic boundaries."""
     import core.credential_intelligence.discovery as d
 

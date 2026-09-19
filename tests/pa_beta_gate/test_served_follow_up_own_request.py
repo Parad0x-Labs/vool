@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import served_env  # noqa: F401 -- fixture
-from tests.pa_beta_gate.test_served_operator_approval_words import (  # noqa: F401 -- served_notes is a fixture
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import served_env
+from tests.pa_beta_gate.test_served_operator_approval_words import (
     _AUTO,
     _SEED,
     _answer,

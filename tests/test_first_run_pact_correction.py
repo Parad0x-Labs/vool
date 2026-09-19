@@ -29,7 +29,7 @@ import pytest
 
 from core import first_run_pact, policy_engine
 from core.first_run_pact import PactFault
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 REPO = __file__.rsplit("/tests/", 1)[0]
 
@@ -313,9 +313,10 @@ except LockUnavailable:
 
 
 def test_posix_multiprocess_exclusion_through_the_shared_lock(tmp_path):
-    from core.cross_process_lock import LockUnavailable  # noqa: F401 — the typed code
     import subprocess
     import sys
+
+    from core.cross_process_lock import LockUnavailable
 
     lock_path = tmp_path / "probe.lock"
     script = tmp_path / "driver.py"
@@ -392,8 +393,8 @@ def test_boundary_policy_lock_contention_raises_the_typed_pact_fault(pact_rig, m
     """Module-level contract: set_boundary translates the owning-policy lock refusal
     into its OWN typed fault (lock_unavailable) — a raw LockUnavailable must never
     escape from the pact boundary seam."""
-    from core.cross_process_lock import LockUnavailable
     from core import policy_engine as pe
+    from core.cross_process_lock import LockUnavailable
 
     pact_rig.pact()
     snap = pact_rig.pact()
@@ -462,7 +463,7 @@ def test_a_racing_publisher_between_lock_release_and_read_cannot_change_the_retu
         "got between publication and the return"
     )
     assert returned == {"system.local_only_mode": True}, (
-        "the setter returned a racing publisher's value: %r" % (returned,)
+        f"the setter returned a racing publisher's value: {returned!r}"
     )
 
 
@@ -551,9 +552,9 @@ def test_every_boundary_fault_the_handler_can_produce_is_declared():
     produced |= {"boundary_partial", "authority_write_failed"}
 
     undeclared = produced - declared
-    assert not undeclared, "undeclared boundary faults: %s" % sorted(undeclared)
+    assert not undeclared, f"undeclared boundary faults: {sorted(undeclared)}"
     unremedied = {code for code in produced if code not in _FAULT_REMEDIATIONS}
-    assert not unremedied, "boundary faults without remediation text: %s" % sorted(unremedied)
+    assert not unremedied, f"boundary faults without remediation text: {sorted(unremedied)}"
 
 
 # --- FINAL PASS 4: pact publication failure after authority effects is truthful ---------------

@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest import mock
 
-from apps.vool_agent import VoolAgent, ResponseClass
+from apps.vool_agent import ResponseClass, VoolAgent
 from core.agent_runtime import fast_paths
 
 

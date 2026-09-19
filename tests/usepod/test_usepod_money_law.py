@@ -200,8 +200,8 @@ def test_a_prepaid_liability_reserves_claims_dispatches_and_settles_on_the_money
     assert claim.claim_token
     assert _liability_row(liability.operation_id)["state"] == "dispatching"
     # A second claimant is refused with the conflict code.
-    from core.effect_budget_money import claim_dispatch
     from core.effect_budget import EffectBudgetRefusedError
+    from core.effect_budget_money import claim_dispatch
 
     with pytest.raises(EffectBudgetRefusedError) as caught:
         claim_dispatch(reservation.reservation_id, executor="second-claimant")
@@ -371,9 +371,16 @@ def test_a_revoked_grant_stops_new_reservations_but_keeps_held_ones(law) -> None
 def test_x402_maps_outflow_and_expense_separately_and_surplus_is_provider_credit(law) -> None:
     authority, service, token = law
     from core.effect_budget import grant_operator_budget_authority
-    from core.effect_budget_money import AssetIdentity, CreditLine, MoneyGrantSpec, SettlementEvidence as LawEvidence, grant_money_authority, settle_liability
-    from core.usepod.money_law import OPERATION_X402
+    from core.effect_budget_money import (
+        AssetIdentity,
+        CreditLine,
+        MoneyGrantSpec,
+        grant_money_authority,
+        settle_liability,
+    )
+    from core.effect_budget_money import SettlementEvidence as LawEvidence
     from core.usepod.monetary import MonetaryAuthorityRefusedError, ProviderLiability
+    from core.usepod.money_law import OPERATION_X402
 
     # The x402 grant names the payer and the network; fees stay in their own asset.
     op_token = grant_operator_budget_authority(note=GRANT_NOTE)
@@ -448,9 +455,15 @@ def test_the_fee_asset_is_checked_on_its_own_not_the_principal(law) -> None:
     """The lane sits on the money law; its fee-asset behaviour is the law's own (task 03's
     test_a_fee_asset_shortage...). Exercised here from the UsePod side: a fee line with no fee
     liquidity refuses even though the principal is funded."""
-    from core.effect_budget import grant_operator_budget_authority
-    from core.effect_budget_money import AssetIdentity, LiabilityRequest, MoneyGrantSpec, MoneyIdentity, MoneyLine, grant_money_authority
-    from core.effect_budget import EffectBudgetRefusedError
+    from core.effect_budget import EffectBudgetRefusedError, grant_operator_budget_authority
+    from core.effect_budget_money import (
+        AssetIdentity,
+        LiabilityRequest,
+        MoneyGrantSpec,
+        MoneyIdentity,
+        MoneyLine,
+        grant_money_authority,
+    )
 
     op_token = grant_operator_budget_authority(note=GRANT_NOTE)
     principal = AssetIdentity(network="solana:testnet", asset="USDC", decimals=6)
@@ -685,8 +698,8 @@ def test_a_truthful_settlement_keeps_the_grant_envelope_and_liquidity_honest(law
 
 
 def _approved_consent(law, monkeypatch, *, per_call=1000, total=1000):
-    from core.usepod import spend_approval
     from core.mode_permission_policy import resolve_approval
+    from core.usepod import spend_approval
 
     authority, service, token = law
     fingerprint = _observe_balance(service, token)
@@ -707,8 +720,8 @@ def test_three_concurrent_confirms_mint_exactly_one_grant(law, monkeypatch) -> N
     """Genuinely novel schedule: three confirmers racing on one approved consent."""
     import concurrent.futures
 
-    from core.usepod import spend_approval
     from core.effect_budget_money import money_grants
+    from core.usepod import spend_approval
 
     approval_id = _approved_consent(law, monkeypatch)
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
@@ -722,9 +735,9 @@ def test_a_lost_confirm_reply_and_restart_return_the_same_grant(law, monkeypatch
     """Durability: after the mint, a fresh authority instance (the restart shape) replays the
     confirm and gets the SAME grant; a REVOKED consent's replay returns the same revoked grant,
     never fresh spend authority."""
-    from core.usepod import spend_approval
     from core.effect_budget import grant_operator_budget_authority
-    from core.effect_budget_money import revoke_money_authority, money_grant
+    from core.effect_budget_money import money_grant, revoke_money_authority
+    from core.usepod import spend_approval
     from core.usepod.money_law import AUTHORITY_LABEL, EffectBudgetMonetaryAuthority
 
     approval_id = _approved_consent(law, monkeypatch)
@@ -766,8 +779,8 @@ def test_descriptive_approval_refs_stay_non_unique(law, monkeypatch) -> None:
 
 
 def test_denied_and_expired_consents_never_mint(law, monkeypatch) -> None:
-    from core.usepod import spend_approval
     from core.mode_permission_policy import resolve_approval
+    from core.usepod import spend_approval
 
     authority, service, token = law
     fingerprint = _observe_balance(service, token)
@@ -790,8 +803,8 @@ def test_denied_and_expired_consents_never_mint(law, monkeypatch) -> None:
 
 
 def test_the_consent_state_model_is_truthful_at_each_step(law, monkeypatch) -> None:
-    from core.usepod import spend_approval
     from core.mode_permission_policy import resolve_approval
+    from core.usepod import spend_approval
 
     approval_id = _approved_consent(law, monkeypatch)
     state = spend_approval.spend_consent_state()
@@ -856,9 +869,21 @@ def test_unknown_outcomes_stay_closable_by_evidence_without_a_handle(law) -> Non
     """Preservation: reconciliation is not a dead end. An UNKNOWN liability (the claimant died or
     the response was lost) settles by late provider evidence with NO claim token -- the
     evidence-driven path the fencing must not break."""
-    from core.effect_budget_money import LiabilityRequest, MoneyLine, MoneyIdentity, reserve_liability, claim_dispatch, record_unknown, settle_liability, SettlementEvidence as LawEvidence, liability_for_operation
     from core.effect_budget import grant_operator_budget_authority
-    from core.effect_budget_money import AssetIdentity, MoneyGrantSpec, grant_money_authority
+    from core.effect_budget_money import (
+        AssetIdentity,
+        LiabilityRequest,
+        MoneyGrantSpec,
+        MoneyIdentity,
+        MoneyLine,
+        claim_dispatch,
+        grant_money_authority,
+        liability_for_operation,
+        record_unknown,
+        reserve_liability,
+        settle_liability,
+    )
+    from core.effect_budget_money import SettlementEvidence as LawEvidence
     from core.usepod.money_law import USEPOD_ACCOUNT_NETWORK
 
     operator = grant_operator_budget_authority(note="synthetic test funds")
@@ -952,8 +977,8 @@ def test_a_short_lived_consent_expires_while_still_pending(law, monkeypatch) -> 
 
 
 def test_pending_and_denied_controls_stay_truthful(law, monkeypatch) -> None:
-    from core.usepod import spend_approval
     from core.mode_permission_policy import resolve_approval
+    from core.usepod import spend_approval
 
     authority, service, token = law
     fingerprint = _observe_balance(service, token)
@@ -992,9 +1017,9 @@ def test_a_fresh_approved_consent_still_continues_and_a_used_one_stays_used(law,
 
 
 def test_a_revoked_grant_record_stays_minted_not_a_new_opportunity(law, monkeypatch) -> None:
-    from core.usepod import spend_approval
     from core.effect_budget import grant_operator_budget_authority
     from core.effect_budget_money import revoke_money_authority
+    from core.usepod import spend_approval
 
     approval_id = _approved_consent(law, monkeypatch)
     minted = spend_approval.confirm_spend_grant(approval_id)
@@ -1007,8 +1032,8 @@ def test_a_revoked_grant_record_stays_minted_not_a_new_opportunity(law, monkeypa
 
 
 def test_incomplete_facts_are_not_usable_consent(law, monkeypatch) -> None:
-    from core.usepod import spend_approval
     from core.mode_permission_policy import resolve_approval
+    from core.usepod import spend_approval
 
     authority, service, token = law
     fingerprint = _observe_balance(service, token)

@@ -34,8 +34,13 @@ def register_media_capabilities(*, available: bool | None = None) -> dict[str, A
     """Idempotently register the media edit family in the capability graph."""
     global _registered
     from core.capability_graph import (
-        Capability, CapabilityFamily, CapabilityId, Implementation,
-        ImplementationId, register_capability, register_family,
+        Capability,
+        CapabilityFamily,
+        CapabilityId,
+        Implementation,
+        ImplementationId,
+        register_capability,
+        register_family,
         register_implementation,
     )
 

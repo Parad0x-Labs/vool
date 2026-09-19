@@ -65,13 +65,13 @@ from . import (
     hive_runtime,
     hive_topics,
     memory_runtime,
-    voolbook,
     orchestrator,
     presence,
     response,
     turn_dispatch,
     turn_frontdoor,
     turn_reasoning,
+    voolbook,
 )
 
 _sys.modules[f"{__name__}.live_data_plan"] = live_data_plan
@@ -106,11 +106,11 @@ __all__ = [
     "hive_topics",
     "live_data_plan",
     "memory_runtime",
-    "voolbook",
     "orchestrator",
     "presence",
     "response",
     "turn_dispatch",
     "turn_frontdoor",
     "turn_reasoning",
+    "voolbook",
 ]

@@ -16,7 +16,7 @@ from unittest import mock
 import pytest
 
 from core.conductor.node import NodeLifecycle
-from tests.test_canonical_obligation_floor import (  # noqa: F401  (fetchers is a fixture)
+from tests.test_canonical_obligation_floor import (
     _CRYPTO,
     fetchers,
 )

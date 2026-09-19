@@ -11,7 +11,6 @@ from adapters.cloud_provider_common import (
     require_success,
 )
 from core.cloud_credential_broker import CloudCredentialBroker
-from core.cloud_providers import credential_env_for, key_env_names, slot_for
 from core.cloud_provider_contract import (
     CloudAccountLimits,
     CloudModelMetadata,
@@ -21,6 +20,7 @@ from core.cloud_provider_contract import (
     PolicyBoundTransport,
     ProviderError,
 )
+from core.cloud_providers import credential_env_for, key_env_names, slot_for
 from core.cloud_tool_call_contract import (
     canonical_tool_call_text,
     openai_tool_payload,

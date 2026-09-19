@@ -38,7 +38,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from core.council.cost_ladder import CostPolicy, OperatorEscalation
+from core.council.cost_ladder import CostPolicy
 from core.council.model_provenance import ModelIdentity
 from core.council.roles import ROLE_REGISTRY
 from core.council.task_dag import paths_overlap
@@ -68,9 +68,9 @@ class MutationPermission(str, enum.Enum):
 
 class _GrantSentinel:
     __slots__ = ()
-    _instance: "_GrantSentinel | None" = None
+    _instance: _GrantSentinel | None = None
 
-    def __new__(cls) -> "_GrantSentinel":
+    def __new__(cls) -> _GrantSentinel:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -237,7 +237,7 @@ class TaskContract:
             )
 
     # ------------------------------------------------------------- projections
-    def with_candidate(self, candidate_sha: str) -> "TaskContract":
+    def with_candidate(self, candidate_sha: str) -> TaskContract:
         """A new contract with the candidate minted. The old one is untouched."""
         wanted = str(candidate_sha or "").strip()
         if not _SHA_RE.match(wanted):
@@ -250,7 +250,7 @@ class TaskContract:
             return False
         return any(paths_overlap(path, owned) for owned in self.writable_scope)
 
-    def seat_envelopes(self) -> tuple["SeatEnvelope", ...]:
+    def seat_envelopes(self) -> tuple[SeatEnvelope, ...]:
         """The capability envelope each seat presents at the effect door.
 
         COMPUTED from the role: the builder seat carries the contract's mutation
@@ -484,7 +484,6 @@ def close_task(
       a proof minted straight off a live lease);
     * the candidate SHA must be minted — a task with no artifact cannot be done.
     """
-    from core.council.model_provenance import collapse_by_family
 
     claims = tuple(counterexamples or ())
     standing = [claim for claim in claims if claim.verified]
@@ -617,6 +616,7 @@ class CompletionRecord:
 
 
 __all__ = [
+    "WRITER_ROLES",
     "CompletionRecord",
     "CounterexampleClaim",
     "IntegrationGreen",
@@ -632,7 +632,6 @@ __all__ = [
     "TaskDone",
     "TaskDoneRefused",
     "TaskSeat",
-    "WRITER_ROLES",
     "close_obligation",
     "close_task",
     "is_reviewer_role",

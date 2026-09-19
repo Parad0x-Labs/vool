@@ -5,9 +5,10 @@ import json
 import os
 import threading
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from core.runtime_paths import data_path, project_path
 

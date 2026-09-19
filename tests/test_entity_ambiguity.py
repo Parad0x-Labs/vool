@@ -120,11 +120,11 @@ class TestEligibility:
 def _eligible_probe_infra(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch the probe's three infra dependencies: manifests exist, one is eligible,
     and the session reads no prior events (context tests override the reader)."""
-    from types import SimpleNamespace as _NS
+    from types import SimpleNamespace as _SimpleNS
 
     monkeypatch.setattr(
         "core.agent_runtime.audit_routing.select_audit_manifests",
-        lambda agent, context, routing: ([_NS(provider_id="ollama-local:qwen3:8b", metadata={"cost_class": "free_local"})], ""),
+        lambda agent, context, routing: ([_SimpleNS(provider_id="ollama-local:qwen3:8b", metadata={"cost_class": "free_local"})], ""),
     )
     monkeypatch.setattr(
         "core.agent_runtime.audit_routing.resolve_routing_mode",

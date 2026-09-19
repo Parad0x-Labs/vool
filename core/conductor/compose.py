@@ -350,9 +350,7 @@ def _suffix_carved_from(node_subject: str, clause_subject: str) -> bool:
     # asks WATER TEMPERATURE -- its tail fragment (a place) answered a different thing and the
     # suppression must hold (the AUD-20260829-003 measured pin).
     head = clause_words[: len(clause_words) - len(node_words)].strip()
-    if _INTERROGATIVE_HEAD_RE.search(head):
-        return False
-    return True
+    return not _INTERROGATIVE_HEAD_RE.search(head)
 
 
 def _append_unserved_line(unserved: list[tuple[str, str, str]], entity: str, subject: str, candidate: str) -> bool:

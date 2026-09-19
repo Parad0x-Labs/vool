@@ -9,8 +9,8 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 import core.runtime_execution_tools as rt
-from core.vool_wallet import VoolWallet, b58encode, verify_wallet_signature
 from core.runtime_execution_tools import execute_runtime_tool
+from core.vool_wallet import VoolWallet, b58encode, verify_wallet_signature
 from core.wallet.errors import WalletFault
 from core.web0_gated_html import make_gate_challenge
 from core.web0_tools import (

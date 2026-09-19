@@ -23,7 +23,6 @@ from core.semantic.semantic_result_seam import (
     reset_admission,
 )
 
-
 # ---------------------------------------------------------------------------
 # M1: restore direct fast-path return around seam → RED
 # ---------------------------------------------------------------------------
@@ -469,8 +468,8 @@ def test_m11_downstream_cannot_replace_id():
             used_tool=False,
             memory_or_cache_authored=False,
         )
-        setattr(rec, "semantic_result_id", "sr:replaced:1")
-        assert False, "M11 RED: downstream replaced semantic_result_id"
+        rec.semantic_result_id = "sr:replaced:1"
+        raise AssertionError("M11 RED: downstream replaced semantic_result_id")
     except (dataclasses.FrozenInstanceError, AttributeError, TypeError):
         pass
     reset_admission()

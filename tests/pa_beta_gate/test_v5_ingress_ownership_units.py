@@ -48,7 +48,7 @@ def memory_home(tmp_path):
 
 
 def test_note_effect_carries_the_typed_words_not_the_normalizer_rewrite():
-    typed = 'save a note titled "Crane lift plan" with: [action] ask u to bring the north star gauge Friday at 11:00 Europe/Berlin'
+    typed = 'save a note titled "Crane lift plan" with: [action] ask u to bring the north star gauge Friday at 11:00 Europe/Athens'
     interpreted = _interpretation(typed)
     routed = parse_operator_action_intent(interpreted.normalized_text)
     assert routed is not None and routed.raw_text != typed, "precondition: routing reads a rewritten text"

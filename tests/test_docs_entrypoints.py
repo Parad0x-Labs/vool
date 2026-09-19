@@ -27,9 +27,9 @@ def test_readme_frontloads_install_and_honest_platform_claims() -> None:
     assert "**Beta, shipped**" in readme or "Beta, shipped" in readme
     assert "Experimental" in readme and "Not supported" in readme
     assert "not notarized" in readme.lower() or "not\n  notarized" in readme.lower() or "notarized" in readme
-    # The legacy NULLA alias is named so identity questions ground and users can upgrade.
-    assert "NULLA" in readme
-    assert "docs/UPGRADE_NULLA_TO_VOOL.md" in readme
+    # Public story: the repository README and changelog never mention the pre-public
+    # internal identity; the engineering record of frozen identifiers lives in the dev docs.
+    assert "NULLA" not in readme and "nulla" not in readme.lower()
     assert "docs/ERROR_BOOK.md" in readme
     assert "docs/STATUS.md" in readme
 

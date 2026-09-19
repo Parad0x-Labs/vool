@@ -11,7 +11,6 @@ from __future__ import annotations
 import core.kernel.repl as repl
 from core import runtime_flags
 from core.kernel.effects import EffectRunner
-
 from tests.test_kernel_turn_contract import _judge, _row
 
 

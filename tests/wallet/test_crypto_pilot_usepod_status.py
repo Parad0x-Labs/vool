@@ -10,6 +10,8 @@ from __future__ import annotations
 import time
 
 import pytest
+
+from core.wallet.errors import WalletFault
 from tests.wallet.test_crypto_pilot_usepod_operation import (
     BASE_SEPOLIA,
     SOLANA_DEVNET,
@@ -20,8 +22,6 @@ from tests.wallet.test_crypto_pilot_usepod_operation import (
 )
 from tests.wallet.test_crypto_pilot_usepod_operation import home as operation_home
 from tests.wallet.test_crypto_pilot_usepod_operation import nodes as operation_nodes
-
-from core.wallet.errors import WalletFault
 
 pytestmark = [pytest.mark.safety]
 

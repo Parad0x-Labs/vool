@@ -82,11 +82,11 @@ class _IsolatedStoresTestCase(unittest.TestCase):
     def tearDown(self) -> None:
         import os
 
-        from core.runtime_paths import configure_runtime_home
         from core.runtime_continuity import (
             configure_runtime_continuity_db_path,
             reset_runtime_continuity_state,
         )
+        from core.runtime_paths import configure_runtime_home
 
         reset_runtime_continuity_state()
         configure_runtime_continuity_db_path(None)
@@ -258,7 +258,7 @@ class CallableCancellationTerminalTests(_RunOnceHarness):
 
         unresolved = latest_unresolved_or_partial_attempt("sess-a9p2")
         self.assertNotEqual(
-            unresolved and str(unresolved["attempt_id"]) or "",
+            (unresolved and str(unresolved["attempt_id"])) or "",
             str(attempt["attempt_id"]),
             "D: CANCELLED must stay outside the retryable unresolved set",
         )
@@ -286,7 +286,7 @@ class EpochPrecedenceTests(_IsolatedStoresTestCase):
         return parent
 
     def test_E_stale_history_cannot_adopt_over_live_conflicting_execution(self) -> None:
-        from core.invocation.ledger import set_execution_terminal  # noqa: F401  (vocab check below)
+        from core.invocation.ledger import set_execution_terminal
         from core.runtime_continuity import (
             claim_runtime_attempt,
             create_runtime_attempt,

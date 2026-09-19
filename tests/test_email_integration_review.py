@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 from core import email_drafts, email_tools
-from tests.test_email_live_workflow import _isolated, mail_service, _store_accounts, _raw
+from tests.test_email_live_workflow import _isolated, _raw, _store_accounts, mail_service
 
 SESSION = 'openclaw:independent-email-review'
 

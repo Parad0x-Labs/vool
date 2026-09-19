@@ -9,10 +9,10 @@ from __future__ import annotations
 import json
 import re
 
+from core.setup_progress import STEP_IDS, STEPS
 from core.vool_chat_page import render_vool_chat_html
 from core.vool_settings_page import render_vool_settings_html, settings_groups
 from core.vool_setup_page import CAPTIONS, COPY, render_vool_setup_html
-from core.setup_progress import STEP_IDS, STEPS
 
 JARGON = ("llm", "inference", "api", "token", "endpoint", "credential", "provider", "runtime", "keychain", "json", "model")
 

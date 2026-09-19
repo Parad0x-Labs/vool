@@ -152,7 +152,7 @@ def media_undo_redo(arguments: dict[str, Any], *, direction: str):
         details={"edit_revision": result["edit_revision"],
                  "observation": _tool_observation(
                      intent=f"media.{direction}", tool_surface="media",
-                     ok=True, status=result["status"] if "status" in result else "ok")},
+                     ok=True, status=result.get("status", "ok"))},
     )
 
 

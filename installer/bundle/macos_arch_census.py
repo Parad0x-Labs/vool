@@ -19,7 +19,7 @@ import json
 import plistlib
 import struct
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 # --- Mach-O constants ---------------------------------------------------------------------
@@ -277,7 +277,7 @@ def _launch_contract(app: Path) -> dict:
     try:
         with info.open("rb") as fh:
             pl = plistlib.load(fh)
-    except Exception as exc:  # noqa: BLE001 - report, never crash the gate
+    except Exception as exc:
         out["error"] = f"unreadable Info.plist: {exc}"
         return out
 
@@ -322,7 +322,7 @@ def _reachable(path: Path, app: Path | None = None) -> bool:
     return not any(m in rel for m in _TEST_ONLY_MARKERS)
 
 
-def _resolve_loads(app: Path, mo: "MachOFile") -> None:
+def _resolve_loads(app: Path, mo: MachOFile) -> None:
     """Expand @rpath / @loader_path / @executable_path and record what stays unresolved.
 
     Checkpoint 2 asks for load paths resolved and a compatible dependency closure. Recording the

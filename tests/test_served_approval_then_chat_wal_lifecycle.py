@@ -21,7 +21,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from tests._blackbox_served_rig import ServedDaemon
-from tests.test_vool_database_chat_journey import (  # noqa: F401
+from tests.test_vool_database_chat_journey import (
     ORDERS_DDL,
     ORDERS_SEED,
     SequencedToolProvider,
@@ -62,7 +62,7 @@ def _assert_turn_answered(turn: dict[str, Any], *, label: str) -> None:
 
 
 def test_after_an_approved_mutation_chat_keeps_answer_new_sessions_and_generations(
-    journey,  # noqa: F811
+    journey,
 ) -> None:
     daemon: ServedDaemon = journey["daemon"]
     home: Path = journey["home"]

@@ -21,7 +21,7 @@ THE INVARIANT these tests defend, not the phrase "5h from now":
     offsets) DECLINES -- the one answer that is always wrong is the current clock.
 
 Arithmetic is on the UTC instant, conversion to the zone afterwards, which the DST tests pin
-across both Europe/Berlin transitions. The clock is pinned through the same keyword-only
+across both Europe/Athens transitions. The clock is pinned through the same keyword-only
 ``now_utc`` seam the module exposes for tests; no test races the wall clock.
 """
 

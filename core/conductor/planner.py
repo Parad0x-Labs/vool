@@ -34,8 +34,6 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
-from core.turn_contract import LaneProposal
-
 from core.conductor.capabilities import (
     CapabilityDecision,
     OperationEffect,
@@ -79,6 +77,7 @@ from core.conductor.registry import (
 from core.conductor.requirement_projection import resolve_ledger
 from core.conductor.requirements import RequirementLedger, capture_requirements
 from core.conductor.shared_context import SharedTurnContext, extract_shared_context
+from core.turn_contract import LaneProposal
 from core.turn_ir import ClauseKind, TurnClause, parse_turn_ir
 
 if TYPE_CHECKING:  # annotation only -- the conductor acquires no runtime dependency on core.semantic
@@ -1378,7 +1377,7 @@ def _deterministic_fx_chain_plan(original: str) -> tuple[ProposedClause, ...]:
                 origin=_RUNTIME_OWNED,
             ),
         )
-    end_key, _kind, end_name = end_resolved
+    end_key, _kind, _end_name = end_resolved
     # Fiat->fiat->asset: bridge to USD, quote the asset, derive the amount.
     return (
         ProposedClause(
@@ -2377,7 +2376,7 @@ def build_plan_from_clauses(
                     position = next((i for i, n in enumerate(nodes) if n.node_id == node.node_id), len(nodes))
                     fx_before = [n.node_id for n in nodes[:position] if n.operation == "fx_quote"]
                     if fx_before:
-                        _extra = list(_extra) + [fx_before[-1]]
+                        _extra = [*list(_extra), fx_before[-1]]
             if _extra:
                 _completed.append(
                     replace(

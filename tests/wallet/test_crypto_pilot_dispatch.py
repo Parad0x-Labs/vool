@@ -22,9 +22,9 @@ import uuid
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from tests.wallet._rig import DEVNET_GENESIS, ScriptedRpc
 
 from core.wallet.errors import WalletFault
+from tests.wallet._rig import DEVNET_GENESIS, ScriptedRpc
 
 pytestmark = [pytest.mark.safety]
 

@@ -127,5 +127,5 @@ def test_control_the_ordinary_remove_contract_is_unchanged(clean_root) -> None:
     target = parent / "created.txt"
     identity, digest = _write_created(artifacts, target)
     assert artifacts.pinned_remove_created_file(target, created_identity=identity, expected_sha256=digest) == "removed"
-    assert not target.exists() and not stat.S_ISDIR(os.lstat(parent).st_mode) or True
+    assert (not target.exists() and not stat.S_ISDIR(os.lstat(parent).st_mode)) or True
     assert sorted(p.name for p in parent.iterdir()) == []

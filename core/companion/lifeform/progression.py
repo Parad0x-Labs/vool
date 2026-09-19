@@ -18,7 +18,8 @@ import hashlib
 import hmac
 import json
 import math
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from core.companion.lifeform.schema import LifeformError, LifeformV1
 
@@ -346,7 +347,7 @@ def append_event(log: list[dict[str, Any]], event: dict[str, Any],
         verified=event["verified"], family=event["family"],
         surface=event["surface"], tokens=event.get("tokens", 0),
         degraded=event.get("degraded", False))
-    return log + [event], {"appended": True, "event_id": event["event_id"]}
+    return [*log, event], {"appended": True, "event_id": event["event_id"]}
 
 
 # ---------------------------------------------------------------------------

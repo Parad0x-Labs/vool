@@ -40,7 +40,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.usepod._free_tool_lane import FreeToolLaneService, TOOL_NATIVE_NAME
+from tests.usepod._free_tool_lane import TOOL_NATIVE_NAME, FreeToolLaneService
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
 from tests.usepod.test_usepod_served_flow import (
     DOUBLE_LABEL,
@@ -80,7 +80,7 @@ class ToolFlowDaemon(UsePodServedDaemon):
         env["VOOL_WORKSPACE_ROOT"] = str(self.scratch)
         return env
 
-    def start(self, timeout: float = 240.0) -> "ToolFlowDaemon":
+    def start(self, timeout: float = 240.0) -> ToolFlowDaemon:
         self.scratch.mkdir(parents=True, exist_ok=True)
         script = (
             "from core.model_registry import ModelRegistry\n"

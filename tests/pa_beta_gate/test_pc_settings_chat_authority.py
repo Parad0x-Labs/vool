@@ -30,7 +30,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -90,7 +90,7 @@ def test_settings_selected_account_wins_over_the_environment_default(env_server,
     assert config.calendar_id == SETTINGS_CAL, config
 
     session = "settings-authority"
-    proposal = _run('propose "Roadmap review" on 2026-09-22 15:00 Europe/Berlin for 30m', session_id=session)
+    proposal = _run('propose "Roadmap review" on 2026-09-22 15:00 Europe/Athens for 30m', session_id=session)
     assert proposal.status == "approval_required", proposal.response_text
     approved = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
     assert approved.ok, approved.response_text
@@ -111,7 +111,7 @@ def test_environment_still_serves_while_settings_has_no_choice(env_server, setti
     Clock(T0, monkeypatch)
 
     session = "env-legacy"
-    proposal = _run('propose "Legacy env event" on 2026-09-22 15:00 Europe/Berlin for 30m', session_id=session)
+    proposal = _run('propose "Legacy env event" on 2026-09-22 15:00 Europe/Athens for 30m', session_id=session)
     assert proposal.status == "approval_required", proposal.response_text
     approved = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
     assert approved.ok, approved.response_text
@@ -125,7 +125,7 @@ def test_environment_still_serves_while_settings_has_no_choice(env_server, setti
     disconnected = calendar_accounts.disconnect_account(account_id)
     assert disconnected["ok"], disconnected
 
-    after = _run('propose "Back to env" on 2026-09-23 09:00 Europe/Berlin for 30m', session_id=session + "b")
+    after = _run('propose "Back to env" on 2026-09-23 09:00 Europe/Athens for 30m', session_id=session + "b")
     assert after.status == "approval_required", after.response_text
     approved2 = _run(f"approve calendar {after.details['action_id']}", session_id=session + "b")
     assert approved2.ok, approved2.response_text

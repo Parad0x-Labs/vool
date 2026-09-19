@@ -167,7 +167,7 @@ def test_the_seal_accepts_the_literal_and_rejects_the_decorated_text() -> None:
 
 
 def test_the_verifier_caveat_yields_to_a_bound_contract() -> None:
-    import core.agent_runtime  # noqa: F401  -- orders a circular import
+    import core.agent_runtime
     from core.memory_first_router import apply_verifier_draft_caveat
 
     flagged = SimpleNamespace(details={"needs_review": True})
@@ -181,7 +181,7 @@ def test_an_ordinary_answer_still_gets_the_draft_warning() -> None:
     Suppression is a consequence of a contract binding, never of the verifier being inconvenient.
     """
 
-    import core.agent_runtime  # noqa: F401
+    import core.agent_runtime
     from core.memory_first_router import apply_verifier_draft_caveat
 
     flagged = SimpleNamespace(details={"needs_review": True})
@@ -192,7 +192,7 @@ def test_an_ordinary_answer_still_gets_the_draft_warning() -> None:
 
 
 def test_an_unflagged_answer_is_untouched() -> None:
-    import core.agent_runtime  # noqa: F401
+    import core.agent_runtime
     from core.memory_first_router import apply_verifier_draft_caveat
 
     clean = SimpleNamespace(details={})

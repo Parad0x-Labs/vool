@@ -1,7 +1,10 @@
 """Repeated greetings stay local; a greeting prefix cannot swallow a task."""
 from unittest.mock import patch
+
 import pytest
+
 from core.agent_runtime.fast_paths_utility import smalltalk_fast_path
+
 
 @pytest.mark.parametrize("text", ["gm gm", "hello, hello!", "good morning good morning"])
 def test_repeated_whole_greeting_uses_builtin_reply(text):

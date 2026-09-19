@@ -28,10 +28,10 @@ jobs:
       - name: Install verification dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev,browser]"
       - name: Provision the served-browser lane (Playwright chromium)
         # The required served-chat-UI suites fail the authoritative lane when this binary is
-        # absent (NULLA_GATE), so provisioning here is what keeps the lane executed, not skipped.
+        # absent (required-suite gate), so provisioning here is what keeps the lane executed, not skipped.
         run: python -m playwright install --with-deps chromium
       - name: Run authoritative verification
         run: >-
@@ -61,9 +61,9 @@ jobs:
       - name: Install compatibility dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev,browser]"
       - name: Provision the served-browser lane (Playwright chromium)
-        # Compatibility is a full-scope (NULLA_GATE) lane too: required suites execute, never skip.
+        # Compatibility is a full-scope (required-suite gate) lane too: required suites execute, never skip.
         run: python -m playwright install --with-deps chromium
       - name: Run compatibility collection and shards
         run: >-

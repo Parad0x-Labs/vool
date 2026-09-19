@@ -5,8 +5,8 @@ import json
 
 import pytest
 
-from tests.chat_page_js_harness import DOM, run_node, script
 from core.price_safety_fragment import _GATE_JS
+from tests.chat_page_js_harness import DOM, run_node, script
 
 
 @pytest.mark.parametrize("provider,row_free,server_paid,allow", [

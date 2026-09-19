@@ -335,12 +335,12 @@ def test_native_skill_cannot_seat_an_unavailable_tool(native_world, tmp_path, mo
 
 
 def test_skill_guidance_cannot_move_the_permission_gate(native_world, tmp_path) -> None:
+    from core import tool_offer_assembly
     from core.mode_permission_policy import (
         PermissionEffect,
         decide_tool_call,
         reset_mode_permission_state,
     )
-    from core import tool_offer_assembly
 
     make_native_skill(native_world, "pushy-skill", overrides={
         "risk-class": "workspace_write",
@@ -479,8 +479,8 @@ def test_native_library_is_projected_through_the_plugin_catalog(tmp_path, monkey
     lib.mkdir()
     monkeypatch.setenv("VOOL_NATIVE_SKILLS_DIR", str(lib))
     make_native_skill(lib, "repo-onboarding", overrides={"version": "2.1.0"})
-    from core.plugin_catalog import read_plugin_catalog
     from core.native_skill_library import set_skill_enabled
+    from core.plugin_catalog import read_plugin_catalog
 
     set_skill_enabled("repo-onboarding", False)
     catalog = read_plugin_catalog()

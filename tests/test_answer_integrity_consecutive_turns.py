@@ -253,8 +253,8 @@ def test_real_answers_are_not_failure_notices(answer: str) -> None:
 
 
 def test_client_history_closes_failed_exchanges(tmp_path, monkeypatch) -> None:
-    from core.runtime_paths import configure_runtime_home
     from core.persistent_memory import augment_history_from_session_log
+    from core.runtime_paths import configure_runtime_home
 
     configure_runtime_home(tmp_path)
     try:
@@ -641,7 +641,7 @@ def test_the_logged_consecutive_turn_sequence_through_the_served_door(tmp_path) 
                     for m in (call.get("messages") or [])
                 )
                 and not str(
-                    (next((m.get("content") for m in reversed(call.get("messages") or []) if m.get("role") == "system"), ""))
+                    next((m.get("content") for m in reversed(call.get("messages") or []) if m.get("role") == "system"), "")
                 ).startswith("You split")
             ]
             assert model_calls, "the model lane never received the current question"
@@ -679,11 +679,11 @@ def test_the_logged_consecutive_turn_sequence_through_the_served_door(tmp_path) 
             # The reviewer's actual blocked reason is in the durable events for these turns.
             canonical = run_in_home(
                 home,
-                "import sys; sys.path.insert(0, {root!r})\n"
+                f"import sys; sys.path.insert(0, {str(REPO_ROOT)!r})\n"
                 "from storage.dialogue_memory import recent_dialogue_turns_any\n"
                 "rows = [r for r in recent_dialogue_turns_any(limit=40, speaker_roles=('user',)) "
                 "if 'proposed feature for a local AI agent runtime' in str(r.get('raw_input'))]\n"
-                "print(rows[-1]['session_id'] if rows else '')".format(root=str(REPO_ROOT)),
+                "print(rows[-1]['session_id'] if rows else '')",
             ).strip()
             assert canonical.startswith("openclaw:"), canonical
             url = f"{daemon.base_url}/api/runtime/events?{urlencode({'session': canonical, 'limit': 200})}"

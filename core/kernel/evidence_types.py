@@ -35,11 +35,11 @@ from dataclasses import dataclass
 
 __all__ = [
     "CLAIM_TYPES",
+    "_NUMBER_RE",
     "EvidenceTypeError",
     "TypedClaim",
     "render_typed_answer",
     "validate_claims",
-    "_NUMBER_RE",
 ]
 
 #: The closed set of evidence types. Closed on purpose: a new type of claim is a design
@@ -325,10 +325,7 @@ def _degree_adjacent(text: str, number: str) -> bool:
         return any(a <= pos < b for a, b in _opaque)
 
     escaped = re.escape(number)
-    for m in re.finditer(escaped + r"\s*(?:°|degrees?\b)", text, re.IGNORECASE):
-        if not _in_opaque(m.start()):
-            return True
-    return False
+    return any(not _in_opaque(m.start()) for m in re.finditer(escaped + r"\s*(?:°|degrees?\b)", text, re.IGNORECASE))
 
 
 def _temperature_units(text: str) -> set[tuple[str, str]]:

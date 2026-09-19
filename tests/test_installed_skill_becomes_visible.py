@@ -23,7 +23,8 @@ import pytest
 
 from core.plugin_catalog import plugins_root as catalog_plugins_root
 from core.plugin_skills import instructions_for, load_skills, rank_skills
-from core.skill_tools import install_skill, plugins_root as writer_plugins_root
+from core.skill_tools import install_skill
+from core.skill_tools import plugins_root as writer_plugins_root
 
 _SKILL = """---
 name: visible-proof-skill

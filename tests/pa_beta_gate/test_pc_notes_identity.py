@@ -207,8 +207,12 @@ def test_generated_scripts_compile_against_the_installed_notes_dictionary():
     if not shutil.which("osacompile"):
         pytest.skip("osacompile is not available on this machine")
     from core.operator.apple_notes import (
-        build_append_note_script, build_delete_note_script, build_list_notes_script,
-        build_note_name_script, build_read_note_script, build_rename_note_script,
+        build_append_note_script,
+        build_delete_note_script,
+        build_list_notes_script,
+        build_note_name_script,
+        build_read_note_script,
+        build_rename_note_script,
     )
 
     scripts = {

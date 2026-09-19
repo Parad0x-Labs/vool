@@ -43,7 +43,8 @@ def google_env(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_CALENDAR_TIMEOUT", "10")
     # Fixed clock: this suite seeds events on fixed dates and speaks in day words ("Tuesday
     # afternoon"), so it must not depend on which weekday the real clock happens to be on.
-    from datetime import datetime, timezone as _tz
+    from datetime import datetime
+    from datetime import timezone as _tz
 
     from core import local_operator_actions
 
@@ -70,7 +71,8 @@ def graph_env(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_CALENDAR_URL", base)
     monkeypatch.setenv("VOOL_CALENDAR_ID", H_CAL)
     monkeypatch.setenv("VOOL_CALENDAR_TIMEOUT", "10")
-    from datetime import datetime, timezone as _tz
+    from datetime import datetime
+    from datetime import timezone as _tz
 
     from core import local_operator_actions
 
@@ -116,7 +118,7 @@ def test_google_original_journey(google_env):
     assert uid in state.snapshot()[G_CAL]
     assert state.snapshot()[G_CAL][uid]["summary"] == "Sprint planning"
 
-    _intent, move = _run('move the "Sprint planning" event to Friday at 11:00 Europe/Berlin', session_id=session)
+    _intent, move = _run('move the "Sprint planning" event to Friday at 11:00 Europe/Athens', session_id=session)
     assert move.status == "approval_required"
     _intent, moved = _run(f"approve calendar {move.details['action_id']}", session_id=session)
     assert moved.ok, moved.response_text
@@ -151,7 +153,7 @@ def test_google_pagination_recurring_and_stale_etag(google_env):
     from core.kas.contract import CalendarRefusedError
     from core.operator.calendar_provider import build_provider_adapter, load_provider_config
 
-    _intent, proposal = _run('propose "Guarded" on 2026-09-15 19:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Guarded" on 2026-09-15 19:00 Europe/Athens for 30m', session_id=session)
     _intent, created = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
     uid = created.details["uid"]
     config = load_provider_config()
@@ -164,7 +166,7 @@ def test_google_pagination_recurring_and_stale_etag(google_env):
             provider_id="google", uid=uid, calendar_id=G_CAL, etag=current.etag,
             summary="Guarded (edited externally)", start_utc=current.start_utc,
             end_utc=current.end_utc, tz_name=current.tz_name))
-    _intent, move = _run('move the "Guarded" event to Friday at 10:00 Europe/Berlin', session_id=session)
+    _intent, move = _run('move the "Guarded" event to Friday at 10:00 Europe/Athens', session_id=session)
     assert move.status == "approval_required"
     _intent, refused = _run(f"approve calendar {move.details['action_id']}", session_id=session)
     assert not refused.ok and refused.status == "stale_etag", refused.response_text
@@ -190,7 +192,7 @@ def test_google_auth_rate_limit_and_unknown_timeout(google_env, monkeypatch):
     state.hang_seconds = 3.0
     monkeypatch.setenv("VOOL_CALENDAR_TIMEOUT", "1")
     try:
-        _intent, proposal = _run('propose "Uncertain" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+        _intent, proposal = _run('propose "Uncertain" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
         _intent, unknown = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
         assert unknown.status == "outcome_unproven", unknown.response_text
     finally:
@@ -289,7 +291,7 @@ def test_cross_provider_identity_is_not_confused(google_env, graph_env, monkeypa
     os.environ["VOOL_CALENDAR_URL"] = google_env["url"]
     os.environ["VOOL_CALENDAR_ID"] = G_CAL
     google_state = google_env["state"]
-    _intent, gp = _run('propose "Shared title" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, gp = _run('propose "Shared title" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     assert gp.status == "approval_required", gp.response_text
     _intent, gc = _run(f"approve calendar {gp.details['action_id']}", session_id=session)
     assert gc.ok
@@ -320,8 +322,8 @@ def test_eventkit_states_its_packaging_gate_honestly():
 
     availability = eventkit_availability()
     try:
-        import EventKit  # noqa: F401
-        import Foundation  # noqa: F401
+        import EventKit
+        import Foundation
 
         binding = True
     except Exception:

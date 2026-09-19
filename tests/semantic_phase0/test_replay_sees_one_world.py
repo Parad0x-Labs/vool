@@ -26,7 +26,7 @@ import tempfile
 
 import pytest
 
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,

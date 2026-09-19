@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from core import operator_profile
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def _items(pact_rig):

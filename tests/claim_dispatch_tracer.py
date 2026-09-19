@@ -275,7 +275,7 @@ class DispatchTracer:
             # it stays open for the lifetime of a daemon process so every turn appends to one log,
             # and `uninstall()` closes it. Append mode + flush-per-record means a trace survives
             # even if the daemon is killed rather than shut down.
-            self._sink = open(jsonl_path, "a", encoding="utf-8")  # noqa: SIM115
+            self._sink = open(jsonl_path, "a", encoding="utf-8")
 
     # ---------------------------------------------------------------- bookkeeping
 

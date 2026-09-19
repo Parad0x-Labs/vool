@@ -40,7 +40,7 @@ from core.semantic.turn_observation import _write_receipt
 from storage import db as sdb
 
 # Imported rather than discovered -- see `_fixtures` for why this is not a conftest.
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,
@@ -260,7 +260,7 @@ def test_an_unreadable_stored_graph_is_reported_not_evaluated(fresh_store) -> No
 # -- end to end: a driven turn mints the graph at the door ---------------------------------------
 
 
-def test_a_driven_turn_mints_the_graph_at_the_door_and_reports_it(make_agent_module, monkeypatch) -> None:  # noqa: F811
+def test_a_driven_turn_mints_the_graph_at_the_door_and_reports_it(make_agent_module, monkeypatch) -> None:
     monkeypatch.setenv("VOOL_SEMANTIC_REACH", "1")
     session = "keystone-e2e"
     agent = make_agent_module()

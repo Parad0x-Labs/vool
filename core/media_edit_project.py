@@ -56,7 +56,7 @@ class EditOperation:
                 "actor": self.actor, "revision": self.revision}
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "EditOperation":
+    def from_dict(cls, raw: dict[str, Any]) -> EditOperation:
         return cls(
             kind=str(raw.get("kind", "")),
             params=dict(raw.get("params") or {}),
@@ -161,7 +161,7 @@ class ActiveMediaSelection:
         }
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any] | None) -> "ActiveMediaSelection":
+    def from_dict(cls, raw: dict[str, Any] | None) -> ActiveMediaSelection:
         raw = raw or {}
         return cls(
             project_id=str(raw.get("project_id", "")),
@@ -188,7 +188,7 @@ class SourceAsset:
                 "sha256": self.sha256, "metadata": self.metadata}
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "SourceAsset":
+    def from_dict(cls, raw: dict[str, Any]) -> SourceAsset:
         return cls(
             asset_id=str(raw["asset_id"]),
             path=str(raw["path"]),
@@ -215,7 +215,7 @@ class MediaEditProject:
 
     # ------------------------------------------------------------ lifecycle
     @classmethod
-    def create(cls, project_id: str, source_asset: SourceAsset) -> "MediaEditProject":
+    def create(cls, project_id: str, source_asset: SourceAsset) -> MediaEditProject:
         proj = cls(project_id=project_id, source_asset=source_asset)
         proj.active_selection = ActiveMediaSelection(
             project_id=project_id,
@@ -294,7 +294,7 @@ class MediaEditProject:
         }
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "MediaEditProject":
+    def from_dict(cls, raw: dict[str, Any]) -> MediaEditProject:
         proj = cls(
             project_id=str(raw["project_id"]),
             source_asset=SourceAsset.from_dict(raw["source_asset"]),

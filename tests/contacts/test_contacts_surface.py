@@ -15,10 +15,10 @@ import urllib.parse
 import pytest
 
 from core.contacts import store
-from tests.contacts import protected_changes
 from core.vool_chat_page import render_vool_chat_html
 from core.web.api.runtime import RuntimeServices
 from core.web.api.service import dispatch_get, dispatch_post
+from tests.contacts import protected_changes
 
 OWNER = store.ACTOR_OWNER
 SOLANA_DEVNET = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"

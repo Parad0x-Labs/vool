@@ -1,7 +1,7 @@
 import pytest
 
-from tests.wallet._rig import rpc, wallet_env  # noqa: F401 - re-exported fixtures
-from tests.wallet._rig_evm import evm_rig  # noqa: F401 - re-exported multichain fixtures
+from tests.wallet._rig import rpc, wallet_env
+from tests.wallet._rig_evm import evm_rig
 
 
 @pytest.fixture(autouse=True)

@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from core import policy_engine
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 DENIAL_PROMPT = "What is the weather in Kaunas?"
 

@@ -14,9 +14,9 @@ from core.grounding_lifecycle import (
     STAGE_PUBLISHED,
     adopt_previous_publication_if_representation,
     lifecycle_for_context,
+    re_presentation_target,
     record_publication,
     register_required,
-    re_presentation_target,
 )
 from core.grounding_publication import publication_verdict
 

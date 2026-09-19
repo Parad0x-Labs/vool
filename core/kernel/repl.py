@@ -56,8 +56,8 @@ from core.kernel.evidence_types import (
     validate_claims,
 )
 from core.kernel.lexical_spans import has_quantity, lex_spans, quantity_values
-from core.kernel.paged_memory import ContextUndercovered, PagedSession, RecallRefused
 from core.kernel.obligations import CommitRefused, Obligation, TurnTransaction
+from core.kernel.paged_memory import ContextUndercovered, PagedSession, RecallRefused
 from core.kernel.semantic_identity import coordinator_children
 from core.ollama_endpoint import ollama_api_url as _ollama_api_url
 from core.remote_fetch_policy import open_remote
@@ -1523,7 +1523,7 @@ def _external_action_guard(description: str) -> bool:
     naming Slack stays compose, and a send to the user in-conversation stays an
     ordinary reply."""
     try:
-        from core.turn_ir import classify_clause_kind, ClauseKind
+        from core.turn_ir import ClauseKind, classify_clause_kind
         kind = classify_clause_kind(description)
     except Exception:
         return False
@@ -2130,8 +2130,9 @@ def run_turn(
         # (T009/T013 pins): the only child is the owner.
         _single_row = len(rows) == 1
         try:
-            from core.turn_ir import classify_clause_kind, ClauseKind as _CK
-            _desc_is_act = classify_clause_kind(_row["description"]) is _CK.ACT
+            from core.turn_ir import ClauseKind as _ClauseKind
+            from core.turn_ir import classify_clause_kind
+            _desc_is_act = classify_clause_kind(_row["description"]) is _ClauseKind.ACT
         except Exception:
             _desc_is_act = False
         if ((_row["lane"] not in ("machine", "web_lookup")
@@ -4048,7 +4049,7 @@ def run_turn(
                 valid_owner.append(ob.id)
                 out.append(f"  ! clarify floor: synthesis produced no question for {ob.id} — shipping the extraction's own gap")
                 txn.close(ob.id, evidence_ref=f"conversation:{ob.id}")
-            elif ob.id in _coordinated_children and _coordinated_children[ob.id]:
+            elif _coordinated_children.get(ob.id):
                 # ROUND-019 R2: the coordinator's semantics SHIPPED — composed
                 # of its children's realizations. Settling it as "unanswerable"
                 # would contradict the render; close citing what it composed.
@@ -4286,7 +4287,7 @@ def run_turn(
             # ROUND-019 R2: a coordinator's semantics DID ship — through its
             # children's realizations. Its coordination citation is not
             # "nothing shipped"; reopening it would contradict the render.
-            if ob.id in _coordinated_children and _coordinated_children[ob.id]:
+            if _coordinated_children.get(ob.id):
                 out.append(f"  + post-render: {ob.id} stays closed — its realization is composed of "
                            f"{sorted(dict.fromkeys(_coordinated_children[ob.id]))}'s shipped answers")
                 continue

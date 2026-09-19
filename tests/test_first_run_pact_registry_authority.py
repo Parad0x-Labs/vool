@@ -6,7 +6,7 @@ import json
 import pytest
 
 from core import first_run_pact
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def test_every_state_changing_pact_post_resolves_to_one_execute_command_dispatch(pact_rig, monkeypatch):

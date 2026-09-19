@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from core.operator import notes
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import (  # noqa: F401 -- served_env is a fixture, requested via getfixturevalue
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import (
     _turn,
     served_env,
 )

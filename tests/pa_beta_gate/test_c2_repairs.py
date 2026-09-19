@@ -29,7 +29,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -143,12 +143,12 @@ def test_corrupt_store_blocks_create_and_move_and_availability(home, monkeypatch
         with pytest.raises(calendar_agenda.SelectionsUnavailableError):
             calendar_agenda.selected_sources()
 
-        proposal = _run('propose "C" on 2026-09-22 15:00 Europe/Berlin for 30m', session_id="r3")
+        proposal = _run('propose "C" on 2026-09-22 15:00 Europe/Athens for 30m', session_id="r3")
         assert not proposal.ok and proposal.status == "storage_unavailable", proposal.response_text
         assert state.snapshot()[WORK_CAL.rstrip("/") + "/"] == {}
 
         state.seed_event(WORK_CAL, "e1@f", summary="Existing", start=T0 + timedelta(days=1, hours=3), minutes=30)
-        move = _run('move the "Existing" event to 2026-09-23 11:00 Europe/Berlin', session_id="r3b")
+        move = _run('move the "Existing" event to 2026-09-23 11:00 Europe/Athens', session_id="r3b")
         assert move.status == "storage_unavailable", move.response_text
 
         check = _run("Check Tuesday afternoon for a free 30-minute slot", session_id="r3c")
@@ -158,7 +158,7 @@ def test_corrupt_store_blocks_create_and_move_and_availability(home, monkeypatch
         Clock(T0, monkeypatch)
         from core import local_operator_actions
 
-        monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+        monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
         healthy = _run("Check Tuesday afternoon for a free 30-minute slot", session_id="r3d")
         assert healthy.ok, healthy.response_text  # the healthy store reads again
 
@@ -188,7 +188,7 @@ def test_move_refuses_during_real_second_source_outage_then_succeeds_on_return(h
         _choose("caldav", base_o, OTHER_CAL, "Other account")
         state_w.seed_event(WORK_CAL, "mv@f", summary="Board prep", start=T0 + timedelta(days=1), minutes=30)
         session = "r2"
-        proposal = _run('move the "Board prep" event to 2026-09-23 11:00 Europe/Berlin', session_id=session)
+        proposal = _run('move the "Board prep" event to 2026-09-23 11:00 Europe/Athens', session_id=session)
         assert proposal.status == "approval_required", proposal.response_text
         before = state_w.snapshot()
 
@@ -208,7 +208,7 @@ def test_move_refuses_during_real_second_source_outage_then_succeeds_on_return(h
             assert "T11" not in after["mv@f"]["start_utc"] or "2026-09-23" in after["mv@f"]["start_utc"], after
 
             state_r.seed_event(OTHER_CAL, "clash@f", summary="Quarterly", start=T0 + timedelta(days=2, hours=2), minutes=60)
-            blocked = _run('move the "Board prep" event to 2026-09-23 12:00 Europe/Berlin', session_id=session + "b")
+            blocked = _run('move the "Board prep" event to 2026-09-23 12:00 Europe/Athens', session_id=session + "b")
             assert blocked.status == "approval_required", blocked.response_text
             blocked_ok = _run(f"approve calendar {blocked.details['action_id']}", session_id=session + "b")
             assert not blocked_ok.ok and blocked_ok.status == "conflict" and "Quarterly" in blocked_ok.response_text, blocked_ok.response_text
@@ -231,7 +231,7 @@ def test_caldav_move_preserves_description_over_real_put_readback(home, monkeypa
     try:
         _choose("caldav", base, WORK_CAL, "Work", default_write=True)
         session = "r4"
-        created = _run('propose "Deep work" on 2026-09-22 12:00 Europe/Berlin for 60m', session_id=session)
+        created = _run('propose "Deep work" on 2026-09-22 12:00 Europe/Athens for 60m', session_id=session)
         assert created.status == "approval_required", created.response_text
         approved = _run(f"approve calendar {created.details['action_id']}", session_id=session)
         assert approved.ok, approved.response_text
@@ -241,14 +241,14 @@ def test_caldav_move_preserves_description_over_real_put_readback(home, monkeypa
                                   "DESCRIPTION:Keep my agenda" + CRLF + "X-CUSTOM-FLAG:keep-me" + CRLF + "END:VEVENT")
         state.put_event(WORK_CAL, uid, enriched)
 
-        move = _run('move the "Deep work" event to 2026-09-22 15:00 Europe/Berlin', session_id=session + "b")
+        move = _run('move the "Deep work" event to 2026-09-22 15:00 Europe/Athens', session_id=session + "b")
         assert move.status == "approval_required", move.response_text
         moved = _run(f"approve calendar {move.details['action_id']}", session_id=session + "b")
         assert moved.ok, moved.response_text
         after = state.snapshot()[WORK_CAL.rstrip("/") + "/"][uid]["ics"]
         assert "DESCRIPTION:Keep my agenda" in after, after
         assert "X-CUSTOM-FLAG:keep-me" in after, "unknown extensions survive the PUT"
-        assert "DTSTART;TZID=Europe/Berlin:20260922T150000" in after, after
+        assert "DTSTART;TZID=Europe/Athens:20260922T150000" in after, after
         assert "120000" not in after, after
     finally:
         server.shutdown(); server.server_close()

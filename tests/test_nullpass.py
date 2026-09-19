@@ -16,8 +16,8 @@ from unittest import mock
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from core.vool_wallet import b58encode
 from core.nullpass import NULLPASS_VERSION, _canonical, build_nullpass, verify_nullpass
+from core.vool_wallet import b58encode
 from core.web0_work_receipt import issue_work_receipt
 
 

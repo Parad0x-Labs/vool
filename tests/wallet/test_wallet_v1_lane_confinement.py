@@ -41,8 +41,8 @@ class _Sink:
                 self.end_headers()
                 self.wfile.write(body)
 
-            do_GET = _handle
-            do_POST = _handle
+            do_GET = _handle  # noqa: N815 — http.server dispatches by this exact name
+            do_POST = _handle  # noqa: N815
 
         self._lock = threading.Lock()
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

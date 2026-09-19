@@ -40,7 +40,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from tests._blackbox_served_rig import pending_session_approvals
-from tests.test_code_task_served_boundary import (  # noqa: F401  (served_factory is a fixture)
+from tests.test_code_task_served_boundary import (
     _boot,
     _journal,
     _reply_text,
@@ -547,7 +547,7 @@ PRICING_FIXED = "exports.total = (subtotal, tax) => subtotal + tax;\n"
 LABELS_FIXED = "exports.slug = (words) => words.join('-');\n"
 
 
-def test_served_two_known_independent_repairs_are_validated_between_units(served_factory) -> None:  # noqa: F811
+def test_served_two_known_independent_repairs_are_validated_between_units(served_factory) -> None:
     model = ObservedRepairModel(
         repro="node suite.js", owner="pricing.js", reads=["pricing.js", "labels.js"],
         repairs=[
@@ -629,7 +629,7 @@ def test_served_coupled_fixture_breaks_when_either_half_lands_alone(tmp_path) ->
     assert results == {"rename-only": 1, "caller-only": 1, "both": 0}, results
 
 
-def test_served_dependency_coupled_unit_lands_whole_then_validates(served_factory) -> None:  # noqa: F811
+def test_served_dependency_coupled_unit_lands_whole_then_validates(served_factory) -> None:
     model = ObservedRepairModel(
         repro="node check.js", owner="units.js", reads=["units.js", "shipping.js"],
         repairs=[
@@ -683,7 +683,7 @@ TEMPERATURE_WRONG = "exports.toFahrenheit = (c) => c * 5 / 9 + 32;\n"
 TEMPERATURE_FIXED = "exports.toFahrenheit = (c) => c * 9 / 5 + 32;\n"
 
 
-def test_served_wrong_first_repair_is_revised_and_verified_narrow_and_full(served_factory) -> None:  # noqa: F811
+def test_served_wrong_first_repair_is_revised_and_verified_narrow_and_full(served_factory) -> None:
     model = ObservedRepairModel(
         repro="node check_all.js", owner="temperature.js", reads=["temperature.js"],
         repairs=[{"pid": "first-attempt", "path": "temperature.js", "content": TEMPERATURE_WRONG,
@@ -757,7 +757,7 @@ def _assert_owners_came_from_evidence(model: ObservedRepairModel, owner_decision
     assert _search_queries(store_dir) == queries, _search_queries(store_dir)
 
 
-def test_served_second_defect_found_by_the_full_check_is_repaired_and_verified(served_factory) -> None:  # noqa: F811
+def test_served_second_defect_found_by_the_full_check_is_repaired_and_verified(served_factory) -> None:
     model = ObservedRepairModel(
         repro="node check_inventory.js", owner=None, reads=[], repairs=[],
         repairs_by_path={
@@ -812,7 +812,7 @@ LEDGER_RESTOCK_FIXED = "exports.restock = (onHand, delivered) => onHand + delive
 LEDGER_CENTS_FIXED = "exports.toCents = (dollars) => dollars * 100;\n"
 
 
-def test_served_second_defect_in_a_nested_layout_is_found_from_the_failure_evidence(served_factory) -> None:  # noqa: F811
+def test_served_second_defect_in_a_nested_layout_is_found_from_the_failure_evidence(served_factory) -> None:
     """Failure messages that name only a symbol, owners two directories down, a decoy module and a prose mention:
     the owners are reachable only by reading each failure and searching the call it names."""
     model = ObservedRepairModel(
@@ -865,7 +865,7 @@ EDITOR_LINE = "// pricing team: rounding rules live in rounding.js\n"
 DISCOUNT_FIXED = "exports.applyDiscount = (price, percent) => price - price * percent / 100;\n"
 
 
-def test_served_stale_concurrent_edit_is_refused_and_the_rebased_repair_keeps_it(served_factory) -> None:  # noqa: F811
+def test_served_stale_concurrent_edit_is_refused_and_the_rebased_repair_keeps_it(served_factory) -> None:
     model = ObservedRepairModel(
         repro="node check_discount.js", owner="discount.js", reads=["discount.js"],
         repairs=[{"pid": "discount", "path": "discount.js", "content": DISCOUNT_FIXED,

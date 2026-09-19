@@ -13,14 +13,13 @@ actor from the VERIFIED session — role claims in the body are never read.
 
 from __future__ import annotations
 
-import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from core.school import service, store
 from core.school.session import (
     SchoolSession,
     issue_session_token,
-    parse_session_token,
     session_from_headers,
 )
 

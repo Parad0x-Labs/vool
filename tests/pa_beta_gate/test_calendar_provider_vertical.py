@@ -35,7 +35,7 @@ LONDON_CAL = "/calendars/london/"
 
 @pytest.fixture
 def vilnius_env(tmp_path, monkeypatch):
-    """Original fixture: Europe/Berlin user, one occupied Tuesday-afternoon slot."""
+    """Original fixture: Europe/Athens user, one occupied Tuesday-afternoon slot."""
     home = tmp_path / "home"
     workspace = tmp_path / "workspace"
     monkeypatch.setenv("VOOL_HOME", str(home))
@@ -48,7 +48,7 @@ def vilnius_env(tmp_path, monkeypatch):
     run_migrations()
     from core.user_preferences import save_user_timezone
 
-    assert save_user_timezone("Europe/Berlin")
+    assert save_user_timezone("Europe/Athens")
 
     server, state, base_url, port = start_caldav_fixture(
         calendars={VILNIUS_CAL: "Vilnius", LONDON_CAL: "London"},
@@ -65,7 +65,7 @@ def vilnius_env(tmp_path, monkeypatch):
     fixed = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: fixed.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: fixed.astimezone(ZoneInfo("Europe/Athens")))
     yield {"server": server, "state": state, "base_url": base_url, "port": port,
            "workspace": workspace, "home": home}
     server.shutdown()
@@ -86,7 +86,7 @@ def _provider_events(state, calendar_href=VILNIUS_CAL):
 
 
 # ---------------------------------------------------------------------------
-# ORIGINAL FIXTURE — Europe/Berlin, occupied Tuesday slot, 30-minute request
+# ORIGINAL FIXTURE — Europe/Athens, occupied Tuesday slot, 30-minute request
 # ---------------------------------------------------------------------------
 
 
@@ -111,7 +111,7 @@ def test_original_fixture_full_flow(vilnius_env):
     # composed request: part 1 is the availability check with its own details.
     assert check.details["parts"][0]["kind"] == "check_availability" and check.details["parts"][0]["ok"], check.details["parts"]
     assert check.details["parts"][1]["kind"] == "save_note" and check.details["parts"][1]["ok"], check.details["parts"]
-    assert check.details["parts"][0]["details"]["zone"] == "Europe/Berlin"
+    assert check.details["parts"][0]["details"]["zone"] == "Europe/Athens"
     options = check.details["parts"][0]["details"]["options"]
     assert options, "the occupied slot alone must not empty the whole afternoon"
     for option in options:
@@ -149,7 +149,7 @@ def test_original_fixture_full_flow(vilnius_env):
     assert note_path.is_relative_to(vilnius_env["workspace"] / "notes")
 
     # 5) MOVE the created event (provider path via the move-event wording), then verify.
-    _intent, move = _run('move the "Project review" event to Friday at 11:00 Europe/Berlin', session_id=session)
+    _intent, move = _run('move the "Project review" event to Friday at 11:00 Europe/Athens', session_id=session)
     assert move.status == "approval_required", move.response_text
     move_action = move.details["action_id"]
     _intent, move_ok = _run(f"approve calendar {move_action}", session_id=session)
@@ -173,12 +173,12 @@ def test_original_fixture_dst_and_ambiguity_guards(vilnius_env):
     session = "orig-dst-guards"
 
     # Nonexistent DST time (2027-03-28 03:30 Vilnius does not exist: clocks jump 03:00->04:00).
-    _intent, gap = _run('propose "Gap test" on 2027-03-28 03:30 Europe/Berlin for 30m', session_id=session)
+    _intent, gap = _run('propose "Gap test" on 2027-03-28 03:30 Europe/Athens for 30m', session_id=session)
     assert not gap.ok
     assert "does not exist" in gap.response_text
 
     # Folded/repeated time (2026-10-25 03:30 Vilnius occurs twice).
-    _intent, fold = _run('propose "Fold test" on 2026-10-25 03:30 Europe/Berlin for 30m', session_id=session)
+    _intent, fold = _run('propose "Fold test" on 2026-10-25 03:30 Europe/Athens for 30m', session_id=session)
     assert not fold.ok
     assert "twice" in fold.response_text
 
@@ -188,7 +188,7 @@ def test_original_fixture_dst_and_ambiguity_guards(vilnius_env):
     assert "time" in untimed.response_text.lower()
 
     # Short explicit durations are honored exactly (no undocumented minimum).
-    _intent, short = _run('propose "Fifteen" on 2026-09-15 16:00 Europe/Berlin for 15m', session_id=session)
+    _intent, short = _run('propose "Fifteen" on 2026-09-15 16:00 Europe/Athens for 15m', session_id=session)
     assert short.status == "approval_required"
     start = datetime.fromisoformat(short.details["start_utc"])
     end = datetime.fromisoformat(short.details["end_utc"])
@@ -324,7 +324,7 @@ def test_novel_fixture_full_flow(vilnius_env, monkeypatch):
 def test_conflict_introduced_between_preview_and_execution(vilnius_env):
     session = "conflict-preview-exec"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "Clash" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Clash" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     assert proposal.status == "approval_required"
     action_id = proposal.details["action_id"]
     # The provider's world changes between preview and approval.
@@ -340,7 +340,7 @@ def test_conflict_introduced_between_preview_and_execution(vilnius_env):
 def test_duplicate_approval_never_creates_twice(vilnius_env):
     session = "duplicate-approval"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "Once only" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Once only" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     action_id = proposal.details["action_id"]
     _intent, first = _run(f"approve calendar {action_id}", session_id=session)
     assert first.ok
@@ -356,7 +356,7 @@ def test_duplicate_approval_never_creates_twice(vilnius_env):
 def test_stale_etag_update_is_refused_not_overwritten(vilnius_env):
     session = "stale-etag"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "Versioned" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Versioned" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     _intent, created = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
     assert created.ok
     uid = created.details["uid"]
@@ -376,7 +376,7 @@ def test_stale_etag_update_is_refused_not_overwritten(vilnius_env):
             end_utc=current.end_utc, tz_name=current.tz_name))
 
     # The staged update still holds the etag the USER last saw -> typed stale refusal.
-    _intent, move = _run('move the "Versioned" event to Friday at 10:00 Europe/Berlin', session_id=session)
+    _intent, move = _run('move the "Versioned" event to Friday at 10:00 Europe/Athens', session_id=session)
     assert move.status == "approval_required"
     _intent, refused = _run(f"approve calendar {move.details['action_id']}", session_id=session)
     assert not refused.ok
@@ -388,7 +388,7 @@ def test_stale_etag_update_is_refused_not_overwritten(vilnius_env):
 def test_unknown_cancellation_never_claims_success(vilnius_env):
     session = "unknown-cancel"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "Ghost" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Ghost" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     _intent, created = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
     uid = created.details["uid"]
 
@@ -427,7 +427,7 @@ def test_timeout_after_provider_acceptance_is_unknown_not_failed(vilnius_env, mo
     session = "timeout-after-accept"
     state = vilnius_env["state"]
     monkeypatch.setenv("VOOL_CALENDAR_TIMEOUT", "1")
-    _intent, proposal = _run('propose "Maybe landed" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Maybe landed" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session)
     assert proposal.status == "approval_required"
     action_id = proposal.details["action_id"]
     # The fixture APPLIES the write and then never answers (past the client timeout).
@@ -506,7 +506,7 @@ def test_foreign_session_needs_approval_and_exact_identity(vilnius_env):
     an unknown target is refused outright."""
     session_a, session_b = "owner-a", "owner-b"
     state = vilnius_env["state"]
-    _intent, proposal = _run('propose "A only" on 2026-09-15 16:00 Europe/Berlin for 30m', session_id=session_a)
+    _intent, proposal = _run('propose "A only" on 2026-09-15 16:00 Europe/Athens for 30m', session_id=session_a)
     _intent, created = _run(f"approve calendar {proposal.details['action_id']}", session_id=session_a)
     assert created.ok
     uid = created.details["uid"]
@@ -546,7 +546,7 @@ def test_caldav_adapter_protocol_round_trip(vilnius_env):
         created = adapter.create_event(VILNIUS_CAL, CalEvent(
             provider_id="caldav", uid="", calendar_id=VILNIUS_CAL, summary="Adapter test",
             start_utc="2026-09-16T10:00:00+00:00", end_utc="2026-09-16T10:45:00+00:00",
-            tz_name="Europe/Berlin", description="line one\nline two, with comma"))
+            tz_name="Europe/Athens", description="line one\nline two, with comma"))
         assert created.uid
         assert created.etag
         fetched = adapter.get_event(VILNIUS_CAL, created.uid)
@@ -559,7 +559,7 @@ def test_caldav_adapter_protocol_round_trip(vilnius_env):
         updated = adapter.update_event(VILNIUS_CAL, CalEvent(
             provider_id="caldav", uid=created.uid, calendar_id=VILNIUS_CAL, etag=fetched.etag,
             summary="Adapter test v2", start_utc="2026-09-16T11:00:00+00:00",
-            end_utc="2026-09-16T11:45:00+00:00", tz_name="Europe/Berlin"))
+            end_utc="2026-09-16T11:45:00+00:00", tz_name="Europe/Athens"))
         assert updated.etag != fetched.etag, "the provider versions every change"
 
         with pytest.raises(CalendarRefusedError) as stale:

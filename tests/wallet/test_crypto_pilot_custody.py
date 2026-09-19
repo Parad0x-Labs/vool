@@ -111,7 +111,7 @@ def test_the_reserve_row_exists_before_material_and_a_lost_response_never_makes_
     key = "create-lost-response"
     original = pilot_custody._generate_material
     monkeypatch.setattr(pilot_custody, "_generate_material", failing_generation)
-    with pytest.raises(Exception):  # noqa: B017 - the injected crash
+    with pytest.raises(Exception):
         _create(key=key)
     assert len(seen_rows_at_generation) == 1 and [r["setup_state"] for r in seen_rows_at_generation[0]] == ["generating"]
     reserved = _rows()

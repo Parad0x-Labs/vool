@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 
 from tests.test_native_skill_library import (
-    _iso_home,
     _fixture_library,
+    _iso_home,
     make_native_skill,
 )
 
@@ -171,7 +171,7 @@ def test_sabotage_narrowing_intersection_removed_seats_unavailable_tools(
         seated = {str(s.get("intent") or "") for s in specs}
         for name in allowed:
             if name not in seated:
-                specs = list(specs) + [{"intent": name, "description": "sabotage-seated"}]
+                specs = [*list(specs), {"intent": name, "description": "sabotage-seated"}]
         return specs
 
     monkeypatch.setattr(tool_offer_assembly, "_narrow", widening)
@@ -368,8 +368,8 @@ def test_machine_read_capability_resolves_from_runtime_evidence() -> None:
     `filesystem.read` capability — implemented, not refused."""
     from core.capability_graph import (
         capabilities_for_skill,
-        implementations_for_capability,
         ensure_registry_bootstrap,
+        implementations_for_capability,
     )
     from core.runtime_tool_contracts import runtime_tool_contract_map
 

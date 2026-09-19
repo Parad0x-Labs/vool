@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_code_task_served_boundary import _boot, served_factory  # noqa: F401  (served_factory is a fixture)
+from tests.test_code_task_served_boundary import _boot, served_factory
 from tests.test_code_task_served_units import (
     TEMPERATURE_FIXED,
     TEMPERATURE_WRONG,
@@ -30,7 +30,7 @@ from tests.test_code_task_served_units import (
 pytestmark = [pytest.mark.served]
 
 
-def test_served_revision_under_a_reused_proposal_id_is_refused_and_lands_under_a_new_id(served_factory) -> None:  # noqa: F811
+def test_served_revision_under_a_reused_proposal_id_is_refused_and_lands_under_a_new_id(served_factory) -> None:
     model = ObservedRepairModel(
         repro="node check_all.js", owner="temperature.js", reads=["temperature.js"],
         repairs=[{"pid": "conversion", "path": "temperature.js", "content": TEMPERATURE_WRONG,

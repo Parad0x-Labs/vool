@@ -19,12 +19,12 @@ operator explicitly verifies against the one pinned endpoint).
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
 import threading
 import time
-import uuid
 from typing import Any
 
 from core.runtime_paths import active_data_dir
@@ -115,10 +115,8 @@ def load(*, reseed_on_corrupt: bool = True) -> dict[str, Any]:
         if _path().exists():
             # Unreadable or non-JSON: quarantine and reseed (S-3.1 discipline).
             stamp = time.strftime("%Y%m%d-%H%M%S")
-            try:
+            with contextlib.suppress(OSError):
                 _path().rename(_path().with_name(f"{FILENAME}.corrupt-{stamp}"))
-            except OSError:
-                pass
             return _fresh(state=STATE_ABSENT)
         return _fresh(state=STATE_ABSENT)
     version = data.get("version")
@@ -126,10 +124,8 @@ def load(*, reseed_on_corrupt: bool = True) -> dict[str, Any]:
     if version != SCHEMA_VERSION or state not in (TERMINAL_STATES | NON_TERMINAL_STATES):
         if reseed_on_corrupt:
             stamp = time.strftime("%Y%m%d-%H%M%S")
-            try:
+            with contextlib.suppress(OSError):
                 _path().rename(_path().with_name(f"{FILENAME}.corrupt-{stamp}"))
-            except OSError:
-                pass
             return _fresh(state=STATE_ABSENT)
         raise FirstRunError("state_unreadable", "first-run provider state has an unknown schema")
     return data
@@ -166,10 +162,8 @@ def _atomic_write(data: dict[str, Any]) -> None:
         except OSError:
             pass
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 

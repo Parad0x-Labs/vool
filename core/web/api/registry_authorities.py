@@ -259,13 +259,13 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
 
     from core.cloud_providers import PROVIDERS, all_slots, provider_for_slot, slot_for
     from core.credential_store import delete_credential, has_credential, store_credential
-    from core.web.api.runtime import host_header_allowed
 
     # VOOL School credential boundary (goal §12): the provider API key is a
     # SCHOOL_ADMIN action. Teachers and students — even on this loopback
     # machine — get a typed 403; the stored value is never shown to anyone
     # after save (the key form's own law), and students never see the form.
     from core.product_edition import is_school
+    from core.web.api.runtime import host_header_allowed
 
     if is_school():
         from core.school.session import session_from_headers

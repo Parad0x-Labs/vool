@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from core.llm_eval.metrics import score_context_scenario, score_research_response
-from tests.gauntlet._live import (  # noqa: F401  (re-exported for the live test file)
+from tests.gauntlet._live import (
     LIVE_GATE,
     build_live_agent,
     live_enabled,

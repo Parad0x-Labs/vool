@@ -24,8 +24,8 @@ import pytest
 
 from core.fact_extractor import stable_text_embedding
 from core.human_input_adapter import adapt_user_input
-from core.vool_memory import VoolMemory
 from core.persistent_memory import append_conversation_event
+from core.vool_memory import VoolMemory
 from storage.dialogue_memory import get_dialogue_session, recent_archived_dialogue_topics
 
 pytestmark = [pytest.mark.gauntlet]

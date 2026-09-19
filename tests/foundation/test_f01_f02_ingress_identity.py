@@ -20,7 +20,6 @@ import pytest
 
 import storage.db as sdb
 
-
 USER_TEXT = "reply with exactly: INGRESS-CANARY and nothing else"
 
 

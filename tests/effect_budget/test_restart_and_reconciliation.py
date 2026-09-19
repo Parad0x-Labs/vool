@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from core import effect_budget as eb
-from tests.effect_budget.conftest import *  # noqa: F401,F403 — fixtures
+from tests.effect_budget.conftest import *  # noqa: F403 — fixtures
 
 
 def test_consumed_units_survive_a_restart(set_budget):

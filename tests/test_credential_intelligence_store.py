@@ -1,4 +1,4 @@
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
+
 """P0 credential intelligence — the credential store: persistence, opaque bindings, explicit
 lifecycle (replace/delete/revoke/reconcile), timeout reconciliation, malformed storage, restart.
 
@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from tests._credential_intelligence_support import (  # noqa: F401 (fixtures resolve via module namespace)
+from tests._credential_intelligence_support import (
     ODD_KEY,
     descriptor_for,
     isolated_home,

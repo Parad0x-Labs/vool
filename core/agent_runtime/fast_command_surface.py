@@ -796,9 +796,7 @@ def _bare_family_used_as_name(words: list[str], index: int) -> bool:
     prev = words[index - 1] if index > 0 else ""
     if any(_content_word(word) for word in words[index + 1 :]):
         return False
-    if prev in _COMMON_NOUN_DETERMINERS and nxt not in _MODEL_HEAD_NOUNS:
-        return False
-    return True
+    return not (prev in _COMMON_NOUN_DETERMINERS and nxt not in _MODEL_HEAD_NOUNS)
 
 
 def _model_name_tokens(text: str) -> list[str]:

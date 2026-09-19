@@ -8,7 +8,7 @@ Usage::
     from core.time_authority import CLOCK
 
     now_utc = CLOCK.now_utc()
-    now_local = CLOCK.now_for_timezone("Europe/Berlin")
+    now_local = CLOCK.now_for_timezone("Europe/Athens")
     elapsed = CLOCK.monotonic_now()
 
 Law:

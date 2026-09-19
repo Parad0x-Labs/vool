@@ -17,7 +17,7 @@ Query semantics -- RFC 4791 sections 9.9 and 9.6.5:
 
 * a resource matches a time range when ANY of its instances overlaps it, and an exception is judged at its OWN times,
   never at the slot it replaced;
-* recurrence is generated in the master's own zone (TZID), so a weekly 12:00 Europe/Berlin series stays at 12:00 local
+* recurrence is generated in the master's own zone (TZID), so a weekly 12:00 Europe/Athens series stays at 12:00 local
   across a DST change; an EXDATE removes exactly the instance it names;
 * an expanded reply holds one DAV:response per matching resource, whose calendar data carries one VEVENT per instance
   overlapping the range, each with RECURRENCE-ID and UTC times and without recurrence properties or VTIMEZONE.
@@ -281,12 +281,10 @@ def _rule_starts(master: _Component, horizon: datetime) -> list[datetime]:
                     continue  # a month without that day has no instance
 
     starts: list[datetime] = []
-    generated = 0
-    for local in candidates():
+    for generated, local in enumerate(candidates(), start=1):
         instant = local.replace(tzinfo=zone).astimezone(timezone.utc)
         if (until is not None and instant > until) or instant >= horizon:
             break
-        generated += 1
         if instant not in excluded:
             starts.append(instant)
         if count and generated >= count:
@@ -295,7 +293,7 @@ def _rule_starts(master: _Component, horizon: datetime) -> list[datetime]:
 
 
 class _Instance:
-    __slots__ = ("component", "start", "end", "is_date", "rid")
+    __slots__ = ("component", "end", "is_date", "rid", "start")
 
     def __init__(self, component: _Component, start: datetime, end: datetime, is_date: bool, rid: datetime | None) -> None:
         self.component, self.start, self.end, self.is_date, self.rid = component, start, end, is_date, rid
@@ -495,7 +493,8 @@ class CalDavState:
             safe_description = description.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
             lines.append(f"DESCRIPTION:{safe_description}")
         if location:
-            lines.append(f"LOCATION:{location.replace(';', '\\;').replace(',', '\\,')}")
+            safe_location = location.replace(";", "\\;").replace(",", "\\,")
+            lines.append(f"LOCATION:{safe_location}")
         if url:
             lines.append(f"CONFERENCE;VALUE=URI:{url}")
         lines.extend(["END:VEVENT", "END:VCALENDAR"])
@@ -567,7 +566,7 @@ class _Handler(BaseHTTPRequestHandler):
         body = (
             f'<?xml version="1.0" encoding="utf-8"?><D:error xmlns:D="{_DAV}" xmlns:C="{_CALDAV}">'
             f"<C:{element}>{inner}</C:{element}><D:responsedescription>{escape(text)}</D:responsedescription></D:error>"
-        ).encode("utf-8")
+        ).encode()
         return self._reply(403, body, content_type="application/xml")
 
     # -- CalDAV -------------------------------------------------------------------

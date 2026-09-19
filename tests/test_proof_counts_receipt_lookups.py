@@ -59,7 +59,7 @@ def test_a_failed_receipt_is_a_failed_lookup() -> None:
 
 def test_a_receipt_naming_a_held_node_is_the_same_lookup() -> None:
     node_id = "livedata-1:market:silver"
-    events = _node(node_id, "finance.yahoo.com") + [_receipt("finance.yahoo.com", "available", subtask_id=node_id)]
+    events = [*_node(node_id, "finance.yahoo.com"), _receipt("finance.yahoo.com", "available", subtask_id=node_id)]
     projection = _projection_of_events(events)
     assert projection["coverage"]["observations"]["total"] == 1
     assert projection["coverage"]["label"] == "1/1 lookup"
@@ -67,7 +67,7 @@ def test_a_receipt_naming_a_held_node_is_the_same_lookup() -> None:
 
 
 def test_a_fast_path_receipt_beside_a_node_makes_two_lookups() -> None:
-    events = _node("livedata-1:market:silver", "finance.yahoo.com") + [_receipt("finance.yahoo.com", "available")]
+    events = [*_node("livedata-1:market:silver", "finance.yahoo.com"), _receipt("finance.yahoo.com", "available")]
     projection = _projection_of_events(events)
     assert projection["coverage"]["observations"]["total"] == 2
     assert projection["coverage"]["label"] == "2/2 lookups"

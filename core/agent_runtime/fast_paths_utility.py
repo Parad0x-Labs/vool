@@ -20,9 +20,9 @@ from core.time_authority import CLOCK
 from core.user_preferences import load_preferences, user_address
 
 _UTILITY_TIMEZONE_ALIASES = {
-    "vilnius": ("Europe/Berlin", "Vilnius"),
-    "lithuania": ("Europe/Berlin", "Vilnius"),
-    "europe/vilnius": ("Europe/Berlin", "Vilnius"),
+    "vilnius": ("Europe/Athens", "Vilnius"),
+    "lithuania": ("Europe/Athens", "Vilnius"),
+    "europe/vilnius": ("Europe/Athens", "Vilnius"),
 }
 _CONTEXTUAL_TIME_FOLLOWUP_PATTERNS = (
     re.compile(r"\b(?:and\s+)?(?:now\s+)?there\b"),
@@ -3094,7 +3094,7 @@ def contextual_time_followup_timezone(
     # markers, not place markers: after a turn about Tokyo, "what time is it now" -- which plainly
     # means HERE -- inherited Tokyo.
     #
-    # That was latent for as long as the only resolvable zone was Europe/Berlin, because it equals
+    # That was latent for as long as the only resolvable zone was Europe/Athens, because it equals
     # this machine's zone and the wrong branch printed the same string as the right one. The moment
     # foreign cities resolve it becomes a live wrong-answer generator, so it is removed as part of
     # the same change that made foreign cities resolve.

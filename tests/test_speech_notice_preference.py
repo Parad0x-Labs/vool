@@ -1,6 +1,7 @@
 """The native notice dismissal survives a new preference read through the real doors."""
-from core.web.api.service import dispatch_get, dispatch_post
 from core.web.api.runtime import RuntimeServices
+from core.web.api.service import dispatch_get, dispatch_post
+
 
 def test_dismissal_is_persisted_and_read_back_without_changing_other_preferences():
     from core.user_preferences import load_preferences, save_preferences
@@ -21,9 +22,11 @@ def test_browser_dismissal_survives_a_fresh_private_context():
     """Real page + real preference doors; dictation availability and other APIs are fixtures."""
     import json
     from urllib.parse import urlsplit
-    from playwright.sync_api import sync_playwright, expect
-    from core.vool_chat_page import render_vool_chat_html
+
+    from playwright.sync_api import expect, sync_playwright
+
     from core.user_preferences import load_preferences
+    from core.vool_chat_page import render_vool_chat_html
 
     html = render_vool_chat_html()
     runtime = RuntimeServices(display_name="VOOL")

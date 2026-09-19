@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 
-class WalletFault(Exception):  # noqa: N818 - named for the fault plane's vocabulary (a typed fault), like FaultError's record
+class WalletFault(Exception):
     def __init__(self, code: str, *, context: dict[str, Any] | None = None, fault_id: str = "", message: str = "") -> None:
         self.code = str(code)
         self.context: dict[str, Any] = dict(context or {})

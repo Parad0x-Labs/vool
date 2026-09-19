@@ -14,7 +14,7 @@ from __future__ import annotations
 import base64
 import json
 
-from tests.test_chat_export_copy_ui import HTML, SHIM, _page_script, _run_node, _slice, requires_node  # noqa: F401
+from tests.test_chat_export_copy_ui import HTML, SHIM, _page_script, _run_node, _slice, requires_node
 
 _TABLE_MARKDOWN = (
     "Comparison of the three plans:\n\n"

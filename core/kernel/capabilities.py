@@ -74,7 +74,7 @@ def _receipt(fork_id: str, tool: str, required: str, decision: str, reason: str)
     }
 
 
-class CapabilityDenied(RuntimeError):  # noqa: N818 - kernel contract name (core/kernel/__init__.py)
+class CapabilityDenied(RuntimeError):
     """A capability check refused — carries the receipt row so the denial is auditable.
 
     The receipt travels ON the exception: the caller that catches it can persist the row

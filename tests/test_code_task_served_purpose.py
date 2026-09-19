@@ -125,9 +125,9 @@ def _boot_rig(tmp_path: Path, index: str, workspace_files: dict[str, str]):
     seed_root = Path.home() / "Library/Python/3.9/lib/python/site-packages"
     if not (seed_root / "_pytest").is_dir():
         import _pytest
-        import pluggy  # noqa: F401 -- presence check: the deps must exist to seed
+        import pluggy
         import py  # a single-module dependency (py.py), not a package
-        import pygments  # noqa: F401
+        import pygments
         for module in (pytest, _pytest, pluggy, iniconfig, packaging, pygments):
             src = Path(module.__file__).parent
             shutil.copytree(src, workspace / src.name, dirs_exist_ok=True,
@@ -198,7 +198,7 @@ def _seed_pytest_dir(rig: dict[str, Any], relative: str) -> None:
         _shutil.copyfile(seed_root / "py.py", target / "py.py")
         _shutil.copyfile(seed_root / "typing_extensions.py", target / "typing_extensions.py")
     else:
-        import _pytest as __pytest_impl  # noqa: F401 -- the fallback set is the running interpreter's
+        import _pytest as __pytest_impl
         import iniconfig as __iniconfig
         import packaging as __packaging
         import pluggy as __pluggy

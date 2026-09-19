@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
-from typing import Any
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from threading import Lock, Thread
+from typing import Any
 from urllib.request import Request, urlopen
 
 import pytest
@@ -224,7 +224,7 @@ class _TaskBoardProvider:
     def base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
 
-    def __enter__(self) -> "_TaskBoardProvider":
+    def __enter__(self) -> _TaskBoardProvider:
         Thread(target=self._server.serve_forever, daemon=True).start()
         return self
 

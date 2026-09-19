@@ -78,7 +78,7 @@ def _post(url: str, payload: dict, timeout: float) -> dict:
     req = urllib.request.Request(
         url, data=data, headers={"Content-Type": "application/json"}, method="POST"
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - localhost only
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
 
 

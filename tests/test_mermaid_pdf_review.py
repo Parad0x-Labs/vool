@@ -1,5 +1,6 @@
-from io import BytesIO
+import itertools
 import re
+from io import BytesIO
 
 import pytest
 from pypdf import PdfReader
@@ -70,7 +71,7 @@ def test_return_edge_avoids_intervening_node_interiors():
     obstacles = [(0, 0, 80, 30), (100, 0, 180, 30), (200, 0, 280, 30), (0, 80, 80, 110)]
     route = _return_route((80, 15), (80, 95), obstacles)
     assert route[0] == (80, 15) and route[-1] == (80, 95)
-    for (ax, ay), (bx, by) in zip(route, route[1:]):
+    for (ax, ay), (bx, by) in itertools.pairwise(route):
         assert ax == bx or ay == by
         for x0, y0, x1, y1 in obstacles:
             if ax == bx:

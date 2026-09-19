@@ -14,6 +14,7 @@ when that module is absent. Access is requested only inside an owner-started imp
 """
 from __future__ import annotations
 
+import contextlib
 import threading
 from typing import Any
 
@@ -115,10 +116,8 @@ class AppleContactsAdapter:
 
         def visit(contact: Any, stop: Any) -> None:
             if len(people) >= limit:
-                try:
+                with contextlib.suppress(Exception):
                     stop[0] = True
-                except Exception:
-                    pass
                 return
             entries: list[ImportedEntry] = []
             for labeled in contact.emailAddresses() or []:

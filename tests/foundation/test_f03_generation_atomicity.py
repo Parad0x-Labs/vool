@@ -80,7 +80,7 @@ def test_concurrent_retry_mints_receive_distinct_generations(fresh_store):
                 trigger_user_turn_id=f"t-f03-{i}",
                 execution_generation=1,  # caller arithmetic must be ignored
             )
-        except BaseException as exc:  # noqa: BLE001 - recorded, asserted below
+        except BaseException as exc:
             errors.append(exc)
 
     threads = [threading.Thread(target=_mint, args=(i,)) for i in range(threads_n)]

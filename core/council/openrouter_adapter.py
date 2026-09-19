@@ -108,7 +108,7 @@ class OpenRouterSeat:
                 object.__setattr__(capsule, "_retried_429", True)
                 return self.respond(capsule)
             detail = ""
-            with contextlib_suppress():
+            with _ContextlibSuppress():
                 detail = exc.read().decode()[:300]
             raise LiveSeatError(
                 f"{self.model} HTTP {exc.code}: {detail}"
@@ -160,7 +160,7 @@ def _load_key() -> str:
     return key
 
 
-class contextlib_suppress:
+class _ContextlibSuppress:
     def __enter__(self):
         return self
 

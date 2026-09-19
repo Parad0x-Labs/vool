@@ -6,7 +6,7 @@ import json
 import pytest
 
 from core import first_run_pact
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def _fresh_seed_with(signal: str, pact_rig):

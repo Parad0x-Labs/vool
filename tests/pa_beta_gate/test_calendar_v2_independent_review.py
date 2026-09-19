@@ -3,19 +3,19 @@
 HTTP doubles enforce documented wire rules rather than echoing the candidate's assumptions.
 The EventKit objects expose methods as PyObjC does; they are NOT native runtime proof.
 """
+import json
+import re
 from dataclasses import replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
-import json
-import re
 
 import pytest
 
-from core.kas.contract import AdapterConfig, CalCalendar, CalEvent, CalendarRefusedError, KasResponse
+from core.kas.adapters._json_calendars import cal_to_json, json_event_to_cal
 from core.kas.adapters.google_calendar import GoogleCalendarAdapter
 from core.kas.adapters.graph_calendar import GraphCalendarAdapter
-from core.kas.adapters._json_calendars import cal_to_json, json_event_to_cal
-from core.operator.calendar_provider import CalendarProviderConfig, propose_event, execute_proposed_event
+from core.kas.contract import AdapterConfig, CalCalendar, CalendarRefusedError, CalEvent, KasResponse
+from core.operator.calendar_provider import CalendarProviderConfig, execute_proposed_event, propose_event
 from core.operator.models import OperatorActionIntent
 
 

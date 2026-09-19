@@ -31,7 +31,6 @@ from types import SimpleNamespace
 from unittest import mock
 
 from adapters.base_adapter import ModelRequest, ModelResponse
-
 from tests.test_response_constraint_router import _certified_manifest
 
 RETRY_MARKER = "using only the values already in your answer"

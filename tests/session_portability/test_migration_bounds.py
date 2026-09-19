@@ -69,8 +69,7 @@ def test_newer_schema_refuses_closed(tmp_path):
 
 
 def test_export_refuses_over_the_turn_bound(tmp_path, monkeypatch):
-    from core.session_portability import api
-    from core.session_portability import schema
+    from core.session_portability import api, schema
 
     monkeypatch.setattr(schema, "BOUNDS", {**schema.BOUNDS, "turns": 1})
 

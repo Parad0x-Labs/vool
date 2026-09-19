@@ -227,8 +227,8 @@ def test_session_journal_failure_recovers_same_intent_exactly_once(world, monkey
 def test_known_unsent_state_survives_a_restart_and_recovers(world, monkeypatch) -> None:
     """Restart evidence: the known-unsent state is read back from disk, re-authorization is
     ordinary (no resolution hoop), and the eventual execution is exactly one."""
-    from core.repoops.plane import repo_ops_runtime, session_dir
     from core import runtime_continuity as continuity
+    from core.repoops.plane import repo_ops_runtime, session_dir
 
     root, _bare, forge = world
     ctx = context(root)

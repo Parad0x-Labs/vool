@@ -16,12 +16,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List
 
 __all__ = [
     "LexicalSpan",
-    "lex_spans",
     "has_quantity",
+    "lex_spans",
     "opaque_ranges",
     "quantity_values",
 ]
@@ -97,13 +96,11 @@ def _is_identifier_candidate(text: str, match: re.Match) -> bool:
         return True   # 3.14.7 is a version member
     if start > 0 and text[start - 1] == "." and start >= 2 and text[start - 2].isdigit():
         return True   # preceded by .<digit>: 14 in 3.14.7
-    if end < len(text) and text[end] == "." and end + 1 < len(text) and text[end + 1].isdigit():
-        return True   # followed by .<digit>: 14 in 3.14.7
-
-    return False
+    # followed by .<digit>: 14 in 3.14.7
+    return bool(end < len(text) and text[end] == "." and end + 1 < len(text) and text[end + 1].isdigit())
 
 
-def lex_spans(text: str) -> List[LexicalSpan]:
+def lex_spans(text: str) -> list[LexicalSpan]:
     """Return ordered, non-overlapping canonical lexical spans for *text*.
 
     Priority order:
@@ -113,7 +110,7 @@ def lex_spans(text: str) -> List[LexicalSpan]:
     4. _NUMBER_RE candidates that pass identifier checks → IDENTIFIER.
     5. Everything else → covered by implicit OPAQUE (no consumer needs iteration).
     """
-    spans: List[LexicalSpan] = []
+    spans: list[LexicalSpan] = []
 
     # Phase 1: URL spans (highest priority)
     url_ranges = [(m.start(), m.end()) for m in _URL_RE.finditer(text)]

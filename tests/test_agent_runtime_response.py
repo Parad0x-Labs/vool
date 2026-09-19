@@ -4,7 +4,7 @@ from unittest import mock
 
 import pytest
 
-from apps.vool_agent import ChatTurnResult, VoolAgent, ResponseClass
+from apps.vool_agent import ChatTurnResult, ResponseClass, VoolAgent
 from core.agent_runtime import response
 from core.ordinary_chat_response_guard import (
     ordinary_chat_output_policy,

@@ -9,7 +9,7 @@ from core.agent_runtime.turn_planner_hook import (
 from core.conductor.planner import plan_conductor_turn
 from core.turn_ir import parse_turn_ir
 from tests.test_planner_source_bindings import FRESH, PORTFOLIO
-from tests.test_shared_preclassification_planner import _Agent, _candidates  # noqa: F401
+from tests.test_shared_preclassification_planner import _Agent, _candidates
 
 
 def _reply(text, *, presentation=False):

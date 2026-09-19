@@ -394,9 +394,6 @@ def lane_resolved_output_tokens(manifest: Any, *, base_tokens: int, output_mode:
 
 __all__ = [
     "FREE_CLOUD",
-    "note_observed_reasoning",
-    "observed_reasoning",
-    "reset_observed_reasoning",
     "FREE_LOCAL",
     "PAID_CLOUD",
     "REMOTE_UNKNOWN",
@@ -406,5 +403,8 @@ __all__ = [
     "lane_resolved_output_tokens",
     "manifest_declares_reasoning",
     "manifest_lane_capability",
+    "note_observed_reasoning",
+    "observed_reasoning",
+    "reset_observed_reasoning",
     "resolve_output_budget",
 ]

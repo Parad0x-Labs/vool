@@ -23,6 +23,7 @@ and can be skipped from every non-terminal state.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -169,10 +170,8 @@ def _atomic_write(data: dict[str, Any]) -> None:
         except OSError:
             pass
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 
@@ -213,10 +212,8 @@ def _step_default() -> dict[str, Any]:
 
 def _quarantine_corrupt() -> None:
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    try:
+    with contextlib.suppress(OSError):
         _path().rename(_path().with_name(f"{FILENAME}.corrupt-{stamp}"))
-    except OSError:
-        pass
 
 
 def _read_state() -> dict[str, Any] | None:
@@ -320,10 +317,8 @@ def has_existing_signal() -> bool:
                 except Exception:
                     continue
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 conn.close()
-            except Exception:
-                pass
     except Exception:
         pass
 
@@ -592,7 +587,7 @@ def _finish(current: dict[str, Any], expect_revision: int | None) -> dict[str, A
         leaving = _current_step(data.get("state", ""))
         if leaving:
             _mark_step(data, leaving, "done")
-        for name, entry in data.get("steps", {}).items():
+        for _name, entry in data.get("steps", {}).items():
             if entry.get("status") == "pending":
                 entry["status"] = "skipped"
                 entry["at"] = _utcnow()
@@ -968,8 +963,7 @@ def set_boundary(key: str, value: bool, *, expect_revision: int | None = None) -
                 if applied:
                     raise PactFault(
                         "boundary_partial",
-                        json.dumps({"applied": applied, "failed": failed + [
-                            {"effect": "policy_lock", "error": str(exc)}],
+                        json.dumps({"applied": applied, "failed": [*failed, {"effect": "policy_lock", "error": str(exc)}],
                             "live": boundary_live()}),
                         http_status=409,
                     ) from exc
@@ -1000,8 +994,7 @@ def set_boundary(key: str, value: bool, *, expect_revision: int | None = None) -
                 if applied:
                     raise PactFault(
                         "boundary_partial",
-                        json.dumps({"applied": applied, "failed": failed + [
-                            {"effect": "unclassified", "error": f"{type(exc).__name__}: {exc}"}],
+                        json.dumps({"applied": applied, "failed": [*failed, {"effect": "unclassified", "error": f"{type(exc).__name__}: {exc}"}],
                             "live": boundary_live()}),
                         http_status=409,
                     ) from exc
@@ -1029,9 +1022,7 @@ def set_boundary(key: str, value: bool, *, expect_revision: int | None = None) -
                 # live authority truth — never a raw 500, never a clean refusal.
                 raise PactFault(
                     "boundary_partial",
-                    json.dumps({"applied": applied, "failed": failed + [
-                        {"effect": "pact_publication",
-                         "error": "%s: %s" % (type(exc).__name__, exc)}],
+                    json.dumps({"applied": applied, "failed": [*failed, {"effect": "pact_publication", "error": f"{type(exc).__name__}: {exc}"}],
                         "live": boundary_live()}),
                     http_status=409,
                 ) from exc
@@ -1294,7 +1285,7 @@ def set_facts(
             results.append({"category": category, "status": getattr(change, "kind", "validation_failed"), "detail": getattr(change, "report", "")})
 
     with PACT_FILE_LOCK:
-        current = load_state() or seed()
+        load_state() or seed()
 
         def _apply(data: dict[str, Any]) -> dict[str, Any]:
             if saved_any:
@@ -1365,7 +1356,7 @@ def set_name(
             raise PactFault("fact_refused_secret", str(getattr(change, "report", "refused")), http_status=400)
 
     with PACT_FILE_LOCK:
-        current = load_state() or seed()
+        load_state() or seed()
 
         def _apply(data: dict[str, Any]) -> dict[str, Any]:
             _mark_step(data, "naming", "done")

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 
 def test_provider_state_machine_walks_local_only_skip_and_terminal_persistence(pact_rig):
@@ -54,7 +54,7 @@ def test_intake_classify_and_preview_make_ZERO_network_requests(pact_rig, monkey
     assert status == 200
     assert payload["origin"] == "https://openrouter.ai"
     assert payload["endpoint"].startswith("https://openrouter.ai")
-    assert "will be sent" in payload and False or True  # shape only; copy lives in the UI
+    assert True  # shape only; copy lives in the UI
     assert calls == [], f"the preview made outbound connections: {calls}"
 
 

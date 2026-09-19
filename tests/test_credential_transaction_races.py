@@ -1,4 +1,4 @@
-# ruff: noqa: F811 (imported pytest fixtures are re-exposed as test parameters by design)
+
 """The review's F1/F2 races and their siblings, translated to the corrected boundary.
 
 The review's probes hooked operations INSIDE the previously unguarded windows. Those windows
@@ -21,7 +21,7 @@ import json as _json
 import threading
 
 from tests._credential_intelligence_support import FakeProviderServer
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 from tests.test_quarantine_destination_isolation import (
     LATER_KEY,
     THIRD_KEY,
@@ -206,7 +206,7 @@ def test_pending_delete_across_restart_does_not_remove_a_newer_same_value_paste(
         journal.append({
             "slot": "quarantine.llm.cloud.custom", "provider_id": "custom", "digest": "",
             "phase": "delete_pending", "kind": "quarantine_delete",
-            "ts": first and "" or "", "generation": first.generation, "epoch": first.epoch,
+            "ts": (first and "") or "", "generation": first.generation, "epoch": first.epoch,
             "operation_id": "deadbeef" * 4,
         })
         journal_path.write_text(_json.dumps(journal))

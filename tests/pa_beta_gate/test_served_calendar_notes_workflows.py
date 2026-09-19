@@ -52,7 +52,7 @@ def served_env(tmp_path, monkeypatch):
     run_migrations()
     from core.user_preferences import save_user_timezone
 
-    assert save_user_timezone("Europe/Berlin")
+    assert save_user_timezone("Europe/Athens")
 
     server, state, base_url, port = start_caldav_fixture(calendars={VILNIUS_CAL: "Vilnius"})
     monkeypatch.setenv("VOOL_CALENDAR_PROVIDER", "caldav")
@@ -63,7 +63,7 @@ def served_env(tmp_path, monkeypatch):
     fixed = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: fixed.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: fixed.astimezone(ZoneInfo("Europe/Athens")))
 
     harness = _Harness(f"sess-cal-{uuid.uuid4().hex[:8]}")
     yield {"harness": harness, "state": state, "workspace": workspace, "port": port}
@@ -189,6 +189,6 @@ def test_served_provider_create_never_auto_books_in_any_mode(served_env):
     state = served_env["state"]
     workspace = served_env["workspace"]
     for mode in ("manual", "auto"):
-        answer = _turn(harness, 'propose "Never auto" on 2026-09-15 16:00 Europe/Berlin for 30m', workspace, operating_mode=mode)
+        answer = _turn(harness, 'propose "Never auto" on 2026-09-15 16:00 Europe/Athens for 30m', workspace, operating_mode=mode)
         assert "approve calendar" in answer, f"{mode}: no staged approval turn: {answer!r}"
         assert not any(row["summary"] == "Never auto" for row in state.snapshot()[VILNIUS_CAL].values()), f"{mode}: booked without approval"

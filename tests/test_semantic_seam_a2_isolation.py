@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-
 from contextvars import copy_context
 
 from core.semantic.semantic_result_seam import (
@@ -328,9 +327,9 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
 
-_FRESH_PROBE = """
+_FRESH_PROBE = f"""
 import sys
-sys.path.insert(0, {root!r})
+sys.path.insert(0, {str(_ROOT)!r})
 from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
 turn_id, content = sys.argv[1], sys.argv[2]
 reset_admission()
@@ -339,7 +338,7 @@ result = (admit_semantic_result(kwargs, turn_id=turn_id)
           if turn_id != "-" else admit_semantic_result(kwargs))
 stub = result["_semantic_admission"]
 print(stub["semantic_result_id"], stub["accepted"])
-""".format(root=str(_ROOT))
+"""
 
 
 def _fresh_process_admit(turn_id: str, content: str) -> tuple[str, bool]:

@@ -231,7 +231,7 @@ def tombstone_hashes_for_keys(keys: IdentityKeys, *, secret: bytes | None = None
     key = secret if secret is not None else _tombstone_key()
 
     def digest(tag: str, value: str) -> str:
-        return hmac.new(key, f"{tag}|{value}".encode("utf-8"), hashlib.sha256).hexdigest()
+        return hmac.new(key, f"{tag}|{value}".encode(), hashlib.sha256).hexdigest()
 
     return {"same": [digest("c", keys.comparison)], "confusable": sorted({digest("s", value) for value in keys.skeletons()})}
 
@@ -248,7 +248,26 @@ def tombstone_hashes(texts: Any) -> list[str]:
 
 
 __all__ = [
-    "IdentityError", "IdentityKeys", "MATCH_CONFUSABLE", "MATCH_SAME", "MATCH_SIMILAR", "SIMILAR_THRESHOLD", "code_points", "compare", "comparison_key",
-    "describe", "identity_keys", "is_default_ignorable", "lookalike_of", "mixed_script", "policy_version", "require_safe_name", "scripts_of", "skeleton",
-    "tombstone_hashes", "tombstone_hashes_for_keys", "unsafe_characters", "visible_characters",
+    "MATCH_CONFUSABLE",
+    "MATCH_SAME",
+    "MATCH_SIMILAR",
+    "SIMILAR_THRESHOLD",
+    "IdentityError",
+    "IdentityKeys",
+    "code_points",
+    "compare",
+    "comparison_key",
+    "describe",
+    "identity_keys",
+    "is_default_ignorable",
+    "lookalike_of",
+    "mixed_script",
+    "policy_version",
+    "require_safe_name",
+    "scripts_of",
+    "skeleton",
+    "tombstone_hashes",
+    "tombstone_hashes_for_keys",
+    "unsafe_characters",
+    "visible_characters",
 ]

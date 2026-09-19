@@ -8,7 +8,7 @@ from core.agent_runtime.planner_sources import bind_sources, source_contract
 from core.agent_runtime.turn_planner_hook import _planner_json_schema, build_planner_ask_model
 from core.conductor.planner import _verify_no_invented_content, parse_clauses
 from core.turn_ir import parse_turn_ir
-from tests.test_shared_preclassification_planner import _Agent, _candidates  # noqa: F401
+from tests.test_shared_preclassification_planner import _Agent, _candidates
 
 PORTFOLIO = (Path(__file__).parent / "fixtures/portfolio_last_run.txt").read_text()
 FRESH = (

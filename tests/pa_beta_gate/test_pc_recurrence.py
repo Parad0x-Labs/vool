@@ -35,7 +35,7 @@ def caldav(home, monkeypatch):
     Clock(T0, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     yield state, base
     server.shutdown(); server.server_close()
 
@@ -61,7 +61,7 @@ def test_weekly_series_created_on_caldav_and_scope_is_asked_before_edits(caldav)
     assert calendar_accounts.select_calendar(account["account_id"], CAL, selected=True, default_write=True)["ok"]
     calendar_accounts.set_opt_in(account["account_id"], sync_enabled=True, alerts_enabled=False)
 
-    proposal = _run('propose "Standup" on 2026-09-21 at 09:00 Europe/Berlin for 30m every Monday', session_id=session)
+    proposal = _run('propose "Standup" on 2026-09-21 at 09:00 Europe/Athens for 30m every Monday', session_id=session)
     assert proposal.status == "approval_required", proposal.response_text
     assert "repeats weekly on Monday" in proposal.response_text, proposal.response_text
     approved = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
@@ -70,7 +70,7 @@ def test_weekly_series_created_on_caldav_and_scope_is_asked_before_edits(caldav)
     stored = state.snapshot()[CAL.rstrip("/") + "/"][uid]["ics"]
     assert "RRULE:FREQ=WEEKLY" in stored and "BYDAY=MO" in stored, stored
 
-    unnamed = _run('move the "Standup" event to Friday at 10:00 Europe/Berlin', session_id=session)
+    unnamed = _run('move the "Standup" event to Friday at 10:00 Europe/Athens', session_id=session)
     assert unnamed.status == "approval_required", unnamed.response_text
     # The scope question lands BEFORE anything is sent: an approval that never named the
     # series is refused at execution and the series is untouched.
@@ -78,7 +78,7 @@ def test_weekly_series_created_on_caldav_and_scope_is_asked_before_edits(caldav)
     assert not refused.ok and "repeating series" in refused.response_text, refused.response_text
     assert "RRULE:FREQ=WEEKLY" in state.snapshot()[CAL.rstrip("/") + "/"][uid]["ics"], "the series was not touched"
 
-    scoped = _run('move the whole "Standup" series to 2026-09-21 09:30 Europe/Berlin', session_id=session + "b")
+    scoped = _run('move the whole "Standup" series to 2026-09-21 09:30 Europe/Athens', session_id=session + "b")
     assert scoped.status == "approval_required", scoped.response_text
     scoped_ok = _run(f"approve calendar {scoped.details['action_id']}", session_id=session + "b")
     assert scoped_ok.ok, scoped_ok.response_text
@@ -96,7 +96,7 @@ def test_daily_series_created_on_google_with_provider_recurrence(caldav, monkeyp
         os.environ["VOOL_CALENDAR_URL"] = base
         os.environ["VOOL_CALENDAR_ID"] = "work-graph"
         session = "rec-google"
-        proposal = _run('propose "Focus block" on 2026-09-22 at 08:00 Europe/Berlin for 60m every day', session_id=session)
+        proposal = _run('propose "Focus block" on 2026-09-22 at 08:00 Europe/Athens for 60m every day', session_id=session)
         assert proposal.status == "approval_required", proposal.response_text
         assert "repeats every day" in proposal.response_text, proposal.response_text
         approved = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
@@ -121,7 +121,7 @@ def test_unsupported_shapes_are_refused_precisely(caldav):
     assert calendar_accounts.discover_calendars(account["account_id"])["ok"]
     assert calendar_accounts.select_calendar(account["account_id"], CAL, selected=True, default_write=True)["ok"]
     calendar_accounts.set_opt_in(account["account_id"], sync_enabled=True, alerts_enabled=False)
-    refused = _run('propose "Review" on 2026-09-22 at 15:00 Europe/Berlin for 30m every second Tuesday', session_id=session)
+    refused = _run('propose "Review" on 2026-09-22 at 15:00 Europe/Athens for 30m every second Tuesday', session_id=session)
     assert refused.status == "approval_required", refused.response_text  # no repeat parsed: a plain proposal
     assert "repeats" not in refused.response_text, refused.response_text
     assert not any("RRULE" in row["ics"] for row in state.snapshot()[CAL.rstrip("/") + "/"].values())
@@ -140,7 +140,7 @@ def test_graph_series_master_cannot_be_changed_by_an_unnamed_single_event_action
         os.environ["VOOL_CALENDAR_URL"] = base
         os.environ["VOOL_CALENDAR_ID"] = "work-graph"
         session = "rec-graph"
-        proposal = _run('propose "Planning" on 2026-09-22 at 10:00 Europe/Berlin for 45m every Tuesday', session_id=session)
+        proposal = _run('propose "Planning" on 2026-09-22 at 10:00 Europe/Athens for 45m every Tuesday', session_id=session)
         assert proposal.status == "approval_required", proposal.response_text
         approved = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
         assert approved.ok, approved.response_text
@@ -150,7 +150,7 @@ def test_graph_series_master_cannot_be_changed_by_an_unnamed_single_event_action
         # Serve the master exactly as Graph would: a seriesMaster carrying the recurrence object.
         state.calendars["work-graph"]["events"][uid]["event"]["type"] = "seriesMaster"
 
-        unnamed = _run('move the "Planning" event to 2026-09-23 at 10:00 Europe/Berlin', session_id=session + "b")
+        unnamed = _run('move the "Planning" event to 2026-09-23 at 10:00 Europe/Athens', session_id=session + "b")
         assert unnamed.status == "approval_required", unnamed.response_text
         refused = _run(f"approve calendar {unnamed.details['action_id']}", session_id=session + "b")
         assert not refused.ok and "repeating series" in refused.response_text, refused.response_text
@@ -162,7 +162,7 @@ def test_graph_series_master_cannot_be_changed_by_an_unnamed_single_event_action
         assert not refused_cancel.ok and "repeating series" in refused_cancel.response_text, refused_cancel.response_text
         assert uid in state.snapshot()["work-graph"], "the master still exists"
 
-        scoped = _run('move the whole "Planning" series to 2026-09-22 11:00 Europe/Berlin', session_id=session + "d")
+        scoped = _run('move the whole "Planning" series to 2026-09-22 11:00 Europe/Athens', session_id=session + "d")
         assert scoped.status == "approval_required", scoped.response_text
         scoped_ok = _run(f"approve calendar {scoped.details['action_id']}", session_id=session + "d")
         assert scoped_ok.ok, scoped_ok.response_text

@@ -418,7 +418,7 @@ def _chat_async(served: _RoutingServed, message: str, session_id: str, model: st
                 results: dict, key: str) -> None:
     try:
         results[key] = served.chat(message, session_id=session_id, model=model)
-    except Exception as exc:  # noqa: BLE001 — the assertion names the failure
+    except Exception as exc:
         results[key] = f"<error: {exc}>"
 
 

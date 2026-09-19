@@ -17,10 +17,21 @@ from types import SimpleNamespace
 import pytest
 
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
-from tests.usepod.test_usepod_funded_journey_served import _evidence_dir, _open_receipt_in_activity, _page, _pick_in_chat, _usepod_panel
+from tests.usepod.test_usepod_funded_journey_served import (
+    _evidence_dir,
+    _open_receipt_in_activity,
+    _page,
+    _pick_in_chat,
+    _usepod_panel,
+)
 from tests.usepod.test_usepod_served_flow import MARKET, MARKET_ID, MODEL, _keep
 from tests.usepod.test_usepod_settings_ui import CENTRAL
-from tests.usepod.test_usepod_x402_composed_served import PIN, WalletServedDaemon, _allow_pending_consent, ready_pilot_wallet
+from tests.usepod.test_usepod_x402_composed_served import (
+    PIN,
+    WalletServedDaemon,
+    _allow_pending_consent,
+    ready_pilot_wallet,
+)
 from tests.wallet._simulated_solana import MAINNET_GENESIS, USDC_MAINNET_MINT, SimulatedSolanaNode
 
 X402_PATH = "/proxy/x402/v1/chat/completions"

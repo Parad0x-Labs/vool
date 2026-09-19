@@ -119,7 +119,7 @@ def test_golden_tier_table_and_surface_snapshot_carry_the_wallet_tools(wallet_en
 def test_a_payment_request_requires_tools_only_while_the_wallet_is_on(wallet_env, monkeypatch):
     """The lane law behind the chat flow: a wallet demand is an action the runtime performs with its
     own tools, so the tool-less chat lane may not keep it; with the wallet off nothing changes."""
-    import apps.vool_agent  # noqa: F401 - settles the import order the router needs
+    import apps.vool_agent
     from core.execution.planner import should_attempt_tool_intent
     from core.execution_requirements import requirements_for
 
@@ -141,7 +141,7 @@ def test_a_payment_request_requires_tools_only_while_the_wallet_is_on(wallet_env
 def test_the_workflow_planner_never_sends_a_wallet_question_to_the_web(wallet_env):
     """A wallet status question classifies as research; the planner must not pre-plan a web search
     with the proposal id (the turn is confined to the wallet toolset)."""
-    import apps.vool_agent  # noqa: F401 - settles the import order
+    import apps.vool_agent
     from core.execution.planner import plan_tool_workflow
 
     text = "What is the status of payment pay-0123456789abcdef0123?"

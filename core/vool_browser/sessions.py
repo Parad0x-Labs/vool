@@ -80,15 +80,15 @@ def valid_session_name(name: str) -> bool:
     return bool(text) and len(text) <= SESSION_NAME_MAX and text.rstrip("/\\").strip() == text
 
 
-class OpTimeout(Exception):  # noqa: N818 - typed browser OUTCOME, house convention (see ReaderUnavailable)
+class OpTimeout(Exception):
     pass
 
 
-class OpCancelled(Exception):  # noqa: N818 - typed browser OUTCOME, house convention (see ReaderUnavailable)
+class OpCancelled(Exception):
     pass
 
 
-class OpFailed(Exception):  # noqa: N818 - typed browser OUTCOME, house convention (see ReaderUnavailable)
+class OpFailed(Exception):
     def __init__(self, status: str, message: str) -> None:
         super().__init__(message)
         self.status = status

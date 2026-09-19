@@ -132,7 +132,7 @@ def main() -> int:
             "PYTHONUNBUFFERED": "1",
         }
     )
-    daemon_log = open(root / "daemon.log", "wb")  # noqa: SIM115 - must outlive setup: the daemon writes it until teardown
+    daemon_log = open(root / "daemon.log", "wb")
     daemon = subprocess.Popen(
         [PYTHON, "-m", "apps.vool_api_server", "--port", str(args.port)],
         cwd=str(REPO),

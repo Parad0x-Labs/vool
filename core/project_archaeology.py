@@ -139,7 +139,7 @@ class ArchaeologyInputError(ValueError):
     """Typed input rejection: bad query shape, bad window, unknown filter."""
 
 
-class ScopeRefused(ArchaeologyInputError):  # noqa: N818 - house convention: <Noun>Refused / <Noun>NotFound
+class ScopeRefused(ArchaeologyInputError):
     """A scope law refusal: protected store, ungrantable root, home crawl."""
 
     def __init__(self, path: str, reason: str) -> None:
@@ -148,7 +148,7 @@ class ScopeRefused(ArchaeologyInputError):  # noqa: N818 - house convention: <No
         self.reason = str(reason)
 
 
-class ReferenceNotFound(LookupError):  # noqa: N818 - house convention: <Noun>Refused / <Noun>NotFound
+class ReferenceNotFound(LookupError):
     """``locate`` found no object for the reference in any in-scope store."""
 
     def __init__(self, reference: str) -> None:

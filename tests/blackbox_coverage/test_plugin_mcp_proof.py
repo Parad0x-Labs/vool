@@ -6,6 +6,8 @@ import hashlib
 from pathlib import Path
 
 from tests.blackbox_coverage._ctx import ctx
+
+
 def _plugin_contract(intent="demo.writer", *, mutation, side_effect_class="workspace_write"):
     from core.runtime_tool_contracts import RuntimeToolContract
 

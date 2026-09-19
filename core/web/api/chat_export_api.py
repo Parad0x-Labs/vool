@@ -70,7 +70,7 @@ _MD_SEPARATOR = "\n\n---\n\n"
 _TXT_SEPARATOR = "\n\n"
 
 
-class ExportRefused(Exception):  # noqa: N818 — a typed REFUSAL (code + message + status), not an error suffix
+class ExportRefused(Exception):
     """A typed refusal to export. Carries the HTTP status the door should serve."""
 
     def __init__(self, status: int, error: str, message: str, **detail: Any) -> None:

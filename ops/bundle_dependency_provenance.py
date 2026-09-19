@@ -110,7 +110,7 @@ def lean_requirements_from_text(body: str) -> list[str]:
         raw = (quoted or bare).strip()
         if not raw or raw.startswith("-"):
             continue
-        name = re.split(r"[<>=!~\[ ]", raw, 1)[0].strip()
+        name = re.split(r"[<>=!~\[ ]", raw, maxsplit=1)[0].strip()
         if not name or name.startswith("$"):
             continue
         if name in {"die", "uv", "pip", "install", "python", "embedded", "lean", "dependency", "failed"}:
@@ -131,7 +131,7 @@ def lock_artifacts() -> dict[str, dict[str, str]]:
         urls = re.findall(r'url = "([^"]+)"', block)
         hashes = re.findall(r'hash = "sha256:([0-9a-f]{64})"', block)
         version = re.search(r'^version = "([^"]+)"', block, re.M)
-        entry = {u.rsplit("/", 1)[-1]: h for u, h in zip(urls, hashes)}
+        entry = {u.rsplit("/", 1)[-1]: h for u, h in zip(urls, hashes, strict=False)}
         entry["__version__"] = version.group(1) if version else ""
         out[_norm(m.group(1))] = entry
     return out

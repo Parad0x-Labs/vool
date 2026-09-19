@@ -75,7 +75,7 @@ def test_storage_failure_between_delivery_and_successor_is_repaired_by_a_later_s
     [successor] = [row for row in _rows() if row["status"] == "scheduled"]
     from zoneinfo import ZoneInfo
 
-    successor_local = datetime.fromisoformat(successor["due_at_utc"]).astimezone(ZoneInfo("Europe/Berlin"))
+    successor_local = datetime.fromisoformat(successor["due_at_utc"]).astimezone(ZoneInfo("Europe/Athens"))
     assert (successor_local.hour, successor_local.minute) == (17, 0), successor["due_at_utc"]  # wall time kept across the Oct 25 DST change
     # No redelivery of the parent: its notification fired exactly once.
     delivered = []

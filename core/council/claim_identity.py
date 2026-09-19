@@ -96,8 +96,8 @@ _STOPWORDS = frozenset({
     "very", "also", "just", "only", "about", "around", "roughly", "nearly",
     "approximately", "estimated", "like", "up", "out", "over", "under", "more",
     "less", "per", "did", "does", "do", "after", "before", "during", "since",
-    "until", "when", "were", "being", "both", "each", "such", "same", "other",
-    "here", "there",
+    "until", "being", "both", "such", "same", "other",
+    "here",
 })
 
 
@@ -144,7 +144,7 @@ def _content_tokens(text: str) -> frozenset[str]:
 def _extract_quantities(text: str, lowered: str) -> tuple[tuple[tuple[str, str, bool], ...], tuple[str, ...]]:
     quantities: list[tuple[str, str, bool]] = []
     ranges: list[str] = []
-    raw_toks = _tokens(text)
+    _tokens(text)
     for match in _NUM_RE.finditer(text):
         raw = match.group(0).strip()
         value = raw.replace(",", "").replace(" ", "")
@@ -348,8 +348,8 @@ def compare_semantic(a: SemanticClaim, b: SemanticClaim) -> tuple[str, str]:
 
 __all__ = [
     "AGREE",
-    "SemanticClaim",
     "UNRELATED",
+    "SemanticClaim",
     "compare_semantic",
     "extract_semantic_claim",
 ]

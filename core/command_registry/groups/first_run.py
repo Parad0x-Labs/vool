@@ -390,7 +390,7 @@ def _intake_begin(inp, ctx):
     import uuid
 
     with _intake_lock():
-        active = [sid for sid, s in _INTAKE_SESSIONS.items() if s.value]
+        [sid for sid, s in _INTAKE_SESSIONS.items() if s.value]
         session_id = f"intake-{uuid.uuid4().hex[:16]}"
         _INTAKE_SESSIONS[session_id] = _IntakeSession()
     return HandlerOk(data={"session_id": session_id}, summary="intake session opened")

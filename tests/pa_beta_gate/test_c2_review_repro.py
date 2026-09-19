@@ -1,8 +1,10 @@
 """Independent review: real state/handlers, synthetic Notes and loopback calendar."""
 import sqlite3
+
 import pytest
-from tests.pa_beta_gate.test_pc_conflict_recheck import home, Clock, T0, WORK_CAL, _choose, _run
+
 from tests.pa_beta_gate._caldav_service import start_caldav_fixture
+from tests.pa_beta_gate.test_pc_conflict_recheck import T0, WORK_CAL, Clock, _choose, _run, home
 
 
 def test_corrupt_selection_store_is_not_empty_calendar_selection(home, monkeypatch):
@@ -26,8 +28,8 @@ def test_caldav_description_is_preserved_during_update():
 
 
 def test_rename_replay_never_retargets_a_reused_title(home, monkeypatch):
-    from tests.pa_beta_gate.test_pc_notes_identity import FakeNotes
     from core.operator.notes import deliver_apple_note_mutation
+    from tests.pa_beta_gate.test_pc_notes_identity import FakeNotes
     original={'title':'Draft', 'folder':'Work', 'account':'iCloud', 'body':'original'}
     fake=FakeNotes({'id-original':dict(original)}).install(monkeypatch)
     args=dict(kind='rename', title='Draft', new_title='Reviewed', folder='Work', account='iCloud',
@@ -42,14 +44,15 @@ def test_rename_replay_never_retargets_a_reused_title(home, monkeypatch):
 
 
 def test_move_refuses_unreadable_other_calendar(home, monkeypatch):
-    from core.operator import calendar_provider
     from datetime import timedelta
+
+    from core.operator import calendar_provider
     Clock(T0,monkeypatch)
     server,state,base,_=start_caldav_fixture(calendars={WORK_CAL:'Work'})
     try:
         _choose('caldav',base,WORK_CAL,'Work',default_write=True)
         state.seed_event(WORK_CAL,'move-review',summary='Roadmap',start=T0+timedelta(days=1),minutes=30)
-        proposal=_run('move the "Roadmap" event to 2026-09-23 11:00 Europe/Berlin',session_id='move-review')
+        proposal=_run('move the "Roadmap" event to 2026-09-23 11:00 Europe/Athens',session_id='move-review')
         assert proposal.status=='approval_required',proposal.response_text
         before=state.snapshot()
         monkeypatch.setattr(calendar_provider,'_other_selected_conflicts',

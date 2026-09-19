@@ -20,7 +20,7 @@ import pytest
 
 from core.mode_permission_policy import PermissionEffect, decide_tool_call
 from tests.repoops._harness import context, door
-from tests.repoops.test_forge_actions import world  # noqa: F401 -- fixture
+from tests.repoops.test_forge_actions import world
 
 MONEY = "ledger/money.py"
 BUGGY_MONEY = "def cents(amount):\n    return int(amount * 10)\n"

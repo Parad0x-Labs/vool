@@ -19,7 +19,7 @@ from ._pc_calendar_rig import Clock, prepare_home, sweep
 pytestmark = [pytest.mark.pa_beta]
 
 T0 = datetime(2026, 10, 24, 7, 0, tzinfo=timezone.utc)  # Saturday 10:00 Vilnius (EEST, UTC+3)
-VILNIUS = ZoneInfo("Europe/Berlin")
+VILNIUS = ZoneInfo("Europe/Athens")
 
 
 @pytest.fixture

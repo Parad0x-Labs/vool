@@ -13,12 +13,12 @@ import json
 import uuid
 
 import pytest
-from tests.wallet._rig import DEVNET_GENESIS, ScriptedRpc
-from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 
 from core.contacts import resolver, store
-from tests.contacts import protected_changes
 from core.wallet.errors import WalletFault
+from tests.contacts import protected_changes
+from tests.wallet._rig import DEVNET_GENESIS, ScriptedRpc
+from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 
 pytestmark = [pytest.mark.safety]
 

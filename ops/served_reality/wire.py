@@ -93,14 +93,13 @@ class WireLog:
         run_dir.mkdir(parents=True, exist_ok=True)
         self.jsonl_path = run_dir / f"wire-{name}.jsonl"
         self.bytes_path = run_dir / f"wire-{name}.bytes"
-        self._jsonl = self.jsonl_path.open("a", encoding="utf-8")  # noqa: SIM115
-        self._bytes = self.bytes_path.open("ab")  # noqa: SIM115
+        self._jsonl = self.jsonl_path.open("a", encoding="utf-8")
+        self._bytes = self.bytes_path.open("ab")
         self._byte_cursor = 0
 
     def record(self, exchange: HttpExchange) -> None:
         with self._lock:
             blob = json.dumps(exchange.to_public_dict(), sort_keys=True).encode("utf-8")
-            start = self._byte_cursor
             self._bytes.write(blob)
             self._bytes.write(b"\n")
             self._bytes.flush()

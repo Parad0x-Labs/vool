@@ -12,8 +12,14 @@ import time
 import pytest
 
 from core.council.turn_manager import (
-    BudgetCannotReserve, DefaultValidator, Ev, EventBus, Outcome, Requirement,
-    SeatRuntimeConfig, TurnManager,
+    BudgetCannotReserve,
+    Ev,
+    EventBus,
+    Outcome,
+    Requirement,
+    SeatRuntimeConfig,
+    TurnManager,
+    default_validator,
 )
 
 
@@ -41,7 +47,7 @@ def make_manager(*, delays=(0.1, 0.01, 0.03), texts=("A!", "B!", "C!"),
                  min_valid=3, judge_delay=0.02, judge_text="FINAL-JUDGE-BYTES",
                  judge_validator=None, budget=5, retries=0, auto_admit=True):
     ids = ("a", "b", "c")
-    workers = {sid: FakeWorker(d, t) for sid, d, t in zip(ids, delays, texts)}
+    workers = {sid: FakeWorker(d, t) for sid, d, t in zip(ids, delays, texts, strict=False)}
     jw = FakeWorker(judge_delay, judge_text)
     tm = TurnManager(
         judge_seat_id="judge",
@@ -260,10 +266,11 @@ def test_S7_malformed_never_counts_toward_quorum():
     tm.final_validator = None if False else tm.final_validator
 
     # advisor-level malformed detection: use a validator wrapper on classification
-    from core.council.turn_manager import DefaultValidator
+    from core.council.turn_manager import default_validator
     tm._classify_strict = lambda text, v: None  # not used; direct check below
-    strict = lambda t: t.startswith("OK")  # b's GARBAGE fails this
-    # patch classify path by wrapping worker instead: validator applies to advisors via _classify(DefaultValidator)
+    def strict(t):
+        return t.startswith("OK")  # b's GARBAGE fails this
+    # patch classify path by wrapping worker instead: validator applies to advisors via _classify(default_validator)
     receipt = tm.run()
     # default advisor validator only rejects empties, so force the typed refusal:
     # (structural proof lives in test_empty/malformed classification below)
@@ -272,11 +279,11 @@ def test_S7_malformed_never_counts_toward_quorum():
 
 def test_malformed_classification_is_typed():
     tm = make_manager()
-    r = tm._classify("", DefaultValidator)
+    r = tm._classify("", default_validator)
     assert r.outcome is Outcome.EMPTY and not r.counts_toward_quorum
     r2 = tm._classify("bad json {", lambda t: False)
     assert r2.outcome is Outcome.MALFORMED and not r2.counts_toward_quorum
-    r3 = tm._classify("good", DefaultValidator)
+    r3 = tm._classify("good", default_validator)
     assert r3.outcome is Outcome.VALID and r3.counts_toward_quorum
 
 
@@ -310,9 +317,10 @@ def test_S12_replay_is_deterministic():
     kinds2 = [(e.kind, e.seat_id) for e in r2]
     # same causal skeleton (timing-independent): started -> completions ->
     # ready -> judge -> commit -> completed
-    skeleton = lambda evs: [e.kind for e in evs if e.kind in
-                            (Ev.COUNCIL_STARTED, Ev.JUDGE_READY, Ev.JUDGE_STARTED,
-                             Ev.JUDGE_COMPLETED, Ev.COMMIT_SEALED, Ev.COUNCIL_COMPLETED)]
+    def skeleton(evs):
+        return [e.kind for e in evs if e.kind in
+                                (Ev.COUNCIL_STARTED, Ev.JUDGE_READY, Ev.JUDGE_STARTED,
+                                 Ev.JUDGE_COMPLETED, Ev.COMMIT_SEALED, Ev.COUNCIL_COMPLETED)]
     assert skeleton(r1) == skeleton(r2)
 
 

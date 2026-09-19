@@ -18,7 +18,7 @@ def test_delivery_qualifier_does_not_become_reminder_subject(prompt, expected):
 
 @pytest.mark.parametrize("instant,zone,expected", [
     ("2026-09-12T21:15:08.662139+00:00", "UTC", "12 Sep 2026 at 21:15:08 UTC"),
-    ("2026-09-12T21:15:08.662139+00:00", "Europe/Berlin", "13 Sep 2026 at 00:15:08 EEST"),
+    ("2026-09-12T21:15:08.662139+00:00", "Europe/Athens", "13 Sep 2026 at 00:15:08 EEST"),
     ("2026-11-01T05:30:00+00:00", "America/New_York", "01 Nov 2026 at 01:30:00 EDT"),
     ("2026-11-01T06:30:00+00:00", "America/New_York", "01 Nov 2026 at 01:30:00 EST"),
 ])

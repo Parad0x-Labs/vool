@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.effect_budget.conftest import *  # noqa: F401,F403 — budget fixtures
+from tests.effect_budget.conftest import *  # noqa: F403 — budget fixtures
 
 
 @pytest.fixture(autouse=True)

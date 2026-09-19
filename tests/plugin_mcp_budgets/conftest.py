@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from tests.effect_budget.conftest import *  # noqa: F403 — the one budget fixture set
-from tests.effect_budget.conftest import _isolated_budget_store, operator_token, set_budget  # noqa: F401
+from tests.effect_budget.conftest import _isolated_budget_store, operator_token, set_budget
 
 
 @pytest.fixture(autouse=True)

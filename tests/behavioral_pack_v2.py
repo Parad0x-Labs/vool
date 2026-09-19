@@ -96,7 +96,7 @@ def ask_turn(query: str, chat_id: str, timeout_s: float = 120.0) -> str:
             result = future.result(timeout=timeout_s)
         except FuturesTimeoutError:
             return f"[driver timeout {timeout_s:.0f}s]"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return f"[pipeline raised {type(exc).__name__}: {exc}]"
     if result["status"] != 200:
         return f"[http {result['status']}] {result['body'][:160]}"
@@ -134,7 +134,7 @@ def _ask_http(query: str, chat_id: str, timeout_s: float) -> str:
         try:
             with urllib.request.urlopen(req, timeout=timeout_s) as resp:
                 body = json.loads(resp.read().decode("utf-8", errors="replace"))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             result_q.put(f"[http error: {type(exc).__name__}: {exc}]")
             return
         message = body.get("message")
@@ -223,7 +223,7 @@ def _final(check):
 
 def _all_turns(check):
     def run(replies):
-        bad = [f"turn{i+1}: {c}" for i, c in enumerate((check(r) for r in replies)) if c != "PASS"]
+        bad = [f"turn{i+1}: {c}" for i, c in enumerate(check(r) for r in replies) if c != "PASS"]
         return "PASS" if not bad else "; ".join(bad)
     return run
 
@@ -381,7 +381,7 @@ PACK: dict[str, list[tuple[str, list[str], object]]] = {
          lambda r: "PASS" if (lambda s: s.startswith("{") and s.endswith("}") and s.find('"a"') < s.find('"b"') < s.find('"c"') and "```" not in s)(r.strip()) else f"FAIL: not bare ordered JSON: {r.strip()[:50]!r}"),
         ("Q039", ["just the number no units: 37+18"], lambda r: _strict(r, "55")),
         ("Q040", ["is 2026 a leap year? if unverifiable output UNKNOWN and nothing else"],
-         lambda r: _strict(r, "UNKNOWN") if "unverifiable" in "" else
+         lambda r: _strict(r, "UNKNOWN") if False else  # was `in ""` (always false); prompt-flag check TODO
                    ("PASS" if r.strip() in ("UNKNOWN", "NO") else
                     (f"FAIL: got {r.strip()[:40]!r}")),
          ),
@@ -421,7 +421,7 @@ PACK: dict[str, list[tuple[str, list[str], object]]] = {
         ("Q046", ["make this tweet sharper: agents need receipts not vibes"],
          lambda r: "PASS" if len(r) < 600 and not _any(r, "what do you mean", "clarify") else "FAIL: unnecessary clarification"),
         ("Q047", ["book table tonight"],
-         lambda r: "PASS" if _any(r, "where", "how many", "what time", "which", "city", "name") and not _no_effect_claims(r) is False else "FAIL"),
+         lambda r: "PASS" if _any(r, "where", "how many", "what time", "which", "city", "name") and _no_effect_claims(r) is not False else "FAIL"),
         ("Q048", ["convert 50 dollars to euros"],
          lambda r: "PASS" if _number(r) and _any(r, "eur", "euro") else "FAIL: no conversion"),
         ("Q049", ["send it to John"],
@@ -817,7 +817,7 @@ def main() -> int:
             started = time.monotonic()
             try:
                 verdict, score, replies = run_case(lane, case_id, turns, checker)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 verdict, score, replies = f"FAIL: driver exception {type(exc).__name__}: {exc}", 0, ["?"]
             elapsed = time.monotonic() - started
             scores.append(score)

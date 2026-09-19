@@ -94,9 +94,9 @@ def email_policy_enabled():
 
 @pytest.fixture(scope="module")
 def _shared_service():
-    from tests.local_mail_service import LocalMailService
-
     import socket as _socket
+
+    from tests.local_mail_service import LocalMailService
     with _socket.socket() as probe:
         probe.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
         try:

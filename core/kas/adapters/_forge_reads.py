@@ -30,8 +30,9 @@ def scoped_next_page(first_url, current_url, following, visited):
     """A next-page link can advance pagination, never change the repository or query."""
     target = urljoin(current_url, following)
     first, nxt = urlsplit(first_url), urlsplit(target)
-    filters = lambda url: sorted((key, value) for key, value in parse_qsl(url.query, keep_blank_values=True)
-                                 if key not in {'page', 'per_page'})
+    def filters(url):
+        return sorted((key, value) for key, value in parse_qsl(url.query, keep_blank_values=True)
+                                     if key not in {'page', 'per_page'})
     sizes = [value for key, value in parse_qsl(nxt.query) if key == 'per_page']
     if ((first.scheme, first.netloc, first.path) != (nxt.scheme, nxt.netloc, nxt.path)
             or filters(first) != filters(nxt) or nxt.fragment

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from core.runtime_task_rail_assets import (
+    RUNTIME_TASK_RAIL_SHELL_HTML,
+    RUNTIME_TASK_RAIL_STYLE_BLOCK,
+)
 from core.vool_workstation_ui import (
     render_workstation_header,
     render_workstation_script,
     render_workstation_styles,
-)
-from core.runtime_task_rail_assets import (
-    RUNTIME_TASK_RAIL_SHELL_HTML,
-    RUNTIME_TASK_RAIL_STYLE_BLOCK,
 )
 
 

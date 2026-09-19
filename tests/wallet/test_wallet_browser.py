@@ -4,6 +4,7 @@ Phantom-compatible external signing path through the injected provider surface.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import sqlite3
 from pathlib import Path
@@ -154,7 +155,7 @@ def test_browser_one_time_recovery_display_leaves_no_trace(browser, daemon):
         assert word not in stores.split('"'), word
     # a console line leaks the phrase when it carries the phrase itself or two of its words in order (a single word
     # such as "field" also occurs in Chromium's own DOM warnings); the PIN is an exact fixture secret
-    pairs = [f"{a} {b}" for a, b in zip(words, words[1:], strict=False)]
+    pairs = [f"{a} {b}" for a, b in itertools.pairwise(words)]
     leaked = [line for line in console if phrase in line or PIN in line or any(pair in line for pair in pairs)]
     assert not leaked, leaked
     # a reload cannot bring it back: the page, its API answers, the daemon's log, the DB, the journal

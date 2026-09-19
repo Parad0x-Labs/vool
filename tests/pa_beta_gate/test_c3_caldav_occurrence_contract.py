@@ -47,7 +47,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -219,7 +219,7 @@ def test_original_move_rewrites_only_that_exception_inside_the_series_resource(c
     puts = _writes(monkeypatch)
     seeded = _calendar(RETRO)
     state.put_event(CAL, "retro@f", seeded)
-    proposal = _run('move the "Retro" event to 2026-09-29 13:00 Europe/Berlin (the 2026-09-29 occurrence)', session_id="c3-move")
+    proposal = _run('move the "Retro" event to 2026-09-29 13:00 Europe/Athens (the 2026-09-29 occurrence)', session_id="c3-move")
     moved = _approve(proposal, "c3-move")
     assert moved.ok and moved.details["occurrence_original_start"].startswith("2026-09-29T09:00"), moved.response_text
 
@@ -234,14 +234,14 @@ def test_original_move_rewrites_only_that_exception_inside_the_series_resource(c
 
 
 VTIMEZONE = CRLF.join([
-    "BEGIN:VTIMEZONE", "TZID:Europe/Berlin",
+    "BEGIN:VTIMEZONE", "TZID:Europe/Athens",
     "BEGIN:STANDARD", "DTSTART:19701025T040000", "TZOFFSETFROM:+0300", "TZOFFSETTO:+0200", "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU", "END:STANDARD",
     "BEGIN:DAYLIGHT", "DTSTART:19700329T030000", "TZOFFSETFROM:+0200", "TZOFFSETTO:+0300", "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU", "END:DAYLIGHT",
     "END:VTIMEZONE",
 ])
 OPS_MASTER = CRLF.join([
     "BEGIN:VEVENT", "UID:ops@f", "DTSTAMP:20260901T000000Z",
-    "DTSTART;TZID=Europe/Berlin:20260923T150000", "DTEND;TZID=Europe/Berlin:20260923T160000",
+    "DTSTART;TZID=Europe/Athens:20260923T150000", "DTEND;TZID=Europe/Athens:20260923T160000",
     "SUMMARY:Ops review",
     "DESCRIPTION:Walk the incident board and confirm an owner for every ope",
     " n item before closing the stale ones",
@@ -249,17 +249,17 @@ OPS_MASTER = CRLF.join([
     "ATTENDEE;CN=Ana;RSVP=TRUE:mailto:ana@example.org",
     "X-OPS-TAG:keep-me",
     "RRULE:FREQ=WEEKLY;BYDAY=WE",
-    "EXDATE;TZID=Europe/Berlin:20261014T150000",
+    "EXDATE;TZID=Europe/Athens:20261014T150000",
     "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Ops review soon", "TRIGGER:-PT15M", "END:VALARM",
     "END:VEVENT",
 ])
-OPS_LATE = _vevent("UID:ops@f", "DTSTAMP:20260901T000000Z", "RECURRENCE-ID;TZID=Europe/Berlin:20260930T150000",
-                   "DTSTART;TZID=Europe/Berlin:20260930T170000", "DTEND;TZID=Europe/Berlin:20260930T180000",
+OPS_LATE = _vevent("UID:ops@f", "DTSTAMP:20260901T000000Z", "RECURRENCE-ID;TZID=Europe/Athens:20260930T150000",
+                   "DTSTART;TZID=Europe/Athens:20260930T170000", "DTEND;TZID=Europe/Athens:20260930T180000",
                    "SUMMARY:Ops review (late)", "X-EXCEPTION-NOTE:keep")
 
 
 def test_novel_zoned_move_days_away_keeps_everything_else_in_the_resource(caldav, monkeypatch):
-    """NOVEL: a Europe/Berlin series with a VTIMEZONE, EXDATE, organizer, attendee, alarm, an unknown property, a folded
+    """NOVEL: a Europe/Athens series with a VTIMEZONE, EXDATE, organizer, attendee, alarm, an unknown property, a folded
     description and an existing exception. The 2026-10-07 occurrence moves two days, to 2026-10-09 10:30. Only a new
     exception is added -- RECURRENCE-ID and times in the series' own zone, attendees and alarm carried over -- and every
     other line of the resource is sent back as stored. Its original day is empty, its new day holds it, the other
@@ -268,7 +268,7 @@ def test_novel_zoned_move_days_away_keeps_everything_else_in_the_resource(caldav
     puts = _writes(monkeypatch)
     seeded = _calendar(VTIMEZONE, OPS_MASTER, OPS_LATE)
     state.put_event(CAL, "ops@f", seeded)
-    proposal = _run('move the "Ops review" event to 2026-10-09 10:30 Europe/Berlin (the 2026-10-07 occurrence)', session_id="c3-ops")
+    proposal = _run('move the "Ops review" event to 2026-10-09 10:30 Europe/Athens (the 2026-10-07 occurrence)', session_id="c3-ops")
     assert "2026-10-07" in proposal.response_text or proposal.status == "approval_required", proposal.response_text
     moved = _approve(proposal, "c3-ops")
     assert moved.ok and moved.details["occurrence_original_start"].startswith("2026-10-07T12:00"), moved.response_text
@@ -277,9 +277,9 @@ def test_novel_zoned_move_days_away_keeps_everything_else_in_the_resource(caldav
     stored = state.snapshot()[CAL]["ops@f"]["ics"]
     assert stored.startswith(seeded[: seeded.index("END:VEVENT", seeded.index("UID:ops@f\r\nDTSTAMP:20260901T000000Z\r\nRECURRENCE-ID"))])
     assert VTIMEZONE in stored and OPS_MASTER in stored and OPS_LATE in stored, stored
-    new = [block for block in _vevents(stored) if "RECURRENCE-ID;TZID=Europe/Berlin:20261007T150000" in block]
+    new = [block for block in _vevents(stored) if "RECURRENCE-ID;TZID=Europe/Athens:20261007T150000" in block]
     assert len(new) == 1, stored
-    for line in ("DTSTART;TZID=Europe/Berlin:20261009T103000", "DTEND;TZID=Europe/Berlin:20261009T113000",
+    for line in ("DTSTART;TZID=Europe/Athens:20261009T103000", "DTEND;TZID=Europe/Athens:20261009T113000",
                  "ATTENDEE;CN=Ana;RSVP=TRUE:mailto:ana@example.org", "ORGANIZER;CN=Lead:mailto:lead@example.org", "X-OPS-TAG:keep-me",
                  "DESCRIPTION:Walk the incident board and confirm an owner for every ope\r\n n item before closing the stale ones",
                  "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Ops review soon\r\nTRIGGER:-PT15M\r\nEND:VALARM"):
@@ -524,7 +524,7 @@ def test_days_away_move_with_a_lost_reply_is_verified_after_a_restart_without_a_
     state, _port = caldav
     puts = _writes(monkeypatch)
     state.put_event(CAL, "retro@f", _calendar(RETRO))
-    proposal = _run('move the "Retro" event to 2026-10-02 12:00 Europe/Berlin (the 2026-09-29 occurrence)', session_id="c3-restart")
+    proposal = _run('move the "Retro" event to 2026-10-02 12:00 Europe/Athens (the 2026-09-29 occurrence)', session_id="c3-restart")
     action_id = proposal.details["action_id"]
     _drop_next_success_reply(monkeypatch, "PUT")
     lost = _approve(proposal, "c3-restart")
@@ -557,7 +557,7 @@ def test_a_dated_occurrence_request_after_an_approved_move_targets_that_occurren
     puts = _writes(monkeypatch)
     state.put_event(CAL, "retro@f", _calendar(RETRO))
     session = "c3-receipt"
-    first = _approve(_run('move the "Retro" event to 2026-09-29 13:00 Europe/Berlin (the 2026-09-29 occurrence)', session_id=session), session)
+    first = _approve(_run('move the "Retro" event to 2026-09-29 13:00 Europe/Athens (the 2026-09-29 occurrence)', session_id=session), session)
     assert first.ok, first.response_text
 
     staged = _run('cancel the "Retro" event on 2026-10-13', session_id=session)
@@ -565,7 +565,7 @@ def test_a_dated_occurrence_request_after_an_approved_move_targets_that_occurren
     cancelled = _approve(staged, session)
     assert cancelled.ok and cancelled.details["occurrence_original_start"].startswith("2026-10-13T09:00"), cancelled.response_text
 
-    moved = _approve(_run('move the "Retro" event to 2026-10-21 10:00 Europe/Berlin (the 2026-10-20 occurrence)', session_id=session), session)
+    moved = _approve(_run('move the "Retro" event to 2026-10-21 10:00 Europe/Athens (the 2026-10-20 occurrence)', session_id=session), session)
     assert moved.ok and moved.details["occurrence_original_start"].startswith("2026-10-20T09:00"), moved.response_text
 
     unnamed = _run('cancel the "Retro" event', session_id=session)

@@ -18,21 +18,21 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.kernel.capabilities import TaintedValue  # noqa: E402
-from core.platform.broker import EffectOutcome, EffectRequest, ExecutionBroker, PlatformRevocations  # noqa: E402
-from core.remote_forge.adapters import FakeGitHubAdapter  # noqa: E402
-from core.remote_forge.actions import PushBranch  # noqa: E402
-from core.remote_forge.identity import explicit_identity  # noqa: E402
-from core.repoops.archaeology import (  # noqa: E402
+from core.kernel.capabilities import TaintedValue
+from core.platform.broker import EffectOutcome, EffectRequest, ExecutionBroker, PlatformRevocations
+from core.remote_forge.actions import PushBranch
+from core.remote_forge.adapters import FakeGitHubAdapter
+from core.remote_forge.identity import explicit_identity
+from core.repoops.archaeology import (
     FakeCapabilityAdapter,
     collect_archaeology,
     plan_reproduction,
 )
-from core.repoops.ci import CheckRun, CiObservation  # noqa: E402
-from core.repoops.ci_analysis import Job, LogData, Step, WorkflowRun, drill_down  # noqa: E402
-from core.repoops.identity import RepositoryWorkspace  # noqa: E402
-from core.repoops.localgit import LocalGit  # noqa: E402
-from core.repoops.wsfs import WorkspaceFS  # noqa: E402
+from core.repoops.ci import CheckRun, CiObservation
+from core.repoops.ci_analysis import Job, LogData, Step, WorkflowRun, drill_down
+from core.repoops.identity import RepositoryWorkspace
+from core.repoops.localgit import LocalGit
+from core.repoops.wsfs import WorkspaceFS
 
 
 def hr(title):
@@ -85,7 +85,7 @@ def main() -> int:
                 "FAILED tests/test_app.py::test_divide_by_zero_raises - ZeroDivisionError\n")
     log = LogData(run_id="r1", job_id="pytest-job", step_name="run tests",
                   head_sha=sha_a, truncated=False,
-                  _content=TaintedValue(log_text, f"ci-log:r1/pytest-job"))
+                  _content=TaintedValue(log_text, "ci-log:r1/pytest-job"))
     run = WorkflowRun(repo_key=ident.key(), run_id="r1", workflow_name="CI",
                       event="push", head_sha=sha_a,
                       jobs=(Job("pytest-job", "pytest", "r1", sha_a, "failure",
@@ -94,8 +94,8 @@ def main() -> int:
     report = drill_down(ident, sha_a, run, {"pytest-job:run tests": log})
     print(f"ci         : {report.check_name} FAILED @ {report.ci_sha[:12]} "
           f"step={report.failed_step.name!r} category={report.category}")
-    print(f"           : log stays UNTRUSTED DATA (taint provenance kept); "
-          f"analysis reads it, never obeys it")
+    print("           : log stays UNTRUSTED DATA (taint provenance kept); "
+          "analysis reads it, never obeys it")
 
     # 2. Archaeology + reproduction plan from the log's own words.
     arch = collect_archaeology(ws, report)

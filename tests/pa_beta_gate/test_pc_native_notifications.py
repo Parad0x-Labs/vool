@@ -95,7 +95,7 @@ def test_calendar_alert_is_scheduled_in_macos_ahead_and_the_bell_links_to_that_r
     state, base = google
     clock = Clock(T0, monkeypatch)
     state.seed_event(WORK, "evt-design-review", summary="Design review", start=T0 + timedelta(minutes=40), minutes=30,
-                     tz_name="Europe/Berlin")
+                     tz_name="Europe/Athens")
     account_id = connect("google", clock, base_url=base, select=[WORK])
     from core.operator import calendar_alerts
 
@@ -142,7 +142,7 @@ def test_moved_event_replaces_its_macos_request_and_disconnect_withdraws_it(grap
     state, base = graph
     clock = Clock(T0 + timedelta(hours=2), monkeypatch)
     start = clock.now + timedelta(minutes=50)
-    state.seed_event(OPERATIONS, "AAMkSupplierCall=", summary="Supplier call", start=start, minutes=20, tz_name="Europe/Berlin")
+    state.seed_event(OPERATIONS, "AAMkSupplierCall=", summary="Supplier call", start=start, minutes=20, tz_name="Europe/Athens")
     _enable_native()
     bridge = _Bridge()
     bridge.settings("authorized")
@@ -154,7 +154,7 @@ def test_moved_event_replaces_its_macos_request_and_disconnect_withdraws_it(grap
     bridge.report({"event": "submitted", "identifier": first["identifier"]})
 
     state.seed_event(OPERATIONS, "AAMkSupplierCall=", summary="Supplier call", start=start + timedelta(minutes=60), minutes=20,
-                     tz_name="Europe/Berlin")
+                     tz_name="Europe/Athens")
     assert calendar_alerts.sync_account(account_id, now_fn=clock)["alerts_superseded"] == 1
     handed = bridge.outbox()["requests"]
     withdraws = [request for request in handed if request["op"] == "withdraw"]
@@ -191,7 +191,7 @@ def test_reminder_in_quiet_hours_reaches_the_bell_not_macos_and_a_denied_permiss
     from storage.db import get_connection
 
     reminders.schedule_reminder(session_id="pc-native-quiet", task_id="task-quiet", note="take the laundry out",
-                                due_at_utc=(clock.now + timedelta(minutes=30)).isoformat(), tz_name="Europe/Berlin",
+                                due_at_utc=(clock.now + timedelta(minutes=30)).isoformat(), tz_name="Europe/Athens",
                                 now_fn=clock, get_connection_fn=get_connection)
     assert bridge.outbox()["requests"] == [], "a due time inside quiet hours is not scheduled in macOS"
     clock.advance(minutes=31)

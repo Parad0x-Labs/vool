@@ -31,14 +31,13 @@ from unittest import mock
 import pytest
 
 from core.semantic.semantic_result_seam import (
-    SemanticSource,
     SemanticResultRecord,
+    SemanticSource,
     admit_semantic_result,
     current_admission,
     has_admitted,
     reset_admission,
 )
-
 
 # ---------------------------------------------------------------------------
 # S1: direct math answer → seam exactly once → source truthful
@@ -421,6 +420,7 @@ def test_s12_seam_does_not_call_model_or_tool():
     reset_admission()
     # The seam module itself has no model/tool imports.
     import inspect
+
     from core.semantic import semantic_result_seam
 
     source = inspect.getsource(semantic_result_seam)
@@ -602,22 +602,22 @@ def test_i4_record_is_immutable(make_agent):
     # Attempt to mutate content.
     import dataclasses
     try:
-        setattr(record, "content", "mutated")
-        assert False, "I4 FAIL: content was mutable"
+        record.content = "mutated"
+        raise AssertionError("I4 FAIL: content was mutable")
     except (dataclasses.FrozenInstanceError, AttributeError, TypeError):
         pass
 
     # Attempt to mutate source.
     try:
-        setattr(record, "source", SemanticSource.MODEL)
-        assert False, "I4 FAIL: source was mutable"
+        record.source = SemanticSource.MODEL
+        raise AssertionError("I4 FAIL: source was mutable")
     except (dataclasses.FrozenInstanceError, AttributeError, TypeError):
         pass
 
     # Attempt to mutate semantic_result_id.
     try:
-        setattr(record, "semantic_result_id", "sr:spoof:1")
-        assert False, "I4 FAIL: semantic_result_id was mutable"
+        record.semantic_result_id = "sr:spoof:1"
+        raise AssertionError("I4 FAIL: semantic_result_id was mutable")
     except (dataclasses.FrozenInstanceError, AttributeError, TypeError):
         pass
 

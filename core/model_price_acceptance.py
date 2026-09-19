@@ -15,6 +15,7 @@ surface serves, so the ceiling the operator saw is the ceiling stored.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -65,10 +66,8 @@ def _save(records: dict[str, dict[str, Any]]) -> None:
             json.dump(records, handle, indent=1, ensure_ascii=False)
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 

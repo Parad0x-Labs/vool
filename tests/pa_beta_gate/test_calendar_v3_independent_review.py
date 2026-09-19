@@ -2,20 +2,20 @@
 
 Native Notes calls are injected runner doubles. No owner app or live account is used.
 """
-from dataclasses import replace
-from types import SimpleNamespace
-from urllib.parse import unquote
 import json
 import sqlite3
 import subprocess
+from dataclasses import replace
+from types import SimpleNamespace
+from urllib.parse import unquote
 
 import pytest
 
 from core.kas.contract import CalendarRefusedError, TransportUnknownError
-from core.operator import calendar_provider as cp
 from core.operator import approvals
+from core.operator import calendar_provider as cp
 from core.operator.models import OperatorActionIntent
-from tests.pa_beta_gate.test_calendar_v2_independent_review import staged, adapter, response, event, execute
+from tests.pa_beta_gate.test_calendar_v2_independent_review import adapter, event, execute, response, staged
 
 
 @pytest.mark.parametrize('title',['Packaging handover','Novel laboratory briefing'])
@@ -54,7 +54,8 @@ def test_reconcile_read_refusal_does_not_leave_live_claim_stuck_executing(tmp_pa
     conn=connection()
     conn.execute('CREATE TABLE operator_action_requests (action_id TEXT PRIMARY KEY, session_id TEXT, task_id TEXT, action_kind TEXT, scope_json TEXT, result_json TEXT, status TEXT, created_at TEXT, updated_at TEXT, executed_at TEXT)')
     conn.close()
-    now=lambda:'2026-09-13T12:00:00+00:00'
+    def now():
+        return '2026-09-13T12:00:00+00:00'
     aid=approvals.create_pending_action(session_id='review-session',task_id='review-task',
         action_kind='provider_calendar_event',scope=json.loads(row['scope_json']),now_fn=now,get_connection_fn=connection)
     approvals.mark_action_outcome_unproven(aid,result={},now_fn=now,get_connection_fn=connection)
@@ -96,7 +97,7 @@ def test_uncertain_refire_rechecks_current_calendar_conflicts(title):
 
 @pytest.mark.parametrize('failure',['timeout-after-create','empty-reference-after-create'])
 def test_notes_ambiguous_creation_is_not_retried_or_called_permission_denied(tmp_path,monkeypatch,failure):
-    from core.operator import apple_notes,notes
+    from core.operator import apple_notes, notes
     monkeypatch.setenv('VOOL_WORKSPACE_ROOT',str(tmp_path/'workspace'))
     accepted=[]
     real_create=apple_notes.create_apple_note
@@ -123,7 +124,8 @@ def test_real_notes_denial_remains_distinct_from_ambiguity():
 
 @pytest.mark.parametrize('selected',['work-calendar','personal-calendar'])
 def test_eventkit_calendar_selection_uses_identifier_selector(selected):
-    from datetime import datetime,timezone
+    from datetime import datetime, timezone
+
     from core.kas.adapters.eventkit_mac import EventKitStore
     calendars=[SimpleNamespace(calendarIdentifier=lambda:'work-calendar'),
                SimpleNamespace(calendarIdentifier=lambda:'personal-calendar')]

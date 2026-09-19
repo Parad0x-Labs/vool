@@ -306,7 +306,16 @@ def install_at_boot() -> str:
 
 
 __all__ = [
-    "AUTHORITY_LABEL", "APPROVAL_WINDOW_ENV", "DOCUMENTED_NETWORKS", "QUOTE_EXPIRY_MARGIN_SECONDS", "WalletX402PaymentAuthority",
-    "X402PaymentOutcomeUnknown", "approval_window_seconds", "install_at_boot", "payer_wallet", "payment_deadline", "pilot_wallets",
+    "APPROVAL_WINDOW_ENV",
+    "AUTHORITY_LABEL",
+    "DOCUMENTED_NETWORKS",
+    "QUOTE_EXPIRY_MARGIN_SECONDS",
+    "WalletX402PaymentAuthority",
+    "X402PaymentOutcomeUnknown",
+    "approval_window_seconds",
+    "install_at_boot",
+    "payer_wallet",
+    "payment_deadline",
+    "pilot_wallets",
     "verified_networks",
 ]

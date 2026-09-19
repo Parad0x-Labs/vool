@@ -88,7 +88,7 @@ def test_an_offset_survives_whatever_punctuation_precedes_the_shape(
 @pytest.mark.parametrize(
     ("text", "zone", "minutes"),
     (
-        ("what time is it in vilnius in 45 mins, one word only", "Europe/Berlin", 45),
+        ("what time is it in berlin in 45 mins, one word only", "Europe/Berlin", 45),
         ("time in tokyo in 2 hours, answer in one word", "Asia/Tokyo", 120),
     ),
 )

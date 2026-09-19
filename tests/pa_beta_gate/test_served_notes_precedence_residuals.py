@@ -29,7 +29,7 @@ from unittest import mock
 import pytest
 
 from tests.pa_beta_gate.test_pc_notes_identity import FakeNotes
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import served_env  # noqa: F401 -- fixture
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import served_env
 from tests.test_turn_attempt_chain import _SOURCE_CONTEXT, _Harness
 
 pytestmark = [pytest.mark.pa_beta]

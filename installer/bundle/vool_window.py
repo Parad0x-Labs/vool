@@ -52,7 +52,8 @@ if _PROJECT_ROOT not in sys.path:
 # only because the two lines above just put it there. An `installer.bundle` import in the header
 # block raised ImportError and the window never opened -- invisible to the suite, which imports this
 # as a module with the root already on the path.
-from installer.bundle import pet_native  # noqa: E402
+from installer.bundle import pet_native
+
 _WEBVIEW2_GUID = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 _LOCK_HANDLE = None  # POSIX: keeps the flock held for the process lifetime
 

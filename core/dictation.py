@@ -22,7 +22,7 @@ from core.artifact_readers._sandbox import Scratch, extraction_budget
 from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderUnavailable
 
 
-class DictationUnavailable(Exception):  # noqa: N818 - a typed OUTCOME (BLOCKED on this machine),
+class DictationUnavailable(Exception):
     # matching core.artifact_readers._types.ReaderUnavailable's identical convention.
     """A typed answer about THIS machine, not an error to hide behind a generic message."""
 

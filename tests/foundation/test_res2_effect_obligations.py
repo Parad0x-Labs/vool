@@ -43,9 +43,9 @@ def _bind_turn_set():
 
 def _drive_email_send(monkeypatch, *, ok: bool):
     """Drive the REAL execute_tool_intent runtime lane with a stubbed handler."""
-    import core.tool_intent_executor as tie
-
     from types import SimpleNamespace
+
+    import core.tool_intent_executor as tie
 
     _exec = SimpleNamespace(
         handled=True,

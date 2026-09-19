@@ -22,9 +22,10 @@ import contextvars
 import enum
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 # Receipt/execution status literal for an effect whose physical outcome could
 # not be proven. NEVER serialized as status="error"/mode="tool_failed" over a
@@ -177,7 +178,6 @@ def _write_file_mechanical_resolver(row: dict[str, Any]) -> EffectResolution:
     completed fully or not at all, so absence proves the mutation never landed.
     Exists but differs: someone/something else wrote it — STILL_UNKNOWN.
     """
-    from core.runtime_continuity import compute_logical_effect_id
 
     evidence_map = row.get("expected_evidence") if isinstance(row.get("expected_evidence"), dict) else {}
     target_text = str(evidence_map.get("path") or row.get("resource_identity") or "")

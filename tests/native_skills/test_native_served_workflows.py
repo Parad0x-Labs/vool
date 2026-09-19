@@ -14,11 +14,13 @@ import pytest
 
 from core.native_skill_library import (
     guidance_for_selection,
-    native_skills_root as native_skills_root_path,
     select_native_skills,
 )
-from core.task_router import classify
+from core.native_skill_library import (
+    native_skills_root as native_skills_root_path,
+)
 from core.runtime_execution_tools import execute_runtime_tool
+from core.task_router import classify
 
 
 def _git(*args: str, cwd) -> None:

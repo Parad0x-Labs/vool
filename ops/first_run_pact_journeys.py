@@ -12,7 +12,7 @@ Run:  .venv/bin/python ops/first_run_pact_journeys.py [jp1 jp2 jp4 jp5 jp7]
 """
 from __future__ import annotations
 
-import hashlib
+import contextlib
 import json
 import os
 import shutil
@@ -74,7 +74,8 @@ class Daemon:
         self.proc = subprocess.Popen(
             [PY, "-m", "apps.vool_api_server", "--port", str(self.port), "--bind", "127.0.0.1"],
             cwd=str(REPO), env=self._env(),
-            stdout=open(self.log, "ab"), stderr=subprocess.STDOUT,
+            stdout=open(self.log, "ab"),  # noqa: SIM115 — handle ownership passes to the child
+                stderr=subprocess.STDOUT,
             start_new_session=True,
         )
         deadline = time.time() + timeout_s
@@ -91,10 +92,8 @@ class Daemon:
     def kill(self, sig=signal.SIGKILL) -> None:
         if self.proc is None:
             return
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(os.getpgid(self.proc.pid), sig)
-        except ProcessLookupError:
-            pass
         try:
             self.proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
@@ -230,7 +229,7 @@ def jp1() -> dict:
     record: dict = {"journey": "JP1 fresh-install Local-Only money path"}
     try:
         daemon.start()
-        status, health = daemon.get("/healthz")
+        status, _health = daemon.get("/healthz")
         record["healthz"] = status == 200
         page = daemon.page()
         record["page_serves_pact_card"] = 'id="pactCard"' in page

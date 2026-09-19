@@ -157,10 +157,10 @@ def test_substitutions_and_advice_still_do_not_claim(wording):
 # --------------------------------------------------------------------------------------------- #
 # class 5: a payment-less purchase after a conversion spends the converted amount (sloppy wording, new)
 # --------------------------------------------------------------------------------------------- #
-from tests.test_multi_intent_served_coverage import (  # noqa: E402
+from tests.test_multi_intent_served_coverage import (
     _drive,
     _fx_fetcher,
-    _multi_intent_seams,  # noqa: F401  (fixture; pytest collects it from this module's namespace)
+    _multi_intent_seams,
     _plan_reply,
 )
 

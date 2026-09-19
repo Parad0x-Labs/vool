@@ -1,8 +1,8 @@
 """Execute the shipped search, receipt and pause UI projection with synthetic data."""
 import re
 
-from core.vool_settings_page import render_vool_settings_html
 from core.task_event_model import build_task_event
+from core.vool_settings_page import render_vool_settings_html
 from tests.chat_page_js_harness import DOM, run_node, script
 
 

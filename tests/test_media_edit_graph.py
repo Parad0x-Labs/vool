@@ -37,7 +37,8 @@ def test_g1_gui_and_chat_trim_produce_same_graph():
     assert set(g[0]) == set(c[0]) == {"kind", "params", "actor", "revision"}
     assert list(g[0]["params"].keys()) == ["start", "end"]
     # the ONLY difference is the recorded actor label — semantics identical
-    strip = lambda d, *skip: {k: v for k, v in d.items() if k not in skip}
+    def strip(d, *skip):
+        return {k: v for k, v in d.items() if k not in skip}
     assert strip(g[0], "actor") == strip(c[0], "actor")
 
 

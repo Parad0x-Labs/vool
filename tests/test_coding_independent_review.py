@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.test_code_task_model_surface import fixture_repo, _ctx, _door
+from tests.test_code_task_model_surface import _ctx, _door, fixture_repo
 
 
 @pytest.mark.parametrize('user_text',[

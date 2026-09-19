@@ -13,8 +13,8 @@ Adjudication deltas vs the source design:
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from core.kernel.capabilities import CapabilitySet, ForkContext, check_tool_call
 from core.kernel.effects import EffectJournal, EffectOutcomeUnknown, EffectRunner
@@ -81,7 +81,7 @@ class EffectOutcome:
 
     @classmethod
     def from_domain(cls, domain_token: str, *, reason: str = "",
-                    evidence: dict | None = None) -> "EffectOutcome":
+                    evidence: dict | None = None) -> EffectOutcome:
         """The ONLY sanctioned way a domain dialect becomes platform truth."""
         return cls(status=canonical_effect_status(domain_token),
                    reason=reason, evidence=dict(evidence or {}))
@@ -186,7 +186,7 @@ class ExecutionBroker:
                         "evidence": dict(outcome.evidence)}
             except EffectOutcomeUnknown:
                 raise
-            except Exception as exc:  # noqa: BLE001 - ambiguity is the honest answer
+            except Exception as exc:
                 raise EffectOutcomeUnknown(
                     f"dispatch did not report an interpretable outcome: {exc}",
                     "outcome_uninterpretable_after_dispatch",

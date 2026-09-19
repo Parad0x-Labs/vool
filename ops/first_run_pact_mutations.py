@@ -267,7 +267,7 @@ def _run_red(named_test: str) -> int:
     _purge_bytecode()
     env = dict(os.environ)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
-    return subprocess.run(PYTEST + [named_test], cwd=REPO, capture_output=True, text=True, env=env).returncode
+    return subprocess.run([*PYTEST, named_test], cwd=REPO, capture_output=True, text=True, env=env).returncode
 
 
 def main() -> int:

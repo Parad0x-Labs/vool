@@ -27,7 +27,7 @@ from core.semantic.shadow_observation import SHADOW_OBSERVATION_EVENT, clear_obs
 from ops import semantic_requestgraph_gold as gold_corpus
 
 # Imported rather than discovered -- see `_fixtures` for why this is not a conftest.
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,
@@ -175,7 +175,7 @@ def _same(off: dict, on: dict) -> bool:
 
 
 @pytest.fixture(scope="module")
-def replayed(make_agent_module):  # noqa: F811
+def replayed(make_agent_module):
     rows = []
     for index, text in enumerate(TEXTS):
         off = _drive(make_agent_module, text, f"shadow-{index}-off", mode="off")

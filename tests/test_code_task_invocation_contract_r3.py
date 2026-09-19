@@ -35,7 +35,7 @@ from typing import Any
 
 import pytest
 
-from tests.test_code_task_purposeful_verification import (  # noqa: F401  (fixture + helpers)
+from tests.test_code_task_purposeful_verification import (
     CALC,
     CALC_FIXED,
     CHECK,

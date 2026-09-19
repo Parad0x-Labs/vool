@@ -11,7 +11,7 @@ import threading
 import pytest
 
 from core import effect_budget as eb
-from tests.effect_budget.conftest import *  # noqa: F401,F403 — fixtures
+from tests.effect_budget.conftest import *  # noqa: F403 — fixtures
 
 
 def _reserve_all(budget_class: str, identity: dict, count: int, barrier: threading.Barrier):

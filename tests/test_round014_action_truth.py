@@ -28,7 +28,7 @@ import pytest
 import core.kernel.repl as repl
 from core.kernel.effects import EffectRunner
 from core.kernel.obligations import Obligation
-from core.turn_ir import classify_clause_kind, ClauseKind
+from core.turn_ir import ClauseKind, classify_clause_kind
 
 
 def _judge(extract_rows, synth_claims=None):

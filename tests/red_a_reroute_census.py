@@ -102,15 +102,13 @@ def _is_prompt_shaped(value: str) -> bool:
         return False
     if not any(ch.islower() for ch in text):
         return False
-    if text.upper() == text or text.replace("_", "").isalnum() and "_" in text:
+    if text.upper() == text or (text.replace("_", "").isalnum() and "_" in text):
         return False
     # Needs to read as a clause: at least two words, or an explicit question.
     if len(text.split()) < 3 and not text.rstrip().endswith("?"):
         return False
     # Drop identifier-ish and dotted-path-ish literals.
-    if " " not in text:
-        return False
-    return True
+    return " " in text
 
 
 def _docstring_nodes(tree: ast.AST) -> set[int]:
@@ -172,7 +170,7 @@ class Predicates:
     def __init__(self, tree: str) -> None:
         tree = os.path.realpath(tree)
         sys.path.insert(0, tree)
-        import core  # noqa: PLC0415
+        import core
 
         resolved = os.path.realpath(core.__file__)
         if not resolved.startswith(tree + os.sep):
@@ -182,12 +180,12 @@ class Predicates:
         self.tree = tree
         self.core_file = resolved
 
-        from core.agent_runtime import answer_coverage as ac  # noqa: PLC0415
-        from core.agent_runtime.fast_paths_currency import currency_fast_path  # noqa: PLC0415
-        from core.agent_runtime.turn_frontdoor import (  # noqa: PLC0415
+        from core.agent_runtime import answer_coverage as ac
+        from core.agent_runtime.fast_paths_currency import currency_fast_path
+        from core.agent_runtime.turn_frontdoor import (
             closed_semantic_contract_covers_turn,
         )
-        from core.currency_comparison import uncovered_residue  # noqa: PLC0415
+        from core.currency_comparison import uncovered_residue
 
         self.ac = ac
         self.families = tuple(
@@ -407,12 +405,12 @@ def main() -> int:
     cur_xdom = [r for r in currency_arm if r["reroute_unguarded_cross_domain"]]
 
     print(f"P_closed        : {len(closed)}  <-- THE CENSUS POPULATION")
-    print(f"                  (flows where the closed semantic contract holds today;")
-    print(f"                   only these can be rerouted by a guard at that door)")
+    print("                  (flows where the closed semantic contract holds today;")
+    print("                   only these can be rerouted by a guard at that door)")
     print(f"P_closed_currency: {len(currency_arm)}  <-- admitted by the CURRENCY arm")
-    print(f"                  (the tightest analogue of 'frozen single-family closed")
-    print(f"                   contracts'; the other arms are literal-output/stable-")
-    print(f"                   reference contracts a slot guard would also reroute)")
+    print("                  (the tightest analogue of 'frozen single-family closed")
+    print("                   contracts'; the other arms are literal-output/stable-")
+    print("                   reference contracts a slot guard would also reroute)")
     print()
     print("ADMITTING ARM distribution over P_closed:")
     by_arm: dict[str, int] = {}
@@ -444,7 +442,7 @@ def main() -> int:
         print(f"  {n:5d}  {key}")
     zero_cons = [r for r in closed if r["n_whole_turn_without_consumption"]]
     total_grants = sum(r["n_whole_turn_without_consumption"] for r in closed)
-    print(f"\nZERO-CONSUMPTION whole-turn grants (the E011 C1 mechanism, on THIS population):")
+    print("\nZERO-CONSUMPTION whole-turn grants (the E011 C1 mechanism, on THIS population):")
     print(f"  flows carrying at least one : {len(zero_cons)}/{len(closed)}"
           f"  ({100.0*len(zero_cons)/max(1,len(closed)):.1f}%)")
     print(f"  total (flow, family) grants : {total_grants} over"

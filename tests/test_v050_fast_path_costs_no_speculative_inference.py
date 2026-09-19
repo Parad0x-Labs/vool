@@ -38,7 +38,7 @@ from typing import Any
 
 import pytest
 
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,
@@ -161,7 +161,7 @@ def project(tmp_path: Path) -> Path:
 
 
 def _drive(
-    make_agent_module: Any,  # noqa: F811 - the parameter is pytest's fixture request, not a redefinition
+    make_agent_module: Any,
     project: Path,
     text: str,
     *,
@@ -211,7 +211,7 @@ _READ_TOOLS = {"workspace.read_file", "machine.read_file"}
     ],
 )
 def test_a_deterministic_project_read_enters_no_provider_call(
-    make_agent_module, invocations, arbiter_is_reachable, project, text, expected_tools, evidence  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project, text, expected_tools, evidence
 ) -> None:
     result = _drive(make_agent_module, project, text, session=f"det-read-{abs(hash(text)) % 99999}")
 
@@ -235,7 +235,7 @@ def test_a_deterministic_project_read_enters_no_provider_call(
     ],
 )
 def test_a_deterministic_directory_listing_enters_no_provider_call(
-    make_agent_module, invocations, arbiter_is_reachable, project, text  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project, text
 ) -> None:
     result = _drive(make_agent_module, project, text, session=f"det-list-{abs(hash(text)) % 99999}")
 
@@ -279,7 +279,7 @@ def test_a_typed_path_is_read_from_the_start_of_the_token(text: str, expected: s
 
 
 def test_a_genuinely_ambiguous_request_still_reaches_the_model(
-    make_agent_module, invocations, arbiter_is_reachable, project  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project
 ) -> None:
     """Two families read this one message differently, so a model decides -- exactly as before.
 
@@ -300,7 +300,7 @@ def test_a_genuinely_ambiguous_request_still_reaches_the_model(
 
 
 def test_a_near_miss_nothing_deterministic_owns_still_reaches_the_arbiter(
-    make_agent_module, invocations, arbiter_is_reachable, project  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project
 ) -> None:
     """The near-miss arbiter moved one gate later; it did not stop existing.
 
@@ -326,7 +326,7 @@ def test_a_near_miss_nothing_deterministic_owns_still_reaches_the_arbiter(
 
 
 def test_the_reported_model_calls_equal_the_provider_calls_actually_entered(
-    make_agent_module, invocations, arbiter_is_reachable, project  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project
 ) -> None:
     """One arbitrated turn: the instrument sees one call, and the turn reports one.
 
@@ -349,7 +349,7 @@ def test_the_reported_model_calls_equal_the_provider_calls_actually_entered(
 
 
 def test_a_provider_call_that_fails_is_still_counted(
-    make_agent_module, invocations, arbiter_is_reachable, project  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project
 ) -> None:
     """The documented rule, stated as a test: an attempt is counted when it is ENTERED.
 
@@ -565,7 +565,7 @@ def test_a_second_turn_on_a_reused_context_does_not_inherit_the_first_turns_coun
     "requested_model", ["", "vool:latest", "auto", "qwen3:8b", "openrouter/free-cloud-model"]
 )
 def test_tooling_is_identical_whichever_model_the_turn_is_pinned_to(
-    make_agent_module, invocations, arbiter_is_reachable, project, requested_model  # noqa: F811
+    make_agent_module, invocations, arbiter_is_reachable, project, requested_model
 ) -> None:
     """Local pin, cloud pin, or none: same tool, same bytes, same provider cost.
 

@@ -10,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from apps.vool_agent import ChatTurnResult, VoolAgent, ResponseClass
+from apps.vool_agent import ChatTurnResult, ResponseClass, VoolAgent
 from core.autonomous_topic_research import AutonomousResearchResult
 from core.bootstrap_context import build_bootstrap_context
 from core.curiosity_roamer import CuriosityResult
@@ -2063,8 +2063,8 @@ class OpenClawToolingContextTests(unittest.TestCase):
         agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
         agent.start()
 
-        from core.voolbook_identity import register_voolbook_account
         from core.runtime_continuity import create_runtime_checkpoint
+        from core.voolbook_identity import register_voolbook_account
         from storage.voolbook_store import list_user_posts
 
         peer_id = "af" * 32

@@ -31,8 +31,8 @@ VOOL_ROOT = Path(__file__).resolve().parents[1]
 @pytest.fixture()
 def env(tmp_path, monkeypatch):
     monkeypatch.setenv("NEBULA_MEDIA_HOME", os.environ["NEBULA_MEDIA_HOME"])
-    from storage.db import configure_default_db_path
     from core.media_worker_client import reset_media_worker
+    from storage.db import configure_default_db_path
 
     configure_default_db_path(tmp_path / "closure.db")
     reset_media_worker()
@@ -195,7 +195,8 @@ class TestChatEditorOneEngine:
              "params": {"start": 3.0, "end": 6.0}})
         gui_op = json.loads(g.body)["operation"]
 
-        strip = lambda d: {k: v for k, v in d.items() if k != "actor"}
+        def strip(d):
+            return {k: v for k, v in d.items() if k != "actor"}
         assert strip(gui_op) == strip(ai_op)   # ONE edit engine, two actors
 
 
@@ -256,7 +257,9 @@ class TestWorkerCrashMidOperation:
         import hashlib
 
         from core.media_studio_service import (
-            MediaStudioServiceError, get_project, open_project,
+            MediaStudioServiceError,
+            get_project,
+            open_project,
             verify_source_intact,
         )
         from core.media_worker_client import get_media_worker

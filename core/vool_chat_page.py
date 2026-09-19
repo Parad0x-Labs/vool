@@ -11412,8 +11412,8 @@ def _page_fragments() -> tuple[str, ...]:
     dependencies and load first so every later fragment (and the page's own renderers) can call
     `VoolChips.html`; the companion stays last, exactly where it always evaluated.
     """
-    from core.command_palette_fragment import render_palette_fragment
     from core.chat_visuals_fragment import render_chat_visuals_fragment
+    from core.command_palette_fragment import render_palette_fragment
     from core.companion_drawer_fragment import render_companion_drawer_fragment
     from core.companion_presentation_fragment import render_companion_fragment
     from core.composer_extras_fragment import render_composer_extras_fragment

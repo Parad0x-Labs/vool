@@ -14,8 +14,6 @@ from typing import Any
 
 from core.school import assistance, quota, store, submission
 from core.school.session import SchoolSession, issue_session_token
-from core.school.store import new_id
-
 
 # ---- admin ----------------------------------------------------------------
 

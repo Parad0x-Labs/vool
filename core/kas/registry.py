@@ -61,11 +61,11 @@ def registered_adapters() -> dict[tuple[str, str], type[ExternalAdapter]]:
 
 def _load_builtin_adapters() -> None:
     from core.kas.adapters import caldav as _caldav  # noqa: F401
+    from core.kas.adapters import eventkit_mac as _eventkit_mac  # noqa: F401
     from core.kas.adapters import github as _github  # noqa: F401
     from core.kas.adapters import gitlab as _gitlab  # noqa: F401
     from core.kas.adapters import google_calendar as _google_calendar  # noqa: F401
     from core.kas.adapters import graph_calendar as _graph_calendar  # noqa: F401
-    from core.kas.adapters import eventkit_mac as _eventkit_mac  # noqa: F401
 
 
 def _allowed_hosts(provider_id: str, base_url: str) -> tuple[str, ...]:

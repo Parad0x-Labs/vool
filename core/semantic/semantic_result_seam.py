@@ -18,10 +18,11 @@ from __future__ import annotations
 import enum
 import secrets
 import threading
+from collections.abc import Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 
 
 class SemanticSource(enum.Enum):
@@ -447,8 +448,8 @@ def has_admitted() -> bool:
 
 
 __all__ = [
-    "SemanticSource",
     "SemanticResultRecord",
+    "SemanticSource",
     "admit_semantic_result",
     "classify_source_from_result",
     "current_admission",

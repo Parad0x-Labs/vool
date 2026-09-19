@@ -386,7 +386,7 @@ class RestartEpochAdoptionTests(_IsolatedStoresTestCase):
 
 class HistoryRawInputPreferenceTests(_IsolatedStoresTestCase):
     def test_raw_input_wins_over_normalized_and_reconstruction(self) -> None:
-        from storage.dialogue_memory import record_dialogue_turn, recent_dialogue_turns
+        from storage.dialogue_memory import recent_dialogue_turns, record_dialogue_turn
 
         record_dialogue_turn(
             "sess-hist",

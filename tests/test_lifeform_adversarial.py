@@ -28,7 +28,7 @@ EV = progression.make_event
 
 def _log(specs, day="2026-09-02", resolver=None):
     log = []
-    for i, (stype, turn, fact, *rest) in enumerate(specs):
+    for _i, (stype, turn, fact, *rest) in enumerate(specs):
         family = rest[0] if rest else "shell"
         surface = rest[1] if len(rest) > 1 else "local"
         verified = rest[2] if len(rest) > 2 else True

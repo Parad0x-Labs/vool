@@ -14,7 +14,7 @@ import pytest
 
 import core.kernel.repl as repl
 from core.kernel.effects import EffectRunner
-from core.turn_ir import classify_clause_kind, ClauseKind
+from core.turn_ir import ClauseKind, classify_clause_kind
 
 
 def _judge(rows):
@@ -75,7 +75,7 @@ def test_T004_exact_repro(monkeypatch):
     assert "ob1 [action] send DM" in tr
     assert "ob2 [web_lookup] find release link" in tr
     assert "capability gap" in ans and "external action" in ans
-    assert "find release link" not in ans.split("—")[-1] or "send DM" in ans or True
+    assert "find release link" not in ans.split("—")[-1] or True
     # refusal names the ACTION child
     assert "send DM" in ans or "external action" in ans
 
@@ -171,7 +171,7 @@ def test_sms_T009_exact_repro(monkeypatch):
                      _row("API URL", "recall", "API URL")])
     assert "ob1 [action] send SMS" in tr
     assert "ob2 [knowledge] API URL" in tr
-    assert "capability gap" in ans and "external action" not in ans or "external action" in ans
+    assert ("capability gap" in ans and "external action" not in ans) or "external action" in ans
     assert "SMS Daniel" not in ans or "capability gap" in ans
 
 

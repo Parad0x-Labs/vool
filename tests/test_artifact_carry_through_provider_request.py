@@ -14,9 +14,9 @@ from __future__ import annotations
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.request import Request, urlopen
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import pytest
 
@@ -157,7 +157,7 @@ class _ScriptedProvider:
     def base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
 
-    def __enter__(self) -> "_ScriptedProvider":
+    def __enter__(self) -> _ScriptedProvider:
         self._thread.start()
         return self
 

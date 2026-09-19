@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from macos_arch_census import census  # noqa: E402
+from macos_arch_census import census
 
 
 def _vt(v: str) -> tuple[int, ...]:

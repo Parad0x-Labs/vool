@@ -223,6 +223,8 @@ def append_outbound_post(
         if _fid:
             from core.finalization import (
                 DELIVERY_FAILED_TRANSPORT,
+            )
+            from core.finalization import (
                 set_delivery_status as _sds_drop,
             )
 

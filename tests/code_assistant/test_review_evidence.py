@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.test_code_assistant_task_runtime import BUGGY, FIXED, _ctx, _door, _sha, fixture_repo  # noqa: F401
+from tests.test_code_assistant_task_runtime import BUGGY, FIXED, _ctx, _door, _sha, fixture_repo
 
 
 def _run_task_to_mutation(root: Path, ctx: dict) -> str:
@@ -60,7 +60,7 @@ def _review(ctx: dict, *, turn_id: str = ""):
     return result
 
 
-def test_review_summarizes_the_journaled_mutation_with_verified_bytes(fixture_repo: Path) -> None:  # noqa: F811
+def test_review_summarizes_the_journaled_mutation_with_verified_bytes(fixture_repo: Path) -> None:
     ctx = _ctx(fixture_repo)
     _run_task_to_mutation(fixture_repo, ctx)
     result = _review(ctx)
@@ -74,7 +74,7 @@ def test_review_summarizes_the_journaled_mutation_with_verified_bytes(fixture_re
     assert result.details["verified_count"] >= 1
 
 
-def test_review_flags_post_mutation_tampering_as_drifted(fixture_repo: Path) -> None:  # noqa: F811
+def test_review_flags_post_mutation_tampering_as_drifted(fixture_repo: Path) -> None:
     ctx = _ctx(fixture_repo)
     _run_task_to_mutation(fixture_repo, ctx)
     (fixture_repo / "calc.py").write_text("# quietly rewritten after the fact\n", encoding="utf-8")
@@ -85,7 +85,7 @@ def test_review_flags_post_mutation_tampering_as_drifted(fixture_repo: Path) -> 
     assert row["state"] == "DRIFTED", row
 
 
-def test_review_reports_a_deleted_mutated_file_as_missing(fixture_repo: Path) -> None:  # noqa: F811
+def test_review_reports_a_deleted_mutated_file_as_missing(fixture_repo: Path) -> None:
     ctx = _ctx(fixture_repo)
     _run_task_to_mutation(fixture_repo, ctx)
     (fixture_repo / "calc.py").unlink()
@@ -95,14 +95,14 @@ def test_review_reports_a_deleted_mutated_file_as_missing(fixture_repo: Path) ->
     assert row["state"] == "MISSING", row
 
 
-def test_review_refuses_an_unknown_turn_typed(fixture_repo: Path) -> None:  # noqa: F811
+def test_review_refuses_an_unknown_turn_typed(fixture_repo: Path) -> None:
     ctx = _ctx(fixture_repo)
     result = _review(ctx, turn_id="no-such-turn")
     assert result.status == "not_found"
     assert result.details.get("executed") is False
 
 
-def test_review_after_task_rollback_reports_the_restored_bytes(fixture_repo: Path) -> None:  # noqa: F811
+def test_review_after_task_rollback_reports_the_restored_bytes(fixture_repo: Path) -> None:
     """Rollback through the task's own control plane (bounded internal scope, the pattern the
     canonical suite proved): the journal then honestly shows the fix turn's rows as DRIFTED
     against the restored defect bytes, and the store marks the turn rolled back so no later

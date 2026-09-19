@@ -70,8 +70,8 @@ def _make_checkpoint(status: str = "running", **kwargs) -> str:
 
 
 def test_migration_adds_content_identity_columns():
-    from storage.migrations import run_migrations
     from storage.db import get_connection
+    from storage.migrations import run_migrations
 
     run_migrations()
     conn = get_connection()

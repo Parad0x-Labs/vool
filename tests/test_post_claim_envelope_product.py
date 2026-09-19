@@ -11,7 +11,7 @@ from unittest import mock
 
 import pytest
 
-from tests.test_obligation_floor_production_dispatch import (  # noqa: F401
+from tests.test_obligation_floor_production_dispatch import (
     PROMPT,
     _dispatch,
     agent,
@@ -25,14 +25,14 @@ def _boom(*_a, **_k):
 
 
 @pytest.mark.usefixtures("fetchers", "model_seams")
-def test_the_control_turn_is_claimed_and_fulfilled(agent):  # noqa: F811
+def test_the_control_turn_is_claimed_and_fulfilled(agent):
     result = _dispatch(agent)
     assert result is not None
     assert result["conductor_product_decision"]["disposition"] == "fulfilled"
 
 
 @pytest.mark.usefixtures("fetchers", "model_seams")
-def test_a_composition_fault_is_claimed_as_an_integrity_failure(agent):  # noqa: F811
+def test_a_composition_fault_is_claimed_as_an_integrity_failure(agent):
     with mock.patch("core.conductor.compose_answer", side_effect=_boom):
         result = _dispatch(agent)
     assert result is not None, "a composition fault sent the turn to another lane"
@@ -41,7 +41,7 @@ def test_a_composition_fault_is_claimed_as_an_integrity_failure(agent):  # noqa:
 
 
 @pytest.mark.usefixtures("fetchers", "model_seams")
-def test_a_dispatch_envelope_fault_still_returns_a_claimed_result(agent):  # noqa: F811
+def test_a_dispatch_envelope_fault_still_returns_a_claimed_result(agent):
     agent._fast_path_result = _boom
     result = _dispatch(agent)
     assert result is not None, "a dispatch-envelope fault sent the turn to another lane"
@@ -51,7 +51,7 @@ def test_a_dispatch_envelope_fault_still_returns_a_claimed_result(agent):  # noq
 
 
 @pytest.mark.usefixtures("fetchers", "model_seams")
-def test_a_broken_serializer_on_the_last_resort_path_still_returns_a_claimed_result(agent):  # noqa: F811
+def test_a_broken_serializer_on_the_last_resort_path_still_returns_a_claimed_result(agent):
     """BOTH post-claim exits broken at once: the envelope, and the decision's own `to_dict`.
 
     This is the case that used to raise out of `_maybe_answer_conductor_turn` entirely -- the dict
@@ -84,7 +84,7 @@ def test_a_broken_serializer_on_the_last_resort_path_still_returns_a_claimed_res
 
 
 @pytest.mark.usefixtures("fetchers", "model_seams")
-def test_the_last_resort_path_survives_a_decision_that_cannot_be_read_at_all(agent):  # noqa: F811
+def test_the_last_resort_path_survives_a_decision_that_cannot_be_read_at_all(agent):
     """A second, independent reading of the same invariant.
 
     The test above breaks `to_dict` after the claim. This one replaces the claim gate's decision
@@ -112,7 +112,7 @@ def test_the_last_resort_path_survives_a_decision_that_cannot_be_read_at_all(age
 
 
 @pytest.mark.usefixtures("fetchers", "model_seams")
-def test_a_base_exception_after_the_claim_is_still_claimed(agent):  # noqa: F811
+def test_a_base_exception_after_the_claim_is_still_claimed(agent):
     """`except BaseException`: a KeyboardInterrupt must not un-claim a committed turn."""
 
     def _hard(*_a, **_k):

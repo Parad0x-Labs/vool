@@ -245,7 +245,7 @@ _GENERIC_WEB_TERMS = frozenset({
     "using", "utility", "web", "work", "works", "working", "provider", "providers", "router",
     "routers", "gateway", "gateways", "checker", "checkers", "verify", "verifies", "verified",
     "verifying", "retrieve", "retrieves", "retrieved", "extract", "extracts", "extracted",
-    "sort", "sorts", "sorted", "print", "prints", "printing", "research", "researches",
+    "sort", "sorts", "sorted", "printing", "research", "researches",
     "exists", "exist",
 })
 

@@ -20,7 +20,7 @@ import pytest
 from tests import _source_guard as guard
 
 # Imported rather than discovered -- see `_fixtures` for why this is not a conftest.
-from tests.semantic_phase0._fixtures import (  # noqa: F401
+from tests.semantic_phase0._fixtures import (
     block_outbound_network,
     keep_the_checkout_clean,
     make_agent_module,

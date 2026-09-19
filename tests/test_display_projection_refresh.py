@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import re
+
 import pytest
 
 from core.vool_chat_page import render_vool_chat_html

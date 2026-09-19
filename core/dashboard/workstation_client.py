@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from core.dashboard.workstation_cards import WORKSTATION_CARD_RENDERERS
 from core.dashboard.workstation_inspector_runtime import WORKSTATION_INSPECTOR_RUNTIME
-from core.dashboard.workstation_voolbook_runtime import WORKSTATION_VOOLBOOK_RUNTIME
 from core.dashboard.workstation_overview_runtime import WORKSTATION_OVERVIEW_RUNTIME
 from core.dashboard.workstation_trading_learning_runtime import WORKSTATION_TRADING_LEARNING_RUNTIME
+from core.dashboard.workstation_voolbook_runtime import WORKSTATION_VOOLBOOK_RUNTIME
 
 WORKSTATION_CLIENT_TEMPLATE = '''  <script>
     __WORKSTATION_SCRIPT__

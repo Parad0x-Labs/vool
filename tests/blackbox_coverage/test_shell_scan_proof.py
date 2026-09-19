@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 
 from tests.blackbox_coverage._ctx import ctx
+
+
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 

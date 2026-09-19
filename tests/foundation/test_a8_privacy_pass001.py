@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 import storage.db as sdb
+from core.final_response_store import store_final_response
 from core.finalization import (
     AVAILABILITY_AVAILABLE,
     AVAILABILITY_ERASED,
@@ -36,10 +37,8 @@ from core.finalization import (
     resume_incomplete_erasure_sweeps,
     set_availability,
 )
-from core.final_response_store import store_final_response
-from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
 from core.semantic.semantic_admissions import set_request_context
-
+from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
 
 PRODUCTION_ROOTS = ("core", "apps", "network", "relay", "storage", "channels", "retrieval", "sandbox", "tools", "adapters", "ops")
 
@@ -1000,9 +999,9 @@ def test_external_erasure_confirmed_vocabulary_absent():
     # class mirroring the delivery-evidence law. Grep-law over production.
     import subprocess
     import sys
-    from pathlib import Path as _P
+    from pathlib import Path as _Path
 
-    repo = _P(__file__).resolve().parents[2]
+    repo = _Path(__file__).resolve().parents[2]
     result = subprocess.run(
         [
             "grep",

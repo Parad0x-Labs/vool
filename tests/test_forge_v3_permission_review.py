@@ -4,7 +4,9 @@ import hashlib
 import pytest
 
 from core.mode_permission_policy import (
-    PermissionEffect, decide_tool_call, reset_mode_permission_state,
+    PermissionEffect,
+    decide_tool_call,
+    reset_mode_permission_state,
 )
 
 

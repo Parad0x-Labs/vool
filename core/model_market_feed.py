@@ -22,6 +22,7 @@ untouched — the market feed may never break catalog refreshing itself.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -60,10 +61,8 @@ def _write_json(name: str, value) -> None:
             json.dump(value, handle, separators=(",", ":"), ensure_ascii=False)
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
 
 
 def _watched_ids() -> set[str]:
@@ -138,7 +137,7 @@ def _append_events(new_events: list[dict[str, Any]]) -> None:
             seq += 1
             event = {"seq": seq, "ts": _now(), **event}
             handle.write(json.dumps(event, separators=(",", ":"), ensure_ascii=False) + "\n")
-    combined = existing and (existing + new_events) or new_events
+    combined = (existing and (existing + new_events)) or new_events
     if len(combined) > _EVENTS_CAP:
         keep = read_events(after=0)[-_EVENTS_CAP:]
         tmp_lines = "".join(

@@ -22,8 +22,8 @@ import pytest
 from core.finalization import (
     ANSWER_PRESENT,
     NO_ANSWER_TERMINAL,
-    NoAnswerContent,
     FinalizationRejected,
+    NoAnswerContent,
     finalize_answer,
     get_finalization_by_semantic_id,
     no_answer_terminal,
@@ -123,6 +123,7 @@ def test_no_answer_terminal_typed_zero_prose():
 def test_no_answer_terminal_accepted_referent_persists():
     """ACCEPTED REFERENT: valid ACCEPTED semantic_result_id + valid
     execution fence + valid closure → durable NO_ANSWER succeeds."""
+    import storage.db as sdb
     from core.invocation.ledger import accept_invocation, open_execution
     from core.semantic.semantic_admissions import (
         clear_execution_context,
@@ -130,7 +131,6 @@ def test_no_answer_terminal_accepted_referent_persists():
         set_execution_context,
     )
     from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
-    import storage.db as sdb
 
     reset_admission()
     admitted = admit_semantic_result({"response": "refused bytes", "route_reason": "model_lane"})
@@ -185,13 +185,13 @@ def test_no_answer_terminal_ghost_referent_refused():
     """GHOST / NONEXISTENT REFERENT: onboarded canonical lane +
     non-empty semantic_result_id + NO durable semantic_admissions
     ACCEPTED row exists → refused. Assert zero new durable A7 rows."""
+    import storage.db as sdb
     from core.invocation.ledger import accept_invocation, open_execution
     from core.semantic.semantic_admissions import (
         clear_execution_context,
         set_execution_context,
     )
     from core.semantic.semantic_result_seam import reset_admission
-    import storage.db as sdb
 
     reset_admission()
     # Seed the seam with a sr id that has NO durable admission row.
@@ -249,6 +249,7 @@ def test_no_answer_terminal_rejected_referent_refused():
     """REJECTED REFERENT: onboarded canonical lane + non-empty
     semantic_result_id + durable semantic_admissions row exists with
     accepted=0 → refused. Assert zero new durable A7 rows."""
+    import storage.db as sdb
     from core.invocation.ledger import accept_invocation, open_execution
     from core.semantic.semantic_admissions import (
         clear_execution_context,
@@ -256,7 +257,6 @@ def test_no_answer_terminal_rejected_referent_refused():
         set_execution_context,
     )
     from core.semantic.semantic_result_seam import reset_admission
-    import storage.db as sdb
 
     reset_admission()
     # Directly create a REJECTED (accepted=0) durable admission row.
@@ -324,13 +324,13 @@ def test_no_answer_terminal_rejected_referent_refused():
 def test_no_answer_terminal_empty_referent_on_onboarded_lane_refused():
     """EMPTY REFERENT: onboarded canonical lane + empty semantic_result_id
     → refused. Assert zero new durable A7 rows."""
+    import storage.db as sdb
     from core.invocation.ledger import accept_invocation, open_execution
     from core.semantic.semantic_admissions import (
         clear_execution_context,
         set_execution_context,
     )
     from core.semantic.semantic_result_seam import reset_admission
-    import storage.db as sdb
 
     reset_admission()
     inv = accept_invocation(
@@ -387,6 +387,7 @@ def test_no_answer_terminal_guard_sensitivity():
     """GUARD-SENSITIVITY / NEGATIVE CONTROL: prove the admission_exists
     guard is load-bearing. Temporarily neutering the check lets a
     rejected referent through; restoring the guard blocks it."""
+    import storage.db as sdb
     from core.invocation.ledger import accept_invocation, open_execution
     from core.semantic import semantic_admissions as _sa
     from core.semantic.semantic_admissions import (
@@ -394,7 +395,6 @@ def test_no_answer_terminal_guard_sensitivity():
         set_execution_context,
     )
     from core.semantic.semantic_result_seam import reset_admission
-    import storage.db as sdb
 
     reset_admission()
     # Directly create a REJECTED (accepted=0) durable admission row.

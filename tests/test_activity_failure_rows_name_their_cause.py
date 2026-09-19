@@ -579,7 +579,7 @@ def test_the_local_model_lane_records_the_exception_class_it_died_on() -> None:
     adapter = mock.Mock()
     adapter.health_check.return_value = {"ok": True}
 
-    class ReadTimeout(OSError):  # noqa: N818 - the class NAME is the thing under test
+    class ReadTimeout(OSError):
         """Stands in for the adapter's own transport error type, name and all.
 
         Deliberately NOT suffixed "Error": the assertion below is that the runtime records the
@@ -719,7 +719,7 @@ def test_a_retrieval_failure_reason_is_redacted_and_bounded_and_cannot_break_the
     leaked = _failure_reason(RuntimeError("GET https://api.example.com/v1?api_key=sk-live-abcdef1234567890 failed"))
     assert "sk-live-abcdef1234567890" not in leaked, leaked
 
-    class _Hostile(RuntimeError):  # noqa: N818 - a stand-in, not an exception the runtime raises
+    class _Hostile(RuntimeError):
         def __str__(self) -> str:
             raise ValueError("this exception cannot describe itself")
 

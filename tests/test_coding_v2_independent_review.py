@@ -2,8 +2,10 @@
 No model, native UI or live account acceptance is claimed.
 """
 import hashlib
+
 import pytest
-from tests.test_code_task_model_surface import fixture_repo, _ctx, _door, _journal
+
+from tests.test_code_task_model_surface import _ctx, _door, _journal, fixture_repo
 
 CASES = [
     ('math.js', 'exports.add=(a,b)=>a-b;\n', 'exports.add=(a,b)=>a*b;\n', 'exports.add=(a,b)=>a+b;\n',

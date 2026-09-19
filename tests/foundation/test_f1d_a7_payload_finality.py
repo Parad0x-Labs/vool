@@ -47,7 +47,7 @@ def test_finalization_id_is_not_derived_from_content_hash(fresh_store):
     assert c1["finalization_id"] != c2["finalization_id"]
     assert c1["content_hash"] == c2["content_hash"]
     # Identity inputs are opaque: no content hash inside the id derivation.
-    assert "fc:" == c1["finalization_id"][:3]
+    assert c1["finalization_id"][:3] == "fc:"
 
 
 def test_availability_monotone_with_tombstones_and_erasure_clears_bytes(fresh_store):

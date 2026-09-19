@@ -10,10 +10,10 @@ from core.context_namespace import ensure_chat_namespace
 from core.fact_extractor import FactExtractor, stable_text_embedding
 from core.memory.entries import resolve_memory_access_policy
 from core.memory_prompt_builder import MemoryPromptBuilder, apply_memory_prefix_to_messages
-from core.vool_memory import VoolMemory
 from core.prompt_normalizer import normalize_prompt
 from core.request_trust import OWNER_LOCAL_KEY
 from core.tiered_context_loader import _source_allows_private_context
+from core.vool_memory import VoolMemory
 from core.web.api.runtime import RuntimeServices, _memory_recall_response, schedule_memory_extraction
 
 

@@ -111,7 +111,7 @@ class GitLabForgeAdapter(ForgeAdapter):
                 url=self._url(suffix),
                 purpose=purpose,
                 headers={"Accept": "application/json", "Content-Type": "application/json"},
-                body=json.dumps(body or {}).encode("utf-8"),
+                body=_json(body or {}).encode("utf-8"),
                 auth=self.config.auth_binding,
                 mutating=True,
             )
@@ -124,7 +124,7 @@ class GitLabForgeAdapter(ForgeAdapter):
                 url=self._url(suffix),
                 purpose=purpose,
                 headers={"Accept": "application/json", "Content-Type": "application/json"},
-                body=json.dumps(body or {}).encode("utf-8"),
+                body=_json(body or {}).encode("utf-8"),
                 auth=self.config.auth_binding,
                 mutating=True,
             )

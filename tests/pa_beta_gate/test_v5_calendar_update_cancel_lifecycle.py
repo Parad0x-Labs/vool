@@ -19,7 +19,7 @@ from core.operator import approvals
 from core.operator import calendar_provider as cp
 from core.operator.calendar_provider import CalendarProviderConfig
 from core.operator.models import OperatorActionIntent
-from tests.pa_beta_gate.test_calendar_provider_vertical import (  # noqa: F401 -- vilnius_env is a fixture, requested via getfixturevalue
+from tests.pa_beta_gate.test_calendar_provider_vertical import (
     VILNIUS_CAL,
     _provider_events,
     _run,
@@ -270,7 +270,7 @@ def test_served_update_whose_reply_is_withheld_is_recovered_on_reapproval(reques
     env = request.getfixturevalue("vilnius_env")
     state = env["state"]
     session = "served-update-recovery"
-    _intent, proposal = _run('propose "Novel dock survey" on 2026-09-16 10:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Novel dock survey" on 2026-09-16 10:00 Europe/Athens for 30m', session_id=session)
     _intent, created = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
     assert created.ok, created.response_text
     _intent, rename = _run('rename the "Novel dock survey" event to "Novel dock survey (tide adjusted)"', session_id=session)
@@ -294,7 +294,7 @@ def test_served_cancellation_whose_reply_is_withheld_is_recorded_and_the_event_s
     env = request.getfixturevalue("vilnius_env")
     state = env["state"]
     session = "served-cancel-recovery"
-    _intent, proposal = _run('propose "Novel fire door audit" on 2026-09-16 15:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Novel fire door audit" on 2026-09-16 15:00 Europe/Athens for 30m', session_id=session)
     _intent, created = _run(f"approve calendar {proposal.details['action_id']}", session_id=session)
     assert created.ok, created.response_text
     _intent, cancel = _run('cancel the "Novel fire door audit" event', session_id=session)

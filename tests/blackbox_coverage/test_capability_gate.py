@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import pytest
 
-from tests.blackbox_coverage._ctx import ctx
 from core.blackbox.coverage.capability import CapabilityError, MutationCapability, validated
 from core.blackbox.coverage.registry import (
     capability_for,
     mutation_coverage_decision,
     uncovered_local_mutating_builtins,
 )
+from tests.blackbox_coverage._ctx import ctx
 
 
 def _cap(**overrides) -> MutationCapability:

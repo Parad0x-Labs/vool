@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 PERMISSION_KINDS = ("navigation", "downloads", "uploads", "new_tabs")
 
 
-class PermissionError_(ValueError):  # noqa: N801,N818 - the trailing underscore deliberately
+class PermissionError_(ValueError):  # noqa: N801 - the trailing underscore deliberately
     # avoids shadowing the builtin PermissionError; renaming it is a public-API change.
     pass
 

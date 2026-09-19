@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from core.vool_wallet import VoolWallet
 from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote
+from core.vool_wallet import VoolWallet
 from core.web0_gated_html import (
     DEFAULT_GATE_URL,
     WalletKeyStore,

@@ -27,7 +27,7 @@ from core.kas.contract import CalendarWriteAcceptedError, KasResponse, Transport
 from tests.pa_beta_gate import test_v5_calendar_update_cancel_lifecycle as lifecycle
 from tests.pa_beta_gate.test_calendar_v2_independent_review import adapter as wire_adapter
 from tests.pa_beta_gate.test_calendar_v2_independent_review import response
-from tests.pa_beta_gate.test_popular_provider_adapters import (  # noqa: F401 -- graph_env is a fixture, requested via getfixturevalue
+from tests.pa_beta_gate.test_popular_provider_adapters import (
     H_CAL,
     _run,
     graph_env,
@@ -100,7 +100,7 @@ def test_unreadable_event_makes_availability_and_proposals_unreadable_until_the_
     assert "can't tell" in check.response_text and "options" not in check.details, check.response_text
     _intent, chosen = _run('option 2, propose "Client prep"', session_id=session)
     assert chosen.status != "approval_required", chosen.response_text
-    _intent, direct = _run('propose "Client prep" on 2026-09-17 13:30 Europe/Berlin for 30m', session_id=session)
+    _intent, direct = _run('propose "Client prep" on 2026-09-17 13:30 Europe/Athens for 30m', session_id=session)
     assert direct.status == "provider_refused" and direct.details["reason"] == "unreadable_response", direct.response_text
     assert posts == [] and "Client prep" not in _titles(state)
 
@@ -117,7 +117,7 @@ def test_approval_whose_send_time_recheck_is_unreadable_sends_nothing_and_stays_
     state, server = env["state"], env["server"]
     session = "v6-graph-unreadable-recheck"
     _fix_now(monkeypatch)
-    _intent, proposal = _run('propose "Boiler flush" on 2026-09-17 16:00 Europe/Berlin for 30m', session_id=session)
+    _intent, proposal = _run('propose "Boiler flush" on 2026-09-17 16:00 Europe/Athens for 30m', session_id=session)
     assert proposal.status == "approval_required", proposal.response_text
     action_id = proposal.details["action_id"]
     state.seed_event(H_CAL, "late-hold@fixture", summary="Late hold", start=datetime(2026, 9, 17, 13, 0, tzinfo=timezone.utc), minutes=30)

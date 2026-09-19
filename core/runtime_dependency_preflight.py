@@ -134,9 +134,9 @@ def assert_served_import_conformance(*, timeout: float = 180.0) -> ImportConform
     if completed.returncode == 0:
         return ImportConformanceReport(ok=True, child_returncode=0)
     combined = (completed.stderr or "") + "\n" + (completed.stdout or "")
-    match = None
-    for match in _MODULE_NOT_FOUND_RE.finditer(combined):
-        pass  # keep the LAST ModuleNotFoundError (the root of the chain)
+    # keep the LAST ModuleNotFoundError (the root of the chain)
+    matches = list(_MODULE_NOT_FOUND_RE.finditer(combined))
+    match = matches[-1] if matches else None
     if match is not None:
         module = match.group(1).split(".")[0]
         dist = _DIST_HINTS.get(module, module)

@@ -10,8 +10,8 @@ join rather than shipping a context that can never cache.
 from __future__ import annotations
 
 from core.context_layout import LayoutLawViolation
+from core.prompt_assembly_report import PromptAssemblyReport
 from core.tiered_context_loader import TieredContextResult
-from core.prompt_assembly_report import PromptAssemblyReport  # noqa: F401  (report field type)
 
 
 def _result(bootstrap, relevant, cold):
@@ -32,8 +32,8 @@ def _result(bootstrap, relevant, cold):
             for i, (t, c) in enumerate(pairs)
         ]
 
-    from core.tiered_context_loader import ColdContextDecision
     from core.prompt_assembly_report import PromptAssemblyReport
+    from core.tiered_context_loader import ColdContextDecision
 
     report = PromptAssemblyReport(
         task_id="test-task",

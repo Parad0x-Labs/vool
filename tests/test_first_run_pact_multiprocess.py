@@ -16,8 +16,8 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import tempfile
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -25,7 +25,7 @@ import pytest
 
 from core import first_run_pact
 from core.first_run_pact import PactFault
-from tests.first_run_pact_rig import pact_rig  # noqa: F401 — fixture
+from tests.first_run_pact_rig import pact_rig
 
 REPO = Path(__file__).resolve().parents[1]
 ROUNDS = 3

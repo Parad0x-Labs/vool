@@ -90,7 +90,7 @@ def test_unbound_demonstrative_fails_honestly(tmp_path):
 # --- Codex #3: hard tool-boundary invariant — workspace ops confine to the bound root ---
 
 def test_workspace_confinement_allows_local_named_folder_inside_root(tmp_path):
-    import pytest  # noqa: F401
+    import pytest
 
     from core.execution.workspace_tools import resolve_workspace_path
 

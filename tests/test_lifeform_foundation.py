@@ -19,6 +19,7 @@ from core.companion.lifeform import (
 )
 from core.companion.lifeform.schema import (
     LifeformError,
+    LifeformV1,
     from_json,
     migrate,
     new_lifeform_v1,
@@ -32,7 +33,7 @@ LF = "lf-test-0001"
 SEED = genesis.genesis_seed(OWNER, LF)
 
 
-def _doc() -> "LifeformV1":
+def _doc() -> LifeformV1:
     return new_lifeform_v1(LF, OWNER, SEED, "2026-09-01")
 
 
@@ -49,7 +50,7 @@ def _build_log(specs: list[dict], day: str = "2026-09-02",
                resolver=None) -> list[dict]:
     """specs: list of (signal_type, turn, fact, family, surface, verified)."""
     log: list[dict] = []
-    for i, s in enumerate(specs):
+    for _i, s in enumerate(specs):
         stype, turn, fact = s[0], s[1], s[2]
         family = s[3] if len(s) > 3 else "shell"
         surface = s[4] if len(s) > 4 else "local"

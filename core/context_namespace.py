@@ -551,6 +551,7 @@ def clone_chat_namespace(
 __all__ = [
     "ContextImportGrant",
     "ContextNamespace",
+    "authoritative_chat_workspace",
     "clone_chat_namespace",
     "ensure_chat_namespace",
     "ensure_context_namespace_schema",
@@ -558,7 +559,6 @@ __all__ = [
     "list_chat_namespaces",
     "list_context_imports",
     "load_chat_namespace",
-    "authoritative_chat_workspace",
     "revoke_context_import",
     "set_chat_namespace_project",
     "set_chat_namespace_state",

@@ -427,6 +427,21 @@ def reset_for_tests() -> None:
 
 
 __all__ = [
-    "AUTHORITY", "CredentialError", "KIND_PASSWORD", "KIND_PIN", "PRINCIPAL", "SCOPES", "SCOPE_CONTACTS", "SETUP_PATH", "Verification", "change",
-    "current_generation", "enroll", "lock_policy", "reset_for_tests", "reset_with_recovery", "status", "verify",
+    "AUTHORITY",
+    "KIND_PASSWORD",
+    "KIND_PIN",
+    "PRINCIPAL",
+    "SCOPES",
+    "SCOPE_CONTACTS",
+    "SETUP_PATH",
+    "CredentialError",
+    "Verification",
+    "change",
+    "current_generation",
+    "enroll",
+    "lock_policy",
+    "reset_for_tests",
+    "reset_with_recovery",
+    "status",
+    "verify",
 ]

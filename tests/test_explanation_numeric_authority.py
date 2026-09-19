@@ -17,6 +17,8 @@ import pytest
 from core.conductor.operations import (
     _CLOSED_NUMERIC_AUTHORITY,
     _OPEN_KNOWLEDGE_AUTHORITY,
+)
+from core.conductor.operations import (
     _explanation_numeric_authority as authority,
 )
 

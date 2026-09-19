@@ -196,7 +196,8 @@ def test_happy_path_records_every_stage_in_order(auto_context):
 
     task_id, args = drive_to_approved_proposal(auto_context)
     seen = []
-    record = lambda: seen.append(code_task_runtime()._load(task_id).stage)
+    def record():
+        return seen.append(code_task_runtime()._load(task_id).stage)
     mutate = door(
         "code.task.step",
         {"task_id": task_id, "step_id": "mutate", "intent": "workspace.replace_in_file", "arguments": args},

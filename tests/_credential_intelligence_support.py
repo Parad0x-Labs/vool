@@ -151,7 +151,7 @@ class HangingKeyring:
     bounded-call reality: the daemon thread outlives the caller's timeout. ``get_password``
     works normally (the prompt was answered by then)."""
 
-    class errors:  # noqa: N801 (mirrors keyring.errors)
+    class errors:
         class PasswordDeleteError(Exception):
             pass
 

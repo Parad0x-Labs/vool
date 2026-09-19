@@ -9,8 +9,8 @@ LABELLED: loopback CalDAV fixture; injected clock.
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -29,7 +29,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -189,7 +189,7 @@ def test_dependent_composed_chain_with_per_part_receipts(home, monkeypatch):
         assert "proposed event" in reminder["note"] or "Retro" in reminder["note"], reminder
         note_text = Path(note_path).read_text()
         assert "what to improve" in note_text and uid[:8] in note_text, note_text  # receipt linked into the note
-        assert "12:00" not in note_text or True
+        assert True
     finally:
         server.shutdown(); server.server_close()
 

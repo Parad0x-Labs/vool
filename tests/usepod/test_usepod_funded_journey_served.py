@@ -26,7 +26,16 @@ import pytest
 
 from tests.served_browser import launch_chromium
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService, default_reply
-from tests.usepod.test_usepod_served_flow import INFERENCE_PATHS, MARKET, MARKET_ID, MODEL, _completed_receipts, _keep, _rejections, _session
+from tests.usepod.test_usepod_served_flow import (
+    INFERENCE_PATHS,
+    MARKET,
+    MARKET_ID,
+    MODEL,
+    _completed_receipts,
+    _keep,
+    _rejections,
+    _session,
+)
 from tests.usepod.test_usepod_settings_ui import CENTRAL, PlainServedDaemon
 from tests.usepod.test_usepod_spend_approval_served import _resolve_approval
 

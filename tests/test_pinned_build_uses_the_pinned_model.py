@@ -26,6 +26,7 @@ guards against is a silent swap and a swap is only visible in which provider was
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 from unittest import mock
 
 import pytest

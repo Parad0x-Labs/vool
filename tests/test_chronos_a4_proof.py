@@ -17,14 +17,14 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from core.runtime_continuity import append_runtime_event
 from core.execution_truth import record_execution
+from core.runtime_continuity import append_runtime_event
 from core.time_authority import CLOCK
 from core.time_range_resolver import (
+    UNRESOLVED,
     TimeInstant,
     TimeRange,
     TimeRangeKind,
-    UNRESOLVED,
     resolve,
 )
 from core.timeline import (
@@ -42,7 +42,7 @@ from storage.db import get_connection
 
 PIN = datetime(2026, 8, 25, 10, 0, 0, tzinfo=timezone.utc)
 SID = "chronos-a4-proof-session"
-VILNIUS = ZoneInfo("Europe/Berlin")
+VILNIUS = ZoneInfo("Europe/Athens")
 
 
 def _iso(ts: datetime) -> str:
@@ -247,21 +247,21 @@ class TestP2_RestartDurability:
 
 
 class TestP3_HistoryOnLocalDay:
-    """Use Europe/Berlin (UTC+3 summer) where UTC/local dates differ.
+    """Use Europe/Athens (UTC+3 summer) where UTC/local dates differ.
 
     Persist events around local midnight:
       - one event belongs to PREVIOUS local day (UTC 2026-08-24 20:59 = local 2026-08-24 23:59)
       - one event belongs to TARGET local day (UTC 2026-08-24 21:00 = local 2026-08-25 00:00)
       - one event belongs to FOLLOWING local day
 
-    history_on(2026-08-25, Europe/Berlin) must return ONLY the target day.
+    history_on(2026-08-25, Europe/Athens) must return ONLY the target day.
     """
 
     @pytest.fixture(autouse=True)
     def _setup_events(self):
         _clear_tables()
 
-        # In Europe/Berlin summer (UTC+3):
+        # In Europe/Athens summer (UTC+3):
         # 2026-08-24 20:59 UTC = 2026-08-24 23:59 EEST (previous local day)
         # 2026-08-24 21:00 UTC = 2026-08-25 00:00 EEST (target local day)
         # 2026-08-25 20:59 UTC = 2026-08-25 23:59 EEST (target local day)
@@ -299,9 +299,9 @@ class TestP3_HistoryOnLocalDay:
         yield
 
     def test_history_on_returns_only_target_local_day(self):
-        """history_on(2026-08-25, Europe/Berlin) must return only events
+        """history_on(2026-08-25, Europe/Athens) must return only events
         belonging to the Vilnius local calendar day 2026-08-25."""
-        result = history_on("2026-08-25", "Europe/Berlin")
+        result = history_on("2026-08-25", "Europe/Athens")
         assert isinstance(result, TimelineResult)
         messages = [e.message for e in result.events]
         assert "previous local day" not in messages, "previous day excluded"
@@ -331,7 +331,7 @@ class TestP3_HistoryOnLocalDay:
 
 
 class TestP4_DSTDay:
-    """Use real DST transition: Europe/Berlin spring-forward 2026-03-29.
+    """Use real DST transition: Europe/Athens spring-forward 2026-03-29.
 
     Local day 2026-03-29 in Vilnius has 23 hours (UTC+2 → UTC+3 at 03:00 local).
 
@@ -343,7 +343,7 @@ class TestP4_DSTDay:
     def _setup_events(self):
         _clear_tables()
 
-        # Europe/Berlin DST 2026: spring forward March 29, 03:00 local
+        # Europe/Athens DST 2026: spring forward March 29, 03:00 local
         # Before spring-forward: UTC+2 (EET)
         # After spring-forward: UTC+3 (EEST)
         #
@@ -396,7 +396,7 @@ class TestP4_DSTDay:
 
     def test_dst_calendar_day_not_24h(self):
         """The DST day range must NOT be 86400s."""
-        vilnius = ZoneInfo("Europe/Berlin")
+        vilnius = ZoneInfo("Europe/Athens")
         # local midnight 2026-03-29 in Vilnius
         local_midnight = datetime(2026, 3, 29, 0, 0, 0, tzinfo=vilnius)
         next_local_midnight = datetime(2026, 3, 30, 0, 0, 0, tzinfo=vilnius)
@@ -408,7 +408,7 @@ class TestP4_DSTDay:
 
     def test_history_on_dst_day(self):
         """history_on 2026-03-29 in Vilnius returns only events in that 23h local day."""
-        result = history_on("2026-03-29", "Europe/Berlin")
+        result = history_on("2026-03-29", "Europe/Athens")
         assert isinstance(result, TimelineResult)
         messages = [e.message for e in result.events]
         assert "before DST day midnight" not in messages, "before midnight excluded"
@@ -420,7 +420,7 @@ class TestP4_DSTDay:
 
     def test_dst_events_between_not_24h(self):
         """events_between with local-midnight range uses correct boundaries."""
-        vilnius = ZoneInfo("Europe/Berlin")
+        vilnius = ZoneInfo("Europe/Athens")
         local_midnight = datetime(2026, 3, 29, 0, 0, 0, tzinfo=vilnius)
         next_local = datetime(2026, 3, 30, 0, 0, 0, tzinfo=vilnius)
         start_utc = local_midnight.astimezone(timezone.utc)
@@ -733,7 +733,7 @@ class TestSabotage_S1_S4:
         # If using UTC midnight, this event would be on Aug 24 (UTC), not Aug 25 (local)
         # With correct Vilnius midnight, it IS on Aug 25
 
-        vilnius_result = history_on("2026-08-25", "Europe/Berlin")
+        vilnius_result = history_on("2026-08-25", "Europe/Athens")
         vilnius_messages = [e.message for e in vilnius_result.events]
         assert "vilnius midnight event" in vilnius_messages, (
             "S3 caught: correct Vilnius local midnight includes the boundary event"

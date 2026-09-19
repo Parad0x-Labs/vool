@@ -4,9 +4,9 @@ Green at HEAD. Every red companion lives in repro_ct*.py with a finding id.
 """
 from __future__ import annotations
 
-from core.live_data_continuation import continuation_inherits_live_data
-
 from kit_lib import GOLD_ANSWER, GOLD_QUESTION, context, gold_thread, plan_operations, weather_thread
+
+from core.live_data_continuation import continuation_inherits_live_data
 
 GOLD = GOLD_QUESTION
 GOLD_ANS = GOLD_ANSWER

@@ -21,10 +21,10 @@ import re
 from typing import Any
 
 from core.code_assistant.contract import (
-    CodeAssistantProposal,
-    ContractRefused,
     REASON_INVALID_ARGUMENTS,
     REASON_UNKNOWN_INTENT,
+    CodeAssistantProposal,
+    ContractRefused,
     validate_proposal,
 )
 

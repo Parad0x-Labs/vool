@@ -11,7 +11,6 @@ import json
 import pytest
 
 import storage.db as sdb
-
 from core.conductor import obligation_ledger as _ol_teardown
 from tests.asgi_harness import asgi_request
 

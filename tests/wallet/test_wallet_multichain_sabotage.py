@@ -121,13 +121,13 @@ def test_m5_sabotaged_chain_identity_accepts_a_lying_endpoint(wallet_env, monkey
     def lying_probe(method: str) -> str:
         return "0x1"  # a mainnet endpoint
 
-    with pytest.raises(Exception):  # noqa: B017 - any refusal shape is the guard biting
+    with pytest.raises(Exception):
         chains.verify_chain_identity(spec, lying_probe, force=True)  # the guard
     monkeypatch.setattr(chains, "_identity_matches", lambda spec, method, answer: True)
     verified = chains.verify_chain_identity(spec, lying_probe, force=True)
     assert verified.chain_id == "84532"  # the sabotage recorded a lie as identity
     monkeypatch.undo()
-    with pytest.raises(Exception):  # noqa: B017 - restored: the guard bites again
+    with pytest.raises(Exception):
         chains.verify_chain_identity(spec, lying_probe, force=True)
 
 
@@ -194,7 +194,7 @@ def test_m8_sabotaged_outbound_door_opens_a_private_socket(wallet_env, monkeypat
             return {"status": response.status, "headers": {}, "body": response.read()[:16], "url": url}
 
     monkeypatch.setattr(outbound, "fetch", raw_fetch)
-    with pytest.raises(Exception):  # noqa: B017 - unroutable host raises however it likes
+    with pytest.raises(Exception):
         outbound.fetch("http://169.254.169.254/latest/meta-data")  # still no route to metadata in CI
     # the real bite: the policy layer is gone, so a bogus-but-routable call would go out.
     # Prove the layer is what refuses by restoring and re-running:

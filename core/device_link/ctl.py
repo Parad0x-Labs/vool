@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "revoke-all":
         n = registry_from_book(book).revoke_all(reason="panic")
-        for grant_id in list((book.get("grants") or {})):
+        for grant_id in list(book.get("grants") or {}):
             book.setdefault("revoked", {}).setdefault(
                 grant_id, {"reason": "panic"})
         save_book(args.book, book)

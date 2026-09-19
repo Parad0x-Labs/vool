@@ -28,7 +28,7 @@ def home(tmp_path, monkeypatch):
     prepared = prepare_home(tmp_path, monkeypatch)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: T0.astimezone(ZoneInfo("Europe/Athens")))
     return prepared
 
 
@@ -152,7 +152,7 @@ def test_cancelled_override_is_a_hole_and_single_occurrence_move_asks(home, monk
         assert [row for row in following.details["events"] if row["summary"] == "Retro"] == [], following.response_text
 
         # A titled move across the expanded series resolves occurrences, not the master.
-        move = _run('move the "Retro" event to 2026-09-22 11:00 Europe/Berlin', session_id="expand2b")
+        move = _run('move the "Retro" event to 2026-09-22 11:00 Europe/Athens', session_id="expand2b")
         assert move.status in {"invalid_request", "ambiguous", "approval_required"}, move.response_text
         if move.status == "approval_required":
             refused = _run(f"approve calendar {move.details['action_id']}", session_id="expand2b")
@@ -184,7 +184,7 @@ def test_move_one_named_occurrence_preserves_series(home, monkeypatch):
         state.put_event(CAL, "retro@f", _master("retro@f", "Retro", first, 60, "FREQ=WEEKLY;BYDAY=TU"))
 
         session = "occ-move"
-        proposal = _run('move the "Retro" event to 2026-09-29 13:00 Europe/Berlin (the 2026-09-29 occurrence)',
+        proposal = _run('move the "Retro" event to 2026-09-29 13:00 Europe/Athens (the 2026-09-29 occurrence)',
                         session_id=session)
         assert proposal.status == "approval_required", proposal.response_text
         assert "2026-09-29" in proposal.response_text, proposal.response_text  # names the dated occurrence
@@ -201,7 +201,7 @@ def test_move_one_named_occurrence_preserves_series(home, monkeypatch):
         assert len(overrides) == 1, overrides
         override_ics = overrides[0]
         assert "RECURRENCE-ID:20260929T090000Z" in override_ics, override_ics
-        assert "DTSTART:20260929T100000Z" in override_ics, override_ics  # 13:00 Europe/Berlin
+        assert "DTSTART:20260929T100000Z" in override_ics, override_ics  # 13:00 Europe/Athens
 
         following = _run("agenda from 2026-09-28 to 2026-10-04", session_id=session + "b")
         retros = [row for row in following.details["events"] if row["summary"] == "Retro"]

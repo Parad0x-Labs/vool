@@ -83,7 +83,7 @@ def test_selection_injection_authorization_budget_execution_blackbox_receipt_ans
         [_call("sandbox.run_command", command="cp seed.txt proof.txt", cwd=str(workspace))],
     ]
 
-    from core.runtime_execution_tools import with_mutation_coverage  # noqa: F401 — the door under test
+    from core.runtime_execution_tools import with_mutation_coverage
 
     open_effect_receipt_scope({"session_id": session_id, "workspace_root": str(workspace)})
     try:

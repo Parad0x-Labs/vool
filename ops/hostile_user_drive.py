@@ -42,11 +42,11 @@ BASE_URL = "http://127.0.0.1:11435"
 #: The driver's own probe geography - part of the exam, not production logic.
 CITY_ZONES = {
     "tokyo": "Asia/Tokyo",
-    "berlin": "Europe/Berlin",
+    "berlin": "Europe/Athens",
     "london": "Europe/London",
     "denver": "America/Denver",
     "sydney": "Australia/Sydney",
-    "vilnius": "Europe/Berlin",
+    "vilnius": "Europe/Athens",
 }
 
 _TIME_RE = re.compile(r"\b(\d{1,2}):(\d{2})\b")

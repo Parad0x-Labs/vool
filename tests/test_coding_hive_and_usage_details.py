@@ -146,7 +146,10 @@ def test_unfenced_and_normalized_paste_is_its_own_scope():
 
 
 def test_pasted_task_update_code_is_not_a_live_hive_task_update():
-    from core.agent_runtime.hive_topic_mutation_detection import looks_like_hive_topic_update_request, looks_like_hive_topic_delete_request
+    from core.agent_runtime.hive_topic_mutation_detection import (
+        looks_like_hive_topic_delete_request,
+        looks_like_hive_topic_update_request,
+    )
     agent = Mock()
     agent._looks_like_hive_topic_create_request.return_value = False
     assert not looks_like_hive_topic_update_request(agent, CODING_REQUEST)

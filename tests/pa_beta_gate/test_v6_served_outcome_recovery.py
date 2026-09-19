@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from tests.pa_beta_gate._json_api_service import start_json_calendar_fixture
-from tests.pa_beta_gate.test_served_calendar_notes_workflows import (  # noqa: F401 -- served_env is a fixture, requested via getfixturevalue
+from tests.pa_beta_gate.test_served_calendar_notes_workflows import (
     VILNIUS_CAL,
     _approval_id,
     _turn,
@@ -126,7 +126,7 @@ def served_graph_env(tmp_path, monkeypatch):
     run_migrations()
     from core.user_preferences import save_user_timezone
 
-    assert save_user_timezone("Europe/Berlin")
+    assert save_user_timezone("Europe/Athens")
     server, state, base_url = start_json_calendar_fixture(dialect="graph", calendars={GRAPH_CAL: "Work"})
     monkeypatch.setenv("VOOL_CALENDAR_PROVIDER", "graph")
     monkeypatch.setenv("VOOL_CALENDAR_URL", base_url)
@@ -135,7 +135,7 @@ def served_graph_env(tmp_path, monkeypatch):
     fixed = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: fixed.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: fixed.astimezone(ZoneInfo("Europe/Athens")))
     harness = _Harness(f"sess-graph-{uuid.uuid4().hex[:8]}")
     yield {"harness": harness, "state": state, "server": server, "workspace": workspace}
     harness.close()
@@ -188,7 +188,7 @@ def test_served_caldav_object_without_uid_is_unreadable_and_nothing_is_staged(re
 
     availability = _turn(harness, "Look at Thursday morning on my calendar for a free 20-minute slot", workspace)
     assert "could not be read as calendar data" in availability and "Free 20-minute options" not in availability, availability
-    proposal = _turn(harness, 'propose "Generator load test" on 2026-09-17 10:00 Europe/Berlin for 20m', workspace)
+    proposal = _turn(harness, 'propose "Generator load test" on 2026-09-17 10:00 Europe/Athens for 20m', workspace)
     assert "approve calendar" not in proposal and "could not be read as calendar data" in proposal, proposal
     assert state.snapshot()[VILNIUS_CAL] == before, "nothing was written to the calendar"
 
@@ -209,7 +209,7 @@ def test_served_caldav_event_that_ends_before_it_starts_is_unreadable_not_free(r
 
     availability = _turn(harness, "Look at Thursday morning on my calendar for a free 20-minute slot", workspace)
     assert "could not be read as calendar data" in availability and "Free 20-minute options" not in availability, availability
-    proposal = _turn(harness, 'propose "Generator load test" on 2026-09-17 09:15 Europe/Berlin for 60m', workspace)
+    proposal = _turn(harness, 'propose "Generator load test" on 2026-09-17 09:15 Europe/Athens for 60m', workspace)
     assert "approve calendar" not in proposal and "could not be read as calendar data" in proposal, proposal
     assert state.snapshot()[VILNIUS_CAL] == before, "nothing was written to the calendar"
 
@@ -219,7 +219,7 @@ def test_served_graph_recovery_over_unreadable_rows_never_sends_the_create_twice
     env = request.getfixturevalue("served_graph_env")
     harness, state, workspace = env["harness"], env["state"], env["workspace"]
     posts = _count_posts(monkeypatch, env["server"])
-    action_id = _approval_id(_turn(harness, 'propose "Transformer oil sample" on 2026-09-16 10:00 Europe/Berlin for 30m', workspace))
+    action_id = _approval_id(_turn(harness, 'propose "Transformer oil sample" on 2026-09-16 10:00 Europe/Athens for 30m', workspace))
 
     monkeypatch.setenv("VOOL_CALENDAR_TIMEOUT", "1")
     state.hang_seconds = 3.0  # the service stores the create, then withholds its reply

@@ -116,9 +116,8 @@ def review_evidence_tool(
 ) -> Any:
     """Handler for the ``code.review_evidence`` runtime intent. Read-only by construction: it
     consults the journal and the filesystem, runs nothing, and journals nothing."""
-    from core.runtime_execution_tools import RuntimeExecutionResult, _tool_observation
-
     from core.blackbox.store import default_store
+    from core.runtime_execution_tools import RuntimeExecutionResult, _tool_observation
 
     turn_id = str((arguments or {}).get("turn_id") or "").strip()
     if not turn_id:

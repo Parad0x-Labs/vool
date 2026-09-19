@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 
 from tests.blackbox_coverage._ctx import ctx
+
+
 def _recorded_shell(workspace, turn: str):
     from core.blackbox.coverage.recorder import recorded_capability_mutation
     from core.runtime_execution_tools import RuntimeExecutionResult

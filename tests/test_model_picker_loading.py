@@ -1,7 +1,9 @@
 """Real price dialog: slow reads remain visible, cancellable and fail closed."""
 import pytest
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import expect, sync_playwright
+
 from core.price_safety_fragment import render_price_safety_fragment
+
 
 @pytest.fixture
 def page():

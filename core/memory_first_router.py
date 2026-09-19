@@ -87,6 +87,11 @@ from core.paid_call_reservation import (
     reserve_owner_pick_paid_call,
     settle_owner_pick_paid_call,
 )
+from core.presentation_selection import (
+    EXPLICIT_COUNTERPART,
+    select_presentation,
+    selection_repair_acceptance,
+)
 from core.prompt_budget import PromptBudgetExceededError
 from core.prompt_normalizer import normalize_prompt
 from core.provider_execution_boundary import invoke_provider_execution_boundary
@@ -100,11 +105,6 @@ from core.raw_output_contract import (
     raw_output_retry_instruction,
 )
 from core.request_trust import request_is_owner_local
-from core.presentation_selection import (
-    EXPLICIT_COUNTERPART,
-    select_presentation,
-    selection_repair_acceptance,
-)
 from core.response_constraints import (
     check_response_constraint,
     compress_short_coordinate_phrase,
@@ -758,7 +758,6 @@ def _mint_routing_plan_for_turn(
             allowed_provider_ids = fences.get("allowed_provider_ids")
             applied_rule_ids = tuple(rule.rule_id for rule in consumed)
     retry_marker = context.get(_turn_routing.TURN_ROUTING_RETRY_KEY)
-    retry_linkage: dict[str, Any] | None = None
     if isinstance(retry_marker, dict) and retry_marker.get("plan_id"):
         original = _turn_routing.plan_by_id(str(retry_marker["plan_id"]))
         if original is not None:
@@ -775,10 +774,8 @@ def _mint_routing_plan_for_turn(
                 context_identity=f"turnctx-{turn_id}",
                 context_reason="canonical_session_transcript",
             )
-            try:
+            with contextlib.suppress(Exception):
                 _turn_routing.record_routing_provenance(retry_plan)
-            except Exception:
-                pass
             return retry_plan
     try:
         plan = _turn_routing.mint_turn_routing_plan(
@@ -798,10 +795,8 @@ def _mint_routing_plan_for_turn(
         )
     except _turn_routing.RoutingIdentityError:
         return None
-    try:
+    with contextlib.suppress(Exception):
         _turn_routing.record_routing_provenance(plan)
-    except Exception:
-        pass
     return plan
 
 
@@ -2267,6 +2262,7 @@ class MemoryFirstRouter:
         # finalize keys the observation by the kind the selection actually used — never inferred
         # after the fact. Callers that did not run a selection (legacy lanes) leave it empty and
         # the observation stays `unknown`: inspectable, never eligible for ranking.
+        from core.paid_call_reservation import _int_attr  # local, as the retry path already does
         # THE local-only backstop, and the reason it sits here rather than only in ranking. Ranking
         # is one of several ways a manifest reaches a provider: the escalation path, the local/remote
         # race in `_maybe_mux_manifests`, the conductor and the tool planner all arrive at this
@@ -6003,7 +5999,7 @@ class MemoryFirstRouter:
                 # at the loop that owns candidate order (not inside _invoke_manifest, which
                 # several lanes share per call), once per failed candidate, with the failure
                 # KIND kept distinct: timeout ≠ unavailable ≠ refused ≠ cancelled ≠ partial.
-                try:
+                with contextlib.suppress(Exception):
                     _turn_routing.record_routing_failure(
                         turn_id=routing_plan.turn_id,
                         session_id=routing_plan.session_id,
@@ -6016,8 +6012,6 @@ class MemoryFirstRouter:
                         plan_digest=routing_plan.digest(),
                         user_text=str(routing_user_text or ""),
                     )
-                except Exception:
-                    pass
                 failed_proof = _lane_proof_payload(
                     source_context=source_context,
                     task=task,

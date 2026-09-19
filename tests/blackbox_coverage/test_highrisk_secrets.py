@@ -6,6 +6,8 @@ from __future__ import annotations
 import pytest
 
 from tests.blackbox_coverage._ctx import ctx
+
+
 class TestHighRiskClassification:
     @pytest.mark.parametrize(
         "path,kind",

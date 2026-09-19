@@ -1,13 +1,25 @@
-import sys, time, os
+import os
+import sys
+import time
+
 TREE = sys.argv[1]
 sys.path.insert(0, TREE)
 import core
+
 assert core.__file__.startswith(TREE), core.__file__
 print("core resolved:", core.__file__)
-from core.agent_runtime.turn_frontdoor import closed_semantic_contract_covers_turn
-from core.agent_runtime.answer_coverage import turn_slices, slice_families, unclaimed_slices, fused_cross_domain_slices, coverage_for, FAMILY_CURRENCY
-from core.currency_comparison import uncovered_residue
+from core.agent_runtime.answer_coverage import (
+    FAMILY_CURRENCY,
+    coverage_for,
+    fused_cross_domain_slices,
+    slice_families,
+    turn_slices,
+    unclaimed_slices,
+)
 from core.agent_runtime.fast_paths_currency import currency_fast_path
+from core.agent_runtime.turn_frontdoor import closed_semantic_contract_covers_turn
+from core.currency_comparison import uncovered_residue
+
 TESTS = [
   "100 EUR to USD at 1.10. Also 500 GBP to JPY at 190.5.",
   "how much is 100 EUR in USD at 1.10? and 500 CHF in JPY at 170?",

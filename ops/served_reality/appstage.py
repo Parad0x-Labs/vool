@@ -187,7 +187,7 @@ def stage_app(repo: Path, sha: str, run_dir: Path, *, provenance_branch: str = "
         try:
             tar.extractall(app_dir, filter="data")
         except TypeError:  # python < 3.12 without filter kwarg
-            tar.extractall(app_dir)  # noqa: S202 - trusted: produced by git archive locally
+            tar.extractall(app_dir)
     census = census_tree(app_dir)
     # Packaged-install provenance: the product reads this when no .git exists
     # (core/web/api/runtime.py build_source_metadata) — the same mechanism a

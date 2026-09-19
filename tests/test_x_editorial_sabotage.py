@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from tests.test_x_editorial_engine import CLEAN_POST, CORPUS  # noqa: F401
+from tests.test_x_editorial_engine import CLEAN_POST, CORPUS
 
 
 @pytest.fixture()

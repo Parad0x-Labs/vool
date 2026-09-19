@@ -86,9 +86,8 @@ def parse_ambiguity_verdict(raw: object) -> AmbiguityVerdict | None:
     # The LAST JSON object: a reasoning model's think block may quote example
     # verdicts before emitting the real one, and the first brace would then be
     # the example's.
-    match = None
-    for match in _JSON_OBJECT_RE.finditer(text):
-        pass
+    matches = list(_JSON_OBJECT_RE.finditer(text))
+    match = matches[-1] if matches else None
     if match is None:
         return None
     try:
@@ -146,7 +145,7 @@ class AmbiguityOutcome:
 
 
 def build_probe_user_message(
-    question: str, prior_events: "list[dict] | None" = None
+    question: str, prior_events: list[dict] | None = None
 ) -> str:
     """The probe's user message: the question, with bounded PRIOR conversation.
 

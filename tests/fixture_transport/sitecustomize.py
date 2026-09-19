@@ -63,10 +63,10 @@ if _MANIFEST:
         def info(self) -> Message:
             return self.headers
 
-        def __enter__(self):  # noqa: D105
+        def __enter__(self):
             return self
 
-        def __exit__(self, *_exc):  # noqa: D105
+        def __exit__(self, *_exc):
             self.close()
             return False
 
@@ -118,12 +118,12 @@ if _MANIFEST:
 
     _LOOPBACK = {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
 
-    def _fixture_urlopen(request, timeout=None, *args, **kwargs):  # noqa: ANN001
+    def _fixture_urlopen(request, timeout=None, *args, **kwargs):
         url = request.full_url if hasattr(request, "full_url") else str(request)
         # The daemon's own loopback traffic (its scripted provider, its own API) is not the
         # world: it passes through untouched. Only remote hosts are fixtures or refusals.
         if (urllib.parse.urlparse(url).hostname or "").lower() in _LOOPBACK:
-            return _real_urlopen(request, timeout=timeout, *args, **kwargs) if timeout is not None else _real_urlopen(request, *args, **kwargs)
+            return _real_urlopen(request, *args, timeout=timeout, **kwargs) if timeout is not None else _real_urlopen(request, *args, **kwargs)
         rules = list(_load_manifest().get("rules") or [])
         rule = _match(rules, url)
         if rule is None:
@@ -167,7 +167,7 @@ if _GATE_LOG:
     class _GateRecorderFinder(importlib.abc.MetaPathFinder):
         _target = "core.grounding_publication"
 
-        def find_spec(self, fullname, path, target=None):  # noqa: ANN001
+        def find_spec(self, fullname, path, target=None):
             if fullname != self._target:
                 return None
             spec = importlib.machinery.PathFinder.find_spec(fullname, path)
@@ -175,7 +175,7 @@ if _GATE_LOG:
                 return None
             real_exec = spec.loader.exec_module
 
-            def exec_module(module):  # noqa: ANN001
+            def exec_module(module):
                 real_exec(module)
                 real_gate = module.gate_publishable_content
 

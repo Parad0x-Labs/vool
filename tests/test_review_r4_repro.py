@@ -1,9 +1,17 @@
 """Disposable-key probes of the real store and intake dispatcher, never owner credentials."""
 import hashlib
+
 import pytest
-from tests.first_run_pact_rig import pact_rig
+
 from tests._credential_intelligence_support import FakeProviderServer
-from tests.test_quarantine_destination_isolation import LATER_KEY, THIRD_KEY, _openai_compatible, _begin_classify, _point_custom_at
+from tests.first_run_pact_rig import pact_rig
+from tests.test_quarantine_destination_isolation import (
+    LATER_KEY,
+    THIRD_KEY,
+    _begin_classify,
+    _openai_compatible,
+    _point_custom_at,
+)
 
 
 def test_failed_index_commit_cannot_send_new_key_to_old_endpoint(pact_rig, monkeypatch):
@@ -26,8 +34,8 @@ def test_failed_index_commit_cannot_send_new_key_to_old_endpoint(pact_rig, monke
 
 
 def test_completed_delete_recreate_rejects_old_snapshot(pact_rig):
-    from core.credential_intelligence.store import CredentialStore,IntakeRefusedError
     from core.credential_intelligence.provider_registry import default_registry
+    from core.credential_intelligence.store import CredentialStore, IntakeRefusedError
     store=CredentialStore(default_registry());descriptor=default_registry().get('custom')
     store.save_quarantined(descriptor,LATER_KEY,endpoint='http://127.0.0.1:9/v1')
     old=store.quarantine_snapshot('custom')
@@ -42,8 +50,8 @@ def test_completed_delete_recreate_rejects_old_snapshot(pact_rig):
 
 
 def test_verified_complete_keeps_key_and_endpoint_paired(pact_rig,monkeypatch):
-    from core.credential_intelligence.store import CredentialStore
     from core import credential_store
+    from core.credential_intelligence.store import CredentialStore
     with FakeProviderServer(_openai_compatible([LATER_KEY])) as a, FakeProviderServer(_openai_compatible([THIRD_KEY])) as b:
         _point_custom_at(monkeypatch,a.url+'/v1')
         sa=_begin_classify(pact_rig,LATER_KEY,base_url=a.url+'/v1')

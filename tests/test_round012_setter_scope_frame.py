@@ -63,7 +63,7 @@ POSITIVE = [
     ("Keep it to exactly ten words in the two replies that follow this message.", 2, 10),
 ]
 
-import pytest  # noqa: E402
+import pytest
 
 
 @pytest.mark.parametrize("q,ttl,n", POSITIVE)

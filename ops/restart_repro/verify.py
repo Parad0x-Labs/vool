@@ -19,8 +19,8 @@ import threading
 import time
 from pathlib import Path
 
-from .harness import Daemon, ProviderStub, stable_session_id
 from .__main__ import FIRST_MARKER, SECOND_MARKER, THIRD_MARKER, answer_is_clean
+from .harness import Daemon, ProviderStub, stable_session_id
 
 
 def _events_for(daemon: Daemon, chat_id: str) -> list[dict]:

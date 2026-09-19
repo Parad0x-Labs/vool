@@ -27,7 +27,7 @@ import json
 
 import pytest
 
-from tests.test_canonical_obligation_floor import (  # noqa: F401  (fetchers is a fixture)
+from tests.test_canonical_obligation_floor import (
     _CRYPTO,
     _TEMPS,
     _accounted_for,

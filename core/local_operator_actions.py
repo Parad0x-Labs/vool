@@ -688,7 +688,6 @@ def _handle_apple_note_append(
     task_id: str,
     session_id: str,
 ) -> OperatorActionResult:
-    from core.operator import apple_notes
 
     title = str(intent.target_label or "").strip()
     text = str(intent.destination_path or "").strip()
@@ -697,7 +696,6 @@ def _handle_apple_note_append(
                                     response_text='Which Apple note should I append to, and with what text? For example: append to my Apple note "Standups" with "migrated repo".',
                                     details={"kind": "apple_note_append"})
     from core.operator import notes as workspace_notes
-
     from core.operator.apple_notes import parse_notes_destination
 
     destination = parse_notes_destination(intent.raw_text, data=(text,))
@@ -731,7 +729,6 @@ def _handle_apple_note_rename(
                                     response_text='Rename which Apple note to what? For example: rename my Apple note "Old" to "New".',
                                     details={"kind": "apple_note_rename"})
     from core.operator import notes as workspace_notes
-
     from core.operator.apple_notes import parse_notes_destination
 
     destination = parse_notes_destination(intent.raw_text, data=(new_title,))
@@ -803,7 +800,6 @@ def _composed_request_parts(intent: OperatorActionIntent, *, task_id: str, sessi
     """
     import re as _re
 
-    from core.operator.parser import parse_operator_action_intent
 
     raw = str(intent.raw_text or "")
     if intent.action_id or _re.search(r"\bapprove\b", raw, _re.IGNORECASE):
@@ -878,7 +874,9 @@ def _composed_request_parts(intent: OperatorActionIntent, *, task_id: str, sessi
                     by_kind[kind] = blocked
                     continue
                 minutes = int(lead.group(1))
-                from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+                from datetime import datetime as _dt
+                from datetime import timedelta as _td
+                from datetime import timezone as _tz
 
                 try:
                     start = _dt.fromisoformat(start_utc.replace("Z", "+00:00"))
@@ -890,7 +888,7 @@ def _composed_request_parts(intent: OperatorActionIntent, *, task_id: str, sessi
                     by_kind[kind] = blocked
                     continue
                 due = start - _td(minutes=minutes)
-                zone = str(((booking.details or {}) if booking is not None else {}).get("tz_name") or ((availability.details or {}).get("zone") if "check_availability" in present else "") or "UTC")
+                str(((booking.details or {}) if booking is not None else {}).get("tz_name") or ((availability.details or {}).get("zone") if "check_availability" in present else "") or "UTC")
                 part_raw = (f"remind me about the proposed event on {due.astimezone(_tz.utc):%Y-%m-%d %H:%M} UTC "
                             f"({minutes} minutes before its start)")
         part_intent = OperatorActionIntent(kind=kind, raw_text=part_raw)
@@ -914,7 +912,7 @@ def _composed_request_parts(intent: OperatorActionIntent, *, task_id: str, sessi
         return None
     ordered = [(kind, by_kind[kind]) for kind in present if kind in by_kind]
     lines = [f"That request had {len(ordered)} parts; each is its own truth:"]
-    for index, (kind, result) in enumerate(ordered, start=1):
+    for index, (_kind, result) in enumerate(ordered, start=1):
         state = ("waiting for your approval" if result.status == "approval_required"
                  else "completed" if result.ok else f"{result.status}")
         lines.append(f"--- part {index} ({state}) ---")

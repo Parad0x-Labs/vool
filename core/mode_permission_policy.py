@@ -11,6 +11,7 @@ one of those harder boundaries.
 
 from __future__ import annotations
 
+import contextlib
 import difflib
 import hashlib
 import hmac
@@ -1233,7 +1234,7 @@ def _persist_bypass_grants_locked() -> None:
         os.replace(tmp, path)
     except BypassStoreError:
         raise
-    except Exception as exc:  # noqa: BLE001 - named and re-raised as the store's own type
+    except Exception as exc:
         raise BypassStoreError(f"the bypass grant store could not be written: {exc}") from exc
 
 
@@ -1290,13 +1291,13 @@ def _write_bypass_revocation_head_locked(head_seq: int, head_hash: str) -> None:
         "head_seq": int(head_seq),
         "head_hash": str(head_hash or ""),
     }
-    mac = hmac.new(key, f"{payload['schema']}|{payload['head_seq']}|{payload['head_hash']}".encode("utf-8"), hashlib.sha256).hexdigest()
+    mac = hmac.new(key, f"{payload['schema']}|{payload['head_seq']}|{payload['head_hash']}".encode(), hashlib.sha256).hexdigest()
     try:
         with open(anchor, "w", encoding="utf-8") as handle:
             handle.write(json.dumps({**payload, "mac": mac}) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-    except Exception as exc:  # noqa: BLE001 - named and re-raised as the store's own type
+    except Exception as exc:
         raise BypassStoreError(f"the bypass revocation anchor could not be written: {exc}") from exc
 
 
@@ -1365,7 +1366,7 @@ def _verified_bypass_head() -> tuple[int, str] | None:
     except (TypeError, ValueError):
         return None
     head_hash = str(head.get("head_hash") or "")
-    expected = hmac.new(key, f"{head.get('schema')}|{head_seq}|{head_hash}".encode("utf-8"), hashlib.sha256).hexdigest()
+    expected = hmac.new(key, f"{head.get('schema')}|{head_seq}|{head_hash}".encode(), hashlib.sha256).hexdigest()
     if str(head.get("mac") or "") != expected:
         return None
     return head_seq, head_hash
@@ -1538,7 +1539,7 @@ def _append_bypass_revocation_journal_locked(token: str) -> None:
             handle.write(json.dumps({**record, "mac": mac}) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-    except Exception as exc:  # noqa: BLE001 - named and re-raised as the store's own type
+    except Exception as exc:
         raise BypassStoreError(f"the bypass revocation journal could not be written: {exc}") from exc
     # Only after the record is durable does the anchor advance to cover it.
     _write_bypass_revocation_head_locked(record["seq"], _record_digest({**record, "mac": mac}))
@@ -1671,20 +1672,16 @@ def restore_persisted_bypass_grants() -> int:
         ):
             # Corrupt or tampered: quarantine so the NEXT restart does not read the same bytes,
             # and restore nothing. Dropping is safe -- the owner re-approves; forging is not.
-            try:
+            with contextlib.suppress(OSError):
                 path.rename(path.with_name(f"{path.name}.corrupt-{int(time.time())}"))
-            except OSError:
-                pass
             return 0
 
         def _quarantine_store() -> None:
             for doomed in (path, _bypass_revocations_path(), _bypass_revocations_head_path()):
                 if doomed is None:
                     continue
-                try:
+                with contextlib.suppress(OSError):
                     doomed.rename(doomed.with_name(f"{doomed.name}.corrupt-{int(time.time())}"))
-                except OSError:
-                    pass
 
         journal_path = _bypass_revocations_path()
         journal_exists = journal_path is not None and journal_path.exists()
@@ -1838,7 +1835,7 @@ def revoke_session_bypass_grants(session_id: str) -> int:
     revoked = 0
     store_error: BypassStoreError | None = None
     with _LOCK:
-        for token, grant in list(_BYPASS_GRANTS.items()):
+        for _token, grant in list(_BYPASS_GRANTS.items()):
             bound = str(grant.get("session_id") or "")
             if bound and bound == clean_session and not grant.get("revoked"):
                 grant["revoked"] = True

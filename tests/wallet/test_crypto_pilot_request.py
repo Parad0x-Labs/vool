@@ -12,6 +12,7 @@ import uuid
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from tests.wallet._rig import DEVNET_GENESIS, ScriptedRpc
 from tests.wallet._rig_evm_native import ScriptedEvmNativeChain
 

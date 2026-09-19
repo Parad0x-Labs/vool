@@ -64,6 +64,7 @@ def _erase(fid):
 
 def _request_scope(request_id):
     from contextlib import contextmanager as _cm
+
     from core.semantic.semantic_admissions import set_request_context
 
     @_cm

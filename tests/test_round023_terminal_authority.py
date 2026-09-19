@@ -25,7 +25,6 @@ import pytest
 import core.kernel.repl as repl
 from core.kernel.effects import EffectRunner
 
-
 # ---------------------------------------------------------------------------
 # Helper: a fast fake that records every prompt
 # ---------------------------------------------------------------------------

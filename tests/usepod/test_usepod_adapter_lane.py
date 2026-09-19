@@ -721,6 +721,7 @@ def test_rotating_the_token_changes_the_credential_identity_and_orphans_its_disc
 def test_price_pause_keeps_request_and_reserves_only_after_resume(rig, monkeypatch):
     """Actual adapter + loopback provider; no reservation or HTTP call while paused."""
     import time
+
     from core import runtime_continuity as queue
     from core.usepod import price_wait
     _approve()
@@ -743,7 +744,8 @@ def test_price_pause_keeps_request_and_reserves_only_after_resume(rig, monkeypat
         assert first.output_text
         # Supply parsed fresh snapshots at the same owning seam; wire inference remains real loopback.
         from dataclasses import replace
-        from tests.usepod.test_usepod_routing_policy import _snap, _row
+
+        from tests.usepod.test_usepod_routing_policy import _row, _snap
         high = replace(_snap(_row(MODEL, market=(900000, 1260000)), fetched_at=time.time()), origin=rig.service.origin)
         low = replace(_snap(_row(MODEL, market=(420000, 1260000)), fetched_at=time.time()), origin=rig.service.origin)
         monkeypatch.setattr(price_wait.pricing, 'current_snapshot', lambda **kw: SimpleNamespace(snapshot=high, state='fresh', error_code=''))

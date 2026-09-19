@@ -35,7 +35,7 @@ def notes_env(tmp_path, monkeypatch):
     run_migrations()
     from core.user_preferences import save_user_timezone
 
-    assert save_user_timezone("Europe/Berlin")
+    assert save_user_timezone("Europe/Athens")
 
     server, state, base_url, _port = start_caldav_fixture(calendars={VILNIUS_CAL: "Vilnius"})
     monkeypatch.setenv("VOOL_CALENDAR_PROVIDER", "caldav")
@@ -116,7 +116,7 @@ def test_named_note_action_becomes_a_linked_calendar_proposal(notes_env, monkeyp
     state = notes_env["state"]
 
     _intent, saved = _run(
-        'save a note titled "Kickoff follow-ups" with: [action] book the venue call Friday at 15:00 Europe/Berlin',
+        'save a note titled "Kickoff follow-ups" with: [action] book the venue call Friday at 15:00 Europe/Athens',
         session_id=session,
     )
     assert saved.ok, saved.response_text
@@ -127,10 +127,10 @@ def test_named_note_action_becomes_a_linked_calendar_proposal(notes_env, monkeyp
 
     from core import local_operator_actions
 
-    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: fixed.astimezone(ZoneInfo("Europe/Berlin")))
+    monkeypatch.setattr(local_operator_actions, "_scheduling_now", lambda: fixed.astimezone(ZoneInfo("Europe/Athens")))
 
     _intent, proposal = _run(
-        'schedule the action "book the venue call" from my note on Thursday at 10:00 Europe/Berlin',
+        'schedule the action "book the venue call" from my note on Thursday at 10:00 Europe/Athens',
         session_id=session,
     )
     assert proposal.status == "approval_required", proposal.response_text

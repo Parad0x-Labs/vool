@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_native_skill_library import make_native_skill, native_world  # noqa: F401  (fixture re-export)
+from tests.test_native_skill_library import make_native_skill, native_world
 
 REQUIRED_PACKAGE_IDS = (
     "repo-onboarding",
@@ -327,8 +327,8 @@ def test_duplicate_ids_across_sources_are_reported_not_shadowed(library_world, p
 def test_a_native_package_survives_the_full_install_lifecycle(library_world, plugin_tree) -> None:
     """create→validate→install is the plugin lifecycle; a native package walks it unchanged and
     stays selectable (the twin is reported, the original keeps serving)."""
-    from core.runtime_execution_tools import execute_runtime_tool
     from core.native_skill_library import select_native_skills
+    from core.runtime_execution_tools import execute_runtime_tool
 
     result = execute_runtime_tool(
         "skill.install", {"path": "vool-cumulative-testing", "plugin_id": "parity-plugin",
@@ -364,7 +364,6 @@ def test_sabotage_the_capability_gate_and_selection_flips(native_world, monkeypa
     """Mutation proof: the canonical capability gate is what refuses. Neutralise it and the
     absent-capability package would be selected — the failure this lane exists to make impossible."""
     import core.native_skill_library as authority
-
     from core.native_skill_library import select_native_skills
     from tests.test_native_skill_library import make_native_skill
 

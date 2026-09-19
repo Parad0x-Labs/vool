@@ -378,18 +378,18 @@ class Runtime:
     def __init__(self, tree: str) -> None:
         tree = os.path.realpath(tree)
         sys.path.insert(0, tree)
-        import core  # noqa: PLC0415
+        import core
 
         resolved = os.path.realpath(core.__file__)
         if not resolved.startswith(tree + os.sep):
             raise SystemExit(f"REFUSING: asked for {tree}, core resolved to {resolved}")
         self.tree, self.core_file = tree, resolved
-        from core.agent_runtime import answer_coverage as ac  # noqa: PLC0415
-        from core.agent_runtime.fast_paths_currency import currency_fast_path  # noqa: PLC0415
-        from core.agent_runtime.turn_frontdoor import (  # noqa: PLC0415
+        from core.agent_runtime import answer_coverage as ac
+        from core.agent_runtime.fast_paths_currency import currency_fast_path
+        from core.agent_runtime.turn_frontdoor import (
             closed_semantic_contract_covers_turn,
         )
-        from core.currency_comparison import uncovered_residue  # noqa: PLC0415
+        from core.currency_comparison import uncovered_residue
 
         self.ac = ac
         self.cfp = currency_fast_path
@@ -540,7 +540,7 @@ def main() -> int:
     entrance = None
     if args.serve:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from red_b_served_gauntlet import ApiChat  # noqa: PLC0415
+        from red_b_served_gauntlet import ApiChat
 
         entrance = ApiChat(args.base_url, args.timeout)
 

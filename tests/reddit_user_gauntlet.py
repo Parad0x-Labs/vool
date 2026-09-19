@@ -295,7 +295,7 @@ def ask(query: str, timeout_s: float = 90.0) -> tuple[str, str]:
             result = future.result(timeout=timeout_s)
         except FuturesTimeoutError:
             return f"[driver timeout after {timeout_s:.0f}s]", ""
-        except Exception as exc:  # noqa: BLE001 — record the runtime's own raise
+        except Exception as exc:
             return f"[pipeline raised {type(exc).__name__}: {exc}]", ""
     if result["status"] != 200:
         return f"[http {result['status']}] {result['body'][:200]}", ""
@@ -330,7 +330,7 @@ def main() -> int:
         started = time.monotonic()
         try:
             reply, footer = ask(query)
-        except Exception as exc:  # noqa: BLE001 — the gauntlet records, never crashes
+        except Exception as exc:
             reply, footer = f"[driver exception: {type(exc).__name__}: {exc}]", ""
         elapsed = time.monotonic() - started
         verdict = CHECKERS[family](reply)

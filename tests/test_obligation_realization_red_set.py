@@ -25,7 +25,7 @@ import pytest
 
 from core.conductor.obligations import ObligationOrigin, ObligationState
 from tests.semantic_proposer import coordinated, frame, proposer
-from tests.test_canonical_obligation_floor import (  # noqa: F401  (fetchers is a fixture)
+from tests.test_canonical_obligation_floor import (
     _COMMODITY,
     _CRYPTO,
     _TEMPS,

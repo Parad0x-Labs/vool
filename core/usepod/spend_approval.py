@@ -225,7 +225,7 @@ def propose_spend_grant(
 
 
 def _approval_entry(approval_id: str) -> dict[str, Any] | None:
-    from core.mode_permission_policy import _APPROVALS, _ensure_approvals_restored, _LOCK
+    from core.mode_permission_policy import _APPROVALS, _LOCK, _ensure_approvals_restored
 
     with _LOCK:
         _ensure_approvals_restored()
@@ -235,7 +235,7 @@ def _approval_entry(approval_id: str) -> dict[str, Any] | None:
 
 def _latest_spend_entry() -> tuple[str, dict[str, Any]] | None:
     """The most recent spend-consent approval entry (any status), newest first."""
-    from core.mode_permission_policy import _APPROVALS, _ensure_approvals_restored, _LOCK
+    from core.mode_permission_policy import _APPROVALS, _LOCK, _ensure_approvals_restored
 
     with _LOCK:
         _ensure_approvals_restored()

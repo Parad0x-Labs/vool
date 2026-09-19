@@ -58,7 +58,7 @@ def _model_must_not_run(*_args, **_kwargs):
 
 
 def test_http_stopx402_resolves_without_the_model(tmp_path, monkeypatch):
-    from core import vool_wallet, runtime_paths
+    from core import runtime_paths, vool_wallet
     from core.web.api.runtime import RuntimeServices
     from core.web.api.service import dispatch_post
 

@@ -66,9 +66,7 @@ def test_no_storage_surface_claims_machine_protection_or_hardware_binding() -> N
             for phrase in _FORBIDDEN:
                 if phrase not in line:
                     continue
-                if not any(neg in line for neg in _NEGATIONS) and rel != "core/secret_storage.py":
-                    offenders.append(f"{rel}:{lineno}: {phrase!r}")
-                elif rel == "core/secret_storage.py" and "def " in line:
+                if (not any(neg in line for neg in _NEGATIONS) and rel != "core/secret_storage.py") or (rel == "core/secret_storage.py" and "def " in line):
                     offenders.append(f"{rel}:{lineno}: {phrase!r}")
     assert offenders == [], f"forbidden security claims: {offenders}"
 

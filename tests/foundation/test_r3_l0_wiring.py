@@ -57,7 +57,7 @@ def test_distinct_trigger_concurrent_retries_get_distinct_cas_generations(fresh_
                     execution_generation=2,  # stale caller arithmetic — must be ignored
                 )
                 results.append(int(child["execution_generation"]))
-            except Exception as exc:  # noqa: BLE001 - recorded for assertion
+            except Exception as exc:
                 results.append(exc)
 
         threads = [threading.Thread(target=_mint, args=(f"turn-{i}",)) for i in range(2)]

@@ -30,7 +30,7 @@ def test_a_turn_with_no_weather_unit_names_no_place():
 
 
 # --- the shared extractor itself: a clause ends where the next request opens, and "like" is allowed ---
-from tools.web.web_research import _extract_weather_locations  # noqa: E402
+from tools.web.web_research import _extract_weather_locations
 
 
 @pytest.mark.parametrize(
