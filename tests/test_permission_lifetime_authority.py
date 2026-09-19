@@ -30,6 +30,19 @@ from core.mode_permission_policy import (
 )
 
 
+def _activate(**kwargs):
+    """Mint a single-use confirmation for these exact bindings, then activate."""
+    from core.mode_permission_policy import request_bypass_confirmation
+
+    kwargs = dict(kwargs)
+    kwargs.setdefault("scope", "task")
+    mint_kwargs = {
+        k: v for k, v in kwargs.items() if k not in {"confirmation_id", "explicit_confirmation"}
+    }
+    kwargs["confirmation_id"] = request_bypass_confirmation(**mint_kwargs)
+    kwargs.pop("explicit_confirmation", None)
+    return activate_bypass_grant(**kwargs)
+
 @pytest.fixture(autouse=True)
 def _isolated_authority_store(tmp_path, monkeypatch, request):
     """One durable mirror per test, except the real-restart proof (which needs the real paths)."""
@@ -71,7 +84,7 @@ def _bind_chat_to_workspace(session_id: str, ws: str) -> str:
 def test_until_off_bypass_is_chat_and_workspace_bound_and_has_no_timer(tmp_path):
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-1", ws)
-    grant = activate_bypass_grant(
+    grant = _activate(
         session_id="chat-1", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -103,7 +116,7 @@ def test_until_off_grant_survives_a_restart_through_its_persisted_mirror(tmp_pat
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-1", ws)
-    grant = activate_bypass_grant(
+    grant = _activate(
         session_id="chat-1", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -135,7 +148,7 @@ def test_until_off_grant_survives_a_real_process_restart(tmp_path):
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-r", ws)
-    grant = activate_bypass_grant(
+    grant = _activate(
         session_id="chat-r", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -175,7 +188,7 @@ def test_until_off_grant_survives_a_real_process_restart(tmp_path):
 def test_revocation_blocks_the_next_action_even_after_a_restore(tmp_path):
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-1", ws)
-    grant = activate_bypass_grant(
+    grant = _activate(
         session_id="chat-1", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -190,12 +203,12 @@ def test_revocation_blocks_the_next_action_even_after_a_restore(tmp_path):
 
 
 def test_timed_bypass_supports_hours_and_a_custom_duration():
-    grant = activate_bypass_grant(
+    grant = _activate(
         session_id="chat-1", scope="session", explicit_confirmation=True, duration_seconds=7200,
     )
     assert grant["until_off"] is False
     assert 7000 <= grant["expires_at"] - grant["issued_at"] <= 7200
-    long_grant = activate_bypass_grant(
+    long_grant = _activate(
         session_id="chat-1", scope="session", explicit_confirmation=True, duration_seconds=5 * 3600,
     )
     assert long_grant["expires_at"] - long_grant["issued_at"] == 5 * 3600
@@ -205,12 +218,12 @@ def test_until_off_is_refused_for_task_and_project_scopes(tmp_path):
     import pytest
 
     with pytest.raises(ValueError):
-        activate_bypass_grant(
+        _activate(
             session_id="chat-1", scope="task", task_id="t1", explicit_confirmation=True,
             until_off=True, workspace_root=_ws(tmp_path),
         )
     with pytest.raises(ValueError):
-        activate_bypass_grant(
+        _activate(
             session_id="chat-1", scope="project", project_id="p1", explicit_confirmation=True,
             until_off=True, workspace_root=_ws(tmp_path),
         )
@@ -219,7 +232,7 @@ def test_until_off_is_refused_for_task_and_project_scopes(tmp_path):
 def test_returning_to_manual_invalidates_the_bypass_token_server_side(tmp_path):
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-1", ws)
-    grant = activate_bypass_grant(
+    grant = _activate(
         session_id="chat-1", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -234,11 +247,11 @@ def test_returning_to_manual_invalidates_the_bypass_token_server_side(tmp_path):
 def test_chat_deletion_revokes_every_session_grant(tmp_path):
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-1", ws)
-    first = activate_bypass_grant(
+    first = _activate(
         session_id="chat-1", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    second = activate_bypass_grant(
+    second = _activate(
         session_id="chat-1", scope="session", explicit_confirmation=True, duration_seconds=1800,
     )
     assert revoke_session_bypass_grants("chat-1") == 2
@@ -266,7 +279,7 @@ def test_activation_when_storage_fails_is_refused_and_rolled_back(tmp_path, monk
 
     monkeypatch.setattr(policy.os, "replace", _failing_replace)
     with pytest.raises(ValueError, match="could not be recorded durably"):
-        activate_bypass_grant(
+        _activate(
             session_id="chat-store", scope="session", explicit_confirmation=True,
             until_off=True, workspace_root=ws,
         )
@@ -282,7 +295,7 @@ def test_revocation_when_storage_fails_is_reported_not_swallowed(tmp_path, monke
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-store", ws)
-    grant = activate_bypass_grant(
+    grant = _activate(
         session_id="chat-store", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -326,11 +339,11 @@ def test_a_revocation_the_mirror_could_not_record_does_not_survive_a_restart(tmp
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-journal", ws)
-    revoked_grant = activate_bypass_grant(
+    revoked_grant = _activate(
         session_id="chat-journal", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    bystander = activate_bypass_grant(
+    bystander = _activate(
         session_id="chat-journal", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -389,11 +402,11 @@ def test_a_session_sweep_the_mirror_could_not_record_does_not_survive_a_restart(
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-sweep", ws)
-    first = activate_bypass_grant(
+    first = _activate(
         session_id="chat-sweep", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    second = activate_bypass_grant(
+    second = _activate(
         session_id="chat-sweep", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -423,7 +436,7 @@ def test_interrupted_persistence_leaves_the_previous_complete_file(tmp_path):
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-crash", ws)
-    grant = activate_bypass_grant(
+    grant = _activate(
         session_id="chat-crash", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -444,7 +457,7 @@ def test_corrupt_or_tampered_mirror_restores_nothing_and_is_quarantined(tmp_path
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-corrupt", ws)
-    activate_bypass_grant(
+    _activate(
         session_id="chat-corrupt", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -509,11 +522,11 @@ def test_restore_drops_grants_for_deleted_chats_and_changed_workspaces(tmp_path)
     ok, other_project = _ps.create_project("elsewhere", str(other))
     assert ok
     _bind_chat_to_workspace("chat-moved", ws)
-    gone = activate_bypass_grant(
+    gone = _activate(
         session_id="chat-gone", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    moved = activate_bypass_grant(
+    moved = _activate(
         session_id="chat-moved", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -535,7 +548,7 @@ def test_the_authority_store_never_lives_inside_a_grantable_workspace(tmp_path):
     # data/config dirs are refused for standing grants: the grant would cover its own authority.
     for bad_root in (str(Path.home()), "/"):
         with pytest.raises(ValueError):
-            activate_bypass_grant(
+            _activate(
                 session_id="chat-c", scope="session", explicit_confirmation=True,
                 until_off=True, workspace_root=bad_root,
             )
@@ -663,11 +676,11 @@ def test_unverifiable_revocation_history_restores_nothing_after_a_real_restart(t
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-trust", ws)
-    affected = activate_bypass_grant(
+    affected = _activate(
         session_id="chat-trust", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    bystander = activate_bypass_grant(
+    bystander = _activate(
         session_id="chat-trust", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -744,7 +757,7 @@ def test_a_legacy_store_without_the_journal_stamp_still_restores(tmp_path):
     try:
         ws = _ws(tmp_path)
         _bind_chat_to_workspace("chat-legacy", ws)
-        grant = activate_bypass_grant(
+        grant = _activate(
             session_id="chat-legacy", scope="session", explicit_confirmation=True,
             until_off=True, workspace_root=ws,
         )
@@ -779,11 +792,11 @@ def test_a_torn_journal_tail_fails_the_store_closed(tmp_path):
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-torn", ws)
-    affected = activate_bypass_grant(
+    affected = _activate(
         session_id="chat-torn", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    bystander = activate_bypass_grant(
+    bystander = _activate(
         session_id="chat-torn", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -858,11 +871,11 @@ def test_a_record_whose_anchor_never_landed_still_revs(tmp_path):
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-anchor", ws)
-    affected = activate_bypass_grant(
+    affected = _activate(
         session_id="chat-anchor", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    bystander = activate_bypass_grant(
+    bystander = _activate(
         session_id="chat-anchor", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -907,11 +920,11 @@ def test_a_revoked_grant_without_its_final_newline_cannot_execute_after_a_restar
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-nl", ws)
-    affected = activate_bypass_grant(
+    affected = _activate(
         session_id="chat-nl", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    bystander = activate_bypass_grant(
+    bystander = _activate(
         session_id="chat-nl", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -1008,7 +1021,7 @@ def test_truncated_history_is_never_legitimized_by_a_new_append_or_persist(tmp_p
             policy._persist_bypass_grants_locked()
         # The activation-level refusal is the product surface for the same law:
         try:
-            policy.activate_bypass_grant(
+            _activate(
                 session_id="chat-trunc", scope="session", explicit_confirmation=True,
                 until_off=True, workspace_root="/tmp",
             )
@@ -1057,11 +1070,11 @@ def test_truncated_history_with_a_live_mirror_grant_never_executes_after_a_resta
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-trunc-restart", ws)
-    affected = activate_bypass_grant(
+    affected = _activate(
         session_id="chat-trunc-restart", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    bystander = activate_bypass_grant(
+    bystander = _activate(
         session_id="chat-trunc-restart", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
@@ -1152,7 +1165,7 @@ def test_lost_required_history_on_an_established_store_is_not_initialization(tmp
         with pytest.raises(BypassStoreError, match="requires journal history"):
             policy._persist_bypass_grants_locked()
         with pytest.raises(ValueError, match="could not be recorded durably"):
-            policy.activate_bypass_grant(
+            _activate(
                 session_id="chat-lost", scope="session", explicit_confirmation=True,
                 until_off=True, workspace_root="/tmp",
             )
@@ -1228,11 +1241,11 @@ def test_lost_required_history_after_a_journalled_revocation_executes_nothing_af
 
     ws = _ws(tmp_path)
     _bind_chat_to_workspace("chat-lost-restart", ws)
-    affected = activate_bypass_grant(
+    affected = _activate(
         session_id="chat-lost-restart", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
-    bystander = activate_bypass_grant(
+    bystander = _activate(
         session_id="chat-lost-restart", scope="session", explicit_confirmation=True,
         until_off=True, workspace_root=ws,
     )
