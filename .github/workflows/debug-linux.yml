@@ -57,7 +57,9 @@ jobs:
       - name: Install verification dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          # companion extras: the root conftest imports zstandard at collection
+          # (measured: 19 ModuleNotFoundError collection errors with dev alone).
+          python -m pip install -e ".[dev,companion]"
       - name: Provision bubblewrap (+ optional AppArmor profile from ci.yml)
         run: |
           sudo apt-get update
@@ -84,6 +86,7 @@ jobs:
         id: probe
         continue-on-error: true
         run: |
+          set -o pipefail
           mkdir -p .verification-logs
           python tools/dev/probe_sandbox_linux.py 2>&1 | tee .verification-logs/probe.log
       - name: Run one targeted code-task test file through the real sandbox
@@ -91,6 +94,7 @@ jobs:
         id: pytest
         continue-on-error: true
         run: |
+          set -o pipefail
           python -m pytest tests/test_code_task_repair_units.py \
             --tb=long -p no:cacheprovider -q 2>&1 | tee .verification-logs/pytest.log
       - name: Leg summary
@@ -108,6 +112,10 @@ jobs:
         with:
           name: debug-linux-${{ matrix.leg }}
           path: .verification-logs/
+          # The directory is dot-prefixed; v7's default hides dot-files, which
+          # silently produced empty artifacts here AND in ci.yml's shard uploads
+          # (measured: completed ci runs expose no artifacts at all).
+          include-hidden-files: true
           retention-days: 7
       - name: Cleanup (bounded CI footprint)
         if: always()
