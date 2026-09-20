@@ -1,0 +1,65 @@
+name: macOS stub lanes debug
+
+on:
+  push:
+    branches: [debug/macos-stub-lanes]
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Run the reader served suites with diagnostics
+        run: |
+          set +e
+          python -m pytest -q --tb=short -p no:cacheprovider tests/test_artifact_readers_served_m2.py tests/test_artifact_readers_served_m1.py 2>&1 | tail -60
+          echo "pytest done rc=$?"
+      - name: Dump daemon evidence from the rig homes
+        if: always()
+        run: |
+          set +e
+          echo "=== candidate homes ==="
+          find "${TMPDIR:-/tmp}" -maxdepth 2 -name "vool_web0_v2.db" -newermt "-30 minutes" 2>/dev/null | head -10
+          for DB in $(find "${TMPDIR:-/tmp}" -maxdepth 3 -name "vool_web0_v2.db" -newermt "-30 minutes" 2>/dev/null | head -6); do
+            HOME_DIR=$(dirname "$(dirname "$DB")")
+            echo "===== HOME $HOME_DIR ====="
+            echo "--- daemon.log tail ---"
+            tail -40 "$HOME_DIR/daemon.log" 2>/dev/null || find "$HOME_DIR" -name "*.log" -maxdepth 3 2>/dev/null | head -5
+            echo "--- routing/exclusion events ---"
+            python - "$DB" <<'EOF'
+          import json, sqlite3, sys
+          conn = sqlite3.connect(sys.argv[1])
+          try:
+              rows = conn.execute(
+                  "SELECT payload FROM runtime_session_events WHERE payload LIKE '%excluded%' "
+                  "OR payload LIKE '%provider%' OR payload LIKE '%health%' OR payload LIKE '%rank%' "
+                  "ORDER BY rowid DESC LIMIT 40"
+              ).fetchall()
+          except Exception as e:
+              print("events query failed:", e)
+              rows = []
+          for (payload,) in rows:
+              try:
+                  print(json.dumps(json.loads(payload))[:600])
+              except Exception:
+                  print(str(payload)[:600])
+          EOF
+          done
+      - name: Dump rig home tree shapes
+        if: always()
+        run: |
+          set +e
+          for D in $(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name "*reader*" -newermt "-30 minutes" 2>/dev/null | head -4) $(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name "*vool*" -newermt "-30 minutes" 2>/dev/null | head -6); do
+            echo "=== $D ==="
+            find "$D" -maxdepth 3 | head -25
+          done
