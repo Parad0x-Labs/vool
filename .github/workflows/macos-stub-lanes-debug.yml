@@ -19,6 +19,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: A/B - rerun the suites with the rig pinning VOOL_RAW_OLLAMA_API_URL at the stub
+        run: |
+          set +e
+          python - <<'EOF'
+          from pathlib import Path
+          p = Path("tests/_reader_served_rig.py")
+          src = p.read_text()
+          anchor = '"OLLAMA_HOST": stub,'
+          assert anchor in src, "anchor missing"
+          patched = src.replace(
+              anchor,
+              anchor + '\n                "VOOL_RAW_OLLAMA_API_URL": stub,',
+              1,
+          )
+          p.write_text(patched)
+          print("patched rig: VOOL_RAW_OLLAMA_API_URL pinned at the stub")
+          EOF
+          python -m pytest -q --tb=line -p no:cacheprovider tests/test_artifact_readers_served_m2.py tests/test_artifact_readers_served_m1.py 2>&1 | tail -6
+          echo "ab rc=$?"
+          git checkout -- tests/_reader_served_rig.py
       - name: Run the reader served suites with diagnostics
         run: |
           set +e
