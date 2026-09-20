@@ -62,6 +62,11 @@ class _FakeResponse:
 @pytest.fixture
 def counted_api(monkeypatch):
     """Replace the network with a counter. Records the ids each call actually requested."""
+    # Direct price fetches with no turn around them; the effect gateway correctly refuses
+    # unattributed network effects, so open the named background scope every direct-call
+    # test opens (urlopen is faked below — this names the effect, it does not reach it).
+    from core.effect_gateway import named_background_effect_scope
+
     web_research.reset_quote_cache_for_test()
     calls: list[list[str]] = []
 
@@ -73,7 +78,8 @@ def counted_api(monkeypatch):
         return _FakeResponse(json.dumps(_payload_for(requested)).encode())
 
     monkeypatch.setattr(web_research.urllib.request, "urlopen", _fake_urlopen)
-    yield calls
+    with named_background_effect_scope("test.repeat_price_questions"):
+        yield calls
     web_research.reset_quote_cache_for_test()
 
 
@@ -123,12 +129,15 @@ def test_a_failed_first_call_caches_nothing_and_fabricates_nothing(monkeypatch) 
         raise urllib.error.HTTPError("u", 429, "Too Many Requests", {}, None)
 
     monkeypatch.setattr(web_research.urllib.request, "urlopen", _rate_limited)
-    with pytest.raises(urllib.error.HTTPError):
-        web_research._crypto_price_fallback_multi(["arbitrum"], timeout_s=8)
-    assert web_research._quote_cache == {}, "a failed fetch poisoned the cache"
-    # The caller's own guard is what turns this into an empty result; the point here is that
-    # nothing invented a value on the way.
-    assert web_research.lookup_live_quotes("arb price now", timeout_s=8) == []
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("test.repeat_price_questions"):
+        with pytest.raises(urllib.error.HTTPError):
+            web_research._crypto_price_fallback_multi(["arbitrum"], timeout_s=8)
+        assert web_research._quote_cache == {}, "a failed fetch poisoned the cache"
+        # The caller's own guard is what turns this into an empty result; the point here is that
+        # nothing invented a value on the way.
+        assert web_research.lookup_live_quotes("arb price now", timeout_s=8) == []
     web_research.reset_quote_cache_for_test()
 
 
@@ -138,10 +147,15 @@ def test_concurrent_price_questions_do_not_stampede_the_endpoint(counted_api) ->
     results: list[int] = []
 
     def _worker() -> None:
+        # The scope is opened per thread: the effect ledger is a ContextVar, and a fresh
+        # thread does not inherit the fixture's context.
+        from core.effect_gateway import named_background_effect_scope
+
         try:
-            for _ in range(5):
-                quotes = web_research._crypto_price_fallback_multi(["arbitrum", "litecoin"], timeout_s=8)
-                results.append(len(quotes))
+            with named_background_effect_scope("test.repeat_price_questions"):
+                for _ in range(5):
+                    quotes = web_research._crypto_price_fallback_multi(["arbitrum", "litecoin"], timeout_s=8)
+                    results.append(len(quotes))
         except BaseException as exc:
             errors.append(exc)
 
