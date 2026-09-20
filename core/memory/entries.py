@@ -467,8 +467,14 @@ def _memory_command_row_allowed(
     return scope in {"project", "user_profile"}
 
 
+# Both generations of the legacy default name. "NULLA" is the pre-rename product name
+# (docs/UPGRADE_NULLA_TO_VOOL.md, 2026-09): a memory written before the rename asserts
+# "# NULLA Persistent Memory" and "**My name**: NULLA", and the model repeats it verbatim.
+# "VOOL" stays in the alternation for the case variants of the CURRENT name -- a stored
+# "Vool" reaches the model as a competing identity exactly the same way, pinned by
+# test_standalone_legacy_name_is_rewritten.
 _LEGACY_NAME_RE = re.compile(
-    r"(?<![\w/\\-])(?<![A-Za-z0-9_]\.)VOOL(?!\.[A-Za-z0-9_])(?![\w/\\-])",
+    r"(?<![\w/\\-])(?<![A-Za-z0-9_]\.)(?:VOOL|NULLA)(?!\.[A-Za-z0-9_])(?![\w/\\-])",
     re.IGNORECASE,
 )
 # Capturing split: odd-indexed parts are the code spans themselves, and are passed through verbatim.
@@ -478,11 +484,12 @@ _CODE_SPAN_RE = re.compile(r"(`[^`\n]*`)")
 def _canonical_agent_name_in_memory(text: str) -> str:
     """Rewrite the assistant's LEGACY name in recalled memory to the runtime's canonical one.
 
-    MEMORY.md written before the VOOL rename still asserts "# VOOL Persistent Memory" and
-    "**My name**: VOOL" as stored facts, and the model repeats them verbatim -- it introduced itself
-    as VOOL even after the system prompt, persona row, self-knowledge doc and an explicit override
-    line all said VOOL. Instructing a small local model to disregard an explicit memory block does not
-    work; the contradiction has to be gone before it is read.
+    MEMORY.md written before the NULLA -> VOOL rename (2026-09) still asserts
+    "# NULLA Persistent Memory" and "**My name**: NULLA" as stored facts, and the model repeats
+    them verbatim -- it introduced itself as NULLA even after the system prompt, persona row,
+    self-knowledge doc and an explicit override line all said VOOL. Instructing a small local
+    model to disregard an explicit memory block does not work; the contradiction has to be gone
+    before it is read.
 
     Applied HERE, at the single read point, so every consumer is covered -- the bootstrap context and
     the separate memory-prompt builder both inject this text. The file on disk is never rewritten:
@@ -498,7 +505,12 @@ def _canonical_agent_name_in_memory(text: str) -> str:
         canonical = str(get_agent_display_name() or "").strip()
     except Exception:
         return body
-    if not canonical or canonical.upper() == "VOOL":
+    # No guard for `canonical == "VOOL"`: replacing each legacy token WITH the canonical name
+    # is already a no-op when they spell the same, and it is load-bearing when they do not --
+    # canonical "VOOL" must still rewrite a stored "Vool" (case variant) and "NULLA" (the
+    # pre-rename name). The early return that skipped everything when the canonical name was
+    # VOOL left both generations of the legacy name in recalled memory.
+    if not canonical:
         return body
     # Only rewrite the standalone word. A stored memory row legitimately contains real paths and
     # identifiers -- `~/Desktop/vool-local-product`, `vool_runtime/...`, `vool.api` -- and turning

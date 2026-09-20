@@ -601,7 +601,11 @@ _NOT_MAIL_CONTENT = (
 #: Words that end a sender phrase: auxiliaries and the first/second persons (mail WE sent is outgoing).
 _NOT_A_SENDER_WORD = r"(?:i|we|you|was|were|is|are|be|been|being|has|have|had|get|gets|got|getting|to|that|which)"
 _MAILBOX_ANCHOR_RE = re.compile(
-    rf"\b(?:my|our)\s+(?:(?!{_NOT_MAIL_CONTENT}\b)[\w-]+\s+){{0,2}}?{_MAILBOX}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
+    # The possessive window admits up to three interposed modifiers, measured on
+    # "Check my unread orchard supplier mail" (unread + a two-word sender name): at two, a
+    # sender-named mailbox read fell through to plain chat and the turn narrated an inbox
+    # check nothing ran. _NOT_MAIL_CONTENT still excludes the non-content readings.
+    rf"\b(?:my|our)\s+(?:(?!{_NOT_MAIL_CONTENT}\b)[\w-]+\s+){{0,3}}?{_MAILBOX}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
     r"|\bthe\s+(?:inbox|mailbox)\b(?=\s*(?:$|[.,;:!?]|(?:for|from|in|about|at|since|to|and|or)\b))"
     rf"|\b(?:new|unread)\s+{_MAIL_ITEM}\b(?!\s+{_NOT_MAIL_CONTENT}\b)"
     rf"|\b{_MAIL_ITEM}\s+(?:(?:that|which)\s+)?(?:from|sent\s+by)\s+"
