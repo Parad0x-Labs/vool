@@ -81,6 +81,31 @@ jobs:
           set +e
           TMPDIR=/tmp python -m pytest -q --tb=line -p no:cacheprovider "tests/test_code_task_invocation_contract_r4.py::test_equivalent_or_broader_filters_still_cover[python3 -m pytest -q tests/test_ledger.py]"
           echo "tmpdir-ab rc=$?"
+      - name: A/B - writable /dev binds in the sandbox
+        run: |
+          set +e
+          echo "--- devnull probe with writable bind ---"
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp --bind /dev/null /dev/null -- python3 -c "open('/dev/null','r+b'); print('devnull ok')"
+          echo "devnull rc=$?"
+          echo "--- full r4 case with writable dev binds monkeypatched in ---"
+          python - <<'EOF'
+          import re
+          from pathlib import Path
+          p = Path("sandbox/job_runner.py")
+          src = p.read_text()
+          patched = src.replace(
+              'cmd: list[str] = [bwrap, *net_flag, "--ro-bind", "/", "/", "--tmpfs", "/tmp"]',
+              'cmd: list[str] = [bwrap, *net_flag, "--ro-bind", "/", "/", "--tmpfs", "/tmp",\n'
+              '                       "--bind", "/dev/null", "/dev/null", "--bind", "/dev/zero", "/dev/zero",\n'
+              '                       "--bind", "/dev/random", "/dev/random", "--bind", "/dev/urandom", "/dev/urandom"]',
+          )
+          assert patched != src, "patch anchor not found"
+          p.write_text(patched)
+          print("patched _linux_bwrap_prefix with writable dev binds")
+          EOF
+          python -m pytest -q --tb=line -p no:cacheprovider "tests/test_code_task_invocation_contract_r4.py::test_equivalent_or_broader_filters_still_cover[python3 -m pytest -q tests/test_ledger.py]"
+          echo "devbinds rc=$?"
+          git checkout -- sandbox/job_runner.py
       - name: Dump the code-task journals from the session homes
         if: always()
         run: |
