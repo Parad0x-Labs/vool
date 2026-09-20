@@ -2321,7 +2321,9 @@ def _email_draft_tool(
                 # its display name -- the wire form the reply should carry -- while the
                 # resolution below has already validated the address inside it.
                 entry if ("<" in entry and snapshot.get("value") in entry) else str(snapshot.get("value") or snapshot.get("address") or "")
-                for entry, snapshot in zip([str(e) for e in _to_entries], _outcome.snapshots)
+                for entry, snapshot in zip(
+                    [str(e) for e in _to_entries], _outcome.snapshots, strict=True
+                )
             ]
         result = email_drafts.save_draft(
             to=_to_entries or args.get("to"), subject=str(args.get("subject") or ""), body=str(args.get("body") or ""),
