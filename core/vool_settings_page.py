@@ -1115,6 +1115,13 @@ label.inline { cursor:pointer; }
 const MODEL = __SETTINGS_MODEL__;
 const LANGUAGES = __LANGUAGE_CATALOG__;
 const BUILD_COMMIT = "__PAGE_BUILD_COMMIT__";
+/* Page-chrome strings resolve through the i18n bootstrap's VOOLT (it is injected before this
+   script and defines it); the fallback literals are the English catalog source. The settings
+   MODEL itself is localized server-side before it is embedded here. */
+function T(key, fallback) {
+  try { if (typeof VOOLT === 'function') { const t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
+  return fallback;
+}
 </script>
 """
 
@@ -1442,7 +1449,7 @@ async function go(groupId, rowId) {
   state.group = groupId;
   if (rowId) state.focusRow = rowId;
   renderNav();
-  $('#paneBody').textContent = 'Loading settings…';
+  $('#paneBody').textContent = T('settings.pane.loading', 'Loading settings…');
   if (!rowId) $('#pane').scrollTop = 0;
   live((MODEL.find(g => g.id === groupId) || {}).title + ' settings');
   await ensureGroupSources(groupId);   /* only THIS group's reads, and only once */
@@ -1486,8 +1493,8 @@ function renderWidget(row, host) {
   if (w === 'answer_language') return widgetAnswerLanguage(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
-  if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', 'The calendar accounts panel did not load.');
-  if (w === 'notifications') return widgetSurface(stack, 'VoolNotificationSettings', 'The notifications panel did not load.');
+  if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
+  if (w === 'notifications') return widgetSurface(stack, 'VoolNotificationSettings', T('settings.pane.notifications_missing', 'The notifications panel did not load.'));
   if (w === 'scam_school') return widgetScamSchool(stack);
   if (w === 'setup_progress') return widgetSetupProgress(stack);
   if (w === 'companion_pet') return widgetCompanionPet(stack);
@@ -1497,7 +1504,7 @@ function renderWidget(row, host) {
   if (w === 'extras_toolbelt') return widgetExtras(stack, 'toolbelt');
   if (w === 'bundle_export') return widgetBundleExport(stack);
   if (w === 'bundle_import') return widgetBundleImport(stack);
-  stack.appendChild(el('div', 'empty', 'This section has nothing to show.'));
+  stack.appendChild(el('div', 'empty', T('settings.pane.empty', 'This section has nothing to show.')));
 }
 
 /* --- Backup & restore: one chat as a portable, signed .voolsession bundle, through the ONE seam
@@ -1687,7 +1694,7 @@ function widgetExtras(stack, which) {
   stack.appendChild(host);
   const extras = window.VoolSettingsExtras;
   if (extras && typeof extras.mountInto === 'function' && extras.mountInto(host, which)) return;
-  stack.appendChild(el('div', 'empty', 'This section did not load.'));
+  stack.appendChild(el('div', 'empty', T('settings.pane.extras_missing', 'This section did not load.')));
 }
 
 /* --- Advanced: real links to the two runtime surfaces this daemon serves (core/web/api/service.py:
@@ -1831,7 +1838,7 @@ function widgetWallet(stack) {
   const host = el('div'); host.id = 'walletHost';
   stack.appendChild(host);
   if (window.VoolWallet && typeof window.VoolWallet.mountInto === 'function') { window.VoolWallet.mountInto(host); return; }
-  stack.appendChild(el('div', 'empty', 'The wallet surface did not load.'));
+  stack.appendChild(el('div', 'empty', T('settings.pane.wallet_missing', 'The wallet surface did not load.')));
 }
 
 /* --- Crypto: the wallet fragment's onboarding surface (registry-backed network rows, create → one reveal →

@@ -28,6 +28,36 @@ class _Stamp:
     runtime_version_stamp = {"commit": "t"}
 
 
+
+def _walk_json(text: str, start: int) -> str:
+    """The JSON object spanning from ``text[start] == "{"`` to its matching close brace.
+
+    A message value may legitimately contain any characters (a translated "{name};"
+    carries the two-byte sequence the old first-occurrence cut split on), so the
+    bundle is extracted by brace depth, never by searching for a terminator.
+    """
+    depth = 0
+    in_string = False
+    escaped = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    raise AssertionError("unterminated bundle JSON")
 def _rendered(path: str, headers: dict | None = None, query: dict | None = None) -> str:
     response = dispatch_get(
         path=path, query=query or {}, runtime=_Stamp(), model_name="m",
@@ -38,8 +68,8 @@ def _rendered(path: str, headers: dict | None = None, query: dict | None = None)
 
 
 def _bundle(html: str) -> dict:
-    raw = html.split("var B = {", 1)[1]
-    return json.loads("{" + raw.split("};", 1)[0] + "}")
+    start = html.index("var B = ") + len("var B = ")
+    return json.loads(_walk_json(html, start))
 
 
 # ---- the setup surface joins the locale-resolving pages --------------------------------

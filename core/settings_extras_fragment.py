@@ -48,6 +48,23 @@ _EXTRAS_JS = """
 'use strict';
 if (window.VoolSettingsExtras) return;
 
+// Strings resolve through the page's i18n catalog (VOOLT, defined by the settings page's
+// bootstrap before this fragment loads); the fallback literals are the English catalog
+// source, so without the bootstrap every section renders byte-identical English.
+function XT(key, fallback){
+  try { if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
+  return fallback;
+}
+function XTF(key, fallback, params){
+  try {
+    if (typeof VOOLT === 'function' && typeof VOOLFMT === 'function') {
+      var t = VOOLT(key);
+      if (t && t !== key) return VOOLFMT(t, params || {});
+    }
+  } catch (e) {}
+  return fallback;
+}
+
 function chips(){ return window.VoolChips || null; }
 function chip(state, label){
   var c = chips();
@@ -63,11 +80,11 @@ var memSec = null;
 function renderMemory(){
   if (!memSec) return;
   var list = memSec.querySelector('.vs-mem-list');
-  list.innerHTML = '<div class="vs-empty">Reading memory\\u2026</div>';
+  list.innerHTML = '<div class="vs-empty">' + XT('vx.memory.reading', 'Reading memory\\u2026') + '</div>';
   fetch('/api/memory/entries?limit=50').then(function(r){ return r.json(); }).then(function(j){
     var rows = (j && j.entries) || [];
     if (!rows.length) {
-      list.innerHTML = '<div class="vs-empty">Nothing remembered yet \\u2014 confirmed facts land here with their stored scope, and each can be forgotten.</div>';
+      list.innerHTML = '<div class="vs-empty">' + XT('vx.memory.empty', 'Nothing remembered yet \\u2014 confirmed facts land here with their stored scope, and each can be forgotten.') + '</div>';
       return;
     }
     list.innerHTML = rows.map(function(row){
@@ -75,11 +92,11 @@ function renderMemory(){
       return '<div class="vs-mem-item" data-vs-record="' + esc(row.record_id) + '">' +
         '<span class="vs-tag">' + esc(tag) + '</span>' +
         '<span>' + esc(row.fact) + (row.source ? ' <small style="color:var(--muted,#9aa1af)">\\u00b7 ' + esc(row.source) + '</small>' : '') + '</span>' +
-        (row.record_id ? '<button type="button" class="vs-forget" title="Forget exactly this entry">forget</button>' : '') +
+        (row.record_id ? '<button type="button" class="vs-forget" title="' + esc(XT('vx.memory.forget_title', 'Forget exactly this entry')) + '">' + esc(XT('vx.memory.forget', 'forget')) + '</button>' : '') +
         '</div>';
     }).join('');
   }).catch(function(){
-    list.innerHTML = '<div class="vs-empty">Memory could not be read.</div>';
+    list.innerHTML = '<div class="vs-empty">' + XT('vx.memory.unreadable', 'Memory could not be read.') + '</div>';
   });
 }
 document.addEventListener('click', function(ev){
@@ -94,7 +111,7 @@ document.addEventListener('click', function(ev){
     body: JSON.stringify({ record_id: recordId }),
   }).then(function(r){ return r.json(); }).then(function(j){
     if (j && j.removed) row.remove();
-    else { btn.disabled = false; btn.textContent = 'not removed'; }
+    else { btn.disabled = false; btn.textContent = XT('vx.memory.not_removed', 'not removed'); }
   }).catch(function(){ btn.disabled = false; });
 });
 
@@ -102,8 +119,8 @@ document.addEventListener('click', function(ev){
 var beltOverlay = document.createElement('div');
 beltOverlay.id = 'vsToolbeltOverlay';
 beltOverlay.hidden = true;
-beltOverlay.innerHTML = '<div id="vsToolbeltModal"><h3>Toolbelt \\u2014 installed capabilities</h3>' +
-  '<div class="vs-law">UNKNOWN \\u2260 FAILED: a capability never probed reads UNKNOWN \\u2014 we do not know yet, and that is the honest state.</div>' +
+beltOverlay.innerHTML = '<div id="vsToolbeltModal"><h3>' + XT('vx.toolbelt.modal_title', 'Toolbelt \\u2014 installed capabilities') + '</h3>' +
+  '<div class="vs-law">' + XT('vx.toolbelt.law', 'UNKNOWN \\u2260 FAILED: a capability never probed reads UNKNOWN \\u2014 we do not know yet, and that is the honest state.') + '</div>' +
   '<div class="vs-belt"></div></div>';
 document.body.appendChild(beltOverlay);
 beltOverlay.addEventListener('mousedown', function(ev){ if (ev.target === beltOverlay) beltOverlay.hidden = true; });
@@ -115,7 +132,7 @@ function beltRow(name, state, label, detail){
 }
 function openToolbelt(){
   var belt = beltOverlay.querySelector('.vs-belt');
-  belt.innerHTML = '<div class="vs-empty">Probing\\u2026</div>';
+  belt.innerHTML = '<div class="vs-empty">' + XT('vx.toolbelt.probing', 'Probing\\u2026') + '</div>';
   beltOverlay.hidden = false;
   Promise.all([
     fetch('/api/connections').then(function(r){ return r.json(); }).catch(function(){ return null; }),
@@ -128,18 +145,18 @@ function openToolbelt(){
     var plugins = (results[2] && (results[2].plugins || results[2].items)) || [];
     var localModels = (results[3] && results[3].models) || [];
     var rows = '';
-    rows += beltRow('Local models (Ollama)',
+    rows += beltRow(XT('vx.toolbelt.local_models', 'Local models (Ollama)'),
       localModels.length ? 'pass' : 'unknown',
       localModels.length ? 'AVAILABLE' : 'UNKNOWN',
-      localModels.length ? (localModels.length + ' installed') : 'inventory not readable');
+      localModels.length ? XTF('vx.toolbelt.installed', '{n, plural, one {{n} installed} other {{n} installed}}', { n: localModels.length }) : XT('vx.toolbelt.inventory_unreadable', 'inventory not readable'));
     if (cloud) {
       var st = String(cloud.state || 'no_key');
-      rows += beltRow('Cloud (' + esc(cloud.label || cloud.provider || 'provider') + ')',
+      rows += beltRow(XTF('vx.toolbelt.cloud', 'Cloud ({label})', { label: (cloud.label || cloud.provider || 'provider') }),
         st === 'ok' ? 'pass' : st === 'failed' ? 'failed' : st === 'no_key' ? 'unknown' : 'unknown',
         st === 'ok' ? 'CONNECTED' : st === 'failed' ? 'FAILED' : st === 'no_key' ? 'NO KEY' : 'UNTESTED',
-        st === 'untested' ? 'key present \\u00b7 never probed' : (cloud.detail || ''));
+        st === 'untested' ? XT('vx.toolbelt.key_never_probed', 'key present \\u00b7 never probed') : (cloud.detail || ''));
     } else {
-      rows += beltRow('Cloud connection', 'unknown', 'UNKNOWN', 'status not readable');
+      rows += beltRow(XT('vx.toolbelt.cloud_fallback', 'Cloud connection'), 'unknown', 'UNKNOWN', XT('vx.toolbelt.status_unreadable', 'status not readable'));
     }
     connections.forEach(function(conn){
       var st2 = String(conn.state || 'untested');
@@ -149,9 +166,9 @@ function openToolbelt(){
         conn.detail || '');
     });
     var enabled = plugins.filter(function(p){ return p && (p.enabled || p.on); }).length;
-    rows += beltRow('Plugins', plugins.length ? 'done' : 'unknown',
+    rows += beltRow(XT('vx.toolbelt.plugins', 'Plugins'), plugins.length ? 'done' : 'unknown',
       plugins.length ? (enabled + '/' + plugins.length + ' ENABLED') : 'UNKNOWN',
-      plugins.length ? '' : 'registry not readable');
+      plugins.length ? '' : XT('vx.toolbelt.registry_unreadable', 'registry not readable'));
     belt.innerHTML = rows;
   });
 }
@@ -167,19 +184,19 @@ function section(which){
   var node = document.createElement('div');
   if (which === 'memory') {
     node.className = 'vs-sec'; node.id = 'vsMemorySec';
-    node.innerHTML = '<h4>Memory</h4><div class="vs-mem-list"></div>';
+    node.innerHTML = '<h4>' + XT('vx.memory.title', 'Memory') + '</h4><div class="vs-mem-list"></div>';
   } else if (which === 'privacy') {
     node.className = 'vs-sec vs-privacy'; node.id = 'vsPrivacySec';
-    node.innerHTML = '<h4>Privacy &amp; data</h4>' +
-      '<p><b>Local first.</b> Chats, memory, receipts and generated files live in this machine’s VOOL home; nothing leaves it on the local lane.</p>' +
-      '<p><b>Cloud is explicit.</b> A cloud call happens only for a cloud-pinned or Auto-free turn with your key; Local Only blocks the cloud lane entirely, including free models.</p>' +
-      '<p><b>Keys are sealed.</b> Provider keys live in the system keychain/encrypted store and are never rendered back into this page.</p>' +
-      '<p><b>Spend is gated.</b> Paid pins require server-confirmed consent; accepted ceilings re-gate on price rises.</p>' +
-      '<p>Retention windows and cloud-learning controls are not shown because no enforcement for them exists yet — an unenforced toggle would be a lie.</p>';
+    node.innerHTML = '<h4>' + XT('vx.privacy.title', 'Privacy &amp; data') + '</h4>' +
+      '<p><b>' + XT('vx.privacy.p1_b', 'Local first.') + '</b> ' + XT('vx.privacy.p1', 'Chats, memory, receipts and generated files live in this machine\\u2019s VOOL home; nothing leaves it on the local lane.') + '</p>' +
+      '<p><b>' + XT('vx.privacy.p2_b', 'Cloud is explicit.') + '</b> ' + XT('vx.privacy.p2', 'A cloud call happens only for a cloud-pinned or Auto-free turn with your key; Local Only blocks the cloud lane entirely, including free models.') + '</p>' +
+      '<p><b>' + XT('vx.privacy.p3_b', 'Keys are sealed.') + '</b> ' + XT('vx.privacy.p3', 'Provider keys live in the system keychain/encrypted store and are never rendered back into this page.') + '</p>' +
+      '<p><b>' + XT('vx.privacy.p4_b', 'Spend is gated.') + '</b> ' + XT('vx.privacy.p4', 'Paid pins require server-confirmed consent; accepted ceilings re-gate on price rises.') + '</p>' +
+      '<p>' + XT('vx.privacy.p5', 'Retention windows and cloud-learning controls are not shown because no enforcement for them exists yet \\u2014 an unenforced toggle would be a lie.') + '</p>';
   } else if (which === 'toolbelt') {
     node.className = 'vs-sec'; node.id = 'vsToolbeltSec';
-    node.innerHTML = '<h4>Toolbelt</h4>' +
-      '<button type="button" class="vs-forget" id="vsToolbeltBtn" style="margin-left:0;color:var(--accent,#5eead4)">Open capability inventory…</button>';
+    node.innerHTML = '<h4>' + XT('vx.toolbelt.title', 'Toolbelt') + '</h4>' +
+      '<button type="button" class="vs-forget" id="vsToolbeltBtn" style="margin-left:0;color:var(--accent,#5eead4)">' + XT('vx.toolbelt.open', 'Open capability inventory\\u2026') + '</button>';
     node.querySelector('#vsToolbeltBtn').addEventListener('click', openToolbelt);
   } else {
     return null;
@@ -223,7 +240,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 else mount();
 
 if (window.VoolPalette && window.VoolPalette.register) {
-  window.VoolPalette.register('toolbelt', 'Toolbelt \\u2014 installed capabilities\\u2026', openToolbelt);
+  window.VoolPalette.register('toolbelt', XT('vx.palette.toolbelt', 'Toolbelt \\u2014 installed capabilities\\u2026'), openToolbelt);
 }
 
 window.VoolSettingsExtras = Object.freeze({

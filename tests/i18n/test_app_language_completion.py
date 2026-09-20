@@ -137,13 +137,22 @@ def test_every_shipped_locale_catalog_is_complete_and_current() -> None:
 #: shipped languages (the French for "Conversation" IS "Conversation"; likewise
 #: Tests/Standard/General/Model/Casual/Mode/Contacts/Protection/Notifications/Agents/
 #: Actions/Sources/Verdict/Crypto/Humour/Pause/signature/transaction/route/minutes).
-#: Forcing a synthetic synonym there would make the UI worse, not more translated.
+#: The technical-view field labels and fragment labels appended below join that class:
+#: "diff" is the term of art in es/fr/lt/pl/pt/tr, French keeps phase/route/action/
+#: permission/Source, German keeps Name/Cloud/Plugins, Spanish keeps error — forcing a
+#: synthetic synonym there would make the UI worse, not more translated.
 #: Copied English anywhere else is not a completed translation.
 TECHNICALLY_IDENTICAL_KEYS = frozenset(
     {
         "activity.category.runtime",
         "activity.category.tests",
         "activity.rollup.actions",
+        "activity.field.action",
+        "activity.field.diff_summary",
+        "activity.field.error_kind",
+        "activity.field.permission_decision",
+        "activity.field.phase",
+        "activity.field.verify.route",
         "attach.audio_family",
         "bypass.expiry_15",
         "bypass.expiry_30",
@@ -202,6 +211,10 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "usepod.receipt.link_signature",
         "usepod.receipt.route",
         "usepod.receipt.transaction",
+        "vcs.add.name",
+        "vcs.add.source",
+        "vx.toolbelt.cloud",
+        "vx.toolbelt.plugins",
         "wallet.pin_short",
         "wallet.signature",
     }

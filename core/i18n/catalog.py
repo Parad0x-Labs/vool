@@ -19,9 +19,16 @@ Laws enforced here:
   markup (``b/strong/em/i/code/br/kbd``, ``span class="…"``); anything else in any
   message is rejected and falls back to English.
 - **ICU-lite plural/select.** ``{n, plural, one {…} other {…}}`` and
-  ``{name, select, a {…} other {…}}`` are the only compound forms; ``one``/``other``
-  are the only categories (resolved ``n === 1 → one``, else ``other``), identically
-  here and in the page's mirrored JS helper.
+  ``{name, select, a {…} other {…}}`` are the only compound forms. A plural's
+  branch is selected by the RENDERING locale's CLDR cardinal category for the
+  integer count (``core.i18n.plurals`` — static transcribed rules, e.g. Polish
+  ``one``/``few``/``many``/``other``, Arabic's six categories), falling back to
+  the always-required ``other`` branch; a ``select`` matches the value or takes
+  ``other``. The page's mirrored JS helper implements the identical rules, so a
+  key formats the same on the server and in the browser. A plural translation
+  must carry every integer-reachable category of its locale — a missing
+  ``few`` would silently flatten a grammatical distinction into ``other``, so
+  the loader rejects it rather than serving flattened grammar.
 - **Authority text and its PRESENTATION are separated, not excluded.** The authority
   seams (core.faults codes/severities, permission decision scopes, wallet amounts and
   signed payloads, updater state machines) stay deterministic and English-anchored at
@@ -52,7 +59,6 @@ MAX_RECORDED_MISSING_KEYS = 20
 
 _PLURAL_RE = re.compile(r"\{(\w+),\s*plural,\s*([^{}]*\{[^{}]*\}[^{}]*)\}", re.DOTALL)
 _SELECT_RE = re.compile(r"\{(\w+),\s*select,\s*([^{}]*\{[^{}]*\}[^{}]*)\}", re.DOTALL)
-_BRANCH_RE = re.compile(r"\b(one|other)\s*\{([^{}]*)\}")
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 _TAG_RE = re.compile(r"</?([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^<>]*?)?)>")
 _INLINE_TAGS = frozenset({"b", "strong", "em", "i", "code", "br", "kbd"})
@@ -88,12 +94,24 @@ def _extract_compounds(text: str) -> list[tuple[str, str, str, int, int]]:
         pos = end
 
 
-def _branches(body: str) -> dict[str, str]:
-    """``one {…} other {…}`` branches, depth-walked so nested ``{placeholder}`` survives."""
+def _branches(body: str, kind: str = "select") -> dict[str, str]:
+    """Branch bodies keyed by branch name, depth-walked so nested ``{placeholder}`` survives.
+
+    For a ``plural`` compound only the CLDR cardinal category names are branch headers:
+    a translated word that happens to precede ``{n}`` inside a branch is TEXT, not a
+    category (Lithuanian ``pakeistas {n} failas`` must not mint a branch named
+    ``pakeistas``). A ``select`` matches literal parameter values, so any word may head
+    a branch there.
+    """
+    from core.i18n.plurals import VALID_PLURAL_CATEGORIES
+
+    allowed: frozenset[str] | None = VALID_PLURAL_CATEGORIES if kind == "plural" else None
     out: dict[str, str] = {}
     for m in re.finditer(r"([A-Za-z][A-Za-z0-9_]*)\s*\{", body):
         name = m.group(1)
         if name in out:
+            continue
+        if allowed is not None and name not in allowed:
             continue
         close = _walk_braced(body, m.end() - 1)
         out[name] = body[m.end(): close - 1]
@@ -151,26 +169,33 @@ def placeholders_of(text: str) -> frozenset[str]:
     return frozenset(_PLACEHOLDER_RE.findall(_strip_compound_forms(text)))
 
 
-def _branch_map(compound_body: str) -> dict[str, str]:
-    return _branches(compound_body)
-
-
-def format_message(text: str, params: dict[str, Any] | None = None) -> str:
+def format_message(
+    text: str, params: dict[str, Any] | None = None, locale: str = SOURCE_LOCALE
+) -> str:
     """Deterministically format a catalog message: plural/select first, then ``{name}``.
+
+    A plural selects its branch by ``locale``'s CLDR cardinal category for the
+    integer count (``core.i18n.plurals``), falling back to the required
+    ``other`` branch; a ``select`` matches the value or takes ``other``. The
+    default locale is English so pre-existing callers keep byte-identical
+    output; ``MessageCatalog.format`` always passes its own locale.
 
     Placeholder values are HTML-escaped (catalog text targets markup contexts); the
     page's JS helper mirrors this contract at its insertion points.
     """
+    from core.i18n.plurals import plural_category
+
     resolved = text
     while True:
         compounds = _extract_compounds(resolved)
         if not compounds:
             break
         name, kind, body, start, end = compounds[0]
-        branches = _branches(body)
+        branches = _branches(body, kind)
         if kind == "plural":
             count = int(params.get(name, 2)) if params else 2
-            chosen = branches.get("one" if count == 1 else "other", branches.get("other", ""))
+            category = plural_category(locale, count)
+            chosen = branches.get(category, branches.get("other", ""))
         else:
             value = str(params.get(name, "")) if params else ""
             chosen = branches.get(value, branches.get("other", ""))
@@ -232,9 +257,16 @@ def load_catalog_data(locale: str) -> dict[str, Any]:
 
 
 def _validate_locale_entry(
-    key: str, value: str, source_value: str, *, is_html: bool = False
+    key: str,
+    value: str,
+    source_value: str,
+    *,
+    is_html: bool = False,
+    locale: str = SOURCE_LOCALE,
 ) -> str | None:
     """Return a rejection reason, or None when the translation is structurally valid."""
+    from core.i18n.plurals import VALID_PLURAL_CATEGORIES, integer_categories
+
     if not isinstance(value, str) or not value.strip():
         return "empty or non-string translation"
     if placeholders_of(value) != placeholders_of(source_value):
@@ -249,9 +281,30 @@ def _validate_locale_entry(
     if compound_translation and not compound_source:
         return "translation added plural/select the source does not have"
     if compound_translation:
-        for _name, _kind, body, _s, _e in _extract_compounds(value):
-            if "other" not in _branches(body):
+        for _name, kind, body, _s, _e in _extract_compounds(value):
+            branches = _branches(body, kind)
+            if "other" not in branches:
                 return "plural/select branch set missing the required 'other' category"
+            if kind == "plural":
+                # The parser reads branches by CLDR category name, so a typo'd category
+                # ("onw {…}") would be silently skipped and its branch lost to "other".
+                # A word heading a NESTED brace is a branch header in disguise; a word
+                # heading a bare placeholder ("pakeistas {n}") is ordinary branch text.
+                for m in re.finditer(r"([A-Za-z][A-Za-z0-9_]*)\s*\{\{", body):
+                    if m.group(1) not in VALID_PLURAL_CATEGORIES:
+                        return (
+                            f"unknown plural category {m.group(1)!r} — a typo'd branch "
+                            f"would silently render through 'other'"
+                        )
+                # A missing integer-reachable category would render through 'other'
+                # for exactly the counts that grammar distinguishes — silent
+                # flattening. The translation must carry its locale's categories.
+                missing = sorted(integer_categories(locale) - set(branches))
+                if missing:
+                    return (
+                        f"plural translation drops categories {missing} that "
+                        f"{locale} grammar distinguishes (silent flattening)"
+                    )
     if is_html:
         # An html message must keep the EXACT tag multiset: dropping a span loses
         # structure; adding one can smuggle styling or structure past review.
@@ -312,7 +365,7 @@ class MessageCatalog:
                 self.diagnostic.note(key, "key not in English source")
                 continue
             reason = _validate_locale_entry(
-                key, value, source_value, is_html=key in self._html_keys
+                key, value, source_value, is_html=key in self._html_keys, locale=locale
             )
             if reason is None and key not in self._html_keys and "<" in value:
                 reason = "markup in a non-html message"
@@ -341,7 +394,7 @@ class MessageCatalog:
         return self._source_messages[key]
 
     def format(self, key: str, **params: Any) -> str:
-        return format_message(self.text(key), params)
+        return format_message(self.text(key), params, locale=self.locale)
 
     def is_html_key(self, key: str) -> bool:
         return key in self._html_keys

@@ -99,7 +99,8 @@ def _slice(source: str, start: str, end: str) -> str:
 def _ledger_js() -> str:
     """The real renderer source, lifted verbatim out of the page.
 
-    The category rules and `activityDetailLines` are included deliberately: `ledgerRow` calls
+    The category rules and the technical-detail formatters (`activityDetailTriples`, the
+    pair projection `activityDetailLines` it feeds) are included deliberately: `ledgerRow` calls
     `activityCategoryFor` for every `tool_*` event and `turnFailureReport` calls
     `activityDetailLines` for every failure, so a harness without them cannot render a tool row at
     all -- it throws ReferenceError, which is how a whole family of rows stayed untested.
@@ -118,7 +119,7 @@ def _ledger_js() -> str:
             _slice(source, "const LEDGER_SKIP", "function ledgerRanNoTool"),
             _slice(source, "const ACTIVITY_CATEGORY_RULES", "function activityCategoryFor("),
             _slice(source, "function activityCategoryFor(", "function activityToolLabel("),
-            _slice(source, "function activityDetailLines(", "// Builds {categories"),
+            _slice(source, "function activityDetailTriples(", "// Builds {categories"),
         ]
     )
 
