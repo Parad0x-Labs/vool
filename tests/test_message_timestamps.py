@@ -67,6 +67,12 @@ class FakeElement {
   get textContent() { return this._text; }
 }
 globalThis.document = { createElement: (tag) => new FakeElement(tag) };
+// The lifted timestamp slice now calls appLocale() (the page's i18n locale tag, defined
+// outside the slice). Mirror the page's own definition: no VOOL_I18N tag -> undefined,
+// which leaves toLocaleString on the runtime default exactly as before the i18n work.
+globalThis.appLocale = function () {
+  try { return (globalThis.window && globalThis.window.VOOL_I18N && globalThis.window.VOOL_I18N.tag) || undefined; } catch (e) { return undefined; }
+};
 """
 
 
@@ -211,8 +217,11 @@ def test_run_turn_stamps_the_user_bubble_with_the_real_send_instant() -> None:
     # One instant, captured once: painted on the bubble AND persisted to the chat's transcript, so
     # re-opening the chat later shows the time the message was actually sent rather than losing it.
     assert "const sentAt = new Date().toISOString();" in source
-    assert "addMsg('user', text, sentAt);" in source
-    assert "recordUserMessage(chatId, text, sentAt);" in source
+    # History: the trailing null/turnAttachments arguments are the bubble's attachment chips
+    # (draft spend / queue / resend), added after this pin was written; the CONTRACT — the
+    # bubble is stamped with the one captured send instant — is unchanged.
+    assert "addMsg('user', text, sentAt, null, turnAttachments);" in source
+    assert "recordUserMessage(chatId, text, sentAt, turnAttachments);" in source
 
 
 def test_finish_run_stamps_the_assistant_bubble_only_once_the_turn_truly_ends() -> None:
@@ -248,7 +257,10 @@ def test_reload_paths_pass_the_persisted_ts_from_history_into_add_msg() -> None:
         body = body[: body.index("\n}\n")]
         assert "renderChat(" in body, f"{caller} must render through renderChat"
     # And a live turn's own messages carry their ts into the transcript, so the re-render has one.
-    assert "history.push({ role: 'user', content: text, ts: tsIso || '' })" in source
+    # History: the push moved into recordUserMessage() when attachments began riding the entry;
+    # the entry still carries the same ts-or-empty contract.
+    assert "const entry = { role: 'user', content: text, ts: tsIso || '' };" in source
+    assert "chatState(chatId).history.push(entry);" in source
     assert "_owner.history[run.historyIndex].ts = run.endedAt;" in source
 
 
@@ -316,9 +328,13 @@ def test_history_endpoint_attaches_the_persisted_ts_to_the_assistant_message(tmp
         )
         assert res.status == 200
         body = json.loads(res.body.decode("utf-8"))
+        # History: legacy-conversation assistant rows now carry the a7 provenance marker
+        # (service.py: legacy rows have no A7 chain to verify, and the surface says so
+        # instead of implying a verification that never ran).
         assert body["messages"] == [
             {"role": "user", "content": "hello"},
-            {"role": "assistant", "content": "hi there", "ts": "2026-08-07T14:03:00.000000Z"},
+            {"role": "assistant", "content": "hi there", "ts": "2026-08-07T14:03:00.000000Z",
+             "a7": {"status": "legacy_unverified"}},
         ]
     finally:
         configure_runtime_home(None)

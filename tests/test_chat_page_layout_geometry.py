@@ -95,6 +95,11 @@ SETUP = r"""
 # The real cloud-model path: connect a key and let renderCloudModels() build the rows and reposition.
 LOAD_MODELS = r"""
 async () => {
+  // Seed the provider rows the runtime's own discovery loader populates (the same shapes
+  // core/vool_chat_page.py fills from /api/cloud/providers + credentials); the catalogue
+  // render refuses to draw without a browse target.
+  cloudProviderRows = [{ id: 'openrouter', label: 'OpenRouter' }];
+  cloudBrowseProvider = 'openrouter';
   setCloudConnected(true);
   await renderCloudModels();
   return document.querySelectorAll('#modelPop .pop-item.cloud-dyn').length;
@@ -166,11 +171,21 @@ REPORT = r"""
     panelBtnHitId: hit ? (hit.id || hit.className || hit.tagName) : null,
     resizeHandle: box('#xpResize'),
     resizeHandleClickable: (() => {
+      // Measured along the handle's EXPOSED length, not its geometric center. When an
+      // operator-answer surface is up (bypass banner, permission bar) the footer is
+      // deliberately raised above everything (body.answer-pending, z-index 35 > the
+      // splitter's 26) so the operator can always act -- at letterboxed heights that
+      // raised footer covers the handle's midpoint. The splitter remains grabbable
+      // everywhere it is exposed; that is the contract this pins.
       const h = document.getElementById('xpResize');
       const r = h.getBoundingClientRect();
       if (r.width < 1) return false;
-      const t = document.elementFromPoint(R(r.left + r.width / 2), R(r.top + r.height / 2));
-      return !!(t && (t === h || (t.closest && t.closest('#xpResize'))));
+      const cx = R(r.left + r.width / 2);
+      for (let y = R(r.top) + 6; y < R(r.bottom) - 6; y += 8) {
+        const t = document.elementFromPoint(cx, y);
+        if (t && (t === h || (t.closest && t.closest('#xpResize')))) return true;
+      }
+      return false;
     })(),
     composerHit: composerHit,
     input: box('#input'),
@@ -216,6 +231,13 @@ def _route(route):
         route.fulfill(status=200, content_type="application/json",
                       body=json.dumps({"models": models, "provider": "openrouter",
                                        "label": "OpenRouter", "auto_free_model": "auto"}))
+        return
+    if "/api/cloud/providers" in request.url:
+        # The catalogue is multi-provider now: the popover renders only after provider
+        # discovery resolves a browse target (core/vool_chat_page.py reads this list and
+        # cross-references the saved credentials).
+        route.fulfill(status=200, content_type="application/json",
+                      body=json.dumps({"providers": [{"id": "openrouter", "label": "OpenRouter"}]}))
         return
     if "/api/settings/credentials" in request.url:
         route.fulfill(status=200, content_type="application/json",
@@ -575,3 +597,4 @@ def test_a_long_cloud_name_is_shortened_in_the_label_and_kept_in_the_tooltip(mat
     for key, r in _cases(matrix, "menu").items():
         assert r["cloudRows"] >= 30, f"{key}: only {r['cloudRows']} cloud rows rendered"
         assert len(r["modelLbl"]) <= 30, f"{key}: label {r['modelLbl']!r}"
+
