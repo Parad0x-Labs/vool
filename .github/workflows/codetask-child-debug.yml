@@ -44,6 +44,33 @@ jobs:
           print("python gettempdir:", tempfile.gettempdir())
           print("python TMPDIR env:", os.environ.get("TMPDIR"))
           EOF
+      - name: Direct reproduction with full untruncated stderr
+        run: |
+          set +e
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, ".")
+          from pathlib import Path
+          from tests.test_code_task_purposeful_verification import _seed_sandbox_pytest_into
+          proj = Path("/tmp/ctdirect/project")
+          (proj / "tests").mkdir(parents=True, exist_ok=True)
+          (proj / "tests" / "__init__.py").write_text("")
+          _seed_sandbox_pytest_into(proj)
+          (proj / "tests" / "test_ledger.py").write_text("def test_x():\n    assert 1\n")
+          print("seeded", proj)
+          EOF
+          echo "--- tempfile probe under bwrap ---"
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- python3 -c "from tempfile import TemporaryFile; TemporaryFile(); print('tempfile ok')"
+          echo "tempfile rc=$?"
+          echo "--- vendored pytest --version under bwrap ---"
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp --bind /tmp/ctdirect/project /tmp/ctdirect/project -- python3 -c "import sys; sys.path.insert(0, '/tmp/ctdirect/project'); import pytest; print(pytest.__version__)"
+          echo "version rc=$?"
+          echo "--- the child command itself, full stderr ---"
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp --bind /tmp/ctdirect/project /tmp/ctdirect/project -- python3 -m pytest -q /tmp/ctdirect/project/tests/test_ledger.py
+          echo "direct rc=$?"
+          echo "--- same but WITHOUT --tmpfs /tmp ---"
+          bwrap --unshare-net --ro-bind / / -- python3 -m pytest -q /tmp/ctdirect/project/tests/test_ledger.py
+          echo "no-tmpfs rc=$?"
       - name: Control - the failing r4 case as-is
         run: |
           set +e
