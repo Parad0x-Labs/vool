@@ -272,7 +272,16 @@ def test_failed_ambiguity_probe_does_not_complete_knowledge_sibling(
 
     monkeypatch.setattr(
         "core.agent_runtime.audit_routing.select_audit_manifests",
-        lambda *args: ([SimpleNamespace(provider_id="test-author")], ""),
+        # The manifest must survive the REAL candidacy path: conductor_generation_candidates
+        # drops any manifest whose cost class cannot be established (fail-closed against
+        # unapproved paid calls), and a bare provider_id is exactly that. Pin it free_local
+        # so the ambiguity gate's eligible-author pre-check passes and the probe actually
+        # runs -- otherwise the gate declines, no adjudication happens, and the knowledge
+        # sibling is answered by the model lane as if it had been adjudicated.
+        lambda *args: (
+            [SimpleNamespace(provider_id="test-author", metadata={"cost_class": "free_local"})],
+            "",
+        ),
     )
     monkeypatch.setattr(
         "core.final_answer_authorship.decide_final_answer_author",
