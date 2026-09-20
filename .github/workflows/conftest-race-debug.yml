@@ -1,8 +1,8 @@
-name: Conftest race debug 5
+name: Conftest race debug 6
 
 on:
   push:
-    branches: [debug/conftest-race5]
+    branches: [debug/conftest-race6]
 
 jobs:
   probe:
@@ -36,80 +36,53 @@ jobs:
           bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
       - name: Provision the served-browser lane (Playwright chromium)
         run: python -m playwright install --with-deps chromium
-      - name: Write the wallet canary probe
+      - name: Write the per-item visibility probe
         run: |
-          cat > /tmp/wallet_canary.py <<'EOF'
+          cat > /tmp/item_visibility.py <<'EOF'
           import sys
 
-          _state = {"session": None, "healthy": True, "count": 0, "dumped": False}
+          # For every wallet/usepod/logs_operator/code_assistant/project_archaeology item,
+          # record (snapshot_has, live_visible) for the conftest fixture it declares. Dump the
+          # FULL ancestry of the first item whose live lookup is EMPTY -- that is the exact
+          # state behind CI's "fixture not found", compared against the registry def's node.
+          _state = {"session": None, "dumped": False, "stats": {}}
 
-          def _desc(fm, name):
-              defs = fm._arg2fixturedefs.get(name)
-              if not defs:
-                  return "ABSENT"
-              return [
-                  {
-                      "id": id(d),
-                      "baseid": getattr(d, "baseid", None),
-                      "node_type": type(getattr(d, "node", None)).__name__ if d.node is not None else None,
-                      "node_nodeid": getattr(d, "node", None).nodeid if d.node is not None else None,
-                      "node_id": id(getattr(d, "node", None)),
-                  }
-                  for d in defs
-              ]
+          CONFTEST_FIXTURES = {
+              "wallet_env", "rpc", "evm_rig", "usepod_home", "usepod_service",
+              "seeded", "auto_context", "arch_home", "corpus", "workspace",
+          }
 
           def pytest_collection_finish(session):
-              fm = session._fixturemanager
               _state["session"] = session
-              # Every Package/Directory collector whose nodeid mentions wallet, and every
-              # wallet test item's ancestry vs the fixture defs. This is the decisive dump:
-              # whether the def's node object is identity-equal to the items' ancestors.
-              print("=== WALLET COLLECTORS ===", file=sys.stderr, flush=True)
-              stack = [session]
-              seen = set()
-              while stack:
-                  node = stack.pop()
-                  if id(node) in seen:
-                      continue
-                  seen.add(id(node))
-                  nid = getattr(node, "nodeid", "")
-                  if "wallet" in str(nid) and type(node).__name__ in {"Package", "Directory"}:
-                      print(f"  collector {type(node).__name__} nodeid={nid!r} id={id(node)} path={getattr(node, 'path', None)}", file=sys.stderr, flush=True)
-                  stack.extend(getattr(node, "children", []) or [])
-              print("=== WALLET ITEMS ===", file=sys.stderr, flush=True)
-              sample = [i for i in session.items if str(i.nodeid).startswith("tests/wallet/")][:3]
-              for item in sample:
-                  parents = [(type(n).__name__, n.nodeid, id(n)) for n in item.iter_parents()]
-                  print(f"  item {item.nodeid[:90]}", file=sys.stderr, flush=True)
-                  for p in parents[:6]:
-                      print(f"    parent {p}", file=sys.stderr, flush=True)
-                  snap = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
-                  print(f"    wallet_env in snapshot={('wallet_env' in snap)}", file=sys.stderr, flush=True)
-              print("=== REGISTRY wallet_env ===", file=sys.stderr, flush=True)
-              print(f"  {_desc(fm, 'wallet_env')}", file=sys.stderr, flush=True)
-              canary = next((i for i in session.items if str(i.nodeid).startswith("tests/wallet/")), None)
-              _state["canary"] = canary
-              if canary is not None:
-                  defs = fm.getfixturedefs("wallet_env", canary)
-                  print(f"CANARY-INIT {canary.nodeid[:80]} visible={len(defs or ())}", file=sys.stderr, flush=True)
 
           def pytest_runtest_logstart(nodeid, location):
-              if _state["dumped"] or not _state.get("healthy"):
+              if _state["dumped"] or _state["session"] is None:
                   return
-              fm = _state["session"]._fixturemanager if _state.get("session") else None
-              canary = _state.get("canary")
-              if fm is None or canary is None:
+              session = _state["session"]
+              fm = session._fixturemanager
+              item = session.items and next((i for i in session.items if i.nodeid == nodeid), None)
+              if item is None:
                   return
-              _state["count"] += 1
-              defs = fm.getfixturedefs("wallet_env", canary)
-              if defs is not None and len(defs) == 0 and _state["healthy"]:
-                  _state["healthy"] = False
-                  _state["dumped"] = True
-                  print(f"CANARY-BROKEN at test #{_state["count"]} after {nodeid}", file=sys.stderr, flush=True)
-                  print(f"  registry now: {_desc(fm, 'wallet_env')}", file=sys.stderr, flush=True)
-                  parents = [(type(n).__name__, n.nodeid, id(n)) for n in canary.iter_parents()]
-                  for p in parents:
-                      print(f"  canary parent {p}", file=sys.stderr, flush=True)
+              names = [n for n in getattr(item, "fixturenames", ()) if n in CONFTEST_FIXTURES]
+              if not names:
+                  return
+              snap = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
+              for name in names:
+                  live = fm.getfixturedefs(name, item)
+                  key = (name, "wallet_env" in snap if name == "wallet_env" else name in snap, bool(live))
+                  _state["stats"][key] = _state["stats"].get(key, 0) + 1
+                  if not live and not _state["dumped"]:
+                      _state["dumped"] = True
+                      print(f"LIVE-EMPTY {nodeid} name={name}", file=sys.stderr, flush=True)
+                      defs = fm._arg2fixturedefs.get(name)
+                      print(f"  registry: {[(type(getattr(d, 'node', None)).__name__, getattr(d, 'node', None).nodeid if d.node is not None else None, id(getattr(d, 'node', None)), getattr(d, 'baseid', None)) for d in (defs or [])]}", file=sys.stderr, flush=True)
+                      for n in item.iter_parents():
+                          print(f"  parent {type(n).__name__} {n.nodeid[:80]!r} id={id(n)}", file=sys.stderr, flush=True)
+
+          def pytest_sessionfinish(session, exitstatus):
+              print("=== VISIBILITY STATS ===", file=sys.stderr, flush=True)
+              for (name, snap_has, live), count in sorted(_state["stats"].items()):
+                  print(f"  {name}: snapshot={snap_has} live={live} items={count}", file=sys.stderr, flush=True)
           EOF
       - name: Resolve this shard's test files (verbatim ci.yml resolver)
         run: |
@@ -140,7 +113,7 @@ jobs:
           Path(".verification-logs", f"shard-{shard}-files.txt").write_text("\n".join(mine) + "\n")
           print(f"shard {shard}/{shards}: {len(mine)} of {len(sized)} files")
           EOF
-      - name: Run shard 6 exactly as ci.yml does with the wallet canary
+      - name: Run shard 6 exactly as ci.yml does with the per-item probe
         run: >-
           PYTHONPATH=/tmp python -m pytest -q --tb=line -p no:cacheprovider
-          -p wallet_canary $(tr '\n' ' ' < .verification-logs/shard-6-files.txt)
+          -p item_visibility $(tr '\n' ' ' < .verification-logs/shard-6-files.txt)
