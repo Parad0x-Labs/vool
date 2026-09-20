@@ -403,7 +403,13 @@ FRESH_DATA_OPERATIONS: tuple[OperationSpec, ...] = (
         capability=OperationCapability(
             effect=OperationEffect.LIVE_OBSERVATION,
             domain="foreign exchange",
-            accepted_kinds=frozenset({ClauseKind.KNOW, ClauseKind.OBSERVE, ClauseKind.UNKNOWN}),
+            # TRANSFORM is the kind a conversion states itself as when the user opens with what
+            # they hold ("i have 100 usd, convert to rub" -- Turn IR reads the clause TRANSFORM):
+            # converting an amount IS that transform, so the fx capability serves it, exactly as
+            # it serves the question and observation wordings of the same work.
+            accepted_kinds=frozenset(
+                {ClauseKind.KNOW, ClauseKind.OBSERVE, ClauseKind.UNKNOWN, ClauseKind.TRANSFORM}
+            ),
             effect_class=REMOTE_FETCH_EFFECT_CLASS,
             accepts_clause=_fx_accepts,
         ),

@@ -49,6 +49,13 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     # immediately after the subject word with no filler allowed.
     rf"(?:{_WEATHER_WORD}|forecast|temperature|humidity|sunrise|sunset)\s+(?:only\s+|just\s+|specifically\s+)?"
     r"(?:in|for|at|like|around|over|today|tomorrow|tonight|now|currently|this\s+(?:morning|afternoon|evening|weekend))"
+    # `wether` is admitted HERE and only here: this branch requires the subject word be followed
+    # by a preposition and a place, and in that frame ("wether in Rome") the weather reading is
+    # unambiguous even though the bare word is a real English noun (a ram) that the vocabulary
+    # rightly excludes elsewhere -- "I don't know wether it rains" carries no preposition frame
+    # and still matches nothing.
+    rf"|(?:{_WEATHER_WORD}|wether)\s+(?:only\s+|just\s+|specifically\s+)?"
+    r"(?:in|for|at|like|around|over)\s"
     r"|(?:current|today(?:'s)?|tomorrow(?:'s)?|tonight(?:'s)?)\s+"
     rf"(?:{_WEATHER_WORD}|forecast|temperature|humidity)"
     r"|(?:will\s+it|is\s+it|is\s+there|do\s+we)\s+"

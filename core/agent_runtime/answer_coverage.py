@@ -1570,6 +1570,11 @@ def _shared_subject_range(clause: str) -> tuple[int, int] | None:
             or piece_tokens[0] in _CLAUSE_OPENING_LEADERS
             or piece.strip().endswith("?")
             or any(token in _ASSISTANT_ADDRESS_TOKENS for token in piece_tokens)
+            # A conjunct stating what the USER HOLDS ("i have 100 usd") is the amount half of a
+            # conversion ask, not declarative prose about a system being described: protecting
+            # across it fused the weather request before it into one demand (measured on the
+            # sloppy comma-splice) and orphaned the conversion that follows the amount.
+            or _opens_an_amount_frame(piece)
         )
         if not opens_new_request and not _subject_precedes_its_verb(piece_tokens) and not modal:
             # A bare verb phrase can only share a MODAL's subject; after "has"/"is" it is a
@@ -1763,8 +1768,15 @@ def _unit_spans(clause: str) -> list[tuple[int, int]]:
         if _conditional_setup_question(left, fragment):
             continue
         if boundaries[boundary] and not (
-            _opens_a_demand(fragment) or _opens_a_phrase(fragment)
+            _opens_a_demand(fragment) or _opens_a_phrase(fragment) or _opens_an_amount_frame(fragment)
         ):
+            continue
+        if _continues_an_amount_frame(left, fragment):
+            # "i have 100 usd, convert to rub" is ONE request: the conversion verb consumes the
+            # amount and currency the fragment before it holds. Cutting between them minted a
+            # sourceless "convert to rub" no lane could bind and glued the amount onto whatever
+            # request happened to precede it (measured on the sloppy comma-splice: weather + a
+            # fused amount as one unit, the conversion orphaned as another).
             continue
         if _introduces_no_new_subject(fragment):
             # Nothing of its own to ask about: this continues the request it follows.
@@ -1790,6 +1802,33 @@ _PROHIBITION_OPENERS = (
     ("do", "not"), ("does", "not"), ("dont",), ("don",), ("never",), ("avoid",),
     ("without",), ("no", "need"), ("skip",),
 )
+
+#: A fragment that opens by STATING WHAT THE USER HOLDS ("i have 100 usd") opens a fresh
+#: request of its own: it is the amount half of a conversion ask, and failing to split it from
+#: the request before it fused unrelated demands together.
+_AMOUNT_FRAME_RE = re.compile(
+    r"^(?:i|we)\s+(?:have|ve|got|own|hold)\b[^,;]{0,32}\d",
+    re.IGNORECASE,
+)
+#: A conversion verb that takes "to/into" continues the amount frame before it.
+_CONVERT_CONTINUATION_RE = re.compile(
+    r"^(?:convert|exchange|change|turn|switch)\b[^,;]{0,32}\b(?:to|into)\b",
+    re.IGNORECASE,
+)
+#: An amount with a currency-ish tail anywhere in a fragment.
+_AMOUNT_WITH_CODE_RE = re.compile(r"\d[\d.,]*\s*(?:usd|us\b|eur|gbp|rub|try|jpy|chf|pln|cad|aud|inr|czk|sek|nok|dkk|huf|ron|bgn)", re.IGNORECASE)
+
+
+def _opens_an_amount_frame(fragment: str) -> bool:
+    return bool(_AMOUNT_FRAME_RE.match(str(fragment or "").strip()))
+
+
+def _continues_an_amount_frame(left: str, fragment: str) -> bool:
+    """Whether `fragment` is the conversion half of the amount `left` states."""
+    return bool(
+        _CONVERT_CONTINUATION_RE.match(str(fragment or "").strip())
+        and _AMOUNT_WITH_CODE_RE.search(str(left or ""))
+    )
 
 
 def is_prohibition_unit(text: str) -> bool:
