@@ -194,6 +194,18 @@ def _normalized_ordinary_clause(text: str) -> str:
     return clause
 
 
+#: An imperative whose whole object is the request before it -- "explain it in detail",
+#: "describe that", "say more". It elaborates the previous clause; counting it as a second
+#: part made the ordinary-chat guard demand a numbered two-part reply and re-ask a single
+#: advisory question twice (measured on the presentation s2 pin).
+_ELABORATION_CONTINUATION_RE = re.compile(
+    r"^(?:please\s+|pls\s+|plz\s+)?(?:explain|describe|expand|elaborate|detail|"
+    r"tell\s+me\s+more|say\s+more|go\s+deeper|drill\s+down)\b"
+    r"(?:\s+(?:it|that|this|them|in\s+detail|more|further|briefly|shortly|at\s+length))+\s*\.?\s*$",
+    re.IGNORECASE,
+)
+
+
 def ordinary_plain_requests(text: str) -> tuple[str, ...]:
     """Return every request when the whole turn is a small, non-operational text task.
 
@@ -224,6 +236,12 @@ def ordinary_plain_requests(text: str) -> tuple[str, ...]:
                     continue
                 if not _ORDINARY_REQUEST_HEAD_RE.match(clause):
                     return ()
+                if (
+                    requests
+                    and _ELABORATION_CONTINUATION_RE.fullmatch(clause)
+                ):
+                    # Depth asked of the request just collected, not a new part.
+                    continue
                 requests.append(clause)
     return tuple(requests)
 
