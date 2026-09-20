@@ -499,6 +499,7 @@ def assemble_tool_offer(
         # expansions above already seat the families' tools in `specs`; without this the
         # offer's record (and the audit dict below) said no family was ever expanded.
         expanded_families=tuple(expansions),
+        fingerprint=offer_fingerprint(tuple(specs)),
     )
     if isinstance(source_context, dict):
         source_context["_tool_offer"] = {
