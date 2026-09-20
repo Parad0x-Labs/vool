@@ -65,7 +65,7 @@ def test_pyproject_dev_extra_covers_build_and_test_tooling() -> None:
         # ">=0.3" lets a new ruff enrol rules nobody opted into and turn main red with no code
         # change. This exact string is also what the CI lint job installs -- the two must agree,
         # so bump them together.
-        '"ruff==0.15.16"',
+        '"ruff==0.16.7"',
         '"mypy>=1.8"',
         # tests/test_daemon_survives_concurrent_load.py imports httpx. It was never declared, so it
         # passed on machines that happened to have it and died in CI with ModuleNotFoundError on
