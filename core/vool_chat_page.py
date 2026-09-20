@@ -8590,6 +8590,7 @@ async function refreshCloudStatus(probe) {
 }
 
 function setCloudConnected(on) {
+  const wasCloudKeyConnected = cloudKeyConnected;
   cloudKeyConnected = !!on;
   if (orRemoveEl) orRemoveEl.hidden = !cloudKeyConnected;
   if (orTestEl) orTestEl.hidden = !cloudKeyConnected;
@@ -8607,8 +8608,15 @@ function setCloudConnected(on) {
       ? 'Concrete selections are hard pins. Paid rows spend provider credits only when explicitly selected; VOOL Auto stays local-first and can use only the free fallback configured below.'
       : 'Connect a provider key in Settings to choose a cloud model or configure Auto\u2019s free fallback.');
   // Add the live model list when connected; strip it back to the static popover when not.
-  if (cloudKeyConnected) renderCloudModels();
-  else {
+  // Only the false->true TRANSITION renders: renderCloudModels() clears the rows before its
+  // fetch, so a redundant pass blanks an already-open model menu for a full round trip. The
+  // background provider-discovery loader re-lands setCloudConnected(true) on every completion,
+  // and it can complete after the user opened the menu (measured 2026-09-21: the geometry
+  // suite's row count caught the open menu mid-clear; on a slow network the same window is a
+  // user-visible blank-out). The menu-open handler re-renders on every open, so skipping the
+  // no-op pass loses nothing: a stale list is rebuilt the next time the menu is opened.
+  if (cloudKeyConnected && !wasCloudKeyConnected) renderCloudModels();
+  else if (!cloudKeyConnected) {
     clearCloudModels();
     // Without a key, a previously-selected cloud model (a concrete id or a paid openrouter tier)
     // can no longer route — revert the composer to local Auto so a send never targets an unusable
