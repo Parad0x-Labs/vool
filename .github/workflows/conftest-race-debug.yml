@@ -1,0 +1,66 @@
+name: Conftest race debug
+
+on:
+  push:
+    branches: [debug/conftest-race]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Reconstruct shard 6 and dump conftest state at collection
+        run: |
+          python - <<'EOF'
+          import subprocess, sys
+          from pathlib import Path
+          collected = subprocess.run(
+              [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          files = sorted({line.split("::", 1)[0] for line in collected.splitlines() if "::" in line})
+          macos_only = {
+              "tests/test_macos_app_packaging.py",
+              "tests/updater/test_e2e_sandbox.py",
+              "tests/test_artifact_readers_contracts.py",
+              "tests/test_artifact_readers_served_m1.py",
+              "tests/test_artifact_readers_served_m2.py",
+              "tests/test_audio_dictation.py",
+              "tests/test_media_product_served.py",
+          }
+          files = [f for f in files if f not in macos_only]
+          sized = sorted(files, key=lambda f: -Path(f).stat().st_size)
+          mine = [f for index, f in enumerate(sized) if index % 10 == 6]
+          Path("/tmp/shard6.txt").write_text("\n".join(mine) + "\n")
+          print(f"shard 6: {len(mine)} of {len(sized)} files")
+          EOF
+          cat > zz_dump_plugin.py <<'EOF'
+          import sys
+
+          def pytest_collection_finish(session):
+              mods = {k: getattr(v, "__file__", None) for k, v in sys.modules.items() if "conftest" in k}
+              print("=== CONFTEST MODULES ===", flush=True)
+              for k in sorted(mods):
+                  print("  %s -> %s" % (k, mods[k]), flush=True)
+              fm = session._fixturemanager
+              print("=== REGISTRATION ===", flush=True)
+              for name in ("wallet_env", "usepod_service", "corpus", "app", "archaeology_home", "blackbox"):
+                  print("  %s: %s" % (name, name in fm._arg2fixturedefs), flush=True)
+              wallet_node = next((i for i in session.items if "caller_binding" in i.nodeid), None)
+              print("caller_binding collected:", bool(wallet_node), flush=True)
+          EOF
+          FILES=$(tr '\n' ' ' < /tmp/shard6.txt)
+          python -m pytest --collect-only -p no:cacheprovider -p zz_dump_plugin $FILES 2>&1 | grep -E "===|->|: (True|False)|collected|caller_binding" | head -30
+      - name: Run the wallet file against the full shard collection
+        run: |
+          set +e
+          FILES=$(tr '\n' ' ' < /tmp/shard6.txt)
+          python -m pytest -q --tb=no -p no:cacheprovider $FILES 2>&1 | tail -3
