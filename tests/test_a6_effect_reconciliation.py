@@ -72,7 +72,10 @@ class A6Harness(unittest.TestCase):
     def _instrumented_write(self, *, raise_after_write: bool, exc_class: type[Exception] = RuntimeError):
         harness = self
 
-        def handler(arguments, *, workspace_root, session_id):
+        # `reviewed_destination` (approved-destination identity, R6 on 2026-09-20) is now part of
+        # the `_write_file` call contract; the stub must accept what the dispatch seam passes or
+        # every instrumented turn dies as an unknown effect instead of exercising reconciliation.
+        def handler(arguments, *, workspace_root, session_id, reviewed_destination=None):
             harness.marker.parent.mkdir(parents=True, exist_ok=True)
             with harness.marker.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps({"event": "PHYSICAL_MUTATION", "arguments": arguments}) + "\n")
@@ -380,7 +383,8 @@ class R18TimeoutClassIsUnknown(A6Harness):
     def test_unknown_shaped_ack_result_stays_unknown_not_failed(self) -> None:  # M8 guard
         original = ret._write_file
 
-        def unknown_result(arguments, *, workspace_root, session_id):
+        # Accepts `reviewed_destination` for the same contract reason as `_instrumented_write`.
+        def unknown_result(arguments, *, workspace_root, session_id, reviewed_destination=None):
             return ret.RuntimeExecutionResult(
                 handled=True, ok=False, status=UNKNOWN_OUTCOME_STATUS,
                 response_text="outcome unprovable", details={},
