@@ -1359,6 +1359,19 @@ def build_planner_run_one(
         # be a decision, and it would break the moment the wording changed.
         if bool(sub_context.get("runtime_notice_not_an_answer")):
             raise RuntimeError(text or "the runtime could not answer this request")
+        # P0 MIXED-DEMAND — AN AMBIGUITY ASK-BACK IS NOT AN ANSWER EITHER. The F45 entity
+        # gate serves a clarification INSTEAD of an answer when the question's referent is
+        # ambiguous, or when its adjudication did not complete (the same three-state law the
+        # gate's docstring carries). Returned as plain text it is non-empty with no error, so
+        # `TaskOutcome.ok` reads True and the knowledge demand files as EXECUTED beside a
+        # clarification nobody can act on inside a merged multi-part answer. The turn's OWN
+        # `reason` stamp is the typed marker -- never the ask-back's prose -- naming exactly
+        # the two clarification outcomes (unresolved adjudication, ambiguous verdict).
+        if str(result.get("reason") or "") in {
+            "ambiguity_adjudication_unresolved",
+            "ambiguity_clarification_ask",
+        }:
+            raise RuntimeError(text or "the question's entity could not be adjudicated")
         return text
 
     return _run_one
