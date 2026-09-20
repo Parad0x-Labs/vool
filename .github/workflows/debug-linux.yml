@@ -1,10 +1,21 @@
 name: debug-linux
 
 # Prep mission D2: turn the 2-hour "why doesn't the Linux sandbox run steps" CI
-# loop into a ~5-minute dispatchable one. Never runs on push/PR -- this is a
-# diagnosis instrument, not a gate. Dispatch it on a branch and read the logs.
+# loop into a ~5-minute dispatchable one. Never runs on push/PR to main -- this
+# is a diagnosis instrument, not a gate. Dispatch it on a branch and read the logs.
+#
+# GitHub only indexes workflow_dispatch from the default branch, and this file
+# deliberately never lands on main from a side mission -- so the push trigger
+# below is what actually fires it on this branch. workflow_dispatch stays for
+# the owner once the file reaches main.
 on:
   workflow_dispatch:
+  push:
+    branches: [prep/phase2-hardening]
+
+concurrency:
+  group: debug-linux
+  cancel-in-progress: true
 
 permissions:
   contents: read
