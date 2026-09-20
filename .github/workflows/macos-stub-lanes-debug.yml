@@ -35,8 +35,18 @@ jobs:
           for DB in $(for BASE in /tmp /var/folders; do find "$BASE" -maxdepth 8 -name "vool_web0_v2.db" -newermt "-30 minutes" 2>/dev/null; done | head -6); do
             HOME_DIR=$(dirname "$(dirname "$DB")")
             echo "===== HOME $HOME_DIR ====="
+            echo "--- daemon.log: provider/lane/exclusion lines ---"
+            grep -E "reader-drive|stub|exclud|rank|health|provider|lane|qwen|planning|refus" "$HOME_DIR/daemon.log" 2>/dev/null | head -60
             echo "--- daemon.log tail ---"
-            tail -40 "$HOME_DIR/daemon.log" 2>/dev/null || find "$HOME_DIR" -name "*.log" -maxdepth 3 2>/dev/null | head -5
+            tail -20 "$HOME_DIR/daemon.log" 2>/dev/null
+            echo "--- db schema ---"
+            python - "$DB" <<'EOF'
+          import sqlite3, sys
+          conn = sqlite3.connect(sys.argv[1])
+          for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall():
+              if "event" in name.lower() or "provider" in name.lower() or "model" in name.lower() or "turn" in name.lower():
+                  print("table:", name)
+          EOF
             echo "--- routing/exclusion events ---"
             python - "$DB" <<'EOF'
           import json, sqlite3, sys
