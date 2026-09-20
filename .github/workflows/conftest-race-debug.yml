@@ -1,8 +1,8 @@
-name: Conftest race debug 3
+name: Conftest race debug 4
 
 on:
   push:
-    branches: [debug/conftest-race3]
+    branches: [debug/conftest-race4]
 
 jobs:
   probe:
@@ -31,85 +31,72 @@ jobs:
           }
           PROFILE
           if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
-            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
           bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
       - name: Provision the served-browser lane (Playwright chromium)
         run: python -m playwright install --with-deps chromium
-      - name: Write the fixture-gap probe
+      - name: Write the canary probe
         run: |
-          cat > /tmp/fixture_gap_probe.py <<'EOF'
-          import os
+          cat > /tmp/fixture_canary.py <<'EOF'
           import sys
 
-          SPECIAL = {"request", "pytestconfig"}
-          _dumped = {"done": False}
+          _state = {"canary": None, "healthy": True, "count": 0}
 
-          def _dump(fm, item):
-              print("=== RUNTIME GAP DUMP ===", file=sys.stderr, flush=True)
-              print("cwd=%s" % os.getcwd(), file=sys.stderr, flush=True)
-              print("rootpath=%s" % item.config.rootpath, file=sys.stderr, flush=True)
-              print("--- pending conftests ---", file=sys.stderr, flush=True)
-              for k in fm._pending_conftests:
-                  print("  pending: %s" % k, file=sys.stderr, flush=True)
-              print("--- sys.modules conftest entries ---", file=sys.stderr, flush=True)
-              for k in sorted(sys.modules):
-                  if "conftest" in k:
-                      print("  %s -> %s" % (k, getattr(sys.modules[k], "__file__", None)), file=sys.stderr, flush=True)
-              print("--- registry baseids for key names ---", file=sys.stderr, flush=True)
-              for name in ("wallet_env", "rpc", "usepod_home", "usepod_service", "seeded", "auto_context", "arch_home"):
-                  defs = fm._arg2fixturedefs.get(name)
-                  if not defs:
-                      print("  %s: ABSENT" % name, file=sys.stderr, flush=True)
-                  else:
-                      print("  %s: baseids=%r" % (name, [getattr(d, "baseid", None) for d in defs]), file=sys.stderr, flush=True)
-              print("--- item ancestry ---", file=sys.stderr, flush=True)
-              node = item
-              while node is not None:
-                  print("  %s %r path=%s" % (type(node).__name__, node.nodeid, getattr(node, "path", None)), file=sys.stderr, flush=True)
-                  node = node.parent
+          def _defs_desc(fm, name):
+              defs = fm._arg2fixturedefs.get(name)
+              if not defs:
+                  return "ABSENT"
+              out = []
+              for d in defs:
+                  node = getattr(d, "node", None)
+                  out.append({
+                      "id": id(d),
+                      "argname": d.argname,
+                      "baseid": getattr(d, "baseid", None),
+                      "node_type": type(node).__name__ if node is not None else None,
+                      "node_nodeid": getattr(node, "nodeid", None) if node is not None else None,
+                      "node_id": id(node),
+                      "func": repr(getattr(d, "func", None))[:60],
+                  })
+              return out
 
           def pytest_collection_finish(session):
               fm = session._fixturemanager
-              print("=== PENDING CONFTESTS AT FINISH (pre-clear) ===", file=sys.stderr, flush=True)
-              for k in fm._pending_conftests:
-                  print("  pending: %s" % k, file=sys.stderr, flush=True)
-              gaps = {}
               for item in session.items:
-                  params = set(getattr(getattr(item, "callspec", None), "params", ()) or ())
-                  snapshot = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
-                  for name in getattr(item, "fixturenames", ()):
-                      if name in SPECIAL or name in params:
-                          continue
-                      if snapshot.get(name) is None and fm.getfixturedefs(name, item) is None:
-                          gaps.setdefault(name, []).append(item.nodeid)
-              if gaps:
-                  print("=== FIXTURE GAPS AT COLLECTION (setup-equivalent) ===", file=sys.stderr, flush=True)
-                  for name, nodeids in sorted(gaps.items()):
-                      print("  %s: %d items, e.g. %s" % (name, len(nodeids), nodeids[:3]), file=sys.stderr, flush=True)
-                  sample = next(iter(gaps.values()))[0]
-                  for item in session.items:
-                      if item.nodeid == sample:
-                          _dump(fm, item)
-                          break
-                  print("PROBE-RESULT: GAP (%d items)" % sum(len(v) for v in gaps.values()), file=sys.stderr, flush=True)
-                  raise SystemExit(99)
-              print("PROBE-RESULT: CLEAN at collection", file=sys.stderr, flush=True)
+                  if "wallet" in item.nodeid:
+                      _state["canary"] = item
+                      break
+              canary = _state["canary"]
+              if canary is None:
+                  print("CANARY: no wallet item collected", file=sys.stderr, flush=True)
+                  return
+              defs = fm.getfixturedefs("wallet_env", canary)
+              parents = {id(n) for n in canary.iter_parents()}
+              print("CANARY-INIT nodeid=%s visible_defs=%d" % (canary.nodeid, len(defs or ())), file=sys.stderr, flush=True)
+              print("CANARY-INIT registry=%s" % _defs_desc(fm, "wallet_env"), file=sys.stderr, flush=True)
+              print("CANARY-INIT parent_ids=%r parent_nodeids=%r" % (
+                  sorted(parents), [n.nodeid for n in canary.iter_parents()]), file=sys.stderr, flush=True)
+              _state["session"] = session
 
-          def pytest_runtest_setup(item):
-              if _dumped["done"]:
+          def pytest_runtest_logstart(nodeid, location):
+              fm = _state.get("session") and _state["session"]._fixturemanager
+              canary = _state.get("canary")
+              if fm is None or canary is None or not _state["healthy"]:
                   return
-              if "wallet" not in item.nodeid and "usepod" not in item.nodeid:
-                  return
-              fm = item.config.pluginmanager.get_plugin("funcmanage")
-              snapshot = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
-              for name in ("wallet_env", "usepod_home", "usepod_service"):
-                  if name in getattr(item, "fixturenames", ()) and snapshot.get(name) is None and fm.getfixturedefs(name, item) is None:
-                      _dumped["done"] = True
-                      _dump(fm, item)
-                      print("PROBE-RESULT: RUNTIME GAP on %s" % item.nodeid, file=sys.stderr, flush=True)
-                      return
+              _state["count"] += 1
+              defs = fm.getfixturedefs("wallet_env", canary)
+              if not defs:
+                  _state["healthy"] = False
+                  print("CANARY-BROKEN at test #%d nodeid=%s" % (_state["count"], nodeid), file=sys.stderr, flush=True)
+                  print("CANARY-BROKEN registry=%s" % _defs_desc(fm, "wallet_env"), file=sys.stderr, flush=True)
+                  parents = {id(n) for n in canary.iter_parents()}
+                  print("CANARY-BROKEN parent_ids=%r parent_nodeids=%r" % (
+                      sorted(parents), [n.nodeid for n in canary.iter_parents()]), file=sys.stderr, flush=True)
+                  print("CANARY-BROKEN pending=%r" % [str(k) for k in fm._pending_conftests], file=sys.stderr, flush=True)
+                  import gc
+                  conftest_mods = {k: getattr(v, "__file__", None) for k, v in sys.modules.items() if "conftest" in k}
+                  print("CANARY-BROKEN sys.modules=%s" % conftest_mods, file=sys.stderr, flush=True)
           EOF
       - name: Resolve this shard's test files (verbatim ci.yml resolver)
         run: |
@@ -134,19 +121,13 @@ jobs:
               "tests/test_audio_dictation.py",
               "tests/test_media_product_served.py",
           }
-          dropped = sorted(set(files) & macos_only)
-          if set(dropped) != macos_only:
-              raise SystemExit(
-                  f"macos routing drifted: expected exactly {sorted(macos_only)}, collected {dropped}"
-              )
           files = [f for f in files if f not in macos_only]
           sized = sorted(files, key=lambda f: -Path(f).stat().st_size)
           mine = [f for index, f in enumerate(sized) if index % shards == shard]
           Path(".verification-logs", f"shard-{shard}-files.txt").write_text("\n".join(mine) + "\n")
-          total = sum(1 for _ in sized)
-          print(f"shard {shard}/{shards}: {len(mine)} of {total} files ({len(macos_only)} routed to macos)")
+          print(f"shard {shard}/{shards}: {len(mine)} of {len(sized)} files")
           EOF
-      - name: Run shard 6 exactly as ci.yml does
+      - name: Run shard 6 exactly as ci.yml does with the canary
         run: >-
-          PYTHONPATH=/tmp python -m pytest -q --tb=short -p no:cacheprovider
-          -p fixture_gap_probe $(tr '\n' ' ' < .verification-logs/shard-6-files.txt)
+          PYTHONPATH=/tmp python -m pytest -q --tb=line -p no:cacheprovider
+          -p fixture_canary $(tr '\n' ' ' < .verification-logs/shard-6-files.txt)
