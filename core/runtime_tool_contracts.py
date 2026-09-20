@@ -591,6 +591,11 @@ def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
             },
             output_schema={"draft": "email_draft", "status": "string"},
             side_effect_class="read_only",  # local reviewable state only; no file, network or send
+            # `read_files`, not an empty declaration: the draft record is local reviewable state,
+            # and a read_only contract that resolves to NO action is unauditable — the mode
+            # matrix sees nothing to reason about (pinned by
+            # tests/test_read_only_tools_are_not_denied_by_mode.py).
+            permission_actions=("read_files",),
             approval_requirement="none",
             timeout_policy="local_only_default",
             retry_policy="none",
@@ -608,6 +613,7 @@ def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
             input_schema={"draft_id": "string optional, defaults to the session's latest draft"},
             output_schema={"draft": "email_draft", "status": "string"},
             side_effect_class="read_only",
+            permission_actions=("read_files",),
             approval_requirement="none",
             timeout_policy="local_only_default",
             retry_policy="none",
@@ -628,6 +634,7 @@ def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
             },
             output_schema={"draft": "email_draft", "status": "string"},
             side_effect_class="read_only",  # records the user's own instruction; local state only
+            permission_actions=("read_files",),
             approval_requirement="none",
             timeout_policy="local_only_default",
             retry_policy="none",
@@ -2669,7 +2676,7 @@ def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
             artifact_emission="none",
             error_contract="returns_structured_error_result",
             handler="external_lane",
-            permission_actions=("use_network",),
+            permission_actions=("use_network_access",),
         ),
         RuntimeToolContract(
             intent="operator.list_calendars",
@@ -2688,7 +2695,7 @@ def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
             artifact_emission="none",
             error_contract="returns_structured_error_result",
             handler="external_lane",
-            permission_actions=("use_network",),
+            permission_actions=("use_network_access",),
         ),
         RuntimeToolContract(
             intent="operator.inspect_calendar_event",
@@ -2707,7 +2714,7 @@ def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
             artifact_emission="none",
             error_contract="returns_structured_error_result",
             handler="external_lane",
-            permission_actions=("use_network",),
+            permission_actions=("use_network_access",),
         ),
         RuntimeToolContract(
             intent="operator.find_notes",
@@ -2802,7 +2809,7 @@ def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
             artifact_emission="none",
             error_contract="returns_structured_error_result",
             handler="external_lane",
-            permission_actions=("use_network",),
+            permission_actions=("use_network_access",),
         ),
         RuntimeToolContract(
             intent="operator.search_calendar_event",
@@ -2821,7 +2828,7 @@ def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
             artifact_emission="none",
             error_contract="returns_structured_error_result",
             handler="external_lane",
-            permission_actions=("use_network",),
+            permission_actions=("use_network_access",),
         ),
         RuntimeToolContract(
             intent="operator.list_reminders",

@@ -421,6 +421,23 @@ def should_attempt_tool_intent(
     if active_email_work_intents(source_context):
         return True
 
+    # A FIRST-TURN mailbox request is an action through the email tools, never a topic to
+    # converse about — the same law the session admission above states for follow-ups, read
+    # through the SAME typed recognizer the tool offer seats from
+    # (core.execution_requirements._email_account_action_demand: it enforces the email lane's
+    # toggles and the account-anchor/composition distinction, so this gate and the offer
+    # cannot disagree). Measured 2026-09-20 through the demand-owned mixed turn:
+    # "Check my unread orchard supplier mail, summarize it" classified ordinary_plain_text_chat,
+    # the sub-turn answered from memory, and no email tool ran — the dead end the recognizer's
+    # own docstring names, reached because this gate never asked it about turn one.
+    try:
+        from core.execution_requirements import _email_account_action_demand
+
+        if _email_account_action_demand(text):
+            return True
+    except Exception:
+        pass
+
     # A few ordinary knowledge/text requests in one message still need one plain answer, not the
     # always-on tool catalogue and its large intent-selection call.  The detector is intentionally
     # limited to non-operational request heads; file/web/machine/action verbs never enter this lane.
