@@ -65,6 +65,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        # The code-task lane's test steps run through the real sandbox runner, whose Linux
+        # confinement is bwrap (user namespaces are permitted on these runners; the package
+        # simply is not preinstalled). Without it every journaled step answers
+        # sandbox_unavailable and the code-task suites cascade.
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
       - name: Provision the served-browser lane (Playwright chromium)
         run: python -m playwright install --with-deps chromium
       - name: Resolve this shard's test files
