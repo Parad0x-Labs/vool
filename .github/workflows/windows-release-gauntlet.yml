@@ -78,7 +78,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev,companion,evm]"
       - name: Run Windows gauntlet without live model pull
         shell: cmd
         run: Test_VOOL_Windows_Gauntlet.cmd -SkipInstall -SkipBenchmark -Json
