@@ -1,8 +1,8 @@
-name: Conftest race debug
+name: Conftest race debug 2
 
 on:
   push:
-    branches: [debug/conftest-race]
+    branches: [debug/conftest-race2]
 
 jobs:
   probe:
@@ -17,7 +17,95 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,browser,companion,evm]"
-      - name: Reconstruct shard 6 and dump conftest state at collection
+      - name: Write the fixture-gap probe
+        run: |
+          cat > /tmp/fixture_gap_probe.py <<'EOF'
+          import os
+          import sys
+
+          SPECIAL = {"request", "pytestconfig"}
+          _dumped = {"done": False}
+
+          def _dump(fm, item):
+              print("=== RUNTIME GAP DUMP ===", file=sys.stderr, flush=True)
+              print("cwd=%s" % os.getcwd(), file=sys.stderr, flush=True)
+              print("rootpath=%s" % item.config.rootpath, file=sys.stderr, flush=True)
+              try:
+                  print("invocation_dir=%s" % item.config.invocation_params.dir, file=sys.stderr, flush=True)
+              except Exception:
+                  pass
+              print("--- pending conftests ---", file=sys.stderr, flush=True)
+              for k in fm._pending_conftests:
+                  print("  pending: %s" % k, file=sys.stderr, flush=True)
+              print("--- sys.modules conftest entries ---", file=sys.stderr, flush=True)
+              for k in sorted(sys.modules):
+                  if "conftest" in k:
+                      print("  %s -> %s" % (k, getattr(sys.modules[k], "__file__", None)), file=sys.stderr, flush=True)
+              print("--- registry baseids for missing names ---", file=sys.stderr, flush=True)
+              for name in ("wallet_env", "rpc", "usepod_home", "usepod_service", "seeded", "auto_context", "arch_home"):
+                  defs = fm._arg2fixturedefs.get(name)
+                  if not defs:
+                      print("  %s: ABSENT" % name, file=sys.stderr, flush=True)
+                  else:
+                      print("  %s: baseids=%r" % (name, [getattr(d, "baseid", None) for d in defs]), file=sys.stderr, flush=True)
+              print("--- item ancestry ---", file=sys.stderr, flush=True)
+              node = item
+              while node is not None:
+                  print("  %s %r path=%s" % (type(node).__name__, node.nodeid, getattr(node, "path", None)), file=sys.stderr, flush=True)
+                  node = node.parent
+              print("--- plugin names ---", file=sys.stderr, flush=True)
+              for name in item.config.pluginmanager.get_plugins():
+                  print("  plugin: %s" % item.config.pluginmanager.get_name(name), file=sys.stderr, flush=True)
+
+          def pytest_collection_finish(session):
+              fm = session._fixturemanager
+              print("=== PENDING CONFTESTS AT FINISH (pre-clear) ===", file=sys.stderr, flush=True)
+              for k in fm._pending_conftests:
+                  print("  pending: %s" % k, file=sys.stderr, flush=True)
+              print("=== KEY FIXTURE BASEIDS ===", file=sys.stderr, flush=True)
+              for name in ("wallet_env", "rpc", "usepod_home", "usepod_service", "seeded", "auto_context", "arch_home"):
+                  defs = fm._arg2fixturedefs.get(name)
+                  if not defs:
+                      print("  %s: ABSENT" % name, file=sys.stderr, flush=True)
+                  else:
+                      print("  %s: baseids=%r" % (name, [getattr(d, "baseid", None) for d in defs]), file=sys.stderr, flush=True)
+              gaps = {}
+              for item in session.items:
+                  params = set(getattr(getattr(item, "callspec", None), "params", ()) or ())
+                  snapshot = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
+                  for name in getattr(item, "fixturenames", ()):
+                      if name in SPECIAL or name in params:
+                          continue
+                      if snapshot.get(name) is None and fm.getfixturedefs(name, item) is None:
+                          gaps.setdefault(name, []).append(item.nodeid)
+              if gaps:
+                  print("=== FIXTURE GAPS AT COLLECTION (setup-equivalent) ===", file=sys.stderr, flush=True)
+                  for name, nodeids in sorted(gaps.items()):
+                      print("  %s: %d items, e.g. %s" % (name, len(nodeids), nodeids[:3]), file=sys.stderr, flush=True)
+                  sample = next(iter(gaps.values()))[0]
+                  for item in session.items:
+                      if item.nodeid == sample:
+                          _dump(fm, item)
+                          break
+                  print("PROBE-RESULT: GAP (%d items)" % sum(len(v) for v in gaps.values()), file=sys.stderr, flush=True)
+                  raise SystemExit(99)
+              print("PROBE-RESULT: CLEAN at collection", file=sys.stderr, flush=True)
+
+          def pytest_runtest_setup(item):
+              if _dumped["done"]:
+                  return
+              if "wallet" not in item.nodeid and "usepod" not in item.nodeid:
+                  return
+              fm = item.config.pluginmanager.get_plugin("funcmanage")
+              snapshot = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
+              for name in ("wallet_env", "usepod_home", "usepod_service"):
+                  if name in getattr(item, "fixturenames", ()) and snapshot.get(name) is None and fm.getfixturedefs(name, item) is None:
+                      _dumped["done"] = True
+                      _dump(fm, item)
+                      print("PROBE-RESULT: RUNTIME GAP on %s" % item.nodeid, file=sys.stderr, flush=True)
+                      return
+          EOF
+      - name: Reconstruct shard 6 exactly as ci.yml does
         run: |
           python - <<'EOF'
           import subprocess, sys
@@ -42,25 +130,15 @@ jobs:
           Path("/tmp/shard6.txt").write_text("\n".join(mine) + "\n")
           print(f"shard 6: {len(mine)} of {len(sized)} files")
           EOF
-          cat > zz_dump_plugin.py <<'EOF'
-          import sys
-
-          def pytest_collection_finish(session):
-              mods = {k: getattr(v, "__file__", None) for k, v in sys.modules.items() if "conftest" in k}
-              print("=== CONFTEST MODULES ===", flush=True)
-              for k in sorted(mods):
-                  print("  %s -> %s" % (k, mods[k]), flush=True)
-              fm = session._fixturemanager
-              print("=== REGISTRATION ===", flush=True)
-              for name in ("wallet_env", "usepod_service", "corpus", "app", "archaeology_home", "blackbox"):
-                  print("  %s: %s" % (name, name in fm._arg2fixturedefs), flush=True)
-              wallet_node = next((i for i in session.items if "caller_binding" in i.nodeid), None)
-              print("caller_binding collected:", bool(wallet_node), flush=True)
-          EOF
-          FILES=$(tr '\n' ' ' < /tmp/shard6.txt)
-          python -m pytest --collect-only -p no:cacheprovider -p zz_dump_plugin $FILES 2>&1 | grep -E "===|->|: (True|False)|collected|caller_binding" | head -30
-      - name: Run the wallet file against the full shard collection
+      - name: Leg A - collection-time probe
         run: |
-          set +e
           FILES=$(tr '\n' ' ' < /tmp/shard6.txt)
-          python -m pytest -q --tb=no -p no:cacheprovider $FILES 2>&1 | tail -3
+          set +e
+          PYTHONPATH=/tmp python -m pytest --collect-only -q -p no:cacheprovider -p fixture_gap_probe $FILES 2>&1 | grep -E "===|^  |PROBE-RESULT|pending:|ABSENT|baseids" | head -80
+          echo "legA done"
+      - name: Leg B - live run with full tracebacks
+        run: |
+          FILES=$(tr '\n' ' ' < /tmp/shard6.txt)
+          set +e
+          PYTHONPATH=/tmp timeout 420 python -m pytest -q --tb=short -p no:cacheprovider -p fixture_gap_probe $FILES 2>&1 | grep -vE "^\S+Z \.*$" | head -250
+          echo "legB done"
