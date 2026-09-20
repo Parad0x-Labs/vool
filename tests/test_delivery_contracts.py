@@ -27,6 +27,40 @@ def test_ci_authoritative_gate_no_longer_relies_on_pythonpath_hack() -> None:
     assert "ops/pytest_manifest.py" in runs
 
 
+def test_ci_routes_macos_only_suites_to_the_macos_job_and_nowhere_else() -> None:
+    """Genuinely macOS-only suites are ROUTED to a macOS runner, never silently skipped.
+
+    The Linux shard resolver filters exactly the file set the `macos` job runs; this pins the
+    two lists to each other so a future edit cannot drop a file on the floor (skipped
+    everywhere) or run it twice (macOS-only assertions failing red on Linux shards)."""
+    workflow = _load_yaml(".github/workflows/ci.yml")
+    macos_job = workflow["jobs"]["macos"]
+    assert macos_job["runs-on"] == "macos-latest"
+
+    run_step = next(step for step in macos_job["steps"] if step.get("name") == "Run the macOS-only suites")
+    run_files = sorted(
+        token for token in str(run_step["run"]).split() if token.startswith("tests/")
+    )
+
+    resolver = next(
+        step for step in workflow["jobs"]["tests"]["steps"] if step.get("name") == "Resolve this shard's test files"
+    )
+    resolver_text = "\n".join(str(resolver["run"]).splitlines())
+    assert "macos_only = {" in resolver_text
+    routed = sorted(
+        line.strip().rstrip(",").strip('"')
+        for line in resolver_text.splitlines()
+        if line.strip().startswith('"tests/')
+    )
+
+    assert routed == run_files, (
+        f"macos routing drifted: resolver routes {routed}, macos job runs {run_files}"
+    )
+    # The routing must also be load-bearing: the resolver refuses to continue if any of the
+    # routed files disappears from collection, so a rename cannot silently un-route a suite.
+    assert "macos routing drifted" in resolver_text
+
+
 def test_ci_build_job_smokes_the_built_wheel_outside_repo_checkout() -> None:
     workflow = _load_yaml(".github/workflows/ci.yml")
     build_job = workflow["jobs"]["build"]
