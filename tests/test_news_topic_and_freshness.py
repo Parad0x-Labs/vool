@@ -108,7 +108,13 @@ def test_news_rss_fallback_sorts_newest_first_and_windows_recency() -> None:
     ), mock.patch(
         "tools.web.web_research.evaluate_source_domain", return_value=SimpleNamespace(blocked=False)
     ):
-        result = web_research._news_rss_fallback("latest news Iran", max_hits=3, timeout_s=5.0)
+        # The fallback runs inside a turn's fetch policy in production; called directly like
+        # this it must name its own scope or the effect gateway denies the fetch before the
+        # (faked) socket is ever reached.
+        from core.effect_gateway import named_background_effect_scope
+
+        with named_background_effect_scope("tests.news_rss_fallback"):
+            result = web_research._news_rss_fallback("latest news Iran", max_hits=3, timeout_s=5.0)
 
     assert result is not None
     _, hits, _, _ = result
