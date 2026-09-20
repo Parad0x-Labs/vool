@@ -382,6 +382,9 @@ def _drive_grounded_turn(agent, *, decision, asked: str) -> None:
         reason="not_needed",
         strategy="none",
         actions_taken=[],
+        # The real result carries the queries it ran (core.curiosity_roamer); the grounded
+        # turn reads the field, so the fake holds the same shape.
+        queries_run=[],
         to_dict=lambda: {"enabled": False, "reason": "not_needed"},
     )
     task = SimpleNamespace(

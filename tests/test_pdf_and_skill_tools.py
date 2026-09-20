@@ -388,14 +388,26 @@ def test_installing_a_skill_needs_explicit_opt_in() -> None:
 
 
 def test_no_package_was_added_to_this_project() -> None:
-    """The supply-chain rule is the reason for the subprocess: this machine holds live keys."""
+    """The supply-chain rule is the reason for the subprocess: this machine holds live keys.
+
+    History: this pin used to forbid EVERY pdf package in pyproject, because core/pdf_tools
+    parses through the macOS system Python (PDFKit/Quartz) and must stay dependency-free.
+    The artifact-reader lane later added `pypdf==6.16.2` as a measured, DELIBERATE exception:
+    it runs only inside the confined decoder subprocess (core/artifact_readers/pdf.py — a
+    hostile PDF meets pypdf inside the same sandbox every other decoder gets), with its
+    projections kept in sync in requirements*.txt and installer/bundle. Everything else
+    pdf-ish stays out: pyobjc would pull the PDFKit lane into pip, and the PyPDF2/pdfminer/
+    pdfplumber/PyMuPDF family has no lane at all.
+    """
 
     from core import pdf_tools
 
     assert pdf_tools._SYSTEM_PYTHON == "/usr/bin/python3"
     pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
-    for package in ("pypdf", "PyPDF2", "pdfminer", "pdfplumber", "PyMuPDF", "pyobjc"):
+    for package in ("PyPDF2", "pdfminer", "pdfplumber", "PyMuPDF", "pyobjc"):
         assert package.lower() not in pyproject.lower(), package
+    # The one sanctioned pdf dependency is the confined-reader fallback, pinned exactly.
+    assert "pypdf==6.16.2" in pyproject
 
 
 # --------------------------------------------------------------------------------------

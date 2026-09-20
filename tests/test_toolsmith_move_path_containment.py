@@ -48,7 +48,15 @@ class TraversalMatrixTests(unittest.TestCase):
         self.workspace.mkdir()
         self.outside = self.root / "outside"
         self.outside.mkdir()
-        self.source_context = {"workspace": str(self.workspace)}
+        # The fixture file is named secret.txt, and the Blackbox high-risk gate (added after
+        # this suite was written) classifies a path named "secret" as credentials and refuses
+        # the move without an explicit per-turn allowance. These tests pin the SCOPE gate
+        # (traversal, symlinks, outside destinations), a different authority, so the turn
+        # grants the documented allowance (recorder.HIGH_RISK_ALLOW_KEY) to keep the high-risk
+        # gate from answering first.
+        from core.blackbox.coverage.recorder import HIGH_RISK_ALLOW_KEY
+
+        self.source_context = {"workspace": str(self.workspace), HIGH_RISK_ALLOW_KEY: True}
         consent_gate.set_consent_override_for_tests(_allow)
         self.addCleanup(consent_gate.set_consent_override_for_tests, None)
 
@@ -80,7 +88,12 @@ class TraversalMatrixTests(unittest.TestCase):
             source_context=self.source_context,
         )
         self.assertFalse(result.ok)
-        self.assertEqual(result.status, "blocked_outside_scope")
+        # History: this pinned `blocked_outside_scope`. The Blackbox reversible-capture
+        # step (added after this suite was written) attempts to snapshot the move before
+        # it runs, and a symlinked destination leaf cannot be captured reversibly -- the
+        # capture fails closed first with its own typed refusal. The escape is still
+        # blocked either way; the pinned contract is that NOTHING reaches the target.
+        self.assertIn(result.status, {"blocked_outside_scope", "blackbox_reversible_capture_incomplete"})
         self.assertTrue(secret.exists())
         self.assertFalse(real_outside_target.exists())
 
@@ -240,7 +253,11 @@ class MutationSabotageTests(unittest.TestCase):
             outside.mkdir()
             secret = workspace / "secret.txt"
             secret.write_text("top secret", encoding="utf-8")
-            source_context = {"workspace": str(workspace)}
+            # Same high-risk allowance as the matrix suites: the sabotage pins the SCOPE
+            # validation, and the credentials-named fixture must not answer first.
+            from core.blackbox.coverage.recorder import HIGH_RISK_ALLOW_KEY
+
+            source_context = {"workspace": str(workspace), HIGH_RISK_ALLOW_KEY: True}
             consent_gate.set_consent_override_for_tests(_allow)
             try:
                 real_within = __import__(
@@ -294,7 +311,15 @@ class SourceContainmentTests(unittest.TestCase):
         self.workspace.mkdir()
         self.outside = self.root / "outside"
         self.outside.mkdir()
-        self.source_context = {"workspace": str(self.workspace)}
+        # The fixture file is named secret.txt, and the Blackbox high-risk gate (added after
+        # this suite was written) classifies a path named "secret" as credentials and refuses
+        # the move without an explicit per-turn allowance. These tests pin the SCOPE gate
+        # (traversal, symlinks, outside destinations), a different authority, so the turn
+        # grants the documented allowance (recorder.HIGH_RISK_ALLOW_KEY) to keep the high-risk
+        # gate from answering first.
+        from core.blackbox.coverage.recorder import HIGH_RISK_ALLOW_KEY
+
+        self.source_context = {"workspace": str(self.workspace), HIGH_RISK_ALLOW_KEY: True}
         consent_gate.set_consent_override_for_tests(_allow)
         self.addCleanup(consent_gate.set_consent_override_for_tests, None)
 
