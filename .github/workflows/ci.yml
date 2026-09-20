@@ -67,10 +67,30 @@ jobs:
           python -m pip install -e ".[dev,browser,companion,evm]"
       - name: Provision the kernel sandbox backend (bubblewrap)
         # The code-task lane's test steps run through the real sandbox runner, whose Linux
-        # confinement is bwrap (user namespaces are permitted on these runners; the package
-        # simply is not preinstalled). Without it every journaled step answers
-        # sandbox_unavailable and the code-task suites cascade.
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+        # confinement is bwrap. Installing the package alone is NOT enough on these runners:
+        # Ubuntu 24.04 ships AppArmor with kernel.apparmor_restrict_unprivileged_userns=1 and
+        # the bubblewrap package installs no AppArmor profile, so bwrap's availability probe
+        # fails for the non-root runner user and every journaled step answers
+        # sandbox_unavailable (measured, run 35520785157: the probe returned rc=1 with the
+        # package installed, and ~900 tests cascaded). The profile below grants ONLY bwrap
+        # the right to create its user namespace — the confinement itself stays
+        # kernel-enforced — and the probe at the end fails this step loudly if a future
+        # runner image changes the rules, instead of letting the suite cascade.
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
       - name: Provision the served-browser lane (Playwright chromium)
         run: python -m playwright install --with-deps chromium
       - name: Resolve this shard's test files
