@@ -35,11 +35,25 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
           bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
-      - name: Run one failing r4 case with full traceback
+      - name: Environment facts
+        run: |
+          echo "TMPDIR=${TMPDIR:-<unset>}"
+          echo "RUNNER_TEMP=${RUNNER_TEMP:-<unset>}"
+          python - <<'EOF'
+          import tempfile, os
+          print("python gettempdir:", tempfile.gettempdir())
+          print("python TMPDIR env:", os.environ.get("TMPDIR"))
+          EOF
+      - name: Control - the failing r4 case as-is
         run: |
           set +e
-          python -m pytest -q --tb=long -p no:cacheprovider "tests/test_code_task_invocation_contract_r4.py::test_equivalent_or_broader_filters_still_cover[python3 -m pytest -q tests/test_ledger.py]"
-          echo "pytest rc=$?"
+          python -m pytest -q --tb=line -p no:cacheprovider "tests/test_code_task_invocation_contract_r4.py::test_equivalent_or_broader_filters_still_cover[python3 -m pytest -q tests/test_ledger.py]"
+          echo "control rc=$?"
+      - name: A/B - same case with TMPDIR pointing inside the sandbox tmpfs
+        run: |
+          set +e
+          TMPDIR=/tmp python -m pytest -q --tb=line -p no:cacheprovider "tests/test_code_task_invocation_contract_r4.py::test_equivalent_or_broader_filters_still_cover[python3 -m pytest -q tests/test_ledger.py]"
+          echo "tmpdir-ab rc=$?"
       - name: Dump the code-task journals from the session homes
         if: always()
         run: |
