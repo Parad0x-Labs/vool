@@ -102,19 +102,45 @@ def test_exact_edit_approval_is_one_time_and_cannot_cross_tasks_or_mode_revision
     assert approved and approved["scope"] == "once"  # edit batches never broaden
     approved_ctx = {**ctx, "mode_approval_token": request["approval_id"]}
     assert _decision("workspace.write_file", args=args, context=approved_ctx, task="task-a").effect is PermissionEffect.ALLOW
-    assert _decision("workspace.write_file", args=args, context=approved_ctx, task="task-a").effect is PermissionEffect.REQUIRE_APPROVAL
+    # History: this second assertion used to pin REQUIRE_APPROVAL for the byte-identical
+    # re-emission. The resume loop re-plans the whole turn after every approval pause, so a
+    # re-emitted byte-identical call now rides the prior grant
+    # (mode_permission_policy._prior_allow_covers_locked: "the operator answered this exact
+    # question; the answer stands for its exact call") — re-prompting for it was the
+    # repeated-prompt defect that closed. One-timeness still holds where it is
+    # security-bearing: the TOKEN is spent, so a different call under the same token prompts.
+    assert _decision("workspace.write_file", args=args, context=approved_ctx, task="task-a").effect is PermissionEffect.ALLOW
+    assert (
+        _decision(
+            "workspace.write_file",
+            args={"path": "a.txt", "content": "swapped after the grant"},
+            context=approved_ctx,
+            task="task-a",
+        ).effect
+        is PermissionEffect.REQUIRE_APPROVAL
+    )
 
-    cross_request = _decision("workspace.write_file", args=args, context=ctx, task="task-a").approval_request
+    cross_args = {"path": "a.txt", "content": "two"}
+    turn_b_ctx = _context(mode="manual", workspace_root=str(tmp_path), cancel_turn_id="turn-b")
+    cross_request = _decision("workspace.write_file", args=cross_args, context=turn_b_ctx, task="task-b").approval_request
+    assert cross_request is not None
     resolve_approval(cross_request["approval_id"], decision="allow")
-    set_active_mode("chat-a", "manual", client_turn_id="turn-b")
-    cross_ctx = {**ctx, "cancel_turn_id": "turn-b", "mode_approval_token": cross_request["approval_id"]}
-    assert _decision("workspace.write_file", args=args, context=cross_ctx, task="task-b").effect is PermissionEffect.REQUIRE_APPROVAL
+    # Turn-a replaying turn-b's token (and turn-a's own grants not covering turn-b's call):
+    # a grant is bound to the logical turn it was minted in. `_context` mutates the session's
+    # active client turn, so restore turn-a before the replay attempt.
+    set_active_mode("chat-a", "manual", client_turn_id="turn-a")
+    wrong_turn_ctx = {**ctx, "mode_approval_token": cross_request["approval_id"]}
+    assert _decision("workspace.write_file", args=cross_args, context=wrong_turn_ctx, task="task-a").effect is PermissionEffect.REQUIRE_APPROVAL
 
-    request2 = _decision("workspace.write_file", args=args, context=ctx, task="task-a").approval_request
-    resolve_approval(request2["approval_id"], decision="allow")
-    set_active_mode("chat-a", "review_edits")
-    stale_ctx = {**ctx, "mode_approval_token": request2["approval_id"]}
-    assert _decision("workspace.write_file", args=args, context=stale_ctx, task="task-a").effect is PermissionEffect.REQUIRE_APPROVAL
+    # A mode revision stale-dates an approved token even inside the same logical turn.
+    set_active_mode("chat-a", "review_edits", client_turn_id="turn-c")
+    turn_c_ctx = _context(mode="manual", workspace_root=str(tmp_path), cancel_turn_id="turn-c")
+    revision_request = _decision("workspace.write_file", args={"path": "a.txt", "content": "three"}, context=turn_c_ctx, task="task-c").approval_request
+    assert revision_request is not None
+    resolve_approval(revision_request["approval_id"], decision="allow")
+    set_active_mode("chat-a", "review_edits", client_turn_id="turn-c")  # same turn, new revision
+    stale_ctx = {**turn_c_ctx, "mode_approval_token": revision_request["approval_id"]}
+    assert _decision("workspace.write_file", args={"path": "a.txt", "content": "three"}, context=stale_ctx, task="task-c").effect is PermissionEffect.REQUIRE_APPROVAL
 
 
 def test_non_edit_task_scope_is_bounded_to_same_task_intent_and_mode() -> None:
@@ -385,10 +411,16 @@ def test_replayed_write_approval_cannot_be_reused_with_swapped_content(tmp_path)
     assert same.effect is PermissionEffect.ALLOW
 
     # A fresh approval, then a replay attempt with SWAPPED content must not be silently allowed.
-    request2 = _decision("workspace.write_file", args=approved_args, context=ctx, task="task-b")
+    # The fresh ask needs its own LOGICAL turn (cancel_turn_id): the grant's task binding is the
+    # client turn id, and an approval earned in turn-a must not cover a turn-b ask — otherwise
+    # the prior-allow replay coverage answers before an approval_request is even minted.
+    turn_b_ctx = _context(mode="manual", workspace_root=str(tmp_path), cancel_turn_id="turn-b")
+    request2 = _decision("workspace.write_file", args=approved_args, context=turn_b_ctx, task="task-b")
+    assert request2.effect is PermissionEffect.REQUIRE_APPROVAL
     approval2 = resolve_approval(request2.approval_request["approval_id"], decision="allow", scope="once")
+    assert approval2 and approval2["status"] == "approved"
     swapped_args = {"path": "report.txt", "content": "wire funds to attacker-controlled-account"}
-    swap_ctx = {**ctx, "mode_approval_token": approval2["approval_id"]}
+    swap_ctx = {**turn_b_ctx, "mode_approval_token": approval2["approval_id"]}
     swapped = _decision("workspace.write_file", args=swapped_args, context=swap_ctx, task="task-b")
     assert swapped.effect is not PermissionEffect.ALLOW, (
         "a replayed approval token let swapped content write silently"

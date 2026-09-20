@@ -47,10 +47,21 @@ def test_build_mode_respects_an_explicit_no_files_opt_out() -> None:
 
 
 def test_no_mode_keeps_prior_behavior_for_a_bare_build_request() -> None:
-    # Without a mode and without explicit "write the files"/workspace language, a bare "build a bot"
-    # does NOT newly trigger the writer -- the change is scoped to Build/Auto.
+    # History: this pinned that a bare "build a bot" with NO mode never entered the writer, so the
+    # mode enforcement stayed scoped to Build/Auto. Later measured work deliberately widened that:
+    # an explicit build instruction now reaches the builder whatever the mode
+    # (core/agent_runtime/builder_facade.py + looks_like_execution_request's artifact-scope
+    # is_build_instruction arm), because keeping such turns out of the builder produced the
+    # documented dead end — the turn fell to the model lane and answered "I couldn't map that
+    # cleanly to a real action" over a request the builder could have served. Safety is
+    # unchanged where it matters: with no mode the builder runs under the central controller
+    # like Manual, so every write is an exact approval preview before dispatch (pinned by the
+    # manual-mode assertions above).
     agent = _agent()
-    assert _should(agent, "build a telegram bot", None) is False
+    assert _should(agent, "build a telegram bot", None) is True
+    # The read-only refusals still hold for the modes that promise them.
+    assert _should(agent, "build a telegram bot", "ask") is False
+    assert _should(agent, "build a telegram bot", "plan") is False
 
 
 _TODO = (

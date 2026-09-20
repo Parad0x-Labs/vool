@@ -13,7 +13,14 @@ from core.runtime_execution_tools import _x_trending, execute_runtime_tool
 def _isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_HOME", str(tmp_path))
     runtime_paths.configure_runtime_home(tmp_path)
-    yield
+    # These are direct fetch_trending calls with no turn around them; the effect gateway
+    # correctly refuses unattributed network effects. Open the named background scope every
+    # direct-call test opens (core.effect_gateway.named_background_effect_scope) — urlopen
+    # is faked per test, so this names the effect, it does not reach the network.
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("test.x_tools"):
+        yield
     runtime_paths.configure_runtime_home(None)
 
 

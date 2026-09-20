@@ -42,8 +42,10 @@ def isolated_memory_home(tmp_path, monkeypatch):
     for path in (memory_entries_path(), session_summaries_path()):
         if path.exists():
             path.unlink()
+    # The legacy name a pre-rename home actually holds is NULLA (docs/UPGRADE_NULLA_TO_VOOL.md,
+    # 2026-09); the canonical name this runtime answers to is VOOL.
     memory_path().write_text(
-        "# VOOL Persistent Memory\n\n## Learned Knowledge\n\n- **My name**: VOOL\n",
+        "# NULLA Persistent Memory\n\n## Learned Knowledge\n\n- **My name**: NULLA\n",
         encoding="utf-8",
     )
     monkeypatch.setattr("core.onboarding.get_agent_display_name", lambda: "VOOL")
@@ -59,7 +61,7 @@ def _policy(chat_id: str):
 def test_durable_memory_recall_does_not_return_the_legacy_name() -> None:
     policy = _policy("s1")
     assert add_memory_fact(
-        "**My name**: VOOL",
+        "**My name**: NULLA",
         category="identity",
         session_id="s1",
         access_policy=policy,
@@ -75,7 +77,7 @@ def test_durable_memory_recall_does_not_return_the_legacy_name() -> None:
     assert hits, "the row must still be recalled -- the fix rewrites it, it does not hide it"
     recalled = " ".join(str(row.get("text") or "") for row in hits)
     assert "VOOL" in recalled
-    assert "VOOL" not in recalled.upper()
+    assert "NULLA" not in recalled.upper()
 
 
 def test_prior_session_summary_cannot_quote_the_legacy_name_back() -> None:
@@ -84,7 +86,7 @@ def test_prior_session_summary_cannot_quote_the_legacy_name_back() -> None:
         json.dumps(
             {
                 "session_id": "prior",
-                "summary": "Recent asks: whats your name? Last assistant outcome: I'm VOOL.",
+                "summary": "Recent asks: whats your name? Last assistant outcome: I'm NULLA.",
                 "created_at": "2026-07-28T00:00:00+00:00",
                 "turn_count": 2,
                 "scope": "chat",
@@ -109,21 +111,21 @@ def test_prior_session_summary_cannot_quote_the_legacy_name_back() -> None:
     )
 
     assert hits
-    assert "VOOL" not in str(hits[0].get("summary") or "").upper()
+    assert "NULLA" not in str(hits[0].get("summary") or "").upper()
     assert "VOOL" in str(hits[0].get("summary") or "")
 
 
 def test_memory_facts_summary_is_canonicalised() -> None:
     policy = _policy("summary")
     assert add_memory_fact(
-        "**My name**: VOOL",
+        "**My name**: NULLA",
         category="identity",
         session_id="summary",
         access_policy=policy,
     )
     facts = " ".join(summarize_memory(access_policy=policy, limit=8))
 
-    assert "VOOL" not in facts.upper()
+    assert "NULLA" not in facts.upper()
 
 
 @pytest.mark.parametrize(
@@ -134,6 +136,8 @@ def test_memory_facts_summary_is_canonicalised() -> None:
         "/tmp/vool_proj_test",
         "logger vool.api emitted a warning",
         "run apps.vool_api_server to start it",
+        "~/Desktop/nulla-local-product",
+        "project_name: nulla_runtime/workspace_render_db0cc086",
     ],
 )
 def test_real_paths_and_identifiers_survive_untouched(stored: str) -> None:
@@ -149,6 +153,9 @@ def test_real_paths_and_identifiers_survive_untouched(stored: str) -> None:
         ("I'm VOOL.", "I'm VOOL."),
         ("VOOL, your local-first assistant", "VOOL, your local-first assistant"),
         ("connect my Vool to my TG account", "connect my VOOL to my TG account"),
+        ("**My name**: NULLA", "**My name**: VOOL"),
+        ("I'm nulla.", "I'm VOOL."),
+        ("connect my NULLA to my TG account", "connect my VOOL to my TG account"),
     ],
 )
 def test_standalone_legacy_name_is_rewritten(stored: str, expected: str) -> None:

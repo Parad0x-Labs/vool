@@ -98,6 +98,20 @@ def test_served_workflow_cumulative_testing_runs_the_real_test_pack(tmp_path, mo
         (c.id, c.priority) for c in selection.selected
     ]
 
+    # This direct call has no turn around it, so the command gate would fall back to the
+    # MANUAL default and correctly demand approval for a side-effecting test run. The served
+    # workflow this file emulates is the one an operator runs with Auto selected — freeze that
+    # turn policy (the same seam tests/test_permission_mode_promise.py drives) so the door
+    # sees the mode a live auto turn would have carried. autonomy_mode stays at its default
+    # "hands_off": the mode matrix is what grants Auto its hands-off execution, and a raised
+    # autonomy preference is a separate, persisted operator choice this workflow doesn't need.
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "core.effect_gateway.consume_turn_policy",
+        lambda _seam: SimpleNamespace(mode="auto", autonomy_mode="hands_off"),
+    )
+
     result = execute_runtime_tool(
         "workspace.run_tests",
         {"command": f"{sys.executable} -m pytest -q tests/test_pack.py"},
