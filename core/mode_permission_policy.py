@@ -2257,11 +2257,9 @@ def actions_for_tool(
         actions.update({PermissionAction.USE_NETWORK, PermissionAction.ACCESS_EXTERNAL_PROVIDERS})
     elif name in {"email.send", "email.reply", "email.draft.send"} or name.startswith(("discord.", "telegram.")):
         actions.update({PermissionAction.USE_NETWORK, PermissionAction.SEND_EXTERNAL_MESSAGES})
-    elif name in {"email.draft.save", "email.draft.get", "email.draft.approve"}:
-        # Reviewable draft state under the runtime home: no file, no network, no send. It is the
-        # RECORD of a review, not an effect — the send itself is email.draft.send above, and an
-        # empty action set adds nothing to gate in any mode (the matrix sees no action).
-        pass
+    # email.draft.save/get/approve used to land on a deliberate EMPTY action set here; their
+    # contracts now declare `read_files` (local reviewable state) so the declared-actions return
+    # above answers for them, and a read_only contract never resolves to nothing.
     elif name == "marketplace.search_listings":
         actions.update({PermissionAction.USE_NETWORK, PermissionAction.ACCESS_EXTERNAL_PROVIDERS})
     elif name.startswith(("wallet.", "pay.", "marketplace.purchase")):
