@@ -25,15 +25,12 @@ from __future__ import annotations
 
 import re
 import sqlite3
-import subprocess
 from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[1]
-
-N2_SCHEMA_SHA = "9b644f3f^"  # runtime_attempts predates attempt_role — the reported failure shape
-N1_SCHEMA_SHA = "9b644f3f"  # attempt_role present; newest dynamic columns still dynamic
+N2_SCHEMA_SHA = "n2"  # runtime_attempts predates attempt_role — the reported failure shape
+N1_SCHEMA_SHA = "n1"  # attempt_role present; newest dynamic columns still dynamic
 
 # The two NEWEST dynamic steps (the current binary's n-1 delta): a database created by the
 # immediately previous binary has the full SCHEMA_SQL tables EXCEPT these columns.
@@ -61,14 +58,48 @@ def _current_schema_minus_newest_steps() -> str:
     return schema
 
 
-def _schema_sql_from_git(spec: str) -> str:
-    done = subprocess.run(
-        ["git", "-C", str(REPO), "show", f"{spec}:storage/migrations.py"],
-        capture_output=True, text=True, check=True,
-    )
-    match = re.search(r'SCHEMA_SQL = """(.*?)"""', done.stdout, re.DOTALL)
-    assert match, f"no SCHEMA_SQL in {spec}"
-    return match.group(1)
+def _historical_shape(spec: str) -> str:
+    """The n-2 / n-1 / v4-reminders schema shapes, synthesized from THIS tree's SCHEMA_SQL.
+
+    The shapes were originally extracted from the pre-migration repository's own history
+    (``9b644f3f^`` = n-2, ``9b644f3f`` = n-1, ``ad619e3f`` = the v4 install without
+    ``reminder_requests``). Those hashes do not exist in the public tree -- the public
+    migration rewrote history and its root is ``78f818b`` -- so ``git show`` fails on every
+    clone this suite can ever run on (measured in CI and locally: exit 128 on all five
+    git-dependent cases). The SHAPES are the contract, not the hashes: each is the current
+    schema minus exactly the DDL the named step introduced. The n-2 strip also removes the
+    ``idx_runtime_attempts_session_role`` index alongside its column, keeping the reported
+    boot-fatal dependency (an index querying a column the old table lacks) out of the
+    fixture so the upgrade authority must add the column in order, which is the assertion
+    the reported failure was about.
+    """
+    from storage.migrations import SCHEMA_SQL
+
+    if spec == "n2":
+        schema = _current_schema_minus_newest_steps()
+        schema = re.sub(r"\n\s*attempt_role (TEXT|INTEGER)[^\n]*,?", "", schema)
+        schema = re.sub(
+            r"CREATE INDEX IF NOT EXISTS idx_runtime_attempts_session_role[^;]*;",
+            "",
+            schema,
+        )
+        return schema
+    if spec == "n1":
+        return _current_schema_minus_newest_steps()
+    if spec == "no-reminders":
+        schema = re.sub(
+            r"CREATE TABLE IF NOT EXISTS reminder_requests \([^;]*\);",
+            "",
+            SCHEMA_SQL,
+            flags=re.DOTALL,
+        )
+        schema = re.sub(
+            r"CREATE (?:UNIQUE )?INDEX IF NOT EXISTS idx_reminder_requests[^;]*;",
+            "",
+            schema,
+        )
+        return schema
+    raise AssertionError(f"unknown historical shape {spec!r}")
 
 
 def _build_fixture(db_path: Path, schema_sql: str, survivors: dict[str, int]) -> None:
@@ -102,7 +133,7 @@ def old_shape_db(tmp_path: Path, request) -> Path:
     db = tmp_path / "vool_web0_v2.db"
     _build_fixture(
         db,
-        _schema_sql_from_git(request.param),
+        _historical_shape(request.param),
         survivors={
             "runtime_sessions": 2,
             "dialogue_sessions": 2,
@@ -133,7 +164,7 @@ def test_version_four_install_upgrades_before_scheduling_and_keeps_rows(tmp_path
     from storage.migrations import run_migrations
 
     db = tmp_path / "existing-v4.db"
-    _build_fixture(db, _schema_sql_from_git("ad619e3f"), {"runtime_sessions": 2})
+    _build_fixture(db, _historical_shape("no-reminders"), {"runtime_sessions": 2})
     with sqlite3.connect(db) as conn:
         conn.execute(f"PRAGMA application_id={STORE_APPLICATION_ID}")
         conn.execute("PRAGMA user_version=4")
@@ -200,7 +231,7 @@ def test_upgrade_failure_at_any_boundary_restores_pre_update_bytes_exactly(
         db = tmp_path / f"fixture-{counter['n']}.db"
         _build_fixture(
             db,
-            _schema_sql_from_git(N2_SCHEMA_SHA),
+            _historical_shape(N2_SCHEMA_SHA),
             survivors={"runtime_sessions": 1, "dialogue_sessions": 1, "runtime_attempts": 1},
         )
         return db
@@ -299,7 +330,7 @@ def test_older_binary_refuses_migrated_data_rollback_stays_coherent(
     from storage.migrations import run_migrations
 
     db = tmp_path / "vool_web0_v2.db"
-    _build_fixture(db, _schema_sql_from_git(N2_SCHEMA_SHA), survivors={"runtime_attempts": 1})
+    _build_fixture(db, _historical_shape(N2_SCHEMA_SHA), survivors={"runtime_attempts": 1})
     run_migrations(db_path=db)
 
     monkeypatch.setattr(storage_db, "STORE_USER_VERSION", 2)  # the old binary's contract
@@ -337,7 +368,7 @@ def test_rerunning_the_same_migration_changes_nothing(tmp_path: Path) -> None:
     from storage.migrations import run_migrations
 
     db = tmp_path / "vool_web0_v2.db"
-    _build_fixture(db, _schema_sql_from_git(N2_SCHEMA_SHA), survivors={"runtime_attempts": 1})
+    _build_fixture(db, _historical_shape(N2_SCHEMA_SHA), survivors={"runtime_attempts": 1})
     run_migrations(db_path=db)
     dump1 = _semantic_dump(db)
 
