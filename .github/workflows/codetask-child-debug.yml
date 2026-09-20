@@ -1,0 +1,81 @@
+name: Code-task child debug
+
+on:
+  push:
+    branches: [debug/codetask-child]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap apparmor
+          sudo tee /etc/apparmor.d/bwrap > /dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Run one failing r4 case with full traceback
+        run: |
+          set +e
+          python -m pytest -q --tb=long -p no:cacheprovider "tests/test_code_task_invocation_contract_r4.py::test_equivalent_or_broader_filters_still_cover[python3 -m pytest -q tests/test_ledger.py]"
+          echo "pytest rc=$?"
+      - name: Dump the code-task journals from the session homes
+        if: always()
+        run: |
+          set +e
+          echo "=== journal locations ==="
+          find "${TMPDIR:-/tmp}" -maxdepth 6 -path "*code*task*" -name "*.json" -newermt "-20 minutes" 2>/dev/null | head -20
+          find / -maxdepth 8 -name "*.json" -path "*code_tasks*" -newermt "-20 minutes" 2>/dev/null | head -20
+          echo "=== journal contents (steps + outputs) ==="
+          for J in $(find "${TMPDIR:-/tmp}" /home/runner -maxdepth 8 -name "*.json" -path "*code*task*" -newermt "-20 minutes" 2>/dev/null | head -8); do
+            echo "----- $J -----"
+            python - "$J" <<'EOF'
+          import json, sys
+          try:
+              doc = json.load(open(sys.argv[1]))
+          except Exception as e:
+              print("unparseable:", e); raise SystemExit
+          def walk(node, depth=0):
+              if isinstance(node, dict):
+                  keys = set(node)
+                  if {"stage", "argv", "command"} & keys or "output" in keys or "stderr" in keys:
+                      print(json.dumps(node, default=str)[:1500])
+                  for v in node.values():
+                      walk(v, depth + 1)
+              elif isinstance(node, list):
+                  for v in node:
+                      walk(v, depth + 1)
+          walk(doc)
+          EOF
+          done
+      - name: Also probe the sandbox view of tmp directly
+        if: always()
+        run: |
+          set +e
+          MARKER=$(mktemp -d)/probe-file
+          echo x > "$MARKER"
+          echo "outer path: $MARKER"
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- cat "$MARKER" 2>&1 | head -3
+          echo "bwrap cat rc=$?"
+          ls -la /tmp | head -5
