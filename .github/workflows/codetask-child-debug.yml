@@ -45,10 +45,9 @@ jobs:
         run: |
           set +e
           echo "=== journal locations ==="
-          find "${TMPDIR:-/tmp}" -maxdepth 6 -path "*code*task*" -name "*.json" -newermt "-20 minutes" 2>/dev/null | head -20
-          find / -maxdepth 8 -name "*.json" -path "*code_tasks*" -newermt "-20 minutes" 2>/dev/null | head -20
-          echo "=== journal contents (steps + outputs) ==="
-          for J in $(find "${TMPDIR:-/tmp}" /home/runner -maxdepth 8 -name "*.json" -path "*code*task*" -newermt "-20 minutes" 2>/dev/null | head -8); do
+          find /tmp /home/runner -maxdepth 12 -name "*.json" -path "*code_tasks*" -newermt "-20 minutes" 2>/dev/null | head -30
+          echo "=== live journal step outputs (full stderr) ==="
+          for J in $(find /tmp /home/runner -maxdepth 12 -name "*.json" -path "*code_tasks*" -newermt "-20 minutes" 2>/dev/null | grep -v fixtures | head -6); do
             echo "----- $J -----"
             python - "$J" <<'EOF'
           import json, sys
@@ -56,16 +55,23 @@ jobs:
               doc = json.load(open(sys.argv[1]))
           except Exception as e:
               print("unparseable:", e); raise SystemExit
-          def walk(node, depth=0):
+          def walk(node):
               if isinstance(node, dict):
-                  keys = set(node)
-                  if {"stage", "argv", "command"} & keys or "output" in keys or "stderr" in keys:
-                      print(json.dumps(node, default=str)[:1500])
+                  if "stderr" in node or "stdout" in node or "returncode" in node:
+                      for k in ("command", "returncode", "status"):
+                          if k in node:
+                              print(f"{k}: {node[k]}")
+                      for k in ("stderr", "stdout"):
+                          if node.get(k):
+                              text = str(node[k])
+                              for i in range(0, min(len(text), 12000), 4000):
+                                  print(f"--- {k}[{i}:{i+4000}] ---")
+                                  print(text[i:i+4000])
                   for v in node.values():
-                      walk(v, depth + 1)
+                      walk(v)
               elif isinstance(node, list):
                   for v in node:
-                      walk(v, depth + 1)
+                      walk(v)
           walk(doc)
           EOF
           done
