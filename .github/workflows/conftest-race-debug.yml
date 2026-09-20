@@ -1,22 +1,42 @@
-name: Conftest race debug 2
+name: Conftest race debug 3
 
 on:
   push:
-    branches: [debug/conftest-race2]
+    branches: [debug/conftest-race3]
 
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12.13"
-      - name: Install dependencies
+      - name: Install verification dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap apparmor
+          sudo tee /etc/apparmor.d/bwrap > /dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Provision the served-browser lane (Playwright chromium)
+        run: python -m playwright install --with-deps chromium
       - name: Write the fixture-gap probe
         run: |
           cat > /tmp/fixture_gap_probe.py <<'EOF'
@@ -30,10 +50,6 @@ jobs:
               print("=== RUNTIME GAP DUMP ===", file=sys.stderr, flush=True)
               print("cwd=%s" % os.getcwd(), file=sys.stderr, flush=True)
               print("rootpath=%s" % item.config.rootpath, file=sys.stderr, flush=True)
-              try:
-                  print("invocation_dir=%s" % item.config.invocation_params.dir, file=sys.stderr, flush=True)
-              except Exception:
-                  pass
               print("--- pending conftests ---", file=sys.stderr, flush=True)
               for k in fm._pending_conftests:
                   print("  pending: %s" % k, file=sys.stderr, flush=True)
@@ -41,7 +57,7 @@ jobs:
               for k in sorted(sys.modules):
                   if "conftest" in k:
                       print("  %s -> %s" % (k, getattr(sys.modules[k], "__file__", None)), file=sys.stderr, flush=True)
-              print("--- registry baseids for missing names ---", file=sys.stderr, flush=True)
+              print("--- registry baseids for key names ---", file=sys.stderr, flush=True)
               for name in ("wallet_env", "rpc", "usepod_home", "usepod_service", "seeded", "auto_context", "arch_home"):
                   defs = fm._arg2fixturedefs.get(name)
                   if not defs:
@@ -53,22 +69,12 @@ jobs:
               while node is not None:
                   print("  %s %r path=%s" % (type(node).__name__, node.nodeid, getattr(node, "path", None)), file=sys.stderr, flush=True)
                   node = node.parent
-              print("--- plugin names ---", file=sys.stderr, flush=True)
-              for name in item.config.pluginmanager.get_plugins():
-                  print("  plugin: %s" % item.config.pluginmanager.get_name(name), file=sys.stderr, flush=True)
 
           def pytest_collection_finish(session):
               fm = session._fixturemanager
               print("=== PENDING CONFTESTS AT FINISH (pre-clear) ===", file=sys.stderr, flush=True)
               for k in fm._pending_conftests:
                   print("  pending: %s" % k, file=sys.stderr, flush=True)
-              print("=== KEY FIXTURE BASEIDS ===", file=sys.stderr, flush=True)
-              for name in ("wallet_env", "rpc", "usepod_home", "usepod_service", "seeded", "auto_context", "arch_home"):
-                  defs = fm._arg2fixturedefs.get(name)
-                  if not defs:
-                      print("  %s: ABSENT" % name, file=sys.stderr, flush=True)
-                  else:
-                      print("  %s: baseids=%r" % (name, [getattr(d, "baseid", None) for d in defs]), file=sys.stderr, flush=True)
               gaps = {}
               for item in session.items:
                   params = set(getattr(getattr(item, "callspec", None), "params", ()) or ())
@@ -105,11 +111,15 @@ jobs:
                       print("PROBE-RESULT: RUNTIME GAP on %s" % item.nodeid, file=sys.stderr, flush=True)
                       return
           EOF
-      - name: Reconstruct shard 6 exactly as ci.yml does
+      - name: Resolve this shard's test files (verbatim ci.yml resolver)
         run: |
+          mkdir -p .verification-logs
           python - <<'EOF'
           import subprocess, sys
           from pathlib import Path
+
+          shard = 6
+          shards = 10
           collected = subprocess.run(
               [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
               capture_output=True, text=True, check=True,
@@ -124,21 +134,19 @@ jobs:
               "tests/test_audio_dictation.py",
               "tests/test_media_product_served.py",
           }
+          dropped = sorted(set(files) & macos_only)
+          if set(dropped) != macos_only:
+              raise SystemExit(
+                  f"macos routing drifted: expected exactly {sorted(macos_only)}, collected {dropped}"
+              )
           files = [f for f in files if f not in macos_only]
           sized = sorted(files, key=lambda f: -Path(f).stat().st_size)
-          mine = [f for index, f in enumerate(sized) if index % 10 == 6]
-          Path("/tmp/shard6.txt").write_text("\n".join(mine) + "\n")
-          print(f"shard 6: {len(mine)} of {len(sized)} files")
+          mine = [f for index, f in enumerate(sized) if index % shards == shard]
+          Path(".verification-logs", f"shard-{shard}-files.txt").write_text("\n".join(mine) + "\n")
+          total = sum(1 for _ in sized)
+          print(f"shard {shard}/{shards}: {len(mine)} of {total} files ({len(macos_only)} routed to macos)")
           EOF
-      - name: Leg A - collection-time probe
-        run: |
-          FILES=$(tr '\n' ' ' < /tmp/shard6.txt)
-          set +e
-          PYTHONPATH=/tmp python -m pytest --collect-only -q -p no:cacheprovider -p fixture_gap_probe $FILES 2>&1 | grep -E "===|^  |PROBE-RESULT|pending:|ABSENT|baseids" | head -80
-          echo "legA done"
-      - name: Leg B - live run with full tracebacks
-        run: |
-          FILES=$(tr '\n' ' ' < /tmp/shard6.txt)
-          set +e
-          PYTHONPATH=/tmp timeout 420 python -m pytest -q --tb=short -p no:cacheprovider -p fixture_gap_probe $FILES 2>&1 | grep -vE "^\S+Z \.*$" | head -250
-          echo "legB done"
+      - name: Run shard 6 exactly as ci.yml does
+        run: >-
+          PYTHONPATH=/tmp python -m pytest -q --tb=short -p no:cacheprovider
+          -p fixture_gap_probe $(tr '\n' ' ' < .verification-logs/shard-6-files.txt)
