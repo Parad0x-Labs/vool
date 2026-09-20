@@ -1,0 +1,105 @@
+name: debug-linux
+
+# Prep mission D2: turn the 2-hour "why doesn't the Linux sandbox run steps" CI
+# loop into a ~5-minute dispatchable one. Never runs on push/PR -- this is a
+# diagnosis instrument, not a gate. Dispatch it on a branch and read the logs.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  probe:
+    # Three legs, each answering one concrete question:
+    #   bare     -- bwrap merely installed: does the runner's own probe fail, and
+    #               with what exact error string? (the raw CI failure mode)
+    #   profile  -- bwrap + the AppArmor profile ci.yml installs on main: does the
+    #               mitigation actually make probe AND the code-task test pass?
+    #   bare-arm -- same as bare on ubuntu-24.04-arm: is the failure arch-specific?
+    name: ${{ matrix.leg }}
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: bare
+            runs-on: ubuntu-latest
+            apparmor_profile: "no"
+          - leg: profile
+            runs-on: ubuntu-latest
+            apparmor_profile: "yes"
+          - leg: bare-arm
+            runs-on: ubuntu-24.04-arm
+            apparmor_profile: "no"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Provision bubblewrap (+ optional AppArmor profile from ci.yml)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          if [ "${{ matrix.apparmor_profile }}" = "yes" ]; then
+            sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+            if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+              echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+              sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+            fi
+          fi
+          echo "--- sysctl state after provisioning ---"
+          cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo "sysctl not present"
+          cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo "max_user_namespaces not present"
+      - name: Run the sandbox probe (real job_runner code)
+        # Expected to FAIL on the bare legs -- that failure string is the point.
+        id: probe
+        continue-on-error: true
+        run: |
+          mkdir -p .verification-logs
+          python tools/dev/probe_sandbox_linux.py 2>&1 | tee .verification-logs/probe.log
+      - name: Run one targeted code-task test file through the real sandbox
+        # Also allowed to fail: both outcomes are the evidence being collected.
+        id: pytest
+        continue-on-error: true
+        run: |
+          python -m pytest tests/test_code_task_repair_units.py \
+            --tb=long -p no:cacheprovider -q 2>&1 | tee .verification-logs/pytest.log
+      - name: Leg summary
+        run: |
+          echo "=== leg ${{ matrix.leg }} on ${{ matrix.runs-on }} ==="
+          echo "probe step outcome : ${{ steps.probe.outcome }}"
+          echo "pytest step outcome: ${{ steps.pytest.outcome }}"
+          echo "--- probe verdict tail ---"
+          tail -n 8 .verification-logs/probe.log
+          echo "--- pytest tail ---"
+          tail -n 15 .verification-logs/pytest.log
+      - name: Upload probe and test output
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: debug-linux-${{ matrix.leg }}
+          path: .verification-logs/
+          retention-days: 7
+      - name: Cleanup (bounded CI footprint)
+        if: always()
+        run: |
+          rm -rf .verification-logs
+          python -m pip cache purge
