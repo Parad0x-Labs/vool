@@ -39,13 +39,35 @@ jobs:
             grep -E "reader-drive|stub|exclud|rank|health|provider|lane|qwen|planning|refus" "$HOME_DIR/daemon.log" 2>/dev/null | head -60
             echo "--- daemon.log tail ---"
             tail -20 "$HOME_DIR/daemon.log" 2>/dev/null
-            echo "--- db schema ---"
+            echo "--- db schema and events ---"
             python - "$DB" <<'EOF'
-          import sqlite3, sys
+          import json, sqlite3, sys
           conn = sqlite3.connect(sys.argv[1])
-          for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall():
-              if "event" in name.lower() or "provider" in name.lower() or "model" in name.lower() or "turn" in name.lower():
-                  print("table:", name)
+          conn.row_factory = sqlite3.Row
+          try:
+              cols = [r[1] for r in conn.execute("PRAGMA table_info(runtime_session_events)").fetchall()]
+              print("runtime_session_events columns:", cols)
+              rows = conn.execute(
+                  "SELECT * FROM runtime_session_events ORDER BY rowid DESC LIMIT 400"
+              ).fetchall()
+              hits = 0
+              for row in rows:
+                  text = json.dumps({k: (str(row[k])[:220] if row[k] is not None else None) for k in row.keys()}, default=str)
+                  low = text.lower()
+                  if "reader" in low or "exclud" in low or "rank" in low or "health" in low or "stub" in low:
+                      print("EVENT:", text[:700])
+                      hits += 1
+                      if hits > 30:
+                          break
+          except Exception as e:
+              print("events dump failed:", e)
+          try:
+              rows = conn.execute("SELECT * FROM model_provider_manifests").fetchall()
+              for row in rows:
+                  d = {k: row[k] for k in row.keys()}
+                  print("MANIFEST:", json.dumps(d, default=str)[:700])
+          except Exception as e:
+              print("manifests dump failed:", e)
           EOF
             echo "--- routing/exclusion events ---"
             python - "$DB" <<'EOF'
