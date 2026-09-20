@@ -164,7 +164,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12.13"
+          # "3.12", not the Linux jobs' exact 3.12.13: the macOS 26 arm64 runner has no
+          # 3.12.13 build in the manifest, and any 3.12.x satisfies requires-python.
+          python-version: "3.12"
       - name: Install verification dependencies
         run: |
           python -m pip install --upgrade pip
