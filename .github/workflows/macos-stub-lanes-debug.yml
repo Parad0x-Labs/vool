@@ -28,9 +28,11 @@ jobs:
         if: always()
         run: |
           set +e
-          echo "=== candidate homes ==="
-          find "${TMPDIR:-/tmp}" -maxdepth 2 -name "vool_web0_v2.db" -newermt "-30 minutes" 2>/dev/null | head -10
-          for DB in $(find "${TMPDIR:-/tmp}" -maxdepth 3 -name "vool_web0_v2.db" -newermt "-30 minutes" 2>/dev/null | head -6); do
+          echo "=== candidate homes (tmp + per-user) ==="
+          for BASE in /tmp /var/folders; do
+            find "$BASE" -maxdepth 8 -name "vool_web0_v2.db" -newermt "-30 minutes" 2>/dev/null | head -10
+          done
+          for DB in $(for BASE in /tmp /var/folders; do find "$BASE" -maxdepth 8 -name "vool_web0_v2.db" -newermt "-30 minutes" 2>/dev/null; done | head -6); do
             HOME_DIR=$(dirname "$(dirname "$DB")")
             echo "===== HOME $HOME_DIR ====="
             echo "--- daemon.log tail ---"
@@ -59,7 +61,7 @@ jobs:
         if: always()
         run: |
           set +e
-          for D in $(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name "*reader*" -newermt "-30 minutes" 2>/dev/null | head -4) $(find "${TMPDIR:-/tmp}" -maxdepth 1 -type d -name "*vool*" -newermt "-30 minutes" 2>/dev/null | head -6); do
+          for D in $(for BASE in /tmp /var/folders; do find "$BASE" -maxdepth 6 -type d \( -name "*reader*" -o -name "vool_pytest_home_*" -o -name "*served*" \) -newermt "-30 minutes" 2>/dev/null; done | head -10); do
             echo "=== $D ==="
             find "$D" -maxdepth 3 | head -25
           done
