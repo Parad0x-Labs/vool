@@ -5316,8 +5316,10 @@ function turnFailureReport(events, buildCommit) {
   lines.push('Failed (' + failures.length + '):');
   for (const f of failures) {
     lines.push('  - ' + f.row.title + (f.row.sub ? ('  [' + f.row.sub + ']') : ''));
-    for (const kv of activityDetailLines(f.event, f.row.title)) {
-      lines.push('      ' + kv[0] + ': ' + String(kv[1]).split('\n').join('\n        '));
+    // The export keys each fact by its CANONICAL field id, not the localized label, so a
+    // pasted report names the same fields in every app language (cross-locale comparability).
+    for (const kv of activityDetailTriples(f.event, f.row.title)) {
+      lines.push('      ' + kv[0] + ': ' + String(kv[2]).split('\n').join('\n        '));
     }
   }
   return lines.join('\n');
@@ -5421,6 +5423,11 @@ Object.keys(ACTIVITY_ROLLUP_KEYS).forEach((key) => {
 });
 // (event field, kv label). Only fields actually present on the row are ever shown -- nothing here
 // is computed or guessed, it is a read-only projection of what the server already sent.
+// [canonical field id, English label]. The RENDERED label resolves through the catalog
+// (activity.field.<id>) so the expandable technical view localizes like every other
+// surface; the canonical id is what the copied failure report exports, so copied evidence
+// stays locale-independent (cross-locale comparability by design). The VALUES are raw
+// diagnostic data and are never translated.
 const ACTIVITY_DETAIL_FIELDS = [
   ['tool_name', 'tool'], ['tool_args', 'args'], ['message', 'result'], ['status', 'status'],
   ['reason', 'reason'], ['error_kind', 'error'], ['workspace_root', 'workspace'],
@@ -5462,6 +5469,11 @@ const ACTIVITY_DETAIL_FIELDS = [
   // the server recorded them on every empty-reply failure.
   ['empty_reply_class', 'empty reply class'],
 ];
+// One field's rendered label: the catalog's localized label under its stable
+// activity.field.<canonical-id> key, English by fallback.
+function activityFieldLabel(field, englishLabel) {
+  return pageT('activity.field.' + field, englishLabel);
+}
 
 function activityCategoryFor(toolName) {
   const lowered = String(toolName || '').toLowerCase();
@@ -5511,9 +5523,14 @@ function activityChangeSub(e, operations) {
   if (operations > 1) bits.push(pageTF('activity.operations', '{n, plural, one {{n} operation} other {{n} operations}}', { n: operations }));
   return bits.join(' · ');
 }
-function activityDetailLines(e, skipText) {
+// The technical disclosure's lines as TRIPLES [canonical id, rendered label, raw value]:
+// the label localizes through the catalog (activity.field.*), the canonical id is
+// locale-stable and is what the copied failure report exports, and the value is raw
+// diagnostic data. activityDetailLines() keeps the historical [label, value] pair shape
+// the panel renders and the tests exercise.
+function activityDetailTriples(e, skipText) {
   if (!e) return [];
-  const lines = [], seen = {};
+  const triples = [], seen = {};
   if (skipText) seen[skipText] = 1;
   for (const [field, label] of ACTIVITY_DETAIL_FIELDS) {
     const value = e[field];
@@ -5526,33 +5543,46 @@ function activityDetailLines(e, skipText) {
       if (seen[text]) continue;
       seen[text] = 1;
     }
-    lines.push([label, text]);
+    triples.push([field, activityFieldLabel(field, label), text]);
   }
-  for (const line of usePodReceiptDetailLines(e)) lines.push(line);
-  for (const line of providerVerificationDetailLines(e)) lines.push(line);
-  for (const line of emptyReplyDetailLines(e)) lines.push(line);
-  return lines;
+  for (const line of usePodReceiptDetailLines(e)) triples.push(line);
+  for (const line of providerVerificationDetailLines(e)) triples.push(line);
+  for (const line of emptyReplyDetailLines(e)) triples.push(line);
+  return triples;
+}
+function activityDetailLines(e, skipText) {
+  return activityDetailTriples(e, skipText).map((t) => [t[1], t[2]]);
 }
 // The `empty_reply` facts a model.call_failed carries when the provider returned a readable body
 // with no usable answer. Structural evidence only — ids, finish reason, usage (reasoning tokens
 // when the provider reports them), the ceiling the request carried, and WHICH fields held text,
 // never the text itself (core.normalized_provider_result.empty_reply_diagnostics guarantees the
-// shape; this renderer only formats it).
+// shape; this renderer only formats it). Labels localize through activity.field.empty_reply.*;
+// the composed value fragments (prompt/completion/… tokens, "none") are canonical diagnostic
+// vocabulary and stay English for cross-locale comparability.
+const EMPTY_REPLY_LABELS = {
+  'empty_reply.finish_reason': 'empty reply finish reason',
+  'empty_reply.usage': 'empty reply usage',
+  'empty_reply.output_ceiling': 'output ceiling sent',
+  'empty_reply.text_fields': 'fields that held text',
+  'empty_reply.response_id': 'provider response id',
+  'empty_reply.returned_model': 'provider returned model',
+};
 function emptyReplyDetailLines(e) {
   const r = e && e.empty_reply;
   if (!r || typeof r !== 'object') return [];
   const lines = [];
-  const add = (label, value) => { if (value !== undefined && value !== null && value !== '') lines.push([label, String(value)]); };
+  const add = (id, value) => { if (value !== undefined && value !== null && value !== '') lines.push([id, pageT('activity.field.' + id, EMPTY_REPLY_LABELS[id] || id), String(value)]); };
   const finish = r.finish_reason
     ? String(r.finish_reason) + (r.native_finish_reason ? ' (native ' + r.native_finish_reason + ')' : '')
     : String(r.native_finish_reason || '');
-  add('empty reply finish reason', finish);
+  add('empty_reply.finish_reason', finish);
   const tokens = [];
   if (r.prompt_tokens != null) tokens.push('prompt ' + r.prompt_tokens);
   if (r.completion_tokens != null) tokens.push('completion ' + r.completion_tokens);
   if (r.reasoning_tokens != null) tokens.push('reasoning ' + r.reasoning_tokens);
-  if (tokens.length) add('empty reply usage', tokens.join(' · ') + (r.total_tokens != null ? ' · total ' + r.total_tokens : ''));
-  add('output ceiling sent', r.max_tokens_sent);
+  if (tokens.length) add('empty_reply.usage', tokens.join(' · ') + (r.total_tokens != null ? ' · total ' + r.total_tokens : ''));
+  add('empty_reply.output_ceiling', r.max_tokens_sent);
   const fields = [];
   if (r.content_present) fields.push('content ' + r.content_chars + ' chars');
   if (r.reasoning_present) fields.push('reasoning ' + r.reasoning_chars + ' chars');
@@ -5561,87 +5591,151 @@ function emptyReplyDetailLines(e) {
   if (r.refusal_present) fields.push('refusal field');
   if (r.error_present) fields.push('provider error field');
   if (r.choices === 0) fields.push('no choices');
-  add('fields that held text', fields.length ? fields.join(' · ') : 'none');
-  add('provider response id', r.provider_response_id);
-  if (r.provider_model) add('provider returned model', r.provider_model);
+  add('empty_reply.text_fields', fields.length ? fields.join(' · ') : 'none');
+  add('empty_reply.response_id', r.provider_response_id);
+  if (r.provider_model) add('empty_reply.returned_model', r.provider_model);
   return lines;
 }
+const VERIFY_LABELS = {
+  'verify.verification': 'verification',
+  'verify.proves': 'what this proves',
+  'verify.requested_model': 'requested model',
+  'verify.model_sent': 'model sent',
+  'verify.returned_model': 'returned model claim',
+  'verify.model_comparison': 'model comparison',
+  'verify.gateway': 'gateway',
+  'verify.serving_provider': 'serving provider claim',
+  'verify.route': 'route',
+  'verify.request': 'request',
+  'verify.provider_request': 'provider request',
+  'verify.call': 'call',
+  'verify.operation': 'operation',
+  'verify.recorded_at': 'recorded at',
+  'verify.actual_charge': 'actual charge',
+  'verify.cost_bound': 'cost upper bound',
+  'verify.prices_1m': 'approved prices per 1M tokens',
+  'verify.snapshot': 'listing snapshot',
+  'verify.eligible_1m': 'eligible listing per 1M tokens',
+  'verify.upstream_key': 'provider {key}',
+  'verify.upstream_header': 'provider header {key}',
+  'verify.evidence': 'verification evidence',
+  'verify.binding': 'receipt binding',
+};
 function providerVerificationDetailLines(e) {
   const r = e && e.verification_receipt;
   if (!r || r.schema !== 'vool.provider-verification.v1') return [];
   const lines = [];
-  const add = (label, value) => { if (value !== undefined && value !== null && value !== '') lines.push([label, String(value)]); };
-  add('verification', (r.verification || {}).status || 'CLAIMED');
-  add('what this proves', (r.verification || {}).explanation);
-  add('requested model', r.requested_model);
-  add('model sent', r.selected_model);
-  add('returned model claim', r.returned_model || 'not reported');
-  add('model comparison', r.model_match);
-  add('gateway', r.gateway_provider_id);
-  add('serving provider claim', r.provider_id || 'not reported');
-  add('route', r.route || 'not reported');
-  add('request', r.request_id);
-  add('provider request', r.provider_request_id || 'not reported');
-  add('call', r.call_id);
-  add('operation', r.operation_id);
-  add('recorded at', r.timestamp);
+  const add = (id, value, extra) => {
+    if (value === undefined || value === null || value === '') return;
+    const english = VERIFY_LABELS[id] || id;
+    // A label carrying a raw upstream field name keeps that name canonical; only the
+    // surrounding words localize, with the name as a structured parameter.
+    let label;
+    if (english.indexOf('{key}') !== -1) {
+      label = pageTF('activity.field.' + id, english, { key: String(extra || '') });
+    } else {
+      label = pageT('activity.field.' + id, english);
+    }
+    lines.push([id, label, String(value)]);
+  };
+  add('verify.verification', (r.verification || {}).status || 'CLAIMED');
+  add('verify.proves', (r.verification || {}).explanation);
+  add('verify.requested_model', r.requested_model);
+  add('verify.model_sent', r.selected_model);
+  add('verify.returned_model', r.returned_model || pageT('activity.field.not_reported', 'not reported'));
+  add('verify.model_comparison', r.model_match);
+  add('verify.gateway', r.gateway_provider_id);
+  add('verify.serving_provider', r.provider_id || pageT('activity.field.not_reported', 'not reported'));
+  add('verify.route', r.route || pageT('activity.field.not_reported', 'not reported'));
+  add('verify.request', r.request_id);
+  add('verify.provider_request', r.provider_request_id || pageT('activity.field.not_reported', 'not reported'));
+  add('verify.call', r.call_id);
+  add('verify.operation', r.operation_id);
+  add('verify.recorded_at', r.timestamp);
   const actual = r.actual_cost || {}, bound = r.cost_bound || {}, quote = r.quoted_price || {};
-  add('actual charge', actual.state === 'reported' ? String(actual.amount) + ' ' + String(actual.currency) : 'not reported by provider');
-  if (bound.amount != null) add('cost upper bound', String(bound.amount) + ' ' + String(bound.currency));
+  add('verify.actual_charge', actual.state === 'reported' ? String(actual.amount) + ' ' + String(actual.currency) : pageT('activity.field.not_reported_by_provider', 'not reported by provider'));
+  if (bound.amount != null) add('verify.cost_bound', String(bound.amount) + ' ' + String(bound.currency));
   const ceiling = quote.approved_ceiling || {};
-  if (ceiling.input != null && ceiling.output != null) add('approved prices per 1M tokens', 'input ' + (ceiling.input / 1e6) + ' / output ' + (ceiling.output / 1e6) + ' USDC');
-  add('listing snapshot', quote.snapshot_sha256 || quote.state);
+  if (ceiling.input != null && ceiling.output != null) add('verify.prices_1m', 'input ' + (ceiling.input / 1e6) + ' / output ' + (ceiling.output / 1e6) + ' USDC');
+  add('verify.snapshot', quote.snapshot_sha256 || quote.state);
   for (const p of quote.eligible_prices || []) {
     if (p.input_microunits_per_million != null && p.output_microunits_per_million != null)
-      add('eligible listing per 1M tokens', (p.route_class || '') + ' · input ' + (p.input_microunits_per_million / 1e6) + ' / output ' + (p.output_microunits_per_million / 1e6) + ' USDC');
+      add('verify.eligible_1m', (p.route_class || '') + ' · input ' + (p.input_microunits_per_million / 1e6) + ' / output ' + (p.output_microunits_per_million / 1e6) + ' USDC');
   }
   const upstream = r.upstream_metadata || {};
-  for (const [key, value] of Object.entries(upstream.response || {})) add('provider ' + key, value);
-  for (const [key, value] of Object.entries(upstream.headers || {})) add('provider header ' + key, value);
-  for (const ref of (r.verification || {}).evidence_references || []) add('verification evidence', ref);
-  add('receipt binding', r.binding_sha256);
+  for (const [key, value] of Object.entries(upstream.response || {})) add('verify.upstream_key', value, key);
+  for (const [key, value] of Object.entries(upstream.headers || {})) add('verify.upstream_header', value, key);
+  for (const ref of (r.verification || {}).evidence_references || []) add('verify.evidence', ref);
+  add('verify.binding', r.binding_sha256);
   return lines;
 }
 
 // The UsePod receipt's details: the full destination and the exact atomic values the one-line receipt shortens.
+// Labels localize through activity.field.usepod.*; every amount, unit, id and signature passes
+// through exactly as recorded — never re-parsed, never rounded, never translated.
+const USEPOD_DETAIL_LABELS = {
+  'usepod.operation': 'usepod operation',
+  'usepod.paid_to': 'paid to',
+  'usepod.paid_from': 'paid from wallet',
+  'usepod.network': 'payment network',
+  'usepod.amount_exact': 'payment amount (exact)',
+  'usepod.transaction': 'payment transaction',
+  'usepod.transaction_state': 'transaction state',
+  'usepod.outflow_exact': 'wallet outflow on chain (exact)',
+  'usepod.network_fee_exact': 'network fee on chain (exact)',
+  'usepod.chain_confirmation': 'chain confirmation',
+  'usepod.quote': 'quote',
+  'usepod.account': 'usepod account',
+  'usepod.inference': 'inference',
+  'usepod.credit_exact': 'provider credit (exact)',
+  'usepod.credit': 'provider credit',
+  'usepod.dna_fee': 'DNA service fee',
+  'usepod.dna_fee_exact': 'DNA service fee (exact)',
+  'usepod.dna_fee_ceiling': 'DNA service fee ceiling reserved',
+  'usepod.dna_fees_owed': 'DNA fees owed after this call',
+  'usepod.dna_treasury': 'DNA treasury owner',
+  'usepod.dna_collection': 'DNA fee collection',
+  'usepod.liability_bound': 'liability bound (exact)',
+  'usepod.reservation': 'reservation',
+};
 function usePodReceiptDetailLines(e) {
   const r = e && e.provider_receipt;
   if (!r || typeof r !== 'object' || String(r.schema || '') !== 'vool.usepod.receipt.v1') return [];
   const out = [];
-  const add = (label, value) => { if (value !== undefined && value !== null && value !== '') out.push([label, String(value)]); };
+  const add = (id, value) => { if (value !== undefined && value !== null && value !== '') out.push([id, pageT('activity.field.' + id, USEPOD_DETAIL_LABELS[id] || id), String(value)]); };
   const x = r.x402 || {};
   const cost = r.cost || {};
   const chain = x.chain_confirmation || {};
   const credit = r.provider_credit || {};
-  add('usepod operation', r.operation_id);
+  add('usepod.operation', r.operation_id);
   if (String(r.transport_mode || '') === 'x402') {
-    add('paid to', x.pay_to);
-    add('paid from wallet', x.payer_wallet);
-    add('payment network', x.network);
-    if (x.amount_atomic != null) add('payment amount (exact)', String(x.amount_atomic) + ' ' + String(cost.unit || '') + (x.asset ? ' (' + String(x.asset) + ')' : ''));
-    add('payment transaction', x.payment_signature);
-    add('transaction state', x.transaction_state);
-    if (chain.wallet_outflow_atomic != null) add('wallet outflow on chain (exact)', String(chain.wallet_outflow_atomic) + ' ' + String(cost.unit || ''));
-    if (chain.network_fee_atomic != null) add('network fee on chain (exact)', String(chain.network_fee_atomic) + ' ' + (String(chain.fee_asset || 'SOL') === 'SOL' ? 'lamport' : 'usdc_microunit'));
-    if (chain.state && chain.state !== 'recorded') add('chain confirmation', chain.state);
-    add('quote', x.quote_id);
+    add('usepod.paid_to', x.pay_to);
+    add('usepod.paid_from', x.payer_wallet);
+    add('usepod.network', x.network);
+    if (x.amount_atomic != null) add('usepod.amount_exact', String(x.amount_atomic) + ' ' + String(cost.unit || '') + (x.asset ? ' (' + String(x.asset) + ')' : ''));
+    add('usepod.transaction', x.payment_signature);
+    add('usepod.transaction_state', x.transaction_state);
+    if (chain.wallet_outflow_atomic != null) add('usepod.outflow_exact', String(chain.wallet_outflow_atomic) + ' ' + String(cost.unit || ''));
+    if (chain.network_fee_atomic != null) add('usepod.network_fee_exact', String(chain.network_fee_atomic) + ' ' + (String(chain.fee_asset || 'SOL') === 'SOL' ? 'lamport' : 'usdc_microunit'));
+    if (chain.state && chain.state !== 'recorded') add('usepod.chain_confirmation', chain.state);
+    add('usepod.quote', x.quote_id);
   } else {
-    add('usepod account', r.credential_fingerprint);
+    add('usepod.account', r.credential_fingerprint);
   }
-  add('inference', (r.inference || {}).state);
-  if (credit.state === 'credited') add('provider credit (exact)', String(credit.atomic) + ' ' + String(credit.unit || 'usdc_microunit') + ' to ' + String(credit.account || 'the provider account'));
-  else add('provider credit', credit.state);
+  add('usepod.inference', (r.inference || {}).state);
+  if (credit.state === 'credited') add('usepod.credit_exact', String(credit.atomic) + ' ' + String(credit.unit || 'usdc_microunit') + ' to ' + String(credit.account || 'the provider account'));
+  else add('usepod.credit', credit.state);
   const fee = r.dna_fee || {};
   if (String(r.transport_mode || '') === 'x402' && fee.state && fee.state !== 'not_charged') {
-    add('DNA service fee', String(fee.state_label || fee.state));
-    if (fee.fee_exact != null) add('DNA service fee (exact)', String(fee.fee_exact) + ' ' + String(fee.asset || '') + ' = ' + String(fee.fee_exact_atomic) + ' atomic units (' + String(fee.rate_bps) + ' bps of ' + String(fee.basis_atomic) + ')');
-    if (fee.reserved_ceiling_atomic != null) add('DNA service fee ceiling reserved', String(fee.reserved_ceiling_atomic) + ' ' + String(fee.unit || ''));
-    if (fee.owed_after_atomic != null) add('DNA fees owed after this call', String(fee.owed_after_atomic) + ' ' + String(fee.unit || '') + ' whole units, carry ' + String(fee.carry_after_numerator) + '/' + String(fee.fee_numerator_scale || 10000));
-    add('DNA treasury owner', fee.treasury_owner);
-    if (fee.collection) add('DNA fee collection', fee.collection.planned ? String(fee.collection.amount_exact) + ' ' + String(fee.collection.asset || '') + ' · ' + String(fee.collection.state_label || fee.collection.state) + (fee.collection.tx_signature ? ' · transaction ' + String(fee.collection.tx_signature) : '') : 'none with this payment (' + String(fee.collection.reason || 'not planned').replace(/_/g, ' ') + ')');
+    add('usepod.dna_fee', String(fee.state_label || fee.state));
+    if (fee.fee_exact != null) add('usepod.dna_fee_exact', String(fee.fee_exact) + ' ' + String(fee.asset || '') + ' = ' + String(fee.fee_exact_atomic) + ' atomic units (' + String(fee.rate_bps) + ' bps of ' + String(fee.basis_atomic) + ')');
+    if (fee.reserved_ceiling_atomic != null) add('usepod.dna_fee_ceiling', String(fee.reserved_ceiling_atomic) + ' ' + String(fee.unit || ''));
+    if (fee.owed_after_atomic != null) add('usepod.dna_fees_owed', String(fee.owed_after_atomic) + ' ' + String(fee.unit || '') + ' whole units, carry ' + String(fee.carry_after_numerator) + '/' + String(fee.fee_numerator_scale || 10000));
+    add('usepod.dna_treasury', fee.treasury_owner);
+    if (fee.collection) add('usepod.dna_collection', fee.collection.planned ? String(fee.collection.amount_exact) + ' ' + String(fee.collection.asset || '') + ' · ' + String(fee.collection.state_label || fee.collection.state) + (fee.collection.tx_signature ? ' · transaction ' + String(fee.collection.tx_signature) : '') : 'none with this payment (' + String(fee.collection.reason || 'not planned').replace(/_/g, ' ') + ')');
   }
-  if (cost.liability_bound_atomic != null) add('liability bound (exact)', String(cost.liability_bound_atomic) + ' ' + String(cost.unit || ''));
-  add('reservation', r.reservation_id);
+  if (cost.liability_bound_atomic != null) add('usepod.liability_bound', String(cost.liability_bound_atomic) + ' ' + String(cost.unit || ''));
+  add('usepod.reservation', r.reservation_id);
   return out;
 }
 
@@ -5808,13 +5902,13 @@ function activityItemHtml(item, openState) {
   // first inner quote (measured: the attribute read back as "{"), the click's JSON.parse threw,
   // and the action silently did nothing. Provider/model ids carry no quotes, so esc() is enough.
   const reviewHtml = review
-    ? '<div class="xp-kv"><div class="xp-kv-row"><span class="xp-kv-k">action</span><span class="xp-kv-v">'
+    ? '<div class="xp-kv"><div class="xp-kv-row"><span class="xp-kv-k">' + esc(pageT('activity.field.action', 'action')) + '</span><span class="xp-kv-v">'
       + '<button type="button" class="vg-btn" data-vool-price-review="1'
       + '" data-vool-price-review-provider="' + esc(review.provider)
       + '" data-vool-price-review-id="' + esc(review.id)
       + '" data-vool-price-review-label="' + esc(review.label)
-      + '">Review price limits</button>'
-      + ' (opens the max input/output prices this model dispatches under; opening reviews nothing, sends nothing)</span></div></div>'
+      + '">' + esc(pageT('activity.review_prices', 'Review price limits')) + '</button>'
+      + ' ' + esc(pageT('activity.review_prices_note', '(opens the max input/output prices this model dispatches under; opening reviews nothing, sends nothing)')) + '</span></div></div>'
     : '';
   if (!kvHtml && !sub && !reviewHtml) {
     // Nothing to drill into -- a plain row, not a disclosure triangle with nothing behind it.

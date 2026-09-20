@@ -6,8 +6,10 @@ use — with English-then-key fallback and a bounded console diagnostic, and
 (c) applies ``data-i18n`` / ``data-i18n-title`` / ``data-i18n-placeholder`` /
 ``data-i18n-aria-label`` / ``data-i18n-html`` attributes already present in the DOM.
 
-The JS plural/select formatter mirrors ``core.i18n.catalog.format_message`` exactly
-(``n === 1 → one`` else ``other``; select matches the value or ``other``) so a key
+The JS plural/select formatter mirrors ``core.i18n.catalog.format_message`` and
+``core.i18n.plurals`` exactly: a plural selects its branch by the bundle tag's
+CLDR cardinal category for the integer count (falling back to the required
+``other`` branch); a select matches the value or takes ``other`` — so a key
 formats identically on the server and in the browser — pinned by tests.
 """
 from __future__ import annotations
@@ -20,9 +22,55 @@ from core.i18n.locales import DIRECTION_RTL, get_locale
 
 # `<` inside a JSON string is escaped so the script element cannot be prematurely
 # closed by translated content — hostile or accidental.
+#
+# The plural rules below are the JS mirror of core/i18n/plurals.py (CLDR cardinal
+# categories for integer counts, keyed by the bundle tag's primary subtag). Keep
+# the two in lockstep: tests format every plural key at probe counts through both
+# and fail on any divergence.
 _TEMPLATE = """<script id="vool-i18n">(function () {
   var B = __BUNDLE__;
   var warned = {};
+  function pluralCat(tag, n) {
+    var p = String(tag || 'en').split('-')[0].toLowerCase(), m100 = n % 100, m10 = n % 10;
+    var million = (n !== 0 && n % 1000000 === 0);
+    switch (p) {
+      case 'ar':
+        if (n === 0) return 'zero';
+        if (n === 1) return 'one';
+        if (n === 2) return 'two';
+        if (m100 >= 3 && m100 <= 10) return 'few';
+        if (m100 >= 11 && m100 <= 99) return 'many';
+        return 'other';
+      case 'he':
+        if (n === 1) return 'one';
+        if (n === 2) return 'two';
+        return 'other';
+      case 'pl':
+        if (n === 1) return 'one';
+        if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return 'few';
+        return 'many';
+      case 'ru': case 'uk':
+        if (m10 === 1 && m100 !== 11) return 'one';
+        if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return 'few';
+        return 'many';
+      case 'lt':
+        if (m10 === 1 && !(m100 >= 11 && m100 <= 19)) return 'one';
+        if (m10 >= 2 && m10 <= 9 && !(m100 >= 11 && m100 <= 19)) return 'few';
+        return 'other';
+      case 'hi': case 'vi':
+        return (n === 0 || n === 1) ? 'one' : 'other';
+      case 'es':
+        if (n === 1) return 'one';
+        return million ? 'many' : 'other';
+      case 'fr': case 'pt':
+        if (n >= 0 && n <= 1) return 'one';
+        return million ? 'many' : 'other';
+      case 'de': case 'en': case 'tr':
+        return n === 1 ? 'one' : 'other';
+      default:
+        return 'other';
+    }
+  }
   function walkBraced(t, start) {
     var depth = 0;
     for (var i = start; i < t.length; i++) {
@@ -31,26 +79,31 @@ _TEMPLATE = """<script id="vool-i18n">(function () {
     }
     return t.length;
   }
-  function branches(body) {
+  var PLURAL_CATS = { zero: 1, one: 1, two: 1, few: 1, many: 1, other: 1 };
+  function branches(body, kind) {
+    // For a plural only the CLDR categories head a branch; a translated word before {n}
+    // inside a branch is text, not a category (mirrors core.i18n.catalog._branches).
     var out = {}, re = /([A-Za-z][A-Za-z0-9_]*)\\s*\\{/g, m;
     while ((m = re.exec(body)) !== null) {
       if (Object.prototype.hasOwnProperty.call(out, m[1])) continue;
+      if (kind === "plural" && !PLURAL_CATS[m[1]]) continue;
       var close = walkBraced(body, m.index + m[0].length - 1);
       out[m[1]] = body.slice(m.index + m[0].length, close - 1);
     }
     return out;
   }
-  function fmt(t, p) {
+  function fmt(t, p, tag) {
     var head = /\\{(\\w+),\\s*(plural|select),\\s*/.exec(t);
     while (head) {
       var open = t.indexOf("{", head.index);
       var end = walkBraced(t, open);
       var body = t.slice(head.index + head[0].length, end - 1);
-      var b = branches(body), chosen;
+      var b = branches(body, head[2]), chosen;
       if (head[2] === "plural") {
         var num = p ? parseInt(p[head[1]], 10) : NaN;
         if (isNaN(num)) num = 2;
-        chosen = (num === 1 && b.one !== undefined) ? b.one : (b.other !== undefined ? b.other : "");
+        var cat = pluralCat(tag || (B && B.tag) || 'en', num);
+        chosen = (b[cat] !== undefined) ? b[cat] : (b.other !== undefined ? b.other : "");
       } else {
         var v = p ? String(p[head[1]] != null ? p[head[1]] : "") : "";
         chosen = (b[v] !== undefined) ? b[v] : (b.other !== undefined ? b.other : "");
@@ -76,7 +129,7 @@ _TEMPLATE = """<script id="vool-i18n">(function () {
       }
       return key;
     }
-    return params ? fmt(t, params) : t;
+    return params ? fmt(t, params, B.tag) : t;
   };
   window.VOOLFMT = fmt;
   // In a browser window === globalThis and this is a no-op; under non-DOM harnesses

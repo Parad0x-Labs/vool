@@ -42,10 +42,16 @@ from core.i18n.locales import (
     response_supported_tags,
     ui_catalog_tags,
 )
+from core.i18n.plurals import (
+    VALID_PLURAL_CATEGORIES,
+    integer_categories,
+    plural_category,
+)
 
 __all__ = [
     "DIRECTION_LTR",
     "DIRECTION_RTL",
+    "VALID_PLURAL_CATEGORIES",
     "CatalogDiagnostic",
     "LocaleSpec",
     "Message",
@@ -62,7 +68,9 @@ __all__ = [
     "format_message",
     "get_locale",
     "inferable_tags",
+    "integer_categories",
     "negotiate_ui_locale",
+    "plural_category",
     "response_supported_tags",
     "ui_catalog_tags",
 ]
