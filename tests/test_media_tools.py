@@ -7,7 +7,6 @@ import types
 import pytest
 
 from core import credential_store, media_tools, runtime_paths, usage_quota
-
 from core.effect_gateway import named_background_effect_scope
 
 
