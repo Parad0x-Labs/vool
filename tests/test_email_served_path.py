@@ -151,7 +151,11 @@ def _mail(frm: str, subj: str, body: str, mid: str, date: str,
 
 
 @pytest.fixture(autouse=True)
-def _accounts(isolated_home):
+def _accounts(isolated_home, _shared_service):
+    # Depends on _shared_service explicitly: this fixture reads the ports the service
+    # publishes in _ACTIVE, and without the dependency a test that requests no other
+    # fixture (e.g. the pure classification test) ran _accounts before any service
+    # existed and died on KeyError: 'imap'.
     from core import credential_store
     credential_store.store_credential(
         "email.imap.default",
@@ -316,7 +320,11 @@ def test_permission_classification_of_new_email_intents() -> None:
     assert set(actions_for_tool("email.draft.send")) == {
         PermissionAction.USE_NETWORK, PermissionAction.SEND_EXTERNAL_MESSAGES,
     }
-    # Reviewable draft state records carry no permission action: nothing to gate, and the
-    # send (the only effect) is separately classified above.
-    assert actions_for_tool("email.draft.save") == ()
-    assert actions_for_tool("email.draft.approve") == ()
+    # History: draft state records used to resolve to NO permission action. A read_only
+    # contract that resolves to nothing is unauditable — the mode matrix sees no action to
+    # reason about — so their contracts now declare `read_files` (local reviewable state;
+    # the send, the only effect, is separately classified above). Pinned together with
+    # tests/test_read_only_tools_are_not_denied_by_mode.py.
+    assert set(actions_for_tool("email.draft.save")) == {PermissionAction.READ_FILES}
+    assert set(actions_for_tool("email.draft.approve")) == {PermissionAction.READ_FILES}
+

@@ -82,10 +82,18 @@ class ProviderFailoverTests(unittest.TestCase):
                 "metadata": {"orchestration_role": "queen"},
             }
         )
+        # The authorship fence refuses uncertified LOCAL models before any adapter is built
+        # (core.final_answer_authorship.precall_author_verdict), so a rig whose stubs are not
+        # certified never exercises the failover ladder at all: every candidate comes back
+        # author_not_certified_for_final_answer and no provider failure is ever recorded.
+        from tests._authorship_certification import certify_for_authorship
+
+        certify_for_authorship(local_manifest)
+        certify_for_authorship(cloud_manifest)
         return local_manifest, cloud_manifest
 
     def _register_backup_local(self):
-        return self.registry.register_manifest(
+        backup = self.registry.register_manifest(
             {
                 "provider_name": "local-backup-http",
                 "model_name": "qwen-backup",
@@ -103,6 +111,10 @@ class ProviderFailoverTests(unittest.TestCase):
                 "metadata": {"orchestration_role": "drone"},
             }
         )
+        from tests._authorship_certification import certify_for_authorship
+
+        certify_for_authorship(backup)
+        return backup
 
     def _context_result(self) -> TieredContextResult:
         result = TieredContextResult(
@@ -144,6 +156,13 @@ class ProviderFailoverTests(unittest.TestCase):
 
         local_adapter = mock.Mock()
         local_adapter.health_check.return_value = {"ok": True}
+        local_adapter.get_license_metadata.return_value = {"license_name": "Apache-2.0", "license_reference": "https://www.apache.org/licenses/LICENSE-2.0"}
+        local_adapter.estimate_cost_class.return_value = "local_free"
+        # Both task methods, not just the structured one: this turn dispatches run_text_task
+        # (plain-text output mode), and an unstubbed method happily returns a child Mock whose
+        # provider_metadata normalization explodes -- the provider then "fails" for a reason the
+        # test never set up, and no provider failure is recorded.
+        local_adapter.run_text_task.side_effect = RuntimeError("timeout")
         local_adapter.run_structured_task.side_effect = RuntimeError("timeout")
 
         cloud_adapter = mock.Mock()
@@ -167,6 +186,12 @@ class ProviderFailoverTests(unittest.TestCase):
                 interpretation=self.interpretation,
                 context_result=context_result,
                 persona=self.persona,
+                # A9: the routing plan mint refuses a turn without identity.
+                source_context={
+                    "surface": "api",
+                    "session_id": "provider-failover-suite",
+                    "turn_id": "turn-local-failure",
+                },
             )
 
         self.assertFalse(result.used_model)
@@ -209,10 +234,20 @@ class ProviderFailoverTests(unittest.TestCase):
                 interpretation=self.interpretation,
                 context_result=context_result,
                 persona=self.persona,
-                source_context={"surface": "api", "requested_model": "local-qwen-http:qwen-local"},
+                source_context={
+                    # A9: the routing plan mint refuses a turn without identity.
+                    "surface": "api",
+                    "session_id": "provider-failover-suite",
+                    "turn_id": "turn-local-qwen-http:qwen-local",
+                    "requested_model": "local-qwen-http:qwen-local",
+                },
             )
 
-        self.assertEqual(result.source, "no_provider_available")
+        # History: this pinned `no_provider_available`. An EXPLICIT model pin that cannot run now
+        # ends at the typed `selected_model_blocked` terminal (memory_first_router
+        # ._selected_model_blocked_decision: "the selected model does not get answered for by a
+        # different model ... no silent substitution") — the same outcome, named for what it is.
+        self.assertEqual(result.source, "selected_model_blocked")
         self.assertEqual(rank_candidates.call_args.kwargs["preferred_provider"], "local-qwen-http")
         self.assertEqual(rank_candidates.call_args.kwargs["preferred_model"], "qwen-local")
         self.assertEqual(invoke_manifest.call_count, 1)
@@ -260,7 +295,10 @@ class ProviderFailoverTests(unittest.TestCase):
                 context_result=self._context_result(),
                 persona=self.persona,
                 source_context={
+                    # A9: the routing plan mint refuses a turn without identity.
                     "surface": "api",
+                    "session_id": "provider-failover-suite",
+                    "turn_id": "turn-manual-selected",
                     "requested_model": selected.provider_id,
                 },
             )
@@ -324,7 +362,12 @@ class ProviderFailoverTests(unittest.TestCase):
                 interpretation=self.interpretation,
                 context_result=self._context_result(),
                 persona=self.persona,
-                source_context={"surface": "api"},
+                source_context={
+                    # A9: the routing plan mint refuses a turn without identity.
+                    "surface": "api",
+                    "session_id": "provider-failover-suite",
+                    "turn_id": "turn-auto-empty-retry",
+                },
             )
 
         self.assertTrue(result.used_model)
@@ -384,10 +427,12 @@ class ProviderFailoverTests(unittest.TestCase):
                 persona=self.persona,
                 # Owner-local (the loopback HTTP dispatcher stamps _owner_local) and an explicit
                 # paid pick — but the cap is spent, so no reservation is built.
-                source_context={"surface": "api", "requested_model": "cloud", "_owner_local": True},
+                source_context={"surface": "api", "session_id": "provider-failover-suite", "turn_id": "turn-paid-cloud", "requested_model": "cloud", "_owner_local": True},
             )
 
-        self.assertEqual(result.source, "no_provider_available")
+        # Same history as the steering test: an explicit paid pin with no reservation is a
+        # blocked SELECTION (typed terminal), not a generic provider shortage.
+        self.assertEqual(result.source, "selected_model_blocked")
         self.assertFalse(rank_candidates.call_args.kwargs["allow_paid_fallback"])
         self.assertEqual(rank_candidates.call_args.kwargs["preferred_model"], "cloud")
 
@@ -427,10 +472,12 @@ class ProviderFailoverTests(unittest.TestCase):
                 interpretation=self.interpretation,
                 context_result=context_result,
                 persona=self.persona,
-                source_context={"surface": "openclaw", "requested_model": "cloud", "_owner_local": False},
+                source_context={"surface": "openclaw", "session_id": "provider-failover-suite", "turn_id": "turn-non-owner-paid", "requested_model": "cloud", "_owner_local": False},
             )
 
-        self.assertEqual(result.source, "no_provider_available")
+        # Same history as the steering test: a non-owner's explicit paid pick that cannot be
+        # authorized is a blocked SELECTION (typed terminal), not a generic provider shortage.
+        self.assertEqual(result.source, "selected_model_blocked")
         self.assertFalse(rank_candidates.call_args.kwargs["allow_paid_fallback"])
 
     def test_selected_verified_free_openrouter_model_can_execute_without_reservation(self) -> None:
@@ -478,7 +525,7 @@ class ProviderFailoverTests(unittest.TestCase):
                 request=ModelRequest(task_kind="chat", prompt="hello"),
                 output_mode="plain_text",
                 task=task,
-                source_context={"requested_model": manifest.model_name, "_owner_local": True},
+                source_context={"session_id": "provider-failover-suite", "turn_id": "turn-health-cycle", "requested_model": manifest.model_name, "_owner_local": True},
             )
 
         self.assertIs(built_adapter, adapter)
@@ -557,6 +604,11 @@ class ProviderFailoverTests(unittest.TestCase):
                 interpretation=self.interpretation,
                 context_result=context_result,
                 persona=self.persona,
+                # A9: the routing plan mint refuses a turn without identity.
+                source_context={
+                    "session_id": "provider-failover-suite",
+                    "turn_id": "turn-health-cycle",
+                },
             )
 
         self.assertEqual(result.source, "provider_execution")

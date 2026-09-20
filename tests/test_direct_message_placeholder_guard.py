@@ -65,7 +65,13 @@ def test_the_catalog_prompt_no_longer_offers_a_copyable_sentence() -> None:
     from pathlib import Path
 
     source = Path("core/prompt_normalizer.py").read_text(encoding="utf-8")
-    catalog_line = next(
-        line for line in source.splitlines() if '"intent":"respond.direct"' in line and '"message"' in line
-    )
-    assert '"message":"<' in catalog_line, "the example value must be an angle-bracket slot, not prose"
+    # History: the catalog used to embed a literal {"intent":"respond.direct","message":...}
+    # JSON example, and this pin read that line to assert its value was an angle-bracket slot.
+    # The catalog was later reworded to prose — "use respond.direct with your actual reply
+    # written out in full ... Never send placeholder text." — which removes the copyable
+    # example entirely, a stronger form of the same fix. The pin asserts exactly that: no
+    # JSON example with a message value exists to copy, and the anti-placeholder instruction
+    # stands (the guard in response_policy_classification remains the backstop).
+    assert '"intent":"respond.direct"' not in source
+    assert '"intent": "respond.direct"' not in source
+    assert "Never send placeholder text" in source

@@ -438,7 +438,9 @@ def test_completed_call_links_context_selection_to_the_final_payload_receipt() -
     def completed_provider(call_request: ModelRequest) -> SimpleNamespace:
         call_request.metadata["provider_manifest_id"] = "provider-manifest-turn-402"
         call_request.metadata["provider_payload_hash"] = "a" * 64
-        return SimpleNamespace(output_text="safe", usage={})
+        # provider_metadata is part of the adapter response contract the invoke normalizes
+        # (response.provider_metadata = dict(...) for the call-seconds stamp).
+        return SimpleNamespace(output_text="safe", usage={}, provider_metadata={})
 
     router.registry.build_adapter.return_value.run_text_task.side_effect = completed_provider
     source_context = {"request_id": "request-turn-400"}
