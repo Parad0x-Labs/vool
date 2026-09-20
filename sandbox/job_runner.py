@@ -706,6 +706,19 @@ class JobRunner:
         # confinement below applies regardless of `deny_network` -- ANVIL, 2026-08-07: filesystem
         # confinement must hold even when network trust is relaxed for a local test/lint run.
         cmd: list[str] = [bwrap, *net_flag, "--ro-bind", "/", "/", "--tmpfs", "/tmp"]
+        # The whole-root read-only bind takes /dev with it, and a read-only mount refuses
+        # O_RDWR on its files -- so /dev/null became unopenable and every child that opens
+        # os.devnull at startup died with PermissionError before doing any work (measured
+        # on the CI runners 2026-09-21: a sandboxed `python -m pytest` crashed inside
+        # capman.start_global_capturing -> FDCapture, which opens os.devnull for stdin,
+        # leaving every journaled narrow/cumulative step at rc=1 "command_failed" while
+        # the same steps ran green under the macOS Seatbelt prefix, whose read-only roots
+        # do not cover /dev). A stacked writable --bind of the device node still refuses
+        # the open inside the user namespace (measured same day), so the sandbox gets a
+        # FRESH dev tmpfs via --dev: bwrap creates the standard character devices itself,
+        # which is the canonical way and gives children the null/zero/random/urandom a
+        # toolchain opens without lending them any of the host's device nodes.
+        cmd += ["--dev", "/dev"]
         for root in allowed_roots:
             resolved = str(root.resolve() if isinstance(root, Path) else Path(root).resolve())
             cmd += ["--bind", resolved, resolved]
