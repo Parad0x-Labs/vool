@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shlex
 from pathlib import Path
 
@@ -574,6 +575,14 @@ VAT_RATE_PATCH = (
 
 def _approved_patch(ctx: dict, patch: str, *, defect_path: str = "billing/vat.py", proposal_id: str = "patch") -> tuple[str, dict]:
     task_id = _open_and_identify(ctx, defect_path)
+    # The approval binds REVIEWED content: every file this diff touches needs a recorded
+    # code.task.step read before the proposal, or the door answers base_not_reviewed.
+    for touched in sorted({m.group(1) for m in re.finditer(r"^diff --git a/(\S+)", patch, re.M)}):
+        if touched == defect_path:
+            continue  # _open_and_identify already recorded this read
+        read = door("code.task.step", {"task_id": task_id, "step_id": f"read-{touched}", "intent": "workspace.read_file",
+                                       "arguments": {"path": touched}}, ctx)
+        assert read.ok, (read.status, read.response_text)
     args = {"patch": patch}
     proposed = door("code.task.propose", {"task_id": task_id, "proposal_id": proposal_id,
                                           "intent": "workspace.apply_unified_diff", "arguments": args,
