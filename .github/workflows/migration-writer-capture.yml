@@ -1,0 +1,89 @@
+name: Migration writer capture
+
+# Narrow diagnostic for the concurrent first-use migration failure (FIX 2
+# evidence closure): runs ONLY on push to this one diagnostic branch. The main
+# CI (ci.yml) triggers on push to main/develop and pull_request to main, so this
+# branch cannot launch the full ten-shard matrix. Both legs run at the pinned
+# BASELINE commit: (1) the ORIGINAL cross-process test as separate evidence,
+# and (2) the instrumented writer capture that adds only phase labels and
+# exception detail around the original writer's unchanged operations.
+
+on:
+  push:
+    branches: ["diagnostic/migration-writer-capture"]
+
+concurrency:
+  group: migration-writer-capture
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # Both legs run at the baseline commit (the diagnostic branch exists
+          # only to carry the harness and this workflow).
+          ref: 8153a9697f3c022a635bc95fa450ba7b5720e3c9
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies (same as the CI tests job)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap) — same as the CI tests job
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Verify checkout identity and take the harness from the diagnostic branch
+        run: |
+          mkdir -p .verification-logs
+          git rev-parse HEAD | grep -qx 8153a9697f3c022a635bc95fa450ba7b5720e3c9 || { echo "WRONG CHECKOUT"; exit 1; }
+          git checkout diagnostic/migration-writer-capture -- tests/_diag_migration_race_capture.py
+          echo -n "tested source (both legs): " | tee .verification-logs/identity.txt
+          git rev-parse HEAD | tee -a .verification-logs/identity.txt
+          echo "harness extracted from diagnostic/migration-writer-capture" | tee -a .verification-logs/identity.txt
+      # Expected to FAIL on the runner: that failure is the original test's own
+      # baseline evidence, recorded separately from the instrumented capture.
+      - name: Leg 1 — the ORIGINAL test at baseline (separate evidence)
+        id: original
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          { echo -n "checkout: "; git rev-parse HEAD; } | tee .verification-logs/original-test-baseline.log
+          python -m pytest -v --tb=short -p no:cacheprovider "tests/test_run_migrations_cross_process.py::test_concurrent_first_use_migrations_lose_no_committed_row_and_poison_no_process" 2>&1 | tee -a .verification-logs/original-test-baseline.log
+      - name: Leg 2 — instrumented writer capture at baseline
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          { echo -n "checkout: "; git rev-parse HEAD; } | tee .verification-logs/writer-capture-baseline.log
+          python tests/_diag_migration_race_capture.py 2>&1 | tee -a .verification-logs/writer-capture-baseline.log
+      - name: Versions record
+        if: always()
+        run: |
+          python -c "import sys, sqlite3; print('python', sys.version.split()[0], '| sqlite', sqlite3.sqlite_version)" | tee .verification-logs/versions.txt
+      - name: Upload the diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: migration-writer-capture
+          path: .verification-logs/
+          include-hidden-files: true
