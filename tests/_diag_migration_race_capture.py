@@ -118,6 +118,12 @@ while time.monotonic() < deadline:
         errors.append(type(exc).__name__ + ": " + str(exc)[:80])
         if len(error_details) < 3:
             error_details.append(_diag(exc, phase))
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception as close_exc:
+                errors.append(type(close_exc).__name__ + ": " + str(close_exc)[:80])
+        conn = None
     time.sleep(0.003)
 print(json.dumps({"committed": committed, "errors": len(errors),
                   "error_kinds": sorted(set(errors))[:5], "error_details": error_details,
@@ -125,11 +131,11 @@ print(json.dumps({"committed": committed, "errors": len(errors),
 """
 
 
-def _run_writer_round(root: Path, db: Path, barrier: Path, *, migrators: int, write_seconds: float, index: int, fault_phase: str = "") -> dict:
+def _run_writer_round(round_dir: Path, db: Path, barrier: Path, *, migrators: int, write_seconds: float, index: int, fault_phase: str = "", identity: str = "") -> dict:
     env = {
         "PATH": "/usr/bin:/bin",
-        "HOME": str(root / f"round-{index}"),
-        "VOOL_HOME": str(root / f"round-{index}" / "vool-home"),
+        "HOME": str(round_dir / "vool-home"),
+        "VOOL_HOME": str(round_dir / "vool-home"),
         "PYTHONDONTWRITEBYTECODE": "1",
     }
     processes = [
@@ -141,12 +147,26 @@ def _run_writer_round(root: Path, db: Path, barrier: Path, *, migrators: int, wr
     ]
     writer = subprocess.Popen(
         [sys.executable, "-B", "-c", _WRITER_CAPTURE, str(REPO_ROOT), str(db), str(barrier),
-         str(write_seconds), f"round-{index}", fault_phase],
+         str(write_seconds), identity, fault_phase],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env,
     )
-    deadline = time.monotonic() + 120.0
-    while len(list(root.glob(f"round-{index}/go.ready-*"))) < migrators + 1 and time.monotonic() < deadline:
+    # Readiness uses the barrier's own parent (the children write go.ready-* next to
+    # it). Readiness is mandatory: a child that never arms fails the round instead of
+    # releasing late after a timeout.
+    deadline = time.monotonic() + 60.0
+    armed = False
+    while time.monotonic() < deadline:
+        if len(list(barrier.parent.glob("go.ready-*"))) >= migrators + 1:
+            armed = True
+            break
         time.sleep(0.01)
+    if not armed:
+        for process in [*processes, writer]:
+            process.kill()
+        for process in [*processes, writer]:
+            process.communicate()
+        return {"migrators": [], "migrators_ok": False, "writer": {"no_result": True, "reason": "children never armed"},
+                "writer_ok": False, "arming_failed": True}
     barrier.write_text("go")
 
     def reap(process, label):
@@ -191,12 +211,12 @@ def _independent_verify(db: Path) -> dict:
     return {"present": present, "committed_table_present": table_present, "integrity": integrity}
 
 
-def _round(root: Path, index: int, *, migrators: int = 8, write_seconds: float = 4.0, fault_phase: str = "") -> dict:
+def _round(root: Path, index: int, *, migrators: int = 8, write_seconds: float = 4.0, fault_phase: str = "", identity: str = "") -> dict:
     home = root / f"round-{index}"
     home.mkdir(parents=True)
     db = home / "store.db"
     barrier = home / "go"
-    outcome = _run_writer_round(home, db, barrier, migrators=migrators, write_seconds=write_seconds, index=index, fault_phase=fault_phase)
+    outcome = _run_writer_round(home, db, barrier, migrators=migrators, write_seconds=write_seconds, index=index, fault_phase=fault_phase, identity=identity)
     outcome.update(_independent_verify(db))
     outcome["snapshot_residue"] = sorted(path.name for path in home.glob("*pre-migration*"))
     return outcome
@@ -221,20 +241,28 @@ def _verdict(outcome: dict) -> list[str]:
     return problems
 
 
+def _source_identity() -> str:
+    import subprocess
+
+    out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(REPO_ROOT), capture_output=True, text=True)
+    return out.stdout.strip() if out.returncode == 0 else f"git-unavailable({out.stderr[:80]})"
+
+
 def main() -> int:
     mode = sys.argv[1] if len(sys.argv) > 1 else "real"
     versions = {"python": sys.version.split()[0], "sqlite": __import__("sqlite3").sqlite_version}
+    identity = _source_identity()
     with tempfile.TemporaryDirectory(prefix="migration-race-capture-") as tmp:
         root = Path(tmp)
         if mode == "--smoke":
-            outcome = _round(root, 0, migrators=2, write_seconds=1.0)
+            outcome = _round(root, 0, migrators=2, write_seconds=1.0, identity=identity)
             problems = _verdict(outcome)
-            print(json.dumps({"mode": "smoke", "verdict": "fail" if problems else "pass", "problems": problems,
+            print(json.dumps({"mode": "smoke", "identity": identity, "verdict": "fail" if problems else "pass", "problems": problems,
                               "committed": outcome["writer"].get("committed"), "present": outcome["present"],
                               "integrity": outcome["integrity"]}, indent=2))
             return 1 if problems else 0
         if mode == "--self-test":
-            outcome = _round(root, 0, migrators=2, write_seconds=1.5, fault_phase="insert")
+            outcome = _round(root, 0, migrators=2, write_seconds=1.5, fault_phase="insert", identity=identity)
             details = outcome["writer"].get("error_details") or []
             captured = details[0] if details else {}
             checks = {
@@ -253,7 +281,7 @@ def main() -> int:
         # real mode: the original test's exact 4-round shape
         aggregate, failed_rounds = [], []
         for index in range(4):
-            outcome = _round(root, index)
+            outcome = _round(root, index, identity=identity)
             problems = _verdict(outcome)
             entry = {"round": index, "verdict": "fail" if problems else "pass", "problems": problems,
                      "committed": outcome["writer"].get("committed"), "errors": outcome["writer"].get("errors"),
@@ -265,7 +293,7 @@ def main() -> int:
             print(json.dumps(entry)[:600], flush=True)
             if problems:
                 failed_rounds.append(index)
-        final = {"mode": "real", "rounds": aggregate,
+        final = {"mode": "real", "identity": identity, "rounds": aggregate,
                  "reproduced": bool(failed_rounds), "failed_rounds": failed_rounds,
                  "versions": versions}
         print(json.dumps(final)[:2000], flush=True)
