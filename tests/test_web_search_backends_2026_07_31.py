@@ -217,8 +217,41 @@ def test_a_transient_http_status_is_retried_once(monkeypatch, code: int) -> None
     monkeypatch.setattr(google_html.urllib.request, "urlopen", _urlopen)
     monkeypatch.setattr(google_html.time, "sleep", lambda *_a: None)
 
-    assert google_html._fetch("https://example.com", timeout_s=1.0) == "recovered"
+    # `open_remote` (the one outbound door inside _fetch) fails closed outside any turn or
+    # named background effect ledger, before any socket -- the production caller always has
+    # one. The test opens the same sanctioned named scope, which attributes the attempts and
+    # grants nothing else; the HTTP semantics under test are untouched.
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("test.web-search-backends.transient-retry"):
+        assert google_html._fetch("https://example.com", timeout_s=1.0) == "recovered"
     assert attempts["n"] == 2
+
+
+def test_a_second_consecutive_transient_failure_surfaces_after_exactly_one_retry(monkeypatch) -> None:
+    # The ceiling of the retry above: one retry, never a loop. A backend that stays
+    # transient must surface its HTTPError after exactly two attempts -- a second backoff
+    # would burn the turn budget the retry exists to protect.
+    attempts = {"n": 0}
+    sleeps = {"n": 0}
+
+    def _urlopen(req, timeout=None):
+        attempts["n"] += 1
+        raise urllib.error.HTTPError("u", 503, "still transient", {}, None)  # type: ignore[arg-type]
+
+    def _sleep(_seconds):
+        sleeps["n"] += 1
+
+    monkeypatch.setattr(google_html.urllib.request, "urlopen", _urlopen)
+    monkeypatch.setattr(google_html.time, "sleep", _sleep)
+
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("test.web-search-backends.retry-ceiling"):
+        with pytest.raises(urllib.error.HTTPError):
+            google_html._fetch("https://example.com", timeout_s=1.0)
+    assert attempts["n"] == 2, "a persistent transient status must be retried exactly once"
+    assert sleeps["n"] == 1, "only the first failed attempt may back off"
 
 
 def test_a_real_refusal_is_not_retried(monkeypatch) -> None:
@@ -232,8 +265,11 @@ def test_a_real_refusal_is_not_retried(monkeypatch) -> None:
     monkeypatch.setattr(google_html.urllib.request, "urlopen", _urlopen)
     monkeypatch.setattr(google_html.time, "sleep", lambda *_a: None)
 
-    with pytest.raises(urllib.error.HTTPError):
-        google_html._fetch("https://example.com", timeout_s=1.0)
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("test.web-search-backends.real-refusal"):
+        with pytest.raises(urllib.error.HTTPError):
+            google_html._fetch("https://example.com", timeout_s=1.0)
     assert attempts["n"] == 1
 
 
