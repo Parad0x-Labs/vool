@@ -1129,6 +1129,14 @@ def record_runtime_tool_progress(
     status: str | None = None,
     pending_batch_calls: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
+    # A7 monotone terminals keep their final truth: tool progress arriving after the
+    # checkpoint reached a terminal status carries no state meaning (the turn is over), so
+    # it is discarded rather than refused -- a late recorder must not crash the caller's
+    # flow, and the durable row must not move. Downgrade and resume attempts elsewhere
+    # still refuse; this is the no-op reading of the same monotone law.
+    current = get_runtime_checkpoint(checkpoint_id)
+    if current is not None and str(current.get("status") or "running") in _CHECKPOINT_TERMINAL_STATUSES:
+        return current
     state = {
         "executed_steps": [dict(step) for step in list(executed_steps or [])],
         "seen_tool_payloads": sorted({str(item) for item in list(seen_tool_payloads or []) if str(item)}),

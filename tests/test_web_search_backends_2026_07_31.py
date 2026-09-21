@@ -217,7 +217,12 @@ def test_a_transient_http_status_is_retried_once(monkeypatch, code: int) -> None
     monkeypatch.setattr(google_html.urllib.request, "urlopen", _urlopen)
     monkeypatch.setattr(google_html.time, "sleep", lambda *_a: None)
 
-    assert google_html._fetch("https://example.com", timeout_s=1.0) == "recovered"
+    # A fetch needs an owning effect scope (the gateway denies scopeless sockets); the
+    # urlopen itself is scripted, so the scope only admits the attempt.
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("test.web_search_transient_retry"):
+        assert google_html._fetch("https://example.com", timeout_s=1.0) == "recovered"
     assert attempts["n"] == 2
 
 
@@ -232,8 +237,11 @@ def test_a_real_refusal_is_not_retried(monkeypatch) -> None:
     monkeypatch.setattr(google_html.urllib.request, "urlopen", _urlopen)
     monkeypatch.setattr(google_html.time, "sleep", lambda *_a: None)
 
-    with pytest.raises(urllib.error.HTTPError):
-        google_html._fetch("https://example.com", timeout_s=1.0)
+    from core.effect_gateway import named_background_effect_scope
+
+    with named_background_effect_scope("test.web_search_real_refusal"):
+        with pytest.raises(urllib.error.HTTPError):
+            google_html._fetch("https://example.com", timeout_s=1.0)
     assert attempts["n"] == 1
 
 
