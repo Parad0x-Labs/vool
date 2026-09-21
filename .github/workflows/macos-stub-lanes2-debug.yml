@@ -1,0 +1,88 @@
+name: macOS stub lanes debug 2
+
+# V-1 iteration 2: the previous round proved the daemon-side drop-out
+# (selected_provider_excluded_before_invocation, ranked_candidates: []) and that pinning
+# VOOL_RAW_OLLAMA_API_URL at the stub does not fix it. Local replicas on a dev Mac with and
+# without a live Ollama, and in the full ci.yml file order, all PASS -- so the gate must be
+# named ON the runner. This round instruments the ranking inside the daemon process (probe
+# snippets embedded base64 so the YAML cannot mangle them):
+#   - every hard exclusion of the reader-stub manifest logs the reason + cost_class + the
+#     local-only/paid/capability inputs at that moment
+#   - an empty strict+relaxed ranking dumps the full explain_provider_exclusions table
+# Then the full macOS job file list runs in ci.yml order.
+
+on:
+  push:
+    branches: [debug/macos-stub-lanes2]
+
+concurrency:
+  group: macos-stub-lanes2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the served-browser lane (Playwright chromium)
+        run: python -m playwright install --with-deps chromium
+      - name: Instrument the ranking with exclusion diagnostics
+        run: |
+          python - <<'EOF'
+          import base64
+          from pathlib import Path
+
+          A1_OLD = "ICAgIGlmIHByb3ZpZGVyX2Jhc2VfdHJ1c3QobWFuaWZlc3QpIDwgcmVxdWVzdC5taW5fdHJ1c3Q6CiAgICAgICAgcmV0dXJuICJiZWxvd19taW5fdHJ1c3QiCiAgICByZXR1cm4gIiI="
+          A1_NEW = "ICAgIGlmIHByb3ZpZGVyX2Jhc2VfdHJ1c3QobWFuaWZlc3QpIDwgcmVxdWVzdC5taW5fdHJ1c3Q6CiAgICAgICAgcmV0dXJuICJiZWxvd19taW5fdHJ1c3QiCiAgICBpZiBzdHIobWFuaWZlc3QucHJvdmlkZXJfbmFtZSBvciAiIikgPT0gInJlYWRlci1zdHViIiBvciBzdHIobWFuaWZlc3QubW9kZWxfbmFtZSBvciAiIikgPT0gInJlYWRlci1kcml2ZTpzdHViIjoKICAgICAgICBpbXBvcnQgbG9nZ2luZyBhcyBfbG9nZ2luZwogICAgICAgIF9sb2dnaW5nLmdldExvZ2dlcigidm9vbC5kZWJ1ZyIpLndhcm5pbmcoCiAgICAgICAgICAgICJTVFVCLUVYQ0wtT0sgcmVhc29uPSVzIGNvc3RfY2xhc3M9JXMgcG9saWN5X2xvY2FsX29ubHk9JXMgcmVxdWVzdF9sb2NhbF9vbmx5PSVzIGFsbG93X3BhaWQ9JXMgdGFza19raW5kPSVzIG91dHB1dF9tb2RlPSVzIiwKICAgICAgICAgICAgIiIgaWYgcHJvdmlkZXJfYmFzZV90cnVzdChtYW5pZmVzdCkgPj0gcmVxdWVzdC5taW5fdHJ1c3QgZWxzZSAiYmVsb3dfbWluX3RydXN0IiwKICAgICAgICAgICAgcHJvdmlkZXJfY29zdF9jbGFzcyhtYW5pZmVzdCksCiAgICAgICAgICAgIF9faW1wb3J0X18oImNvcmUucG9saWN5X2VuZ2luZSIsIGZyb21saXN0PVsicG9saWN5X2VuZ2luZSJdKS5sb2NhbF9vbmx5X21vZGUoKSwKICAgICAgICAgICAgcmVxdWVzdC5sb2NhbF9vbmx5LAogICAgICAgICAgICByZXF1ZXN0LmFsbG93X3BhaWRfZmFsbGJhY2ssCiAgICAgICAgICAgIHJlcXVlc3QudGFza19raW5kLAogICAgICAgICAgICByZXF1ZXN0Lm91dHB1dF9tb2RlLAogICAgICAgICkKICAgIHJldHVybiAiIg=="
+          A2_OLD = "ICAgIHN0cmljdCA9IF9yYW5rX29uY2UobWFuaWZlc3RzLCByZXF1ZXN0LCByZWxheF9tb2RlbF9wcmVmZXJlbmNlPUZhbHNlKQogICAgcmFua2VkID0gc3RyaWN0IG9yIF9yYW5rX29uY2UobWFuaWZlc3RzLCByZXF1ZXN0LCByZWxheF9tb2RlbF9wcmVmZXJlbmNlPVRydWUpCiAgICByZXR1cm4gX2Ryb3BfbW9kZWxzX3Rvb19zbWFsbF90b19zZWxlY3RfYV90b29sKHJhbmtlZCwgcmVxdWVzdCk="
+          A2_NEW = "ICAgIHN0cmljdCA9IF9yYW5rX29uY2UobWFuaWZlc3RzLCByZXF1ZXN0LCByZWxheF9tb2RlbF9wcmVmZXJlbmNlPUZhbHNlKQogICAgcmFua2VkID0gc3RyaWN0IG9yIF9yYW5rX29uY2UobWFuaWZlc3RzLCByZXF1ZXN0LCByZWxheF9tb2RlbF9wcmVmZXJlbmNlPVRydWUpCiAgICBpZiBub3QgcmFua2VkOgogICAgICAgIGltcG9ydCBqc29uIGFzIF9qc29uCiAgICAgICAgaW1wb3J0IGxvZ2dpbmcgYXMgX2xvZ2dpbmcKICAgICAgICByb3dzID0gZXhwbGFpbl9wcm92aWRlcl9leGNsdXNpb25zKG1hbmlmZXN0cywgcmVxdWVzdCkKICAgICAgICBfbG9nZ2luZy5nZXRMb2dnZXIoInZvb2wuZGVidWciKS53YXJuaW5nKAogICAgICAgICAgICAiRU1QVFktUkFOS0lORyBwaW49JXMvJXMgcm93cz0lcyIsCiAgICAgICAgICAgIHJlcXVlc3QucHJlZmVycmVkX3Byb3ZpZGVyLAogICAgICAgICAgICByZXF1ZXN0LnByZWZlcnJlZF9tb2RlbCwKICAgICAgICAgICAgX2pzb24uZHVtcHMocm93cywgZGVmYXVsdD1zdHIpLAogICAgICAgICApCiAgICByZXR1cm4gX2Ryb3BfbW9kZWxzX3Rvb19zbWFsbF90b19zZWxlY3RfYV90b29sKHJhbmtlZCwgcmVxdWVzdCk="
+
+          p = Path("core/model_selection_policy.py")
+          src = p.read_text()
+          old1, new1 = base64.b64decode(A1_OLD).decode(), base64.b64decode(A1_NEW).decode()
+          old2, new2 = base64.b64decode(A2_OLD).decode(), base64.b64decode(A2_NEW).decode()
+          assert src.count(old1) == 1, "anchor1 count"
+          assert src.count(old2) == 1, "anchor2 count"
+          src = src.replace(old1, new1, 1).replace(old2, new2, 1)
+          compile(src, str(p), "exec")
+          p.write_text(src)
+          print("instrumented model_selection_policy.py")
+          EOF
+      - name: Run the macOS job suites in ci.yml order
+        run: |
+          set +e
+          python -m pytest -q --tb=short -p no:cacheprovider \
+            tests/test_macos_app_packaging.py \
+            tests/updater/test_e2e_sandbox.py \
+            tests/test_artifact_readers_contracts.py \
+            tests/test_artifact_readers_served_m1.py \
+            tests/test_artifact_readers_served_m2.py \
+            tests/test_audio_dictation.py \
+            tests/test_media_product_served.py 2>&1 | tail -80
+          echo "pytest rc=$?"
+      - name: Dump the exclusion diagnostics from daemon logs
+        if: always()
+        run: |
+          set +e
+          echo "=== STUB-EXCL / EMPTY-RANKING lines from every recent daemon.log ==="
+          for BASE in /tmp /var/folders; do
+            find "$BASE" -maxdepth 8 -name "daemon.log" -newermt "-40 minutes" 2>/dev/null | head -20
+          done | while read -r LOG; do
+            if grep -qE "STUB-EXCL|EMPTY-RANKING" "$LOG" 2>/dev/null; then
+              echo "===== $LOG ====="
+              grep -E "STUB-EXCL|EMPTY-RANKING" "$LOG" | sort | uniq -c | sort -rn | head -25
+            fi
+          done
+          echo "=== one full daemon.log tail for context ==="
+          FIRST=$(for BASE in /tmp /var/folders; do find "$BASE" -maxdepth 8 -name "daemon.log" -newermt "-40 minutes" 2>/dev/null; done | head -1)
+          [ -n "$FIRST" ] && tail -40 "$FIRST"
