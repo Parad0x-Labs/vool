@@ -51,7 +51,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt", "validation_result"),
             )
 
-            result = execute_task_envelope(envelope, workspace_root=tmpdir)
+            result = execute_task_envelope(envelope, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertTrue(result.ok)
             self.assertEqual(result.status, "completed")
@@ -107,7 +108,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                     envelope,
                     workspace_root=tmpdir,
                     session_id="openclaw:proof-worker",
-                )
+    source_context={"operating_mode": "auto"},
+)
 
                 self.assertTrue(result.ok)
                 sessions = list_runtime_sessions(limit=10)
@@ -160,7 +162,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt", "validation_result"),
             )
 
-            result = execute_task_envelope(envelope, workspace_root=tmpdir)
+            result = execute_task_envelope(envelope, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.status, "missing_required_receipts")
@@ -188,7 +191,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt",),
             )
 
-            result = execute_task_envelope(envelope, workspace_root=tmpdir)
+            result = execute_task_envelope(envelope, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.status, "permission_denied")
@@ -229,7 +233,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt",),
             )
 
-            result = execute_task_envelope(envelope, workspace_root=tmpdir)
+            result = execute_task_envelope(envelope, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.status, "capacity_blocked")
@@ -279,7 +284,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 details={"score": 0.55},
             )
 
-        result = execute_task_envelope(queen, child_executor=_child_executor)
+        result = execute_task_envelope(queen, child_executor=_child_executor,     source_context={"operating_mode": "auto"},
+)
 
         self.assertTrue(result.ok)
         self.assertEqual(result.status, "completed")
@@ -335,7 +341,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 details={"score": 0.95},
             )
 
-        result = execute_task_envelope(queen, child_executor=_child_executor)
+        result = execute_task_envelope(queen, child_executor=_child_executor,     source_context={"operating_mode": "auto"},
+)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.status, "merge_failed")
@@ -400,7 +407,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                     queen,
                     session_id="openclaw:proof-queen",
                     child_executor=_child_executor,
-                )
+    source_context={"operating_mode": "auto"},
+)
 
                 self.assertTrue(result.ok)
                 sessions = list_runtime_sessions(limit=10)
@@ -473,7 +481,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 inputs={"subtasks": [coder.to_dict(), verifier.to_dict()]},
             )
 
-            result = execute_task_envelope(queen, workspace_root=tmpdir)
+            result = execute_task_envelope(queen, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertTrue(result.ok)
             self.assertEqual(result.status, "completed")
@@ -533,7 +542,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt", "validation_result"),
             )
 
-            result = execute_task_envelope(envelope, workspace_root=tmpdir)
+            result = execute_task_envelope(envelope, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertTrue(result.ok)
             self.assertEqual(result.status, "completed")
@@ -582,7 +592,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt", "validation_result"),
             )
 
-            result = execute_task_envelope(envelope, workspace_root=tmpdir)
+            result = execute_task_envelope(envelope, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertTrue(result.ok)
             self.assertEqual(result.status, "completed")
@@ -622,7 +633,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 },
                 required_receipts=("tool_receipt",),
             )
-            coder_result = execute_task_envelope(coder, workspace_root=tmpdir, session_id=session_id)
+            coder_result = execute_task_envelope(coder, workspace_root=tmpdir, session_id=session_id,     source_context={"operating_mode": "auto"},
+)
             self.assertTrue(coder_result.ok)
             self.assertEqual((workspace / "app.py").read_text(encoding="utf-8"), "def answer():\n    return 40\n")
 
@@ -644,7 +656,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt", "validation_result"),
             )
 
-            result = execute_task_envelope(verifier, workspace_root=tmpdir, session_id=session_id)
+            result = execute_task_envelope(verifier, workspace_root=tmpdir, session_id=session_id,     source_context={"operating_mode": "auto"},
+)
 
             self.assertFalse(result.ok)
             # The pytest run exited nonzero, so the step is "command_failed" rather than the blanket
@@ -683,7 +696,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt",),
             )
 
-            result = execute_task_envelope(envelope, workspace_root=tmpdir)
+            result = execute_task_envelope(envelope, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.status, "invalid_allow_failure")
@@ -727,7 +741,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 required_receipts=("tool_receipt",),
             )
 
-            result = execute_task_envelope(envelope, workspace_root=tmpdir)
+            result = execute_task_envelope(envelope, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.status, "unresolved_step_reference")
@@ -820,7 +835,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 inputs={"subtasks": [bad_coder.to_dict(), fallback_coder.to_dict(), final_verifier.to_dict()]},
             )
 
-            result = execute_task_envelope(queen, workspace_root=tmpdir)
+            result = execute_task_envelope(queen, workspace_root=tmpdir,     source_context={"operating_mode": "auto"},
+)
 
             self.assertTrue(result.ok)
             self.assertEqual(result.status, "completed")
@@ -922,7 +938,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                 queen,
                 workspace_root=tmpdir,
                 runtime_tool_executor=_runtime_tool_executor,
-            )
+    source_context={"operating_mode": "auto"},
+)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.status, "merge_failed")
@@ -992,7 +1009,8 @@ class OrchestrationExecutionPhase1Tests(unittest.TestCase):
                     required_receipts=("tool_receipt", "validation_result"),
                 )
 
-                result = execute_task_envelope(envelope, workspace_root=str(workspace), session_id="reuse-session")
+                result = execute_task_envelope(envelope, workspace_root=str(workspace), session_id="reuse-session",     source_context={"operating_mode": "auto"},
+)
 
                 self.assertTrue(result.ok)
                 self.assertTrue(result.details["verified_reuse"])
