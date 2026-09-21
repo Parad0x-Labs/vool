@@ -59,6 +59,39 @@ _HERMETIC_PLUGINS = Path(tempfile.mkdtemp(prefix="vool_pytest_plugins_"))
 os.environ.setdefault("VOOL_PLUGINS_DIR", str(_HERMETIC_PLUGINS / "no-desktop-tree"))
 os.environ.setdefault("VOOL_BUNDLED_PLUGINS_DIR", str(_HERMETIC_PLUGINS / "no-bundled-tree"))
 
+# ------------------------------------------------------------------ collection integrity
+#
+# pytest 9.1.x re-collects a package once per terminal FILE argument whose parent it is:
+# `Session.collect` bypasses the collection cache for the file's parent (handle_dupes=False,
+# so duplicate file arguments keep working), and the re-collected parent then mints FRESH
+# Directory collectors for every subpackage (Package.collect has no per-path dedup) and
+# overwrites the cached children. Conftest fixtures, however, stay bound to the FIRST
+# collector object that loaded them (FixtureManager pops _pending_conftests exactly once),
+# and `_matchfactories` in 9.1.x matches by node IDENTITY first — so items collected under a
+# later duplicate fail with "fixture 'wallet_env' not found" for the rest of the session.
+# Measured on the CI shard runner (run 35561240691: pytest 9.1.0 AND 9.1.1, relative AND
+# absolute file args — tests/wallet carried 7 distinct Package objects, tests/usepod 4,
+# 283 CI "fixture not found" errors) and locally with interleaved top-level/subpackage file
+# arguments. Keeping ONE collector per directory path per session restores the identity the
+# fixture registry already assumes. Upstream report: pytest-dev/pytest (collection: a
+# terminal file argument re-collects its parent package and forks subpackage collectors).
+
+
+def pytest_collectstart(collector):
+    # pytest.Directory is the shared base of Dir (plain directory) and Package
+    # (__init__.py directory) — exactly the collectors whose identity must be stable.
+    if isinstance(collector, pytest.Directory):
+        by_path = collector.session.__dict__.setdefault("_vool_directory_collectors", {})
+        by_path.setdefault(collector.path, collector)
+
+
+def pytest_collect_directory(path, parent):
+    # Firstresult hook: hand back the already-created collector for this path so a
+    # re-collected parent reuses it instead of minting a duplicate; None lets pytest's
+    # default implementation create the collector and record it via pytest_collectstart.
+    first = getattr(parent.session, "_vool_directory_collectors", {}).get(path)
+    return first or None
+
 # storage/db.py has no pytest-specific path override, so without this, every test in
 # this session would share the SAME on-disk SQLite file a live `apps.vool_api_server`
 # process may be connected to (active_default_db_path() resolves to the real runtime
