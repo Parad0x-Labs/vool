@@ -1,0 +1,92 @@
+name: Docs evidence diagnostic
+
+# Narrow diagnostic for PR #16 evidence closure (run 35600921603): the CI shard
+# runs pytest -q without JUnit, so per-test docs outcomes are not machine-readable
+# there. This workflow runs ONLY on push to this one diagnostic branch. The main
+# CI (ci.yml) triggers on push to main/develop and pull_request to main, so this
+# branch cannot launch the full ten-shard matrix. It pins checkout to the exact
+# tested merge SHA of that run and (a) requires the eight docs cases to pass with
+# JUnit proof, and (b) runs the three PR-only failing node IDs at both the tested
+# merge SHA and the baseline commit for a same-environment classification.
+# It edits no test or product code; everything runs read-only from the checkout.
+# Step order matters: the two comparison legs run first with continue-on-error so
+# their evidence survives any outcome; the JUnit gate runs last and is the step
+# that fails the job if the eight docs cases do not all pass.
+
+on:
+  push:
+    branches: ["diagnostic/docs-evidence-16"]
+
+concurrency:
+  group: docs-evidence-diagnostic-16
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # The exact synthetic merge SHA that CI run 35600921603 tested
+          # (shard 6's checkout line fetches precisely this object).
+          ref: 143296cf692ad15dda096c7b9a295b63f3509f1d
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies (same as the CI tests job)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap) — same as the CI tests job
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Record the exact tested source identity
+        run: |
+          mkdir -p .verification-logs
+          { echo "expected: 143296cf692ad15dda096c7b9a295b63f3509f1d"; echo -n "checked out: "; git rev-parse HEAD; echo -n "tree: "; git rev-parse 'HEAD^{tree}'; } | tee .verification-logs/tested-source-identity.txt
+          git rev-parse HEAD | grep -qx 143296cf692ad15dda096c7b9a295b63f3509f1d || { echo "WRONG CHECKOUT"; exit 1; }
+          git status --porcelain | tee .verification-logs/checkout-cleanliness.txt
+      - name: Three PR-only failing node IDs at the tested merge SHA (candidate side)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -m pytest -v --tb=long -p no:cacheprovider "tests/test_council_needs_attention.py::test_a_resume_takes_the_pin_back_through_the_existing_fence" "tests/test_council_needs_attention.py::test_polling_a_paused_run_never_invents_output_for_the_dead_seat" "tests/test_run_migrations_cross_process.py::test_concurrent_first_use_migrations_lose_no_committed_row_and_poison_no_process" 2>&1 | tee .verification-logs/three-at-candidate.log
+      - name: The same three node IDs at the baseline commit
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          git checkout --force 8153a9697f3c022a635bc95fa450ba7b5720e3c9
+          { echo -n "baseline checkout: "; git rev-parse HEAD; } | tee .verification-logs/three-at-baseline.log
+          python -m pytest -v --tb=long -p no:cacheprovider "tests/test_council_needs_attention.py::test_a_resume_takes_the_pin_back_through_the_existing_fence" "tests/test_council_needs_attention.py::test_polling_a_paused_run_never_invents_output_for_the_dead_seat" "tests/test_run_migrations_cross_process.py::test_concurrent_first_use_migrations_lose_no_committed_row_and_poison_no_process" 2>&1 | tee -a .verification-logs/three-at-baseline.log
+          git checkout --force 143296cf692ad15dda096c7b9a295b63f3509f1d
+      - name: Docs suite — verbose output and JUnit (eight passes, nothing else; this gate fails the job)
+        run: |
+          set -o pipefail
+          python -m pytest tests/test_docs_site_builds.py -v --tb=short -p no:cacheprovider --junitxml=.verification-logs/docs-junit.xml 2>&1 | tee .verification-logs/docs-verbose.log
+          python -c "import xml.etree.ElementTree as ET; r = ET.parse('.verification-logs/docs-junit.xml').getroot(); s = r if r.tag == 'testsuite' else r.find('testsuite'); cases = list(s.iter('testcase')); assert len(cases) == 8, [c.get('classname', '') + '::' + c.get('name', '') for c in cases]; assert s.get('failures') == '0' and s.get('errors') == '0' and s.get('skipped') == '0', s.attrib; assert not [c for c in cases if c.find('failure') is not None or c.find('error') is not None or c.find('skipped') is not None], 'a docs case did not pass'; print('DOCS JUNIT OK — eight cases, all passed:', [c.get('name') for c in cases])" > .verification-logs/docs-junit-verdict.txt
+          cat .verification-logs/docs-junit-verdict.txt
+      - name: Upload the diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-evidence-diagnostic
+          path: .verification-logs/
+          include-hidden-files: true
