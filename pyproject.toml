@@ -106,7 +106,7 @@ dev = [
     "pytest==9.1.0",
     # Same pin as the CI gate, so `pip install -e ".[dev]"` and the gate cannot disagree about
     # which rules exist. Bump both lines together.
-    "ruff==0.16.7",
+    "ruff==0.16.8",
     "mypy>=1.8",
     # tests/test_daemon_survives_concurrent_load.py imports httpx to drive /healthz while chat turns
     # are in flight. It was never declared, so it passed only on machines that happened to have it
