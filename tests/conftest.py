@@ -73,8 +73,7 @@ os.environ.setdefault("VOOL_BUNDLED_PLUGINS_DIR", str(_HERMETIC_PLUGINS / "no-bu
 # absolute file args — tests/wallet carried 7 distinct Package objects, tests/usepod 4,
 # 283 CI "fixture not found" errors) and locally with interleaved top-level/subpackage file
 # arguments. Keeping ONE collector per directory path per session restores the identity the
-# fixture registry already assumes. Upstream report: pytest-dev/pytest (collection: a
-# terminal file argument re-collects its parent package and forks subpackage collectors).
+# fixture registry already assumes. Upstream report: https://github.com/pytest-dev/pytest/issues/15071.
 
 
 def pytest_collectstart(collector):
