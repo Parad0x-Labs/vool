@@ -1,0 +1,482 @@
+name: Conftest race debug 7
+
+# A/B/C experiment for the CI-only "fixture not found" cluster (pytest 9.1.0):
+#   leg-rel : shard 6 file args exactly as ci.yml passes them (relative) — control
+#   leg-abs : the same shard with absolute file args — lever (a)
+#   leg-911 : pytest upgraded to 9.1.1, relative args — lever (b)
+# Each leg carries the race6 per-item visibility probe extended with:
+#   - DIRECTORY CENSUS: distinct Package/Dir collector objects per path
+#   - COLLECT-START trace: every Package/Dir creation with its parent object
+#   - PENDING-AFTER trace: conftests still awaiting fixture binding after each report
+#   - FIXTURE REGISTRY BINDINGS: which node object each conftest fixture bound to
+# Read the FULL summary of every leg — never tail the pytest output.
+
+on:
+  push:
+    branches: [debug/conftest-race7]
+
+concurrency:
+  group: conftest-race7-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  leg-rel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap apparmor
+          sudo tee /etc/apparmor.d/bwrap > /dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Provision the served-browser lane (Playwright chromium)
+        run: python -m playwright install --with-deps chromium
+      - name: Write the probe
+        run: |
+          mkdir -p /tmp/probe
+          cat > /tmp/probe/item_visibility.py <<'EOF'
+          import sys
+
+          _state = {"session": None, "dumped": False, "stats": {}}
+
+          CONFTEST_FIXTURES = {
+              "wallet_env", "rpc", "evm_rig", "usepod_home", "usepod_service",
+              "seeded", "auto_context", "arch_home", "corpus", "workspace", "governance",
+          }
+
+          def pytest_collectstart(collector):
+              _state["session"] = collector.session
+              kind = type(collector).__name__
+              if kind in ("Package", "Dir"):
+                  p = collector.parent
+                  print(
+                      f"COLLECT-START {kind} path={collector.path} id={id(collector)} "
+                      f"parent={type(p).__name__}:{getattr(p, 'path', None)} id={id(p)}",
+                      file=sys.stderr, flush=True,
+                  )
+
+          def pytest_collectreport(report):
+              ses = _state["session"]
+              fm = getattr(ses, "_fixturemanager", None) if ses is not None else None
+              pending = getattr(fm, "_pending_conftests", None) if fm is not None else None
+              if pending:
+                  print(
+                      f"PENDING-AFTER {report.nodeid!r} dirs={[str(p) for p in pending]}",
+                      file=sys.stderr, flush=True,
+                  )
+
+          def pytest_collection_finish(session):
+              _state["session"] = session
+              census = {}
+              for item in session.items:
+                  for n in item.iter_parents():
+                      if type(n).__name__ in ("Package", "Dir"):
+                          census.setdefault((type(n).__name__, str(n.path)), set()).add(id(n))
+              print("=== DIRECTORY CENSUS ===", file=sys.stderr, flush=True)
+              for (kind, path), ids in sorted(census.items()):
+                  flag = "  <-- DUPLICATE" if len(ids) > 1 else ""
+                  print(f"  {kind} {path}: {len(ids)} object(s){flag}", file=sys.stderr, flush=True)
+              fm = session._fixturemanager
+              print("=== FIXTURE REGISTRY BINDINGS ===", file=sys.stderr, flush=True)
+              for name in sorted(CONFTEST_FIXTURES):
+                  defs = fm._arg2fixturedefs.get(name)
+                  if not defs:
+                      continue
+                  for d in defs:
+                      node = getattr(d, "node", None)
+                      print(
+                          f"  {name}: node={type(node).__name__}:{getattr(node, 'path', None)} id={id(node)}",
+                          file=sys.stderr, flush=True,
+                      )
+
+          def pytest_runtest_logstart(nodeid, location):
+              if _state["dumped"] or _state["session"] is None:
+                  return
+              session = _state["session"]
+              fm = session._fixturemanager
+              item = session.items and next((i for i in session.items if i.nodeid == nodeid), None)
+              if item is None:
+                  return
+              names = [n for n in getattr(item, "fixturenames", ()) if n in CONFTEST_FIXTURES]
+              if not names:
+                  return
+              snap = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
+              for name in names:
+                  live = fm.getfixturedefs(name, item)
+                  key = (name, name in snap, bool(live))
+                  _state["stats"][key] = _state["stats"].get(key, 0) + 1
+                  if not live and not _state["dumped"]:
+                      _state["dumped"] = True
+                      print(f"LIVE-EMPTY {nodeid} name={name}", file=sys.stderr, flush=True)
+                      defs = fm._arg2fixturedefs.get(name)
+                      print(f"  registry: {[(type(getattr(d, 'node', None)).__name__, getattr(d, 'node', None).nodeid if d.node is not None else None, id(getattr(d, 'node', None))) for d in (defs or [])]}", file=sys.stderr, flush=True)
+                      for n in item.iter_parents():
+                          print(f"  parent {type(n).__name__} {n.nodeid[:80]!r} id={id(n)}", file=sys.stderr, flush=True)
+
+          def pytest_sessionfinish(session, exitstatus):
+              print("=== VISIBILITY STATS ===", file=sys.stderr, flush=True)
+              for (name, snap_has, live), count in sorted(_state["stats"].items()):
+                  print(f"  {name}: snapshot={snap_has} live={live} items={count}", file=sys.stderr, flush=True)
+          EOF
+      - name: Resolve shard 6 (verbatim ci.yml resolver)
+        run: |
+          mkdir -p .verification-logs
+          python - <<'EOF'
+          import subprocess, sys
+          from pathlib import Path
+
+          shard = 6
+          shards = 10
+          collected = subprocess.run(
+              [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          files = sorted({line.split("::", 1)[0] for line in collected.splitlines() if "::" in line})
+          macos_only = {
+              "tests/test_macos_app_packaging.py",
+              "tests/updater/test_e2e_sandbox.py",
+              "tests/test_artifact_readers_contracts.py",
+              "tests/test_artifact_readers_served_m1.py",
+              "tests/test_artifact_readers_served_m2.py",
+              "tests/test_audio_dictation.py",
+              "tests/test_media_product_served.py",
+          }
+          files = [f for f in files if f not in macos_only]
+          sized = sorted(files, key=lambda f: -Path(f).stat().st_size)
+          mine = [f for index, f in enumerate(sized) if index % shards == shard]
+          Path(".verification-logs", f"shard-{shard}-files.txt").write_text("\n".join(mine) + "\n")
+          print(f"shard {shard}/{shards}: {len(mine)} of {len(sized)} files")
+          EOF
+      - name: Run shard 6 (relative args — control)
+        run: >-
+          PYTHONPATH=/tmp/probe python -m pytest -q --tb=line -p no:cacheprovider
+          -p item_visibility $(tr '\n' ' ' < .verification-logs/shard-6-files.txt)
+
+  leg-abs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap apparmor
+          sudo tee /etc/apparmor.d/bwrap > /dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Provision the served-browser lane (Playwright chromium)
+        run: python -m playwright install --with-deps chromium
+      - name: Write the probe
+        run: |
+          mkdir -p /tmp/probe
+          cat > /tmp/probe/item_visibility.py <<'EOF'
+          import sys
+
+          _state = {"session": None, "dumped": False, "stats": {}}
+
+          CONFTEST_FIXTURES = {
+              "wallet_env", "rpc", "evm_rig", "usepod_home", "usepod_service",
+              "seeded", "auto_context", "arch_home", "corpus", "workspace", "governance",
+          }
+
+          def pytest_collectstart(collector):
+              _state["session"] = collector.session
+              kind = type(collector).__name__
+              if kind in ("Package", "Dir"):
+                  p = collector.parent
+                  print(
+                      f"COLLECT-START {kind} path={collector.path} id={id(collector)} "
+                      f"parent={type(p).__name__}:{getattr(p, 'path', None)} id={id(p)}",
+                      file=sys.stderr, flush=True,
+                  )
+
+          def pytest_collectreport(report):
+              ses = _state["session"]
+              fm = getattr(ses, "_fixturemanager", None) if ses is not None else None
+              pending = getattr(fm, "_pending_conftests", None) if fm is not None else None
+              if pending:
+                  print(
+                      f"PENDING-AFTER {report.nodeid!r} dirs={[str(p) for p in pending]}",
+                      file=sys.stderr, flush=True,
+                  )
+
+          def pytest_collection_finish(session):
+              _state["session"] = session
+              census = {}
+              for item in session.items:
+                  for n in item.iter_parents():
+                      if type(n).__name__ in ("Package", "Dir"):
+                          census.setdefault((type(n).__name__, str(n.path)), set()).add(id(n))
+              print("=== DIRECTORY CENSUS ===", file=sys.stderr, flush=True)
+              for (kind, path), ids in sorted(census.items()):
+                  flag = "  <-- DUPLICATE" if len(ids) > 1 else ""
+                  print(f"  {kind} {path}: {len(ids)} object(s){flag}", file=sys.stderr, flush=True)
+              fm = session._fixturemanager
+              print("=== FIXTURE REGISTRY BINDINGS ===", file=sys.stderr, flush=True)
+              for name in sorted(CONFTEST_FIXTURES):
+                  defs = fm._arg2fixturedefs.get(name)
+                  if not defs:
+                      continue
+                  for d in defs:
+                      node = getattr(d, "node", None)
+                      print(
+                          f"  {name}: node={type(node).__name__}:{getattr(node, 'path', None)} id={id(node)}",
+                          file=sys.stderr, flush=True,
+                      )
+
+          def pytest_runtest_logstart(nodeid, location):
+              if _state["dumped"] or _state["session"] is None:
+                  return
+              session = _state["session"]
+              fm = session._fixturemanager
+              item = session.items and next((i for i in session.items if i.nodeid == nodeid), None)
+              if item is None:
+                  return
+              names = [n for n in getattr(item, "fixturenames", ()) if n in CONFTEST_FIXTURES]
+              if not names:
+                  return
+              snap = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
+              for name in names:
+                  live = fm.getfixturedefs(name, item)
+                  key = (name, name in snap, bool(live))
+                  _state["stats"][key] = _state["stats"].get(key, 0) + 1
+                  if not live and not _state["dumped"]:
+                      _state["dumped"] = True
+                      print(f"LIVE-EMPTY {nodeid} name={name}", file=sys.stderr, flush=True)
+                      defs = fm._arg2fixturedefs.get(name)
+                      print(f"  registry: {[(type(getattr(d, 'node', None)).__name__, getattr(d, 'node', None).nodeid if d.node is not None else None, id(getattr(d, 'node', None))) for d in (defs or [])]}", file=sys.stderr, flush=True)
+                      for n in item.iter_parents():
+                          print(f"  parent {type(n).__name__} {n.nodeid[:80]!r} id={id(n)}", file=sys.stderr, flush=True)
+
+          def pytest_sessionfinish(session, exitstatus):
+              print("=== VISIBILITY STATS ===", file=sys.stderr, flush=True)
+              for (name, snap_has, live), count in sorted(_state["stats"].items()):
+                  print(f"  {name}: snapshot={snap_has} live={live} items={count}", file=sys.stderr, flush=True)
+          EOF
+      - name: Resolve shard 6 (verbatim ci.yml resolver)
+        run: |
+          mkdir -p .verification-logs
+          python - <<'EOF'
+          import subprocess, sys
+          from pathlib import Path
+
+          shard = 6
+          shards = 10
+          collected = subprocess.run(
+              [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          files = sorted({line.split("::", 1)[0] for line in collected.splitlines() if "::" in line})
+          macos_only = {
+              "tests/test_macos_app_packaging.py",
+              "tests/updater/test_e2e_sandbox.py",
+              "tests/test_artifact_readers_contracts.py",
+              "tests/test_artifact_readers_served_m1.py",
+              "tests/test_artifact_readers_served_m2.py",
+              "tests/test_audio_dictation.py",
+              "tests/test_media_product_served.py",
+          }
+          files = [f for f in files if f not in macos_only]
+          sized = sorted(files, key=lambda f: -Path(f).stat().st_size)
+          mine = [f for index, f in enumerate(sized) if index % shards == shard]
+          Path(".verification-logs", f"shard-{shard}-files.txt").write_text("\n".join(mine) + "\n")
+          print(f"shard {shard}/{shards}: {len(mine)} of {len(sized)} files")
+          EOF
+      - name: Run shard 6 (absolute args — lever a)
+        run: >-
+          PYTHONPATH=/tmp/probe python -m pytest -q --tb=line -p no:cacheprovider
+          -p item_visibility
+          $(sed "s|^|$PWD/|" .verification-logs/shard-6-files.txt | tr '\n' ' ')
+
+  leg-911:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Upgrade pytest to 9.1.1 (lever b)
+        run: |
+          python -m pip install --upgrade "pytest==9.1.1"
+          python -m pytest --version
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap apparmor
+          sudo tee /etc/apparmor.d/bwrap > /dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Provision the served-browser lane (Playwright chromium)
+        run: python -m playwright install --with-deps chromium
+      - name: Write the probe
+        run: |
+          mkdir -p /tmp/probe
+          cat > /tmp/probe/item_visibility.py <<'EOF'
+          import sys
+
+          _state = {"session": None, "dumped": False, "stats": {}}
+
+          CONFTEST_FIXTURES = {
+              "wallet_env", "rpc", "evm_rig", "usepod_home", "usepod_service",
+              "seeded", "auto_context", "arch_home", "corpus", "workspace", "governance",
+          }
+
+          def pytest_collectstart(collector):
+              _state["session"] = collector.session
+              kind = type(collector).__name__
+              if kind in ("Package", "Dir"):
+                  p = collector.parent
+                  print(
+                      f"COLLECT-START {kind} path={collector.path} id={id(collector)} "
+                      f"parent={type(p).__name__}:{getattr(p, 'path', None)} id={id(p)}",
+                      file=sys.stderr, flush=True,
+                  )
+
+          def pytest_collectreport(report):
+              ses = _state["session"]
+              fm = getattr(ses, "_fixturemanager", None) if ses is not None else None
+              pending = getattr(fm, "_pending_conftests", None) if fm is not None else None
+              if pending:
+                  print(
+                      f"PENDING-AFTER {report.nodeid!r} dirs={[str(p) for p in pending]}",
+                      file=sys.stderr, flush=True,
+                  )
+
+          def pytest_collection_finish(session):
+              _state["session"] = session
+              census = {}
+              for item in session.items:
+                  for n in item.iter_parents():
+                      if type(n).__name__ in ("Package", "Dir"):
+                          census.setdefault((type(n).__name__, str(n.path)), set()).add(id(n))
+              print("=== DIRECTORY CENSUS ===", file=sys.stderr, flush=True)
+              for (kind, path), ids in sorted(census.items()):
+                  flag = "  <-- DUPLICATE" if len(ids) > 1 else ""
+                  print(f"  {kind} {path}: {len(ids)} object(s){flag}", file=sys.stderr, flush=True)
+              fm = session._fixturemanager
+              print("=== FIXTURE REGISTRY BINDINGS ===", file=sys.stderr, flush=True)
+              for name in sorted(CONFTEST_FIXTURES):
+                  defs = fm._arg2fixturedefs.get(name)
+                  if not defs:
+                      continue
+                  for d in defs:
+                      node = getattr(d, "node", None)
+                      print(
+                          f"  {name}: node={type(node).__name__}:{getattr(node, 'path', None)} id={id(node)}",
+                          file=sys.stderr, flush=True,
+                      )
+
+          def pytest_runtest_logstart(nodeid, location):
+              if _state["dumped"] or _state["session"] is None:
+                  return
+              session = _state["session"]
+              fm = session._fixturemanager
+              item = session.items and next((i for i in session.items if i.nodeid == nodeid), None)
+              if item is None:
+                  return
+              names = [n for n in getattr(item, "fixturenames", ()) if n in CONFTEST_FIXTURES]
+              if not names:
+                  return
+              snap = getattr(getattr(item, "_fixtureinfo", None), "name2fixturedefs", None) or {}
+              for name in names:
+                  live = fm.getfixturedefs(name, item)
+                  key = (name, name in snap, bool(live))
+                  _state["stats"][key] = _state["stats"].get(key, 0) + 1
+                  if not live and not _state["dumped"]:
+                      _state["dumped"] = True
+                      print(f"LIVE-EMPTY {nodeid} name={name}", file=sys.stderr, flush=True)
+                      defs = fm._arg2fixturedefs.get(name)
+                      print(f"  registry: {[(type(getattr(d, 'node', None)).__name__, getattr(d, 'node', None).nodeid if d.node is not None else None, id(getattr(d, 'node', None))) for d in (defs or [])]}", file=sys.stderr, flush=True)
+                      for n in item.iter_parents():
+                          print(f"  parent {type(n).__name__} {n.nodeid[:80]!r} id={id(n)}", file=sys.stderr, flush=True)
+
+          def pytest_sessionfinish(session, exitstatus):
+              print("=== VISIBILITY STATS ===", file=sys.stderr, flush=True)
+              for (name, snap_has, live), count in sorted(_state["stats"].items()):
+                  print(f"  {name}: snapshot={snap_has} live={live} items={count}", file=sys.stderr, flush=True)
+          EOF
+      - name: Resolve shard 6 (verbatim ci.yml resolver)
+        run: |
+          mkdir -p .verification-logs
+          python - <<'EOF'
+          import subprocess, sys
+          from pathlib import Path
+
+          shard = 6
+          shards = 10
+          collected = subprocess.run(
+              [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          files = sorted({line.split("::", 1)[0] for line in collected.splitlines() if "::" in line})
+          macos_only = {
+              "tests/test_macos_app_packaging.py",
+              "tests/updater/test_e2e_sandbox.py",
+              "tests/test_artifact_readers_contracts.py",
+              "tests/test_artifact_readers_served_m1.py",
+              "tests/test_artifact_readers_served_m2.py",
+              "tests/test_audio_dictation.py",
+              "tests/test_media_product_served.py",
+          }
+          files = [f for f in files if f not in macos_only]
+          sized = sorted(files, key=lambda f: -Path(f).stat().st_size)
+          mine = [f for index, f in enumerate(sized) if index % shards == shard]
+          Path(".verification-logs", f"shard-{shard}-files.txt").write_text("\n".join(mine) + "\n")
+          print(f"shard {shard}/{shards}: {len(mine)} of {len(sized)} files")
+          EOF
+      - name: Run shard 6 (relative args, pytest 9.1.1 — lever b)
+        run: >-
+          PYTHONPATH=/tmp/probe python -m pytest -q --tb=line -p no:cacheprovider
+          -p item_visibility $(tr '\n' ' ' < .verification-logs/shard-6-files.txt)
