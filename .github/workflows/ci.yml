@@ -146,6 +146,9 @@ jobs:
         with:
           name: verification-logs-shard-${{ matrix.shard }}
           path: .verification-logs/
+          # upload-artifact v4+ silently drops dot-directories unless told otherwise:
+          # .verification-logs/ IS one, so every prior run's "artifact" uploaded empty.
+          include-hidden-files: true
 
   macos:
     # The genuinely macOS-only lanes, RUN here rather than skipped: the artifact-reader
@@ -189,6 +192,8 @@ jobs:
         with:
           name: verification-logs-macos
           path: .verification-logs/
+          # Same dot-directory exclusion as the shard uploads — see the shard upload note.
+          include-hidden-files: true
 
   build:
     runs-on: ubuntu-latest
