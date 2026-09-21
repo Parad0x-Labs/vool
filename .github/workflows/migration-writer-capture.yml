@@ -57,10 +57,13 @@ jobs:
         run: |
           mkdir -p .verification-logs
           git rev-parse HEAD | grep -qx 8153a9697f3c022a635bc95fa450ba7b5720e3c9 || { echo "WRONG CHECKOUT"; exit 1; }
-          git checkout diagnostic/migration-writer-capture -- tests/_diag_migration_race_capture.py
+          # A SHA-pinned checkout fetches only that ref, so the branch carrying the
+          # harness is fetched explicitly before its file is taken.
+          git fetch origin +refs/heads/diagnostic/migration-writer-capture:refs/remotes/origin/diagnostic/migration-writer-capture
+          git checkout origin/diagnostic/migration-writer-capture -- tests/_diag_migration_race_capture.py
           echo -n "tested source (both legs): " | tee .verification-logs/identity.txt
           git rev-parse HEAD | tee -a .verification-logs/identity.txt
-          echo "harness extracted from diagnostic/migration-writer-capture" | tee -a .verification-logs/identity.txt
+          echo "harness extracted from origin/diagnostic/migration-writer-capture" | tee -a .verification-logs/identity.txt
       # Expected to FAIL on the runner: that failure is the original test's own
       # baseline evidence, recorded separately from the instrumented capture.
       - name: Leg 1 — the ORIGINAL test at baseline (separate evidence)
