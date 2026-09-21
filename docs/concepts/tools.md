@@ -14,8 +14,12 @@ read back afterwards without re-running it.
 
 ## Permission
 
-Tools that change something ask first. Tools that only read operate inside the
-[workspace](workspaces.md).
+Approval depends on the operating mode and the action. In Manual mode every change asks
+first. In Auto mode, everyday changes — creating and editing files, running commands —
+can run automatically, while deleting, overwriting, installing, spending, deploying,
+sending messages, and changing settings or git history still ask. Under both modes the
+standing checks remain: file tools operate only inside the [workspace](workspaces.md),
+and search or fetch tools read public resources without writing anything.
 
 ```text
 tool: read_file

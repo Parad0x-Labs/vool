@@ -131,7 +131,8 @@ def test_ignore_rules_add_public_concept_pages_and_still_ignore_personal_files(
 ) -> None:
     """The bare MEMORY.md/TOOLS.md personal-file rules must not swallow the public concept
     pages that share their names (case-insensitively where core.ignoreCase applies), while
-    every synthetic personal file -- root, nested, any case -- stays ignored.
+    the personal files stay ignored: the exact-case names at any depth on both settings,
+    and differently-cased lookalikes wherever matching is case-insensitive.
 
     Drives a disposable git repository holding THIS repository's actual .gitignore, so the
     published ignore contract itself is what is under test, on both ignoreCase settings.
