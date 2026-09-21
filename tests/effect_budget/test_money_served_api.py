@@ -10,6 +10,7 @@ projection, revocation and reconciliation over real HTTP.
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -137,6 +138,13 @@ def test_the_daemon_serves_money_state_written_by_independent_processes_and_keep
         except Exception as exc:  # pragma: no cover - environment gate, stated in the skip
             pytest.skip(f"served daemon could not boot here: {exc}")
         restarted = None
+        # The journey pins the process runtime state to the served home (probe.configure_home).
+        # The race children seal their node signer record under THAT home with their own
+        # passphrase, so if the pin outlives this test, the next signer reload in this pytest
+        # process resolves into the served home and dies with InvalidTag under the suite
+        # passphrase (measured 2026-09-21: tests/test_identity_lifecycle.py and tests/legacy/*
+        # red in the same shard). The finally hands every pinned piece back.
+        runtime_state = probe.runtime_state_snapshot()
         try:
             daemon_store = home / "data" / "vool_web0_v2.db"
             assert daemon_store.exists(), sorted(str(p.relative_to(home)) for p in home.rglob("*.db"))
@@ -213,11 +221,32 @@ def test_the_daemon_serves_money_state_written_by_independent_processes_and_keep
             if restarted is not None:
                 restarted.stop()
             daemon.stop()
-            from core import runtime_paths
-            from core.runtime_continuity import configure_runtime_continuity_db_path
+            probe.restore_runtime_state(runtime_state)
 
-            configure_runtime_continuity_db_path(None)
-            runtime_paths.configure_runtime_home(None)
+
+from core import runtime_paths as _runtime_paths
+
+_PROCESS_VOOL_HOME_AT_IMPORT = os.environ.get("VOOL_HOME")
+_PROCESS_HOME_OVERRIDE_AT_IMPORT = _runtime_paths._VOOL_HOME_OVERRIDE
+
+
+def test_the_served_daemon_test_leaves_the_process_runtime_home_behind_it():
+    """The served-home journey borrows the process runtime state, so it must give it back.
+
+    This module is collected as one unit, so this case runs immediately after the served-daemon
+    journey in every shard and ordering. If that journey leaves VOOL_HOME pointing at the served
+    home (or the runtime-home override moved), every later signer-touching test in the same
+    pytest process resolves its import-frozen paths into the served home and fails under the
+    suite passphrase — the cross-suite poison measured on 2026-09-21.
+    """
+    assert os.environ.get("VOOL_HOME") == _PROCESS_VOOL_HOME_AT_IMPORT, (
+        "VOOL_HOME drifted out of the served-daemon journey: "
+        f"{os.environ.get('VOOL_HOME')!r} (session pin {_PROCESS_VOOL_HOME_AT_IMPORT!r})"
+    )
+    assert _runtime_paths._VOOL_HOME_OVERRIDE == _PROCESS_HOME_OVERRIDE_AT_IMPORT, (
+        "runtime-home override drifted out of the served-daemon journey: "
+        f"{_runtime_paths._VOOL_HOME_OVERRIDE!r} (at import {_PROCESS_HOME_OVERRIDE_AT_IMPORT!r})"
+    )
 
 
 def test_this_test_runs_on_its_own_isolated_store(request, tmp_path):

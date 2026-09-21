@@ -218,12 +218,16 @@ def test_cancel_before_the_attempt_and_scope_close_return_only_unclaimed_money()
 @pytest.fixture()
 def provider_home(tmp_path):
     from core.runtime_paths import configure_runtime_home
+    from tests.effect_budget import money_race_probe as probe
 
+    # Restore exactly what was pinned: configure_runtime_home(None) would CLEAR the session
+    # home the root conftest installed for the run, not undo this fixture's pin.
+    runtime_state = probe.runtime_state_snapshot()
     configure_runtime_home(tmp_path)
     try:
         yield tmp_path
     finally:
-        configure_runtime_home(None)
+        probe.restore_runtime_state(runtime_state)
 
 
 def _seal(monetary=None, *, require=False, model_id="model-x"):
