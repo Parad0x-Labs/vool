@@ -60,7 +60,7 @@ jobs:
           git rev-parse HEAD | grep -qx 8153a9697f3c022a635bc95fa450ba7b5720e3c9 || { echo "WRONG CHECKOUT"; exit 1; }
           git fetch origin +refs/heads/repair/migration-writer-transaction:refs/remotes/origin/repair/migration-writer-transaction
           git rev-parse origin/repair/migration-writer-transaction | tee .verification-logs/repair-branch-head.txt
-      - name: Leg A — baseline tree, original writer (expected failure: the reproduction)
+      - name: "Leg A — baseline tree, original writer (expected failure: the reproduction)"
         id: leg_a
         continue-on-error: true
         run: |
