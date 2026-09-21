@@ -1,15 +1,15 @@
 name: macOS stub lanes debug 2
 
-# V-1 iteration 2: the previous round proved the daemon-side drop-out
-# (selected_provider_excluded_before_invocation, ranked_candidates: []) and that pinning
-# VOOL_RAW_OLLAMA_API_URL at the stub does not fix it. Local replicas on a dev Mac with and
-# without a live Ollama, and in the full ci.yml file order, all PASS -- so the gate must be
-# named ON the runner. This round instruments the ranking inside the daemon process (probe
-# snippets embedded base64 so the YAML cannot mangle them):
-#   - every hard exclusion of the reader-stub manifest logs the reason + cost_class + the
-#     local-only/paid/capability inputs at that moment
-#   - an empty strict+relaxed ranking dumps the full explain_provider_exclusions table
-# Then the full macOS job file list runs in ci.yml order.
+# V-1 iteration 3. Iteration 2 reproduced the drop-out on the runner (20 failed in ci.yml
+# order; the stub's own reply: "could not run this turn: its provider lane is not available
+# right now") but the model_selection_policy probes never fired -- so the exclusion either
+# early-returns before the end-of-function logger or never reaches that module, and the
+# daemon's logging config may swallow the logger anyway. This round dumps AT the decision
+# site (the explicit-pin branch that emits selected_provider_excluded_before_invocation),
+# via print(flush=True) so the rig's daemon.log capture gets it regardless of logging
+# config: model pin, task kind/mode, policy local-only, the FULL manifest inventory with
+# enabled state (disabled manifests included), the per-manifest exclusion explanation, and
+# provider health snapshots. Plus a patch self-check printed in the job log.
 
 on:
   push:
@@ -36,53 +36,47 @@ jobs:
           python -m pip install -e ".[dev,browser,companion,evm]"
       - name: Provision the served-browser lane (Playwright chromium)
         run: python -m playwright install --with-deps chromium
-      - name: Instrument the ranking with exclusion diagnostics
+      - name: Instrument the pin-blocked decision site
         run: |
           python - <<'EOF'
           import base64
           from pathlib import Path
 
-          A1_OLD = "ICAgIGlmIHByb3ZpZGVyX2Jhc2VfdHJ1c3QobWFuaWZlc3QpIDwgcmVxdWVzdC5taW5fdHJ1c3Q6CiAgICAgICAgcmV0dXJuICJiZWxvd19taW5fdHJ1c3QiCiAgICByZXR1cm4gIiI="
-          A1_NEW = "ICAgIGlmIHByb3ZpZGVyX2Jhc2VfdHJ1c3QobWFuaWZlc3QpIDwgcmVxdWVzdC5taW5fdHJ1c3Q6CiAgICAgICAgcmV0dXJuICJiZWxvd19taW5fdHJ1c3QiCiAgICBpZiBzdHIobWFuaWZlc3QucHJvdmlkZXJfbmFtZSBvciAiIikgPT0gInJlYWRlci1zdHViIiBvciBzdHIobWFuaWZlc3QubW9kZWxfbmFtZSBvciAiIikgPT0gInJlYWRlci1kcml2ZTpzdHViIjoKICAgICAgICBpbXBvcnQgbG9nZ2luZyBhcyBfbG9nZ2luZwogICAgICAgIF9sb2dnaW5nLmdldExvZ2dlcigidm9vbC5kZWJ1ZyIpLndhcm5pbmcoCiAgICAgICAgICAgICJTVFVCLUVYQ0wtT0sgcmVhc29uPSVzIGNvc3RfY2xhc3M9JXMgcG9saWN5X2xvY2FsX29ubHk9JXMgcmVxdWVzdF9sb2NhbF9vbmx5PSVzIGFsbG93X3BhaWQ9JXMgdGFza19raW5kPSVzIG91dHB1dF9tb2RlPSVzIiwKICAgICAgICAgICAgIiIgaWYgcHJvdmlkZXJfYmFzZV90cnVzdChtYW5pZmVzdCkgPj0gcmVxdWVzdC5taW5fdHJ1c3QgZWxzZSAiYmVsb3dfbWluX3RydXN0IiwKICAgICAgICAgICAgcHJvdmlkZXJfY29zdF9jbGFzcyhtYW5pZmVzdCksCiAgICAgICAgICAgIF9faW1wb3J0X18oImNvcmUucG9saWN5X2VuZ2luZSIsIGZyb21saXN0PVsicG9saWN5X2VuZ2luZSJdKS5sb2NhbF9vbmx5X21vZGUoKSwKICAgICAgICAgICAgcmVxdWVzdC5sb2NhbF9vbmx5LAogICAgICAgICAgICByZXF1ZXN0LmFsbG93X3BhaWRfZmFsbGJhY2ssCiAgICAgICAgICAgIHJlcXVlc3QudGFza19raW5kLAogICAgICAgICAgICByZXF1ZXN0Lm91dHB1dF9tb2RlLAogICAgICAgICkKICAgIHJldHVybiAiIg=="
-          A2_OLD = "ICAgIHN0cmljdCA9IF9yYW5rX29uY2UobWFuaWZlc3RzLCByZXF1ZXN0LCByZWxheF9tb2RlbF9wcmVmZXJlbmNlPUZhbHNlKQogICAgcmFua2VkID0gc3RyaWN0IG9yIF9yYW5rX29uY2UobWFuaWZlc3RzLCByZXF1ZXN0LCByZWxheF9tb2RlbF9wcmVmZXJlbmNlPVRydWUpCiAgICByZXR1cm4gX2Ryb3BfbW9kZWxzX3Rvb19zbWFsbF90b19zZWxlY3RfYV90b29sKHJhbmtlZCwgcmVxdWVzdCk="
-          A2_NEW = "ICAgIHN0cmljdCA9IF9yYW5rX29uY2UobWFuaWZlc3RzLCByZXF1ZXN0LCByZWxheF9tb2RlbF9wcmVmZXJlbmNlPUZhbHNlKQogICAgcmFua2VkID0gc3RyaWN0IG9yIF9yYW5rX29uY2UobWFuaWZlc3RzLCByZXF1ZXN0LCByZWxheF9tb2RlbF9wcmVmZXJlbmNlPVRydWUpCiAgICBpZiBub3QgcmFua2VkOgogICAgICAgIGltcG9ydCBqc29uIGFzIF9qc29uCiAgICAgICAgaW1wb3J0IGxvZ2dpbmcgYXMgX2xvZ2dpbmcKICAgICAgICByb3dzID0gZXhwbGFpbl9wcm92aWRlcl9leGNsdXNpb25zKG1hbmlmZXN0cywgcmVxdWVzdCkKICAgICAgICBfbG9nZ2luZy5nZXRMb2dnZXIoInZvb2wuZGVidWciKS53YXJuaW5nKAogICAgICAgICAgICAiRU1QVFktUkFOS0lORyBwaW49JXMvJXMgcm93cz0lcyIsCiAgICAgICAgICAgIHJlcXVlc3QucHJlZmVycmVkX3Byb3ZpZGVyLAogICAgICAgICAgICByZXF1ZXN0LnByZWZlcnJlZF9tb2RlbCwKICAgICAgICAgICAgX2pzb24uZHVtcHMocm93cywgZGVmYXVsdD1zdHIpLAogICAgICAgICApCiAgICByZXR1cm4gX2Ryb3BfbW9kZWxzX3Rvb19zbWFsbF90b19zZWxlY3RfYV90b29sKHJhbmtlZCwgcmVxdWVzdCk="
+          B_OLD = "ICAgICAgICAgICAgICAgIGJsb2NrX3JlYXNvbiA9ICgKICAgICAgICAgICAgICAgICAgICBwaW5fcmVzZXJ2YXRpb25fZGVuaWFsLmdldCgicmVhc29uIiwgIiIpCiAgICAgICAgICAgICAgICAgICAgaWYgKHJlcXVlc3RlZF9wYWlkX2Nsb3VkIGFuZCBhdXRob3JpemVkX3BhaWRfY2FsbCBpcyBOb25lKQogICAgICAgICAgICAgICAgICAgIGVsc2UgIiIKICAgICAgICAgICAgICAgICkgb3IgInNlbGVjdGVkX3Byb3ZpZGVyX2V4Y2x1ZGVkX2JlZm9yZV9pbnZvY2F0aW9uIgogICAgICAgICAgICAgICAgcmV0dXJuIHNlbGYuX3NlbGVjdGVkX21vZGVsX2Jsb2NrZWRfZGVjaXNpb24o"
+          B_NEW = "ICAgICAgICAgICAgICAgICkgb3IgInNlbGVjdGVkX3Byb3ZpZGVyX2V4Y2x1ZGVkX2JlZm9yZV9pbnZvY2F0aW9uIgogICAgICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgICAgIGZyb20gY29yZSBpbXBvcnQgcG9saWN5X2VuZ2luZSBhcyBfcGUKICAgICAgICAgICAgICAgICAgICBmcm9tIGNvcmUubW9kZWxfaGVhbHRoIGltcG9ydCBwcm92aWRlcl9oZWFsdGhfc25hcHNob3QgYXMgX3BocwogICAgICAgICAgICAgICAgICAgIGZyb20gY29yZS5tb2RlbF9yZWdpc3RyeSBpbXBvcnQgTW9kZWxSZWdpc3RyeSBhcyBfTVIKICAgICAgICAgICAgICAgICAgICBmcm9tIGNvcmUubW9kZWxfc2VsZWN0aW9uX3BvbGljeSBpbXBvcnQgKAogICAgICAgICAgICAgICAgICAgICAgICBNb2RlbFNlbGVjdGlvblJlcXVlc3QgYXMgX01TUiwKICAgICAgICAgICAgICAgICAgICAgICAgZXhwbGFpbl9wcm92aWRlcl9leGNsdXNpb25zIGFzIF9leHBsLAogICAgICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgICAgICBfYWxsID0gX01SKCkubGlzdF9tYW5pZmVzdHMoZW5hYmxlZF9vbmx5PUZhbHNlKQogICAgICAgICAgICAgICAgICAgIF9pbnYgPSBbKG0ucHJvdmlkZXJfaWQsICJvbiIgaWYgbS5lbmFibGVkIGVsc2UgIk9GRiIpIGZvciBtIGluIF9hbGxdCiAgICAgICAgICAgICAgICAgICAgX3JlcSA9IF9NU1IoCiAgICAgICAgICAgICAgICAgICAgICAgIHRhc2tfa2luZD10YXNrX2tpbmQsCiAgICAgICAgICAgICAgICAgICAgICAgIG91dHB1dF9tb2RlPW91dHB1dF9tb2RlLAogICAgICAgICAgICAgICAgICAgICAgICBwcmVmZXJyZWRfcHJvdmlkZXI9Tm9uZSwKICAgICAgICAgICAgICAgICAgICAgICAgcHJlZmVycmVkX21vZGVsPXJlcXVlc3RlZF9tb2RlbF9yYXcsCiAgICAgICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgICAgIHByaW50KAogICAgICAgICAgICAgICAgICAgICAgICAiUElOLUJMT0NLRUQgbW9kZWw9JXMgdGFzaz0lcy8lcyByb2xlPSVzIHBvbGljeV9sb2NhbF9vbmx5PSVzIGludmVudG9yeT0lcyBleHBsYWluPSVzIGhlYWx0aD0lcyIKICAgICAgICAgICAgICAgICAgICAgICAgJSAoCiAgICAgICAgICAgICAgICAgICAgICAgICAgICByZXF1ZXN0ZWRfbW9kZWxfcmF3LAogICAgICAgICAgICAgICAgICAgICAgICAgICAgdGFza19raW5kLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgb3V0cHV0X21vZGUsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBwcm92aWRlcl9yb2xlLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgX3BlLmxvY2FsX29ubHlfbW9kZSgpLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgX2ludiwKICAgICAgICAgICAgICAgICAgICAgICAgICAgIF9leHBsKF9hbGwsIF9yZXEpLAogICAgICAgICAgICAgICAgICAgICAgICAgICAge3BpZDogX3BocyhwaWQpIGZvciBwaWQsIF8gaW4gX2ludn0sCiAgICAgICAgICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgICAgICAgICAgIGZsdXNoPVRydWUsCiAgICAgICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBfZXhjOgogICAgICAgICAgICAgICAgICAgIHByaW50KCJQSU4tQkxPQ0tFRCBwcm9iZSBmYWlsZWQ6IiwgX2V4YywgZmx1c2g9VHJ1ZSkKICAgICAgICAgICAgICAgIHJldHVybiBzZWxmLl9zZWxlY3RlZF9tb2RlbF9ibG9ja2VkX2RlY2lzaW9uKA=="
 
-          p = Path("core/model_selection_policy.py")
+          p = Path("core/memory_first_router.py")
           src = p.read_text()
-          old1, new1 = base64.b64decode(A1_OLD).decode(), base64.b64decode(A1_NEW).decode()
-          old2, new2 = base64.b64decode(A2_OLD).decode(), base64.b64decode(A2_NEW).decode()
-          assert src.count(old1) == 1, "anchor1 count"
-          assert src.count(old2) == 1, "anchor2 count"
-          src = src.replace(old1, new1, 1).replace(old2, new2, 1)
+          old, new = base64.b64decode(B_OLD).decode(), base64.b64decode(B_NEW).decode()
+          assert src.count(old) == 1, "anchor count"
+          src = src.replace(old, new, 1)
           compile(src, str(p), "exec")
           p.write_text(src)
-          print("instrumented model_selection_policy.py")
+          print("PATCH-APPLIED: PIN-BLOCKED dump wired into memory_first_router")
+          print("PATCH-VERIFY:", "PIN-BLOCKED" in Path("core/memory_first_router.py").read_text())
           EOF
       - name: Run the macOS job suites in ci.yml order
         run: |
           set +e
-          python -m pytest -q --tb=short -p no:cacheprovider \
+          python -m pytest -q --tb=line -p no:cacheprovider \
             tests/test_macos_app_packaging.py \
             tests/updater/test_e2e_sandbox.py \
             tests/test_artifact_readers_contracts.py \
             tests/test_artifact_readers_served_m1.py \
             tests/test_artifact_readers_served_m2.py \
             tests/test_audio_dictation.py \
-            tests/test_media_product_served.py 2>&1 | tail -80
+            tests/test_media_product_served.py 2>&1 | tail -30
           echo "pytest rc=$?"
-      - name: Dump the exclusion diagnostics from daemon logs
+      - name: Dump the pin-blocked evidence from daemon logs
         if: always()
         run: |
           set +e
-          echo "=== STUB-EXCL / EMPTY-RANKING lines from every recent daemon.log ==="
+          echo "=== PIN-BLOCKED lines from every recent daemon.log ==="
           for BASE in /tmp /var/folders; do
             find "$BASE" -maxdepth 8 -name "daemon.log" -newermt "-40 minutes" 2>/dev/null | head -20
           done | while read -r LOG; do
-            if grep -qE "STUB-EXCL|EMPTY-RANKING" "$LOG" 2>/dev/null; then
+            if grep -q "PIN-BLOCKED" "$LOG" 2>/dev/null; then
               echo "===== $LOG ====="
-              grep -E "STUB-EXCL|EMPTY-RANKING" "$LOG" | sort | uniq -c | sort -rn | head -25
+              grep "PIN-BLOCKED" "$LOG" | sort | uniq -c | sort -rn | head -30
             fi
           done
-          echo "=== one full daemon.log tail for context ==="
-          FIRST=$(for BASE in /tmp /var/folders; do find "$BASE" -maxdepth 8 -name "daemon.log" -newermt "-40 minutes" 2>/dev/null; done | head -1)
-          [ -n "$FIRST" ] && tail -40 "$FIRST"
