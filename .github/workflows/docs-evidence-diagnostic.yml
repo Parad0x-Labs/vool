@@ -76,10 +76,18 @@ jobs:
           git checkout --force 8153a9697f3c022a635bc95fa450ba7b5720e3c9
           { echo -n "baseline checkout: "; git rev-parse HEAD; } | tee .verification-logs/three-at-baseline.log
           python -m pytest -v --tb=long -p no:cacheprovider "tests/test_council_needs_attention.py::test_a_resume_takes_the_pin_back_through_the_existing_fence" "tests/test_council_needs_attention.py::test_polling_a_paused_run_never_invents_output_for_the_dead_seat" "tests/test_run_migrations_cross_process.py::test_concurrent_first_use_migrations_lose_no_committed_row_and_poison_no_process" 2>&1 | tee -a .verification-logs/three-at-baseline.log
+      # A failing baseline run must not leave the tree on the baseline: bash -e would
+      # skip the restore inside that step (measured, first diagnostic run — the docs
+      # gate then saw the baseline tree). The restore is its own always-run step.
+      - name: Restore the tested merge SHA (always)
+        if: always()
+        run: |
           git checkout --force 143296cf692ad15dda096c7b9a295b63f3509f1d
+          git rev-parse HEAD | grep -qx 143296cf692ad15dda096c7b9a295b63f3509f1d || { echo "RESTORE FAILED"; exit 1; }
       - name: Docs suite — verbose output and JUnit (eight passes, nothing else; this gate fails the job)
         run: |
           set -o pipefail
+          git rev-parse HEAD | grep -qx 143296cf692ad15dda096c7b9a295b63f3509f1d || { echo "WRONG TREE FOR THE DOCS GATE"; exit 1; }
           python -m pytest tests/test_docs_site_builds.py -v --tb=short -p no:cacheprovider --junitxml=.verification-logs/docs-junit.xml 2>&1 | tee .verification-logs/docs-verbose.log
           python -c "import xml.etree.ElementTree as ET; r = ET.parse('.verification-logs/docs-junit.xml').getroot(); s = r if r.tag == 'testsuite' else r.find('testsuite'); cases = list(s.iter('testcase')); assert len(cases) == 8, [c.get('classname', '') + '::' + c.get('name', '') for c in cases]; assert s.get('failures') == '0' and s.get('errors') == '0' and s.get('skipped') == '0', s.attrib; assert not [c for c in cases if c.find('failure') is not None or c.find('error') is not None or c.find('skipped') is not None], 'a docs case did not pass'; print('DOCS JUNIT OK — eight cases, all passed:', [c.get('name') for c in cases])" > .verification-logs/docs-junit-verdict.txt
           cat .verification-logs/docs-junit-verdict.txt
