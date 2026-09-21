@@ -107,6 +107,74 @@ def test_the_docs_site_builds_and_passes_the_publish_gate(tmp_path: Path) -> Non
     assert index, "empty search index"
     error_pages = list(out.rglob("ERROR_BOOK*.html")) or list((out / "ERROR_BOOK").glob("*.html"))
     assert error_pages, "the generated error reference did not publish"
+    # The public concept pages that share their names with personal-file ignore rules
+    # must publish and be reachable through the generated search index.
+    for concept in ("memory", "tools"):
+        assert (out / "concepts" / concept / "index.html").is_file(), f"concepts/{concept} did not publish"
+    indexed_urls = {entry.get("u", "") for entry in index}
+    for concept in ("memory", "tools"):
+        assert f"/docs/concepts/{concept}/" in indexed_urls, f"concepts/{concept} is missing from the search index"
+
+
+def _git_in(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["git", *args], cwd=str(repo), capture_output=True, text=True, timeout=60)
+
+
+def _tracked(repo: Path, relative: str) -> bool:
+    listing = _git_in(repo, "ls-files", "--", relative)
+    return listing.returncode == 0 and bool(listing.stdout.strip())
+
+
+@pytest.mark.parametrize("ignore_case", [False, True], ids=["ignoreCase-false", "ignoreCase-true"])
+def test_ignore_rules_add_public_concept_pages_and_still_ignore_personal_files(
+    tmp_path: Path, ignore_case: bool,
+) -> None:
+    """The bare MEMORY.md/TOOLS.md personal-file rules must not swallow the public concept
+    pages that share their names (case-insensitively where core.ignoreCase applies), while
+    every synthetic personal file -- root, nested, any case -- stays ignored.
+
+    Drives a disposable git repository holding THIS repository's actual .gitignore, so the
+    published ignore contract itself is what is under test, on both ignoreCase settings.
+    """
+    probe = tmp_path / "ignore-probe"
+    (probe / "docs" / "concepts").mkdir(parents=True)
+    (probe / "notes").mkdir()
+    (probe / ".gitignore").write_text((REPO / ".gitignore").read_text(encoding="utf-8"), encoding="utf-8")
+    for concept in ("memory.md", "tools.md"):
+        (probe / "docs" / "concepts" / concept).write_text(f"# {concept.removesuffix('.md').title()}\n", encoding="utf-8")
+    personal_files = ["MEMORY.md", "TOOLS.md", "notes/MEMORY.md", "notes/TOOLS.md"]
+    for relative in personal_files:
+        (probe / relative).write_text("operator-private content\n", encoding="utf-8")
+    nested_lowercase = ["notes/memory.md", "notes/tools.md"]
+    for relative in nested_lowercase:
+        (probe / relative).write_text("private notes\n", encoding="utf-8")
+
+    init = _git_in(probe, "init", "-q")
+    assert init.returncode == 0, init.stderr
+    configured = _git_in(probe, "config", "core.ignoreCase", str(ignore_case).lower())
+    assert configured.returncode == 0, configured.stderr
+
+    for relative in ("docs/concepts/memory.md", "docs/concepts/tools.md"):
+        added = _git_in(probe, "add", "--", relative)
+        assert added.returncode == 0, (
+            f"the personal-name ignore rules swallow the public page {relative}: {added.stderr.strip()}"
+        )
+        assert _tracked(probe, relative), f"public page was not staged: {relative}"
+
+    still_ignored = list(personal_files)
+    if ignore_case:
+        # Only case-insensitive matching makes the bare rules catch these; with matching
+        # off they are distinct paths that are merely untracked, not ignored.
+        still_ignored += nested_lowercase
+    for relative in still_ignored:
+        checked = _git_in(probe, "check-ignore", "--", relative)
+        assert checked.returncode == 0, f"a personal file is no longer ignored: {relative}"
+        # git's add exit code is not a stable refusal signal (2.50.1 exits 0 while
+        # silently refusing ignored paths under ignoreCase): the index is the truth.
+        _git_in(probe, "add", "--", relative)
+        assert not _tracked(probe, relative), (
+            f"an ignored personal file became addable: {relative}"
+        )
 
 
 def test_generated_references_match_their_registries() -> None:

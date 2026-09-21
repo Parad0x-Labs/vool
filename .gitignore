@@ -93,6 +93,14 @@ HEARTBEAT.md
 BOOTSTRAP.md
 TOOLS.md
 Cursor_Claude_Handover.md
+# The two PUBLIC concept pages below share their names with the personal-operator files
+# above. Under core.ignoreCase=true (the macOS default) the bare rules match them
+# case-insensitively, so git add silently refuses them and git status never shows the
+# loss -- the same silent-loss mode the `memory/` negation above documents. Negate
+# exactly these two tracked pages; every other MEMORY.md / TOOLS.md anywhere (root,
+# nested, any case) stays ignored.
+!docs/concepts/memory.md
+!docs/concepts/tools.md
 
 # Handover docs (contain real node IPs, SSH paths, server configs)
 docs/HANDOVER_2026-03-15_FULL_STATE.md
