@@ -1,0 +1,92 @@
+name: Migration writer transaction comparison
+
+# Narrow A/B for the caller-transaction repair candidate: runs ONLY on push to
+# this repair branch. The main CI (ci.yml) triggers on push to main/develop and
+# pull_request to main, so this branch cannot launch the full ten-shard matrix.
+# Both legs run on the SAME runner environment (Python 3.12.13 / SQLite 3.45.1)
+# at the SAME pinned baseline commit: Leg A checks out the baseline tree and
+# runs the original test (expected failure — the reproduction), then Leg B takes
+# ONLY the repaired test file from this branch and re-runs the same node (must
+# pass), then Leg C runs the full cross-process file plus the singleton suite
+# cumulatively (must pass) and the pinned ruff. JUnit and logs are uploaded in
+# every outcome.
+
+on:
+  push:
+    branches: ["repair/migration-writer-transaction"]
+
+concurrency:
+  group: migration-writer-comparison
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: 8153a9697f3c022a635bc95fa450ba7b5720e3c9
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies (same as the CI tests job)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap) — same as the CI tests job
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Verify checkout identity and take the repaired test file
+        run: |
+          mkdir -p .verification-logs
+          git rev-parse HEAD | grep -qx 8153a9697f3c022a635bc95fa450ba7b5720e3c9 || { echo "WRONG CHECKOUT"; exit 1; }
+          git fetch origin +refs/heads/repair/migration-writer-transaction:refs/remotes/origin/repair/migration-writer-transaction
+          git rev-parse origin/repair/migration-writer-transaction | tee .verification-logs/repair-branch-head.txt
+      - name: Leg A — baseline tree, original writer (expected failure: the reproduction)
+        id: leg_a
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          { echo -n "checkout: "; git rev-parse HEAD; } | tee .verification-logs/leg-a-baseline-original.log
+          python -m pytest -v --tb=short -p no:cacheprovider --junitxml=.verification-logs/junit-leg-a.xml "tests/test_run_migrations_cross_process.py::test_concurrent_first_use_migrations_lose_no_committed_row_and_poison_no_process" 2>&1 | tee -a .verification-logs/leg-a-baseline-original.log
+      - name: Leg B — take ONLY the repaired test file, same node (must pass)
+        run: |
+          set -o pipefail
+          git checkout origin/repair/migration-writer-transaction -- tests/test_run_migrations_cross_process.py
+          { echo -n "HEAD (still the baseline commit): "; git rev-parse HEAD; } | tee .verification-logs/leg-b-repaired.log
+          git diff HEAD --stat | tee -a .verification-logs/leg-b-repaired.log
+          python -m pytest -v --tb=short -p no:cacheprovider --junitxml=.verification-logs/junit-leg-b.xml "tests/test_run_migrations_cross_process.py::test_concurrent_first_use_migrations_lose_no_committed_row_and_poison_no_process" 2>&1 | tee -a .verification-logs/leg-b-repaired.log
+      - name: Leg C — cumulative cross-process + singleton suites and pinned ruff (must pass)
+        run: |
+          set -o pipefail
+          python -m pytest -v --tb=short -p no:cacheprovider --junitxml=.verification-logs/junit-leg-c.xml tests/test_run_migrations_cross_process.py tests/test_run_migrations_singleton.py 2>&1 | tee .verification-logs/leg-c-cumulative.log
+          ruff check . | tee .verification-logs/ruff-pinned.txt
+      - name: Versions record
+        if: always()
+        run: |
+          python -c "import sys, sqlite3; print('python', sys.version.split()[0], '| sqlite', sqlite3.sqlite_version)" | tee .verification-logs/versions.txt
+      - name: Upload the comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: migration-writer-comparison
+          path: .verification-logs/
+          include-hidden-files: true
