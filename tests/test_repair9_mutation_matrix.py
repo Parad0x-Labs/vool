@@ -46,7 +46,10 @@ def _mp_create_retry_worker_sabotaged_no_uniqueness(db_path: str, parent_attempt
     ever deduplicated against each other -- reproducing "no uniqueness enforced" end to end."""
     import core.runtime_continuity as runtime_continuity_module
     from core.runtime_continuity import configure_runtime_continuity_db_path, create_runtime_attempt
+    from storage.db import configure_default_db_path
 
+    # Both stores use the same initialized database in each spawned process.
+    configure_default_db_path(db_path)
     configure_runtime_continuity_db_path(db_path)
     runtime_continuity_module.compute_retry_idempotency_key = lambda *_a, **_k: ""
     barrier.wait()

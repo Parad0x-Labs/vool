@@ -273,15 +273,13 @@ def test_sabotage_dropped_door_guard_lets_the_call_through(provider_home, set_bu
 
     with pytest.raises(EffectBudgetRefusedError):
         _seal(provider_home)  # the honest guard refuses
-    monkeypatch.setattr(gateway, "_reserve_provider_call_budget", lambda **k: ("", ""))
-    try:
+    with monkeypatch.context() as sabotage:
+        sabotage.setattr(gateway, "_reserve_provider_call_budget", lambda **k: ("", ""))
         smuggled = _seal(provider_home)
         assert smuggled.budget_reservation_id == "", (
             "sabotage failed — the red-proof would be vacuous"
         )
         smuggled.consume()  # the model call would run unbudgeted
         assert len(eb.reservation_rows()) == 1, "only the honest call is on the books"
-    finally:
-        monkeypatch.undo()
     with pytest.raises(EffectBudgetRefusedError):
         _seal(provider_home)  # restored

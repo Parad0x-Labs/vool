@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextvars
 import json
+import threading
 import time
 
 import pytest
@@ -88,16 +89,30 @@ def test_submit_returns_immediately_and_the_result_arrives_on_the_ticket() -> No
 
 def test_the_pool_and_queue_are_bounded_and_overflow_is_recorded() -> None:
     runtime = ShadowRuntime(max_workers=2, max_queue=2)
+    release = threading.Event()
+    started = [threading.Event(), threading.Event()]
+
+    def held_transport(index):
+        def transport(system, user, json_schema):
+            started[index].set()
+            assert release.wait(10), "the test did not release the occupied workers"
+            return GOOD_REPLY
+        return transport
+
     try:
-        tickets = [_submit(runtime, _stub(delay=0.3), turn_id=f"t{i}") for i in range(8)]
+        tickets = [_submit(runtime, held_transport(i), turn_id=f"t{i}") for i in range(2)]
+        assert all(event.wait(5) for event in started), "both workers must be occupied"
+        tickets.extend(_submit(runtime, _stub(), turn_id=f"t{i}") for i in range(2, 8))
         dropped = [t for t in tickets if t.status == "dropped"]
-        assert dropped, "an unbounded queue accepted everything"
+        assert len(dropped) == 4, "two running plus two queued must reject the other four"
         assert all(t.observation is not None and t.observation.failure_type == FAILURE_QUEUE_FULL for t in dropped)
+        release.set()
         for t in tickets:
             assert t.wait(10.0)
         assert runtime.stats()["peak_running"] <= 2
         assert runtime.stats()["dropped"] == len(dropped)
     finally:
+        release.set()
         runtime.shutdown()
 
 
