@@ -34,6 +34,7 @@ class TerminalState(str, Enum):
     """The stage a turn ended at. Exactly one is true of any completed turn."""
 
     SUCCESS = "success"
+    OPERATOR_STOPPED = "operator_stopped"              # the operator cancelled this turn; no stage failed
     REQUIRED_TOOLS_NOT_OFFERED = "required_tools_not_offered"  # needed evidence, never got a tool
     RETRIEVAL_EMPTY = "retrieval_empty"                    # searched, nothing came back
     RETRIEVAL_IRRELEVANT = "retrieval_irrelevant"          # results returned, none on topic
@@ -54,6 +55,10 @@ class StageObservation:
     retrieval_result_count: int = 0
     retrieval_on_topic_count: int = 0
     foreign_evidence_ids: list[str] = field(default_factory=list)
+    # The operator cancelled the turn (the runtime's own turn_cancelled refusal on a lane
+    # attempt). A stop is not a failure of any stage, and text in the terminal payload was
+    # never delivered as an answer.
+    operator_stop: bool = False
     # What the turn's contract required, versus what the selected lane actually handed it. Set from
     # `ExecutionRequirements`; both default False so an untouched observation cannot trip the check.
     tools_required: bool = False
@@ -81,6 +86,12 @@ def classify_turn(observation: StageObservation) -> TerminalState:
     # because a contaminated run can still produce fluent, confident prose.
     if obs.foreign_evidence_ids:
         return TerminalState.RETRIEVAL_CONTAMINATED
+    # The operator's stop ended the turn: nothing downstream ran to completion, and any text in
+    # the terminal payload was never delivered as an answer. Reporting a stage failure (or
+    # success) for a turn the operator stopped sends the next person to a layer that did not
+    # fail -- and downstream, a stopped turn must never become evidence about a provider.
+    if obs.operator_stop:
+        return TerminalState.OPERATOR_STOPPED
     # Ranked directly under contamination and above every retrieval state, because it happens
     # EARLIER than all of them and is invisible in the output: a turn that was never offered a tool
     # produces fluent prose indistinguishable from a researched answer. Reported as
@@ -121,6 +132,9 @@ def explain(state: TerminalState) -> str:
     """One line naming the layer to look at. For the trace and the ledger, not for the user."""
     return {
         TerminalState.SUCCESS: "answer delivered",
+        TerminalState.OPERATOR_STOPPED: (
+            "the operator stopped this turn -- no stage failed; nothing here is evidence about a provider"
+        ),
         TerminalState.REQUIRED_TOOLS_NOT_OFFERED: (
             "the request required evidence and the selected lane offered no tool -- check routing, "
             "not retrieval: nothing was searched"
@@ -150,6 +164,17 @@ def observation_from_trace(events: list[dict[str, Any]] | None) -> StageObservat
             continue
         kind = str(event.get("event_type") or event.get("type") or "").strip().lower()
         message = str(event.get("message") or "")
+        details = event.get("details") if isinstance(event.get("details"), dict) else {}
+        if kind.startswith("model_lane_failed") or kind.startswith("model_routing_failed"):
+            # The runtime's own cancellation refusal on a lane attempt: the operator stopped the
+            # turn mid-flight. The error rides top-level, in nested details, or inside the
+            # attempt timings the lane failure records.
+            texts = [message, str(event.get("error") or ""), str(details.get("error") or "")]
+            timings = event.get("attempt_timings") or details.get("attempt_timings")
+            if isinstance(timings, list):
+                texts.extend(str((item or {}).get("error") or "") for item in timings if isinstance(item, dict))
+            if any("turn_cancelled" in text for text in texts):
+                obs.operator_stop = True
         if kind.startswith("model.call_started"):
             obs.provider_called = True
         elif kind.startswith("model.call_failed"):
