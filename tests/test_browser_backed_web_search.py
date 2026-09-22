@@ -53,7 +53,9 @@ def offline_browser(monkeypatch: pytest.MonkeyPatch):
 
     def _install(dom: str, *, returncode: int = 0):
         def _fake_run(argv, *, timeout_s):
-            return returncode, dom.encode("utf-8")
+            # (returncode, stdout, stderr) — the engine captures the browser's stderr for its
+            # typed empty-DOM diagnosis; the fake speaks the same 3-tuple seam.
+            return returncode, dom.encode("utf-8"), b""
 
         monkeypatch.setattr(br, "_run_chrome", _fake_run)
         monkeypatch.setattr(br, "find_browser_binary", lambda: "/fake/chrome")
@@ -280,7 +282,7 @@ def test_an_empty_dom_is_a_failure_not_an_empty_success(monkeypatch: pytest.Monk
     # A clean exit code with nothing on stdout is a failed render. Reporting it as "ok" with empty
     # text would let a blank page be cited as evidence.
     monkeypatch.setattr(br, "find_browser_binary", lambda: "/fake/chrome")
-    monkeypatch.setattr(br, "_run_chrome", lambda argv, *, timeout_s: (0, b"   \n  "))
+    monkeypatch.setattr(br, "_run_chrome", lambda argv, *, timeout_s: (0, b"   \n  ", b""))
 
     assert br.chrome_render("https://example.com/")["status"].startswith("browser_empty_dom")
 
