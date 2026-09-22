@@ -187,7 +187,7 @@ def test_verified_free_byok_reasoning_model_gets_the_free_cloud_target(monkeypat
     assert sent["max_tokens"] == 1800 + 2048
 
 
-def test_non_reasoning_byok_model_keeps_the_callers_ceiling(monkeypatch, payload_server) -> None:
+def test_non_reasoning_byok_model_uses_the_paid_answer_budget_without_reasoning_reserve(monkeypatch, payload_server) -> None:
     manifest = _byok_manifest("openai/gpt-4.1-mini")
     monkeypatch.setattr(
         "core.openrouter_catalog.cached_catalog_row",
@@ -199,7 +199,10 @@ def test_non_reasoning_byok_model_keeps_the_callers_ceiling(monkeypatch, payload
     adapter = _live_adapter(manifest, payload_server)
     adapter.run_text_task(_request(240))
     sent = json.loads(_PayloadHandler.bodies[-1])
-    assert sent["max_tokens"] == 240
+    from core.output_budget_policy import lane_resolved_output_tokens
+
+    assert sent["max_tokens"] == lane_resolved_output_tokens(manifest, base_tokens=240, output_mode="plain_text")
+    assert sent["max_tokens"] == 760
 
 
 def test_unclassified_lane_keeps_the_legacy_reserve_arithmetic(monkeypatch, payload_server) -> None:

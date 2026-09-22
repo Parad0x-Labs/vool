@@ -231,6 +231,7 @@ def test_browser_render_keeps_its_missing_dependency_contract(monkeypatch: pytes
     monkeypatch.delenv("PLAYWRIGHT_ENABLED", raising=False)
     monkeypatch.setattr(policy_engine, "playwright_enabled", lambda: True)
     monkeypatch.setitem(sys.modules, "playwright", None)
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
     monkeypatch.setattr(br, "find_browser_binary", lambda: None)
 
     assert br.browser_render("https://example.com/") == {
