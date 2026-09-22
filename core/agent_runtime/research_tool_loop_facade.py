@@ -1801,6 +1801,7 @@ class ResearchToolLoopFacadeMixin:
             execution_details = dict(execution.details or {})
             head_step: dict[str, Any] = {
                 "tool_name": execution.tool_name or tool_name,
+                "ok": bool(execution.ok),
                 "status": str(execution.status or "executed"),
                 "mode": execution.mode,
                 "deferred_calls": [],
@@ -1944,6 +1945,7 @@ class ResearchToolLoopFacadeMixin:
                 executed_steps.append(
                     {
                         "tool_name": member_execution.tool_name or member_intent,
+                        "ok": bool(member_execution.ok),
                         "status": str(member_execution.status or ("executed" if member_ran else "failed")),
                         "mode": member_execution.mode,
                         "deferred_calls": [],
