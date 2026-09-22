@@ -222,30 +222,42 @@ def test_the_daemon_serves_money_state_written_by_independent_processes_and_keep
                 restarted.stop()
             daemon.stop()
             probe.restore_runtime_state(runtime_state)
-
-
-from core import runtime_paths as _runtime_paths
-
-_PROCESS_VOOL_HOME_AT_IMPORT = os.environ.get("VOOL_HOME")
-_PROCESS_HOME_OVERRIDE_AT_IMPORT = _runtime_paths._VOOL_HOME_OVERRIDE
+            # What the journey must leave behind: EXACTLY the pre-journey state. Recorded for
+            # the guard case below, which runs immediately after this module's journey in every
+            # shard and ordering and must judge only THIS journey's give-back — not drift some
+            # earlier test in the shard left behind (a module-import snapshot would blame those
+            # too; CI run 35665692856 measured exactly that false attribution).
+            globals()["_RUNTIME_STATE_AFTER_JOURNEY"] = runtime_state
 
 
 def test_the_served_daemon_test_leaves_the_process_runtime_home_behind_it():
     """The served-home journey borrows the process runtime state, so it must give it back.
 
     This module is collected as one unit, so this case runs immediately after the served-daemon
-    journey in every shard and ordering. If that journey leaves VOOL_HOME pointing at the served
-    home (or the runtime-home override moved), every later signer-touching test in the same
-    pytest process resolves its import-frozen paths into the served home and fails under the
-    suite passphrase — the cross-suite poison measured on 2026-09-21.
+    journey in every shard and ordering. The journey records the exact process state it restored
+    in its finally; anything else sitting here now is a leak from THAT journey. (Earlier tests
+    in the shard may leave their own drift — this guard does not judge them; the recorded
+    give-back is the journey's own, not a module-import pin. CI run 35665692856 showed the
+    import-pin shape blaming a pre-existing override-clearer from an unrelated file.) A leak
+    here sends every later signer-touching test in this pytest process into the served home —
+    the cross-suite poison measured on 2026-09-21.
     """
-    assert os.environ.get("VOOL_HOME") == _PROCESS_VOOL_HOME_AT_IMPORT, (
-        "VOOL_HOME drifted out of the served-daemon journey: "
-        f"{os.environ.get('VOOL_HOME')!r} (session pin {_PROCESS_VOOL_HOME_AT_IMPORT!r})"
+    after = globals().get("_RUNTIME_STATE_AFTER_JOURNEY")
+    assert after is not None, "the served-daemon journey never recorded its give-back"
+    now = probe.runtime_state_snapshot()
+    # Snapshot layout: (VOOL_HOME env, runtime-home override, default db override, continuity
+    # db override). The default-db piece is repointed per test by this package's own autouse
+    # store fixture, so it is not the journey's to give back; the leak class this guard pins
+    # is the HOME pieces.
+    assert now[0] == after[0], (
+        f"VOOL_HOME drifted out of the served-daemon journey: {now[0]!r} (restored {after[0]!r})"
     )
-    assert _runtime_paths._VOOL_HOME_OVERRIDE == _PROCESS_HOME_OVERRIDE_AT_IMPORT, (
-        "runtime-home override drifted out of the served-daemon journey: "
-        f"{_runtime_paths._VOOL_HOME_OVERRIDE!r} (at import {_PROCESS_HOME_OVERRIDE_AT_IMPORT!r})"
+    assert now[1] == after[1], (
+        f"runtime-home override drifted out of the served-daemon journey: {now[1]!r} "
+        f"(restored {after[1]!r})"
+    )
+    assert now[3] == after[3], (
+        f"continuity db drifted out of the served-daemon journey: {now[3]!r} (restored {after[3]!r})"
     )
 
 
