@@ -52,6 +52,7 @@ feeds the label map; the request always carried the exact id and continues to.
 from __future__ import annotations
 
 import json
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -180,6 +181,10 @@ def _route(route):
     if request.resource_type == "document":
         route.fulfill(status=200, content_type="text/html", body=HTML)
         return
+    if urlsplit(url).path == "/api/cloud/providers":
+        route.fulfill(status=200, content_type="application/json",
+                      body=json.dumps({"providers": [{"id": "openrouter", "label": "OpenRouter"}]}))
+        return
     if "/api/cloud/models" in url:
         models = [{"id": f"vendor/model-{i}", "name": name, "free": True}
                   for i, name in enumerate(LONG_MODEL_NAMES)]
@@ -187,14 +192,14 @@ def _route(route):
                       body=json.dumps({"models": models, "provider": "openrouter",
                                        "label": "OpenRouter", "auto_free_model": "auto"}))
         return
-    if url.endswith("/api/cloud/model") and request.method == "GET":
+    if urlsplit(url).path == "/api/cloud/model" and request.method == "GET":
         route.fulfill(status=200, content_type="application/json",
                       body=json.dumps({"ok": True, "model": CAPTURED["server_pin"],
                                        "cost_state": "free" if CAPTURED["server_pin"] else "",
                                        "provider": "openrouter", "free_cloud_enabled": True,
                                        "auto_free_model": "auto"}))
         return
-    if url.endswith("/api/cloud/model") and request.method == "POST":
+    if urlsplit(url).path == "/api/cloud/model" and request.method == "POST":
         body = json.loads(request.post_data or "{}")
         CAPTURED["pin_posts"].append(body)
         if CAPTURED["pin_mode"] == "unavailable":
@@ -202,7 +207,9 @@ def _route(route):
             route.fulfill(status=404, content_type="application/json",
                           body=json.dumps({"ok": False, "error": "model not resolvable on this provider"}))
             return
-        CAPTURED["server_pin"] = str(body.get("model", ""))
+        requested = str(body.get("model", ""))
+        # The chat-scoped server authority releases a pin for these commands.
+        CAPTURED["server_pin"] = "" if requested in {"auto", "default", "reset"} else requested
         route.fulfill(status=200, content_type="application/json",
                       body=json.dumps({"ok": True, "model": CAPTURED["server_pin"], "cost_state": "free"}))
         return
@@ -265,6 +272,8 @@ def _fresh_page(page) -> None:
     CAPTURED["pin_posts"].clear()
     CAPTURED["pin_mode"] = "ok"
     CAPTURED["server_pin"] = ""
+    if page.url == "about:blank":
+        page.goto("http://vool.test/chat")
     page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
     page.goto("http://vool.test/chat")
     page.wait_for_timeout(300)
@@ -713,7 +722,7 @@ def test_an_unavailable_model_is_refused_without_touching_the_selection(session)
         """() => { const n = [...document.querySelectorAll('#modelPop .cloud-dyn.pop-item')]
              .find((x) => x.getAttribute('data-model') === 'vendor/model-2');
              return n ? n.querySelector('.pi-body').textContent : null; }""")
-    assert row_text and "could not switch" in row_text, f"the refusal was not shown on the row: {row_text!r}"
+    assert row_text and "model not resolvable on this provider" in row_text, f"the refusal was not shown on the row: {row_text!r}"
     label = page.evaluate("() => document.getElementById('modelLbl').textContent")
     assert "Meta: Llama 4 Maverick 402B" in label, f"the standing selection was disturbed: {label!r}"
     body = _send_and_capture(page, "still the old pin")
@@ -744,8 +753,8 @@ def test_losing_the_cloud_key_cannot_leave_a_cloud_pin_silently_in_charge(sessio
     body = _send_and_capture(page, "no key now")
     assert body["model"] == "vool", body
 
-    page.evaluate("""() => { localModelIds.add('qwen3:8b'); modelValue = 'qwen3:8b';
-                             localStorage.setItem('vool_model', 'qwen3:8b'); reflectModel(); }""")
+    page.evaluate("""() => { localModelIds.add('qwen3:8b'); setModelValue('qwen3:8b');
+                             setCloudConnected(false); reflectModel(); }""")
     label = page.evaluate("() => document.getElementById('modelLbl').textContent")
     assert label == "qwen3:8b", f"the local pin is not visible: {label!r}"
     body = _send_and_capture(page, "local pin with no key")
