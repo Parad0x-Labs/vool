@@ -51,7 +51,10 @@ def test_run_once_puts_override_in_force_then_resets(monkeypatch):
     agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
     seen = {}
 
-    def fake_inner(self, user_input, *, session_id_override=None, source_context=None):
+    # `turn_request` is part of run_once's forwarding contract to _run_once_inner (the served
+    # turn's request identity); the doubles take it so the override lifecycle stays testable
+    # without reimplementing the forwarding.
+    def fake_inner(self, user_input, *, session_id_override=None, source_context=None, turn_request=None):
         seen["during"] = g.effective_autonomy_mode()
         return {"response": "ok"}
 
@@ -64,7 +67,7 @@ def test_run_once_puts_override_in_force_then_resets(monkeypatch):
 def test_run_once_resets_override_even_on_exception(monkeypatch):
     agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
 
-    def boom(self, user_input, *, session_id_override=None, source_context=None):
+    def boom(self, user_input, *, session_id_override=None, source_context=None, turn_request=None):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(VoolAgent, "_run_once_inner", boom)
