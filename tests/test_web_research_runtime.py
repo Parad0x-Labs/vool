@@ -4,6 +4,7 @@ import json
 import unittest
 from unittest import mock
 
+from core.effect_gateway import named_background_effect_scope
 from core.live_quote_contract import format_quote_timestamp
 from core.remote_fetch_policy import remote_fetch_policy_scope
 from tools.web.web_research import (
@@ -272,7 +273,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         with mock.patch(
             "tools.web.web_research.urllib.request.urlopen",
             return_value=self._json_response(payload),
-        ):
+        ), named_background_effect_scope("test.web-research.weather-nested-payload"):
             result = web_research("what is weather in Vilnius now?", max_hits=1, max_pages=1)
 
         self.assertEqual(result.provider, "wttr_in")
@@ -429,7 +430,7 @@ class WebResearchRuntimeTests(unittest.TestCase):
         ), mock.patch(
             "tools.web.web_research.http_fetch_text",
             side_effect=AssertionError("prebuilt market quote page should skip refetch"),
-        ):
+        ), named_background_effect_scope("test.web-research.market-quote-fallback"):
             result = web_research("Brent crude price now?", max_hits=1, max_pages=1)
 
         self.assertEqual(result.provider, "yahoo_finance")
@@ -501,7 +502,9 @@ def test_news_rss_fallback_returns_none_on_empty_feed() -> None:
         def __exit__(self, *args):
             return False
 
-    with mock.patch("urllib.request.urlopen", return_value=_Resp()):
+    with mock.patch("urllib.request.urlopen", return_value=_Resp()), named_background_effect_scope(
+        "test.web-research.news-rss-empty-feed"
+    ):
         assert web_research._news_rss_fallback("latest iran news", max_hits=3, timeout_s=5.0) is None
 
 
