@@ -52,11 +52,13 @@ out({decisions,posts,selected:modelValue,acked:paidPinAcked(modelValue)});
 def test_stale_prices_refresh_before_the_single_confirmation_click():
     result = run_node(DOM + r"""
 let releaseRefresh; const requests=[];
-fetch=async url=>{
+fetch=async (url,opts)=>{
   requests.push(url);
-  if(url.includes('/acceptances')) return {json:async()=>({acceptances:[]})};
+  if(opts && opts.method==='POST')
+    return {ok:true,status:200,json:async()=>({ok:true})};
+  if(url.includes('/acceptances')) return {ok:true,json:async()=>({acceptances:[]})};
   if(url.includes('refresh=1')) return await new Promise(r=>releaseRefresh=r);
-  return {json:async()=>({provider:'usepod',age_seconds:1200,models:[{id:'demo',prompt_usd_per_m:1,completion_usd_per_m:2}]})};
+  return {ok:true,json:async()=>({provider:'usepod',age_seconds:1200,models:[{id:'demo',prompt_usd_per_m:1,completion_usd_per_m:2}]})};
 };
 """ + _GATE_JS + r"""
 const decision=window.VoolPriceGate.review({kind:'pin',id:'usepod:demo',provider:'usepod'});
@@ -65,10 +67,13 @@ const overlay=document.body.children.find(x=>x.id==='vgOverlay');
 const actions=overlay.querySelector('#vgActions');
 const automatic=Boolean(releaseRefresh), disabledBefore=actions.children[0].disabled;
 if(!automatic){out({automatic,disabledBefore});}else{
-  releaseRefresh({json:async()=>({provider:'usepod',age_seconds:0,models:[{id:'demo',prompt_usd_per_m:3,completion_usd_per_m:4}]})});
+  releaseRefresh({ok:true,json:async()=>({provider:'usepod',age_seconds:0,models:[{id:'demo',prompt_usd_per_m:3,completion_usd_per_m:4}]})});
   await new Promise(r=>setImmediate(r));
   const beforeClick=overlay.querySelector('#vgBody').innerHTML;
   const enabledAfter=!actions.children[0].disabled;
+  // Review the refreshed limits the way the operator does (see the gate case above), then accept.
+  document.getElementById('vgMaxIn').value='3';
+  document.getElementById('vgMaxOut').value='4';
   actions.children[0].click();
   out({automatic,disabledBefore,enabledAfter,beforeClick,accepted:await decision,hidden:overlay.hidden,requests});
 }
@@ -77,7 +82,7 @@ if(!automatic){out({automatic,disabledBefore});}else{
     assert result["disabledBefore"] is True
     assert result["enabledAfter"] is True
     assert "3.00 USDC" in result["beforeClick"] and "4.00 USDC" in result["beforeClick"]
-    assert result["accepted"] is True and result["hidden"] is True
+    assert result["accepted"] == 'conversation' and result["hidden"] is True
     assert sum("refresh=1" in url for url in result["requests"]) == 1
 
 
@@ -117,21 +122,38 @@ out({paints,requests,showPrices:cloudShowPrices});
 @pytest.mark.parametrize("kind", ["pin", "per-send"])
 def test_gate_offers_a_conversation_decision_with_explicit_limits(kind):
     result = run_node(DOM + r"""
-fetch=async url=>({json:async()=>url.includes('/acceptances')?{acceptances:[]}:
-  {provider:'usepod',age_seconds:0,models:[{id:'demo',prompt_usd_per_m:1,completion_usd_per_m:6}]}});
+// The gate reads three endpoints before it paints (acceptances, catalog prices, UsePod
+// route bounds) and BOTH accept buttons now save the reviewed maxima through
+// /api/cloud/usepod/approve-route before the decision resolves -- the same chat-scoped
+// acceptance either button promises. Every read succeeds; the save succeeds; the
+// post-save bounds refetch succeeds. What the gate does when a read or the save FAILS
+// (stay open, keep the draft, say why) is the product's own error contract, not this case.
+fetch=async (url,opts)=>{
+  if(opts && opts.method==='POST')
+    return {ok:true,status:200,json:async()=>({ok:true})};
+  if(url.includes('/acceptances')) return {ok:true,json:async()=>({acceptances:[]})};
+  if(url.includes('/discovery')) return {ok:true,json:async()=>({approved_routes:{}})};
+  return {ok:true,json:async()=>({provider:'usepod',age_seconds:0,
+    models:[{id:'demo',prompt_usd_per_m:1,completion_usd_per_m:6}]})};
+};
 """ + _GATE_JS + "\nconst kind=" + json.dumps(kind) + ";\n" + r"""
 const decision=window.VoolPriceGate.review({kind,id:'usepod:demo',provider:'usepod'});
 await new Promise(r=>setImmediate(r));
 const overlay=document.body.children.find(x=>x.id==='vgOverlay');
 const actions=overlay.querySelector('#vgActions');
+// The reviewed maxima are the gate's editable draft. In a browser they prefill from the
+// observed rates; the harness DOM keeps innerHTML as a string, so the operator's review of
+// the prefilled limits is expressed the way the user types it: set both axes, then accept.
+document.getElementById('vgMaxIn').value='1';
+document.getElementById('vgMaxOut').value='6';
 const button=actions.children.find(x=>String(x.className||'').split(' ').includes('vg-conversation'));
 const label=button.textContent;
 const body=overlay.querySelector('#vgBody').innerHTML;
 button.click();out({decision:await decision,body,hidden:overlay.hidden,label});
 """)
     assert result["decision"] == "conversation" and result["hidden"]
-    assert result["label"] == "Accept price for this chat (1 hour)"
-    assert "1 hour" in result["body"] and "spending limits" in result["body"]
+    assert result["label"] == "Accept price for this chat (24 hours)"
+    assert "24 hours" in result["body"] and "spending limits" in result["body"]
     # Price acceptance does not widen the separately approved monetary budget.
     assert "price only" in result["body"] and "approved UsePod budget" in result["body"]
     assert "Provider <b>UsePod</b>" in result["body"] and "6.00 USDC" in result["body"]
@@ -140,24 +162,34 @@ button.click();out({decision:await decision,body,hidden:overlay.hidden,label});
 def test_late_acceptance_read_cannot_replace_enabled_confirmation_buttons():
     result = run_node(DOM + r'''
 const acceptanceReads=[];
-fetch=async url=>url.includes('/acceptances')
-  ? new Promise(resolve=>acceptanceReads.push(resolve))
-  : {json:async()=>({provider:'usepod',age_seconds:0,models:[{id:'demo',prompt_usd_per_m:1,completion_usd_per_m:6}]})};
+fetch=async (url,opts)=>{
+  if(opts && opts.method==='POST')
+    return {ok:true,status:200,json:async()=>({ok:true})};
+  if(url.includes('/discovery')) return {ok:true,json:async()=>({approved_routes:{}})};
+  if(url.includes('/acceptances'))
+    return await new Promise(resolve=>acceptanceReads.push(resolve));
+  return {ok:true,json:async()=>({provider:'usepod',age_seconds:0,models:[{id:'demo',prompt_usd_per_m:1,completion_usd_per_m:6}]})};
+};
 ''' + _GATE_JS + r'''
 const decision=window.VoolPriceGate.review({kind:'pin',id:'usepod:demo',provider:'usepod'});
 await new Promise(r=>setImmediate(r));
 const overlay=document.body.children.find(x=>x.id==='vgOverlay');
 const actions=overlay.querySelector('#vgActions');
 const before=actions.children[0].disabled;
-acceptanceReads.forEach(resolve=>resolve({json:async()=>({acceptances:[]})}));
+acceptanceReads.forEach(resolve=>resolve({ok:true,json:async()=>({acceptances:[]})}));
 await new Promise(r=>setImmediate(r));
 const button=actions.children[0];
 await new Promise(r=>setImmediate(r));
 const unchanged=button===actions.children[0], enabled=!button.disabled;
+// The reviewed-maxima draft, typed the way the operator reviews it (see the gate case above).
+document.getElementById('vgMaxIn').value='1';
+document.getElementById('vgMaxOut').value='6';
 button.click();out({before,unchanged,enabled,decision:await decision});
 ''')
     assert result['before'] and result['unchanged'] and result['enabled']
-    assert result['decision'] is True
+    # Both accept buttons resolve the same chat-scoped 'conversation' acceptance once the
+    # reviewed maxima have saved; a bare one-turn `true` is no longer offered by any button.
+    assert result['decision'] == 'conversation'
 
 
 def test_rapid_double_click_on_one_model_row_creates_one_decision():
