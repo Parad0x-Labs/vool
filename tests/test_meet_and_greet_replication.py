@@ -268,15 +268,21 @@ class MeetAndGreetReplicationTests(unittest.TestCase):
                 captured[str(key)] = str(value)
             return _Resp()
 
+        from core.effect_gateway import named_background_effect_scope
+
         client = HttpMeetClient(
             auth_token="global-token",
             auth_tokens_by_base_url={"https://seed-us.example.test": "seed-token"},
         )
         with patch("core.meet_and_greet_replication.urllib.request.urlopen", side_effect=fake_urlopen):
-            client._get_json("https://seed-us.example.test/v1/index/snapshot")
-            self.assertEqual(captured.get("X-vool-meet-token"), "seed-token")
-            client._get_json("https://seed-eu.example.test/v1/index/snapshot")
-            self.assertEqual(captured.get("X-vool-meet-token"), "global-token")
+            # The outbound door denies a fetch outside any turn or named background scope; the
+            # replication client runs as exactly such background work, so its owner opens the
+            # named scope the law requires at the owning entry point.
+            with named_background_effect_scope("test.meet_and_greet_http_client"):
+                client._get_json("https://seed-us.example.test/v1/index/snapshot")
+                self.assertEqual(captured.get("X-vool-meet-token"), "seed-token")
+                client._get_json("https://seed-eu.example.test/v1/index/snapshot")
+                self.assertEqual(captured.get("X-vool-meet-token"), "global-token")
 
 
 if __name__ == "__main__":

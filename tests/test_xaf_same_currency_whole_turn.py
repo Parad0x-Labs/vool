@@ -100,11 +100,30 @@ def test_cross_currency_jurisdictions_without_a_rate_remain_explicitly_unresolve
     assert "3,000" not in claimed["response"]
 
 
+def test_a_local_currency_ask_with_foreign_holdings_needs_that_rate_not_a_usd_subtraction() -> None:
+    """A foreign-unit holding is coherent (an explicit ISO unit wins for the HOLDING), but the
+    question asked for units of LOCAL currency: the answer's denomination is the place's own
+    money, and without a supplied USD/XAF rate the turn stays explicitly unresolved -- never a
+    same-currency subtraction presented as the answer."""
+    prompt = _prompt("Douala, Cameroon", "Libreville, Gabon", unit="USD")
+    request = travel_spend_intent(prompt)
+    claimed = currency_fast_path(prompt)
+
+    assert isinstance(request, TravelSpendRequest)
+    assert (request.source_code, request.target_code) == ("USD", "USD")
+    assert request.missing_rate is True
+    assert request.missing_pair == ("USD", "XAF")
+    assert claimed is not None
+    assert claimed["grounded"] == "no_rate_declined"
+    assert "cannot be calculated without a USD/XAF exchange rate" in claimed["response"]
+    assert "The local currency in Libreville, Gabon is the" in claimed["response"]
+    assert "3,000" not in claimed["response"]
+
+
 @pytest.mark.parametrize(
     "prompt",
     (
         _prompt("Douala, Cameroon", "Libreville, Atlantis"),
-        _prompt("Douala, Cameroon", "Libreville, Gabon", unit="USD"),
         "Send 5,000 XAF from Douala to Libreville and pay 2,000 XAF for me.",
     ),
 )

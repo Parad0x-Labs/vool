@@ -68,9 +68,14 @@ def test_ambiguous_pick_executes_the_real_tool_and_logs() -> None:
     ):
         result = _gate(AMBIGUOUS_MSG)
     assert result == wrapped
-    tool.assert_called_once_with(
-        "machine.find_folder", {"name": "token hunter"}, source_context={}, trusted_local_only=False
-    )
+    assert tool.call_count == 1
+    (tool_name, tool_args), tool_kwargs = tool.call_args
+    assert (tool_name, tool_args) == ("machine.find_folder", {"name": "token hunter"})
+    assert tool_kwargs["trusted_local_only"] is False
+    # The execution boundary the runtime crosses carries its own authorization: a manual-mode
+    # allow for exactly this bounded action, not a bare context that executed by default.
+    permission = dict(tool_kwargs["source_context"]).get("_blackbox_permission") or {}
+    assert permission.get("effect") == "allow" and permission.get("actions") == ["list_directories"], permission
     rows = rdl.recent_decisions()
     assert rows and rows[-1]["family"] == "intent_arbiter"
     assert rows[-1]["arbiter"] == "picked:find_folder" and rows[-1]["handled"] is True

@@ -93,6 +93,13 @@ jobs:
           bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
       - name: Provision the served-browser lane (Playwright chromium)
         run: python -m playwright install --with-deps chromium
+      - name: Provision a virtual display for headful sessions
+        # The wallet-handoff contract opens one genuinely headful Chromium session (a handoff
+        # requires a VISIBLE browser by design). These runners have no display, so a headful
+        # launch cannot open and the lane times out waiting for the operator's session. A
+        # virtual framebuffer gives the headful lane a real display to map its window onto;
+        # every other test is unaffected.
+        run: sudo apt-get install -y xvfb
       - name: Resolve this shard's test files
         run: |
           mkdir -p .verification-logs
@@ -144,6 +151,7 @@ jobs:
           EOF
       - name: Run shard ${{ matrix.shard }}
         run: >-
+          xvfb-run -a --server-args="-screen 0 1280x1024x24"
           python -m pytest -q --tb=short -p no:cacheprovider
           $(tr '\n' ' ' < .verification-logs/shard-${{ matrix.shard }}-files.txt)
       - name: Upload shard log

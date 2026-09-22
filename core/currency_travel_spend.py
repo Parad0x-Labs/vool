@@ -168,6 +168,10 @@ class TravelSpendRequest:
     identity_only: bool = False
     asks_enough: bool = False
     missing_rate: bool = False
+    #: The actually-missing pair when a local-currency ask blocks the calculation and that
+    #: pair differs from the holdings' own codes (a foreign-unit holding in a local-currency
+    #: question). Empty means the missing pair is source/target as parsed.
+    missing_pair: tuple[str, str] = ()
 
 
 @dataclass(frozen=True)
@@ -502,6 +506,17 @@ def travel_spend_intent(text: str) -> TravelCurrencyRequest | None:
     asks_identity = any(marker in normalized for marker in _IDENTITY_MARKERS)
     asks_calculation = any(marker in normalized for marker in _CALCULATION_MARKERS)
     conversion_path_missing = source_code != target_code and not _path(source_code, target_code, rates)
+    missing_pair: tuple[str, str] = ()
+    # A question phrased in LOCAL-currency units asks for the place's own money. The holding's
+    # explicit foreign unit is a coherent holding (measured 2026-09-07), but it may not quietly
+    # redefine the denomination of the ANSWER: "how many units of local currency" with USD
+    # amounts in an XAF jurisdiction still needs USD to XAF, and without a supplied rate that
+    # conversion is missing -- a same-currency subtraction would answer a question nobody asked.
+    if "local currency" in normalized:
+        local_target = _location_code(target_location) or _location_code(source_location)
+        if local_target and source_code != local_target and not _path(source_code, local_target, rates):
+            conversion_path_missing = True
+            missing_pair = (source_code, local_target)
     if conversion_path_missing:
         if not asks_identity and not asks_calculation:
             return None
@@ -520,6 +535,7 @@ def travel_spend_intent(text: str) -> TravelCurrencyRequest | None:
         identity_only=identity_only,
         asks_enough="enough" in normalized,
         missing_rate=missing_rate,
+        missing_pair=missing_pair,
     )
 
 
@@ -585,11 +601,19 @@ def render_travel_spend(request: TravelCurrencyRequest) -> str:
     if request.identity_only:
         return "\n".join([*identity_lines, "No exchange rate was needed or retrieved."])
     if request.missing_rate:
+        left, right = request.missing_pair or (request.source_code, request.target_code)
+        local_line = ""
+        if request.missing_pair:
+            # Name the place's own money the question asked for, so the missing pair is not a
+            # currency that appeared from nowhere beside holdings named as something else.
+            local_place = request.target_location or request.source_location
+            local_line = f"The local currency in {local_place} is the {_identity(right)}."
         return "\n".join(
             [
                 *identity_lines,
+                *([local_line] if local_line else []),
                 f"An exact deficit or remainder cannot be calculated without a "
-                f"{request.source_code}/{request.target_code} exchange rate.",
+                f"{left}/{right} exchange rate.",
                 "No rate was supplied, retrieved, or invented; provide that rate to calculate the balance.",
             ]
         )
