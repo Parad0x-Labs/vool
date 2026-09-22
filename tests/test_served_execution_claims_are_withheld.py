@@ -22,9 +22,15 @@ FAKE_RUN_REPLY = (
 
 
 def test_served_fabricated_tool_transcript_is_withheld_and_the_prose_survives(tmp_path):
+    from core.entity_ambiguity import AMBIGUITY_SYSTEM_PROMPT
     from tests import _reader_served_rig as rig
 
-    with rig.CapturingProvider(default=FAKE_RUN_REPLY) as provider:
+    def scripted_reply(body):
+        if any(AMBIGUITY_SYSTEM_PROMPT in str(m.get("content", "")) for m in body.get("messages", [])):
+            return json.dumps({"ambiguous": False, "referents": [], "clarification": ""})
+        return FAKE_RUN_REPLY
+
+    with rig.CapturingProvider(default=FAKE_RUN_REPLY, reply_fn=scripted_reply) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
                                   env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
         try:

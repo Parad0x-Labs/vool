@@ -25,7 +25,9 @@ def test_named_check_under_cwd_remains_bound_after_green(project):
     (checks / 'check.py').write_text("import sys\nsys.path.insert(0, '..')\n" + CHECK)
     args = {'command': 'python3 check.py', 'cwd': 'checks'}
     assert task.step('workspace.run_tests', args).details['stage'] == 'cumulative'
-    assert task.step('workspace.run_tests', args).details['stage'] == 'inspect_diff'
+    # Task's reproduced failure was the root check.py. The check under checks/
+    # is a separate narrow check; cumulative acceptance still owes the original.
+    assert task.step('workspace.run_tests', {'command': 'python3 check.py'}).details['stage'] == 'inspect_diff'
     assert task.step('workspace.git_diff', {}).ok
     assert _door('code.task.report', {'task_id': task.id}, task.ctx).details['verdict'] == 'completed'
     (checks / 'check.py').write_text('raise AssertionError("changed check")\n')

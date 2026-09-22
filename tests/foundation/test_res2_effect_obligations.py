@@ -15,9 +15,11 @@ from core.conductor import obligation_ledger as ol
 
 @pytest.fixture()
 def fresh_store(tmp_path, monkeypatch):
+    from core.mode_permission_policy import reset_mode_permission_state
     from core.runtime_continuity import configure_runtime_continuity_db_path
     from storage.db import active_default_db_path
 
+    reset_mode_permission_state()
     sdb.configure_default_db_path(tmp_path / "res2.db")
     from storage.migrations import run_migrations
 
@@ -29,6 +31,7 @@ def fresh_store(tmp_path, monkeypatch):
         lambda key, default=None: True if key == "email.send_enabled" else default,
     )
     yield
+    reset_mode_permission_state()
     ol.clear_active_set()
     sdb.configure_default_db_path(None)
 
@@ -39,6 +42,17 @@ def _bind_turn_set():
     )
     ol.bind_active_set(obset["set_id"], obset["version"])
     return obset
+
+
+def _approved_context(payload):
+    from core.mode_permission_policy import decide_tool_call, resolve_approval
+
+    context = {"runtime_session_id": "s1", "operating_mode": "manual"}
+    decision = decide_tool_call(**payload, task_id="t1", source_context=context)
+    assert decision.approval_request is not None, decision
+    token = decision.approval_request["approval_id"]
+    assert resolve_approval(token, decision="allow")
+    return {**context, "mode_approval_token": token}
 
 
 def _drive_email_send(monkeypatch, *, ok: bool):
@@ -55,7 +69,9 @@ def _drive_email_send(monkeypatch, *, ok: bool):
         details={},
     )
 
+    calls = []
     def fake_runtime_tool(intent, arguments, **kw):
+        calls.append(intent)
         return _exec
 
     monkeypatch.setattr(tie, "execute_authorized_runtime_tool", fake_runtime_tool)
@@ -63,15 +79,17 @@ def _drive_email_send(monkeypatch, *, ok: bool):
         "intent": "email.send",
         "arguments": {"to": "a@b.c", "subject": "s", "body": "b"},
     }
-    return tie.execute_tool_intent(
+    execution = tie.execute_tool_intent(
         payload,
         task_id="t1",
         session_id="s1",
-        source_context={},
+        source_context=_approved_context(payload),
         hive_activity_tracker=None,
         public_hive_bridge=None,
         checkpoint_id="cp-1",
     )
+    assert calls == ["email.send"], execution
+    return execution
 
 
 def test_effect_registered_at_reserve_and_discharged_on_a6_evidence(fresh_store, monkeypatch):
@@ -95,7 +113,9 @@ def test_unknown_outcome_keeps_effect_open_blocks_closure(fresh_store, monkeypat
 
     import core.tool_intent_executor as tie
 
+    calls = []
     def fake_runtime_tool(intent, arguments, **kw):
+        calls.append(intent)
         raise tie.EffectOutcomeUnknown(reason="transport_timeout", detail="d")
 
     monkeypatch.setattr(tie, "execute_authorized_runtime_tool", fake_runtime_tool)
@@ -107,11 +127,12 @@ def test_unknown_outcome_keeps_effect_open_blocks_closure(fresh_store, monkeypat
         payload,
         task_id="t1",
         session_id="s1",
-        source_context={},
+        source_context=_approved_context(payload),
         hive_activity_tracker=None,
         public_hive_bridge=None,
         checkpoint_id="cp-1",
     )
+    assert calls == ["email.send"], execution
     sid, ver = ol.active_set()
     verdict = ol.closure_verdict(sid, ver)
     assert verdict["open_count"] >= 1, "UNKNOWN must stay open (blocks closure)"

@@ -3181,11 +3181,18 @@ class CodeTaskRuntime:
         cumulative = _current_outcome(task, "cumulative")
         if not cumulative or "bytes" not in cumulative:
             return {"current": None, "changed": []}
-        verified = dict(cumulative.get("bytes") or {})
-        now = self._evidence_fingerprint(
-            task, {"command": str(cumulative.get("command") or ""),
-                   "cwd": cumulative.get("cwd"), "intent": str(cumulative.get("intent") or "workspace.run_tests")})
-        changed = sorted(path for path in set(verified) | set(now) if verified.get(path) != now.get(path))
+        changed_paths: set[str] = set()
+        # Narrow and cumulative checks can name different inputs and working
+        # directories. Completion depends on both still describing current bytes.
+        for outcome in (_current_outcome(task, "narrow"), cumulative):
+            if not outcome:
+                continue
+            verified = dict(outcome.get("bytes") or {})
+            now = self._evidence_fingerprint(
+                task, {"command": str(outcome.get("command") or ""),
+                       "cwd": outcome.get("cwd"), "intent": str(outcome.get("intent") or "workspace.run_tests")})
+            changed_paths.update(path for path in set(verified) | set(now) if verified.get(path) != now.get(path))
+        changed = sorted(changed_paths)
         return {"current": not changed, "changed": changed}
 
     def _advance(self, task: CodeTask, step: StepRecord, kind: str) -> None:

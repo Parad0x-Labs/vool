@@ -132,7 +132,7 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                 # A hung model-selection read must neither dispatch nor trap
                 # the composer. Exercise the actual timeout and Stop button.
                 held = []
-                page.route("**/api/cloud/model", lambda route: held.append(route))
+                page.route("**/api/cloud/model?*", lambda route: held.append(route))
                 for cancel in (False, True):
                     before = len(sends)
                     page.locator("#input").fill("Hi")
@@ -147,7 +147,7 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                         assert "did not respond" in state["error"], state
                     assert len(sends) == before, "unreadable model state dispatched a turn"
                     timings["cancel" if cancel else "timeout"] = round(time.monotonic() - started, 3)
-                page.unroute("**/api/cloud/model")
+                page.unroute("**/api/cloud/model?*")
                 print("STARTUP_TIMINGS " + json.dumps(timings), flush=True)
             finally:
                 browser.close()
