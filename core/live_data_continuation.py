@@ -273,14 +273,20 @@ def _is_typo_of(token: str, target: str) -> bool:
     substitution/insertion/deletion, and an equal-length transposition ("kauans" for "kaunas" --
     two substitutions under plain edit distance, one keystroke swap in fact). Anything further is
     a different word, not a typo: "bouma" stays nothing like "tallinn" no matter how the budget is
-    counted. Comparison happens on casefolded text; the result is a recovery decision, not a
-    rendering.
+    counted. The FIRST LETTER must survive: a real one-keystroke misspelling keeps it (the
+    measured shapes "kauans" and "cnacel" both do), while the same edit distance between two
+    different common words usually does not -- "sold" is not a mistyped "gold", and reading it
+    as one bound a gold receipt to a units-sold demand the user never asked about (the recorded
+    census incident). Comparison happens on casefolded text; the result is a recovery
+    decision, not a rendering.
     """
 
     source, goal = token.casefold(), target.casefold()
     if source == goal:
         return True
     if len(source) < _RECOVERY_MIN_TOKEN or len(goal) < _RECOVERY_MIN_TOKEN:
+        return False
+    if source[0] != goal[0]:
         return False
     if len(source) == len(goal) and sorted(source) == sorted(goal):
         return True
