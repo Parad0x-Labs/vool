@@ -238,6 +238,9 @@ _REQUEST_CONNECTOR_RE = re.compile(
 #: "Bake a chocolate cake in my physical oven right now." regressed to UNKNOWN exactly that way,
 #: caught by tests/test_set2_action_sibling_contracts.py. Keep in sync with the special cases.
 _SPECIAL_CASED_HEADS: frozenset[str] = frozenset({"print", "bake"})
+# These open requests but do not establish an effect kind by themselves. "Get a
+# quote" and "get a file" need their capability owner's reading of the object.
+_AMBIGUOUS_REQUEST_HEADS: frozenset[str] = frozenset({"get", "fetch", "show"})
 
 _ALL_REQUEST_HEADS: frozenset[str] = frozenset(
     set(_KNOW_HEADS)
@@ -247,6 +250,7 @@ _ALL_REQUEST_HEADS: frozenset[str] = frozenset(
     | set(_TRANSFORM_HEADS)
     | set(_CREATE_HEADS)
     | set(_SPECIAL_CASED_HEADS)
+    | set(_AMBIGUOUS_REQUEST_HEADS)
 )
 
 
@@ -342,8 +346,8 @@ def _is_whole_clause_constraint(clean: str) -> bool:
     except Exception:
         return False
 
-    # `eligible_text` is deliberately NOT used to answer the second half of the question. That
-    # module's negative span is greedy across a comma -- `Do NOT search the web for this, what is
+    # Read eligibility per segment, not across the whole clause. The negative span is
+    # greedy across a comma -- `Do NOT search the web for this, what is
     # 2+2?` comes back as ONE negative clause with `eligible_text='?'` -- which is the right,
     # conservative direction for retrieval eligibility (it removes MORE from the search text) and
     # exactly the wrong direction here, where it would hide a real demand and silently drop it.
@@ -352,12 +356,14 @@ def _is_whole_clause_constraint(clean: str) -> bool:
         candidate = segment.strip()
         if not candidate:
             continue
-        match = _REQUEST_HEAD_RE.match(candidate)
-        if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
-            continue
         try:
-            if not analyze_retrieval_constraints(candidate).has_prohibition:
-                return False  # a demand stands beside the prohibition; the clause is not purely one
+            # Read each segment after removing its prohibition. An inline restriction
+            # ("get the rate without using the web") leaves a positive request head;
+            # a pure ban ("do not search the web") leaves no request at all.
+            eligible = analyze_retrieval_constraints(candidate).eligible_text.strip()
+            match = _REQUEST_HEAD_RE.match(eligible)
+            if match is not None and match.group("head").casefold() in _ALL_REQUEST_HEADS:
+                return False
         except Exception:
             return False
     return True

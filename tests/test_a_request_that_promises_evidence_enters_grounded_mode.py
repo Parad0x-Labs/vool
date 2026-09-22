@@ -82,6 +82,10 @@ def test_audit_shaped_requests_reach_audit_grade(request_text) -> None:
         (PRIUS_PASSAT, True),
         ("do not guess the install counts", True),
         ("no speculation please", True),
+        ("Compare currencies and do not invent rates", True),
+        ("Don't invent exchange rates for the conversion", True),
+        ("Do not invent new architecture", False),
+        ('Explain the phrase "do not invent rates"', False),
         ("what is the current version of kubernetes", False),
     ],
 )

@@ -202,6 +202,9 @@ def test_a_demand_beside_a_prohibition_stays_a_demand() -> None:
         "Do NOT search the web for this, what is 2+2?",
         "Do NOT search the web for this. What is 2+2?",
         "Without searching, what is the capital of France?",
+        "Get the current TRY/EUR exchange rate without using the web",
+        "Explain photosynthesis without using the internet",
+        "Calculate 19 times 7 without using tools",
     ):
         assert classify_clause_kind(carries_a_demand) is not ClauseKind.CONSTRAINT, carries_a_demand
 

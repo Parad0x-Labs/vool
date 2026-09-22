@@ -1601,7 +1601,9 @@ _FACET_LIST_RE = re.compile(r":\s*(?P<items>[^:.;!?]{4,240})(?=[.;!?]|$)")
 
 def _coordination_protected_ranges(clause: str) -> list[tuple[int, int]]:
     """Character ranges in `clause` whose "and"/comma coordination joins ONE request."""
-    protected: list[tuple[int, int]] = []
+    from core.market_intent import market_attribute_coordination_ranges
+
+    protected = list(market_attribute_coordination_ranges(clause))
     shared = _shared_predicate_range(clause)
     if shared is not None:
         protected.append(shared)

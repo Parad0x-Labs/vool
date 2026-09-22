@@ -97,6 +97,37 @@ def test_a_single_asset_request_is_unaffected_and_still_answers(make_agent) -> N
     assert "**Weather**" not in response
 
 
+@pytest.mark.parametrize("wording", [
+    BENCHMARK,
+    "Show the spot price and daily change for silver and Bitcoin",
+    "Give me prices, 24h changes and market caps for Bitcoin",
+])
+def test_coordinated_quote_fields_share_the_named_assets(wording):
+    from core.agent_runtime.answer_coverage import interpret_request
+    from core.live_data_plan import build_live_data_plan
+
+    units = interpret_request(wording).requests
+    plan = build_live_data_plan(wording, plan_id="fields", attempt_id="fields", canonical_units=units)
+    assert plan is not None
+    assert not plan.unclaimed_unit_ids
+    assert all("price" not in unit.text.lower() or any(
+        asset in unit.text.lower() for asset in ("silver", "bitcoin", "gold")
+    ) for unit in units)
+
+
+@pytest.mark.parametrize("wording", [
+    "Give me the gold price and the latest news about Iran",
+    "Give me the current price of gold and explain its chemical structure",
+    "Give me a joke and the price of Bitcoin",
+])
+def test_quote_fields_never_absorb_an_independent_request(wording):
+    from core.agent_runtime.demand_ownership import demand_coverage
+
+    coverage = demand_coverage(wording)
+    assert coverage.mixed
+    assert coverage.unit_count == 2
+
+
 def test_sabotage_disabling_the_live_data_hook_reproduces_the_planner_split_path(make_agent) -> None:
     """Proves the hook is load-bearing and correctly placed ahead of the general planner: with it
     disabled, the SAME benchmark falls through to the old text-splitting planner, whose own known
