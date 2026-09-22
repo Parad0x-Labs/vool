@@ -215,7 +215,7 @@ class CostEstimate:
         if self.basis == BASIS_PROVIDER_REPORTED:
             return f"{money} charged by {self.provider_id} for {self.model_id}"
         if self.basis == BASIS_NO_USAGE:
-            return f"{money} — {self.provider_id} reported no usage for {self.model_id}"
+            return f"Cost unknown — {self.provider_id} reported no usage for {self.model_id}"
         tokens = f"{self.prompt_tokens:,} in / {self.completion_tokens:,} out"
         attempts = f" x{self.attempts} attempts" if self.attempts > 1 else ""
         if self.basis == BASIS_APPROVED_CEILING:

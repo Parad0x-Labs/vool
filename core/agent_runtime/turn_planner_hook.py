@@ -532,7 +532,12 @@ class PinnedPaidTurnScope:
         if terminal is not None:
             receipt["spend_status"] = str(getattr(terminal, "status", "") or "")
         spend_status = str(receipt.get("spend_status") or "")
-        if result == "completed":
+        if spend_status == "billing_ambiguous":
+            receipt["known_charges_usd"] = receipt["actual_usd"]
+            receipt["actual_usd"] = None
+            receipt["held_usd"] = float(terminal.reserved_usd)
+            event_type = "paid_call.billing_ambiguous"
+        elif result == "completed":
             event_type = (
                 "paid_call.settled"
                 if spend_status in {"settled", "cap_breached", "billing_ambiguous"}

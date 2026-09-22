@@ -330,3 +330,17 @@ def test_an_unwritable_ledger_refuses_rather_than_granting(tmp_path) -> None:
             maximum_usd=0.01, limits=limits,
         )
     assert caught.value is not None, "an unwritable ledger must raise, never grant"
+
+
+def test_ambiguous_liability_counts_during_concurrent_admission():
+    from core.model_spend_ledger import settle_spend
+
+    limits = SpendLimits(per_call_usd=0.25, per_task_usd=100, daily_usd=0.50, monthly_usd=100)
+    reserve_spend(model_call_id="unpriced", task_id="earlier", subtask_id="s", model_id="m",
+                  maximum_usd=0.25, limits=limits)
+    settle_spend("unpriced", actual_usd=None)
+    granted, refused, errored = _race(limits, amount=0.25, prefix="after-unknown")
+    assert not errored
+    assert len(granted) == 1
+    assert len(refused) == CONCURRENCY - 1
+    assert {r[1] for r in refused} == {"daily_spend_cap_exceeded"}

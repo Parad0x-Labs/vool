@@ -1148,32 +1148,23 @@ _SPEND_CAP_MAX_LEN = 160
 # The general truth is not machine state — it is how the product works, and it is published in
 # docs/SPEND_CAPS.md. Everyone gets it. Only the NUMBERS below are owner-private.
 _SPEND_CAP_EXPLAINER = (
-    "Straight answer: the spend cap is a brake, not a fence. I will not START a paid call I "
-    "estimate would breach your cap, and I stop starting them once the cap is reached — but I "
-    "cannot promise you never go a cent over. Each call is reserved at what it is estimated "
-    "to cost, so overshoot stays near one call's cost while I know the model's price. If a "
-    "provider reports no usage figures, I record less than was spent and the dollar ceiling "
-    "stops moving -- then only the daily call count limits you. "
-    "not by zero.\n"
-    "Why an exact cap is impossible:\n"
-    "  - A call's cost is not knowable before it runs. Output length is only known once the "
-    "model has finished generating, so the last call before the ceiling can cross it.\n"
-    "  - I settle from token counts times a published price. That is an estimate of the "
-    "provider's bill, not the bill — providers meter on their own side and may count cached "
-    "reads, system tokens or tool tokens differently.\n"
-    "  - Prices change, and my price table can be out of date.\n"
-    "  - A call already in flight cannot be recalled when the ceiling is reached.\n"
-    "If you need a hard ceiling, set it at the provider — that is the only real one, because the "
-    "provider is the party that meters and bills you. Prepaid credit with auto-reload off is the "
-    "strictest form; a budget alert is not a cap, it only notifies.\n"
-    "I never hold your money and I never proxy the call: your key goes from this machine to the "
-    "provider, so the bill is between you and them, and I can only decline to start the next "
-    "call — never refund or cancel one.\n"
-    "About this build specifically: the paid-cloud lane is unaudited and its caps have been "
-    "measured NOT to bind as described above — the dollar ceilings currently settle at $0.00 for "
-    "every provider except OpenRouter, and concurrent turns can each pass a cap that had room "
-    "for one. Set a limit at your provider and treat that as the only one until this line is "
-    "gone."
+    "The BYOK spend cap is a brake, not a fence: I refuse a new paid call when its reservation "
+    "would exceed the configured per-call, task, day or month ceiling. Reservations and cap "
+    "checks are atomic, so concurrent turns count each other's holds. I cannot promise an "
+    "exact provider bill.\n"
+    "A call's cost is not knowable before it runs. Token counts times a published price give "
+    "an estimate of the provider's bill; the price table can be out of date, and calls already "
+    "in flight cannot be recalled. Several in-flight calls may exceed their estimates.\n"
+    "When a response has no usage, or a failed dispatch leaves billing uncertain, its reserved "
+    "budget stays held until reconciliation. Unknown cost is not zero. These holds can stop "
+    "later calls; the usage report is separate from budget still held. Call counts are usage "
+    "statistics, not a spending limit.\n"
+    "For a provider-enforced ceiling, set it at the provider and check its billing terms. A "
+    "budget alert is not a cap. Prepaid credit with auto-reload disabled may provide a harder "
+    "limit, depending on the provider.\n"
+    "For BYOK, the call goes from this machine to your provider using your key. VOOL cannot "
+    "refund the provider's charge. UsePod wallet payments and prepaid credit have their own "
+    "approved money grants and liability ledger; these USD ceilings do not govern that lane."
 )
 
 
@@ -1186,8 +1177,10 @@ def _spend_cap_state_lines() -> list[str] | None:
     try:
         from core import cloud_escalation_policy as cep
         from core import usage_meter
+        from core.model_spend_ledger import unresolved_spend_today
         from core.paid_call_reservation import spend_limits
 
+        held_usd = unresolved_spend_today()
         policy = cep.load_policy().normalized()
         used_calls = int(cep.used_today())
         limits = spend_limits()
@@ -1222,6 +1215,7 @@ def _spend_cap_state_lines() -> list[str] | None:
         f"  USD ceilings:          ${limits.per_call_usd:.2f}/call, ${limits.per_task_usd:.2f}/task, "
         f"${limits.daily_usd:.2f}/day, ${limits.monthly_usd:.2f}/month",
         f"  paid spend today:      {spend_line}",
+        f"  unresolved budget held today: ${held_usd:.4f} (not a confirmed charge)",
     ]
 
 
