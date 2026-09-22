@@ -487,6 +487,10 @@ def _attach_fee_and_review(
 
     fields["companion"] = None
     if proposal.origin == proposals.ORIGIN_USEPOD:
+        from core.wallet import usepod
+
+        record = usepod.operation_for_proposal(proposal.proposal_id) or {}
+        fields["provider_payment_kind"] = str(record.get("payment_kind") or usepod.KIND_UNKNOWN)
         plan = None
         if rpc is not None and blockhash:
             plan = dna_fees.plan_companion_collection(

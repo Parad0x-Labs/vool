@@ -108,17 +108,23 @@ def _service(proposal: Any) -> dict[str, Any]:
     return view
 
 
-def _credit(proposal: Any) -> dict[str, Any]:
+def _usepod_payment(proposal: Any) -> dict[str, Any]:
     from core.wallet import usepod
 
     record = usepod.operation_for_proposal(proposal.proposal_id)
-    if record is None:
-        view = _base(KIND_CREDIT, headline=f"Prepay {_amount_text(proposal)} of provider credit (operation record missing)",
-                     mechanism_label=MECHANISM_CREDIT, beneficiary=proposal.destination, charge_scope=CHARGE_PREPAID_CREDIT)
-        view["note"] = "The provider's requirement record is missing for this proposal; the provider is unknown."
+    if record is None or record.get("payment_kind") not in {usepod.KIND_CREDIT, usepod.KIND_RESPONSE}:
+        view = _base(KIND_UNKNOWN, headline=f"Pay {_amount_text(proposal)} to UsePod — payment purpose unknown",
+                     mechanism_label="Purpose unknown", beneficiary=proposal.destination, charge_scope="")
+        view["note"] = "This operation does not record whether it buys provider credit or one response. Its memo cannot establish that purpose."
         return view
     provider = str(record.get("provider") or "an unnamed provider")
     resource = str(record.get("resource") or "")
+    if record["payment_kind"] == usepod.KIND_RESPONSE:
+        view = _base(KIND_SERVICE, headline=f"Pay {provider} for this response", mechanism_label=MECHANISM_X402,
+                     beneficiary=str(record.get("pay_to") or proposal.destination), charge_scope=CHARGE_ONE_RESPONSE)
+        view.update({"provider": provider, "provider_source": "the UsePod requirement's provider (not a verified merchant identity)",
+                     "resource": resource, "note": "This payment covers one response, not prepaid credit for later requests."})
+        return view
     view = _base(KIND_CREDIT, headline=f"Prepay {provider} credit" + (f" for {resource}" if resource else ""), mechanism_label=MECHANISM_CREDIT,
                  beneficiary=str(record.get("pay_to") or proposal.destination), charge_scope=CHARGE_PREPAID_CREDIT)
     view.update({"provider": provider, "provider_source": "the UsePod requirement's provider (not a verified merchant identity)", "resource": resource,
@@ -134,7 +140,7 @@ def purpose_for(proposal: Any) -> dict[str, Any]:
     if origin == proposals.ORIGIN_X402:
         return _service(proposal)
     if origin == proposals.ORIGIN_USEPOD:
-        return _credit(proposal)
+        return _usepod_payment(proposal)
     view = _base(KIND_UNKNOWN, headline=f"Pay {_amount_text(proposal)} to {proposal.destination} — purpose unknown",
                  mechanism_label="Purpose unknown", beneficiary=proposal.destination, charge_scope="")
     view["note"] = f"No record explains this request (origin {origin or 'none'!r})."

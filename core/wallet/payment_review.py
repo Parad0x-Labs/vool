@@ -86,9 +86,21 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     to_address = str(fields.get("to_address") or "")
     warnings: list[dict[str, str]] = []
     if origin == proposals.ORIGIN_USEPOD:
+        from core.wallet import purpose
+
+        payment_purpose = fields.get("purpose") or {}
         provider = PROVIDER_LABELS.get(origin, "the provider")
-        headline = f"Pay {provider} for this AI response"
-        amount_line = f"Pay at most {amount_human} {asset} (the provider's cap for this response; the final usage bill can be lower, never higher)"
+        if payment_purpose.get("kind") == purpose.KIND_SERVICE:
+            headline = f"Pay {provider} for this AI response"
+            amount_line = f"Pay at most {amount_human} {asset} (the provider's cap for this response; the final usage bill can be lower, never higher)"
+        elif payment_purpose.get("kind") == purpose.KIND_CREDIT:
+            headline = "Prepay provider credit"
+            amount_line = f"Prepay {amount_human} {asset} (provider credit for later requests)"
+            warnings.append({"code": "prepaid_credit", "text": str(payment_purpose.get("note") or "Payment accepted is not service delivered.")})
+        else:
+            headline = "Payment purpose unknown"
+            amount_line = f"Pay {amount_human} {asset} (the operation does not record what this payment buys)"
+            warnings.append({"code": "unknown_purpose", "text": str(payment_purpose.get("note") or "The payment purpose is not on record.")})
         recipient_line = f"To {provider}'s payment account {to_address}"
         recipient_kind = "provider_pay_to"
         primary = "Approve and pay"
@@ -157,6 +169,17 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         details.append(["Token mint", str(fields.get("mint") or "")])
     details.append(["Exact amount", f"{amount_human} {asset} = {_int(fields.get('amount_minor'))} atomic units"])
     details.append(["Network fee bound", f"estimated {_human(fields.get('fee_estimate_minor'), fields.get('fee_decimals', fields.get('decimals')))} {gas} · at most {payment_fee_max} {gas} = {_int(fields.get('fee_max_minor'))} atomic units"])
+    fee_parts = fields.get("fee_parts") or {}
+    for key, label in (
+        ("base_minor", "Base network fee"),
+        ("execution_estimate_minor", "Execution fee estimate"),
+        ("execution_max_minor", "Execution fee maximum"),
+        ("l1_estimate_minor", "L1 data fee estimate"),
+        ("l1_ceiling_minor", "L1 data fee maximum"),
+        ("operator_minor", "Operator fee"),
+    ):
+        if key in fee_parts:
+            details.append([label, f"{_human(fee_parts[key], fields.get('fee_decimals', fields.get('decimals')))} {gas} = {_int(fee_parts[key])} atomic units"])
     if fee:
         details.append(["DNA fee numerator", f"{fee.get('fee_numerator')} / 10000 atomic units = {fee.get('fee_exact_atomic')} atomic ({fee.get('fee_exact')} {fee.get('asset')})"])
         details.append(["DNA fee reserved ceiling", f"{fee.get('fee_reserved_ceiling_atomic')} atomic units ({fee.get('fee_reserved_ceiling_exact')} {fee.get('asset')})"])

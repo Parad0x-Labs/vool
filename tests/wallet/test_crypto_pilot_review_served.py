@@ -171,24 +171,26 @@ def test_base_review_reads_purpose_recipient_and_short_fees_with_exact_details(s
         f = quote["fields"]
         sheet = page.locator('#vwSheet [role="dialog"]')
         assert page.locator("#vwSheetTitle").text_content() == "Send 0.001 ETH"
-        assert sheet.locator('[data-field="purpose"]').get_attribute("data-kind") == "direct"
+        assert sheet.locator('[data-review="amount"]').text_content() == "Send 0.001 ETH (exact amount)"
         assert sheet.locator('[data-field="to"] .vw-ident').text_content() == to
         assert sheet.locator('[data-field="to"] .vw-copy').count() == 1
         assert sheet.locator('[data-field="to"]').text_content().find("unsaved address") > 0
         assert sheet.locator('[data-field="network"] .vw-badge').text_content() == "TESTNET"
         assert sheet.locator('[data-field="amount"] .vw-sheet-value').text_content() == "0.001 ETH"
-        fee_text = sheet.locator('[data-field="fee"] .vw-sheet-value').text_content()
-        assert fee_text == f["fee_estimate_display"] + " · " + f["fee_max_display"], fee_text
-        assert "≈" in fee_text and "at most" in fee_text and len(fee_text) < 60
-        assert sheet.locator('[data-field="max_total"] .vw-sheet-value').text_content() == f["max_total_display"]
+        fee_text = sheet.locator('[data-review="network_cost"]').text_content()
+        assert fee_text == f["review"]["network_line"], fee_text
+        assert "estimated" in fee_text and "at most" in fee_text
+        assert sheet.locator('[data-field="max_total"] .vw-sheet-value').text_content() == f["max_total_human"] + " ETH"
         # the exact figures live in Details, closed by default, and are the exact integer decimals the quote carries
         details = page.locator("#vwSheetDetails")
-        assert details.evaluate("d => d.open") is False
-        assert details.locator('[data-field="fee_max_exact"] .vw-sheet-value').text_content() == f["fee_max_human"] + " ETH"
-        assert details.locator('[data-field="fee_exact"] .vw-sheet-value').text_content() == f["fee_estimate_human"] + " ETH"
-        assert details.locator('[data-field="after_exact"]').count() == 1
+        assert not details.is_visible()
+        page.locator("#vwSheetDetailsToggle").click()
+        assert details.is_visible()
+        assert details.locator('[data-field="fee"] .vw-sheet-value').text_content() == f"estimated {f['fee_estimate_human']} ETH · at most {f['fee_max_human']} ETH"
+        assert f["minimum_after_human"] in details.locator('[data-field="after"]').text_content()
         assert len(f["fee_max_human"].split(".")[1]) > 8  # the long tail is real base-unit precision
-        assert details.locator('[data-field^="fee_part_"]').count() >= 3  # execution, L1, operator parts
+        for part in ("Execution fee estimate", "L1 data fee estimate", "Operator fee"):
+            assert part in details.inner_text()
         # the ordinary sentence wraps by words; the recipient may break anywhere
         assert page.evaluate("getComputedStyle(document.querySelector('[data-field=\"to\"] .vw-ident')).overflowWrap") == "anywhere"
         assert page.evaluate("getComputedStyle(document.querySelector('[data-field=\"fee\"] .vw-sheet-value')).wordBreak") == "normal"
@@ -225,7 +227,7 @@ def test_solana_decide_later_escape_fresh_quotes_expiry_and_late_replies(served,
         quote_a = _open_sheet(page, daemon, first)
         sheet = page.locator('#vwSheet [role="dialog"]')
         assert sheet.locator('[data-field="network"] .vw-badge').text_content() == "DEVNET"
-        assert sheet.locator('[data-field="fee"] .vw-sheet-value').text_content() == "0.000005 SOL · 0.000005 SOL"  # nothing to shorten: no marker
+        assert sheet.locator('[data-field="fee"] .vw-sheet-value').text_content() == "estimated 0.000005 SOL · at most 0.000005 SOL"
         assert page.locator("#vwSheetDetails").locator('[data-field="after"] .vw-sheet-value').text_content().find("at least") > 0
         # Decide later with a typed PIN: no decision request, the PIN gone, the draft and the Review action kept
         page.locator("#input").fill("my unfinished chat message")

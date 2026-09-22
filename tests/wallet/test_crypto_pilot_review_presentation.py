@@ -165,8 +165,8 @@ def test_usepod_purpose_is_prepaid_credit_from_the_operation_record(wallet_home)
     with connection() as conn:
         conn.execute(
             "INSERT INTO wallet_usepod_operations (operation_key, provider, correlation_id, authority, network, asset, pay_to, amount_minor, expires_at, resource,"
-            " requirement_digest, proposal_id, wallet_id, state, mint_token, mint_lease_until, detail, created_at, updated_at, digest_version)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)",
+            " requirement_digest, proposal_id, wallet_id, state, mint_token, mint_lease_until, detail, created_at, updated_at, digest_version, payment_kind)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, 'prepaid_credit')",
             ("usepod.example|corr-1", "usepod.example", "corr-1", "core.wallet.usepod", BASE_SEPOLIA, "ETH", "0x8a4af57c4a4c4d978b58db77a8fcf724e3faeb1a", 1_000_000_000_000_000,
              4_102_444_800.0, "https://usepod.example/models/summarize", "d" * 64, pid, "wallet-test", "proposed", "", 0, "{}", utcnow(), utcnow()),
         )
