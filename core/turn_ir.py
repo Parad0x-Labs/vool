@@ -504,7 +504,12 @@ def _structural_markers(text: str, quoted: tuple[bool, ...]) -> tuple[_Marker, .
 
 
 def _starts_request(text: str, position: int) -> bool:
-    return classify_clause_kind(text[position:]) is not ClauseKind.UNKNOWN
+    # A later request must not turn an earlier list member into a request head:
+    # "Kaunas and Tallinn, tell me ..." keeps both cities in the observation.
+    # Framing classification applies to complete clauses, not across a possible
+    # boundary while deciding where those clauses begin.
+    head_span = _CLAUSE_BOUNDARY_SPLIT_RE.split(text[position:], maxsplit=1)[0]
+    return classify_clause_kind(head_span) is not ClauseKind.UNKNOWN
 
 
 def _unmarked_spans(text: str, quoted: tuple[bool, ...]) -> tuple[tuple[int, int], ...]:
@@ -512,11 +517,15 @@ def _unmarked_spans(text: str, quoted: tuple[bool, ...]) -> tuple[tuple[int, int
 
     boundaries: list[tuple[int, int]] = []
     for index, char in enumerate(text):
-        if quoted[index] or char not in ";\n.!?":
+        if quoted[index] or char not in ",;\n.!?":
             continue
         next_start = index + 1
         while next_start < len(text) and text[next_start].isspace():
             next_start += 1
+        if char == "," and _REQUEST_CONNECTOR_RE.match(text, next_start):
+            # The connector already owns this boundary; retain its preceding
+            # punctuation in the source span as before.
+            continue
         if next_start >= len(text) or not _starts_request(text, next_start):
             continue
         previous_end = index + 1 if char in ".!?" else index

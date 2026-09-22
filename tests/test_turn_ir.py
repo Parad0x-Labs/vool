@@ -229,6 +229,18 @@ def test_a_framing_prefix_does_not_hide_the_request_behind_it() -> None:
     assert classify_clause_kind("Thanks!") is ClauseKind.UNKNOWN
 
 
+@pytest.mark.parametrize("cities", ["Kaunas and Tallinn", "Oslo and Tromso"])
+def test_a_later_comparison_does_not_split_an_observed_list(cities) -> None:
+    text = (f"Get the current weather for {cities}, tell me which city is warmer, "
+            "and explain what a 6 degree difference means for choosing a coat.")
+    clauses = parse_turn_ir(text).clauses
+    assert [clause.request_text for clause in clauses] == [
+        f"Get the current weather for {cities}",
+        "tell me which city is warmer,",
+        "explain what a 6 degree difference means for choosing a coat.",
+    ]
+
+
 def test_constraint_detection_never_reshapes_clause_boundaries() -> None:
     """`_starts_request` asks `classify_clause_kind` about every SUFFIX of the turn.
 

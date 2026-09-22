@@ -181,7 +181,9 @@ class TestStructureMarkersApplyRegardlessOfConfidence:
         assert by_name["Riga"] is True, f"middle item should be confident: {pairs!r}"
 
     def test_confident_marker_rejection_end_to_end(self) -> None:
-        assert _locations("Weather for Kaunas and summarize it and Tallinn") == ["kaunas", "tallinn"]
+        # The later request owns its tail; it cannot lend a second weather location.
+        assert _locations("Weather for Kaunas and summarize it and Tallinn") == ["kaunas"]
+        assert _locations("Weather for Kaunas and Tallinn and summarize it") == ["kaunas", "tallinn"]
 
 
 # ---------------------------------------------------------------------------

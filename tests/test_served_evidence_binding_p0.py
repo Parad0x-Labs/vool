@@ -240,23 +240,26 @@ def _the_lifecycle_record():
 # ------------------------------------------------------------ the conductor mixed turn
 
 CONDUCTOR_PLAN = json.dumps(
-    [
+    {"requests": [
         {
-            "request": "Get the current weather for Kaunas and Tallinn",
+            "request": "",
+            "source_clause_ids": ["clause-1"],
             "operation": "weather_lookup",
             "depends_on": [],
         },
         {
-            "request": "tell me which city is warmer",
+            "request": "",
+            "source_clause_ids": ["clause-2"],
             "operation": "comparison",
-            "depends_on": [0],
+            "depends_on": ["clause-1"],
         },
         {
-            "request": "explain what a 6 degree difference in air temperature means for choosing a coat",
+            "request": "",
+            "source_clause_ids": ["clause-3"],
             "operation": "factual_explanation",
-            "depends_on": [0],
+            "depends_on": ["clause-1"],
         },
-    ]
+    ]}
 )
 
 MIXED_WEATHER_MESSAGE = (
@@ -688,18 +691,20 @@ def test_mixed_turn_keeps_the_computed_part_when_retrieval_fails(weather_fetcher
     script = _ProviderScript(
         {
             "clause_decomposition": json.dumps(
-                [
+                {"requests": [
                     {
-                        "request": "Get the current weather in Vilnius",
+                        "request": "",
+                        "source_clause_ids": ["clause-1"],
                         "operation": "weather_lookup",
                         "depends_on": [],
                     },
                     {
-                        "request": "calculate 37 x 19",
+                        "request": "",
+                        "source_clause_ids": ["clause-2"],
                         "operation": "calculation",
                         "depends_on": [],
                     },
-                ]
+                ]}
             ),
         }
     )
