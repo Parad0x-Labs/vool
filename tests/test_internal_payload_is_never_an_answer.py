@@ -210,14 +210,11 @@ def _drive_grounded_turn(agent, *, decision, asked: str) -> str:
     (`model_final_answer_hit and _internal_payload(model_final_text)`) runs for real.
     """
 
+    from core.curiosity_roamer import AdaptiveResearchResult
     from core.human_input_adapter import adapt_user_input
     from core.identity_manager import load_active_persona
 
-    adaptive = SimpleNamespace(
-        enabled=False, tool_gap_note="", admitted_uncertainty=False, notes=[],
-        reason="not_needed", strategy="none", actions_taken=[],
-        to_dict=lambda: {"enabled": False, "reason": "not_needed"},
-    )
+    adaptive = AdaptiveResearchResult(enabled=False, reason="not_needed")
     task = SimpleNamespace(
         task_id="task-internal-payload", task_summary=asked, environment_os="darwin",
         environment_shell="zsh", environment_runtime="python", environment_version_hint="3.12",
