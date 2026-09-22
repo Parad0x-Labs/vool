@@ -1356,6 +1356,12 @@ def _introduces_no_new_subject(fragment: str) -> bool:
     fresh request, which is what keeps the frozen four-slot case
     ("1000 EUR to RUB, gold with it, weather in Rome, baltic sea water temp") at four demands.
     """
+    from core.task_router import looks_like_direct_math_request
+
+    # Arithmetic has its own subject in its operands. Numbers are otherwise ignored here
+    # because presentation instructions such as "show 3 bullets" inherit the prior subject.
+    if looks_like_direct_math_request(_strip_leaders(fragment)):
+        return False
     for token in _unit_tokens(fragment):
         if (
             token in _DEMAND_UNIT_SPLIT_CONNECTORS
@@ -1725,6 +1731,14 @@ def _unit_spans(clause: str) -> list[tuple[int, int]]:
                 edge = tokens[position - 1][0]
             needs_head = False
         elif position and token in _DEMAND_UNIT_SPLIT_CONNECTORS:
+            if (
+                token == "plus"
+                and position + 1 < len(tokens)
+                and tokens[position - 1][1][0].isdigit()
+                and tokens[position + 1][1][0].isdigit()
+            ):
+                # An arithmetic operator cannot terminate the question before its operand.
+                continue
             edge, needs_head = offset, True
         else:
             continue
@@ -2304,7 +2318,11 @@ def _classify_fragments(value: str, fragments: list[tuple[str, int, int, str]]) 
         )
         if not described_item:
             colon_owner = None
-        if _inside_literal(start, end, literal_spans) and not asks:
+        if any(lo <= start and end <= hi for lo, hi in literal_spans) or (
+            _inside_literal(start, end, literal_spans) and not asks
+        ):
+            # A question wholly inside explicitly supplied file contents is still data.
+            # Keep the looser overlap rule guarded so the surrounding write remains a request.
             kind = KIND_LITERAL
         elif clarifies:
             kind = KIND_CONTEXT
