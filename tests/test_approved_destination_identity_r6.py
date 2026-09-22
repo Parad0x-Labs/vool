@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shlex
 from pathlib import Path
 
@@ -66,11 +67,11 @@ def _open_and_identify(ctx: dict, path: str) -> str:
     return task_id
 
 
-def _propose(ctx: dict, task_id: str, path: str, content: str, proposal_id: str):
+def _propose(ctx: dict, task_id: str, path: str, content: str, proposal_id: str, *, unit: str = ""):
     root = Path(ctx["workspace_root"])
     args = {"path": path, "content": content, "expected_hash": _sha((root / path).read_bytes())}
     proposed = door("code.task.propose", {"task_id": task_id, "proposal_id": proposal_id, "intent": "workspace.write_file",
-                                          "arguments": args, "rationale": f"{path}: correct the magnitude"}, ctx)
+                                          "arguments": args, "rationale": f"{path}: correct the magnitude", "unit": unit}, ctx)
     return args, proposed
 
 
@@ -326,8 +327,8 @@ def test_a_rolled_back_task_approval_binds_nothing(world) -> None:
     read_rate = door("code.task.step", {"task_id": task_id, "step_id": "read-rate", "intent": "workspace.read_file",
                                         "arguments": {"path": "invoice/rate.py"}}, ctx)
     assert read_rate.ok, read_rate.response_text
-    tax_args, tax_proposed = _propose(ctx, task_id, "invoice/tax.py", TAX_FIXED, "vat")
-    rate_args, rate_proposed = _propose(ctx, task_id, "invoice/rate.py", RATE_FIXED, "rate")
+    tax_args, tax_proposed = _propose(ctx, task_id, "invoice/tax.py", TAX_FIXED, "vat", unit="tax-and-rate")
+    rate_args, rate_proposed = _propose(ctx, task_id, "invoice/rate.py", RATE_FIXED, "rate", unit="tax-and-rate")
     assert tax_proposed.ok and rate_proposed.ok, (tax_proposed.response_text, rate_proposed.response_text)
     for proposal_id in ("vat", "rate"):
         assert door("code.task.approve", {"task_id": task_id, "proposal_id": proposal_id}, ctx).ok
@@ -386,18 +387,24 @@ def test_an_approved_proposal_from_an_older_journal_must_be_reviewed_again(world
 
     assert _decide("code.task.step", _step(task_id, args), ctx) is PROMPT
     refused = door("code.task.step", _step(task_id, args), ctx)
-    assert refused.ok is False and refused.status == "destination_unrecorded", (refused.status, refused.response_text)
+    assert refused.ok is False and refused.status == "approval_requires_review", (refused.status, refused.response_text)
     assert (root / "invoice" / "tax.py").read_text(encoding="utf-8") == TAX_BUGGY
 
-    reviewed = door("code.task.propose", {"task_id": task_id, "proposal_id": "vat", "intent": "workspace.write_file",
+    old = _journal(task_id)["proposals"]["vat"]
+    assert old["invalidated"]["reason"] == "legacy_approval_without_reviewed_base"
+    assert door("code.task.step", {"task_id": task_id, "step_id": "reread",
+                                 "intent": "workspace.read_file", "arguments": {"path": "invoice/tax.py"}}, ctx).ok
+    reviewed = door("code.task.propose", {"task_id": task_id, "proposal_id": "vat-reviewed", "intent": "workspace.write_file",
                                           "arguments": args, "rationale": "invoice/tax.py: correct the magnitude"}, ctx)
     assert reviewed.ok and reviewed.details.get("replayed") is not True, reviewed.details
-    row = _journal(task_id)["proposals"]["vat"]
+    row = _journal(task_id)["proposals"]["vat-reviewed"]
     assert row["approved"] is False and row["preview"]["destinations"], row
-    assert door("code.task.approve", {"task_id": task_id, "proposal_id": "vat"}, ctx).ok
+    assert door("code.task.approve", {"task_id": task_id, "proposal_id": "vat-reviewed"}, ctx).ok
     applied = door("code.task.step", _step(task_id, args, step_id="apply-reviewed"), ctx)
     assert applied.ok, (applied.status, applied.response_text)
     assert (root / "invoice" / "tax.py").read_text(encoding="utf-8") == TAX_FIXED
+
+    assert _journal(task_id)["proposals"]["vat"] == old
 
 
 def test_an_unapproved_proposal_from_an_older_journal_cannot_be_approved_until_reviewed(world) -> None:
@@ -410,7 +417,7 @@ def test_an_unapproved_proposal_from_an_older_journal_cannot_be_approved_until_r
     assert proposed.ok, proposed.response_text
     _strip_recorded_destination(task_id, "vat")
     refused = door("code.task.approve", {"task_id": task_id, "proposal_id": "vat"}, ctx)
-    assert refused.ok is False and refused.status == "destination_unrecorded", (refused.status, refused.response_text)
+    assert refused.ok is False and refused.status == "approval_requires_review", (refused.status, refused.response_text)
     assert _journal(task_id)["proposals"]["vat"]["approved"] is False
 
 
@@ -460,6 +467,39 @@ def test_a_retarget_after_admission_is_refused_by_the_writer(world, monkeypatch)
     assert refused.ok is False and refused.status == "destination_changed", (refused.status, refused.response_text)
     assert (root / "rules" / "a.py").read_text(encoding="utf-8") == TAX_BUGGY
     assert (root / "rules" / "b.py").read_text(encoding="utf-8") == TAX_BUGGY
+
+
+def test_a_replacement_retargeted_after_admission_preserves_both_files(world, monkeypatch) -> None:
+    import core.runtime_execution_tools as runtime_tools
+
+    root, _bare, _forge = world
+    (root / "old.py").write_text(TAX_BUGGY)
+    (root / "next.py").write_text(TAX_BUGGY)
+    link = root / "selected.py"
+    link.symlink_to(root / "old.py")
+    ctx = context(root, session="replacement-destination-race")
+    task_id = _open_and_identify(ctx, "selected.py")
+    args = {"path": "selected.py", "old_text": "net * 2", "new_text": "net * 0.2"}
+    assert door("code.task.propose", {
+        "task_id": task_id, "proposal_id": "rate", "intent": "workspace.replace_in_file",
+        "arguments": args, "rationale": "Owner selected.py: apply the fractional tax rate.",
+    }, ctx).ok
+    assert door("code.task.approve", {"task_id": task_id, "proposal_id": "rate"}, ctx).ok
+    original = runtime_tools.execute_runtime_tool
+
+    def retarget(intent, arguments, **kwargs):
+        if intent == "workspace.replace_in_file":
+            _retarget(link, root / "next.py")
+        return original(intent, arguments, **kwargs)
+
+    monkeypatch.setattr(runtime_tools, "execute_runtime_tool", retarget)
+    result = door("code.task.step", {
+        "task_id": task_id, "step_id": "apply", "intent": "workspace.replace_in_file", "arguments": args,
+    }, ctx)
+    assert not result.ok and result.status == "destination_changed", result.response_text
+    assert (root / "old.py").read_text() == TAX_BUGGY
+    assert (root / "next.py").read_text() == TAX_BUGGY
+    assert not _journal(task_id)["proposals"]["rate"]["consumed_by"]
 
 
 def test_a_directory_swapped_for_a_link_while_the_writer_opens_it_is_refused(world, monkeypatch) -> None:
@@ -574,6 +614,13 @@ VAT_RATE_PATCH = (
 
 def _approved_patch(ctx: dict, patch: str, *, defect_path: str = "billing/vat.py", proposal_id: str = "patch") -> tuple[str, dict]:
     task_id = _open_and_identify(ctx, defect_path)
+    # Both git-format and plain unified diffs must review every existing input file.
+    for touched in sorted(set(re.findall(r"^--- a/(.+)$", patch, re.MULTILINE))):
+        if touched == defect_path:
+            continue
+        read = door("code.task.step", {"task_id": task_id, "step_id": f"read-{touched}",
+                                      "intent": "workspace.read_file", "arguments": {"path": touched}}, ctx)
+        assert read.ok, (read.status, read.response_text)
     args = {"patch": patch}
     proposed = door("code.task.propose", {"task_id": task_id, "proposal_id": proposal_id,
                                           "intent": "workspace.apply_unified_diff", "arguments": args,

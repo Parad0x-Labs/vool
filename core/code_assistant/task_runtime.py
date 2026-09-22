@@ -114,6 +114,7 @@ _INVALIDATION_STATUS = {
     "legacy_approval_without_reviewed_base": "approval_requires_review",
     "legacy_destination_resolves_elsewhere": "approval_requires_review",
     "bytes_diverged": "bytes_diverged",
+    "destination_changed": "destination_changed",
 }
 
 
@@ -687,7 +688,7 @@ def _disk_state(target: Path | None) -> dict[str, str]:
             return {"kind": "other", "sha256": ""}
         from core.execution.artifacts import content_sha256
 
-        return {"kind": "file", "sha256": content_sha256(target.read_text(encoding="utf-8", errors="replace"))}
+        return {"kind": "file", "sha256": content_sha256(target.read_bytes().decode("utf-8", errors="replace"))}
     except OSError:
         return {"kind": "unreadable", "sha256": ""}
 
@@ -2215,25 +2216,22 @@ class CodeTaskRuntime:
             if p.intent == step.intent and p.preview.get("arguments_sha256") == key
         ]
         live = [p for p in candidates if _live(p)]
-        for proposal in task.proposals.values():
-            if (
-                proposal.approved
-                and not proposal.consumed_by
-                and proposal.intent == step.intent
-                and proposal.preview.get("arguments_sha256") == key
-            ):
-                # The approval binds the destinations it recorded, checked when the step is admitted --
-                # not the path re-resolved by whoever asks later. The reviewed bytes are the writer's:
-                # it refuses a stale base inside the flight recorder, which journals the refused
-                # attempt, and again inside the pinned directory immediately before the rename.
-                drift, drift_path = _destination_drift(task, proposal, reviewed_bytes=False)
-                if drift:
-                    return (
-                        _INVALIDATION_STATUS.get(drift, drift),
-                        _DESTINATION_REFUSALS[drift].format(path=drift_path),
-                        None,
-                    )
-                return "", "", proposal
+        for proposal in live:
+            self._abandoned_claim(task, proposal)
+            if proposal.reserved_by:
+                continue
+            # Only a live, unclaimed approval may be selected. Invalidated predecessors
+            # can have identical replacement arguments after a fresh review, and a claim
+            # held by another process must not be overwritten by this step.
+            drift, drift_path = _destination_drift(task, proposal, reviewed_bytes=False)
+            if drift:
+                proposal.invalidated = {"reason": drift, "path": drift_path, "at": _utcnow()}
+                return (
+                    _INVALIDATION_STATUS.get(drift, drift),
+                    _DESTINATION_REFUSALS[drift].format(path=drift_path),
+                    None,
+                )
+            return "", "", proposal
         if live:
             holder = live[0]
             return (

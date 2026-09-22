@@ -6203,7 +6203,7 @@ def _write_file(
     content = str(arguments.get("content") or "")
     existed = target.exists()
     previous_mtime_ns = int(target.stat().st_mtime_ns) if existed and target.is_file() else 0
-    previous = target.read_text(encoding="utf-8", errors="replace") if existed else ""
+    previous = target.read_bytes().decode("utf-8", errors="replace") if existed else ""
     previous_hash = content_sha256(previous) if existed else ""
     # Captured BEFORE the write specifically so a rollback can restore the exact pre-mutation mode
     # later, even if something else re-chmods the file (without touching its content) in between
@@ -6241,6 +6241,12 @@ def _write_file(
                 ),
             },
         )
+    refusal = _reviewed_destination_refusal(
+        "workspace.write_file", surface="workspace", record=reviewed_destination,
+        target=target, label=relative_path,
+    )
+    if refusal is not None:
+        return refusal
     if reviewed_destination is not None:
         # A reviewed destination is written inside its pinned parent directory, with its reviewed bytes
         # re-read there just before the rename (`pinned_atomic_write_text`).
@@ -6392,7 +6398,7 @@ def _replace_in_file(
                 ),
             },
         )
-    content = target.read_text(encoding="utf-8", errors="replace")
+    content = target.read_bytes().decode("utf-8", errors="replace")
     previous_mtime_ns = int(target.stat().st_mtime_ns)
     previous_mode = target.stat().st_mode & 0o7777
     relative_path = _relative_path(target, workspace_root=workspace_root)
@@ -6480,6 +6486,12 @@ def _replace_in_file(
     else:
         updated = content.replace(old_text, new_text, 1)
         replaced = 1
+    refusal = _reviewed_destination_refusal(
+        "workspace.replace_in_file", surface="workspace", record=reviewed_destination,
+        target=target, label=relative_path,
+    )
+    if refusal is not None:
+        return refusal
     if reviewed_destination is not None:
         # A reviewed destination is written inside its pinned parent directory, with its reviewed bytes
         # re-read there just before the rename (`pinned_atomic_write_text`).
