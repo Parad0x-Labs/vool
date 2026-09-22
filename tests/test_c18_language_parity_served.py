@@ -144,6 +144,14 @@ class CountingProvider:
                         reply = str(queue.pop(0))
                     else:
                         reply = str(rig.table.get(model, ""))
+                    # The runtime adjudicates plain knowledge questions for entity ambiguity
+                    # before answering (a garbage judge reply fails CLOSED: the turn ships an
+                    # ask-back and no answer generation runs). This stub must speak the judge
+                    # protocol so the turn reaches the ANSWER lane this suite measures: a
+                    # judge-shaped probe always gets a valid unambiguous verdict, and the
+                    # language assertions keep measuring the answer lane, not the ask-back.
+                    if '"ambiguous": true or false' in joined or '"ambiguous": true or false' in system_text:
+                        reply = '{"ambiguous": false, "referents": [], "clarification": ""}'
 
                 if self.path.startswith("/v1/"):
                     return self._send(
