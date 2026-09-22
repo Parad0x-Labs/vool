@@ -67,7 +67,7 @@ def test_both_amounts_are_computed_and_the_chip_names_three_lookups_and_two_boun
     coverage = compact["coverage"]
     assert coverage["observations"]["succeeded"] >= 3, coverage
     assert coverage["observations"]["failed"] == 0 and coverage["observations"]["pending"] == 0, coverage
-    assert coverage["derived"] == {"total": 2, "bound": 2, "unbound": 0}, coverage
+    assert coverage["derived"] == {"total": 2, "bound": 2, "unbound": 0, "failed": 0}, coverage
     assert "unbound" not in coverage["label"], coverage
     assert "Could not be answered" not in text, text
 
