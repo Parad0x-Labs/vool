@@ -90,6 +90,10 @@ def test_sequence_family_executes_the_closed_verb_set(turn: str, expected: str) 
         "My list is [1,2,3]. Add 4 to every element.",
         # Division by zero is not exactly computable.
         "My list is [4,8]. Divide every element by 0.",
+        "Explain entropy. My list is [1,2]. Reverse it. Output the list.",
+        "My list is [1,2]. Reverse it. Output the list. Explain entropy.",
+        "My list is [1,2]. Reverse it. Output a list of the latest headlines.",
+        "My list is [1,2]. Reverse it. Output the list, no spaces. Ukraine news.",
     ),
 )
 def test_sequence_negative_controls_fall_through_to_the_model(turn: str) -> None:
