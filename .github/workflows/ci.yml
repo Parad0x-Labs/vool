@@ -115,6 +115,9 @@ jobs:
           macos_only = {
               "tests/test_macos_app_packaging.py",
               "tests/updater/test_e2e_sandbox.py",
+              "tests/updater/test_boot_api_ui.py",
+              "tests/updater/test_final_p1.py",
+              "tests/updater/test_cli_and_tools.py",
               "tests/test_artifact_readers_contracts.py",
               "tests/test_artifact_readers_served_m1.py",
               "tests/test_artifact_readers_served_m2.py",
@@ -181,6 +184,9 @@ jobs:
           python -m pytest -q --tb=short -p no:cacheprovider
           tests/test_macos_app_packaging.py
           tests/updater/test_e2e_sandbox.py
+          tests/updater/test_boot_api_ui.py
+          tests/updater/test_final_p1.py
+          tests/updater/test_cli_and_tools.py
           tests/test_artifact_readers_contracts.py
           tests/test_artifact_readers_served_m1.py
           tests/test_artifact_readers_served_m2.py
