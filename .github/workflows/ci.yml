@@ -102,8 +102,9 @@ jobs:
         # 35752689216 shard 2). The profile below grants ONLY the userns right to the exact
         # playwright-cache binaries (versioned paths, resolved at runtime — both the
         # headless-shell build the unattended preflight pins and the full build the locator's
-        # glob order prefers); Chromium's sandbox itself stays kernel-enforced. The probe at
-        # the end fails this step loudly instead of letting the render suites cascade.
+        # glob order prefers); Chromium's sandbox itself stays kernel-enforced. The bounded
+        # probe at the end fails this step loudly — instead of letting the render suites
+        # cascade or a launch hang the shard.
         run: |
           python -m playwright install --with-deps chromium
           bins=()
@@ -132,20 +133,38 @@ jobs:
             echo "chromium profile refused by this host's apparmor; relaxing the userns restriction globally"
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
-          # Loud probe: every profiled binary must actually start and dump a DOM under its
-          # own namespace sandbox, launched the way the render engine launches it.
+          # Loud probe, HARD-BOUND, and limited to the headless-shell build the render lane
+          # actually pins (select_bundled_chromium prefers it; the failing CI test pinned it
+          # via VOOL_BROWSER_BINARY). Measured, cancelled run 35767154971: probing the FULL
+          # Chrome-for-Testing build hung every shard inside this step for 86 minutes -- the
+          # same fresh-profile hang under that build the preflight's binary preference
+          # documents. Two laws follow:
+          #   * a chromium launch is an UNBOUNDED subprocess without the engine's own
+          #     --virtual-time-budget AND a `timeout -k` wrapper;
+          #   * the browser's output must go to a FILE, never a command-substitution pipe:
+          #     chromium forks chrome_crashpad_handler helpers that inherit the pipe, and
+          #     when the parent is killed the orphans hold the pipe open and the caller
+          #     blocks forever (the cancelled run's cleanup killed two of them).
+          # The probe page's own bytes must appear in the dumped DOM. The full build keeps
+          # its userns grant above (identical profile mechanism, never launched here): its
+          # served lanes run through playwright's own launcher, green unmodified in
+          # 35752689216.
           probe_fail=0
           for bin in "${bins[@]}"; do
-            head_args=(--headless=new)
-            case "$(basename "$bin")" in chrome-headless-shell*) head_args=();; esac
+            case "$(basename "$bin")" in chrome-headless-shell*) ;; *) continue ;; esac
             probe_dir=$(mktemp -d)
-            if ! dom=$("$bin" ${head_args[@]+"${head_args[@]}"} --disable-gpu --no-first-run \
-                         "--user-data-dir=$probe_dir" --dump-dom about:blank 2>/tmp/vool-chromium-probe.err); then
-              echo "::error::chromium cannot create its sandbox namespace: $bin"
+            ok=0
+            if timeout -k 5s 60s "$bin" --disable-gpu --no-first-run --no-default-browser-check \
+                 --disable-extensions --disable-background-networking \
+                 "--user-data-dir=$probe_dir" --virtual-time-budget=2000 \
+                 --dump-dom "data:text/html,<title>vool-probe</title>vool-probe" \
+                 >/tmp/vool-chromium-probe.dom 2>/tmp/vool-chromium-probe.err \
+                 && grep -q "vool-probe" /tmp/vool-chromium-probe.dom; then
+              ok=1
+            fi
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::the bundled chromium headless shell cannot render under its own namespace sandbox: $bin"
               cat /tmp/vool-chromium-probe.err >&2
-              probe_fail=1
-            elif [ -z "$dom" ]; then
-              echo "::error::chromium started but dumped an empty DOM: $bin"
               probe_fail=1
             fi
             rm -rf "$probe_dir"
