@@ -580,6 +580,22 @@ def isolated_proof_root_is_registered(run_id: str) -> bool:
     return _isolated_proof_binding(run_id) is not None
 
 
+def isolated_proof_read_roots(source_context: dict[str, Any] | None) -> tuple[str, ...]:
+    """Read access to the audited source, bound to the live isolated proof only.
+
+    The scratch project is writable; the original project must remain readable
+    for imports without becoming writable or granting access to a sibling tree.
+    Never accept an external root from caller-supplied context fields.
+    """
+    if _external_temp_root_denial(source_context, {}):
+        return ()
+    run_id = str((source_context or {}).get("_isolated_proof_run_id") or "").strip()
+    binding = _isolated_proof_binding(run_id)
+    if binding is None or not binding.audited_repository_root:
+        return ()
+    return (binding.audited_repository_root,)
+
+
 def _external_temp_root_denial(
     source_context: dict[str, Any] | None, arguments: dict[str, Any] | None
 ) -> str:

@@ -175,7 +175,7 @@ def test_an_isolated_reproduction_writes_nothing_into_the_audited_repository_and
         agent,
         manifest=SimpleNamespace(provider_id="test:pinned", model_name="test-model"),
         task=SimpleNamespace(task_id="t"),
-        source_context={"workspace": str(repo_root), "audit_execution_policy": policy.as_dict()},
+        source_context={"workspace": str(repo_root), "audit_execution_policy": policy.as_dict(), "operating_mode": "auto"},
         session_id="isolated-e2e",
         evidence=SimpleNamespace(workspace_root=str(repo_root), sources={_TARGET: _SUBJECT_SOURCE}),
         finding=SteppedFinding(
@@ -206,7 +206,7 @@ def test_an_isolated_reproduction_writes_nothing_into_the_audited_repository_and
     assert proof.temp_root, "no isolated temp root was recorded for Activity"
     assert not Path(proof.temp_root).exists(), "the isolated temp directory was not cleaned up"
     assert proof.test_command.startswith("python3 -m unittest")
-    assert proof.returncode is not None, "no real command actually ran (the mock boundary was hit)"
+    assert proof.returncode is not None, proof.output
     # The claim IS real on this subject (decompress(b'\x80') truncates rather than raising), so a
     # genuine assertRaises(ValueError) test genuinely fails — proving the reproduction actually ran
     # against the real subject, not a stub.

@@ -145,7 +145,7 @@ def test_a_prepaid_openai_turn_is_sent_once_to_the_token_path_and_leaves_a_settl
     [arrived] = rig.service.requests_to(OPENAI)
     body = json.loads(arrived["body"])
     assert response.output_text == default_reply(body, "openai").text
-    assert (body["model"], body["max_tokens"]) == (MODEL, 256)
+    assert (body["model"], body["max_tokens"]) == (MODEL, 760)
     assert "authorization" not in arrived["headers"]
     assert arrived["headers"]["x-pod-routing-mode"] == "marketplace-only"
     assert (arrived["headers"]["x-pod-max-price-input"], arrived["headers"]["x-pod-max-price-output"]) == tuple(str(rate) for rate in MARKET)
@@ -153,7 +153,7 @@ def test_a_prepaid_openai_turn_is_sent_once_to_the_token_path_and_leaves_a_settl
     evidence = response.provider_metadata["usepod"]
     receipt = response.provider_metadata["receipt"]
     assert evidence["envelope"]["body_sha256"] == arrived["body_sha256"]
-    liability = _ceil_micro((len(arrived["body"]) + pricing.PROMPT_OVERHEAD_TOKENS) * MARKET[0] + 256 * MARKET[1])
+    liability = _ceil_micro((len(arrived["body"]) + pricing.PROMPT_OVERHEAD_TOKENS) * MARKET[0] + 760 * MARKET[1])
     assert monetary.names() == ["reserve", "mark_dispatched", "settle"]
     assert monetary.calls[0][1].max_amount_atomic == liability
     charged = _ceil_micro(21 * MARKET[0] + 13 * MARKET[1])

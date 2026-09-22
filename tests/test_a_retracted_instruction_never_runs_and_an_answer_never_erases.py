@@ -245,9 +245,9 @@ def test_run_once_hands_interpretation_and_the_conductor_only_the_live_request()
     conductor_raw_inputs: list[str] = []
     real_adapt = vool_agent_module.adapt_user_input
 
-    def recording_adapt(user_input, *, session_id):
+    def recording_adapt(user_input, **kwargs):
         adapt_texts.append(str(user_input))
-        return real_adapt(user_input, session_id=session_id)
+        return real_adapt(user_input, **kwargs)
 
     def recording_conductor(self, *, effective_input, raw_input, session_id, source_context):
         conductor_raw_inputs.append(str(raw_input))

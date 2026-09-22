@@ -61,14 +61,17 @@ class SandboxRunner:
     #: longer any grant attached to membership.
     _PACKAGE_INSTALL_COMMANDS = _PACKAGE_TOOL_COMMANDS
 
-    def __init__(self, gate: ExecutionGate, workspace_path: str, *, network_isolation_mode: str | None = None):
+    def __init__(self, gate: ExecutionGate, workspace_path: str, *, network_isolation_mode: str | None = None, read_roots: tuple[Path, ...] = ()):
         self.gate = gate
         self.workspace = workspace_path
         self._workspace_path = Path(workspace_path).resolve()
+        from sandbox.resource_limits import default_read_roots
+
         self.job_runner = JobRunner(
             ExecutionPolicy(
                 workspace_root=self._workspace_path,
                 writable_roots=(self._workspace_path,),
+                read_roots=(*default_read_roots(), *read_roots),
                 max_seconds=120,
                 max_output_kb=256,
                 allow_network_egress=False,

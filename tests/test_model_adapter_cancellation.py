@@ -62,6 +62,7 @@ def test_local_subprocess_cancellation_terminates_running_process_tree() -> None
 
 
 def test_verifier_required_call_is_buffered_before_publication() -> None:
+    from core.final_answer_authorship import AuthorCertification
     manifest = ModelProviderManifest(
         provider_name="ollama-local",
         model_name="qwen2.5:7b",
@@ -87,7 +88,10 @@ def test_verifier_required_call_is_buffered_before_publication() -> None:
     )
     router = MemoryFirstRouter()
 
-    with mock.patch.object(router.registry, "build_adapter", return_value=adapter):
+    with mock.patch.object(router.registry, "build_adapter", return_value=adapter), mock.patch(
+        "core.final_answer_authorship.author_certification",
+        return_value=AuthorCertification(True, "passed", "measured_tool_certification", manifest.provider_id),
+    ):
         _, response, error = router._invoke_manifest(
             manifest=manifest,
             request=request,

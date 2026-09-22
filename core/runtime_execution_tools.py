@@ -7196,10 +7196,14 @@ def _run_command(
     cwd = _resolve_workspace_path(raw_cwd, workspace_root=workspace_root) if raw_cwd else workspace_root
     if cwd.is_file():
         cwd = cwd.parent
+    from core.agent_runtime.audit_policy import isolated_proof_read_roots
+
+    proof_reads = isolated_proof_read_roots(source_context)
     runner = SandboxRunner(
         ExecutionGate(),
         str(workspace_root),
         network_isolation_mode=_trusted_local_network_mode(command, arguments=arguments),
+        **({"read_roots": tuple(Path(root) for root in proof_reads)} if proof_reads else {}),
     )
     # The operator's stop button reaches INTO the command: the turn's cancel signal (and, for a
     # code task step, the task's own) is polled by the job runner while the child runs, so a

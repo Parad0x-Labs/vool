@@ -26,6 +26,23 @@ from core.agent_runtime.audit_policy import (
 )
 from core.runtime_execution_tools import execute_runtime_tool
 
+
+def test_command_reads_are_bound_to_the_live_proof_and_never_caller_paths(tmp_path):
+    proof = tmp_path / "proof"
+    source = tmp_path / "source"
+    proof.mkdir()
+    source.mkdir()
+    run_id = register_isolated_proof_root(str(proof), str(source))
+    context = {"workspace": str(proof), "_isolated_proof_run_id": run_id}
+    try:
+        assert audit_policy.isolated_proof_read_roots(context) == (str(source.resolve()),)
+        assert audit_policy.isolated_proof_read_roots({**context, "workspace": str(source)}) == ()
+        assert audit_policy.isolated_proof_read_roots({**context, "_isolated_proof_run_id": "forged"}) == ()
+        assert audit_policy.isolated_proof_read_roots({"workspace": str(proof), "read_roots": [str(source)]}) == ()
+    finally:
+        release_isolated_proof_root(run_id)
+    assert audit_policy.isolated_proof_read_roots(context) == ()
+
 _EXTERNAL_TEMP_ROOT_POLICY = {
     "repository_write": False,
     "repository_test_creation": False,
