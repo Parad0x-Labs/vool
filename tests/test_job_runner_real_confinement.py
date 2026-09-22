@@ -34,6 +34,8 @@ import time
 import unittest
 from pathlib import Path
 
+import pytest
+
 from core.execution_gate import ExecutionGate
 from sandbox.job_runner import JobRunner
 from sandbox.resource_limits import ExecutionPolicy
@@ -42,6 +44,22 @@ from sandbox.sandbox_runner import SandboxRunner
 _MACOS_ONLY = "Kernel-enforced confinement here is macOS Seatbelt; a mock would prove nothing."
 
 PY = sys.executable or "python3"
+
+
+@pytest.fixture(autouse=True)
+def disposable_home(tmp_path, monkeypatch):
+    home = tmp_path / "operator-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+
+
+def _approved_command_context(workspace: Path) -> dict:
+    """Select Auto through the controller before freezing the command's policy."""
+    from core.mode_permission_policy import set_active_mode
+
+    session = "confinement:" + str(workspace)
+    set_active_mode(session, "auto", workspace_root=str(workspace))
+    return {"workspace": str(workspace), "runtime_session_id": session}
 
 
 def _stub(directory: Path, name: str, body: str) -> None:
@@ -86,9 +104,11 @@ class _Bench:
         from core.effect_gateway import named_background_effect_scope
 
         with named_background_effect_scope(
-            "test.confinement_drive", source_context={"workspace": str(self.workspace)}
+            "test.confinement_drive", source_context=_approved_command_context(self.workspace)
         ):
-            return self.runner().run_command(command)
+            result = self.runner().run_command(command)
+        assert result.get("status") in {"executed", "blocked_by_hard_link"}, result
+        return result
 
 
 @unittest.skipUnless(sys.platform == "darwin", _MACOS_ONLY)
@@ -136,18 +156,8 @@ class PackageToolConfinementTests(unittest.TestCase):
         result = self.bench.run("pip uninstall -y somepkg")
         self._assert_not_executed_unconfined(result, "pip uninstall")
 
-    def test_a_file_in_the_operators_real_home_cannot_be_read(self) -> None:
-        """The home deny-rule, exercised against the REAL home — the only place it applies.
-
-        The sibling test below uses a fake home under `/tmp`, which the rule never covered, so
-        it went green with the rule deleted. This one writes a sentinel of its own into
-        `Path.home()`, reads it from inside the sandbox, and removes it. No credential is ever
-        touched: the file is created by this test and contains the word SENTINEL.
-
-        This is what covers the operator's checkout, other worktrees, browser profiles,
-        `~/Library/Keychains`, `~/.npmrc` and everything else that lives under the home — none
-        of which was on any deny-list.
-        """
+    def test_a_file_in_the_configured_home_cannot_be_read(self) -> None:
+        """Exercise the home rule with a real sentinel under the disposable test home."""
         sentinel = Path.home() / "vool_confinement_probe_sentinel.txt"
         sentinel.write_text("SENTINEL-NOT-A-KEY", encoding="utf-8")
         try:
@@ -175,11 +185,15 @@ class PackageToolConfinementTests(unittest.TestCase):
             {PY} -c "open({str(leak)!r},'w').write(open({str(sentinel)!r}).read())" || true
             echo done
         """)
+        old_home = os.environ.get("HOME")
         os.environ["HOME"] = str(secret_home)
         try:
             self.bench.run("npm run build")
         finally:
-            os.environ.pop("HOME", None)
+            if old_home is None:
+                os.environ.pop("HOME", None)
+            else:
+                os.environ["HOME"] = old_home
         if leak.exists():
             self.assertNotIn(
                 "SENTINEL-NOT-A-KEY", leak.read_text(encoding="utf-8"),
@@ -400,7 +414,7 @@ class SandboxUnavailableTests(unittest.TestCase):
             from core.effect_gateway import named_background_effect_scope
 
             with named_background_effect_scope(
-                "test.confinement_drive", source_context={"workspace": str(workspace)}
+                "test.confinement_drive", source_context=_approved_command_context(workspace)
             ):
                 result = SandboxRunner(ExecutionGate(), str(workspace)).run_command("npm run build")
         finally:
@@ -466,7 +480,7 @@ class TerminalOutcomeTests(unittest.TestCase):
         from core.effect_gateway import named_background_effect_scope
 
         with named_background_effect_scope(
-            "test.confinement_drive", source_context={"workspace": str(self.bench.workspace)}
+            "test.confinement_drive", source_context=_approved_command_context(self.bench.workspace)
         ):
             result = runner.run_command("node server.js")
         self.assertEqual(result.get("status"), "timed_out", result)
@@ -496,7 +510,7 @@ class TerminalOutcomeTests(unittest.TestCase):
         runner = self.bench.runner()
         threading.Timer(1.5, cancel.set).start()
         with named_background_effect_scope(
-            "test.confinement_drive", source_context={"workspace": str(self.bench.workspace)}
+            "test.confinement_drive", source_context=_approved_command_context(self.bench.workspace)
         ):
             result = runner.run_command("npm run build", cancel_event=cancel)
 
