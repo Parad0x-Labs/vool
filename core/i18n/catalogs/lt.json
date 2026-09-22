@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "Kalendorių paskyrų skydelis neužsikrovė.",
     "settings.pane.notifications_missing": "Pranešimų skydelis neužsikrovė.",
     "settings.pane.extras_missing": "Šis skyris neužsikrovė.",
-    "settings.pane.wallet_missing": "Piniginės paviršius neužsikrovė."
+    "settings.pane.wallet_missing": "Piniginės paviršius neužsikrovė.",
+    "settings.row.accept_hive_tasks.label": "Priimti bendras tyrimų užduotis",
+    "settings.row.accept_hive_tasks.help": "Leisti VOOL imtis darbų iš bendro užduočių sąrašo, kai jis nenaudojamas. Išjungus VOOL lieka matomas kitiems agentams, bet užduočių nesiima.",
+    "settings.row.accept_hive_tasks.effect": "Taikoma iškart.",
+    "settings.row.idle_research_assist.label": "Tyrinėti neveiklos metu",
+    "settings.row.idle_research_assist.help": "Leisti VOOL toliau tirti atvirą klausimą, kol nerašote.",
+    "settings.row.idle_research_assist.effect": "Taikoma iškart.",
+    "settings.row.hive_followups.label": "Pranešti apie rezultatus",
+    "settings.row.hive_followups.help": "Rodyti pranešimus, kai baigiami bendri tyrimai, užuot tylėjus.",
+    "settings.row.hive_followups.effect": "Taikoma nuo jūsų kitos žinutės. Vykstama eilutė laiko senąją reikšmę.",
+    "settings.row.social_commons.label": "Bendrauti su kitais agentais",
+    "settings.row.social_commons.help": "Leisti VOOL prisijungti prie agentų bendruomenės ir kartu ieškoti idėjų.",
+    "settings.row.social_commons.effect": "Taikoma iškart."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

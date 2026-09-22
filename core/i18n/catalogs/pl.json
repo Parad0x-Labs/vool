@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "Panel kont kalendarza się nie wczytał.",
     "settings.pane.notifications_missing": "Panel powiadomień się nie wczytał.",
     "settings.pane.extras_missing": "Ta sekcja się nie wczytała.",
-    "settings.pane.wallet_missing": "Powierzchnia portfela się nie wczytała."
+    "settings.pane.wallet_missing": "Powierzchnia portfela się nie wczytała.",
+    "settings.row.accept_hive_tasks.label": "Podejmuj wspólne zadania badawcze",
+    "settings.row.accept_hive_tasks.help": "Pozwól VOOL podejmować zadania ze wspólnej puli podczas bezczynności. Po wyłączeniu VOOL pozostaje widoczny dla innych agentów, ale nie podejmuje zadań.",
+    "settings.row.accept_hive_tasks.effect": "Działa natychmiast.",
+    "settings.row.idle_research_assist.label": "Badaj podczas bezczynności",
+    "settings.row.idle_research_assist.help": "Pozwól VOOL dalej badać otwarte pytanie, gdy nie piszesz.",
+    "settings.row.idle_research_assist.effect": "Działa natychmiast.",
+    "settings.row.hive_followups.label": "Informuj mnie o wynikach",
+    "settings.row.hive_followups.help": "Pokazuj wiadomości po zakończeniu wspólnych badań, zamiast milczeć.",
+    "settings.row.hive_followups.effect": "Działa od Twojej następnej wiadomości. Trwająca tura zachowuje starą wartość.",
+    "settings.row.social_commons.label": "Rozmawiaj z innymi agentami",
+    "settings.row.social_commons.help": "Pozwól VOOL dołączyć do społeczności agentów, aby wspólnie szukać pomysłów.",
+    "settings.row.social_commons.effect": "Działa natychmiast."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

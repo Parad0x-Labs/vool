@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "कैलेंडर खाता पैनल लोड नहीं हुआ।",
     "settings.pane.notifications_missing": "सूचना पैनल लोड नहीं हुआ।",
     "settings.pane.extras_missing": "यह खंड लोड नहीं हुआ।",
-    "settings.pane.wallet_missing": "वॉलेट सतह लोड नहीं हुई।"
+    "settings.pane.wallet_missing": "वॉलेट सतह लोड नहीं हुई।",
+    "settings.row.accept_hive_tasks.label": "साझा शोध कार्य स्वीकार करें",
+    "settings.row.accept_hive_tasks.help": "निष्क्रिय होने पर VOOL को साझा कार्य समूह से काम लेने दें। बंद होने पर VOOL अन्य एजेंटों को दिखाई देता है, लेकिन कोई काम नहीं लेता।",
+    "settings.row.accept_hive_tasks.effect": "तुरंत लागू।",
+    "settings.row.idle_research_assist.label": "निष्क्रिय समय में शोध करें",
+    "settings.row.idle_research_assist.help": "जब आप टाइप नहीं कर रहे हों, तब VOOL को खुले प्रश्न पर शोध जारी रखने दें।",
+    "settings.row.idle_research_assist.effect": "तुरंत लागू।",
+    "settings.row.hive_followups.label": "मुझे परिणाम बताएँ",
+    "settings.row.hive_followups.help": "साझा शोध पूरा होने पर चुप रहने के बजाय आगे के संदेश दिखाएँ।",
+    "settings.row.hive_followups.effect": "आपके अगले संदेश से लागू। चल रहा टर्न पुराना मान रखता है।",
+    "settings.row.social_commons.label": "अन्य एजेंटों से बात करें",
+    "settings.row.social_commons.help": "विचारों पर चर्चा करने के लिए VOOL को एजेंट समुदाय में शामिल होने दें।",
+    "settings.row.social_commons.effect": "तुरंत लागू।"
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "カレンダーアカウントのパネルが読み込まれませんでした。",
     "settings.pane.notifications_missing": "通知パネルが読み込まれませんでした。",
     "settings.pane.extras_missing": "このセクションが読み込まれませんでした。",
-    "settings.pane.wallet_missing": "ウォレット画面が読み込まれませんでした。"
+    "settings.pane.wallet_missing": "ウォレット画面が読み込まれませんでした。",
+    "settings.row.accept_hive_tasks.label": "共有の調査タスクを引き受ける",
+    "settings.row.accept_hive_tasks.help": "待機中にVOOLが共有タスクプールから仕事を引き受けることを許可します。オフにすると、他のエージェントからは見えますが、タスクは引き受けません。",
+    "settings.row.accept_hive_tasks.effect": "即時に適用されます。",
+    "settings.row.idle_research_assist.label": "待機中に調査する",
+    "settings.row.idle_research_assist.help": "入力していない間、VOOLが未解決の質問の調査を続けることを許可します。",
+    "settings.row.idle_research_assist.effect": "即時に適用されます。",
+    "settings.row.hive_followups.label": "結果を知らせる",
+    "settings.row.hive_followups.help": "共有調査が完了したら、黙っている代わりにフォローアップメッセージを表示します。",
+    "settings.row.hive_followups.effect": "次のメッセージから適用。進行中のターンは古い値を保持します。",
+    "settings.row.social_commons.label": "他のエージェントと話す",
+    "settings.row.social_commons.help": "VOOLがエージェントのコミュニティに参加し、一緒にアイデアを出し合うことを許可します。",
+    "settings.row.social_commons.effect": "即時に適用されます。"
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "لم يُحمَّل لوح حسابات التقويم.",
     "settings.pane.notifications_missing": "لم يُحمَّل لوح الإشعارات.",
     "settings.pane.extras_missing": "لم يُحمَّل هذا القسم.",
-    "settings.pane.wallet_missing": "لم تُحمَّل واجهة المحفظة."
+    "settings.pane.wallet_missing": "لم تُحمَّل واجهة المحفظة.",
+    "settings.row.accept_hive_tasks.label": "قبول مهام البحث المشتركة",
+    "settings.row.accept_hive_tasks.help": "السماح لـ VOOL بتولي مهام من مجموعة المهام المشتركة أثناء الخمول. عند التعطيل، يظل VOOL مرئيًا للوكلاء الآخرين لكنه لا يتولى أي مهام.",
+    "settings.row.accept_hive_tasks.effect": "يسري فورًا.",
+    "settings.row.idle_research_assist.label": "البحث أثناء الخمول",
+    "settings.row.idle_research_assist.help": "السماح لـ VOOL بمواصلة البحث في سؤال مفتوح عندما لا تكتب.",
+    "settings.row.idle_research_assist.effect": "يسري فورًا.",
+    "settings.row.hive_followups.label": "إبلاغي بالنتائج",
+    "settings.row.hive_followups.help": "إظهار رسائل متابعة عند انتهاء البحث المشترك بدلًا من البقاء صامتًا.",
+    "settings.row.hive_followups.effect": "يسري من رسالتك التالية. يحتفظ الدور الجاري بالقيمة القديمة.",
+    "settings.row.social_commons.label": "التحدث مع الوكلاء الآخرين",
+    "settings.row.social_commons.help": "السماح لـ VOOL بالانضمام إلى مجتمع الوكلاء لتبادل الأفكار.",
+    "settings.row.social_commons.effect": "يسري فورًا."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

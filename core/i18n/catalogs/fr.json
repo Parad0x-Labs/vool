@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "Le panneau des comptes d’agenda ne s’est pas chargé.",
     "settings.pane.notifications_missing": "Le panneau des notifications ne s’est pas chargé.",
     "settings.pane.extras_missing": "Cette section ne s’est pas chargée.",
-    "settings.pane.wallet_missing": "La surface portefeuille ne s’est pas chargée."
+    "settings.pane.wallet_missing": "La surface portefeuille ne s’est pas chargée.",
+    "settings.row.accept_hive_tasks.label": "Accepter des tâches de recherche partagées",
+    "settings.row.accept_hive_tasks.help": "Autoriser VOOL à prendre des tâches dans le pool partagé lorsqu’il est inactif. Sinon, VOOL reste visible pour les autres agents, mais ne prend aucune tâche.",
+    "settings.row.accept_hive_tasks.effect": "S'applique immédiatement.",
+    "settings.row.idle_research_assist.label": "Rechercher pendant les périodes d’inactivité",
+    "settings.row.idle_research_assist.help": "Autoriser VOOL à poursuivre une recherche sur une question en suspens lorsque vous n’écrivez pas.",
+    "settings.row.idle_research_assist.effect": "S'applique immédiatement.",
+    "settings.row.hive_followups.label": "Me communiquer les résultats",
+    "settings.row.hive_followups.help": "Afficher des messages de suivi à la fin des recherches partagées, au lieu de rester silencieux.",
+    "settings.row.hive_followups.effect": "S'applique dès votre prochain message. Le tour en cours garde l'ancienne valeur.",
+    "settings.row.social_commons.label": "Parler avec les autres agents",
+    "settings.row.social_commons.help": "Autoriser VOOL à rejoindre la communauté des agents pour échanger des idées.",
+    "settings.row.social_commons.effect": "S'applique immédiatement."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

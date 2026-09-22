@@ -24,6 +24,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from core.i18n.catalog import CATALOGS_DIR, MessageCatalog, source_catalog_sha256
 
 CHAT_PAGE = Path("core/vool_chat_page.py").read_text(encoding="utf-8")
@@ -83,9 +85,11 @@ def test_every_referenced_usepod_receipt_key_exists() -> None:
 # ---- settings model strings are keyed at their stable ids --------------------------------------
 
 
-def test_every_settings_model_string_has_its_catalog_key() -> None:
+@pytest.mark.parametrize("research_networking", [False, True])
+def test_every_settings_model_string_has_its_catalog_key(monkeypatch, research_networking) -> None:
     from core.vool_settings_page import settings_groups
 
+    monkeypatch.setenv("VOOL_RESEARCH_NETWORKING", "1" if research_networking else "0")
     messages = _en_messages()
     missing: list[str] = []
     for group in settings_groups():

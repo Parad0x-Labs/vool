@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "Панель календарных учётных записей не загрузилась.",
     "settings.pane.notifications_missing": "Панель уведомлений не загрузилась.",
     "settings.pane.extras_missing": "Этот раздел не загрузился.",
-    "settings.pane.wallet_missing": "Поверхность кошелька не загрузилась."
+    "settings.pane.wallet_missing": "Поверхность кошелька не загрузилась.",
+    "settings.row.accept_hive_tasks.label": "Брать общие исследовательские задачи",
+    "settings.row.accept_hive_tasks.help": "Разрешить VOOL брать задачи из общего пула во время простоя. Если выключено, VOOL остаётся видимым другим агентам, но не берёт задачи.",
+    "settings.row.accept_hive_tasks.effect": "Применяется сразу.",
+    "settings.row.idle_research_assist.label": "Исследовать во время простоя",
+    "settings.row.idle_research_assist.help": "Разрешить VOOL продолжать исследование открытого вопроса, пока вы не пишете.",
+    "settings.row.idle_research_assist.effect": "Применяется сразу.",
+    "settings.row.hive_followups.label": "Сообщать мне о результатах",
+    "settings.row.hive_followups.help": "Показывать сообщения после завершения общих исследований, а не оставаться безмолвным.",
+    "settings.row.hive_followups.effect": "Применится с вашего следующего сообщения. Текущий ход сохраняет старое значение.",
+    "settings.row.social_commons.label": "Общаться с другими агентами",
+    "settings.row.social_commons.help": "Разрешить VOOL присоединяться к сообществу агентов для совместного поиска идей.",
+    "settings.row.social_commons.effect": "Применяется сразу."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

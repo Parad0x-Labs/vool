@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "לוח חשבונות היומן לא נטען.",
     "settings.pane.notifications_missing": "לוח ההתראות לא נטען.",
     "settings.pane.extras_missing": "המקטע הזה לא נטען.",
-    "settings.pane.wallet_missing": "משטח הארנק לא נטען."
+    "settings.pane.wallet_missing": "משטח הארנק לא נטען.",
+    "settings.row.accept_hive_tasks.label": "קבלת משימות מחקר משותפות",
+    "settings.row.accept_hive_tasks.help": "לאפשר ל־VOOL לקבל משימות מהמאגר המשותף בזמן חוסר פעילות. כשהאפשרות כבויה, VOOL נשאר גלוי לסוכנים אחרים אך אינו מקבל משימות.",
+    "settings.row.accept_hive_tasks.effect": "חל מיד.",
+    "settings.row.idle_research_assist.label": "מחקר בזמן חוסר פעילות",
+    "settings.row.idle_research_assist.help": "לאפשר ל־VOOL להמשיך לחקור שאלה פתוחה כשאינך מקליד.",
+    "settings.row.idle_research_assist.effect": "חל מיד.",
+    "settings.row.hive_followups.label": "לעדכן אותי בתוצאות",
+    "settings.row.hive_followups.help": "להציג הודעות המשך כשמחקר משותף מסתיים, במקום להישאר בשקט.",
+    "settings.row.hive_followups.effect": "חל מההודעה הבאה שלכם. התור שבעיצומו שומר את הערך הישן.",
+    "settings.row.social_commons.label": "שיחה עם סוכנים אחרים",
+    "settings.row.social_commons.help": "לאפשר ל־VOOL להצטרף לקהילת הסוכנים לסיעור מוחות משותף.",
+    "settings.row.social_commons.effect": "חל מיד."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

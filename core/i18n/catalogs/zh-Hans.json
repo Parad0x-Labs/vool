@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "日历账户面板未加载。",
     "settings.pane.notifications_missing": "通知面板未加载。",
     "settings.pane.extras_missing": "此部分未加载。",
-    "settings.pane.wallet_missing": "钱包界面未加载。"
+    "settings.pane.wallet_missing": "钱包界面未加载。",
+    "settings.row.accept_hive_tasks.label": "接受共享研究任务",
+    "settings.row.accept_hive_tasks.help": "允许 VOOL 在空闲时从共享任务池中领取工作。关闭后，其他智能体仍可看到 VOOL，但它不会领取任务。",
+    "settings.row.accept_hive_tasks.effect": "立即生效。",
+    "settings.row.idle_research_assist.label": "空闲时继续研究",
+    "settings.row.idle_research_assist.help": "允许 VOOL 在您未输入时继续研究尚未解决的问题。",
+    "settings.row.idle_research_assist.effect": "立即生效。",
+    "settings.row.hive_followups.label": "向我报告结果",
+    "settings.row.hive_followups.help": "共享研究完成时显示后续消息，而不是保持静默。",
+    "settings.row.hive_followups.effect": "从你的下一条消息起生效。进行中的回合保持旧值。",
+    "settings.row.social_commons.label": "与其他智能体交流",
+    "settings.row.social_commons.help": "允许 VOOL 加入智能体社区，共同交流想法。",
+    "settings.row.social_commons.effect": "立即生效。"
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
