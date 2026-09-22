@@ -3835,13 +3835,31 @@ class VoolAgent(
 
     def _finalize_live_data_runtime_attempt(
         self, runtime_attempt_id: str, *, plan_valid: bool = True, client_turn_id: str = "",
+        outcomes: list[Any] | None = None,
     ) -> dict | None:
         if not runtime_attempt_id:
             return None
         try:
             from core.runtime_continuity import finalize_runtime_attempt
 
-            return finalize_runtime_attempt(runtime_attempt_id, plan_valid=plan_valid, client_turn_id=client_turn_id)
+            policy_refused = False
+            if outcomes is not None:
+                # An attempt whose every subtask failed while the composite policy blocks all
+                # egress was refused by POLICY, not by the tools: nothing was attempted that
+                # could have succeeded, and the honest closure is a refusal, not a tool failure
+                # the record counts as unfulfilled work.
+                from core import policy_engine
+
+                policy_refused = (
+                    not any(getattr(outcome, "ok", False) for outcome in outcomes)
+                    and bool(policy_engine.local_only_mode())
+                    and not bool(policy_engine.allow_web_fallback())
+                    and not bool(policy_engine.get("network.outbound_enabled", False))
+                )
+            return finalize_runtime_attempt(
+                runtime_attempt_id, plan_valid=plan_valid, client_turn_id=client_turn_id,
+                policy_refused=policy_refused,
+            )
         except Exception:
             return None
 
@@ -4372,6 +4390,7 @@ class VoolAgent(
                     # shipping a page of "unavailable" rows.
                     self._finalize_live_data_runtime_attempt(
                         runtime_attempt_id, client_turn_id=self._client_turn_id(source_context),
+                        outcomes=outcomes,
                     )
                     return None
                 # EVERY subtask was an entity the runtime KNOWS it cannot quote (decided at plan
@@ -4387,6 +4406,7 @@ class VoolAgent(
             if not rendered.strip():
                 self._finalize_live_data_runtime_attempt(
                     runtime_attempt_id, client_turn_id=self._client_turn_id(source_context),
+                    outcomes=outcomes,
                 )
                 return None
             # The obligation this turn just fulfilled, recorded BEFORE the answer goes out, so the
@@ -4403,6 +4423,7 @@ class VoolAgent(
             )
             finalized = self._finalize_live_data_runtime_attempt(
                 runtime_attempt_id, client_turn_id=self._client_turn_id(source_context),
+                outcomes=outcomes,
             )
             # B3: the producing edge — this lane served the turn, so it declares what it
             # served (receipts + dispatch record) before the answer is sealed.
@@ -4591,6 +4612,7 @@ class VoolAgent(
             )
             finalized = self._finalize_live_data_runtime_attempt(
                 runtime_attempt_id, client_turn_id=self._client_turn_id(source_context),
+                outcomes=outcomes,
             )
             # B3: the producing edge — same record as the single-entity lane. A multipart
             # turn is the one that most needs it: this lane ends the turn without a model,

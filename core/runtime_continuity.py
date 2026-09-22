@@ -1247,6 +1247,11 @@ class AttemptLifecycle(str, Enum):
     FAILED_SYNTHESIS = "FAILED_SYNTHESIS"
     FAILED_VALIDATION = "FAILED_VALIDATION"
     PENDING_RECONCILIATION = "PENDING_RECONCILIATION"
+    # Every executable subtask was refused by POLICY before any egress or effect (the Local
+    # Only composite): nothing was attempted that could have succeeded, nothing was partially
+    # done, and the failure is not the tool's. Not a FAILED_* shape: the record of a policy
+    # refusal is complete evidence about the policy, never unfulfilled work the ledger admits.
+    REFUSED_POLICY = "REFUSED_POLICY"
     CANCELLED = "CANCELLED"
     ABANDONED = "ABANDONED"
     # H-1/INV-3: supersession is a durable row transition written ONLY by the
@@ -1352,6 +1357,7 @@ def reconcile_attempt_lifecycle(
     plan_valid: bool = True,
     provider_available: bool = True,
     synthesis_ok: bool = True,
+    policy_refused: bool = False,
 ) -> tuple[str, str]:
     """The one runtime-owned function that derives a parent attempt's lifecycle from its
     subtasks' persisted states -- (lifecycle_state, terminal_reason). Pure: no I/O, so every
@@ -1361,6 +1367,10 @@ def reconcile_attempt_lifecycle(
     `provider_available`/`synthesis_ok` default True because a LIVE_DATA plan never calls a model
     provider or a synthesis pass -- they exist for future attempt types (grounded research,
     provider/tool-call tasks) that route through the same reconciliation function.
+
+    `policy_refused` says the CALLER's policy refused every egress before any socket (the Local
+    Only composite): an all-failed attempt under that flag is a policy refusal, not a tool
+    failure -- the tool never got a chance to fail.
     """
     if not plan_valid:
         return AttemptLifecycle.FAILED_VALIDATION.value, "plan could not be constructed or validated"
@@ -1388,6 +1398,11 @@ def reconcile_attempt_lifecycle(
     if succeeded and failed_or_unsupported:
         return AttemptLifecycle.PARTIAL_SUCCESS.value, f"{len(succeeded)}/{total} subtasks succeeded"
     if failed_or_unsupported and not succeeded:
+        if policy_refused:
+            return (
+                AttemptLifecycle.REFUSED_POLICY.value,
+                "policy refused every egress for this attempt; nothing was attempted that could succeed",
+            )
         return AttemptLifecycle.FAILED_TOOL.value, "all executable subtasks failed"
     return (
         AttemptLifecycle.FAILED_VALIDATION.value,
@@ -1411,6 +1426,7 @@ _ATTEMPT_RETRY_POLICY: dict[str, tuple[bool, str]] = {
     AttemptLifecycle.CANCELLED.value: (False, "not automatically retryable unless explicitly requested"),
     AttemptLifecycle.SUCCEEDED.value: (False, "carry forward; refresh only under an explicit staleness policy"),
     AttemptLifecycle.ABANDONED.value: (True, "attempt was interrupted, not user-cancelled"),
+    AttemptLifecycle.REFUSED_POLICY.value: (False, "policy refuses the egress; retry only after the policy changes"),
     # H-1: the successor already exists — a superseded row is never retried.
     AttemptLifecycle.SUPERSEDED.value: (False, "superseded by a newer generation of this execution"),
 }
@@ -2585,6 +2601,7 @@ def finalize_runtime_attempt(
     provider_available: bool = True,
     synthesis_ok: bool = True,
     client_turn_id: str = "",
+    policy_refused: bool = False,
 ) -> dict[str, Any] | None:
     """Reconcile the parent attempt's lifecycle from its persisted subtask rows and write the
     result -- the ONLY function that finalizes an attempt's lifecycle (Step 7 correction #8). Reads
@@ -2599,6 +2616,7 @@ def finalize_runtime_attempt(
         plan_valid=plan_valid,
         provider_available=provider_available,
         synthesis_ok=synthesis_ok,
+        policy_refused=policy_refused,
     )
     retryable, retry_reason = _default_retry_guidance(lifecycle_state)
     retry_from_stage = ""
