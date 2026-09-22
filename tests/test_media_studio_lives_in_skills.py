@@ -46,6 +46,7 @@ def test_media_studio_is_offered_under_skills_and_opens_the_editor_window(served
     page = browser.new_page()
     page.goto(f"{daemon.base_url}/chat", wait_until="networkidle")
     assert page.query_selector("header a[href='/media-editor']") is None, "header link still present"
+    page.click("#homeMenu > summary")
     page.click("#skillsBtn")
     link = page.wait_for_selector("#pluginsBody a.media-studio-open[href='/media-editor']", timeout=20000)
     assert link.get_attribute("target") == "_blank" and "Media Studio" in page.inner_text("#pluginsBody")

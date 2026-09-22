@@ -123,6 +123,9 @@ jobs:
               "tests/test_artifact_readers_served_m2.py",
               "tests/test_audio_dictation.py",
               "tests/test_media_product_served.py",
+              "tests/wallet/test_wallet_approval_methods.py",
+              "tests/wallet/test_wallet_device_auth_ipc.py",
+              "tests/wallet/test_wallet_export_ui_served.py",
           }
           dropped = sorted(set(files) & macos_only)
           if set(dropped) != macos_only:
@@ -160,7 +163,8 @@ jobs:
     # unconfined); the app-packaging contracts drive plutil and the bundle build script that
     # refuses Linux; the signed-update e2e drives the real `codesign`. The Linux shard
     # resolver routes exactly this file set here — pinned together by
-    # tests/test_delivery_contracts.py.
+    # tests/test_delivery_contracts.py. Device-auth wallet journeys require the
+    # macOS Keychain helper selector; portable PIN/password coverage also runs here.
     timeout-minutes: 90
     runs-on: macos-latest
     needs: verify
@@ -192,6 +196,9 @@ jobs:
           tests/test_artifact_readers_served_m2.py
           tests/test_audio_dictation.py
           tests/test_media_product_served.py
+          tests/wallet/test_wallet_approval_methods.py
+          tests/wallet/test_wallet_device_auth_ipc.py
+          tests/wallet/test_wallet_export_ui_served.py
       - name: Upload macos job log
         if: always()
         uses: actions/upload-artifact@v7
