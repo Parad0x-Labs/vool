@@ -141,6 +141,7 @@ class UpdateFault(Enum):
     INSTALL_FAILED = "install_failed"
     MIGRATION_FAILED = "migration_failed"
     HEALTH_CHECK_FAILED = "health_check_failed"
+    ROLLBACK_FAILED = "rollback_failed"
     DESTRUCTIVE_WORK_ACTIVE = "destructive_work_active"
     STALE_UPDATE_CLEANED_UP = "stale_update_cleaned_up"
     UNEXPECTED = "unexpected_failure"
@@ -173,6 +174,9 @@ class UpdateFault(Enum):
             ),
             UpdateFault.HEALTH_CHECK_FAILED: (
                 "The previous version is running again. Press Check for updates to try the update later."
+            ),
+            UpdateFault.ROLLBACK_FAILED: (
+                "The previous version could not be fully restored. Keep the update backup and contact support before restarting."
             ),
             UpdateFault.DESTRUCTIVE_WORK_ACTIVE: (
                 "Finish or close the work listed above, then press Restart to finish the update."

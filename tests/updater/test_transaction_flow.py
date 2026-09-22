@@ -481,12 +481,45 @@ class TestCrashRecovery:
             helper=InProcessHelper(shutdown=lambda: None, relauncher=lambda path: True),
             health_probe=harness.health,
             installed_version="0.5.0",
+            platform="macos-arm64",
         )
         assert [r.action for r in results] == ["rolled_back"]
         assert harness.marker() == "old"  # previous version restored
         assert harness.config()["setting"] == "original"
         store = StatusStore(harness.data_dir / "update_v2" / "status.json")
         assert store.load().phase is UpdatePhase.ROLLED_BACK
+
+    @pytest.mark.parametrize("failure", ["unsupported_platform", "missing_backup", "restore_refused"])
+    def test_failed_restoration_never_claims_rollback_or_relaunches(self, harness, monkeypatch, failure):
+        import shutil
+
+        from core.updater import platforms
+        from core.updater.platforms import SwapOutcome
+
+        self._crashed_flow(harness, Step.SWAPPED)
+        harness.health_forced_fail = True
+        journals = [UpdateJournal(d) for d in (harness.data_dir / "update_v2" / "transactions").iterdir() if d.is_dir()]
+        journal = journals[0]
+        prior = Path(journal.payload_of(Step.SWAPPED)["prior_path"])
+        if failure == "missing_backup":
+            shutil.rmtree(prior)
+        elif failure == "restore_refused":
+            monkeypatch.setattr(platforms, "installer_for", lambda key: harness.installer)
+            monkeypatch.setattr(harness.installer, "restore_prior", lambda *a, **k: SwapOutcome(False, detail="simulated refusal"))
+        relaunched = []
+        results = recover_interrupted_update(
+            data_dir=harness.data_dir, app_path=harness.app_path,
+            helper=InProcessHelper(shutdown=lambda: None, relauncher=lambda path: relaunched.append(path)),
+            health_probe=harness.health, installed_version="0.5.0",
+            platform="linux-x64" if failure == "unsupported_platform" else "macos-arm64",
+        )
+        assert [r.action for r in results] == ["rollback_failed"]
+        assert harness.marker() == "new" and not relaunched
+        assert not journal.is_terminal()
+        status = StatusStore(harness.data_dir / "update_v2" / "status.json").load()
+        assert status.phase is UpdatePhase.FAILED
+        assert status.fault_code == "rollback_failed"
+        assert "could not be fully restored" in status.recovery_action
 
     def test_terminal_transactions_are_left_alone(self, harness):
         result = harness.make_flow().run(harness.raw_manifest, harness.manifest, harness.decision)
