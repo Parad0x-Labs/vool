@@ -26,18 +26,32 @@ from pathlib import Path
 # the parent process can compare the child's home against its own.
 _REPORT_ENV = "VOOL_SESSION_HOME_PROBE_REPORT"
 
+# Captured at MODULE IMPORT (collection time): before any autouse fixture or earlier test in
+# this process has legitimately repointed the signer's per-test key directories. The live
+# globals at test time may move by design (per-test signer isolation repoints _KEY_DIR into a
+# per-test directory), so the import-time pin is asserted against this snapshot, and only the
+# repo-checkout exclusion is asserted against the live value.
+import network.signer as _signer_at_import  # noqa: E402
+
+from core.runtime_paths import active_vool_home as _active_home_at_import  # noqa: E402
+
+_IMPORT_TIME_HOME = _active_home_at_import()
+_IMPORT_TIME_KEY_DIR = _signer_at_import._KEY_DIR
+
 
 def test_import_frozen_runtime_paths_stay_inside_the_session_home() -> None:
     import network.signer as signer
-    from core.runtime_paths import active_vool_home
 
-    home = active_vool_home()
-    assert home in signer._KEY_DIR.parents, (
-        f"network.signer._KEY_DIR ({signer._KEY_DIR}) resolved outside the session runtime home "
-        f"({home}): an import-time path escaped the session pin again"
+    assert _IMPORT_TIME_HOME in _IMPORT_TIME_KEY_DIR.parents, (
+        f"network.signer._KEY_DIR at import ({_IMPORT_TIME_KEY_DIR}) resolved outside the session "
+        f"runtime home ({_IMPORT_TIME_HOME}): an import-time path escaped the session pin again"
     )
 
     repo_root = Path(__file__).resolve().parents[1]
+    assert repo_root not in _IMPORT_TIME_KEY_DIR.parents, (
+        f"network.signer._KEY_DIR at import ({_IMPORT_TIME_KEY_DIR}) points into the repository "
+        "checkout -- every pytest session in the job would share one key record again"
+    )
     assert repo_root not in signer._KEY_DIR.parents, (
         f"network.signer._KEY_DIR ({signer._KEY_DIR}) points into the repository checkout -- "
         "every pytest session in the job would share one key record again"
@@ -46,7 +60,8 @@ def test_import_frozen_runtime_paths_stay_inside_the_session_home() -> None:
     report = os.environ.get(_REPORT_ENV)
     if report:
         Path(report).write_text(
-            json.dumps({"key_dir": str(signer._KEY_DIR), "home": str(home)}), encoding="utf-8"
+            json.dumps({"key_dir": str(_IMPORT_TIME_KEY_DIR), "home": str(_IMPORT_TIME_HOME)}),
+            encoding="utf-8",
         )
 
 
