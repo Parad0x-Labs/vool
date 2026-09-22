@@ -172,7 +172,7 @@ def test_final_newline_only_mutations_have_nonzero_line_delta_and_preview(
     assert "No newline at end of file" in file_change["diff_preview"]
 
 
-def test_crlf_to_lf_reports_normalized_before_state_as_unknown_not_no_change(change_runtime: Path) -> None:
+def test_crlf_to_lf_projects_the_byte_exact_before_state(change_runtime: Path) -> None:
     session_id = "newline-crlf-to-lf"
     (change_runtime / "line.txt").write_bytes(b"line\r\n")
     result = _execute(
@@ -183,13 +183,13 @@ def test_crlf_to_lf_reports_normalized_before_state_as_unknown_not_no_change(cha
     )
     assert result is not None and result.ok
     file_change = _projection(session_id)["changes"][0]["files"][0]
-    assert file_change["content_changed"] is None
-    assert file_change["content_change_reason"] == "normalized_before_state_ambiguous"
-    assert file_change["line_delta_available"] is False
-    assert file_change["lines_added"] is None
-    assert file_change["lines_removed"] is None
-    assert file_change["diff_preview_available"] is False
-    assert file_change["diff_preview"] == ""
+    assert file_change["content_changed"] is True
+    assert file_change["before_hash"] == content_sha256("line\r\n")
+    assert file_change["after_hash"] == content_sha256("line\n")
+    assert file_change["line_delta_available"] is True
+    assert (file_change["lines_added"], file_change["lines_removed"]) == (1, 1)
+    assert file_change["diff_preview_available"] is True
+    assert "-line\n\\ Line ending: CRLF\n+line" in file_change["diff_preview"]
 
 
 def test_lf_to_crlf_is_projected_when_the_ledger_retains_both_terminators(change_runtime: Path) -> None:
