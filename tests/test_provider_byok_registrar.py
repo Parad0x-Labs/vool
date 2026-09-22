@@ -123,7 +123,7 @@ def test_openrouter_still_routes_through_its_own_path():
 def test_openrouter_attribution_is_vool_on_every_path():
     # VOOL_MIGRATION.md §2.2/§2.4: the canonical attribution carries exactly the VOOL values, and the
     # live openrouter-byok manifest (the single construction point every OpenRouter request flows
-    # through) must ship all three headers. Guards against drift back to VOOL/parad0xlabs and against
+    # through) must ship all three headers. Guards against obsolete attribution and against
     # a request path leaving without one of the three headers.
     h = rpd.openrouter_attribution_headers({})
     assert h == {
@@ -131,7 +131,7 @@ def test_openrouter_attribution_is_vool_on_every_path():
         "X-OpenRouter-Title": "VOOL",
         "X-OpenRouter-Categories": "personal-agent,programming-app",
     }
-    assert "parad0xlabs" not in h["HTTP-Referer"] and h["X-OpenRouter-Title"] != "VOOL"
+    assert "parad0xlabs" not in h["HTTP-Referer"]
     with mock.patch("core.credential_store.has_credential", lambda s: s == "llm.cloud.openrouter"):
         rpd.activate_provider_byok("openrouter", env={})
     hdrs = _active_manifest("openrouter-byok").runtime_config.get("headers", {})

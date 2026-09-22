@@ -56,7 +56,7 @@ pip install cooltool
 @pytest.mark.parametrize(
     "url, expected",
     [
-        ("https://github.com/Parad0x-Labs/vool", ("Parad0x-Labs", "vool-local")),
+        ("https://github.com/Parad0x-Labs/vool", ("Parad0x-Labs", "vool")),
         ("github.com/o/r/tree/main", ("o", "r")),
         ("git@github.com:o/r.git", ("o", "r")),
         ("o/r", ("o", "r")),

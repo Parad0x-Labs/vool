@@ -118,7 +118,7 @@ def report_observations(tmp_path_factory) -> dict[str, dict[str, Any]]:
     narrow and full. Returns each named step's observation payload as the served boundary hands it to the renderer."""
     from core.agent_runtime.response_policy_tool_history import tool_history_observation_payload
     from core.code_assistant.task_runtime import code_task_runtime
-    from core.mode_permission_policy import reset_mode_permission_state
+    from core.mode_permission_policy import reset_mode_permission_state, set_active_mode
 
     base = tmp_path_factory.mktemp("percent-report")
     root = base / "report"
@@ -136,6 +136,7 @@ def report_observations(tmp_path_factory) -> dict[str, dict[str, Any]]:
         try:
             ctx = {"workspace": str(root), "workspace_root": str(root), "session_id": "percent-report",
                    "runtime_session_id": "percent-report", "operating_mode": "auto"}
+            set_active_mode("percent-report", "auto", workspace_root=str(root))
             task_id = _door("code.task.open", {"objective": "Repair the percentage report"}, ctx).details["task_id"]
             numbers = iter(range(1, 100))
 
@@ -154,6 +155,9 @@ def report_observations(tmp_path_factory) -> dict[str, dict[str, Any]]:
                 task_call("code.task.approve", proposal_id=pid)
 
             seen = {"reproduction": step("workspace.run_tests", {"command": "python3 check_report.py"})}
+            reproduction = seen["reproduction"]
+            assert reproduction.status == "command_failed", (reproduction.status, reproduction.details)
+            assert reproduction.details["tool_result"]["returncode"] == 1, reproduction.details
             task_call("code.task.identify", path="metrics/percent.py", line=2, reason="share_percent scales by ten")
             assert step("workspace.read_file", {"path": "metrics/percent.py"}).ok
             repair("floor-percent", PERCENT_FLOOR)
