@@ -90,6 +90,16 @@ def served(request, monkeypatch, enable_web):
     from retrieval.web_adapter import WebAdapter
 
     monkeypatch.setattr(WebAdapter, "search_query", weather_search)
+    # The same synthetic retrieval boundary for the lane the live-info fast path actually
+    # searches through: `planned_search_query` is not covered by the weather patch above,
+    # and with it live the fast path's retrieval reached the REAL web for non-weather
+    # queries -- measured, CI run 35790183687 shard 7: the notes-append turn's receipt
+    # carried discussions.apple.com and reddit.com sources, the lane claimed the turn, and
+    # the model lane answered it (route='') instead of operator dispatch. Where the engines
+    # answer nothing the lane declines by its own nothing-retrieved law and the turn stays
+    # with Notes, so this suite's verdict rode on live search results. Empty here: the
+    # weather arm above stays the one synthetic retrieval this rig answers.
+    monkeypatch.setattr(WebAdapter, "planned_search_query", lambda *args, **kwargs: [])
 
     def recorder(intent):
         def run(arguments, *_args, **_kwargs):
