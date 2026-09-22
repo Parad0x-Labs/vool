@@ -2066,11 +2066,13 @@ class ResearchToolLoopFacadeMixin:
                     status=(
                         "pending_approval"
                         if execution.mode == "tool_preview"
-                        else "failed"
-                        if execution.mode == "tool_failed"
                         else "running"
                     ),
                 )
+            # A refused step is not a terminal turn: the correction path or grounded synthesis
+            # below still owns it. Finalization records failure when the turn actually ends.
+            # Marking it failed here seals the checkpoint and discards a later approval pause,
+            # forcing the same reviewed edit to ask again under a fresh turn on resume.
             if execution.mode != "tool_executed" and self._retry_as_observation(
                 execution=execution,
                 tool_payload=tool_payload,

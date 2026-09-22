@@ -486,6 +486,7 @@ def _converse(rig: dict[str, Any], session: str, demand: str, model: ObservedRep
     reply: dict[str, Any] = {}
     message = demand
     resolved_ids: set[str] = set()
+    resolved_approvals: list[dict[str, Any]] = []
     while True:
         reply = daemon.chat(message, session_id=session, mode="auto", timeout=900.0)
         transcript.append({"user": message, "reply": _reply_text(reply)})
@@ -501,6 +502,7 @@ def _converse(rig: dict[str, Any], session: str, demand: str, model: ObservedRep
                 resolved = _post(daemon.base_url, "/api/mode", {"op": "resolve_approval", "session_id": session,
                                                                "approval_id": token, "decision": "allow"})
                 assert resolved.get("ok") is True, resolved
+                resolved_approvals.append(dict(entry))
                 resolved_ids.add(token)
             approvals += 1
             reply = daemon.chat("continue the approved repair", session_id=session, mode="auto",
@@ -513,7 +515,10 @@ def _converse(rig: dict[str, Any], session: str, demand: str, model: ObservedRep
     # `approvals` counts RESUME ROUNDS, which a mint racing the poll can split in two; the
     # operator-facing fact is how many DISTINCT approvals were resolved, so that is what the
     # drives assert on.
+    if model.prompt_dir is not None:
+        (model.prompt_dir / "approvals.json").write_text(json.dumps(resolved_approvals, indent=2), encoding="utf-8")
     return {"reply": reply, "text": _reply_text(reply), "transcript": transcript,
+            "approval_records": resolved_approvals,
             "approvals": len(resolved_ids), "resume_rounds": approvals,
             "follow_ups": follow_ups}
 
