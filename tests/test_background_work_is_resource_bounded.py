@@ -205,13 +205,11 @@ def test_concurrent_callers_stay_within_the_bound() -> None:
 def test_a_completed_worker_leaves_no_database_descriptor_behind() -> None:
     """Behavioural, not source-inspection: descriptors must come back per completed worker.
 
-    Each extraction opens a thread-local SQLite connection for the memory write. Nothing else can
-    hold a thread-local, and the thread is about to vanish, so the worker is the only boundary that
-    can return it. Without that hand-back every completed extraction strands the DB handle and its
-    WAL descriptor for the life of the process -- invisible under a high limit, fatal under 256.
+    Each extraction uses the production query helper, which owns and closes its
+    per-use connection. A worker must not strand handles across repeated calls.
     """
 
-    from storage.db import get_connection
+    from storage.db import execute_query
 
     class _TouchesTheDatabase(fx.FactExtractor):
         def __init__(self) -> None:
@@ -219,8 +217,7 @@ def test_a_completed_worker_leaves_no_database_descriptor_behind() -> None:
             self._close_memory_on_finish = False
 
         def _run(self, messages: list[dict]):  # type: ignore[override]
-            connection = get_connection()
-            connection.execute("SELECT 1").fetchone()
+            assert execute_query("SELECT 1 AS value") == [{"value": 1}]
             self.done.release()
             return []
 
@@ -245,8 +242,7 @@ def test_a_completed_worker_leaves_no_database_descriptor_behind() -> None:
     settled = _open_fds()
 
     assert completed >= 8, f"only {completed} workers ran; the measurement would prove nothing"
-    # Each stranded connection costs a DB handle plus its WAL descriptor, so an unreleased
-    # thread-local would put this far above the small allowance below.
+    # Each stranded connection costs a DB handle plus its WAL descriptor.
     assert settled - baseline <= 4, (
         f"{completed} completed workers left {settled - baseline} descriptors behind "
         f"(baseline={baseline} settled={settled})"

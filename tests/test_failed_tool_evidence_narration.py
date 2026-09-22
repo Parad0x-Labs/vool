@@ -125,14 +125,19 @@ def test_nothing_executed_still_falls_through_to_research_honestly() -> None:
     scripts = [
         [_call("contacts.nonsense_tool")],
     ]
-    result, _router, _events = _drive(scripts, user_input=SAVE_INPUT)
+    result, _router, events = _drive(scripts, user_input=SAVE_INPUT)
     # An unknown tool cannot execute; nothing ran. The evidence-required turn hands back to the
     # research path exactly as before the repair (asserted by the fallthrough itself: either the
     # typed rejected-call response or None -- never a success narration with zero steps).
     if result is None:
         return
-    assert _steps(result) == [], result
+    # The attempted dispatch is retained for diagnosis. Its typed outcome, not
+    # presence in tool_steps, determines whether anything actually executed.
+    assert _steps(result) == ["contacts.nonsense_tool"], result
+    assert result.get("status") == "unsupported", result
     assert result.get("success") is False, result
+    assert "not wired" in result.get("response", ""), result
+    assert not any(e.get("tool_name") == "contacts.nonsense_tool" and e.get("ok") for e in events)
 
 
 def test_a_quoted_example_is_not_executed_as_a_tool() -> None:
