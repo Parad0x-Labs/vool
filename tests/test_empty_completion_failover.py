@@ -208,13 +208,8 @@ def test_an_empty_completion_is_not_a_valid_contract_in_the_router() -> None:
 
 
 def test_the_streaming_surface_tracks_delivered_content_not_chunk_events() -> None:
-    """`saw_model_output` alone discarded a reply the runtime had already generated."""
+    """Empty chunk events cannot discard the final guarded answer or duplicate it."""
+    from tests.test_streamed_monologue_never_reaches_the_screen import _drive_transport
 
-    from pathlib import Path
-
-    source = (Path(__file__).resolve().parents[1] / "core" / "web" / "api" / "runtime.py").read_text(
-        encoding="utf-8"
-    )
-    assert "yielded_content = False" in source
-    assert "if saw_model_output and yielded_content:" in source
-    assert "yielded_content = True" in source
+    assert _drive_transport(["", ""], buffered_response="The guarded answer.") == "The guarded answer."
+    assert _drive_transport(["The guarded answer."], buffered_response="The guarded answer.") == "The guarded answer."

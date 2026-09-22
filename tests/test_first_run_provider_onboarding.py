@@ -68,7 +68,7 @@ def test_intake_verify_is_explicit_and_bounded_and_never_sends_on_a_refused_door
     def _sealed(*args, **kwargs):
         raise verification.RemoteFetchRefusedError("remote fetch is not permitted for this turn")
 
-    monkeypatch.setattr(verification, "open_remote_url", _sealed)
+    monkeypatch.setattr("core.remote_fetch_policy.open_remote_url", _sealed)
 
     status, payload = pact_rig.post("/api/intake/begin", {})
     session_id = payload["session_id"]

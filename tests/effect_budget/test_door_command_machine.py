@@ -126,7 +126,7 @@ class TestZeroBudgetRefusal:
         (workspace / "seed.txt").write_bytes(b"seed")
         from core.effect_gateway import close_effect_receipt_scope, open_effect_receipt_scope
 
-        open_effect_receipt_scope({"session_id": "cm-sess", "workspace_root": str(workspace)})
+        open_effect_receipt_scope(_ctx(workspace))
         try:
             spent = _dispatch(
                 "sandbox.run_command",
@@ -189,7 +189,7 @@ class TestZeroBudgetRefusal:
 
         lane_dir = Path(os.path.expanduser("~/Desktop"))
         assert lane_dir == synthetic_machine_home / "Desktop", lane_dir
-        open_effect_receipt_scope({"session_id": "cm-sess", "workspace_root": str(workspace)})
+        open_effect_receipt_scope(_ctx(workspace))
         try:
             target = str(lane_dir / "cp2-machine-note.txt")
             first = _dispatch("machine.write_file", {"path": target, "content": "v1"}, workspace, turn="t3")
@@ -223,7 +223,7 @@ class TestConcurrentReservation:
         (workspace / "seed.txt").write_bytes(b"seed")
         results: list = []
         lock = threading.Lock()
-        open_effect_receipt_scope({"session_id": "cm-sess", "workspace_root": str(workspace)})
+        open_effect_receipt_scope(_ctx(workspace))
         try:
 
             def _one(i: int) -> None:
@@ -266,7 +266,7 @@ class TestSettlement:
             raise RuntimeError("handler exploded mid-command")
 
         monkeypatch.setattr(ret, "_run_command", _boom)
-        open_effect_receipt_scope({"session_id": "cm-sess", "workspace_root": str(workspace)})
+        open_effect_receipt_scope(_ctx(workspace))
         try:
             out = _dispatch("sandbox.run_command", {"command": "true", "cwd": str(workspace)}, workspace, turn="t5")
             # the recorder captures the raise as crash-truth: a typed failure result, never a
@@ -291,7 +291,7 @@ class TestSettlement:
 
         set_budget(("command", eb.SCOPE_SESSION, 1))
         (workspace / "seed.txt").write_bytes(b"seed")
-        open_effect_receipt_scope({"session_id": "cm-sess", "workspace_root": str(workspace)})
+        open_effect_receipt_scope(_ctx(workspace))
         try:
             risky = _dispatch(
                 "sandbox.run_command",
@@ -366,7 +366,7 @@ class TestSettlement:
             )
         )
         set_budget(("command", eb.SCOPE_SESSION, 1))  # an active rule for a DIFFERENT class
-        open_effect_receipt_scope({"session_id": "cm-sess", "workspace_root": str(workspace)})
+        open_effect_receipt_scope(_ctx(workspace))
         try:
             from unittest.mock import patch
 
