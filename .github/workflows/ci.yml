@@ -92,7 +92,65 @@ jobs:
           fi
           bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
       - name: Provision the served-browser lane (Playwright chromium)
-        run: python -m playwright install --with-deps chromium
+        # Ubuntu 24.04's restricted-unprivileged-userns AppArmor policy grants namespace
+        # creation only to binaries with a profile carrying `userns` — the bwrap step above
+        # grants it to bwrap ALONE. The bundled Chromium this lane serves renders through
+        # (find_browser_binary / select_bundled_chromium) launches with its namespace sandbox
+        # ON (the --no-sandbox escape is test/container-only by design and an invariant test
+        # pins its absence), so without the same right it refuses to start entirely: exit 5,
+        # empty DOM, the browser's "SUID sandbox" refusal on stderr (measured, run
+        # 35752689216 shard 2). The profile below grants ONLY the userns right to the exact
+        # playwright-cache binaries (versioned paths, resolved at runtime — both the
+        # headless-shell build the unattended preflight pins and the full build the locator's
+        # glob order prefers); Chromium's sandbox itself stays kernel-enforced. The probe at
+        # the end fails this step loudly instead of letting the render suites cascade.
+        run: |
+          python -m playwright install --with-deps chromium
+          bins=()
+          while IFS= read -r bin; do
+            [ -n "$bin" ] || continue
+            bins+=("$bin")
+          done < <(find "$HOME/.cache/ms-playwright" -type f \
+            \( -name chrome -o -name chrome-headless-shell \) | sort)
+          if [ "${#bins[@]}" -eq 0 ]; then
+            echo "::error::no chromium binaries in the playwright cache — provisioning drifted"
+            exit 1
+          fi
+          profile_file=/etc/apparmor.d/vool-playwright-chromium
+          {
+            echo 'abi <abi/4.0>,'
+            echo 'include <tunables/global>'
+            i=0
+            for bin in "${bins[@]}"; do
+              echo "profile vool-playwright-chromium-$i $bin flags=(unconfined) {"
+              echo '  userns,'
+              echo '}'
+              i=$((i + 1))
+            done
+          } | sudo tee "$profile_file" >/dev/null
+          if ! sudo apparmor_parser -r "$profile_file"; then
+            echo "chromium profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          # Loud probe: every profiled binary must actually start and dump a DOM under its
+          # own namespace sandbox, launched the way the render engine launches it.
+          probe_fail=0
+          for bin in "${bins[@]}"; do
+            head_args=(--headless=new)
+            case "$(basename "$bin")" in chrome-headless-shell*) head_args=();; esac
+            probe_dir=$(mktemp -d)
+            if ! dom=$("$bin" ${head_args[@]+"${head_args[@]}"} --disable-gpu --no-first-run \
+                         "--user-data-dir=$probe_dir" --dump-dom about:blank 2>/tmp/vool-chromium-probe.err); then
+              echo "::error::chromium cannot create its sandbox namespace: $bin"
+              cat /tmp/vool-chromium-probe.err >&2
+              probe_fail=1
+            elif [ -z "$dom" ]; then
+              echo "::error::chromium started but dumped an empty DOM: $bin"
+              probe_fail=1
+            fi
+            rm -rf "$probe_dir"
+          done
+          exit $probe_fail
       - name: Provision a virtual display for headful sessions
         # The wallet-handoff contract opens one genuinely headful Chromium session (a handoff
         # requires a VISIBLE browser by design). These runners have no display, so a headful
