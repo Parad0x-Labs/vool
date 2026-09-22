@@ -180,8 +180,8 @@ def test_refresh_shows_prices_with_units_and_the_balance_observation(served) -> 
         page.click("button.usepod-refresh")
         page.wait_for_selector(".usepod-model", timeout=30000)
         text = page.inner_text("body")
-        # Exact units: integer microunits per million tokens, with the decimal as display only.
-        assert f"in {MARKET[0]} + out {MARKET[1]} µUSDC per Mtok" in text
+        # Human-readable prices preserve the integer feed's exact decimal value.
+        assert "0.510000 input / 1.530000 output USDC per 1M tokens" in text
         assert "80.000000 USDC (80000000 µUSDC)" in text and "observed" in text
         assert "listed for this token" in text
         # Provenance: the feed's source and age, and the row count.

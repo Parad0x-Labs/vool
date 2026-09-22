@@ -3218,9 +3218,11 @@ function usepodAtomicAmount(value, asset) {
   return atomic > 0n && atomic <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(atomic) : null;
 }
 function usepodBudgetScope(facts) {
-  if (!facts || !facts.budget_mode || facts.budget_mode === 'once') return 'ONE request, up to ' + usepodDisplayAmount((facts || {}).per_call_atomic, 'USDC');
-  return 'All UsePod models and chats · ' + usepodDisplayAmount(facts.max_total_atomic, 'USDC')
-    + (facts.budget_mode === 'daily' ? ' every 24 hours, renewing while enabled' : ' in total, until used or disabled');
+  const asset = (facts || {}).asset || 'USDC';
+  if (!facts || !facts.budget_mode || facts.budget_mode === 'once') return 'ONE request, up to ' + usepodDisplayAmount((facts || {}).per_call_atomic, asset);
+  return 'All UsePod models and chats · ' + usepodDisplayAmount(facts.max_total_atomic, asset)
+    + (facts.budget_mode === 'daily' ? ' every 24 hours, renewing while enabled' : ' in total, until used or disabled')
+    + (facts.per_call_atomic == null ? '' : ' · Maximum per request: ' + usepodDisplayAmount(facts.per_call_atomic, asset));
 }
 function usepodDisplayAmount(atomic, asset) {
   if (atomic == null || !Number.isSafeInteger(Number(atomic))) return '?';
@@ -3504,7 +3506,7 @@ function widgetUsePod(stack) {
             kv.appendChild(el('dt', null, 'Spending window ends'));
             kv.appendChild(el('dd', null, new Date(Number(facts.expiry_epoch) * 1000).toLocaleString()));
           }
-          kv.appendChild(el('dt', null, 'Models')); kv.appendChild(el('dd', 'mono', (facts.models || []).join(', ')));
+          kv.appendChild(el('dt', null, 'Models')); kv.appendChild(el('dd', 'mono', (facts.models || []).join(', ') || (facts.budget_mode && facts.budget_mode !== 'once' ? 'All UsePod models' : 'None')));
         }
         if (consent.grant) {
           kv.appendChild(el('dt', null, 'Grant'));
