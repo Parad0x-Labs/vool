@@ -33,6 +33,17 @@ EXPECTED_SHARD_PYTEST_PREFIX = (
     "-p",
     "no:cacheprovider",
 )
+#: The virtual-display wrapper the Linux shards run their pytest under: the wallet-handoff
+#: contract opens one genuinely headful Chromium session (a handoff needs a VISIBLE browser), and
+#: these runners have no display, so the headful lane cannot open without a framebuffer. Pinned
+#: token for token: the wrapper is a display server, not a place to hide command changes -- the
+#: invocation behind it must still start with EXPECTED_SHARD_PYTEST_PREFIX and still consume
+#: exactly the resolver's file list for its own shard.
+EXPECTED_SHARD_DISPLAY_PREFIX = (
+    "xvfb-run",
+    "-a",
+    "--server-args=-screen 0 1280x1024x24",
+)
 EXPECTED_LINT_COMMAND = "python -m ruff check ."
 EXPECTED_COLLECTION_COMMAND = (
     "python ops/pytest_manifest.py --repo-root . --output .verification-logs/pytest-manifest.json -- -q"
@@ -95,6 +106,8 @@ def _assert_authoritative_contract(workflow: dict[str, Any]) -> None:
     command_text = str(run_step["run"])
     assert "--collect-only" not in command_text, "a shard run weakened to collection-only executes nothing"
     tokens = shlex.split(command_text)
+    if tuple(tokens[: len(EXPECTED_SHARD_DISPLAY_PREFIX)]) == EXPECTED_SHARD_DISPLAY_PREFIX:
+        tokens = tokens[len(EXPECTED_SHARD_DISPLAY_PREFIX) :]
     assert tuple(tokens[: len(EXPECTED_SHARD_PYTEST_PREFIX)]) == EXPECTED_SHARD_PYTEST_PREFIX
     assert command_text.rstrip().endswith(
         f"$(tr '\\n' ' ' < .verification-logs/{SHARD_FILE_LIST_REF})"

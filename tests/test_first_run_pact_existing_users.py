@@ -48,14 +48,33 @@ def test_a_fresh_install_seeds_absent_and_the_boot_seed_never_onboards_existing_
     assert seeded["state"] == "absent" and seeded["seed_reason"] == "fresh_install"
 
 
+def _snapshot_files(home) -> dict:
+    """Every file under the home, by relative path and mtime.
+
+    A file that vanishes between the directory walk and its stat is skipped rather than
+    raising: sqlite removes a checkpointed `-wal` mid-walk (CI Linux, run 35730553862 shard 0:
+    FileNotFoundError on `vool_web0_v2.db-wal`), and a file that no longer exists cannot be a
+    file the seed WROTE -- the assertion below is about files present after the seed. This
+    drops nothing the comparison could have counted: a vanished path can only shrink a side.
+    """
+    snapshot: dict = {}
+    for path in home.rglob("*"):
+        try:
+            if path.is_file():
+                snapshot[path.relative_to(home)] = path.stat().st_mtime_ns
+        except FileNotFoundError:
+            continue
+    return snapshot
+
+
 def test_not_applicable_writes_only_the_pact_file_and_nothing_else(pact_rig):
     from core.runtime_paths import active_data_dir
 
     home = pact_rig.home
-    before = {p.relative_to(home): p.stat().st_mtime_ns for p in home.rglob("*") if p.is_file()}
+    before = _snapshot_files(home)
     _fresh_seed_with("receipts", pact_rig)
     # Seed wrote ONE file: the pact file (plus the signal fixture itself).
-    after = {p.relative_to(home): p.stat().st_mtime_ns for p in home.rglob("*") if p.is_file()}
+    after = _snapshot_files(home)
     new_files = set(after) - set(before)
     new_files = {name for name in new_files if "honesty_receipts" not in str(name)}
     new_files = {name for name in new_files if not str(name).startswith("data/vool_web0_v2.db")}

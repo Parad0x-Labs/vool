@@ -209,14 +209,29 @@ def test_equivalent_multilingual_demands_drive_the_same_typed_capability_chain(s
     def offered_tools() -> set[str]:
         return {name for call in provider.calls for name in call.get("tools") or []}
 
-    # 1. OPEN — the runtime offered its contracted code-task tools (production selection) and
-    #    opened a typed task whose objective is the literal demand in this language.
-    turn(case["demand"], _call("code__task__open", {"objective": case["demand"]}, "c1"))
+    # 1. OPEN — the planner consumed the repair demand itself and started the typed task through
+    #    the tool door (core.execution.planner: planned_code_task_start): the journal's objective
+    #    is the literal demand in this language — the runtime's canonical read of it, anchor
+    #    command verbatim — and the model round is offered the CONTINUATION control plane for the
+    #    task it opened, never a second opening (tool_offer_assembly's continue-not-reopen law:
+    #    a session with an open task seats its stage's tools and drops code.task.open). The model
+    #    is scripted to make no call on this turn: the opening is no longer the model's to make.
+    turn(case["demand"], None)
     offered = offered_tools()
-    assert "code__task__open" in offered, sorted(offered)[:40]
+    assert "code__task__open" not in offered, (
+        "a second opening was offered to a session that already owns an open task: "
+        f"{sorted(offered)[:40]}"
+    )
+    assert {"code__task__step", "code__task__cancel"} <= offered, sorted(offered)[:40]
     task = _journal(store_dir)
     task_id = task["task_id"]
-    assert task["objective"] == case["demand"], task["objective"]
+    from core.human_input_adapter import adapt_user_input
+
+    expected_objective = (
+        getattr(adapt_user_input(case["demand"], session_id=session), "normalized_text", "")
+        or case["demand"]
+    )
+    assert task["objective"] == expected_objective, task["objective"]
     assert task["stage"] == "reproduce", task["stage"]
 
     # 2. REPRODUCE, IDENTIFY, READ — the stage machine walks reproduce → identify; the read

@@ -415,7 +415,21 @@ class C18LanguageParityServed(unittest.TestCase):
 
             self.assertEqual(_reply_text(payload), ENGLISH_REPAIR)
             self.assertEqual(
-                self.local.generations_for(LOCAL), 2, "the guard must spend exactly one repair"
+                self.local.generations_for(LOCAL),
+                2,
+                "the guard must spend exactly one repair. Wire calls to the local model: "
+                + json.dumps(
+                    [
+                        {
+                            "path": c["path"],
+                            "prompt": c["prompt"][:100],
+                            "system": c["system"][:100],
+                        }
+                        for c in self.local.calls
+                        if c["model"] == LOCAL
+                    ],
+                    ensure_ascii=False,
+                ),
             )
             self.assertIn("Return the answer in English only", self.local.wire_text(LOCAL, -1))
 

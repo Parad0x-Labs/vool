@@ -32,6 +32,21 @@ REPO = Path(__file__).resolve().parents[1]
 BUILD_SCRIPT = REPO / "installer" / "bundle" / "build_macos_app.sh"
 WINDOW_SCRIPT = REPO / "installer" / "bundle" / "vool_window.py"
 
+
+def _driver_state_dir(home: Path) -> Path:
+    """The state base a driver subprocess resolves for `vool_window._state_dir()`.
+
+    The drivers run with exactly PATH and HOME (no XDG_STATE_HOME), so the window script's
+    platform split is deterministic: `Library/Application Support` on macOS, `$HOME/.local/
+    state` elsewhere. Mirrored here because the teardown checks read the driver's log from
+    the OUTER process, where expanduser would resolve the wrong home. The CI Linux shards
+    (run 35730553862, shard 4) read the macOS path and failed three tests that pass on
+    macOS for exactly this reason.
+    """
+    if sys.platform == "darwin":
+        return home / "Library" / "Application Support"
+    return home / ".local" / "state"
+
 BASE_PATH = "/usr/bin:/bin"
 LAUNCHER_HEREDOC_RE = re.compile(
     r"cat >\"\$\{APP\}/Contents/MacOS/VOOL\" <<'LAUNCHER'\n(.*?)\nLAUNCHER\n", re.S
@@ -144,7 +159,7 @@ _LEGACY_LOCK_DRIVER = """
     import fcntl, importlib.util, os, sys
     spec = importlib.util.spec_from_file_location("nw", {window!r})
     nw = importlib.util.module_from_spec(spec); spec.loader.exec_module(nw)
-    legacy = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "NULLA")
+    legacy = os.path.join(nw._posix_lock_base(), "NULLA")
     os.makedirs(legacy, exist_ok=True)
     fd = os.open(os.path.join(legacy, "window.lock"), os.O_CREAT | os.O_RDWR, 0o644)
     fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # what the old NULLA.app holds
@@ -180,7 +195,7 @@ def test_single_instance_holds_both_generation_locks(tmp_path: Path) -> None:
         nw = importlib.util.module_from_spec(spec); spec.loader.exec_module(nw)
         assert nw._single_instance(), "first instance must be allowed"
         for name in ("VOOL", "NULLA"):
-            path = os.path.join(os.path.expanduser("~"), "Library", "Application Support", name, "window.lock")
+            path = os.path.join(nw._posix_lock_base(), name, "window.lock")
             print("LOCK-EXISTS", name, os.path.exists(path))
         print("SECOND=%s" % nw._single_instance())
     """).format(window=str(WINDOW_SCRIPT)))
@@ -246,7 +261,7 @@ def test_sigterm_teardown_runs_via_the_wakeup_watcher_without_main_thread_schedu
     )
     assert "SURVIVED" not in done.stdout, "SIGTERM was ignored again (watcher never ran)"
     assert done.returncode == 0, f"expected the watcher's clean exit, got {done.returncode}"
-    log = home / "Library/Application Support/VOOL/open.log"
+    log = _driver_state_dir(home) / "VOOL" / "open.log"
     text = log.read_text() if log.exists() else ""
     assert "FAKE-SUPERVISOR-SHUTDOWN-CALLED" in text, "the owned runtime was not released"
     assert "termination signal received" in text

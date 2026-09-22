@@ -445,7 +445,20 @@ def runtime_tool_specs(
         )
         if not (allow_browser_fallback_fn() and policy_engine.browser_runtime_enabled()):
             specs = [spec for spec in specs if spec.get("intent") != "browser.render"]
-    specs.extend(runtime_execution_tool_specs_fn())
+    # The contract-backed half of the catalog (web.fetch, demo.plan, ...) gates on effective web
+    # availability. Thread the SAME declared policy that gated the hand-written specs above through
+    # to it: without this, a caller that pins `allow_web_fallback_fn` (a turn's own policy, a
+    # snapshot builder freezing the surface for a golden) still saw the contract-backed intents
+    # flip with whatever process-global policy state was cached — two halves of one catalog
+    # answering to two authorities. The Local Only per-turn check stays ambient on purpose: it is
+    # the TURN's truth, not a caller preference.
+    from core.remote_fetch_policy import local_only_active
+
+    specs.extend(
+        runtime_execution_tool_specs_fn(
+            web_available_fn=lambda: bool(allow_web_fallback_fn()) and not local_only_active()
+        )
+    )
     specs.extend(mcp_tool_specs_fn())
 
     hive_cfg = load_hive_activity_tracker_config_fn()

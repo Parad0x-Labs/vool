@@ -99,6 +99,12 @@ _OPENCLAW_TS_PREFIX_RE = re.compile(r"^\s*(?:\[[^\]]*\bGMT\b[^\]]*\]\s*)+", re.I
 class RuntimeServices:
     agent: VoolAgent | None = None
     daemon: VoolDaemon | None = None
+    # The adaptive compute-mode poller. Owned here so `shutdown` can stop it: its poll loop
+    # spawns a platform idle probe (`ioreg`/`xprintidle`) every interval, and a runtime that
+    # is discarded without shutdown leaks a thread that keeps spawning subprocesses for the
+    # life of the process -- measured breaking a later test's subprocess capture in the same
+    # pytest process (run 35730553862, shard 0: mcp env allowlist).
+    compute_mode_daemon: ComputeModeDaemon | None = None
     display_name: str = "VOOL"
     runtime_model_tag: str = field(default_factory=default_runtime_model_tag)
     runtime_parameter_size: str = field(
@@ -126,6 +132,8 @@ class RuntimeServices:
                 stop()
         if self.daemon:
             self.daemon.stop()
+        if self.compute_mode_daemon:
+            self.compute_mode_daemon.stop()
 
 
 def default_agent_source_context() -> dict[str, Any]:
@@ -937,6 +945,7 @@ def bootstrap_runtime_services(
     compute_mode_disabled = env_bool("VOOL_DISABLE_COMPUTE_MODE") or (
         os.name == "nt" and not env_bool("VOOL_ENABLE_WINDOWS_COMPUTE_MODE")
     )
+    compute_daemon: ComputeModeDaemon | None = None
     if compute_mode_disabled:
         logger.info("Adaptive compute mode daemon disabled for this API runtime.")
     else:
@@ -1029,6 +1038,7 @@ def bootstrap_runtime_services(
     return RuntimeServices(
         agent=agent,
         daemon=daemon,
+        compute_mode_daemon=compute_daemon,
         display_name=display_name,
         runtime_model_tag=runtime_model_tag,
         runtime_parameter_size=runtime_parameter_size,

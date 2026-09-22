@@ -310,6 +310,12 @@ def test_actual_current_turn_remote_attempt_is_counted(make_agent, enable_web, m
     measured 2026-09-07: duckduckgo and bing renders, yahoo, brave, searxng, twice each), so
     pinning `1` made this a statement about the network, not about the accounting. The ledger is
     judged against what its own `note` saw: every attempt counted, the notes attempt among them.
+
+    The notes seam moved with the routing: this phrasing classified as a live-info fast lane when
+    the proof was written (whose `_live_info_search_notes` carried the one deterministic attempt)
+    and now routes as an ordinary chat turn, whose own notes search is `_collect_live_web_notes`
+    -- driven exactly once by the grounded path. The mock, the synthetic ledger attempt and the
+    accounting claim are unchanged; only the seam followed the product.
     """
     del enable_web
     from core import remote_fetch_policy
@@ -337,7 +343,7 @@ def test_actual_current_turn_remote_attempt_is_counted(make_agent, enable_web, m
             }
         ]
 
-    agent._live_info_search_notes = mock.Mock(  # type: ignore[method-assign]
+    agent._collect_live_web_notes = mock.Mock(  # type: ignore[method-assign]
         side_effect=collect_current_turn_web_notes
     )
 
@@ -347,7 +353,7 @@ def test_actual_current_turn_remote_attempt_is_counted(make_agent, enable_web, m
         source_context={"surface": "api", "platform": "api", "allow_remote_fetch": True},
     )
 
-    assert agent._live_info_search_notes.call_count == 1
+    assert agent._collect_live_web_notes.call_count == 1
     assert "test-notes-search" in seen, "the turn's own notes attempt must reach the ledger"
     assert result["web_calls"] == len(seen) >= 1
 

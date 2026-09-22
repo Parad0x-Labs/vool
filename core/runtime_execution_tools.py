@@ -765,9 +765,9 @@ def runtime_execution_capability_ledger() -> list[dict[str, Any]]:
     return ledger
 
 
-def runtime_execution_tool_specs() -> list[dict[str, Any]]:
+def runtime_execution_tool_specs(*, web_available_fn: Any = None) -> list[dict[str, Any]]:
     specs: list[dict[str, Any]] = []
-    for contract in runtime_tool_contracts():
+    for contract in runtime_tool_contracts(web_available_fn=web_available_fn):
         if not contract.supported:
             continue
         specs.append(
