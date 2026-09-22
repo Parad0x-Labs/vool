@@ -180,7 +180,8 @@ def test_served_local_and_cloud_dialects_normalize_identically(served_factory) -
                 return _chat_with_operator(daemon, served["home"], session, text, model=model)
 
             def turn(text: str, name: str, arguments: dict, call_id: str, _d=dialect, _s=session, _m=model) -> None:
-                scripted_dialect_turn(_s, _m, _d, text, name, arguments, call_id)
+                scripted_dialect_turn(session=_s, model=_m, dialect=_d, text=text, name=name,
+                                      arguments=arguments, call_id=call_id)
 
             turn(DEMAND, "code__task__open", {"objective": DEMAND}, "o1")
             task_id = (_task_ids(served["store_dir"]) - set(journals)).pop()
@@ -730,11 +731,17 @@ def test_served_javascript_repo_journey(served_factory, request_text, test_sourc
         )
         assert (workspace / "calc.js").read_bytes() == JS_FIXED.encode()
         turn("code__task__step", {"task_id": task_id, "step_id": "narrow", "intent": "workspace.run_tests", "arguments": {"command": "node --test test_calc.js"}}, "n1")
-        turn("code__task__step", {"task_id": task_id, "step_id": "cum", "intent": "workspace.run_tests", "arguments": {"command": "node --test"}}, "c1")
+        # Default discovery does not include test_calc.js: `node --test` exits green with
+        # zero tests. This repository has one test file, so execute its complete retained
+        # suite explicitly for the required cumulative checkpoint.
+        turn("code__task__step", {"task_id": task_id, "step_id": "cum", "intent": "workspace.run_tests",
+                                 "arguments": {"command": "node --test test_calc.js"},
+                                 "rerun_reason": "Validate the complete single-file suite for the cumulative checkpoint."}, "c1")
         turn("code__task__step", {"task_id": task_id, "step_id": "diff", "intent": "workspace.git_diff", "arguments": {}}, "d1")
         task = _journal_task(store_dir, task_id)
         assert task["stage"] == "report", task["stage"]
         assert task["narrow"]["success"] is True and task["cumulative"]["success"] is True
+        assert "# tests 1" in task["steps"]["cum"]["result"]["stdout"]
         assert task["git_diff_paths"] == ["calc.js"], task["git_diff_paths"]
         report = turn("code__task__report", {"task_id": task_id}, "rp1")
         text = _reply_text(report)
@@ -751,18 +758,18 @@ SHELL_HARNESS = (
     "result=$(add 2 3)\n"
     "if [ \"$result\" = \"5\" ]; then echo PASS; else echo \"FAIL got $result\"; exit 1; fi\n"
 )
-# The sandbox whitelist has no shell interpreter, so the repo's own POSIX harness is entered
-# through `node`, which is whitelisted: the harness itself is still shell, and its exit code is
-# the command's exit code.
-SHELL_TEST_COMMAND = (
-    "node -e \"process.exit(require('child_process')"
-    ".spawnSync('sh',['run_tests.sh'],{stdio:'inherit'}).status === 0 ? 0 : 1)\""
+# The actual shell harness is entered through a named Node script in the workspace.
+# A named entry binds the evidence to the check; inline `node -e` has unknown inputs.
+SHELL_RUNNER = (
+    "process.exit(require('child_process')"
+    ".spawnSync('sh',['run_tests.sh'],{stdio:'inherit'}).status === 0 ? 0 : 1);\n"
 )
+SHELL_TEST_COMMAND = "node run_tests.js"
 
 
 def test_served_shell_repo_journey(served_factory) -> None:
     served = served_factory(
-        {"calc.sh": SHELL_BUGGY, "run_tests.sh": SHELL_HARNESS},
+        {"calc.sh": SHELL_BUGGY, "run_tests.sh": SHELL_HARNESS, "run_tests.js": SHELL_RUNNER},
         name="shell-repo",
     )
     try:
@@ -812,12 +819,15 @@ def test_served_shell_repo_journey(served_factory) -> None:
         assert (workspace / "calc.sh").read_bytes() == SHELL_FIXED.encode()
         turn("code__task__step", {"task_id": task_id, "step_id": "narrow", "intent": "sandbox.run_command", "arguments": {"command": SHELL_TEST_COMMAND}}, "n1")
         # The cumulative pack for a one-harness repo: the full suite again, bounded by the same command.
-        turn("code__task__step", {"task_id": task_id, "step_id": "cum", "intent": "sandbox.run_command", "arguments": {"command": SHELL_TEST_COMMAND}}, "c1")
+        turn("code__task__step", {"task_id": task_id, "step_id": "cum", "intent": "sandbox.run_command",
+                                 "arguments": {"command": SHELL_TEST_COMMAND},
+                                 "rerun_reason": "Validate the complete shell harness for the cumulative checkpoint."}, "c1")
         turn("code__task__step", {"task_id": task_id, "step_id": "diff", "intent": "workspace.git_diff", "arguments": {}}, "d1")
         task = _journal_task(store_dir, task_id)
         assert task["steps"]["narrow"]["result"]["success"] is True, task["steps"]["narrow"]
         assert task["narrow"]["success"] is True
         assert task["cumulative"]["success"] is True, task["cumulative"]
+        assert "PASS" in task["steps"]["cum"]["result"]["stdout"]
         assert task["git_diff_paths"] == ["calc.sh"], task["git_diff_paths"]
         report = turn("code__task__report", {"task_id": task_id}, "rp1")
         text = _reply_text(report)
