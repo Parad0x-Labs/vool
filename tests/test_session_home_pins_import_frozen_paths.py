@@ -31,9 +31,8 @@ _REPORT_ENV = "VOOL_SESSION_HOME_PROBE_REPORT"
 # globals at test time may move by design (per-test signer isolation repoints _KEY_DIR into a
 # per-test directory), so the import-time pin is asserted against this snapshot, and only the
 # repo-checkout exclusion is asserted against the live value.
-import network.signer as _signer_at_import  # noqa: E402
-
-from core.runtime_paths import active_vool_home as _active_home_at_import  # noqa: E402
+import network.signer as _signer_at_import
+from core.runtime_paths import active_vool_home as _active_home_at_import
 
 _IMPORT_TIME_HOME = _active_home_at_import()
 _IMPORT_TIME_KEY_DIR = _signer_at_import._KEY_DIR
