@@ -101,8 +101,12 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     else:
         headline = f"Send {amount_human} {asset}"
         amount_line = f"Send {amount_human} {asset} (exact amount)"
-        recipient_line = f"To wallet {short_address(to_address)} (not a saved contact; the full address is under View details)"
-        recipient_kind = "unidentified_wallet"
+        if fields.get("recipient_saved") and str(fields.get("recipient_label") or "").strip():
+            recipient_line = f"To {fields['recipient_label']} · {short_address(to_address)} (saved contact; the full address is under View details)"
+            recipient_kind = "saved_contact"
+        else:
+            recipient_line = f"To wallet {short_address(to_address)} (not a saved contact; the full address is under View details)"
+            recipient_kind = "unidentified_wallet"
         primary = "Approve and send"
     source_line = f"From {fields.get('from_label') or 'your wallet'!s} {short_address(fields.get('from_address'))}"
     fee_line = ""

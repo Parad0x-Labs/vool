@@ -166,6 +166,8 @@ def test_the_quote_binds_the_recipient_and_a_changed_destination_is_refused_befo
     fields = quote["fields"]
     assert (fields["recipient_saved"], fields["recipient_label"], fields["to_address"], fields["recipient_warning"]) == (True, "Alex Chen · main", alex_address, "")
     assert fields["recipient_fingerprint"] == alex["endpoints"][0]["fingerprint"]
+    assert fields["review"]["recipient_kind"] == "saved_contact"
+    assert "Alex Chen · main" in fields["review"]["recipient_line"]
     protected_changes.update_contact(alex["contact_id"], change_endpoints=[{"endpoint_id": alex["endpoints"][0]["endpoint_id"], "value": _sol_key()}])
 
     class NeverAsked:
