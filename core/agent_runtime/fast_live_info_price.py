@@ -348,8 +348,8 @@ def _extract_price_asset_alias(text: str) -> str:
 
 
 #: A TICKER as a person writes one: `$BASE`, or a short symbol followed by "coin"/"token"
-#: ("BASE coin", "base coins"). Neither form is a word of ordinary English; both say "this is an
-#: exchange symbol" before anything is looked up. Measured on the owner's turns (2026-09-10,
+#: ("BASE coin", "base coins"). The coin/token form is only a candidate: ordinary phrases such
+#: as "magic token" also match and need a market predicate bound to them. Measured (2026-09-10,
 #: c647b707): "check $BASE price" and "$BASE coin should not be hard to find the value of" named
 #: no curated alias, so no live-data lane claimed them and a model answered that it "doesn't have
 #: real-time pricing" -- a capability the runtime has. The symbol is what the live-data plan
@@ -367,13 +367,14 @@ _NOT_A_TICKER = frozenset(
 )
 
 
-def ticker_mentions(text: str, *, dollar_only: bool = False) -> list[str]:
+def ticker_mentions(text: str, *, dollar_only: bool = False, require_market_binding: bool = False) -> list[str]:
     """Every ticker the message writes as one (`$SYM`, `SYM coin/token`), upper-cased, in order.
 
     `dollar_only` keeps the `$SYM` form alone: the dollar sign IS market notation, so such a
     mention establishes the market domain by itself ("$BASE coin should not be hard to find the
     value of"), while the coin/token form still needs the request to say something about the
-    market before it is read as a lookup.
+    market before it is read as a lookup. `require_market_binding` asks the shared mention
+    authority whether the price predicate belongs to this candidate, not somewhere else in the turn.
     """
     value = str(text or "")
     found: list[str] = []
@@ -383,6 +384,15 @@ def ticker_mentions(text: str, *, dollar_only: bool = False) -> list[str]:
             symbol = match.group(1).upper()
             if symbol.casefold() in _NOT_A_TICKER or symbol in found:
                 continue
+            if require_market_binding and pattern is _TICKER_COIN_RE:
+                from core.semantic_claim_authority import mention_is_market_authorized
+
+                # The denomination belongs to this noun phrase, not between it and its price
+                # predicate. Blank it without moving any source offsets, then reuse the same
+                # binding law that governs curated assets and live-index candidates.
+                candidate = value[:match.end(1)] + " " * (match.end() - match.end(1)) + value[match.end():]
+                if not mention_is_market_authorized(candidate, match.start(1), match.end(1), curated=True):
+                    continue
             found.append(symbol)
     return found
 

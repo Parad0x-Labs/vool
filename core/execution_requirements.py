@@ -142,7 +142,7 @@ def _live_data_classification(text: str) -> tuple[bool, bool, tuple[str, ...]] |
     try:
         from core.agent_runtime.fast_live_info_price import ticker_mentions
 
-        names_ticker = bool(ticker_mentions(candidate_text))
+        names_ticker = bool(ticker_mentions(candidate_text, require_market_binding=True))
         names_dollar_ticker = bool(ticker_mentions(candidate_text, dollar_only=True))
     except Exception:
         names_ticker = False
