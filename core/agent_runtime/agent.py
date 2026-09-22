@@ -3657,6 +3657,15 @@ class VoolAgent(
             node_turn_key = resolve_turn_key(source_context, None)
         except Exception:
             node_turn_key = ""
+        # The session this emitter was built for is the one its rows must land under. The
+        # streaming seam persists only what the SOURCE CONTEXT names, and a turn's context
+        # does not always carry a session key (the conductor hands the raw ask context); an
+        # emitter that dropped its own session argument left those node rows out of the
+        # durable ledger entirely -- the same blank-Agents-panel regression this emitter
+        # exists to prevent. Captured once at creation, like the tags above, and never
+        # overrides a session the caller's context already names.
+        sink_context = dict(source_context or {})
+        sink_context.setdefault("session_id", session_id)
 
         def emit(event_type: str, detail: dict) -> None:
             node_id = str(detail.get("node_id") or "?")
@@ -3679,7 +3688,7 @@ class VoolAgent(
             # Companion's typed activity language (117 phrases / 15 categories) had no events to
             # narrate and sat on IDLE while real work happened (measured live 2026-08-29).
             self._emit_runtime_event(
-                source_context,
+                sink_context,
                 event_type=event_type,
                 message=message,
                 **details,
