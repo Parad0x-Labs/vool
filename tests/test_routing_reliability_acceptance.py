@@ -225,7 +225,15 @@ def test_full_agent_negative_controls_avoid_target_routes(make_agent, tmp_path, 
     assert not TARGET_MACHINE_INTENTS.intersection(
         str(receipt.get("tool_name") or "") for receipt in receipts
     )
-    if case.live_safe:
+    if case.expected_route == "calendar":
+        # Schedule wording belongs to the operator's calendar lane: a real answer when a
+        # provider is configured, an honest unavailability refusal when none is. Either way
+        # the operator owns the turn -- no machine intent fired above, and the wording did
+        # not fall through to a model substitution.
+        assert str(result.get("route") or "").startswith("action:operator"), result.get("route")
+        assert result["model_execution"]["used_model"] is False
+        assert str(result.get("response") or "").strip()
+    elif case.live_safe:
         assert result["model_execution"]["used_model"] is True
         assert result["model_execution"]["model_call_id"] == f"model-call-{case.case_id}"
         assert result["model_execution"]["response_id"] == f"response-{case.case_id}"

@@ -34,6 +34,7 @@ class RoutingCase:
             "builder": "select model_build before generic model or tool routing",
             "model": "avoid issue #5 deterministic routes and use the conversational model lane",
             "workspace": "use the bounded workspace file lane without triggering an issue #5 route",
+            "calendar": "let the operator's calendar lane own the schedule wording: a real calendar answer when a provider is configured, an honest unavailability refusal when none is -- never a machine intent or a silent model substitution",
         }[self.expected_route]
         forbidden = {
             "arithmetic": ("model invocation", "web lookup", "fabricated calculation"),
@@ -41,6 +42,7 @@ class RoutingCase:
             "builder": ("generic chat response", "unrelated machine tool", "workspace escape"),
             "model": ("arithmetic route", "machine route", "model_build route"),
             "workspace": ("arithmetic route", "machine route", "model_build route", "workspace escape"),
+            "calendar": ("arithmetic route", "machine route", "model_build route", "fabricated calendar fact"),
         }[self.expected_route]
         object.__setattr__(self, "severity", self.severity or ("critical" if self.expected_route == "machine" else "high"))
         object.__setattr__(self, "prompt_sequence", self.prompt_sequence or (self.prompt,))
@@ -113,8 +115,8 @@ NEGATIVE_ROUTING_CASES = (
     RoutingCase("negative-03", "delete the last sentence", "model", model_allowed=True, live_safe=True),
     RoutingCase("negative-04", "what is the largest planet", "model", model_allowed=True, live_safe=True),
     RoutingCase("negative-05", "build a case for remote work", "model", model_allowed=True, live_safe=True),
-    RoutingCase("negative-06", "free up space in my schedule", "model", model_allowed=True, live_safe=True),
-    RoutingCase("negative-07", "is there any free space in my calendar today", "model", model_allowed=True, live_safe=True),
+    RoutingCase("negative-06", "free up space in my schedule", "calendar", model_allowed=True, live_safe=True),
+    RoutingCase("negative-07", "is there any free space in my calendar today", "calendar", model_allowed=True, live_safe=True),
     RoutingCase("negative-08", "how much space is left in my cloud plan", "model", model_allowed=True, live_safe=True),
     RoutingCase("negative-09", "how much storage does my iCloud plan give me", "model", model_allowed=True, live_safe=True),
     RoutingCase("negative-10", "how much storage should a photo app offer", "model", model_allowed=True, live_safe=True),
