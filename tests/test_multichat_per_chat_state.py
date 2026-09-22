@@ -137,6 +137,7 @@ globalThis.VoolCore = class {
   finish() {} start() {} stop() {}
 };
 globalThis.esc = (t) => String(t == null ? '' : t);
+globalThis.pageT = (_key, fallback) => fallback;
 globalThis.fmtElapsed = () => '0s';
 globalThis.fmtUsd = () => '';
 globalThis.stepsRollupText = (steps) => String(steps.length);
@@ -764,7 +765,7 @@ def test_the_navigation_busy_guards_are_gone() -> None:
     # No process-global flag survives: every remaining mention is a comment or the per-chat helper.
     code = [
         line for line in source.splitlines()
-        if re.search(r"(?<![.\w])busy(?![\w])", line) and not line.strip().startswith("//")
+        if re.search(r"(?<![.\w])busy(?![\w])", line.replace("'aria-busy'", "''")) and not line.strip().startswith("//")
     ]
     offenders = [ln.strip() for ln in code if "isChatBusy" not in ln and "busyChatIds" not in ln and "ledgerBusy" not in ln]
     assert offenders == [], f"a global busy flag is still in play: {offenders}"
@@ -805,7 +806,7 @@ def test_no_execution_path_resolves_ownership_from_the_display() -> None:
     """
     runlife = _runlife_js()
     paint_only_exemptions = {
-        "sendEl.textContent = locked ? 'Council' : (isChatBusy(displayedChat) ? 'Queue' : 'Send');",
+        ": (isChatBusy(displayedChat) ? pageT('composer.queue', 'Queue') : pageT('composer.send', 'Send'));",
     }
     offenders = [
         line.strip()
