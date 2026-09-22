@@ -80,9 +80,16 @@ def test_preview_sees_a_matching_token_but_leaves_it_unspent(tmp_path) -> None:
         preview = preview_tool_call(intent=WRITE, arguments=ARGS, task_id="task-a", source_context=approved)
         assert preview.effect is PermissionEffect.ALLOW and preview.would_consume_token is True
     assert _snapshot() == before, "a preview spent the token"
-    # Exactly one consumption, at the real decision, and the second real decision no longer allows.
+    # Exactly one consumption. Rechecking this same call in its logical task is idempotent;
+    # another task or changed bytes still need their own approval.
     assert decide_tool_call(intent=WRITE, arguments=ARGS, task_id="task-a", source_context=approved).effect is PermissionEffect.ALLOW
-    assert decide_tool_call(intent=WRITE, arguments=ARGS, task_id="task-a", source_context=approved).effect is PermissionEffect.REQUIRE_APPROVAL
+    assert mpp._APPROVALS[request["approval_id"]]["status"] == "consumed"
+    consumed = _snapshot()
+    assert decide_tool_call(intent=WRITE, arguments=ARGS, task_id="task-a", source_context=approved).effect is PermissionEffect.ALLOW
+    assert _snapshot() == consumed
+    other_turn = {**approved, "cancel_turn_id": "turn-b"}
+    assert decide_tool_call(intent=WRITE, arguments=ARGS, task_id="task-b", source_context=other_turn).effect is PermissionEffect.REQUIRE_APPROVAL
+    assert decide_tool_call(intent=WRITE, arguments={**ARGS, "content": "different bytes"}, task_id="task-a", source_context=approved).effect is PermissionEffect.REQUIRE_APPROVAL
 
 
 def test_preview_and_decision_agree_on_every_branch(tmp_path) -> None:

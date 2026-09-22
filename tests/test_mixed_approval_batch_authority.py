@@ -162,10 +162,13 @@ def test_one_grant_runs_the_directory_and_both_files_and_is_then_spent(tmp_path)
     ran, asked = _walk(MIXED, resumed)
     assert ran == ["demo", "demo/a.md", "demo/b.md"]
     assert asked == []
-    # Spent, not standing: a third file of the same shape, and a replay of the directory, both ask.
+    # A third file is outside the reviewed batch. The same directory call in the same
+    # logical turn retains its approval; another directory does not inherit it.
     third = {"intent": "workspace.write_file", "arguments": {"path": "demo/c.md", "content": "gamma\n"}}
     assert _decide(third, resumed).effect is PermissionEffect.REQUIRE_APPROVAL
-    assert _decide(SETUP, resumed).effect is PermissionEffect.REQUIRE_APPROVAL
+    assert _decide(SETUP, resumed).effect is PermissionEffect.ALLOW
+    other_directory = {**SETUP, "arguments": {**SETUP["arguments"], "path": "other-demo"}}
+    assert _decide(other_directory, resumed).effect is PermissionEffect.REQUIRE_APPROVAL
 
 
 def test_a_pure_write_batch_keeps_its_narrower_wording_and_still_works(tmp_path) -> None:
