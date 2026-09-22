@@ -454,7 +454,13 @@ _REPORTED_EXAMPLE_RE = re.compile(
     rf"|(?:^|(?<=[.!?;\n]))\s*(?:say|imagine|suppose|picture\s+this)[,:]?\s+{_REPORTED_SPEAKER}\s+{_REPORTING_VERB}"
     r"|\b(?:an?|the)\s+(?:example|sample|typical|hypothetical)\s+"
     r"(?:request|prompt|query|question|message|input|utterance|sentence)\s+"
-    r"(?:(?:would|might|could|may)\s+)?(?:be|is|was|reads?|looks?\s+like|goes)\b",
+    r"(?:(?:would|might|could|may)\s+)?(?:be|is|was|reads?|looks?\s+like|goes)\b"
+    # Reported PRIOR SPEECH from this conversation: quoting what was asked or said earlier is
+    # talk about the conversation, never a subject of the new request (measured CT-207: quoting
+    # "what is gold price now?" while asking for silver vs platinum served GOLD alongside
+    # silver). Same speaker/verb grammar as the frames above; the span still extends to the
+    # closing quote or sentence end exactly as every other reported utterance does.
+    r"|\b(?:you|i|we)\s+(?:just\s+|earlier\s+|then\s+)?(?:asked|said|told\s+me|wrote|typed|meant|wanted|requested)\b",
     re.IGNORECASE,
 )
 _QUOTE_PAIRS = {'"': '"', "'": "'", "“": "”", "‘": "’", "`": "`"}
