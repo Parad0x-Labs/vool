@@ -249,8 +249,9 @@ def test_the_corpus_is_a_pinned_artifact_the_candidate_does_not_compute() -> Non
     import json
 
     module = _differential()
-    assert module.FROZEN_CORPUS_SOURCE_SHA == "c23257da1afd53ed721aa01da529ef74bd6df45a", (
-        "the corpus must come from the immutable review-start object, not candidate HEAD"
+    assert module.FROZEN_CORPUS_SOURCE_SHA == "c606c81b7b7b95abea94731c361037473df109a6", (
+        "the corpus must come from the immutable frozen blob object, not candidate HEAD or the "
+        "worktree file"
     )
     source = _SCRIPT.read_text(encoding="utf-8")
     # Parsed, not string-matched: the comment explaining WHY it is never called contains the name,
@@ -278,7 +279,7 @@ def test_the_corpus_is_a_pinned_artifact_the_candidate_does_not_compute() -> Non
 
     root = Path(_SCRIPT).resolve().parents[1]
     raw = subprocess.check_output(
-        ["/usr/bin/git", "-C", str(root), "show", f"{module.FROZEN_CORPUS_SOURCE_SHA}:{module.FROZEN_CORPUS_OBJECT}"]
+        ["/usr/bin/git", "-C", str(root), "show", module.FROZEN_CORPUS_SOURCE_SHA]
     )
     payload = json.loads(raw)
     turns = [str(t) for t in payload["turns"]]
