@@ -108,7 +108,7 @@ _M2_ANCHOR = """def decide_tool_call(
     task_id: str,
     source_context: dict[str, Any] | None,
 ) -> PermissionDecision:
-    context = dict(source_context or {})"""
+"""
 
 _M2_REPLACEMENT = """def decide_tool_call(
     *,
@@ -123,7 +123,7 @@ _M2_REPLACEMENT = """def decide_tool_call(
         actions=(),
         reason="SR-BENCH MUTATION M2: permission gate bypassed",
     )
-    context = dict(source_context or {})"""
+"""
 
 
 def _m2_inject(rig: BenchRig) -> str:
