@@ -727,7 +727,8 @@ class JobRunner:
         # /tmp is private above; host home and other temp trees are private too.
         # Restore the policy's declared read roots BEFORE writable roots. Without these
         # read binds a read-only plugin in /tmp cannot even execute its own handler.
-        for root in _private_read_roots():
+        private_roots = tuple(dict.fromkeys((Path("/tmp"), *_private_read_roots())))
+        for root in private_roots:
             if root != Path("/tmp"):
                 cmd += ["--tmpfs", str(root)]
         executable = shutil.which(argv[0]) if argv else None
@@ -739,5 +740,13 @@ class JobRunner:
         for root in allowed_roots:
             resolved = str(root.resolve() if isinstance(root, Path) else Path(root).resolve())
             cmd += ["--bind", resolved, resolved]
+        # Mountpoint parents created inside the private tmpfs trees are otherwise
+        # writable. A child could report an unauthorized write there even though
+        # the file disappears with its namespace. Freeze those trees after all
+        # mountpoints exist; separately mounted write grants remain writable.
+        write_paths = tuple(Path(root).resolve() for root in allowed_roots)
+        for root in private_roots:
+            if not any(root == allowed or root.is_relative_to(allowed) for allowed in write_paths):
+                cmd += ["--remount-ro", str(root)]
         cmd += ["--", *list(argv)]
         return cmd

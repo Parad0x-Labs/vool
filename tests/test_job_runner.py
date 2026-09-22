@@ -154,6 +154,28 @@ class JobRunnerTests(unittest.TestCase):
                 self.assertGreater(bind_index, mask_index)
             self.assertNotIn("--bind", argv)
             self.assertNotIn(str(peer), argv)
+            freeze_index = next(i for i in range(len(argv) - 1)
+                                if argv[i:i + 2] == ["--remount-ro", str(root)])
+            self.assertGreater(freeze_index, bind_index)
+
+    def test_linux_private_parent_freezes_after_explicit_write_grants(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir).resolve()
+            workspace = root / "workspace"
+            workspace.mkdir()
+            runner = JobRunner(ExecutionPolicy(workspace_root=workspace))
+            with patch("sandbox.job_runner.sys.platform", "linux"), patch(
+                "sandbox.job_runner.shutil.which", return_value="/usr/bin/bwrap"
+            ), patch("sandbox.job_runner._backend_usable", return_value=True), patch(
+                "sandbox.job_runner._private_read_roots", return_value=(root,)
+            ):
+                argv = runner._linux_bwrap_prefix(["true"], (workspace,))
+            write_index = argv.index("--bind")
+            freeze_index = next(i for i in range(len(argv) - 1)
+                                if argv[i:i + 2] == ["--remount-ro", str(root)])
+            self.assertGreater(freeze_index, write_index)
+            self.assertNotIn(["--remount-ro", str(workspace)],
+                             [argv[i:i + 2] for i in range(len(argv) - 1)])
 
     @unittest.skipUnless(sys.platform == "darwin", "sandbox-exec is macOS-only")
     def test_macos_sandbox_exec_real_execution_succeeds(self) -> None:

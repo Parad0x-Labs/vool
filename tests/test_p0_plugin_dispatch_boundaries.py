@@ -193,7 +193,8 @@ def test_read_only_nested_handler_reads_own_assets_but_not_peer_files(plugin_wor
     assert (scratch / "data.txt").read_text() == "retained data"
 
 
-def test_plugin_child_runs_confined_with_a_minimal_environment(plugin_world, tmp_path) -> None:
+@pytest.mark.parametrize("outside_parent", ["sibling", "temporary_root"])
+def test_plugin_child_runs_confined_with_a_minimal_environment(plugin_world, tmp_path, outside_parent) -> None:
     from core.plugin_executor import kernel_confinement_available
 
     if not kernel_confinement_available():
@@ -208,9 +209,12 @@ def test_plugin_child_runs_confined_with_a_minimal_environment(plugin_world, tmp
 
     # A write outside the plugin root and its scratch directory is denied by the kernel, not by
     # the handler's good manners.
+    import tempfile
+
     from tests._toolchain_fixtures import internal_scope
 
-    outside = str(tmp_path / f"outside-{uuid.uuid4().hex[:6]}.txt")
+    parent = tmp_path if outside_parent == "sibling" else Path(tempfile.gettempdir())
+    outside = str(parent / f"outside-{uuid.uuid4().hex[:6]}.txt")
     scope = internal_scope("test.confine", "create_files", intents=(f"{PLUGIN_ID}.touch",))
     denied = _run(f"{PLUGIN_ID}.touch", {"path": outside}, **scope)
     assert not denied.ok
