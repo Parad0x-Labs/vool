@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -169,7 +170,12 @@ def test_verification_dependencies_are_exactly_pinned() -> None:
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     dev = set(project["project"]["optional-dependencies"]["dev"])
 
-    assert "pytest==9.1.0" in dev
-    # 0.15.16 -> 0.16.7 with dependabot PR #5's adoption; the install-surface contract
-    # (tests/test_install_surface_contracts.py) pins the same value — keep the two in agreement.
-    assert "ruff==0.16.7" in dev
+    # Exactly pinned, whatever the version currently is: a floor like ">=9.1" lets a new pytest
+    # change collection semantics the shard manifest was built against. The version itself lives
+    # only in pyproject — the gate (ops/verify.py) and the install-surface contract read it from
+    # there, so a dependabot bump lands in one place. Copies of the literal here broke exactly
+    # that on every past bump.
+    for tool in ("pytest", "ruff"):
+        exact = {item for item in dev if re.fullmatch(rf"{tool}==[0-9][0-9A-Za-z.\-]*", item)}
+        assert exact, f"{tool} must carry an exact == pin in the dev extra, not a floor"
+        assert len(exact) == 1, f"{tool} is declared more than once in the dev extra"

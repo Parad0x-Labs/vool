@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import random
+import re
 from dataclasses import replace
 from decimal import localcontext
 
@@ -214,7 +215,10 @@ def test_mutant_unsupported_canonicalizer_version_accepted_as_equivalent_authori
 ) -> None:
     candidate = _candidate()
     monkeypatch.setattr(contracts_module.idna, "__version__", "3.19")
-    with pytest.raises(ContractValidationError, match=r"canonicalization requires idna==3\.18"):
+    # The gate must refuse ANY version other than the one the contracts pin -- the pattern is
+    # built from the pin constant so a bump cannot leave this test guarding the old version.
+    expected = re.escape(f"idna=={contracts_module.IDNA_CANONICALIZER_VERSION}")
+    with pytest.raises(ContractValidationError, match=f"canonicalization requires {expected}"):
         replace(candidate, endpoint_origin="https://example.com")
 
 

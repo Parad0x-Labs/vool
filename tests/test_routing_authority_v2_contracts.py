@@ -538,7 +538,7 @@ def test_mixed_case_alabel_input_is_rejected_before_hostname_normalization(mixed
 def test_endpoint_canonicalizer_implementation_and_revision_are_exact_candidate_authority() -> None:
     candidate = _candidate()
     assert IDNA_CANONICALIZER_IMPLEMENTATION == "idna"
-    assert IDNA_CANONICALIZER_VERSION == idna.__version__ == "3.18"
+    assert IDNA_CANONICALIZER_VERSION == idna.__version__ == "3.20"
     assert candidate.endpoint_canonicalization_revision == ENDPOINT_CANONICALIZATION_REVISION
     assert candidate.to_record()["endpoint_canonicalization_revision"] == ENDPOINT_CANONICALIZATION_REVISION
 

@@ -24,8 +24,8 @@ from core.routing_authority_v2.canonical import (
 from core.routing_authority_v2.money import MAX_PICO_USD, PicoUSD
 
 IDNA_CANONICALIZER_IMPLEMENTATION = "idna"
-IDNA_CANONICALIZER_VERSION = "3.18"
-ENDPOINT_CANONICALIZATION_REVISION = "idna2008-uts46-nontransitional-idna-3.18-v1"
+IDNA_CANONICALIZER_VERSION = "3.20"
+ENDPOINT_CANONICALIZATION_REVISION = "idna2008-uts46-nontransitional-idna-3.20-v1"
 
 _DIGEST_RE = re.compile(r"[0-9a-f]{64}\Z")
 _IDENTIFIER_RE = re.compile(r"[^\s?#\\]{1,256}\Z")
