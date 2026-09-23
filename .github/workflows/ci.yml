@@ -246,7 +246,7 @@ jobs:
         run: >-
           xvfb-run -a --server-args="-screen 0 1280x1024x24"
           python ops/pytest_timing.py
-          --output .verification-logs/shard-${{ matrix.shard }}-timing.json
+          --output ".verification-logs/shard-${{ matrix.shard }}-timing.json"
           -- -q --tb=short -p no:cacheprovider
           $(tr '\n' ' ' < .verification-logs/shard-${{ matrix.shard }}-files.txt)
       - name: Upload shard log
