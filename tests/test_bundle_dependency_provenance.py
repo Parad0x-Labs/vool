@@ -137,7 +137,7 @@ def test_nested_shell_expansions_do_not_swallow_the_package_line():
         '  uv pip install --python "${embedded}" --no-compile-bytecode --quiet \\\n'
         '      ${wheelhouse_args[@]+"${wheelhouse_args[@]}"} \\\n'
         '      pydantic cryptography requests pynacl keyring psutil pyyaml \\\n'
-        '      "starlette>=0.37,<2.0" "uvicorn>=0.30,<1.0" solders pywebview "pypdf==6.16.2" "xlrd==2.0.1" \\\n'
+        '      "starlette>=0.37,<2.0" "uvicorn>=0.30,<1.0" solders pywebview "pypdf==6.19.0" "xlrd==2.0.1" \\\n'
         '      zstandard \\\n'
         '      "eth-abi>=6.0" "eth-utils>=6.0" "eth-account>=0.13" \\\n'
         '    || die "lean dependency install failed"\n'

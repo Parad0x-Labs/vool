@@ -39,7 +39,7 @@ def test_a_raw_r5_style_bind_takes_effect_without_cleanup():
     without proving that restoration (not a broken setter) is what changed."""
     from core.semantic.semantic_admissions import current_request_id, set_request_context
 
-    set_request_context(LEAKED_R5_ID)  # noqa: the deliberate bypass under test
+    set_request_context(LEAKED_R5_ID)  # the deliberate bypass under test
     try:
         assert current_request_id() == LEAKED_R5_ID
     finally:
