@@ -805,14 +805,24 @@ def _take_observe_lease(proposal_id: str) -> str | None:
     return transfers.take_marker(f"observe:{proposal_id}", ttl_seconds=_OBSERVE_LEASE_SECONDS)
 
 
-def observe_open_transfers(*, limit: int = 50, rpc: Any = None) -> int:
-    """One observer pass over every observable row, each under its own lease. Returns how many rows were looked at."""
+def observe_open_transfers(*, limit: int = 50, rpc: Any = None, should_stop: Any = None) -> int:
+    """One observer pass over every observable row, each under its own lease. Returns how many rows were looked at.
+
+    ``should_stop`` is the daemon's shutdown door: checked between rows so a stop takes
+    effect within ONE row instead of one whole pass. A pass may hold up to
+    PASS_RPC_BUDGET_SECONDS of in-flight per-row work, and the observer's host (the API
+    server's ``main``) joins it for 5s at shutdown — without this door a stopped observer
+    could keep opening the wallet store against databases switched underneath it for a
+    whole pass past the join.
+    """
     with connection() as conn:
         ids = select_observable(conn, limit=limit)
     started = time.monotonic()
     looked = 0
     for proposal_id in ids:
         if time.monotonic() - started > PASS_RPC_BUDGET_SECONDS:
+            break
+        if should_stop is not None and should_stop():
             break
         token = _take_observe_lease(proposal_id)
         if token is None:
@@ -910,13 +920,17 @@ class _Observer:
             self.wake_requests += 1
             self.condition.notify_all()
 
+    def stop_requested(self) -> bool:
+        with self.condition:
+            return self.stopped
+
     def _loop(self) -> None:
         while True:
             with self.condition:
                 if self.stopped:
                     return
             try:
-                looked = observe_open_transfers()
+                looked = observe_open_transfers(should_stop=self.stop_requested)
             except Exception:
                 logger.exception("wallet transfer observer pass failed")
                 looked = 0
