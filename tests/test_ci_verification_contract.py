@@ -20,7 +20,8 @@ WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 # The authoritative gate is the shard matrix the migration-era CI adopted (owner commits
 # 9fd7ee7/006d874 + PR #11's hidden-file artifact law): the verify job lints with the PINNED
 # ruff and produces the canonical pytest collection, every collected file runs in exactly one
-# of the ten Linux shards (round-robin by size) or the routed macOS job, and every job's logs
+# of the ten Linux shards (duration-aware through ops/shard_resolver.py over the committed
+# evidence snapshot) or the routed macOS job, and every job's logs
 # upload unconditionally. The single-job `ops/verify.py` gate this suite pinned before the
 # migration no longer exists in the workflow; the weakening law it enforced — exact commands,
 # no disabled steps, no swallowed output, exact dependency pins — is restated here against the
