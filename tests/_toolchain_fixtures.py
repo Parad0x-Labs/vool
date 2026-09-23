@@ -241,7 +241,17 @@ def tracker():
 
 
 def reset_toolchain_state() -> None:
-    """Restore the builtin-only world so no later test sees this pack's rows."""
+    """Restore the builtin-only world so no later test sees this pack's rows.
+
+    Scope of "this pack's rows": the tool registry, capability graph, offer state, skill
+    cache, plugin roots and the catalog's storage probe. The plugin-LIFECYCLE store is
+    deliberately NOT touched — it is the durable record of real admissions, and callers
+    here legitimately admit a pack first and reset the registries after (see
+    tests/plugin_mcp_budgets/conftest.py::plugin_world). A world that must also start with
+    an empty lifecycle catalog resets it through the lifecycle's own authority
+    (`core.plugin_lifecycle.reset_for_tests`) at its fixture boundary, as
+    tests/command_registry/test_projection_parity.py now does.
+    """
     from core import capability_graph, tool_registry
     from core.execution import mcp_bridge
 
