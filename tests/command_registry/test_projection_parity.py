@@ -256,12 +256,15 @@ def test_prior_lifecycle_activation_under_an_isolated_home_flips_no_availability
 
     A test that activates a pack in a subprocess under its own VOOL_HOME takes the pack
     through the REAL lifecycle (install/verify/enable) while inheriting this process's
-    environment — exactly `tests/_blackbox_served_rig.run_in_home`, as the served-journey
-    tests use it. Because VOOL_PLUGIN_LIFECYCLE_PATH (pinned session-wide by conftest)
-    outranks VOOL_HOME in `core.plugin_lifecycle.store_path`, those records land in THIS
-    session's store, crossing the runtime-home boundary the activation intended. This
-    predecessor deliberately recreates that state mid-file: the unavailable-case laws that
-    follow must hold anyway, because this file's fixture re-establishes the empty catalog
+    environment — the construction `tests/_blackbox_served_rig.run_in_home` used before
+    its home-boundary repair (the rig now drops the session pin; see
+    tests/test_blackbox_served_rig_home_boundary.py). Because VOOL_PLUGIN_LIFECYCLE_PATH
+    (pinned session-wide by conftest) outranks VOOL_HOME in
+    `core.plugin_lifecycle.store_path`, those records land in THIS session's store,
+    crossing the runtime-home boundary the activation intended. This predecessor
+    deliberately recreates that state mid-file — any subprocess inheriting the parent
+    env across a VOOL_HOME boundary still can: the unavailable-case laws that follow
+    must hold anyway, because this file's fixture re-establishes the empty catalog
     through the lifecycle authority rather than trusting whoever ran before it.
     """
     import os
@@ -275,7 +278,7 @@ def test_prior_lifecycle_activation_under_an_isolated_home_flips_no_availability
     pack = make_plugin(tmp_path, plugin_id="parity-cross-home-pack", admit=False)
     home = tmp_path / "isolated-home"
     home.mkdir()
-    # Same environment construction as run_in_home: the parent env (carrying this
+    # The pre-repair run_in_home construction, verbatim: the parent env (carrying this
     # session's VOOL_PLUGIN_LIFECYCLE_PATH) plus a fresh VOOL_HOME for the subprocess.
     env = dict(os.environ)
     env.update({"VOOL_HOME": str(home), "PYTHONPATH": str(repo_root)})

@@ -177,6 +177,15 @@ class ServedDaemon:
 
     def env(self) -> dict[str, str]:
         env = dict(os.environ)
+        # Dropped BEFORE env_extra is applied: the session pin (VOOL_PLUGIN_LIFECYCLE_PATH,
+        # set session-wide by tests/conftest.py) outranks VOOL_HOME in
+        # core.plugin_lifecycle.store_path(), so inheriting it would record packs THIS
+        # daemon really admits (e.g. through its /api/plugins/lifecycle door) in the test
+        # session's store instead of this home's own — the exact cross-home pollution that
+        # flipped projection parity in CI. The daemon owns its home's lifecycle state; a
+        # caller that deliberately pins the store passes it in env_extra, which wins because
+        # it is applied after this drop.
+        env.pop("VOOL_PLUGIN_LIFECYCLE_PATH", None)
         env.update(
             {
                 "VOOL_HOME": str(self.home),
@@ -354,8 +363,19 @@ def _chat_with_operator(daemon: ServedDaemon, home: Path, session: str, text: st
 
 
 def run_in_home(home: Path, script: str, *, env_extra: dict[str, str] | None = None) -> str:
-    """Run a snippet inside the daemon's own VOOL_HOME (and the same Blackbox store)."""
+    """Run a snippet inside the daemon's own VOOL_HOME (and the same Blackbox store).
+
+    The snippet's plugin-lifecycle store resolves UNDER THAT HOME: the session-wide
+    VOOL_PLUGIN_LIFECYCLE_PATH pinned by tests/conftest.py for this process is not
+    inherited across the runtime-home boundary (it outranks VOOL_HOME in
+    core.plugin_lifecycle.store_path, so an inherited pin would record the snippet's
+    real install/verify/enable acts in the SESSION's store). A caller deliberately
+    pinning the store for the snippet passes VOOL_PLUGIN_LIFECYCLE_PATH in env_extra.
+    """
     env = dict(os.environ)
+    # Dropped BEFORE env_extra is applied (same law as ServedDaemon.env): the session pin
+    # must not leak across the home boundary, and a deliberate env_extra pin therefore wins.
+    env.pop("VOOL_PLUGIN_LIFECYCLE_PATH", None)
     env.update({"VOOL_HOME": str(home), "PYTHONPATH": str(REPO_ROOT), "VOOL_KEY_STORAGE_MODE": "file",
                 "VOOL_KEY_PASSPHRASE": "blackbox-served-rig", "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "0"})
     env.update(env_extra or {})
