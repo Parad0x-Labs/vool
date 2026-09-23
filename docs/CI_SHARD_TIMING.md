@@ -1,19 +1,23 @@
 # CI shard timing evidence and duration-aware planning
 
 This document explains how VOOL's Linux CI shard matrix is measured, how those
-measurements become a better-balanced shard plan, and what each number does and
-does not mean. It is the operating manual for two instruments:
+measurements become the duration-aware shard plan CI now runs, and what each
+number does and does not mean. It is the operating manual for three
+instruments:
 
 - `ops/pytest_timing.py` — the measurement wrapper the `tests` matrix runs.
-- `ops/shard_plan.py` — the planner that turns measurements into assignments.
+- `ops/shard_plan.py` — the planner that turns measurements into assignments
+  and the committed evidence snapshot (`ops/shard_weights.json`).
+- `ops/shard_resolver.py` — the resolver the CI workflow invokes to partition
+  each shard from that snapshot (with the documented safe fallback).
 
 ## The problem being measured
 
 The Linux matrix partitions ~2,300 collected test files (≈36k tests) across 10
-shards by **descending file size, round-robin** (`.github/workflows/ci.yml`,
-"Resolve this shard's test files"). File size is a weak proxy for duration.
-The green run [35815768194](https://github.com/Parad0x-Labs/vool/actions/runs/35815768194)
-at `a0a160a` measured:
+shards. Before activation it partitioned by **descending file size,
+round-robin** — file size is a weak proxy for duration. The green run
+[35815768194](https://github.com/Parad0x-Labs/vool/actions/runs/35815768194)
+at `a0a160a` measured that partition:
 
 | shard minutes (10 Linux shards) | total raw runner-minutes |
 | --- | --- |
@@ -21,7 +25,9 @@ at `a0a160a` measured:
 
 Dependency installation is under a minute per job, so the imbalance is test
 execution, not setup. The wall-clock bound of the whole matrix is the slowest
-shard; that is what duration-aware planning attacks.
+shard; that is what duration-aware planning attacks. CI now partitions by
+measured per-file duration (the committed snapshot below); the size
+round-robin remains only as the resolver's documented safe fallback.
 
 ## What CI now records (and what it must never change)
 
@@ -120,26 +126,75 @@ Per-file durations exclude per-shard fixed cost (checkout, pip install,
 sandbox provisioning — together ≈1 min/job), which is identical across
 sharding strategies and therefore not attributable to any file.
 
-## Activation (deliberate, currently pending)
+## Activation (active: the committed evidence snapshot)
 
-Duration-aware planning is **implemented and tested but not active**: CI still
-partitions by size round-robin. Activation is a separate reviewed change, and
-the safe sequence is:
+Duration-aware planning is **active**. The Linux shard resolver step now
+partitions through `ops/shard_resolver.py` over a **committed** evidence
+snapshot, `ops/shard_weights.json` (schema `vool.shard-weights.v1`), instead of
+size round-robin. The design answers three operational questions up front:
 
-1. Let an instrumented run land its artifacts (this branch's CI does exactly
-   this; artifacts live 90 days by default).
-2. Run `ops/shard_plan.py` over those artifacts; review coverage, the
-   comparison, and any fallback files in the PR.
-3. If the estimated slowest-shard reduction holds with high coverage, switch
-   the resolver to the duration-aware planner in a dedicated PR — keeping the
-   macOS routing pin and the completeness guards the resolver already has, and
-   keeping `tests/test_delivery_contracts.py` green.
-4. The run that first executes a planned assignment is the measured proof;
-   compare its slowest shard against the instrumented baseline, not against
-   estimates.
+- **Where does evidence live?** In the repository, as data. Ordinary CI runs
+  read the committed snapshot — they never download run artifacts (which
+  expire) and need no credentials to balance shards.
+- **Can a PR abuse it?** No. The snapshot is validated as untrusted DATA:
+  schema, platform family, explicit positive fallback weight, and per-file
+  keys checked as plain repo-relative POSIX paths (no `..`, no absolute
+  paths, no backslashes, no non-normalized forms) and values as finite
+  non-negative numbers. Nothing from the file is ever executed, interpolated
+  into a command, or handed a secret; a malformed file invalidates the WHOLE
+  snapshot rather than selectively trusting entries.
+- **What if the evidence is wrong, stale, or missing?** Coverage is never
+  negotiable. Files the snapshot does not measure (new tests) run on the
+  snapshot's explicit conservative fallback weight (the 90th percentile of
+  measured per-file medians when generated; an overestimate only spreads new
+  files wider, an underestimate can create a new slowest shard). Snapshot
+  entries for files no longer collected are ignored. A missing, corrupt,
+  wrong-schema, or wrong-platform snapshot degrades to the documented
+  DETERMINISTIC SAFE FALLBACK — the previous partition, size-descending
+  round-robin — with `::warning::` annotations in the run: every collected
+  file still runs in exactly one shard, no test is skipped, and the
+  degradation is visible. `tests/test_shard_resolver.py` pins each clause,
+  including malicious-path/​value refusals and incomplete-assignment
+  refusals; `tests/test_delivery_contracts.py` pins that the workflow invokes
+  the tested module rather than restating partition logic inline.
 
-Known limitation to respect during activation: test independence is assumed
-per file. Re-grouping files can surface order-dependent failures that size
-round-robin happened to hide — any such failure must be reproduced and
-repaired on its own merits (or classified unresolved), never treated as a
-scheduling success or hidden by moving the file.
+### Updating the evidence snapshot
+
+The snapshot is refreshed from a **green instrumented full-matrix run** on
+`main` (any run whose shards uploaded `verification-logs-shard-N` artifacts
+and whose verify job uploaded the canonical manifest):
+
+```
+# 1. Fetch the run's artifacts (needs read access; CI itself never does this):
+gh run download <run-id> --repo Parad0x-Labs/vool \
+  --name verification-logs-verify --dir evidence/verify
+for n in 0 1 2 3 4 5 6 7 8 9; do
+  gh run download <run-id> --repo Parad0x-Labs/vool \
+    --name verification-logs-shard-$n --dir evidence/shard-$n
+done
+
+# 2. Plan from that evidence and write the committed snapshot:
+python ops/shard_plan.py \
+  --manifest evidence/verify/.verification-logs/pytest-manifest.json \
+  $(for n in 0 1 2 3 4 5 6 7 8 9; do echo --timing evidence/shard-$n/.verification-logs/shard-$n-timing.json; done) \
+  --shards 10 --platform linux \
+  --output /tmp/shard-plan.json \
+  --write-weights ops/shard_weights.json
+
+# 3. Review the diff (weights are medians; provenance records source runs,
+#    HEADs, and coverage), run the contract tests, and open a PR.
+python -m pytest tests/test_shard_resolver.py tests/test_shard_plan.py \
+  tests/test_delivery_contracts.py tests/test_ci_verification_contract.py -q
+```
+
+The planner refuses incomplete snapshots, evidence without platform identity,
+and wholly unusable/foreign-platform evidence, so a snapshot that loads was
+built from complete same-platform sessions. Refresh opportunistically after
+significant test additions (the resolver's warnings name unmeasured files) —
+there is no expiry and no CI-time dependency.
+
+Known limitation to respect: test independence is assumed per file.
+Re-grouping files can surface order-dependent failures that size round-robin
+happened to hide — any such failure must be reproduced and repaired on its
+own merits (or classified unresolved), never treated as a scheduling success
+or hidden by moving the file.

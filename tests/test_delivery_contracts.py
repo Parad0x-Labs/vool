@@ -61,15 +61,19 @@ def test_ci_routes_macos_only_suites_to_the_macos_job_and_nowhere_else() -> None
     assert "macos routing drifted" in resolver_text
 
 
-def test_ci_shard_step_measures_without_changing_the_verdict_or_the_partition() -> None:
+def test_ci_shard_step_measures_and_partitions_through_the_tested_resolver() -> None:
     """The shard run step is wrapped by ops/pytest_timing.py for per-file evidence.
 
     Three things must hold together or the measurement is not trustworthy: the
-    resolver's partition (size-descending round-robin) is untouched; the wrapped
-    command runs the SAME pytest argv over the SAME file list in the SAME order;
-    and the artifact upload stays `if: always()` so a red shard still uploads
-    its timing manifest -- evidence beside the verdict, never a substitute for
-    it (the wrapper's exit status IS pytest's own)."""
+    resolver's partition is duration-aware THROUGH ops/shard_resolver.py over the
+    committed evidence snapshot (ops/shard_weights.json) -- never an inline
+    reimplementation that could drift from the tested module (whose teeth live in
+    tests/test_shard_resolver.py: exact-once coverage, untrusted-data validation,
+    and the documented size round-robin safe fallback); the wrapped command runs
+    the SAME pytest argv over the SAME file list in the SAME order; and the
+    artifact upload stays `if: always()` so a red shard still uploads its timing
+    manifest -- evidence beside the verdict, never a substitute for it (the
+    wrapper's exit status IS pytest's own)."""
     workflow = _load_yaml(".github/workflows/ci.yml")
 
     resolver = next(
@@ -78,8 +82,16 @@ def test_ci_shard_step_measures_without_changing_the_verdict_or_the_partition() 
         if step.get("name") == "Resolve this shard's test files"
     )
     resolver_text = str(resolver["run"])
-    assert "index % shards == shard" in resolver_text  # partition algorithm unchanged
-    assert "shard-{shard}-files.txt" in resolver_text
+    # The partition authority is the tested resolver module over the committed
+    # snapshot -- the workflow step invokes it, it does not restate it.
+    assert "python ops/shard_resolver.py" in resolver_text
+    assert "--weights ops/shard_weights.json" in resolver_text
+    assert '--output ".verification-logs/shard-${{ matrix.shard }}-files.txt"' in resolver_text
+    # Canonical collection still feeds it: pytest's own collector decides files.
+    assert "--collect-only" in resolver_text
+    # No partition logic may be re-inlined beside the tested module: the old
+    # size round-robin exists only inside ops.shard_resolver / ops.shard_plan.
+    assert "index % shards == shard" not in resolver_text
 
     run_step = next(
         step
