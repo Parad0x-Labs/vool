@@ -41,6 +41,17 @@ jobs:
         run: >-
           python ops/pytest_manifest.py --repo-root . --output
           .verification-logs/pytest-manifest.json -- -q
+      - name: Upload canonical manifest
+        # The collection manifest is the pairing key for the per-shard timing
+        # manifests the tests matrix uploads: shard planners reconcile timing
+        # evidence against THIS file's scope. Uploaded always so a red verify
+        # leg still leaves its collection evidence inspectable.
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: verification-logs-verify
+          path: .verification-logs/
+          include-hidden-files: true
 
   tests:
     # The full suite, partitioned by test file across parallel runners.
@@ -227,9 +238,16 @@ jobs:
               raise SystemExit(f"shard {shard} resolved empty — partitioning bug")
           EOF
       - name: Run shard ${{ matrix.shard }}
+        # Same pytest argv, same file order, same verdict -- wrapped in ops/pytest_timing.py
+        # so each shard leaves a machine-readable per-file timing + outcome manifest in
+        # .verification-logs/ (uploaded below even when this step fails). The wrapper's exit
+        # status IS pytest's exit status: a red shard stays red, and the timing manifest is
+        # evidence beside the verdict, never a substitute for it.
         run: >-
           xvfb-run -a --server-args="-screen 0 1280x1024x24"
-          python -m pytest -q --tb=short -p no:cacheprovider
+          python ops/pytest_timing.py
+          --output .verification-logs/shard-${{ matrix.shard }}-timing.json
+          -- -q --tb=short -p no:cacheprovider
           $(tr '\n' ' ' < .verification-logs/shard-${{ matrix.shard }}-files.txt)
       - name: Upload shard log
         if: always()

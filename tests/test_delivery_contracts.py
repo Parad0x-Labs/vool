@@ -61,6 +61,47 @@ def test_ci_routes_macos_only_suites_to_the_macos_job_and_nowhere_else() -> None
     assert "macos routing drifted" in resolver_text
 
 
+def test_ci_shard_step_measures_without_changing_the_verdict_or_the_partition() -> None:
+    """The shard run step is wrapped by ops/pytest_timing.py for per-file evidence.
+
+    Three things must hold together or the measurement is not trustworthy: the
+    resolver's partition (size-descending round-robin) is untouched; the wrapped
+    command runs the SAME pytest argv over the SAME file list in the SAME order;
+    and the artifact upload stays `if: always()` so a red shard still uploads
+    its timing manifest -- evidence beside the verdict, never a substitute for
+    it (the wrapper's exit status IS pytest's own)."""
+    workflow = _load_yaml(".github/workflows/ci.yml")
+
+    resolver = next(
+        step
+        for step in workflow["jobs"]["tests"]["steps"]
+        if step.get("name") == "Resolve this shard's test files"
+    )
+    resolver_text = str(resolver["run"])
+    assert "index % shards == shard" in resolver_text  # partition algorithm unchanged
+    assert "shard-{shard}-files.txt" in resolver_text
+
+    run_step = next(
+        step
+        for step in workflow["jobs"]["tests"]["steps"]
+        if step.get("name") == "Run shard ${{ matrix.shard }}"
+    )
+    run_text = " ".join(str(run_step["run"]).split())
+    assert "python ops/pytest_timing.py" in run_text
+    assert "--output .verification-logs/shard-${{ matrix.shard }}-timing.json" in run_text
+    # The pytest invocation the wrapper receives is the one the shard always ran.
+    assert "-- -q --tb=short -p no:cacheprovider" in run_text
+    assert "$(tr '\\n' ' ' < .verification-logs/shard-${{ matrix.shard }}-files.txt)" in run_text
+    # Timing capture must not swallow failures: no continue-on-error, no || true.
+    assert not run_step.get("continue-on-error")
+
+    upload = next(
+        step for step in workflow["jobs"]["tests"]["steps"] if step.get("name") == "Upload shard log"
+    )
+    assert upload.get("if") == "always()"
+    assert upload.get("with", {}).get("include-hidden-files") is True
+
+
 def test_ci_build_job_smokes_the_built_wheel_outside_repo_checkout() -> None:
     workflow = _load_yaml(".github/workflows/ci.yml")
     build_job = workflow["jobs"]["build"]
