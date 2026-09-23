@@ -169,7 +169,11 @@ def _passing_group_result(name: str) -> dict[str, object]:
     }
 
 
-def _passing_regression_payload(baseline_root: Path, inventory: dict[str, object]) -> dict[str, object]:
+def _passing_regression_payload(
+    baseline_root: Path,
+    inventory: dict[str, object],
+    pack_timeout_seconds: float | None = None,
+) -> dict[str, object]:
     return {
         "status": "pass",
         "baseline_path": "",
@@ -641,7 +645,7 @@ def test_run_skips_docs_report_write_by_default(monkeypatch, tmp_path: Path) -> 
         "_regression_payload",
         _passing_regression_payload,
     )
-    monkeypatch.setattr(llm_eval, "_scenario_group_result", lambda name, scenarios: _passing_group_result(name))
+    monkeypatch.setattr(llm_eval, "_scenario_group_result", lambda name, scenarios, pack_timeout_seconds=None: _passing_group_result(name))
 
     args = Namespace(
         output_root=str(output_root),
@@ -700,7 +704,7 @@ def test_run_writes_docs_report_only_when_explicitly_requested(monkeypatch, tmp_
         "_regression_payload",
         _passing_regression_payload,
     )
-    monkeypatch.setattr(llm_eval, "_scenario_group_result", lambda name, scenarios: _passing_group_result(name))
+    monkeypatch.setattr(llm_eval, "_scenario_group_result", lambda name, scenarios, pack_timeout_seconds=None: _passing_group_result(name))
 
     args = Namespace(
         output_root=str(output_root),
@@ -753,7 +757,7 @@ def test_run_sanitizes_summary_artifacts_before_writing(monkeypatch, tmp_path: P
     monkeypatch.setattr(
         llm_eval,
         "_regression_payload",
-        lambda baseline_root, inventory: {
+        lambda baseline_root, inventory, pack_timeout_seconds=None: {
             "status": "pass",
             "baseline_path": "",
             "inventory": inventory,
@@ -772,7 +776,7 @@ def test_run_sanitizes_summary_artifacts_before_writing(monkeypatch, tmp_path: P
     monkeypatch.setattr(
         llm_eval,
         "_scenario_group_result",
-        lambda name, scenarios: {
+        lambda name, scenarios, pack_timeout_seconds=None: {
             "category": name,
             "status": "pass",
             "scenarios": [
