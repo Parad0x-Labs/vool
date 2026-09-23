@@ -70,7 +70,12 @@ def parse_pytest_summary(output_text: str) -> dict[str, int]:
     text = str(output_text or "")
     summary = {field: 0 for field in _SUMMARY_FIELDS}
     for field in _SUMMARY_FIELDS:
-        match = re.search(rf"(\d+)\s+{field}", text)
+        # pytest prints the singular form for a count of 1 ("1 error", "1 passed"); the
+        # archived weekly-run reports under-counted exactly those rows (a scenario summary
+        # read errors: 0 next to a stdout ending "1 error"), so the optional plural "s" is
+        # load-bearing for truthful reporting even though status comes from exit codes.
+        singular = field[:-1] if field.endswith("s") else field
+        match = re.search(rf"(\d+)\s+{singular}s?\b", text)
         if match:
             summary[field] = int(match.group(1))
     return summary
@@ -82,28 +87,47 @@ def run_pytest_pack(
     repo_root: Path,
     targets: list[str],
     extra_args: list[str] | None = None,
+    timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     args = [sys.executable, "-m", "pytest", "-q", "--tb=short", *list(extra_args or []), *list(targets)]
     started = time.perf_counter()
-    process = subprocess.run(
-        args,
-        cwd=str(repo_root),
-        text=True,
-        capture_output=True,
-    )
+    timed_out = False
+    try:
+        process = subprocess.run(
+            args,
+            cwd=str(repo_root),
+            text=True,
+            capture_output=True,
+            timeout=timeout_seconds,
+        )
+        stdout, stderr, exit_code = process.stdout, process.stderr, int(process.returncode)
+    except subprocess.TimeoutExpired as expired:
+        # A hung pack (the repo has measured an unbounded chromium launch holding a CI
+        # shard for 86 minutes) must surface as a RED pack carrying its partial evidence,
+        # never as an unhandled crash that writes no report at all. Exit 124 is the
+        # conventional timeout code; every status decision treats nonzero as fail, so the
+        # gate stays non-green.
+        timed_out = True
+        exit_code = 124
+        stdout = str(expired.stdout or "") if isinstance(expired.stdout, str) else ""
+        stderr = (
+            str(expired.stderr or "") if isinstance(expired.stderr, str) else ""
+        ) + f"\npack '{name}' exceeded the {timeout_seconds}s execution bound and was terminated"
     elapsed = round(time.perf_counter() - started, 3)
-    combined = f"{process.stdout}\n{process.stderr}".strip()
+    combined = f"{stdout}\n{stderr}".strip()
     summary = parse_pytest_summary(combined)
     return {
         "name": name,
         "command": args,
         "targets": list(targets),
-        "exit_code": int(process.returncode),
+        "exit_code": exit_code,
         "duration_seconds": elapsed,
+        "timed_out": timed_out,
+        "timeout_seconds": timeout_seconds,
         "summary": summary,
-        "status": "pass" if process.returncode == 0 else "fail",
-        "stdout": process.stdout,
-        "stderr": process.stderr,
+        "status": "pass" if exit_code == 0 else "fail",
+        "stdout": stdout,
+        "stderr": stderr,
     }
 
 
