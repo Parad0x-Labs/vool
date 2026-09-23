@@ -37,8 +37,10 @@ All durations this tool prints are ESTIMATES derived from recorded evidence
 A shorter slowest shard is a wall-time improvement; it is NOT automatically a
 reduction in total billed compute -- the comparison reports both.
 
-This tool PLANS. Activating its output in CI is a separate, deliberate change
-to the resolver; nothing here edits the workflow.
+This tool PLANS and (with ``--write-weights``) produces the committed evidence
+snapshot. Activation is separate and deliberate: the CI resolver step runs
+``ops/shard_resolver.py`` over ``ops/shard_weights.json``; nothing here edits
+the workflow.
 """
 
 from __future__ import annotations
@@ -88,6 +90,10 @@ class TimingEvidence:
     stale_files: set[str] = field(default_factory=set)
     incompatible_files: set[str] = field(default_factory=set)
     sources: list[str] = field(default_factory=list)
+    #: Provenance per input file: path, git HEAD it measured, platform, and
+    #: completion -- carried into plans and evidence snapshots so "which run
+    #: said so" is answerable from the artifact itself.
+    source_provenance: list[dict[str, Any]] = field(default_factory=list)
 
 
 def load_manifest(path: Path) -> tuple[str, ...]:
@@ -149,6 +155,18 @@ def load_timing_evidence(
         if not isinstance(environment, dict) or not environment.get("sys_platform"):
             raise PlanningError(f"timing evidence has no platform identity ({path})")
         measured_platform = str(environment["sys_platform"])
+        source = payload.get("source")
+        head_sha = source.get("git_head_sha") if isinstance(source, dict) else None
+        evidence.source_provenance.append(
+            {
+                "path": str(path),
+                "git_head_sha": head_sha if isinstance(head_sha, str) else None,
+                "git_dirty": source.get("git_dirty") if isinstance(source, dict) else None,
+                "sys_platform": measured_platform,
+                "complete": True,
+                "exitstatus": payload.get("exitstatus"),
+            }
+        )
         files = payload.get("files")
         if not isinstance(files, dict):
             raise PlanningError(f"timing evidence carries no per-file records ({path})")
@@ -373,6 +391,7 @@ def build_plan(
         "units": "seconds (ESTIMATES from recorded evidence, not measurements of this plan)",
         "manifest": str(manifest_path),
         "timing_sources": list(evidence.sources),
+        "timing_provenance": list(evidence.source_provenance),
         "routed_to_macos": routed,
         "weights": {
             target: {
@@ -421,6 +440,80 @@ def build_plan(
             "invalid_sample_records": evidence.invalid_samples,
         },
     }
+
+
+WEIGHTS_SNAPSHOT_SCHEMA = "vool.shard-weights.v1"
+
+
+def _snapshot_fallback_seconds(plan: dict[str, Any], *, requested: float | None) -> float:
+    """The CONSERVATIVE weight future unmeasured files will be assumed to cost.
+
+    Explicitly pinnable with --fallback-weight; otherwise the 90th percentile
+    of the measured per-file medians. A new test file is more likely to be
+    slower than the typical file than faster (suites grow; smoke files are
+    rare), and an overestimate only makes LPT spread new files wider -- an
+    underestimate stacks them onto near-full shards and can create a NEW
+    slowest shard. Genuinely huge new files overshoot any static weight and
+    are measured at the next snapshot refresh.
+    """
+
+    if requested is not None:
+        return float(requested)
+    medians = sorted(
+        entry["estimated_seconds"]
+        for entry in plan["weights"].values()
+        if entry["source"] == "measured"
+    )
+    if not medians:
+        raise PlanningError("cannot derive a conservative fallback with zero measured files")
+    if len(medians) == 1:
+        # statistics.quantiles needs >= 2 points; a single measured file is its
+        # own conservative scale.
+        return max(float(medians[0]), plan["fallback_weight_seconds"])
+    quantiles = statistics.quantiles(medians, n=100, method="inclusive")
+    return max(float(quantiles[89]), plan["fallback_weight_seconds"])
+
+
+def write_weights_snapshot(
+    plan: dict[str, Any], path: Path, *, requested_fallback: float | None = None
+) -> dict[str, Any]:
+    """Write the committed evidence snapshot the CI resolver consumes.
+
+    The snapshot carries ONLY measured weights (median per file); files the
+    next collection adds are unmeasured by definition and get the explicit
+    conservative fallback at resolve time. Stale entries for deleted files are
+    dropped here so the committed file tracks the collection it was planned
+    against. Everything in it is data: validated downstream, never executed.
+    """
+
+    measured = {
+        target: entry["estimated_seconds"]
+        for target, entry in plan["weights"].items()
+        if entry["source"] == "measured"
+    }
+    coverage = plan["coverage"]
+    snapshot = {
+        "schema": WEIGHTS_SNAPSHOT_SCHEMA,
+        "platform": plan["platform"],
+        "sys_platform": PLATFORM_BY_REQUEST[plan["platform"]],
+        "fallback_weight_seconds": round(
+            _snapshot_fallback_seconds(plan, requested=requested_fallback), 6
+        ),
+        "provenance": {
+            "generated_by": "ops/shard_plan.py --write-weights",
+            "planner_mode": plan["mode"],
+            "manifest": plan["manifest"],
+            "timing_sources": plan["timing_sources"],
+            "timing_provenance": plan["timing_provenance"],
+            "linux_files": coverage["linux_files"],
+            "measured_files": coverage["measured_files"],
+            "coverage_fraction": coverage["fraction"],
+        },
+        "weights": dict(sorted(measured.items())),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return snapshot
 
 
 def _print_summary(plan: dict[str, Any]) -> None:
@@ -489,6 +582,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--write-shard-files", type=Path, default=None,
         help="Write shard-<i>-files.txt (resolver format) here for a future activation.",
     )
+    parser.add_argument(
+        "--write-weights", type=Path, default=None,
+        help=(
+            "Write the committed evidence snapshot (vool.shard-weights.v1) the CI "
+            "resolver (ops/shard_resolver.py) consumes. Only measured weights are "
+            "stored; the explicit fallback covers files added after this evidence."
+        ),
+    )
     return parser
 
 
@@ -516,6 +617,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "\n".join(shard) + "\n", encoding="utf-8"
                 )
             print(f"wrote {args.shards} shard file lists to {args.write_shard_files}")
+        if args.write_weights:
+            snapshot = write_weights_snapshot(
+                plan, args.write_weights, requested_fallback=args.fallback_weight
+            )
+            print(
+                f"wrote weights snapshot {args.write_weights} "
+                f"({len(snapshot['weights'])} measured files, "
+                f"fallback {snapshot['fallback_weight_seconds']}s)"
+            )
     except PlanningError as exc:
         print(f"!! {exc}", file=sys.stderr)
         return 1
