@@ -707,6 +707,22 @@ def main() -> int:
             stop_default_sync()
         except Exception:
             pass
+        # The wallet transfer observer is the third boot-time service this entrypoint owns
+        # (started fail-soft above). Without this stop, an in-process host of main() — every
+        # test that exercises the real server lifecycle — kept the observer ticking for the
+        # rest of the process, and each tick's wallet-store access brought its schema onto
+        # whatever database the runtime-continuity authority then pointed at; a per-test
+        # database switched underneath it mid-statement surfaced as
+        # sqlite3.OperationalError("database schema has changed") in unrelated suites.
+        # The import mirrors the start site's exact form: `from core.wallet import
+        # settlement` resolves through the package even when a host's sys.modules churn has
+        # left the submodule key absent, so start and stop always share one module instance.
+        try:
+            from core.wallet import settlement as wallet_settlement
+
+            wallet_settlement.stop_observer()
+        except Exception:
+            pass
         if runtime is not None:
             runtime.shutdown()
     return 0
