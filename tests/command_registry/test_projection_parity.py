@@ -70,14 +70,30 @@ def _semantics(payload: dict) -> dict:
 # -- fixtures ---------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def empty_plugin_catalog(tmp_path, monkeypatch):
+def _establish_empty_plugin_catalog(tmp_path, monkeypatch) -> None:
+    """This file's world: no packs discovered AND no lifecycle records.
+
+    The empty catalog the unavailable-case laws depend on is LIFECYCLE state, not just
+    discovery state: the availability probe consults the plugin-lifecycle store, and
+    records left there by any earlier test in this process (e.g. an activation performed
+    in a subprocess that inherited this session's VOOL_PLUGIN_LIFECYCLE_PATH) flip
+    `plugins.lifecycle.transition` to available. The empty world is established through
+    the lifecycle's own authority (reset_for_tests unlinks the store) — never by forcing
+    the probe's answer — and restored on the way out of each test.
+    """
+    from core import plugin_lifecycle
     from tests._toolchain_fixtures import reset_toolchain_state
 
     monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path / "plugins"))
+    plugin_lifecycle.reset_for_tests()
     reset_toolchain_state()
+
+
+@pytest.fixture(autouse=True)
+def empty_plugin_catalog(tmp_path, monkeypatch):
+    _establish_empty_plugin_catalog(tmp_path, monkeypatch)
     yield
-    reset_toolchain_state()
+    _establish_empty_plugin_catalog(tmp_path, monkeypatch)
 
 
 @pytest.fixture
@@ -204,6 +220,88 @@ def test_approval_gated_mutation_executes_with_operator_authority(recorded_works
 
 
 # -- 3. unavailable command ------------------------------------------------------------
+
+
+def test_the_empty_catalog_is_established_through_the_lifecycle_authority(tmp_path, monkeypatch):
+    """The world this file promises is lifecycle state, and it is established through the
+    lifecycle's own authority — not by forcing the probe's answer.
+
+    Regression for the shard-9 parity failure: a really-admitted pack's records left in the
+    session's lifecycle store by any earlier test used to survive this file's fixture, so
+    the availability probe answered "packs exist" and the unavailable-case laws failed.
+    Here the dirty world is created for real, then the fixture's authority runs, and the
+    probe must answer from the re-established empty catalog through the real palette.
+    """
+    from core import plugin_lifecycle
+    from core.command_registry.projections import palette_data
+    from core.command_registry.registry import registry
+    from tests._toolchain_fixtures import admit_plugin, make_plugin
+
+    pack = make_plugin(tmp_path / "dirty", plugin_id="parity-dirty-pack", admit=False)
+    admit_plugin("parity-dirty-pack", pack)
+    assert plugin_lifecycle.lifecycle_snapshot()["plugins"], "precondition: a really-admitted pack's records exist"
+
+    _establish_empty_plugin_catalog(tmp_path, monkeypatch)
+
+    assert plugin_lifecycle.lifecycle_snapshot()["plugins"] == []
+    row = next(
+        r for r in palette_data(registry())["commands"] if r["command_id"] == "plugins.lifecycle.transition"
+    )
+    assert row["available"] is False, "availability answers from the live lifecycle state"
+    assert row["unavailable_reason"], "the structural reason rides along, dimmed but never hidden"
+
+
+def test_prior_lifecycle_activation_under_an_isolated_home_flips_no_availability_here(tmp_path):
+    """The shard-9 polluter, minimized and faithful.
+
+    A test that activates a pack in a subprocess under its own VOOL_HOME takes the pack
+    through the REAL lifecycle (install/verify/enable) while inheriting this process's
+    environment — exactly `tests/_blackbox_served_rig.run_in_home`, as the served-journey
+    tests use it. Because VOOL_PLUGIN_LIFECYCLE_PATH (pinned session-wide by conftest)
+    outranks VOOL_HOME in `core.plugin_lifecycle.store_path`, those records land in THIS
+    session's store, crossing the runtime-home boundary the activation intended. This
+    predecessor deliberately recreates that state mid-file: the unavailable-case laws that
+    follow must hold anyway, because this file's fixture re-establishes the empty catalog
+    through the lifecycle authority rather than trusting whoever ran before it.
+    """
+    import os
+    import subprocess
+    import sys
+
+    from core import plugin_lifecycle
+    from tests._toolchain_fixtures import make_plugin
+
+    repo_root = Path(__file__).resolve().parents[2]
+    pack = make_plugin(tmp_path, plugin_id="parity-cross-home-pack", admit=False)
+    home = tmp_path / "isolated-home"
+    home.mkdir()
+    # Same environment construction as run_in_home: the parent env (carrying this
+    # session's VOOL_PLUGIN_LIFECYCLE_PATH) plus a fresh VOOL_HOME for the subprocess.
+    env = dict(os.environ)
+    env.update({"VOOL_HOME": str(home), "PYTHONPATH": str(repo_root)})
+    script = (
+        "import sys\n"
+        f"sys.path.insert(0, {str(repo_root)!r})\n"
+        "from core.plugin_lifecycle import enable, install, verify\n"
+        f"install('parity-cross-home-pack', root={str(pack)!r}, source='test-isolated')\n"
+        f"verify('parity-cross-home-pack', root={str(pack)!r})\n"
+        "enable('parity-cross-home-pack')\n"
+        "print('lifecycle: installed+verified+enabled')\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=str(repo_root),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+    # The reproduced boundary crossing: the activation meant for another home recorded its
+    # pack in this session's store, so the store this process's probes consult is NOT empty.
+    polluted = plugin_lifecycle.lifecycle_snapshot()["plugins"]
+    assert [row["plugin_id"] for row in polluted] == ["parity-cross-home-pack"], polluted
 
 
 def test_unavailable_command_identical_across_projections(capsys):

@@ -23,10 +23,16 @@ def test_readme_frontloads_install_and_honest_platform_claims() -> None:
     assert "local-first personal agent" in readme
     assert "0.6.0-beta" in early, "current beta version must be stated up front"
     assert "## ⚡ Install" in early or "## Install" in early
-    # Platform honesty: macOS shipped, Windows experimental, Linux unsupported.
-    assert "**Beta, shipped**" in readme or "Beta, shipped" in readme
-    assert "Experimental" in readme and "Not supported" in readme
-    assert "not notarized" in readme.lower() or "not\n  notarized" in readme.lower() or "notarized" in readme
+    # Source installation is the public path; the only packaged release is a draft.
+    assert "no public installer release" in early
+    assert "**Beta, shipped**" not in readme
+    assert "**macOS / Apple Silicon**" in early
+    assert "**Linux**" in early and "Linux test shards" in early
+    assert "**Windows**" in early and "Experimental" in early
+    assert "WSL2/Linux" in early
+    assert "bootstrap_vool.sh" in early and "bootstrap_vool.ps1" in early
+    assert "docs/assets/vool-flag-banner.png" in early
+    assert (REPO_ROOT / "docs/assets/vool-flag-banner.png").is_file()
     # Public story: the repository README and changelog never mention the pre-public
     # internal identity; the engineering record of frozen identifiers lives in the dev docs.
     assert "NULLA" not in readme and "nulla" not in readme.lower()

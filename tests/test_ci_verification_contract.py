@@ -25,21 +25,35 @@ WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 # migration no longer exists in the workflow; the weakening law it enforced — exact commands,
 # no disabled steps, no swallowed output, exact dependency pins — is restated here against the
 # current structure.
+#: The authoritative pytest argv every shard forwards through the timing wrapper: collection
+#: flags only -- selection comes from the resolver's file list appended after these tokens.
+#: (Before the timing wrapper this was `python -m pytest` + these args; the wrapper runs
+#: pytest.main in-process with the SAME argv, so the args themselves are unchanged law.)
 EXPECTED_SHARD_PYTEST_PREFIX = (
-    "python",
-    "-m",
-    "pytest",
     "-q",
     "--tb=short",
     "-p",
     "no:cacheprovider",
 )
+#: The measurement wrapper every Linux shard runs its pytest through (PR #35): it forwards the
+#: EXACT authoritative argv after its own `--` separator, its exit status IS pytest's, and it
+#: writes the per-file timing manifest into .verification-logs/ beside the shard's file list.
+#: Pinned token for token like the pytest prefix itself: the wrapper is a measurement seam, not
+#: a place to hide command changes -- behind it, the invocation must still forward exactly
+#: EXPECTED_SHARD_PYTEST_PREFIX and still consume exactly the resolver's file list.
+EXPECTED_SHARD_TIMING_PREFIX = (
+    "python",
+    "ops/pytest_timing.py",
+    "--output",
+    ".verification-logs/shard-${{ matrix.shard }}-timing.json",
+    "--",
+)
 #: The virtual-display wrapper the Linux shards run their pytest under: the wallet-handoff
 #: contract opens one genuinely headful Chromium session (a handoff needs a VISIBLE browser), and
 #: these runners have no display, so the headful lane cannot open without a framebuffer. Pinned
 #: token for token: the wrapper is a display server, not a place to hide command changes -- the
-#: invocation behind it must still start with EXPECTED_SHARD_PYTEST_PREFIX and still consume
-#: exactly the resolver's file list for its own shard.
+#: invocation behind it must still pass through the pinned timing wrapper and the exact
+#: authoritative pytest argv, and still consume exactly the resolver's file list for its shard.
 EXPECTED_SHARD_DISPLAY_PREFIX = (
     "xvfb-run",
     "-a",
@@ -109,6 +123,10 @@ def _assert_authoritative_contract(workflow: dict[str, Any]) -> None:
     tokens = shlex.split(command_text)
     if tuple(tokens[: len(EXPECTED_SHARD_DISPLAY_PREFIX)]) == EXPECTED_SHARD_DISPLAY_PREFIX:
         tokens = tokens[len(EXPECTED_SHARD_DISPLAY_PREFIX) :]
+    assert tuple(tokens[: len(EXPECTED_SHARD_TIMING_PREFIX)]) == EXPECTED_SHARD_TIMING_PREFIX, (
+        "the shard must run through the timing wrapper with its manifest in .verification-logs/"
+    )
+    tokens = tokens[len(EXPECTED_SHARD_TIMING_PREFIX) :]
     assert tuple(tokens[: len(EXPECTED_SHARD_PYTEST_PREFIX)]) == EXPECTED_SHARD_PYTEST_PREFIX
     assert command_text.rstrip().endswith(
         f"$(tr '\\n' ' ' < .verification-logs/{SHARD_FILE_LIST_REF})"
