@@ -267,7 +267,7 @@ def test_openai_adapter_prewarm_uses_native_ollama_chat_endpoint() -> None:
         "messages": [{"role": "user", "content": " "}],
         "stream": False,
         "keep_alive": "15m",
-        "options": {"num_predict": 1},
+        "options": {"num_predict": 1, **adapter._ollama_runner_options()},
         "think": False,
     }
 

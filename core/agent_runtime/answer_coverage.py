@@ -1356,6 +1356,12 @@ def _introduces_no_new_subject(fragment: str) -> bool:
     fresh request, which is what keeps the frozen four-slot case
     ("1000 EUR to RUB, gold with it, weather in Rome, baltic sea water temp") at four demands.
     """
+    from core.task_router import looks_like_direct_math_request
+
+    # Arithmetic has its own subject in its operands. Numbers are otherwise ignored here
+    # because presentation instructions such as "show 3 bullets" inherit the prior subject.
+    if looks_like_direct_math_request(_strip_leaders(fragment)):
+        return False
     for token in _unit_tokens(fragment):
         if (
             token in _DEMAND_UNIT_SPLIT_CONNECTORS
@@ -1595,7 +1601,9 @@ _FACET_LIST_RE = re.compile(r":\s*(?P<items>[^:.;!?]{4,240})(?=[.;!?]|$)")
 
 def _coordination_protected_ranges(clause: str) -> list[tuple[int, int]]:
     """Character ranges in `clause` whose "and"/comma coordination joins ONE request."""
-    protected: list[tuple[int, int]] = []
+    from core.market_intent import market_attribute_coordination_ranges
+
+    protected = list(market_attribute_coordination_ranges(clause))
     shared = _shared_predicate_range(clause)
     if shared is not None:
         protected.append(shared)
@@ -1676,6 +1684,87 @@ def _conditional_setup_question(left: str, fragment: str) -> bool:
     return head in _INTERROGATIVE_HEADS
 
 
+#: A comparison's attribute enumeration: "compare X vs Y on A, B, C and D" -- the preposition
+#: tail that distributes one comparison over coordinated attributes. The colon-introduced facet
+#: list ("... in detail: A, B, C") is a DIFFERENT shape and stays one demand by its own frozen
+#: contract; this pattern only matches the comma/and enumeration without the colon.
+_COMPARISON_ATTRIBUTE_TAIL_RE = re.compile(
+    r"\s(?:on|for|across|about|in)\s+(?P<items>[a-z][a-z\s-]*(?:\s*,\s*[a-z][a-z\s-]*)*)\s*$",
+    re.IGNORECASE,
+)
+
+#: The open-ended tail that says the list continues: "<short attribute> and so on". An explicit
+#: marker from the writer that a coordinated item stands on its own at this comma.
+_AND_SO_ON_TAIL_RE = re.compile(
+    r",\s*(?P<attr>[a-z][a-z\s-]{0,30}?)\s+and\s+so\s+on\s*[.?!]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _comparison_attribute_spans(clause: str) -> list[tuple[int, int]] | None:
+    """Per-attribute spans for the pure "compare <subjects> on A, B, C and D" shape.
+
+    A comparison distributed over coordinated attributes asks for EACH attribute: a partial
+    answer that covers three of five must not close the merged unit and let the missing two
+    silently vanish (the CT-301 census). The compared SUBJECTS stay joined -- this returns one
+    span per attribute, not per subject. Only the pure shape fires: the comparison head opens
+    the clause, the enumeration closes it, every item is a short attribute phrase, and no item
+    opens an instruction of its own. Anything else keeps the ordinary splitting rules,
+    including the colon-facet contract that keeps a colon-introduced list whole.
+    """
+    value = str(clause or "")
+    head = _COMPARISON_HEAD_RE.search(value)
+    if head is None or head.start() != 0:
+        return None
+    if ":" in value:
+        return None
+    tail = _COMPARISON_ATTRIBUTE_TAIL_RE.search(value)
+    if tail is None or tail.start() < head.end():
+        return None
+    items_text = str(tail.group("items") or "")
+    parts = [part.strip() for part in re.split(r"\s*,\s*|\s+and\s+", items_text) if part.strip()]
+    if not 2 <= len(parts) <= 8:
+        return None
+    for part in parts:
+        words = part.lower().split()
+        if not 1 <= len(words) <= 4:
+            return None
+        if words[0] in _DEMAND_HEADS or any(char.isdigit() for char in part):
+            return None
+    spans: list[tuple[int, int]] = []
+    cursor = tail.start("items")
+    for part in parts:
+        at = value.find(part, cursor)
+        if at < 0:
+            return None
+        spans.append((at, at + len(part)))
+        cursor = at + len(part)
+    return spans
+
+
+def _and_so_on_spans(clause: str) -> list[tuple[int, int]] | None:
+    """Split an explicit open-ended tail: "<fragment>, <attribute> and so on".
+
+    "and so on" is the writer's own declaration that the comma opens a coordinated item of its
+    own; keeping it fused produced the recorded run-on census (regions and engines inside one
+    unit, a dropped engine invisible). Only the two-sided shape with exactly this tail fires.
+    """
+    value = str(clause or "")
+    tail = _AND_SO_ON_TAIL_RE.search(value)
+    if tail is None:
+        return None
+    attr = str(tail.group("attr") or "").strip()
+    left = value[: tail.start()].strip()
+    if not left or not attr or len(attr.split()) > 4:
+        return None
+    if "," in left:
+        return None
+    at = value.find(attr, tail.start())
+    if at < 0:
+        return None
+    return [(0, tail.start()), (at, len(value.rstrip()))]
+
+
 def _unit_spans(clause: str) -> list[tuple[int, int]]:
     """Sub-split ONE clause at coordination boundaries that open a fresh request.
 
@@ -1684,6 +1773,12 @@ def _unit_spans(clause: str) -> list[tuple[int, int]]:
     Both sides must carry content, so a trailing "and" or a list comma never splits.
     """
     value = str(clause or "")
+    enumerated = _comparison_attribute_spans(value)
+    if enumerated is not None:
+        return enumerated
+    tail = _and_so_on_spans(value)
+    if tail is not None:
+        return tail
     lowered = value.lower()
     quoted: set[int] = set()
     closing: str | None = None
@@ -1725,6 +1820,14 @@ def _unit_spans(clause: str) -> list[tuple[int, int]]:
                 edge = tokens[position - 1][0]
             needs_head = False
         elif position and token in _DEMAND_UNIT_SPLIT_CONNECTORS:
+            if (
+                token == "plus"
+                and position + 1 < len(tokens)
+                and tokens[position - 1][1][0].isdigit()
+                and tokens[position + 1][1][0].isdigit()
+            ):
+                # An arithmetic operator cannot terminate the question before its operand.
+                continue
             edge, needs_head = offset, True
         else:
             continue
@@ -2272,6 +2375,14 @@ def imperative_step(text: str) -> bool:
 
 def _classify_fragments(value: str, fragments: list[tuple[str, int, int, str]]) -> list[DemandUnit]:
     literal_spans = _literal_spans(value)
+    # A comparison distributed over coordinated attributes asks for EACH attribute: the items
+    # `_unit_spans` split out of that shape are demands of their own, not list members folding
+    # into a neighbour.
+    comparison_attributes = _comparison_attribute_spans(str(value or "")) or []
+
+    def _is_comparison_attribute(start: int, end: int) -> bool:
+        return any(s <= start and end <= e for s, e in comparison_attributes)
+
     units: list[DemandUnit] = []
     last_request: str | None = None
     pending: list[int] = []  # non-request fragments before the first request, attached to it once minted
@@ -2304,7 +2415,11 @@ def _classify_fragments(value: str, fragments: list[tuple[str, int, int, str]]) 
         )
         if not described_item:
             colon_owner = None
-        if _inside_literal(start, end, literal_spans) and not asks:
+        if any(lo <= start and end <= hi for lo, hi in literal_spans) or (
+            _inside_literal(start, end, literal_spans) and not asks
+        ):
+            # A question wholly inside explicitly supplied file contents is still data.
+            # Keep the looser overlap rule guarded so the surrounding write remains a request.
             kind = KIND_LITERAL
         elif clarifies:
             kind = KIND_CONTEXT
@@ -2356,6 +2471,7 @@ def _classify_fragments(value: str, fragments: list[tuple[str, int, int, str]]) 
             and len(body) <= 3
             and not leaders
             and not any(token in _ANAPHORS for token in body)
+            and not _is_comparison_attribute(start, end)
             and (after_colon_list or (comma_led and _is_value_shaped(text, body)))
         ):
             # A list item that belongs to the request before it: "b.txt", "TWO", "Puerto Rico.",

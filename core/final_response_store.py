@@ -20,9 +20,8 @@ def _table_columns(conn: Any, table_name: str) -> set[str]:
 def _ensure_columns(conn: Any) -> None:
     """Additive, idempotent + thread-safe ensure for late columns.
 
-    The current schema (storage/migrations.py) creates ``anchored_signature`` and
-    ``content_hash`` in the ``finalized_responses`` DDL and via the additive
-    migration block, so on a migrated database this ensure finds them present and
+    The current schema (storage/migrations.py) creates the signature, content hash,
+    and lineage columns in its DDL and additive migrations, so this ensure finds them present and
     does nothing. It survives as a defensive fallback for a connection that
     somehow predates those migrations.
 
@@ -34,18 +33,17 @@ def _ensure_columns(conn: Any) -> None:
     """
     with _ENSURE_COLUMN_LOCK:
         columns = _table_columns(conn, "finalized_responses")
-        missing = [name for name in ("anchored_signature", "content_hash") if name not in columns]
-        if not missing:
-            return
-        try:
-            for name in missing:
-                type_def = "TEXT" if name == "anchored_signature" else "TEXT NOT NULL DEFAULT ''"
+        for name in ("anchored_signature", "content_hash", "finalization_id", "request_id"):
+            if name in columns:
+                continue
+            type_def = "TEXT" if name == "anchored_signature" else "TEXT NOT NULL DEFAULT ''"
+            try:
                 conn.execute(f"ALTER TABLE finalized_responses ADD COLUMN {name} {type_def}")
-        except sqlite3.OperationalError as exc:
-            # A racing writer (another process, or a connection that bypassed the
-            # lock) already added the column. Anything else is a real failure.
-            if "duplicate column name" not in str(exc).lower():
-                raise
+            except sqlite3.OperationalError as exc:
+                # Another process can add this column despite our thread lock. Keep
+                # ensuring the remaining columns; an outer catch would abandon them.
+                if "duplicate column name" not in str(exc).lower():
+                    raise
 
 
 def content_identity_hash(raw: str, rendered: str, status_marker: str) -> str:

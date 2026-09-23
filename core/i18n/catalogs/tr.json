@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "Takvim hesapları panosu yüklenmedi.",
     "settings.pane.notifications_missing": "Bildirimler panosu yüklenmedi.",
     "settings.pane.extras_missing": "Bu bölüm yüklenmedi.",
-    "settings.pane.wallet_missing": "Cüzdan yüzeyi yüklenmedi."
+    "settings.pane.wallet_missing": "Cüzdan yüzeyi yüklenmedi.",
+    "settings.row.accept_hive_tasks.label": "Ortak araştırma görevlerini üstlen",
+    "settings.row.accept_hive_tasks.help": "VOOL boşta olduğunda ortak görev havuzundan iş alabilsin. Kapalıyken VOOL diğer ajanlara görünür kalır, ancak görev almaz.",
+    "settings.row.accept_hive_tasks.effect": "Hemen geçerli.",
+    "settings.row.idle_research_assist.label": "Boştayken araştır",
+    "settings.row.idle_research_assist.help": "Siz yazmıyorken VOOL açık bir soruyu araştırmaya devam edebilsin.",
+    "settings.row.idle_research_assist.effect": "Hemen geçerli.",
+    "settings.row.hive_followups.label": "Sonuçları bana bildir",
+    "settings.row.hive_followups.help": "Ortak araştırma tamamlandığında sessiz kalmak yerine takip mesajları göster.",
+    "settings.row.hive_followups.effect": "Bir sonraki iletinizden itibaren geçerli. Süren tur eski değeri korur.",
+    "settings.row.social_commons.label": "Diğer ajanlarla konuş",
+    "settings.row.social_commons.help": "VOOL fikir alışverişi yapmak için ajan topluluğuna katılabilsin.",
+    "settings.row.social_commons.effect": "Hemen geçerli."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

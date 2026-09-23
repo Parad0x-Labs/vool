@@ -136,12 +136,13 @@ def test_no_clause_of_the_combined_prompt_is_an_audit_request() -> None:
     assert audit_target_in(TRAVELER) == ""
 
 
-def test_the_whole_text_read_also_loses_claims_that_clauses_make() -> None:
-    """Over-claiming is only half of it: two requests were invisible to the whole-text read."""
+def test_a_detected_build_still_cannot_preempt_the_other_clauses() -> None:
+    """The build detector now finds the imperative inside a mixed message; coverage still scopes it."""
     from core.action_receipt_location import looks_like_location_ask
 
     assert looks_like_agentic_build_request(STORMWATCH) is True
-    assert looks_like_agentic_build_request(COMBINED) is False
+    assert looks_like_agentic_build_request(COMBINED) is True
+    assert claim_may_preempt_turn(COMBINED, FAMILY_PROJECT_BUILD) is False
 
     assert looks_like_location_ask("where was this file stored?") is True
     assert looks_like_location_ask(COMBINED) is False

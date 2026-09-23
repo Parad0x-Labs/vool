@@ -7310,6 +7310,11 @@ async function checkUsePodSpending(selected, chatId = displayedChat) {
     return false;
   }
   if (readiness.budget_scope === 'provider') acknowledgePaidPin(chatId, selected, 'conversation');
+  // A wallet-paid lane (x402) has no prepaid account to read: its money authority carries
+  // credit_liquidity "not_required" and the payment card is the liquidity gate the operator
+  // answers. Demanding a prepaid balance here would block every wallet-paid send on a lane
+  // that legitimately has no token.
+  if (readiness.state === 'wallet_approval_required') return true;
   // The second half of readiness: the balance the money law will judge. Obtained through the ONE
   // balance door the dispatch reservation reads (a fresh record, else one read-only GET of
   // /proxy/<token>/balance; no inference, no spend) BEFORE the draft is consumed -- so a send never

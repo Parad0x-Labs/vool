@@ -34,7 +34,7 @@ from core.claim_support import (
 from core.evidence_binding import inspect_evidence_binding
 
 REPO = Path(__file__).resolve().parents[1]
-FIXTURES = REPO / "validation-logs" / "live-search-ui-proof-20260901"
+FIXTURES = REPO / "tests" / "fixtures" / "claim_support_incident"
 
 RUST_REQUEST = "show me recent news coverage about the Rust programming language"
 

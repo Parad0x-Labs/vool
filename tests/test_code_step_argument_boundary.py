@@ -46,7 +46,7 @@ def test_nested_approval_names_actual_operation_and_file(fixture_repo):
     assert result.effect is PermissionEffect.REQUIRE_APPROVAL
     request = result.approval_request
     assert 'workspace.write_file' in request['action']
-    assert 'calc.py' in request['affected_resources']
+    assert str((fixture_repo / 'calc.py').resolve()) in request['affected_resources']
     assert '+new contents' in request['diff_preview']
 
 

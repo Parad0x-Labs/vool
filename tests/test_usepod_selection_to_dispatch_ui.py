@@ -176,9 +176,15 @@ out({auto,pinned,local});
 # --- the price review says what accepting a price does, and only that ----------------------------------
 
 
-def test_the_price_review_names_provider_model_usdc_rates_and_the_one_call_scope():
+def test_the_price_review_names_provider_model_usdc_rates_and_the_chat_scope():
     result = run_node(DOM + r"""
-fetch=async url=>({json:async()=>url.includes('/acceptances')?{acceptances:[]}:{provider:'usepod',age_seconds:0,models:[{id:'gpt-6-astra',prompt_usd_per_m:0.8,completion_usd_per_m:4}]}});
+const posts=[];
+fetch=async (url,opts)=>{
+ if(opts&&opts.method==='POST'){posts.push({url,body:JSON.parse(opts.body)});return {ok:true,json:async()=>({ok:true})};}
+ if(url.includes('/acceptances'))return {ok:true,json:async()=>({acceptances:[]})};
+ if(url.includes('/discovery'))return {ok:true,json:async()=>({approved_routes:{}})};
+ return {ok:true,json:async()=>({provider:'usepod',age_seconds:0,models:[{id:'gpt-6-astra',prompt_usd_per_m:0.8,completion_usd_per_m:4}]})};
+};
 """ + _GATE_JS + r"""
 const decision=window.VoolPriceGate.review({kind:'per-send',id:'usepod:gpt-6-astra',provider:'usepod',label:'gpt-6-astra'});
 await new Promise(r=>setImmediate(r));
@@ -186,15 +192,17 @@ const overlay=document.body.children.find(x=>x.id==='vgOverlay');
 const actions=overlay.querySelector('#vgActions');
 const labels=actions.children.map(b=>b.textContent);
 const body=overlay.querySelector('#vgBody').innerHTML;
+document.getElementById('vgMaxIn').value='0.8';document.getElementById('vgMaxOut').value='4';
 actions.children[0].click();
-out({labels,body,decision:await decision});
+out({labels,body,decision:await decision,posts});
 """)
-    assert result["labels"][:2] == ["Accept price and send", "Accept price for this chat (1 hour)"]
+    assert result["labels"][:2] == ["Accept price and send", "Accept price for this chat (24 hours)"]
     assert "Provider <b>UsePod</b>" in result["body"] and "model <b>gpt-6-astra</b>" in result["body"]
     assert "0.80 USDC per 1M tokens" in result["body"] and "4.00 USDC per 1M tokens" in result["body"]
     assert "approved UsePod budget" in result["body"] and "never widens" in result["body"]
     assert "permission for this conversation" not in result["body"].lower()
-    assert result["decision"] is True
+    assert result["decision"] == "conversation"
+    assert len(result["posts"]) == 1 and result["posts"][0]["url"] == "/api/cloud/usepod/approve-route"
 
 
 # --- the focused budget panel: the decision in ordinary USDC, with a balance check ---------------------

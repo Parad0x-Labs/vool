@@ -144,6 +144,57 @@ _SCAFFOLDING = frozenset(
     ]
 )
 
+#: The CONTENT-BEARING subset of `_SCAFFOLDING`: nouns that name a live-data DOMAIN (weather,
+#: markets, news) rather than grammar. Stripping them is only legitimate for an obligation of
+#: that noun's own domain -- "and the price?" strips "price" for a GOLD obligation and reads as
+#: a bare nudge re-asking gold, when the noun in fact makes it a new, underspecified PRICE
+#: request (measured CT-201: the gold price was served for "and the weather there?"). A residue
+#: emptied only by such a noun the obligation does not hold is not a nudge;
+#: `continuation_inheritance` declines it and the model lane asks. Held means either the noun
+#: appears in the obligation's own recorded vocabulary (request text, slots, absorbed turns,
+#: founding prior -- "weather" for a weather thread asking about "the weather") or the
+#: obligation's operation is the noun's owning operation ("temp"/"temperature" for
+#: weather_lookup, whose request text may name none of them). "update"/"updates"/"latest" stay
+#: plain scaffolding: they refresh the SAME subject ("any update?"), they never select a domain.
+_SCAFFOLDING_DOMAIN_NOUNS = frozenset(
+    {
+        "news",
+        "temp", "temperature", "weather", "price", "value", "reading", "figure", "number",
+    }
+)
+_DOMAIN_NOUN_OPERATIONS = {
+    "weather": "weather_lookup",
+    "temp": "weather_lookup",
+    "temperature": "weather_lookup",
+    "price": "market_quote",
+    "value": "market_quote",
+    "reading": "market_quote",
+    "figure": "market_quote",
+    "number": "market_quote",
+    "news": "",
+}
+#: Nouns of one domain group co-occur: a thread that already says "weather" is a weather
+#: thread, so its bare "temp?" re-asks it even though the request text never wrote "temp".
+#: When no recorded obligation names an operation, this group is the domain evidence.
+_DOMAIN_NOUN_GROUPS = {
+    "weather_lookup": frozenset({"weather", "temp", "temperature"}),
+    "market_quote": frozenset({"price", "value", "reading", "figure", "number"}),
+    "": frozenset({"news"}),
+}
+
+#: Mid-sentence-CAPITALISED closed-class connectives. In natural typing these words are
+#: lowercase anywhere but sentence start; Title-case input capitalises them everywhere, and a
+#: span that contains one is a phrase about its subject ("Write About Winter"), not a name.
+_TITLE_CASED_PHRASE_MARKERS = frozenset(
+    {"About", "And", "Or", "But", "Vs", "Versus", "With", "Without", "Not", "Into", "Onto"}
+)
+
+#: An interrogative about the conversation itself: inverted auxiliary + demonstrative
+#: ("was that what i asked about?"). Grammar, not vocabulary -- it names no subject.
+_META_QUESTION_RE = re.compile(
+    r"\b(?:was|is|were|did|does|do)\s+(?:that|it|this)\s+(?:what|the)\b", re.IGNORECASE
+)
+
 _TOKEN_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
 _DIGIT_RE = re.compile(r"\d")
 
@@ -222,14 +273,20 @@ def _is_typo_of(token: str, target: str) -> bool:
     substitution/insertion/deletion, and an equal-length transposition ("kauans" for "kaunas" --
     two substitutions under plain edit distance, one keystroke swap in fact). Anything further is
     a different word, not a typo: "bouma" stays nothing like "tallinn" no matter how the budget is
-    counted. Comparison happens on casefolded text; the result is a recovery decision, not a
-    rendering.
+    counted. The FIRST LETTER must survive: a real one-keystroke misspelling keeps it (the
+    measured shapes "kauans" and "cnacel" both do), while the same edit distance between two
+    different common words usually does not -- "sold" is not a mistyped "gold", and reading it
+    as one bound a gold receipt to a units-sold demand the user never asked about (the recorded
+    census incident). Comparison happens on casefolded text; the result is a recovery
+    decision, not a rendering.
     """
 
     source, goal = token.casefold(), target.casefold()
     if source == goal:
         return True
     if len(source) < _RECOVERY_MIN_TOKEN or len(goal) < _RECOVERY_MIN_TOKEN:
+        return False
+    if source[0] != goal[0]:
         return False
     if len(source) == len(goal) and sorted(source) == sorted(goal):
         return True
@@ -673,6 +730,16 @@ def _slot_filler_for(operation: str, candidate: str, *, original_text: str = "")
 
             if not all(word[:1].isupper() for word in probe.split() if word):
                 return ""
+            if _TITLE_CASED_PHRASE_MARKERS & {
+                token for token in _TOKEN_RE.findall(str(original_text or ""))
+            }:
+                # CT-204: a Capitalised preposition/conjunction mid-turn ("Write About Winter",
+                # "Code About Python Now") is Title-case PHRASE typing, not a place name -- the
+                # scaffolding strip ate the preposition and left an all-capitalised fragment that
+                # phone auto-capitalisation produced. Natural typing lowercases these ("what
+                # about Tallinn?"), so the marker is checked as typed. A withheld rebind costs
+                # one deterministic turn; a wrong one invents a place the user never named.
+                return ""
             return probe if _is_plausible_weather_location(probe) else ""
     except Exception:
         return ""
@@ -755,6 +822,15 @@ def _clarification_recovers_the_obligation(
         return ""
     if not _SET_REFERENCE_RE.search(raw):
         return ""
+    if _META_QUESTION_RE.search(raw):
+        # CT-206: "and golf, them two, was that what i asked about?" questions WHAT WAS ASKED
+        # instead of restating it. A clarification re-names the obligation's subjects; an
+        # interrogative about the conversation itself ("was/is/... that/it this what/the ...")
+        # is the user asking whether some newcomer WAS the request -- introducing that newcomer
+        # (here one typo away from the real slot) must reach the model, not rebind. Closed-class
+        # grammar only; declarative restatements ("i asked about kauans and talling weather,
+        # them two right?") do not invert and keep recovering.
+        return ""
 
     obligation = _recorded_obligation(source_context)
     if not obligation:
@@ -808,6 +884,53 @@ _SELECTOR_NOUN_RE = re.compile(
     r"\bwhich\s+([^\W\d_]+)\s+(?:is|are|was|were|has|have|had|does|do|did|will|would|should)\b",
     re.IGNORECASE,
 )
+
+
+def _names_domain_the_obligation_does_not_hold(
+    text: Any, *, obligation: Mapping[str, Any] | None, prior: str
+) -> bool:
+    """Whether the turn's scaffolding-stripped emptiness depends on a DOMAIN noun this
+    obligation never held (CT-201).
+
+    The residue gate strips every `_SCAFFOLDING` token, domain nouns included, so
+    "and the weather there?" after a gold turn reads as a bare nudge. A nudge re-asks
+    the SAME subject; a noun from another live-data domain makes the turn a new
+    request. The noun is stripped legitimately only when the obligation itself is
+    about that noun -- decided against the obligation's own recorded vocabulary
+    (request text, slots, absorbed turns, founding prior), never a domain list.
+    """
+    raw = str(text or "")
+    domain_nouns = {
+        folded
+        for folded in (token.casefold() for token in _TOKEN_RE.findall(raw))
+        if folded in _SCAFFOLDING_DOMAIN_NOUNS or folded.rstrip("s") in _SCAFFOLDING_DOMAIN_NOUNS
+    }
+    if not domain_nouns:
+        return False
+    vocabulary_parts: list[str] = [str(prior or "")]
+    if obligation:
+        vocabulary_parts.append(str(obligation.get("request_text") or ""))
+        vocabulary_parts.extend(str(slot) for slot in (obligation.get("slots") or []))
+        vocabulary_parts.extend(str(turn) for turn in (obligation.get("absorbed") or []))
+    vocabulary = {
+        token.casefold()
+        for part in vocabulary_parts
+        for token in _TOKEN_RE.findall(str(part or ""))
+    }
+    vocabulary = {word for word in vocabulary if word} | {word.rstrip("s") for word in vocabulary}
+    operation = str((obligation or {}).get("operation") or "")
+    for noun in domain_nouns:
+        if noun in vocabulary or noun.rstrip("s") in vocabulary:
+            continue
+        owner = _DOMAIN_NOUN_OPERATIONS.get(noun, "")
+        if owner and operation == owner:
+            continue
+        if owner and (vocabulary & _DOMAIN_NOUN_GROUPS[owner]):
+            # No recorded obligation (or a different one): the thread's own vocabulary
+            # already speaks this noun's domain ("weather" in the prior text holds "temp?").
+            continue
+        return True
+    return False
 
 
 def _content_the_obligation_does_not_hold(text: Any, *, slots: list[str]) -> list[str]:
@@ -955,6 +1078,12 @@ def continuation_inheritance(
         # "actually Tallinn" / "and now?" re-asked VILNIUS, because the walk-back returns the oldest
         # text in the thread while the obligation had long since moved on. A bare nudge means "that
         # question again", and "that question" is whatever it most recently became.
+        if _names_domain_the_obligation_does_not_hold(text, obligation=obligation, prior=prior):
+            # CT-201: the residue only looked empty because a DOMAIN noun ("weather", "price",
+            # "news"...) was stripped, and this obligation never held that noun. The turn is a
+            # new, underspecified request in that noun's domain, not a nudge -- decline and let
+            # the model lane ask.
+            return "", ""
         recorded = str((obligation or {}).get("request_text") or "").strip()
         return (recorded or prior), INHERIT_REASK
 
@@ -1016,6 +1145,36 @@ def typo_tokens_for(text: Any, *needles: str) -> tuple[str, ...]:
     return tuple(found)
 
 
+#: A comparative/superlative by shape is a comparison only in predicate position: directly
+#: after a linking verb ("which one IS warmer") or the superlative determiner ("the warmest").
+#: The same letter-shape names ordinary nouns elsewhere -- measured CT-205, "which one has a
+#: river?" / "which one has water?" re-asked a weather comparison because "river" and "water"
+#: end in -er; possession ("has a river") marks the word as the OBJECT being asked about, a new
+#: subject the obligation never held.
+_COMPARATIVE_PREDICATE_PREDECESSORS = frozenset(
+    {
+        "is", "are", "was", "were", "be", "been", "being", "am",
+        "feel", "feels", "felt", "get", "gets", "got", "look", "looks", "looked",
+        "seem", "seems", "seemed", "sound", "sounds", "sounded", "the",
+    }
+)
+
+
+def _shape_word_is_a_comparison(text: Any, word: str) -> bool:
+    """Whether an unexplained -er/-est-shaped word sits in comparative predicate position."""
+    tokens = [token.casefold() for token in _TOKEN_RE.findall(str(text or ""))]
+    for index, token in enumerate(tokens):
+        if token != word:
+            continue
+        if index == 0:
+            # A leading shape word ("warmer?") has no predicate to sit in; declining is the
+            # safe direction -- the turn reaches the model instead of re-asking the set.
+            return False
+        if tokens[index - 1] in _COMPARATIVE_PREDICATE_PREDECESSORS:
+            return True
+    return False
+
+
 def _aggregate_says_nothing_but_a_comparison(text: Any, *, slots: list[str]) -> bool:
     """Whether a short set-grammar turn only compares the set, rather than asking something new.
 
@@ -1024,9 +1183,9 @@ def _aggregate_says_nothing_but_a_comparison(text: Any, *, slots: list[str]) -> 
     happen to contain "they" or "which one" -- measured 2026-09-06 after a two-city weather thread,
     every one of them re-asked the weather. The set grammar is the same in both groups; what
     differs is what else the turn says. An aggregate adds at most ONE content word, and that word
-    is the comparison: a regular comparative or superlative by shape, or a closed-class comparison
-    word. Two content words, or one that compares nothing, is the user asking about something the
-    obligation never held.
+    is the comparison: a closed-class comparison word, or a comparative/superlative by shape IN
+    PREDICATE POSITION (after a linking verb or "the"). Two content words, or one that compares
+    nothing, is the user asking about something the obligation never held.
     """
 
     unexplained = _content_the_obligation_does_not_hold(text, slots=slots)
@@ -1035,7 +1194,11 @@ def _aggregate_says_nothing_but_a_comparison(text: Any, *, slots: list[str]) -> 
     if len(unexplained) > 1:
         return False
     word = unexplained[0].casefold()
-    return word in _COMPARISON_WORDS or (len(word) >= 5 and word.endswith(("er", "est")))
+    if word in _COMPARISON_WORDS:
+        return True
+    if len(word) >= 5 and word.endswith(("er", "est")):
+        return _shape_word_is_a_comparison(text, word)
+    return False
 
 
 __all__ = [

@@ -31,11 +31,14 @@ FIND_OFFICIAL = {
 }
 
 # A retrieval that is cancelled inside the same turn, phrased so analyze_retrieval_constraints does
-# NOT see a prohibition (forbids_external_retrieval=False). The turn_retracts_an_instruction guard on
-# the lookup authority is then the only thing that can stop it — which is what makes it load-bearing.
+# NOT see a prohibition (forbids_external_retrieval=False). The retraction needs a LIVE follow-up
+# request to be a retraction at all, so that continuation is an ordinary imperative -- never a
+# "do not browse"-style clause, which the analyzer now reads as a prohibition and would shadow the
+# guard under test. The turn_retracts_an_instruction guard on the lookup authority is then the only
+# thing that can stop the cancelled search — which is what makes it load-bearing.
 RETRACTED_SEARCH = (
-    "Find me the top-rated coffee grinder under $100 on the web. WAIT. Abort the product search "
-    "completely. Do not browse."
+    "Find me the top-rated coffee grinder under $100 on the web. WAIT. Abort the product search. "
+    "Instead, tell me which grinder you already know."
 )
 
 # "find" that is not a web lookup at all. Must not be dragged into retrieval.

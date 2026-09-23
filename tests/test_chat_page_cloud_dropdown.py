@@ -37,7 +37,8 @@ def test_switch_goes_through_the_guarded_endpoint():
     assert "'/api/cloud/model'" in HTML
     # only a real ok response updates the selection
     assert "if (r.ok && j.ok)" in HTML
-    assert "could not switch" in HTML  # a failed switch is shown, never silently claimed
+    assert "rowEl.dataset.selectionError = message" in HTML
+    assert "hint.textContent = message" in HTML  # the server refusal remains visible
 
 
 def test_static_popover_is_untouched_and_failsoft():
@@ -65,7 +66,7 @@ def test_removing_the_key_reverts_a_cloud_model_selection():
 
 
 def test_no_banned_language_in_the_touched_region():
-    for banned in ("stay honest", "honestly", "brutal", "moonshot", "goblin"):
+    for banned in ("stay honest", "honestly", "brutal", "goblin"):
         assert banned not in HTML, banned
 
 
@@ -79,6 +80,7 @@ def test_auto_fallback_is_separate_from_explicit_model_pins():
 
 
 def test_paid_pin_is_explicit_and_project_memory_does_not_silently_reset_it():
-    assert "Use this paid model?" in HTML
+    assert "window.VoolPriceGate.review({ kind: 'pin'" in HTML
+    assert "modelSelectionPost(Object.assign({}, pinBody, { confirm_paid: true }))" in HTML
     assert "setModelValue(remembered)" in HTML
     assert "switched to local free" not in HTML

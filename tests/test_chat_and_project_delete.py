@@ -54,7 +54,21 @@ def _seed(sid: str, fact: str) -> None:
 
 
 def _mem_sessions() -> set:
-    return {str(r.get("session_id") or "") for r in load_jsonl(memory_entries_path())}
+    # Live memory sessions only. The P0 erasure law (see
+    # tests/test_memory_forget_resurrection_p0.py) keeps every deleted row as a durable
+    # tombstone -- status "erased", payload dropped -- so a forgotten fact cannot be
+    # resurrected from the mirror; a tombstone has no session_id by design. A chat's
+    # memory is purged when it has no LIVE row, which is what the product's own readers
+    # (combined_memory_entries) filter on.
+    return {
+        str(r.get("session_id") or "")
+        for r in load_jsonl(memory_entries_path())
+        if str(r.get("status") or "") != "erased"
+    }
+
+
+def _tombstones() -> list:
+    return [r for r in load_jsonl(memory_entries_path()) if str(r.get("status") or "") == "erased"]
 
 
 def test_delete_conversation_session_removes_transcript_memory_and_meta() -> None:
@@ -66,6 +80,14 @@ def test_delete_conversation_session_removes_transcript_memory_and_meta() -> Non
     assert _A not in load_session_meta()                    # meta gone
     assert _mem_sessions() == {_B}                          # only A's memory purged
     assert recent_conversation_events(_B, limit=5)          # B untouched
+    # The purge is durable, not a marker skip: A's row survives as an erasure tombstone
+    # carrying NO recoverable payload -- its fact text, keywords, and session id are gone
+    # from the raw store, so nothing downstream can serve or resurrect them.
+    tombstones = _tombstones()
+    assert tombstones, "expected A's purge to leave a durable erasure tombstone"
+    raw_store = json.dumps(load_jsonl(memory_entries_path()))
+    assert "alpha secret fact" not in raw_store
+    assert _A not in raw_store
 
 
 def test_forget_sessions_memory_purges_only_those_sessions_keeps_transcripts() -> None:

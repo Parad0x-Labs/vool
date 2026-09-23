@@ -50,6 +50,7 @@ class _Memory:
         tags,
         context_description,
         embedding,
+        lineage_request_id="",
     ):
         del keywords, embedding
         self.stored.append(str(content))

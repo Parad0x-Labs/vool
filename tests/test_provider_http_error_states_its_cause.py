@@ -35,7 +35,10 @@ def test_the_body_excerpt_rides_the_same_exception_class_and_is_redacted() -> No
     assert text.startswith("400 Client Error")
     assert "provider said:" in text and "image_url is not supported" in text
     assert "sk-or-v1-abcdef0123456789" not in text
-    assert info.value.__cause__ is not None
+    # Raw HTTP exceptions may carry credential-bearing URLs. The public error
+    # must preserve its class and safe explanation without chaining that raw object.
+    assert info.value.__cause__ is None
+    assert info.value.__context__ is None
 
 
 def test_a_body_that_is_empty_leaves_the_original_error_untouched() -> None:

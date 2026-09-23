@@ -89,7 +89,11 @@ def _serve(content: str, withheld: tuple[str, ...], monkeypatch) -> dict:
     for claim in withheld:
         published = published.replace(claim, "")
 
-    def _gate(text, *, turn_id=""):
+    def _gate(text, *, turn_id="", runtime_notice=False):
+        # runtime_notice: finalization calls the gate with it (the gated-publication fallback
+        # path); a double without it crashes the gate and finalization publishes UNGATED, which
+        # is exactly the accounting this suite pins -- the withheld statement must not satisfy
+        # its slot, and ungated bytes make every demand read satisfied.
         return published, {
             "publication": {
                 "schema": "vool.grounding_publication.v1",

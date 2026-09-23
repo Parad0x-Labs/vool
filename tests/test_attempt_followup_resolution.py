@@ -209,21 +209,8 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
         with mock.patch("tools.web.web_research.structured_weather_lookup", side_effect=fake_weather), \
              mock.patch("core.human_input_adapter.record_dialogue_turn", return_value=shared_turn_id):
             def _retry():
-                # ONE TURN, TWO RACERS. "The same turn" is what the retry idempotency key is
-                # scoped by, and `record_dialogue_turn` -- which this test patches -- stopped
-                # being the seam that decides it.
-                #
-                # MEASURED, AND STILL NOT SUFFICIENT: passing the canonical id here does not
-                # pin it either. `run_once` re-mints the turn id at ingress and overwrites
-                # `_canonical_user_turn_id` with its own uuid4, so both racers still carry
-                # different trigger turns and two children is, by the production contract,
-                # the SPECIFIED behaviour (test_a_genuinely_new_retry_turn_is_allowed_to_
-                # create_a_new_generation pins exactly that). Probed at this SHA: the retry's
-                # `_canonical_user_turn_id` reads back a uuid4, never this value.
-                #
-                # That is a finding about the runtime, not only about this test: for a
-                # contract keyed on the turn id, a caller currently has no way to say "this
-                # is the same turn". Recorded in the lane README.
+                # Duplicate deliveries present the same canonical ingress identity.
+                # The dialogue writer persists that identity; it no longer mints it.
                 result = self.agent.run_once(
                     "Retry the exact failed request now.",
                     source_context={**_SOURCE_CONTEXT, "_canonical_user_turn_id": shared_turn_id},
@@ -345,7 +332,9 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
              mock.patch("core.runtime_continuity.create_runtime_attempt", side_effect=signalling_create):
             def _retry():
                 result = self.agent.run_once(
-                    "Retry the exact failed request now.", source_context=dict(_SOURCE_CONTEXT), session_id_override=sid,
+                    "Retry the exact failed request now.",
+                    source_context={**_SOURCE_CONTEXT, "_canonical_user_turn_id": shared_turn_id},
+                    session_id_override=sid,
                 )
                 with results_lock:
                     results.append(result)
@@ -369,10 +358,12 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
         rows = conn.execute(
             "SELECT COUNT(*) FROM runtime_attempts WHERE parent_attempt_id != '' AND session_id = ?", (sid,),
         ).fetchone()
+        children = conn.execute("SELECT attempt_id, parent_attempt_id, root_attempt_id, trigger_user_turn_id, attempt_role, retry_idempotency_key FROM runtime_attempts WHERE parent_attempt_id != '' AND session_id = ?", (sid,)).fetchall()
         conn.close()
+        self.assertEqual({child[3] for child in children}, {shared_turn_id})
         self.assertEqual(
             rows[0], 1,
-            f"forced-interleaving concurrent identical-turn retries must dedupe to 1 child, found {rows[0]}",
+            f"forced-interleaving concurrent identical-turn retries must dedupe to 1 child, found {rows[0]}: {children}",
         )
 
     def test_a_genuinely_new_retry_turn_is_allowed_to_create_a_new_generation(self) -> None:

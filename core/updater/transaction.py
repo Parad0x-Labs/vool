@@ -728,7 +728,7 @@ def time_await(clock: Callable[[], float]):
 @dataclass
 class RecoveryResult:
     txid: str
-    action: str  # "aborted" | "rolled_back" | "finalized" | "already_terminal" | "left_running"
+    action: str  # "aborted" | "rolled_back" | "rollback_failed" | "finalized" | "already_terminal" | "left_running"
     detail: str = ""
     prior_path: Path | None = None
 
@@ -814,15 +814,26 @@ def recover_interrupted_update(
                 helper.shutdown_app()
             with contextlib.suppress(Exception):
                 helper.wait_until_stopped(timeout=30.0)
-        if prior is not None and prior.exists() and installer is not None:
+        try:
+            if installer is None:
+                raise RuntimeError(f"no recovery installer for {platform_key}")
+            if prior is None or not prior.exists():
+                raise RuntimeError("the prior app backup is unavailable")
             restore = installer.restore_prior(app_path, prior, txid=txid)
             if not restore.ok:
-                logger.error("recovery rollback could not restore prior: %s", restore.detail)
-        snapshot_dir = tx_dir / "config-snapshot"
-        if snapshot_dir.exists():
-            destinations = [data_dir / rel for rel in SNAPSHOT_RELPATHS]
-            with contextlib.suppress(Exception):
+                raise RuntimeError(restore.detail or "the prior app could not be restored")
+            snapshot_dir = tx_dir / "config-snapshot"
+            if snapshot_dir.exists():
+                destinations = [data_dir / rel for rel in SNAPSHOT_RELPATHS]
                 restore_tree(snapshot_dir, destinations)
+        except Exception as exc:
+            detail = f"Recovery rollback incomplete: {exc}"
+            logger.error("%s", detail)
+            status.publish(UpdatePhase.FAILED, fault=UpdateFault.ROLLBACK_FAILED, detail=detail)
+            # Preserve the journal and backups; never relaunch an unverified
+            # app or mark a rollback complete when restoration did not finish.
+            results.append(RecoveryResult(txid, "rollback_failed", detail, prior_path=prior))
+            continue
         with contextlib.suppress(Exception):
             helper.relaunch(app_path)
         journal.append(Step.ROLLED_BACK, {"detail": "automatic rollback during startup recovery"})

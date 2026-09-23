@@ -85,5 +85,6 @@ def test_untagged_events_still_form_their_own_group() -> None:
     ], "run": None}
     sections = _run(view)
     assert len(sections) == 2, sections
-    turn_rows = sections[0]["rows"]
+    turn_rows = next(section["rows"] for section in sections if any("in the turn" in row for row in section["rows"]))
+    assert any("swept" in row for section in sections for row in section["rows"])
     assert not any("swept" in r for r in turn_rows), "an untagged sweep row was absorbed into the turn"

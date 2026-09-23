@@ -384,7 +384,7 @@ def build_live_data_plan(
         # no curated alias, built no plan, and a model answered that it had no pricing.
         from core.agent_runtime.fast_live_info_price import ticker_mentions
 
-        for symbol in ticker_mentions(candidate_text):
+        for symbol in ticker_mentions(candidate_text, require_market_binding=True):
             lowered = symbol.casefold()
             resolved = _resolve_price_alias(lowered)
             if resolved is not None:

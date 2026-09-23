@@ -1,0 +1,138 @@
+{
+  "rules": [
+    {
+      "name": "coingecko-coin-index",
+      "host": "api.coingecko.com",
+      "path_prefix": "/api/v3/coins/markets",
+      "json": [
+        {
+          "id": "bitcoin",
+          "symbol": "btc",
+          "name": "Bitcoin",
+          "current_price": 63250.0,
+          "market_cap": 1250000000000,
+          "market_cap_rank": 1,
+          "price_change_percentage_24h": 0.82,
+          "last_updated": "2026-09-06T12:00:00.000Z"
+        },
+        {
+          "id": "ethereum",
+          "symbol": "eth",
+          "name": "Ethereum",
+          "current_price": 2495.68,
+          "market_cap": 300000000000,
+          "market_cap_rank": 2,
+          "price_change_percentage_24h": 0.76,
+          "last_updated": "2026-09-06T12:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "name": "coingecko-simple-price",
+      "host": "api.coingecko.com",
+      "path_prefix": "/api/v3/simple/price",
+      "json": {
+        "bitcoin": {
+          "usd": 63250.0,
+          "eur": 58400.0,
+          "btc": 1.0,
+          "usd_24h_change": 0.82,
+          "usd_market_cap": 1250000000000,
+          "last_updated_at": 1788696000
+        },
+        "ethereum": {
+          "usd": 2495.68,
+          "eur": 2304.1,
+          "btc": 0.03946,
+          "usd_24h_change": 0.76,
+          "usd_market_cap": 300000000000,
+          "last_updated_at": 1788696000
+        }
+      }
+    },
+    {
+      "name": "coingecko-page",
+      "host": "www.coingecko.com",
+      "body": "<html><title>Bitcoin price</title><body>Fixture page 2026-09-06</body></html>",
+      "content_type": "text/html"
+    },
+    {
+      "name": "yahoo-gold",
+      "host": "query1.finance.yahoo.com",
+      "query_contains": "GC=F",
+      "json": {
+        "chart": {
+          "result": [
+            {
+              "meta": {
+                "currency": "USD",
+                "symbol": "GC=F",
+                "regularMarketPrice": 4476.6,
+                "previousClose": 4470.0,
+                "chartPreviousClose": 4470.0,
+                "regularMarketTime": 1788696000
+              },
+              "timestamp": [
+                1788695940,
+                1788696000
+              ],
+              "indicators": {
+                "quote": [
+                  {
+                    "close": [
+                      4475.9,
+                      4476.6
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "error": null
+        }
+      }
+    },
+    {
+      "name": "yahoo-silver",
+      "host": "query1.finance.yahoo.com",
+      "query_contains": "SI=F",
+      "json": {
+        "chart": {
+          "result": [
+            {
+              "meta": {
+                "currency": "USD",
+                "symbol": "SI=F",
+                "regularMarketPrice": 66.75,
+                "previousClose": 66.1,
+                "chartPreviousClose": 66.1,
+                "regularMarketTime": 1788696000
+              },
+              "timestamp": [
+                1788695940,
+                1788696000
+              ],
+              "indicators": {
+                "quote": [
+                  {
+                    "close": [
+                      66.6,
+                      66.75
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "error": null
+        }
+      }
+    },
+    {
+      "name": "yahoo-quote-page",
+      "host": "finance.yahoo.com",
+      "body": "<html><title>Quote</title><body>Fixture 2026-09-06</body></html>",
+      "content_type": "text/html"
+    }
+  ]
+}

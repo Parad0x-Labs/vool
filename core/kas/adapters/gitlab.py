@@ -8,11 +8,11 @@ learns which forge it is talking to.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from urllib.parse import quote
 
-from core.kas.adapters._forge_reads import json_payload as _json
-from core.kas.adapters._forge_reads import listing_rows, object_payload, scoped_next_page
+from core.kas.adapters._forge_reads import json_payload, listing_rows, object_payload, scoped_next_page
 from core.kas.contract import (
     AdapterConfig,
     ForgeAcceptedUnreadableError,
@@ -111,7 +111,7 @@ class GitLabForgeAdapter(ForgeAdapter):
                 url=self._url(suffix),
                 purpose=purpose,
                 headers={"Accept": "application/json", "Content-Type": "application/json"},
-                body=_json(body or {}).encode("utf-8"),
+                body=json.dumps(body or {}).encode("utf-8"),
                 auth=self.config.auth_binding,
                 mutating=True,
             )
@@ -124,7 +124,7 @@ class GitLabForgeAdapter(ForgeAdapter):
                 url=self._url(suffix),
                 purpose=purpose,
                 headers={"Accept": "application/json", "Content-Type": "application/json"},
-                body=_json(body or {}).encode("utf-8"),
+                body=json.dumps(body or {}).encode("utf-8"),
                 auth=self.config.auth_binding,
                 mutating=True,
             )
@@ -183,7 +183,7 @@ class GitLabForgeAdapter(ForgeAdapter):
             visited.add(current)
             response = self._get_url(current, purpose=purpose)
             self._refuse(response)
-            rows.extend(listing_rows(_json(response.body)))
+            rows.extend(listing_rows(json_payload(response.body)))
             pages += 1
             following = _next_page_url(_header(response, "link"))
             if not following:

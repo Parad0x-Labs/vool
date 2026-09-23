@@ -456,7 +456,9 @@ def test_saved_contacts_drive_drafts_and_proposals_through_the_served_product(jo
         review.click()
         page.wait_for_function("(document.getElementById('vwSheetTitle') || {}).textContent && document.getElementById('vwSheetTitle').textContent.indexOf('Send ') === 0")
         sheet = page.locator(f'[role="dialog"][data-proposal="{zoe_proposal}"]')
-        assert "Zoë Ng" in sheet.inner_text() and sol_zoe in sheet.inner_text()
+        assert "Zoë Ng" in sheet.inner_text()
+        page.locator("#vwSheetDetailsToggle").click()
+        assert sol_zoe in sheet.inner_text()
         assert [e for e in errors if "vc" in e or "Contacts" in e] == [], errors
     finally:
         with contextlib.suppress(Exception):

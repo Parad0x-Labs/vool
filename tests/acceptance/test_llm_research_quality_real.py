@@ -62,4 +62,4 @@ def test_ultra_fresh_research_question_stays_honest(make_agent) -> None:
         )
 
     lowered = result["response"].lower()
-    assert "can't verify" in lowered or "insufficient evidence" in lowered
+    assert any(phrase in lowered for phrase in ("can't verify", "insufficient evidence", "could not ground a current answer"))

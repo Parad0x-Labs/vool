@@ -425,7 +425,12 @@ def _drive_served_mixed_turn(session_id: str, *, server_url: str | None):
     agent = _agent(session_id)
     script = _ProviderScript(
         {
-            "clause_decomposition": PLAN_REPLY,
+            "clause_decomposition": json.dumps({"requests": [
+                {"request": "", "source_clause_ids": ["clause-1"],
+                 "operation": "weather_lookup", "depends_on": []},
+                {"request": "", "source_clause_ids": ["clause-2"],
+                 "operation": "calculation", "depends_on": []},
+            ]}),
         }
     )
     import core.agent_runtime.live_data_runner as live_data_runner

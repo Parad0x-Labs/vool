@@ -34,6 +34,20 @@ SESSION = "openclaw:d0c0d0c0d0c0d0c0eeee"
 QUESTION = "In the log I pasted, which order failed, with what error, and what magic token was issued on the retry? Quote the exact lines."
 
 
+@pytest.mark.parametrize("question", [QUESTION, "Which access token expired in the pasted log? Quote its exact error line."])
+def test_document_token_is_not_priced_by_a_separate_quotation_request(question):
+    from core.agent_runtime.fast_live_info_price import ticker_mentions
+
+    assert ticker_mentions(question), "the ambiguous token syntax must be present"
+    assert ticker_mentions(question, require_market_binding=True) == []
+    assert requirements_for(question, source_context=_document_turn_context()).answer_mode == "DIRECT"
+
+
+@pytest.mark.parametrize("question", ["What is the price of BASE coin?", "What is MAGIC token worth?", "check $BASE price"])
+def test_a_bound_price_request_still_routes_to_the_market(question):
+    assert "market_prices" in requirements_for(question, source_context=_document_turn_context()).allowed_toolsets
+
+
 @pytest.fixture(autouse=True)
 def _isolated_home(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_HOME", str(tmp_path))

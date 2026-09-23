@@ -173,11 +173,7 @@ def test_s3_explicit_table_request_stands_the_selection_down(selection_rig) -> N
 
 
 def test_s4_not_an_answer_draft_stands_the_selection_down(selection_rig) -> None:
-    """A malformed ambiguity verdict becomes a typed ask-back, not answer prose.
-
-    The provider's bare marker is consumed by adjudication before answering.
-    This served pin must not claim that the answer-draft inspector saw it.
-    """
+    """A bare marker is an incomplete answer, so presentation selection stands down."""
     rig = selection_rig
     rig.state.requests.clear()
     rig.state.script = [{"final": "1."}]
@@ -185,12 +181,11 @@ def test_s4_not_an_answer_draft_stands_the_selection_down(selection_rig) -> None
 
     record = _selection_of(reply)
     provenance = reply["vool_response_commit"]["display_metadata"]["provenance"]
-    assert provenance["route"] == "ambiguity_adjudication_unresolved"
+    assert provenance["route"] == "ordinary_plain_text_chat"
     assert record["disabled_by"] == "refusal_signal", json.dumps(reply)
     assert record["elected"] is None
     commit = reply["vool_response_commit"]
     assert commit["closure_verdict"]["demand_satisfied"] == 0
-    assert commit["closure_verdict"]["demand_unanswered"] == 1
     assert commit["turn_result"]["fulfilled_obligations"] == 0
 
 

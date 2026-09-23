@@ -170,15 +170,27 @@ def test_owner_local_explicit_pick_reaches_the_provider(anthropic_lane, posts) -
     assert decision.model_name == anthropic_lane.model_name
 
 
+@pytest.mark.parametrize("report_usage", [True, False])
 def test_ordinary_paid_answer_emits_one_joinable_reservation_and_settlement_receipt(
     anthropic_lane,
     posts,
+    monkeypatch,
+    report_usage,
 ) -> None:
     from core.runtime_task_events import (
         new_runtime_event_stream_id,
         register_runtime_event_sink,
         unregister_runtime_event_sink,
     )
+
+    if not report_usage:
+        def unmetered(*args, **kwargs):
+            response = posts(*args, **kwargs)
+            payload = response.json()
+            payload.pop("usage")
+            response.json = lambda: payload
+            return response
+        monkeypatch.setattr("adapters.openai_compatible_adapter.requests.post", unmetered)
 
     _set_policy(mode="off", daily_cap=25)
     events: list[dict] = []
@@ -203,11 +215,11 @@ def test_ordinary_paid_answer_emits_one_joinable_reservation_and_settlement_rece
         event
         for event in events
         if event.get("event_type")
-        in {"paid_call.reserved", "paid_call.settled", "paid_call.released"}
+        in {"paid_call.reserved", "paid_call.settled", "paid_call.released", "paid_call.billing_ambiguous"}
     ]
     assert [event["event_type"] for event in paid] == [
         "paid_call.reserved",
-        "paid_call.settled",
+        "paid_call.settled" if report_usage else "paid_call.billing_ambiguous",
     ]
     reserved, settled = paid
     assert reserved["call_role"] == settled["call_role"] == "answer_generation"
@@ -218,7 +230,12 @@ def test_ordinary_paid_answer_emits_one_joinable_reservation_and_settlement_rece
     assert 0 < float(reserved["reserved_usd"]) <= float(reserved["per_call_cap_usd"])
     assert int(reserved["daily_call_count"]) >= 1
     assert reserved["daily_call_cap"] is None
-    assert 0 <= float(settled["actual_usd"]) <= float(reserved["reserved_usd"])
+    if report_usage:
+        assert 0 <= float(settled["actual_usd"]) <= float(reserved["reserved_usd"])
+    else:
+        assert settled["actual_usd"] is None
+        assert settled["held_usd"] == reserved["reserved_usd"]
+        assert settled["known_charges_usd"] == 0
 
     from core.model_orchestration_state import ModelOrchestrationState
     from storage.db import get_connection
@@ -245,7 +262,7 @@ def test_ordinary_paid_answer_emits_one_joinable_reservation_and_settlement_rece
     assert all(event["model_call_id"] == reserved["model_call_id"] for event in model_events)
 
 
-def test_failed_ordinary_paid_answer_emits_one_release_and_never_substitutes(
+def test_failed_ordinary_paid_answer_retains_billing_hold_and_never_substitutes(
     anthropic_lane,
     monkeypatch,
     posts,
@@ -283,15 +300,18 @@ def test_failed_ordinary_paid_answer_emits_one_release_and_never_substitutes(
         event
         for event in events
         if event.get("event_type")
-        in {"paid_call.reserved", "paid_call.settled", "paid_call.released"}
+        in {"paid_call.reserved", "paid_call.settled", "paid_call.billing_ambiguous"}
     ]
     assert [event["event_type"] for event in paid] == [
         "paid_call.reserved",
-        "paid_call.released",
+        "paid_call.billing_ambiguous",
     ]
     assert paid[0]["model_call_id"] == paid[1]["model_call_id"]
     assert paid[0]["reservation_id"] == paid[1]["reservation_id"]
     assert paid[1]["call_role"] == "answer_generation"
+    assert paid[1]["actual_usd"] is None
+    assert paid[1]["held_usd"] > 0
+    assert paid[1]["spend_status"] == "billing_ambiguous"
     completed = [event for event in events if event.get("event_type") == "model.call_completed"]
     assert completed == [], "an exact failed pin must not complete on a substitute model"
 

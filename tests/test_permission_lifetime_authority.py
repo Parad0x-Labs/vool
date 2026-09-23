@@ -978,6 +978,8 @@ def test_truncated_history_is_never_legitimized_by_a_new_append_or_persist(tmp_p
     from core import mode_permission_policy as policy
     from core.mode_permission_policy import BypassStoreError
 
+    ws = _ws(tmp_path)
+    _bind_chat_to_workspace("chat-trunc", ws)
     store = tmp_path / "authority" / "bypass_grants.json"
     with pytest.MonkeyPatch.context() as scoped:
         scoped.setattr(policy, "_bypass_grants_path", lambda: store)
@@ -1023,7 +1025,7 @@ def test_truncated_history_is_never_legitimized_by_a_new_append_or_persist(tmp_p
         try:
             _activate(
                 session_id="chat-trunc", scope="session", explicit_confirmation=True,
-                until_off=True, workspace_root="/tmp",
+                until_off=True, workspace_root=ws,
             )
         except ValueError as exc:
             assert "could not be recorded durably" in str(exc)
@@ -1132,6 +1134,8 @@ def test_lost_required_history_on_an_established_store_is_not_initialization(tmp
     from core import mode_permission_policy as policy
     from core.mode_permission_policy import BypassStoreError
 
+    ws = _ws(tmp_path)
+    _bind_chat_to_workspace("chat-lost", ws)
     store = tmp_path / "authority" / "bypass_grants.json"
     with pytest.MonkeyPatch.context() as scoped:
         scoped.setattr(policy, "_bypass_grants_path", lambda: store)
@@ -1167,7 +1171,7 @@ def test_lost_required_history_on_an_established_store_is_not_initialization(tmp
         with pytest.raises(ValueError, match="could not be recorded durably"):
             _activate(
                 session_id="chat-lost", scope="session", explicit_confirmation=True,
-                until_off=True, workspace_root="/tmp",
+                until_off=True, workspace_root=ws,
             )
         assert not policy._bypass_revocations_head_path().exists(), "no anchor was signed over the loss"
 

@@ -35,18 +35,16 @@ PAYER = probe.MONEY_PAYER
 
 @pytest.fixture()
 def shared_home(tmp_path):
-    """One store for this test process AND every worker it spawns."""
-    home = tmp_path / "shared-home"
-    probe.prepare_shared_store(home)
-    eb.reset_effect_budget_process_state()
-    try:
-        yield home
-    finally:
-        from core import runtime_paths
-        from core.runtime_continuity import configure_runtime_continuity_db_path
+    """One store for this test process AND every worker it spawns.
 
-        configure_runtime_continuity_db_path(None)
-        runtime_paths.configure_runtime_home(None)
+    pinned_runtime gives back every piece of process state configure_home pins (VOOL_HOME env,
+    runtime-home override, db paths) when the fixture tears down — the workers' sealed signer
+    records under this home must not outlive it for the next test in the pytest process."""
+    home = tmp_path / "shared-home"
+    with probe.pinned_runtime(home):
+        probe.prepare_shared_store(home)
+        eb.reset_effect_budget_process_state()
+        yield home
 
 
 def _granted(results):

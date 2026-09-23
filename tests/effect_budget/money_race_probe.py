@@ -25,6 +25,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import signal
@@ -73,6 +74,56 @@ def configure_home(home: Path) -> Path:
 
     configure_runtime_continuity_db_path(db_path)
     return db_path
+
+
+def runtime_state_snapshot():
+    """The four pieces of process-global state configure_home pins, as a restore-ready tuple:
+    the VOOL_HOME env value, the runtime-home override, the default db override, and the
+    runtime-continuity db override."""
+    from core import runtime_continuity, runtime_paths
+    from storage import db as storage_db
+
+    return (
+        os.environ.get("VOOL_HOME"),
+        runtime_paths._VOOL_HOME_OVERRIDE,
+        storage_db._DEFAULT_DB_PATH_OVERRIDE,
+        runtime_continuity._DB_PATH_OVERRIDE,
+    )
+
+
+def restore_runtime_state(snapshot) -> None:
+    """Put back exactly what runtime_state_snapshot captured.
+
+    configure_home mutates process-global state. Its CLI children call it in child processes,
+    where the mutation dies with the process. The test-side callers (the served-daemon journey,
+    the cross-process suite's shared_home fixture) live in the pytest process, where an
+    unrestored piece outlives the test: the race children seal their node signer record under
+    the pinned home with their own passphrase, so the next signer reload in the same pytest
+    process resolves into that home and fails with InvalidTag under the suite passphrase
+    (measured 2026-09-21: tests/test_identity_lifecycle.py and tests/legacy/* red in the same
+    CI shard after the served-daemon journey)."""
+    prior_env, prior_home_override, prior_db_override, prior_continuity_override = snapshot
+    from core import runtime_continuity, runtime_paths
+    from storage import db as storage_db
+
+    if prior_env is None:
+        os.environ.pop("VOOL_HOME", None)
+    else:
+        os.environ["VOOL_HOME"] = prior_env
+    runtime_paths.configure_runtime_home(prior_home_override)
+    storage_db.configure_default_db_path(prior_db_override)
+    runtime_continuity.configure_runtime_continuity_db_path(prior_continuity_override)
+
+
+@contextlib.contextmanager
+def pinned_runtime(home: Path):
+    """configure_home for a caller that survives the pin; restores on exit."""
+    snapshot = runtime_state_snapshot()
+    configure_home(home)
+    try:
+        yield home
+    finally:
+        restore_runtime_state(snapshot)
 
 
 def child_env(home: Path) -> dict[str, str]:

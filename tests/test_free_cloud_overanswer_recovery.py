@@ -268,7 +268,8 @@ def test_openrouter_wire_preserves_complete_answer_and_original_request() -> Non
     assert error is None and response is not None
     assert post.call_count == 1
     assert [call.kwargs["json"]["model"] for call in post.call_args_list] == [LIGHTNING]
-    assert [call.kwargs["json"]["max_tokens"] for call in post.call_args_list] == [2488]
+    # 760 answer tokens plus the model's 2048-token reasoning allowance.
+    assert [call.kwargs["json"]["max_tokens"] for call in post.call_args_list] == [2808]
     assert response.output_text == _overanswer()
     assert response.provider_attested_model == LIGHTNING
     assert response.model_name == LIGHTNING

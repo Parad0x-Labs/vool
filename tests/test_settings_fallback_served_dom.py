@@ -42,6 +42,7 @@ def test_popup_blocked_browser_fallback_frames_settings_and_keeps_the_draft(tmp_
                 href_before = page.evaluate("location.href")
 
                 # Entry 1: the sidebar button.
+                page.click("#homeMenu > summary")
                 page.click("#settingsBtn")
                 page.wait_for_selector("#settingsFrameOverlay:not([hidden])", timeout=15_000)
                 assert page.is_hidden("#settingsOverlay"), "the legacy panel must never show"

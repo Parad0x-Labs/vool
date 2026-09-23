@@ -409,6 +409,13 @@ def resolve_write_demand(text: str, *, workspace_root: str = "") -> WriteDemand 
         raw,
     )
 
+    from core.turn_ir import parse_turn_ir
+
+    # Use the shared source boundaries before declaring file contents literal.
+    # Otherwise a trailing question becomes protected content and disappears
+    # from the same turn's remaining demands.
+    source_clauses = parse_turn_ir(raw, response_shape_parser=None).clauses
+
     base_dir = ""
     try:
         from core.execution.planner import (
@@ -421,7 +428,8 @@ def resolve_write_demand(text: str, *, workspace_root: str = "") -> WriteDemand 
         # message, "Create a.txt containing hi. Also, what is the weather in Rome right now?"
         # resolved a.txt under a directory named Rome (measured 2026-09-07).
         writing_sentences = " ".join(
-            sentence for sentence in re.split(r"(?<=[.!?])\s+", raw) if _WRITING_SENTENCE_RE.search(sentence)
+            clause.request_text for clause in source_clauses
+            if _WRITING_SENTENCE_RE.search(clause.request_text)
         ) or raw
         base_dir = _extract_workspace_parent_directory(writing_sentences, workspace_root=workspace_root)
         if not base_dir and any(marker in raw.lower() for marker in _DIRECTORY_CREATE_MARKERS):
@@ -546,6 +554,10 @@ def resolve_write_demand(text: str, *, workspace_root: str = "") -> WriteDemand 
                     marked_literal = True
                     content = str(exact_marker.group(1) or "").strip()
             if not marked_literal:
+                owner = next((clause for clause in source_clauses
+                              if clause.start <= match.start() < clause.end), None)
+                if owner is not None and match.start("content") < owner.end < match.end("content"):
+                    content = raw[match.start("content"):owner.end].rstrip()
                 # A bare capture ending in a locative prepositional phrase has two honest
                 # parses (more content, or the destination): refuse, never guess. A marked
                 # capture never reaches this check.

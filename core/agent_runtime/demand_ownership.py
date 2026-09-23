@@ -709,7 +709,21 @@ def _operator_action_binds(text: str, units: Any) -> frozenset[str]:
     )
 
 
+def _sequence_arithmetic_binds(text: str, units: Any) -> dict[str, str]:
+    """A closed sequence computation owns its declaration, steps and result ask."""
+    from core.agent_runtime.answer_coverage import imperative_step
+    from core.task_router import evaluate_sequence_ops_request
+
+    if evaluate_sequence_ops_request(text) is None:
+        return {}
+    return {
+        unit.unit_id: BIND_STEP for unit in units
+        if getattr(unit, "kind", "request") == "request" or imperative_step(unit.text)
+    }
+
+
 _COVERAGE_BINDERS: dict[str, Any] = {
+    "arithmetic": _sequence_arithmetic_binds,
     "live_data": _live_data_binds,
     "workspace_audit": _workspace_audit_binds,
     "workspace_write": _workspace_write_binds,

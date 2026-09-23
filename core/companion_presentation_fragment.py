@@ -644,15 +644,24 @@ function vnCoversCritical(x, y) {
 // just above the highest control it would otherwise cover, then clamps to the window.
 function vnAvoidCritical(c) {
   const rects = vnCriticalRects();
-  let top = null;
-  for (let i = 0; i < rects.length; i++) {
-    const r = rects[i];
-    if (c[0] + VN_SIZE <= r.left || c[0] >= r.right || c[1] + VN_SIZE <= r.top || c[1] >= r.bottom) continue;
-    if (top === null || r.top < top) top = r.top;
+  // Moving above one control can land on a second control (the setup line above
+  // the composer). Recheck the new position until it clears the stack. Each move
+  // is strictly upward; clamping or exhausting the finite rectangles ends it.
+  for (let pass = 0; pass < rects.length; pass++) {
+    let top = null;
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i];
+      if (c[0] + VN_SIZE <= r.left || c[0] >= r.right || c[1] + VN_SIZE <= r.top || c[1] >= r.bottom) continue;
+      if (top === null || r.top < top) top = r.top;
+    }
+    if (top === null) return c;
+    const next = vnClampFree(c[0], top - VN_SIZE - 2);
+    if (next[1] >= c[1]) return c;
+    c = next;
   }
-  if (top === null) return c;
-  return vnClampFree(c[0], top - VN_SIZE - 2);
+  return c;
 }
+
 function vnCriticalRects() {
   const out = [];
   for (let i = 0; i < VN_CRITICAL_SELECTORS.length; i++) {

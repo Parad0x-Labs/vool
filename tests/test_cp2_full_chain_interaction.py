@@ -38,7 +38,9 @@ def chain_world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     from storage.db import configure_default_db_path
 
-    configure_default_db_path(str(tmp_path / "chain.db"))
+    # Runtime state is protected as a directory. Keep it apart from the project
+    # whose command this test authorizes, as the real app does.
+    configure_default_db_path(str(home / "data" / "chain.db"))
     from core import effect_budget
 
     effect_budget.reset_effect_budget_process_state()
@@ -85,7 +87,7 @@ def test_selection_injection_authorization_budget_execution_blackbox_receipt_ans
 
     from core.runtime_execution_tools import with_mutation_coverage
 
-    open_effect_receipt_scope({"session_id": session_id, "workspace_root": str(workspace)})
+    open_effect_receipt_scope({"session_id": session_id, "workspace_root": str(workspace), "operating_mode": "auto"})
     try:
         result, router, events, _context = _drive(
             scripts, user_text=user_text, workspace=workspace, session_id=session_id
@@ -120,6 +122,7 @@ def test_selection_injection_authorization_budget_execution_blackbox_receipt_ans
 
     # 3. AUTHORIZATION + 5. EXECUTION — auto mode authorized the declared command actions and
     #    the shell really ran: the bytes exist only because the child executed.
+    assert (workspace / "proof.txt").exists(), result.get("response")
     assert (workspace / "proof.txt").read_bytes() == b"chain-proof-bytes"
 
     # 4. BUDGET — exactly one command unit reserved AND consumed by this turn; no second row.

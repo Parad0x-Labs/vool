@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "Панель календарних облікових записів не завантажилася.",
     "settings.pane.notifications_missing": "Панель повідомлень не завантажилася.",
     "settings.pane.extras_missing": "Цей розділ не завантажився.",
-    "settings.pane.wallet_missing": "Поверхня гаманця не завантажилася."
+    "settings.pane.wallet_missing": "Поверхня гаманця не завантажилася.",
+    "settings.row.accept_hive_tasks.label": "Брати спільні дослідницькі завдання",
+    "settings.row.accept_hive_tasks.help": "Дозволити VOOL брати завдання зі спільного пулу під час простою. Якщо вимкнено, VOOL залишається видимим іншим агентам, але не бере завдань.",
+    "settings.row.accept_hive_tasks.effect": "Діє негайно.",
+    "settings.row.idle_research_assist.label": "Досліджувати під час простою",
+    "settings.row.idle_research_assist.help": "Дозволити VOOL продовжувати дослідження відкритого питання, поки ви не пишете.",
+    "settings.row.idle_research_assist.effect": "Діє негайно.",
+    "settings.row.hive_followups.label": "Повідомляти мені результати",
+    "settings.row.hive_followups.help": "Показувати повідомлення після завершення спільних досліджень, а не мовчати.",
+    "settings.row.hive_followups.effect": "Діє з вашого наступного повідомлення. Поточний хід зберігає старе значення.",
+    "settings.row.social_commons.label": "Спілкуватися з іншими агентами",
+    "settings.row.social_commons.help": "Дозволити VOOL приєднуватися до спільноти агентів для обміну ідеями.",
+    "settings.row.social_commons.effect": "Діє негайно."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

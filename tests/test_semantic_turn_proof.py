@@ -66,6 +66,8 @@ def _roles(proof, family: str, role_name: str) -> list[str]:
         ("What is 137 x 29?", "calculation", "137 x 29"),
         ("compute 1,024 / 8 for me", "calculation", "1,024 / 8"),
         ("500 EUR to JPY", "fx_quote", "500 EUR to JPY"),
+        ("I have 100 usd, convert to rub", "fx_quote", "100 usd, convert to rub"),
+        ("I hold 75 eur, convert into jpy", "fx_quote", "75 eur, convert into jpy"),
         ("EUR into JPY please", "fx_quote", "EUR into JPY"),
         ("region: eu-west-1", "structured_field", "region: eu-west-1"),
     ],

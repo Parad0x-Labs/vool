@@ -574,6 +574,9 @@ def _wait_until(predicate, *, timeout: float, what: str) -> None:
 
 def _paid_turn_until_the_retry_is_in_flight(composed, *, fault: str, prompt: str, prefix: str) -> tuple[dict, dict, int, int]:
     daemon, service, node, pay_to = composed.daemon, composed.service, composed.node, composed.pay_to
+    # The simulated chain has no ticking clock. Independent payments need a
+    # fresh blockhash; otherwise identical transfer bytes reuse an old signature.
+    node.advance_blocks(1)
     status, proposed = daemon.call("POST", "/api/cloud/usepod/spend-approval/propose", {"per_call_atomic": 50_000, "max_total_atomic": 50_000, "asset": "USDC"})
     assert status == 200, proposed
     _allow_pending_consent(daemon)
@@ -682,6 +685,13 @@ def browser_session():
         manager.stop()
 
 
+@pytest.fixture(autouse=True)
+def fresh_simulated_block(composed):
+    # Independent test payments must not share identical signed transaction
+    # bytes just because this simulated chain has no clock of its own.
+    composed.node.advance_blocks(1)
+
+
 def test_settings_shows_the_funded_token_and_the_wallet_as_two_ways_to_pay(composed, browser_session) -> None:
     daemon, service = composed.daemon, composed.service
     page = browser_session.new_page()
@@ -699,14 +709,20 @@ def test_settings_shows_the_funded_token_and_the_wallet_as_two_ways_to_pay(compo
         assert page.is_visible("button.usepod-use-prepaid") and page.is_visible("input.usepod-accountless-origin")
         # a fresh consent in SOL through the form: the asset choice and the fact sheet in SOL and lamports
         page.select_option("select.usepod-spend-asset", "SOL")
-        assert page.inner_text("span.usepod-spend-unit") == "ceilings in lamports"
-        page.fill("input.usepod-spend-percall", "5000000")
-        page.fill("input.usepod-spend-total", "5000000")
+        assert page.inner_text("span.usepod-spend-unit") == "Amounts in SOL"
+        page.locator("details.usepod-budget-advanced > summary").click()
+        page.fill("input.usepod-spend-percall", "0.005")
+        page.fill("input.usepod-spend-total", "0.005")
         page.click("button.usepod-spend-propose")
         page.wait_for_selector("button.usepod-spend-deny", timeout=20000)
         sheet = page.inner_text(".usepod-spend-approval")
         _keep("x402_settings_sol_consent.json", {"sheet": sheet})
-        assert "ONE call, up to 0.005000000 SOL (5000000 lamports)" in sheet and "up to 0.000005000 SOL (5000 lamports) per call" in sheet, sheet
+        assert "ONE request, up to 0.005 SOL" in sheet and "up to 0.000005 SOL per call" in sheet, sheet
+        status, discovery = daemon.call("GET", "/api/cloud/usepod/discovery")
+        assert status == 200, discovery
+        facts = discovery["spend_approval"]["facts"]
+        assert facts["asset"] == "SOL" and facts["per_call_atomic"] == 5_000_000, facts
+        assert facts["x402"]["fee_max_atomic"] == 5_000, facts
         page.click("button.usepod-spend-deny")
         page.wait_for_function(
             "() => /You DENIED this consent/.test((document.querySelector('.usepod-spend-approval') || {innerText: ''}).innerText)",

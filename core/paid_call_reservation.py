@@ -372,23 +372,8 @@ def _authorize(*, context: dict[str, Any], task_id: str, model_id: str, local_mo
     return authorization
 
 
-# --- retry accounting ------------------------------------------------------------------------
-#
-# A provider bills every attempt it serves, not just the one that came back usable. The router
-# can make more than one call under a single reservation (a failed attempt followed by a retry on
-# the same model), and settling only the last one charges the user for one call while the provider
-# charges for two.
-#
-# Two kinds of prior attempt are tracked per reservation:
-#   * an attempt that returned a usage block -> its real cost, accumulated in ``billed_usd``
-#   * an attempt that failed after the request was sent, returning nothing to price -> counted in
-#     ``unpriced_attempts`` and charged, when the reservation finally settles, at the same cost as
-#     the attempt that did succeed. That is an assumption, and it is deliberately the expensive
-#     one: a failed attempt is more often not billed at all, so this can overstate. Overstating
-#     makes the cap trip early, which is the direction a spend cap must err in.
-#
-# Process-local and best effort: a crash mid-turn loses the tally, which can only ever undercount
-# a turn that never finished. It is not a substitute for the ledger, which is durable.
+# Legacy per-process retry diagnostics. This tally is not spend authority: uncertain
+# billing is held durably in model_spend_reservations, including across restarts.
 _ATTEMPTS_LOCK = Lock()
 _ATTEMPTS: dict[str, dict[str, float]] = {}
 
@@ -398,8 +383,7 @@ def _attempt_state(model_call_id: str) -> dict[str, float]:
 
 
 def note_unbilled_paid_attempt(authorization: Any) -> None:
-    """Record that an attempt under this reservation reached the provider and returned nothing
-    priceable. It is charged at the settling attempt's rate when the reservation closes."""
+    """Record a diagnostic count of attempts with no priceable response."""
     model_call_id = str(getattr(authorization, "model_call_id", "") or "")
     if not model_call_id:
         return
@@ -408,7 +392,7 @@ def note_unbilled_paid_attempt(authorization: Any) -> None:
 
 
 def attempt_charge_total(model_call_id: str, *, this_attempt_usd: float) -> float:
-    """Everything billed under this reservation once ``this_attempt_usd`` is added to it."""
+    """Legacy retry estimate for diagnostics; never a measured bill or settlement authority."""
     with _ATTEMPTS_LOCK:
         state = _attempt_state(str(model_call_id or ""))
         this_attempt = max(0.0, float(this_attempt_usd or 0.0))
@@ -426,28 +410,28 @@ def forget_paid_attempts(model_call_id: str) -> None:
 def settle_owner_pick_paid_call(
     authorization: Any,
     *,
-    actual_usd: float,
+    actual_usd: float | None,
     source_context: dict[str, Any] | None = None,
     call_role: str = "",
 ) -> None:
-    """Close out a granted reservation with what the call actually cost, including every earlier
-    attempt made under it. Fail-soft.
+    """Record a priced response; retain the hold for missing usage or earlier uncertain billing.
 
-    ``actual_usd`` is this attempt's cost, priced by :mod:`core.model_pricing` from token counts
-    and the model's published rate (or the provider's own reported cost where it supplies one) --
-    never from a field most providers omit.
+    A retry's usage cannot tell us what an earlier failed attempt cost. Keep that uncertainty
+    durable instead of manufacturing a second charge from the successful attempt's price.
     """
     model_call_id = str(getattr(authorization, "model_call_id", "") or "")
     if not model_call_id:
         return
-    total = attempt_charge_total(model_call_id, this_attempt_usd=actual_usd)
     try:
-        from core.model_spend_ledger import settle_spend
+        from core.model_spend_ledger import get_spend_reservation, settle_spend
 
-        settled = settle_spend(model_call_id, actual_usd=total)
+        before = get_spend_reservation(model_call_id)
+        ambiguous = before is not None and before.status == "billing_ambiguous"
+        total = None if actual_usd is None else float(actual_usd) + (before.actual_usd if ambiguous else 0.0)
+        settled = settle_spend(model_call_id, actual_usd=total, billing_ambiguous=ambiguous)
         forget_paid_attempts(model_call_id)
         _emit_answer_spend_receipt(
-            "paid_call.settled",
+            "paid_call.billing_ambiguous" if settled.status == "billing_ambiguous" else "paid_call.settled",
             authorization,
             source_context=source_context,
             call_role=call_role,
@@ -456,14 +440,13 @@ def settle_owner_pick_paid_call(
         _terminalize_paid_generation_orchestration(
             authorization,
             succeeded=True,
-            actual_usd=float(getattr(settled, "actual_usd", 0.0) or 0.0),
+            actual_usd=settled.actual_usd,
+            billing_ambiguous=settled.status == "billing_ambiguous",
             call_role=call_role,
         )
     except Exception as exc:
-        # The row was already finalized (an earlier attempt released it, and this is the retry).
-        # The charge is real and already incurred, so it is posted as its own settled row rather
-        # than dropped: a spend the ledger cannot see is a spend the caps cannot bind.
-        if _post_supplemental_charge(authorization, usd=total, model_call_id=model_call_id):
+        # A priced charge against a historical closed row still has to enter the ledger.
+        if actual_usd is not None and _post_supplemental_charge(authorization, usd=actual_usd, model_call_id=model_call_id):
             forget_paid_attempts(model_call_id)
             return
         logger.warning("paid call %s not settled (%s)", model_call_id, exc)
@@ -677,12 +660,10 @@ def release_owner_pick_paid_call(
     source_context: dict[str, Any] | None = None,
     call_role: str = "",
 ) -> None:
-    """Return an unspent reservation to the caps after a failed paid call. Fail-soft.
+    """Release a provably unsent call; keep uncertain post-dispatch billing held durably.
 
-    ``reason`` says whether the provider was reached. ``call_failed`` means the request went out
-    and may have been served and billed, so the attempt is remembered and charged if a retry under
-    the same reservation later settles. Every other reason (circuit open, unhealthy provider,
-    prompt over budget) means no request was ever sent, so nothing is owed.
+    A later preflight refusal cannot clear an earlier ambiguous hold. Only reconciliation
+    with a known total can close it. The attempt tally is diagnostic, never budget authority.
     """
     model_call_id = str(getattr(authorization, "model_call_id", "") or "")
     if not model_call_id:
@@ -692,10 +673,13 @@ def release_owner_pick_paid_call(
     else:
         forget_paid_attempts(model_call_id)
     try:
-        from core.model_spend_ledger import get_spend_reservation, release_spend
+        from core.model_spend_ledger import get_spend_reservation, release_spend, settle_spend
 
         before = get_spend_reservation(model_call_id)
-        release_spend(model_call_id, reason=reason)
+        if reason == "call_failed" and before is not None and before.status in {"reserved", "billing_ambiguous"}:
+            settle_spend(model_call_id, actual_usd=None)
+        else:
+            release_spend(model_call_id, reason=reason)
         terminal = get_spend_reservation(model_call_id)
         # Only the transaction that changed `reserved` to a terminal state owns the event. Repeated
         # cleanup calls are intentionally idempotent and cannot append contradictory terminals.
@@ -706,7 +690,7 @@ def release_owner_pick_paid_call(
             and str(terminal.status or "") != "reserved"
         ):
             _emit_answer_spend_receipt(
-                "paid_call.released",
+                "paid_call.billing_ambiguous" if terminal.status == "billing_ambiguous" else "paid_call.released",
                 authorization,
                 source_context=source_context,
                 call_role=call_role,
@@ -717,6 +701,7 @@ def release_owner_pick_paid_call(
                 authorization,
                 succeeded=False,
                 actual_usd=float(getattr(terminal, "actual_usd", 0.0) or 0.0),
+                billing_ambiguous=terminal.status == "billing_ambiguous",
                 reason=reason,
                 call_role=call_role,
             )
@@ -768,7 +753,9 @@ def _emit_answer_spend_receipt(
         "reservation_id": reservation_id,
         "model_id": str(getattr(escalation, "model_id", "") or ""),
         "reserved_usd": reserved_usd,
-        "actual_usd": actual_usd,
+        "actual_usd": None if getattr(terminal, "status", "") == "billing_ambiguous" else actual_usd,
+        "known_charges_usd": actual_usd,
+        "held_usd": float(getattr(terminal, "reserved_usd", reserved_usd) or 0.0),
         "per_call_cap_usd": float(getattr(limits, "per_call_usd", 0.0) or 0.0),
         "daily_call_count": int(daily_count),
         "daily_call_cap": getattr(limits, "daily_call_cap", None),
@@ -794,6 +781,7 @@ def _terminalize_paid_generation_orchestration(
     *,
     succeeded: bool,
     actual_usd: float,
+    billing_ambiguous: bool = False,
     reason: str = "",
     call_role: str = "",
 ) -> None:
@@ -829,6 +817,7 @@ def _terminalize_paid_generation_orchestration(
                 target_model=paid_model,
                 reason=f"paid_{generation_kind}_received",
                 actual_spend_usd=actual_usd,
+                metadata={"billing_ambiguous": billing_ambiguous, "actual_total_known": not billing_ambiguous},
                 verification_result="provider_response_received",
             )
             store.transition(
@@ -838,6 +827,7 @@ def _terminalize_paid_generation_orchestration(
                 target_model=paid_model,
                 reason=f"paid_{generation_kind}_output_controls_completed",
                 actual_spend_usd=actual_usd,
+                metadata={"billing_ambiguous": billing_ambiguous, "actual_total_known": not billing_ambiguous},
                 verification_result="accepted",
             )
             store.transition(
@@ -847,6 +837,7 @@ def _terminalize_paid_generation_orchestration(
                 target_model=paid_model,
                 reason=f"paid_{generation_kind}_served",
                 actual_spend_usd=actual_usd,
+                metadata={"billing_ambiguous": billing_ambiguous, "actual_total_known": not billing_ambiguous},
                 verification_result="completed",
             )
         else:
@@ -857,6 +848,7 @@ def _terminalize_paid_generation_orchestration(
                 target_model=local_model,
                 reason=str(reason or f"paid_{generation_kind}_failed"),
                 actual_spend_usd=actual_usd,
+                metadata={"billing_ambiguous": billing_ambiguous, "actual_total_known": not billing_ambiguous},
                 verification_result="not_served",
             )
             store.transition(
@@ -866,6 +858,7 @@ def _terminalize_paid_generation_orchestration(
                 target_model=local_model,
                 reason="exact_paid_pin_failed_without_substitution",
                 actual_spend_usd=actual_usd,
+                metadata={"billing_ambiguous": billing_ambiguous, "actual_total_known": not billing_ambiguous},
                 verification_result="failed_safe",
             )
     except Exception as exc:

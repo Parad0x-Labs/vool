@@ -169,7 +169,7 @@ _NO_GUESSING = (
     # "Invent" takes an object: prohibiting invented evidence is epistemic;
     # prohibiting new architecture/components constrains the design's scope.
     r"\bdo(?:n['’]?t| not)\s+invent(?:\s+(?:(?:any|the|new|extra|additional|unsupported|unverified)\s+)*"
-    r"(?:facts?|figures?|numbers?|statistics?|sources?|citations?|evidence|claims?|data|results?|prices?|answers?)\b"
+    r"(?:facts?|figures?|numbers?|statistics?|sources?|citations?|evidence|claims?|data|results?|prices?|(?:exchange\s+)?rates?|answers?)\b"
     r"|(?=\s*(?:[.!?;]|$)))",
     r"\bno\s+guess(?:ing|es)?\b",
     r"\bno\s+specul",

@@ -18,7 +18,7 @@ to start a process at all.
 **Confinement is unconditional.** A minimal environment stops a child *inheriting* a secret; it
 does nothing about a child *reading* one from disk, or writing wherever it likes. Every plugin
 and MCP child therefore runs under the host's kernel confinement — the same Seatbelt (macOS) and
-bwrap/unshare/firejail (Linux) wrappers `sandbox.job_runner` already uses for sandbox commands:
+bwrap (Linux) wrappers `sandbox.job_runner` already uses for sandbox commands:
 writes confined to the plugin's own root and its scratch directory, reads of the credential
 directories and VOOL's key home denied, network denied unless the manifest or server config
 says otherwise. A host that cannot enforce that REFUSES to run the child (status
@@ -200,11 +200,12 @@ def _kernel_confinement_prefix(
     writable_roots: tuple[Path, ...],
     allow_network: bool = False,
     working_directory: Path | None = None,
+    readable_roots: tuple[Path, ...] = (),
 ) -> list[str] | None:
     """Wrap *argv* in the host's kernel confinement, or None when no backend can enforce it.
 
     Reuses `sandbox.job_runner`'s backends so plugins, MCP servers and sandbox commands share ONE
-    confinement implementation (Seatbelt on macOS; bwrap, then unshare/firejail on Linux). Every
+    confinement implementation (Seatbelt on macOS; bwrap on Linux). Every
     backend is probed for whether it actually runs, not merely whether it is on PATH. Writes are
     confined to `writable_roots`; the credential directories and VOOL's key home are read-denied;
     network is denied unless `allow_network`.
@@ -229,7 +230,7 @@ def _kernel_confinement_prefix(
             writable_roots=roots,
             allow_network_egress=False,
             network_isolation_mode="auto",
-            read_roots=(*default_read_roots(), *_program_read_roots(list(argv)), anchor),
+            read_roots=(*default_read_roots(), *_program_read_roots(list(argv)), anchor, *readable_roots),
         )
     )
     if allow_network:
@@ -250,6 +251,7 @@ def confined_argv(
     allow_network: bool = False,
     mode: str = "auto",
     working_directory: Path | None = None,
+    readable_roots: tuple[Path, ...] = (),
 ) -> tuple[list[str], str]:
     """The argv to launch and a label naming how it is confined.
 
@@ -264,15 +266,15 @@ def confined_argv(
     bare = [str(a) for a in argv]
     wrapped = _kernel_confinement_prefix(
         bare, writable_roots=writable_roots, allow_network=allow_network,
-        working_directory=working_directory,
+        working_directory=working_directory, readable_roots=readable_roots,
     )
     if wrapped is not None:
         return list(wrapped), _backend_label(list(wrapped), bare) or "kernel:unknown"
     if clean_mode == "heuristic_only":
         return bare, "heuristic_only"
     raise ConfinementUnavailableError(
-        "this host has no usable kernel confinement backend (sandbox-exec on macOS; bwrap, unshare "
-        "or firejail on Linux), so the child was not started. Set confinement to 'heuristic_only' "
+        "this host has no usable kernel confinement backend (sandbox-exec on macOS; bwrap "
+        "on Linux), so the child was not started. Set confinement to 'heuristic_only' "
         "only as an explicit, informed local override."
     )
 
@@ -357,6 +359,7 @@ def run_plugin_tool(
             allow_network=bool(allow_network),
             mode=str(confinement or "auto"),
             working_directory=root,
+            readable_roots=(Path(scratch_dir).resolve(),) if scratch_dir else (),
         )
     except ConfinementUnavailableError as exc:
         return PluginToolResult(

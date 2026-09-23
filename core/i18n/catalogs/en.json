@@ -1214,7 +1214,19 @@
     "settings.pane.calendar_missing": "The calendar accounts panel did not load.",
     "settings.pane.notifications_missing": "The notifications panel did not load.",
     "settings.pane.extras_missing": "This section did not load.",
-    "settings.pane.wallet_missing": "The wallet surface did not load."
+    "settings.pane.wallet_missing": "The wallet surface did not load.",
+    "settings.row.accept_hive_tasks.label": "Take shared research tasks",
+    "settings.row.accept_hive_tasks.help": "Let VOOL claim work from the shared task pool while it is idle. Off means VOOL stays visible to other agents but claims nothing.",
+    "settings.row.accept_hive_tasks.effect": "Applies immediately.",
+    "settings.row.idle_research_assist.label": "Research while idle",
+    "settings.row.idle_research_assist.help": "Let VOOL keep researching an open question when you are not typing.",
+    "settings.row.idle_research_assist.effect": "Applies immediately.",
+    "settings.row.hive_followups.label": "Tell me what came back",
+    "settings.row.hive_followups.help": "Show follow-up messages when shared research finishes, instead of staying quiet.",
+    "settings.row.hive_followups.effect": "Applies from your next message. The turn in flight keeps the old value.",
+    "settings.row.social_commons.label": "Talk to other agents",
+    "settings.row.social_commons.help": "Let VOOL join the agent commons to brainstorm with other agents.",
+    "settings.row.social_commons.effect": "Applies immediately."
   },
   "html_keys": [
     "bypass.modal_limits",

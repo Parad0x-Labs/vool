@@ -17,8 +17,11 @@ Each profile runs against the SAME absolute workspace path, reseeded to identica
 profiles (rather than three different temp directories), specifically so no output can differ merely
 because it happens to embed the workspace's own absolute path (e.g. `workspace.git_status`'s "not a
 git repository" message names the resolved path) -- that would be a test artifact, not a real
-dispatcher divergence. The only field allowed to differ between runs is `mutation_id` (a fresh uuid4
-per call, by design, unrelated to caller identity); everything else must match byte-for-byte.
+dispatcher divergence. The only fields allowed to differ between runs are per-call identities,
+unrelated to caller identity: `mutation_id` (a fresh uuid4 per call) and the blackbox record's
+`turn_id` (`direct:<ledger>-<uuid4>`, minted once per effect ledger when no turn identity rides the
+source context -- a direct library call mints its own, by `core.blackbox.identity`); everything
+else must match byte-for-byte.
 """
 
 from __future__ import annotations
@@ -47,12 +50,18 @@ def _seed_fixture(root: Path) -> None:
 
 
 def _strip_nondeterministic(details: dict) -> dict:
-    """Remove the ONE field allowed to legitimately vary per call: the mutation ledger's uuid4.
+    """Remove the fields allowed to legitimately vary per call, all of them identities.
 
-    It surfaces in three different shapes depending on which handler produced it: nested under
+    Two sources, both per-call and neither derived from caller provenance. The mutation ledger's
+    uuid4 surfaces in three shapes depending on which handler produced it: nested under
     `mutation_record` (write_file/replace_in_file/apply_unified_diff), as a bare top-level
-    `mutation_id` (rollback_last_change's own details), and inside `observation` — all three are
-    the SAME uuid4, not three different sources of real divergence.
+    `mutation_id` (rollback_last_change's own details), and inside `observation` -- all three are
+    the SAME uuid4, not three different sources of real divergence. The blackbox record carries
+    its scope's identities: `turn_id` (`direct:<ledger>-<uuid4>` minted per effect ledger when no
+    turn identity rides the source context, by `core.blackbox.identity`) and `effect_ids`
+    (`effect-<uuid4>` per recorded effect, which also KEY the `outcomes` dict). The identities go;
+    the content beside them stays compared -- how many effects were recorded, the multiset of
+    their outcomes, whether bytes were captured, coverage gaps, recovery errors.
     """
     clean = copy.deepcopy(details)
     clean.pop("mutation_id", None)
@@ -65,6 +74,16 @@ def _strip_nondeterministic(details: dict) -> dict:
     for artifact in clean.get("artifacts") or []:
         if isinstance(artifact, dict):
             artifact.pop("mutation_id", None)
+    blackbox = clean.get("blackbox")
+    if isinstance(blackbox, dict):
+        effect_ids = blackbox.pop("effect_ids", None)
+        blackbox.pop("turn_id", None)
+        if effect_ids is not None:
+            blackbox["effect_count"] = len(effect_ids)
+        outcomes = blackbox.get("outcomes")
+        if isinstance(outcomes, dict):
+            # Keyed by the per-effect uuids removed above; the outcomes themselves are content.
+            blackbox["outcomes"] = sorted(map(str, outcomes.values()))
     return clean
 
 

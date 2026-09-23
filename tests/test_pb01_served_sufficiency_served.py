@@ -270,11 +270,12 @@ def test_served_sufficiency_writer_eight_scenarios_restart_and_eligibility(serve
     provider.fail_models.clear()
 
     # ---- 5. CANCELLED TURN: the operator's stop records NO observation ----
-    # The runtime checks cancellation BETWEEN model calls, so the provider holds BOTH calls
-    # long enough that the stop lands between them. The abandoned in-flight call is closed
-    # honestly as a provider timeout (stage provider_error) — and provider_error maps to no
-    # observation in the established vocabulary, so the stopped turn writes nothing: an
-    # operator stop must never become negative evidence about a provider.
+    # The provider holds the first call long enough that the operator's stop lands while it is
+    # still in flight; the runtime honors the stop at the next lane attempt (its own
+    # turn_cancelled refusal). The stopped turn's terminal truth is CANCELLED — never a
+    # provider failure and never a delivered answer — so the sufficiency writer records
+    # NOTHING: an operator stop must never become evidence about a provider, in either
+    # direction.
     before = len(_rows(home))
     marker = _traces(home)[-1]["rowid"]
     provider.slow_seconds = 10.0
@@ -297,7 +298,8 @@ def test_served_sufficiency_writer_eight_scenarios_restart_and_eligibility(serve
     provider.slow_seconds = 0.0
     assert cancel.get("state") == "cancelled", cancel
     trace = _last_trace(home, after_rowid=marker)
-    assert trace["stage"] == "provider_error", trace
+    assert trace["stage"] == "operator_stopped", trace
+    assert trace["fulfillment"] == "cancelled", trace
     assert len(_rows(home)) == before, f"a stopped turn must write nothing; rows={_rows(home)}"
 
     # ---- 6. MODEL SWITCH: each model's row carries its own model id ----

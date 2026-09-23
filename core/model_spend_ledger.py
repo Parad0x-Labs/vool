@@ -138,9 +138,10 @@ def reserve_spend(
         conn.close()
 
 
-def settle_spend(model_call_id: str, *, actual_usd: float, billing_ambiguous: bool = False) -> SpendReservation:
+def settle_spend(model_call_id: str, *, actual_usd: float | None, billing_ambiguous: bool = False) -> SpendReservation:
     _init_table()
-    actual = round(max(0.0, float(actual_usd)), 8)
+    actual = None if actual_usd is None else round(max(0.0, float(actual_usd)), 8)
+    billing_ambiguous = billing_ambiguous or actual is None
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -149,16 +150,21 @@ def settle_spend(model_call_id: str, *, actual_usd: float, billing_ambiguous: bo
             raise KeyError(model_call_id)
         if row["status"] not in {"reserved", "billing_ambiguous"}:
             raise ValueError("reservation_already_finalized")
+        if actual is None:
+            actual = float(row["actual_usd"])
+        # Unknown billing remains a liability, not a zero-dollar settlement. Only
+        # explicit reconciliation may clear this hold with a known total.
+        held = float(row["reserved_usd"]) if billing_ambiguous else 0.0
         status = "billing_ambiguous" if billing_ambiguous else ("cap_breached" if actual > float(row["reserved_usd"]) else "settled")
         conn.execute(
-            """UPDATE model_spend_reservations SET actual_usd = ?, reserved_usd = 0,
+            """UPDATE model_spend_reservations SET actual_usd = ?, reserved_usd = ?,
             status = ?, billing_ambiguous = ?, updated_at = ? WHERE model_call_id = ?""",
-            (actual, status, int(billing_ambiguous), datetime.now(timezone.utc).isoformat(), model_call_id),
+            (actual, held, status, int(billing_ambiguous), datetime.now(timezone.utc).isoformat(), model_call_id),
         )
         conn.commit()
         return SpendReservation(
             reservation_id=row["reservation_id"], model_call_id=model_call_id, task_id=row["task_id"],
-            subtask_id=row["subtask_id"], model_id=row["model_id"], reserved_usd=0.0,
+            subtask_id=row["subtask_id"], model_id=row["model_id"], reserved_usd=held,
             actual_usd=actual, status=status,
         )
     except Exception:
@@ -235,9 +241,25 @@ def calls_today(*, now: float | None = None) -> int:
         conn.close()
 
 
+def unresolved_spend_today(*, now: float | None = None) -> float:
+    """Unpriced billing still held against today's caps, separate from known charges."""
+    _init_table()
+    ts = datetime.now(timezone.utc).timestamp() if now is None else float(now)
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(reserved_usd), 0) FROM model_spend_reservations "
+            "WHERE status = 'billing_ambiguous' AND created_ts >= ?",
+            (ts - ts % 86400,),
+        ).fetchone()
+        return float(row[0])
+    finally:
+        conn.close()
+
+
 def _committed_and_reserved(conn, where: str, params: tuple[object, ...]) -> float:
     row = conn.execute(
-        f"""SELECT COALESCE(SUM(actual_usd + CASE WHEN status = 'reserved' THEN reserved_usd ELSE 0 END), 0)
+        f"""SELECT COALESCE(SUM(actual_usd + CASE WHEN status IN ('reserved', 'billing_ambiguous') THEN reserved_usd ELSE 0 END), 0)
         FROM model_spend_reservations WHERE {where}""",
         params,
     ).fetchone()
@@ -253,4 +275,5 @@ __all__ = [
     "release_spend",
     "reserve_spend",
     "settle_spend",
+    "unresolved_spend_today",
 ]

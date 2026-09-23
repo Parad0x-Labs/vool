@@ -212,10 +212,17 @@ def _row_key(row: dict) -> tuple:
 #: obeyed. Regenerate deliberately (and say so in the commit) if the corpus is ever meant to change.
 FROZEN_CORPUS_SHA256 = "b9d1dfb5de50fd2cdaa41e0c82ebfba369a2df1150bf8f44b292acdf74783d02"
 FROZEN_CORPUS_COUNT = 252
-# The immutable git object that first froze this corpus. The candidate worktree is never read for
-# corpus bytes, pins, loader code, or ids. Git's object id is content-addressed; replacing a worktree
-# file, symlink, import helper, or pin cannot change these bytes.
-FROZEN_CORPUS_SOURCE_SHA = "c23257da1afd53ed721aa01da529ef74bd6df45a"
+# The immutable git object that froze this corpus, addressed by its BLOB id. The candidate
+# worktree is never read for corpus bytes, pins, loader code, or ids. Git's object id is
+# content-addressed; replacing a worktree file, symlink, import helper, or pin cannot change
+# these bytes, and a tampered corpus committed anywhere mints a different blob id that this
+# pin refuses. The original pin named the commit that first froze the corpus
+# (c23257da1afd53ed721aa01da529ef74bd6df45a:ops/semantic_phase0_frozen_corpus.json); that
+# commit is absent from the public tree (history rewritten at migration, public root
+# 78f818b), so the commit-scoped read exited 128 on every public clone. The blob id pins the
+# SAME bytes with the same content-addressed guarantee while surviving history rewrites:
+# any commit that carries the exact artifact resolves it.
+FROZEN_CORPUS_SOURCE_SHA = "c606c81b7b7b95abea94731c361037473df109a6"
 FROZEN_CORPUS_OBJECT = "ops/semantic_phase0_frozen_corpus.json"
 
 
@@ -233,7 +240,9 @@ def load_frozen_corpus(controller_tree: Path) -> tuple[list[str], str]:
     if git is None:
         raise CorpusIntegrityError("trusted git executable is unavailable")
     completed = subprocess.run(
-        [str(git), "-C", str(root), "show", f"{FROZEN_CORPUS_SOURCE_SHA}:{FROZEN_CORPUS_OBJECT}"],
+        # A bare blob id: content-addressed, resolved from the object database of the trusted
+        # controller repository regardless of which commit carries it. Never a worktree path.
+        [str(git), "-C", str(root), "show", FROZEN_CORPUS_SOURCE_SHA],
         cwd="/",
         env={"PATH": "/usr/bin:/bin:/usr/local/bin", "LC_ALL": "C"},
         capture_output=True,

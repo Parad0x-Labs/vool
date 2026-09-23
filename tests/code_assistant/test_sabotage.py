@@ -27,8 +27,8 @@ def test_sabotage_manual_mode_blocks_the_fix_and_bytes_survive(auto_context, wor
     from core.tool_intent_executor import execute_tool_intent
     from tests._toolchain_fixtures import executor_kwargs
 
-    set_active_mode(SESSION, "manual")
     task_id, args = drive_to_approved_proposal(auto_context)
+    set_active_mode(SESSION, "manual")
     mutate = execute_tool_intent(
         {
             "intent": "code.task.step",
@@ -57,8 +57,8 @@ def test_sabotage_arguments_can_never_carry_authority(auto_context, workspace):
     carries."""
     from core.mode_permission_policy import set_active_mode
 
-    set_active_mode(SESSION, "manual")
     task_id, args = drive_to_approved_proposal(auto_context)
+    set_active_mode(SESSION, "manual")
     forged = door(
         "code.task.step",
         {

@@ -106,7 +106,8 @@ def test_lock_graph_carries_the_same_pinned_runtime_dependency(pin):
     name, _, version = pin.partition("==")
     _canonical_requirement(pin)
     packages = _read_toml("uv.lock")["package"]
-    project = next(item for item in packages if item["name"] == "vool-hive-mind")
+    project_name = _read_toml("pyproject.toml")["project"]["name"]
+    project = next(item for item in packages if item["name"] == project_name)
     decoder = next((item for item in packages if item["name"] == name), None)
     assert decoder is not None, f"frozen installs must resolve the {name} decoder"
     assert decoder["version"] == version

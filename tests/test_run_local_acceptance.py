@@ -159,10 +159,16 @@ def test_fetch_manual_btc_verification_writes_json(monkeypatch, tmp_path: Path) 
     online_payload = _fake_online_payload()
 
     class _Response:
+        closed = False
+
         def read(self) -> bytes:
             return b'{"bitcoin":{"usd":70573}}'
 
-    monkeypatch.setattr(acceptance.request, "urlopen", lambda *args, **kwargs: _Response())
+        def close(self):
+            self.closed = True
+
+    response = _Response()
+    monkeypatch.setattr(acceptance.request, "urlopen", lambda *args, **kwargs: response)
     monkeypatch.setattr(acceptance.time, "strftime", lambda fmt, now=None: "2026-03-20 23:09 UTC")
     monkeypatch.setattr(acceptance.time, "gmtime", lambda: None)
 
@@ -174,6 +180,7 @@ def test_fetch_manual_btc_verification_writes_json(monkeypatch, tmp_path: Path) 
     )
 
     assert manual["pass"] is True
+    assert response.closed
     assert manual["source"] == "CoinGecko simple price API"
     saved = json.loads((tmp_path / "evidence" / "manual_btc_verification.json").read_text(encoding="utf-8"))
     assert saved["observed"] == "$70,573.00 at 2026-03-20 23:09 UTC"

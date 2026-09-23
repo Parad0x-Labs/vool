@@ -108,6 +108,20 @@ def test_direct_transfer_purpose_never_reads_the_memo() -> None:
     assert view["provider"] == "" and view["resource"] == "" and "evil" not in json.dumps(view)
 
 
+@pytest.mark.parametrize("saved", [True, False])
+def test_compact_review_names_only_a_bound_saved_recipient(saved) -> None:
+    from core.wallet import payment_review
+
+    proposal = _proposal(proposals.ORIGIN_USER, "Pay an unrelated name")
+    fields = {"recipient_saved": saved, "recipient_label": "Zoë Ng · work",
+              "to_address": proposal.destination, "asset": "ETH", "amount_human": "0.001"}
+    review = payment_review.compose(fields, proposal)
+    assert ("Zoë Ng · work" in review["recipient_line"]) is saved
+    assert review["recipient_kind"] == ("saved_contact" if saved else "unidentified_wallet")
+    assert payment_review.short_address(proposal.destination) in review["recipient_line"]
+    assert "unrelated name" not in review["recipient_line"]
+
+
 def test_unknown_origin_stays_visibly_unknown() -> None:
     view = purpose.purpose_for(_proposal("mystery", "pay for the thing"))
     assert view["kind"] == purpose.KIND_UNKNOWN and view["mechanism_label"] == "Purpose unknown"
@@ -151,8 +165,8 @@ def test_usepod_purpose_is_prepaid_credit_from_the_operation_record(wallet_home)
     with connection() as conn:
         conn.execute(
             "INSERT INTO wallet_usepod_operations (operation_key, provider, correlation_id, authority, network, asset, pay_to, amount_minor, expires_at, resource,"
-            " requirement_digest, proposal_id, wallet_id, state, mint_token, mint_lease_until, detail, created_at, updated_at, digest_version)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)",
+            " requirement_digest, proposal_id, wallet_id, state, mint_token, mint_lease_until, detail, created_at, updated_at, digest_version, payment_kind)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, 'prepaid_credit')",
             ("usepod.example|corr-1", "usepod.example", "corr-1", "core.wallet.usepod", BASE_SEPOLIA, "ETH", "0x8a4af57c4a4c4d978b58db77a8fcf724e3faeb1a", 1_000_000_000_000_000,
              4_102_444_800.0, "https://usepod.example/models/summarize", "d" * 64, pid, "wallet-test", "proposed", "", 0, "{}", utcnow(), utcnow()),
         )

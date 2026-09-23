@@ -482,7 +482,12 @@ def _planned_repair_context(tmpdir: str) -> tuple[dict, dict]:
         "from app import answer\n\n\ndef test_answer():\n    assert answer() == 42\n",
         encoding="utf-8",
     )
-    ctx = {"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir}
+    from core.mode_permission_policy import set_active_mode
+
+    session = "repair-" + Path(tmpdir).name
+    set_active_mode(session, "auto")
+    ctx = {"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir,
+           "session_id": session, "runtime_session_id": session, "operating_mode": "auto"}
     decision = plan_tool_workflow(
         user_text=REPAIR_REQUEST,
         task_class="debugging",

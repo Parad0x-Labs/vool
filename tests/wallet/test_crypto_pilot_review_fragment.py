@@ -19,7 +19,10 @@ pytestmark = [pytest.mark.safety]
 RECIPIENT = "0x8a4af57c4a4c4d978b58db77a8fcf724e3faeb1a"
 
 
-def _fields(**over):
+def _fields(*, origin="user", **over):
+    from types import SimpleNamespace
+
+    from core.wallet import amounts, payment_review
     base = {
         "proposal_id": "pay-synthetic", "network": "eip155:84532", "chain_key": "base", "chain_label": "Base", "display_name": "Base Sepolia", "environment": "testnet",
         "badge": "TESTNET", "environment_label": "Testnet", "value_note": "Test funds have no monetary value", "chain_identity": "84532", "from_label": "Test wallet",
@@ -37,6 +40,17 @@ def _fields(**over):
                     "provider": "", "provider_source": "", "resource": "", "resource_method": "", "description": "", "description_source": "", "recipient_label": "", "recipient_label_source": "", "note": ""},
     }
     base.update(over)
+    token = bool(base.get("token_transfer"))
+    base["principal_balance_minor"] = base["balance_minor"]
+    base["fee_balance_minor"] = base["balance_minor"]
+    base["fee_decimals"] = 18
+    base["max_total_minor"] = base["amount_minor"] + (0 if token else base["fee_max_minor"])
+    base["estimated_after_minor"] = base["balance_minor"] - base["amount_minor"] - (0 if token else base["fee_estimate_minor"])
+    base["minimum_after_minor"] = base["balance_minor"] - base["max_total_minor"]
+    base["fee_balance_after_minimum_minor"] = base["fee_balance_minor"] - base["fee_max_minor"]
+    for name in ("max_total", "estimated_after", "minimum_after", "principal_balance", "fee_balance", "fee_balance_after_minimum"):
+        base[name + "_human"] = amounts.format_minor(base[name + "_minor"], base["decimals"])
+    base["review"] = payment_review.compose(base, SimpleNamespace(origin=origin))
     return base
 
 
@@ -108,10 +122,10 @@ def test_purposes_fee_asset_and_dust_render_from_typed_facts(browser):
     ]
     quotes = {
         "pay-direct": _fields(),
-        "pay-credit": _fields(proposal_id="pay-credit", purpose=CREDIT),
-        "pay-unknown": _fields(proposal_id="pay-unknown", purpose=UNKNOWN),
+        "pay-credit": _fields(origin="usepod", proposal_id="pay-credit", purpose=CREDIT),
+        "pay-unknown": _fields(origin="mystery", proposal_id="pay-unknown", purpose=UNKNOWN),
         # a fee paid in another asset than the one sent, and a dust fee shown exactly, never as zero
-        "pay-dust": _fields(proposal_id="pay-dust", display_symbol="TOK", asset="TOK", amount_display="0.001 TOK", fee_asset_differs=True,
+        "pay-dust": _fields(proposal_id="pay-dust", display_symbol="TOK", asset="TOK", amount_display="0.001 TOK", fee_asset_differs=True, token_transfer=True,
                             fee_estimate_minor=1, fee_estimate_human="0.000000000000000001", fee_estimate_display="0.000000000000000001 ETH",
                             fee_max_minor=7, fee_max_human="0.000000000000000007", fee_max_display="0.000000000000000007 ETH"),
     }
@@ -137,19 +151,22 @@ def test_purposes_fee_asset_and_dust_render_from_typed_facts(browser):
         credit.locator(".vw-review").click()
         page.wait_for_function("!document.getElementById('vwSheetApprove').disabled", timeout=10_000)
         assert page.locator("#vwSheetTitle").text_content() == "Prepay provider credit"
-        assert page.locator('#vwSheet [data-field="purpose"]').get_attribute("data-kind") == "credit"
+        assert "provider credit for later requests" in page.locator('#vwSheet [data-review="amount"]').text_content()
+        assert "Payment accepted is not service delivered" in page.locator('#vwSheet [data-warning="prepaid_credit"]').text_content()
         page.locator("#vwSheetLater").click()
         page.wait_for_selector("#vwSheet", state="detached")
         # the dust sheet: the fee asset differs from the sent asset and is labelled so; dust is exact, never 0
         page.locator('.vw-card[data-proposal="pay-dust"] .vw-review').click()
         page.wait_for_function("!document.getElementById('vwSheetApprove').disabled", timeout=10_000)
+        page.locator("#vwSheetDetailsToggle").click()
         assert page.locator('#vwSheet [data-field="amount"] .vw-sheet-value').text_content() == "0.001 TOK"
-        assert page.locator('#vwSheet [data-field="fee"] .vw-sheet-label').text_content() == "Network fee (paid in ETH)"
+        assert "0.001 TOK" in page.locator('#vwSheet [data-review="max_debit_0"]').text_content()
+        assert "0.000000000000000007 ETH" in page.locator('#vwSheet [data-review="max_debit_1"]').text_content()
         fee = page.locator('#vwSheet [data-field="fee"] .vw-sheet-value').text_content()
-        assert fee == "0.000000000000000001 ETH · 0.000000000000000007 ETH" and " 0 ETH" not in fee
+        assert fee == "estimated 0.000000000000000001 ETH · at most 0.000000000000000007 ETH" and " 0 ETH" not in fee
         # the sheet never computes money: every rendered figure is one of the server's strings
         rendered = page.locator("#vwSheetFields").text_content()
-        for value in ("0.001 TOK", "0.000000000000000001 ETH", "0.000000000000000007 ETH", "at most 0.0011 ETH", "at least 0.998 ETH"):
+        for value in ("0.001 TOK", "0.000000000000000001 ETH", "0.000000000000000007 ETH", "0.999 TOK", "0.999999999999999993 ETH"):
             assert value in rendered
         assert not errors, errors
     finally:

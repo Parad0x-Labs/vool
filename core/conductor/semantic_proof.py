@@ -674,7 +674,8 @@ _ARITHMETIC_RE = re.compile(
 #: still proves nothing.
 _CONVERSION_RE = re.compile(
     r"(?:(?P<amount>\d[\d,.]*)\s*)?"
-    r"\b(?P<base>[A-Za-z]{3})\b\s*(?P<operator>to|into|->|→)\s*\b(?P<quote>[A-Za-z]{3})\b"
+    r"\b(?P<base>[A-Za-z]{3})\b\s*(?:,\s*convert\s+)?"
+    r"(?P<operator>to|into|->|→)\s*\b(?P<quote>[A-Za-z]{3})\b"
 )
 
 

@@ -213,6 +213,14 @@ def pact_rig(tmp_path, monkeypatch):
     yield rig
 
     # Cleanup proof: the rig releases its own overrides; the home dies with tmp_path.
+    # The runtime itself is shut down FIRST: its background lanes (agent threads, mesh daemon,
+    # the compute-mode poller) must not outlive the test. Measured: the compute-mode daemon's
+    # poll loop keeps spawning a platform idle probe subprocess for the life of the process,
+    # and one such leaked spawn clobbered a later test's subprocess capture (mcp env allowlist).
+    try:
+        runtime.shutdown()
+    except Exception:
+        pass
     try:
         from core.semantic.semantic_admissions import clear_execution_context
 

@@ -303,7 +303,7 @@ class TransportLargePayloadTests(unittest.TestCase):
         finally:
             server.stop()
 
-    def test_bind_conflict_falls_back_to_ephemeral_udp_port(self) -> None:
+    def test_explicit_bind_conflict_refuses_without_silently_changing_ports(self) -> None:
         primary = UDPTransportServer(host="127.0.0.1", port=0, on_message=lambda *_args: None)
         secondary: UDPTransportServer | None = None
         try:
@@ -317,7 +317,8 @@ class TransportLargePayloadTests(unittest.TestCase):
                     port=primary_runtime.port,
                     on_message=lambda *_args: None,
                 )
-                secondary_runtime = secondary.start()
+                with self.assertRaisesRegex(OSError, "already in use"):
+                    secondary.start()
         except PermissionError:
             self.skipTest("Local UDP socket binds are not permitted in this sandbox.")
         finally:
@@ -326,10 +327,7 @@ class TransportLargePayloadTests(unittest.TestCase):
             primary.stop()
 
         self.assertEqual(primary.port, primary_runtime.port)
-        self.assertNotEqual(secondary_runtime.port, primary_runtime.port)
-        self.assertGreater(secondary_runtime.port, 0)
-        self.assertEqual(secondary.port, secondary_runtime.port)
-        self.assertEqual(secondary_runtime.public_port, secondary_runtime.port)
+        self.assertEqual(secondary.port, primary_runtime.port)
 
     def test_stream_frame_reassembly_dispatches_completed_payload(self) -> None:
         received: list[bytes] = []

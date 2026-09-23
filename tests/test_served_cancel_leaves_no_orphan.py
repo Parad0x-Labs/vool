@@ -18,13 +18,15 @@ from urllib.request import Request, urlopen
 import tests._reader_served_rig as rig
 
 ROOT = Path(__file__).resolve().parents[1]
-FIX = ROOT / "validation-logs" / "comparison-truth-overnight-20260906" / "fixtures" / "comparison"
+FIX = ROOT / "tests" / "fixtures" / "comparison_coverage"
 SHIM = ROOT / "tests" / "fixture_transport"
 
 
 def _slow_manifest(tmp_path: Path) -> Path:
     manifest = json.loads((FIX / "manifest_complete.json").read_text())
     for rule in manifest["rules"]:
+        if rule.get("body_file"):
+            rule["body_file"] = str((FIX / rule["body_file"]).resolve())
         if rule["host"] == "search.yahoo.com":
             rule["delay_s"] = 4.0
     target = tmp_path / "manifest_slow.json"

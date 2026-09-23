@@ -263,7 +263,15 @@ def test_execute_grounded_turn_keeps_a_forbidden_turn_out_of_curiosity_and_paren
     agent.curiosity.maybe_roam.assert_not_called()
 
 
-def test_execute_grounded_turn_uses_app_level_swarm_query_overrides(make_agent, context_result_factory) -> None:
+def test_execute_grounded_turn_uses_app_level_swarm_query_overrides(
+    make_agent, context_result_factory, monkeypatch
+) -> None:
+    # The swarm QUERY_SHARD dispatch is research networking: a production build never sends it,
+    # and tests/test_production_research_boundary.py::test_swarm_query_dispatch_is_gated proves
+    # that fail-closed side. THIS test proves the positive path -- what a research invocation
+    # dispatches and with which arguments -- so it runs under the same explicit opt-in
+    # (VOOL_RESEARCH_NETWORKING=1) that apps.vool_daemon and the research runners export.
+    monkeypatch.setenv("VOOL_RESEARCH_NETWORKING", "1")
     agent = make_agent()
     task, classification, interpreted, persona = _configure_grounded_turn_agent(
         agent,

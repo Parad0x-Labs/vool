@@ -44,6 +44,9 @@ def test_a_shared_predicate_coordination_stays_one_demand(text: str) -> None:
         # The right conjunct opens a DIFFERENT request head: not a shared predicate.
         ("how much gold and what is the weather in Rome", 2),
         ("What is the price of gold and how much silver can I buy with 1 btc?", 2),
+        ("create notes.txt containing hello and what is 2 plus 2?", 2),
+        ("what is 2 plus 2 and what is 7 times 9?", 2),
+        ("create notes.txt containing hello and what is 2 plus 2 and what is 7 times 9?", 3),
     ],
 )
 def test_complete_conjuncts_and_fresh_heads_keep_splitting(text: str, expected_count: int) -> None:

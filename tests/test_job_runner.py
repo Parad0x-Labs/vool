@@ -83,7 +83,7 @@ class JobRunnerTests(unittest.TestCase):
                 with self.assertRaises(KernelIsolationUnavailableError):
                     runner._with_network_isolation(["python3", "-c", "print('x')"])
 
-    def test_linux_unshare_prefix_applied_when_available(self) -> None:
+    def test_network_only_linux_backend_cannot_claim_filesystem_confinement(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             runner = JobRunner(
                 ExecutionPolicy(
@@ -100,8 +100,8 @@ class JobRunnerTests(unittest.TestCase):
             with patch("sandbox.job_runner.os.name", "posix"), patch("sandbox.job_runner.sys.platform", "linux"), patch(
                 "sandbox.job_runner.shutil.which", side_effect=_which
             ), patch("sandbox.job_runner._backend_usable", return_value=True):
-                argv = runner._with_network_isolation(["python3", "-c", "print('x')"])
-                self.assertEqual(argv[:3], ["/usr/bin/unshare", "-n", "--"])
+                with self.assertRaises(KernelIsolationUnavailableError):
+                    runner._with_network_isolation(["python3", "-c", "print('x')"])
 
     def test_macos_sandbox_exec_prefix_applied_when_available(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -129,6 +129,53 @@ class JobRunnerTests(unittest.TestCase):
                 self.assertIn("deny network*", argv[2])
                 self.assertEqual(argv[3], "--")
                 self.assertEqual(argv[4:], ["python3", "-c", "print('x')"])
+
+    def test_linux_declared_reads_are_restored_without_becoming_writable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir).resolve()
+            program = root / "program"
+            program.mkdir()
+            scratch = root / "scratch"
+            scratch.mkdir()
+            peer = root / "peer"
+            peer.mkdir()
+            runner = JobRunner(ExecutionPolicy(workspace_root=program, read_roots=(scratch,)))
+            with patch("sandbox.job_runner.sys.platform", "linux"), patch(
+                "sandbox.job_runner.shutil.which", side_effect=lambda name: "/usr/bin/bwrap" if name == "bwrap" else None
+            ), patch("sandbox.job_runner._backend_usable", return_value=True), patch(
+                "sandbox.job_runner._private_read_roots", return_value=(root,)
+            ):
+                argv = runner._linux_bwrap_prefix([str(program / "run")], ())
+            assert argv is not None
+            mask_index = next(i for i in range(len(argv) - 1) if argv[i:i + 2] == ["--tmpfs", str(root)])
+            for allowed in (program, scratch):
+                bind_index = next(i for i in range(len(argv) - 2)
+                                  if argv[i:i + 3] == ["--ro-bind", str(allowed), str(allowed)])
+                self.assertGreater(bind_index, mask_index)
+            self.assertNotIn("--bind", argv)
+            self.assertNotIn(str(peer), argv)
+            freeze_index = next(i for i in range(len(argv) - 1)
+                                if argv[i:i + 2] == ["--remount-ro", str(root)])
+            self.assertGreater(freeze_index, bind_index)
+
+    def test_linux_private_parent_freezes_after_explicit_write_grants(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir).resolve()
+            workspace = root / "workspace"
+            workspace.mkdir()
+            runner = JobRunner(ExecutionPolicy(workspace_root=workspace))
+            with patch("sandbox.job_runner.sys.platform", "linux"), patch(
+                "sandbox.job_runner.shutil.which", return_value="/usr/bin/bwrap"
+            ), patch("sandbox.job_runner._backend_usable", return_value=True), patch(
+                "sandbox.job_runner._private_read_roots", return_value=(root,)
+            ):
+                argv = runner._linux_bwrap_prefix(["true"], (workspace,))
+            write_index = argv.index("--bind")
+            freeze_index = next(i for i in range(len(argv) - 1)
+                                if argv[i:i + 2] == ["--remount-ro", str(root)])
+            self.assertGreater(freeze_index, write_index)
+            self.assertNotIn(["--remount-ro", str(workspace)],
+                             [argv[i:i + 2] for i in range(len(argv) - 1)])
 
     @unittest.skipUnless(sys.platform == "darwin", "sandbox-exec is macOS-only")
     def test_macos_sandbox_exec_real_execution_succeeds(self) -> None:

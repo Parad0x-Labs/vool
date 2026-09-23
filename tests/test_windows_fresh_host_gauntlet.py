@@ -46,6 +46,6 @@ def test_windows_release_gauntlet_workflow_runs_on_windows() -> None:
     workflow = (REPO_ROOT / ".github" / "workflows" / "windows-release-gauntlet.yml").read_text(encoding="utf-8")
 
     assert "runs-on: windows-latest" in workflow
-    assert 'python -m pip install -e ".[dev]"' in workflow
+    assert 'python -m pip install -e ".[dev,companion,evm]"' in workflow
     assert "Test_VOOL_Windows_Gauntlet.cmd -SkipInstall -SkipBenchmark -Json" in workflow
     assert "dist/windows-gauntlet/*.json" in workflow
