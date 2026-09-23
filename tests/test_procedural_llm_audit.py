@@ -297,7 +297,7 @@ def test_llm_eval_run_blocks_full_gate_when_procedural_audit_fails(monkeypatch, 
     monkeypatch.setattr(
         llm_eval,
         "_regression_payload",
-        lambda baseline_root, inventory: {
+        lambda baseline_root, inventory, pack_timeout_seconds=None: {
             "status": "pass",
             "baseline_path": "",
             "inventory": inventory,
@@ -308,7 +308,7 @@ def test_llm_eval_run_blocks_full_gate_when_procedural_audit_fails(monkeypatch, 
     monkeypatch.setattr(
         llm_eval,
         "_scenario_group_result",
-        lambda name, scenarios: {"category": name, "status": "pass", "scenarios": [], "totals": {"total": 0, "passed": 0, "failed": 0}},
+        lambda name, scenarios, pack_timeout_seconds=None: {"category": name, "status": "pass", "scenarios": [], "totals": {"total": 0, "passed": 0, "failed": 0}},
     )
     monkeypatch.setattr(
         llm_eval,
@@ -339,7 +339,7 @@ def test_llm_eval_run_blocks_full_gate_when_procedural_audit_fails(monkeypatch, 
     monkeypatch.setattr(
         llm_eval,
         "_live_routing_reliability_result",
-        lambda: {"status": "pass", "target": llm_eval.LIVE_ROUTING_RELIABILITY_TARGET},
+        lambda **kwargs: {"status": "pass", "target": llm_eval.LIVE_ROUTING_RELIABILITY_TARGET},
     )
     monkeypatch.setattr(llm_eval, "build_proof_manifest", lambda **kwargs: {"overall_consistent": True})
     monkeypatch.setattr(llm_eval, "write_proof_manifest", lambda path, payload: None)

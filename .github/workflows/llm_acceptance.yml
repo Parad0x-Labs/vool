@@ -26,18 +26,115 @@ concurrency:
 
 jobs:
   llm-acceptance-fast:
+    # Measured full --skip-live-runtime entrypoint (2026-09-23, local parity venv,
+    # 21-target 48h window): ~8.5 min wall clock including a contended CPU. Hosted
+    # runners are slower per core, provisioning adds ~4 min, and the 48h inventory can
+    # grow within a week, so the bound carries wide headroom; without it a single hung
+    # pack burns GitHub's 6-hour default on this runner.
+    timeout-minutes: 120
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history is load-bearing for the 48h regression inventory:
+          # core.llm_eval.collect_recent_llm_inventory walks `git log --since=48h`,
+          # and a depth-1 clone truncates that window to the tip commit whenever
+          # more than one commit lands inside it, silently under-selecting the pack.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install dependencies
+        # Extras parity with the CI Linux shards (ci.yml), which run the same test
+        # files green: the fast lane's selection is a subset of the CI suite (its
+        # scenario targets plus every LLM-keyword-matching tests/ file changed in the
+        # last 48h), so it needs the same provisioning contract. Installing only
+        # .[dev] is what starved the global liquefy conftest fixture of zstandard
+        # (declared under [companion]) and failed every scenario at setup in run
+        # 35600263193; browser and evm cover the inventory-eligible web-render and
+        # wallet test files exactly as they do in CI.
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m pip install -e ".[dev,browser,companion,evm]"
+
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        # Same contract as the CI shards: the 48h inventory can select runtime-lane
+        # tests whose journaled steps execute through the real sandbox runner, whose
+        # Linux confinement is bwrap. Ubuntu 24.04's AppArmor restricts unprivileged
+        # userns, so the package alone leaves the probe failing and those tests fail
+        # closed. Verbatim from ci.yml (measured there, run 35520785157).
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+
+      - name: Provision the served-browser lane (Playwright chromium)
+        # Same contract as the CI shards: the 48h inventory can select web/browser
+        # tests that launch the bundled Chromium, which cannot start under Ubuntu
+        # 24.04's restricted-unprivileged-userns policy without this grant. Verbatim
+        # from ci.yml (measured there, run 35752689216).
+        run: |
+          python -m playwright install --with-deps chromium
+          bins=()
+          while IFS= read -r bin; do
+            [ -n "$bin" ] || continue
+            bins+=("$bin")
+          done < <(find "$HOME/.cache/ms-playwright" -type f \
+            \( -name chrome -o -name chrome-headless-shell \) | sort)
+          if [ "${#bins[@]}" -eq 0 ]; then
+            echo "::error::no chromium binaries in the playwright cache — provisioning drifted"
+            exit 1
+          fi
+          profile_file=/etc/apparmor.d/vool-playwright-chromium
+          {
+            echo 'abi <abi/4.0>,'
+            echo 'include <tunables/global>'
+            i=0
+            for bin in "${bins[@]}"; do
+              echo "profile vool-playwright-chromium-$i $bin flags=(unconfined) {"
+              echo '  userns,'
+              echo '}'
+              i=$((i + 1))
+            done
+          } | sudo tee "$profile_file" >/dev/null
+          if ! sudo apparmor_parser -r "$profile_file"; then
+            echo "chromium profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          probe_fail=0
+          for bin in "${bins[@]}"; do
+            case "$(basename "$bin")" in chrome-headless-shell*) ;; *) continue ;; esac
+            probe_dir=$(mktemp -d)
+            ok=0
+            if timeout -k 5s 60s "$bin" --disable-gpu --no-first-run --no-default-browser-check \
+                 --disable-extensions --disable-background-networking \
+                 "--user-data-dir=$probe_dir" --virtual-time-budget=2000 \
+                 --dump-dom "data:text/html,<title>vool-probe</title>vool-probe" \
+                 >/tmp/vool-chromium-probe.dom 2>/tmp/vool-chromium-probe.err \
+                 && grep -q "vool-probe" /tmp/vool-chromium-probe.dom; then
+              ok=1
+            fi
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::the bundled chromium headless shell cannot render under its own namespace sandbox: $bin"
+              cat /tmp/vool-chromium-probe.err >&2
+              probe_fail=1
+            fi
+            rm -rf "$probe_dir"
+          done
+          exit $probe_fail
 
       - name: Restore previous LLM eval baseline artifact
         env:
@@ -64,9 +161,13 @@ jobs:
           find reports/llm_eval/baselines -maxdepth 2 -type f -print || true
 
       - name: Run fast LLM acceptance gate
+        # --pack-timeout bounds each pytest pack (scenario or 48h regression) so a
+        # single hung pack reports red with its partial evidence instead of
+        # consuming the whole job budget; 1800s is far above any measured pack.
         run: |
           python ops/llm_eval.py \
             --skip-live-runtime \
+            --pack-timeout 1800 \
             --output-root reports/llm_eval/latest \
             --baseline-root reports/llm_eval/baselines
 
@@ -87,18 +188,29 @@ jobs:
   llm-acceptance-live:
     if: github.event_name == 'workflow_dispatch' && inputs.run_live_runtime
     needs: llm-acceptance-fast
+    # Provisional bound: no successful live lane has been measured yet, so this is
+    # deliberate headroom rather than a derived value — tighten it after the first
+    # green live run. It exists so a hung lane cannot occupy the self-hosted runner
+    # for GitHub's 6-hour default.
+    timeout-minutes: 240
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Same inventory-truth requirement as the fast job: the live lane also
+          # reruns the 48h regression pack selected from git history.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Install dependencies
+        # Same extras parity as the fast job: the live lane reruns every fast
+        # section (conftest needs zstandard at setup) plus the live gauntlet.
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m pip install -e ".[dev,browser,companion,evm]"
 
       - name: Verify Ollama model availability
         run: |
@@ -136,6 +248,7 @@ jobs:
           VOOL_OLLAMA_NUM_GPU: "0"
         run: |
           python ops/llm_eval.py \
+            --pack-timeout 3600 \
             --output-root reports/llm_eval/latest \
             --baseline-root reports/llm_eval/baselines \
             --live-run-root artifacts/acceptance_runs/llm_eval_live \

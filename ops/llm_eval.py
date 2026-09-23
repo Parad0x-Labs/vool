@@ -353,10 +353,20 @@ def _preserve_previous_output_bundle(output_root: Path) -> Path | None:
     return _copy_tree_with_timestamp(output_root, status=status)
 
 
-def _scenario_group_result(name: str, scenarios: list[dict[str, str]]) -> dict[str, Any]:
+def _scenario_group_result(
+    name: str,
+    scenarios: list[dict[str, str]],
+    *,
+    pack_timeout_seconds: float | None = None,
+) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for scenario in scenarios:
-        pack = run_pytest_pack(name=scenario["id"], repo_root=REPO_ROOT, targets=[scenario["target"]])
+        pack = run_pytest_pack(
+            name=scenario["id"],
+            repo_root=REPO_ROOT,
+            targets=[scenario["target"]],
+            timeout_seconds=pack_timeout_seconds,
+        )
         results.append(
             {
                 "scenario_id": scenario["id"],
@@ -382,7 +392,7 @@ def _scenario_group_result(name: str, scenarios: list[dict[str, str]]) -> dict[s
     })
 
 
-def _live_routing_reliability_result() -> dict[str, Any]:
+def _live_routing_reliability_result(*, pack_timeout_seconds: float | None = None) -> dict[str, Any]:
     previous = os.environ.get("VOOL_ALLOW_LIVE_OLLAMA_TESTS")
     os.environ["VOOL_ALLOW_LIVE_OLLAMA_TESTS"] = "1"
     try:
@@ -390,6 +400,7 @@ def _live_routing_reliability_result() -> dict[str, Any]:
             name="routing_reliability_live",
             repo_root=REPO_ROOT,
             targets=[LIVE_ROUTING_RELIABILITY_TARGET],
+            timeout_seconds=pack_timeout_seconds,
         )
     finally:
         if previous is None:
@@ -780,9 +791,15 @@ def _regression_payload(
     *,
     baseline_root: Path,
     inventory: dict[str, Any],
+    pack_timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     current_targets = sorted(set(RECENT_48H_BASELINE_TARGETS + inventory["tests"]))
-    current = run_pytest_pack(name="recent_48h_llm_regression", repo_root=REPO_ROOT, targets=current_targets)
+    current = run_pytest_pack(
+        name="recent_48h_llm_regression",
+        repo_root=REPO_ROOT,
+        targets=current_targets,
+        timeout_seconds=pack_timeout_seconds,
+    )
     baseline_path = baseline_root / "recent_48h_regression.json"
     baseline = None
     if baseline_path.exists():
@@ -850,6 +867,11 @@ def _regression_payload(
 def run(args: argparse.Namespace) -> int:
     procedural_seed = int(getattr(args, "procedural_seed", 1337))
     skip_blind_pack = bool(getattr(args, "skip_blind_pack", False))
+    # 0 keeps the historical unbounded behavior for local/manual callers; the acceptance
+    # workflow passes an explicit bound so a single hung pytest pack cannot consume the
+    # whole job and leave no report behind (a timed-out pack reports red, never crashes).
+    pack_timeout = float(getattr(args, "pack_timeout", 0) or 0)
+    pack_timeout_seconds: float | None = pack_timeout if pack_timeout > 0 else None
     output_root = Path(args.output_root).expanduser().resolve()
     baseline_root = Path(args.baseline_root).expanduser().resolve()
     live_run_root = Path(args.live_run_root).expanduser().resolve()
@@ -868,9 +890,13 @@ def run(args: argparse.Namespace) -> int:
     run_id = f"llm-eval-{int(time.time())}"
 
     inventory = collect_recent_llm_inventory(REPO_ROOT, since_hours=48)
-    regression_48h = _regression_payload(baseline_root=baseline_root, inventory=inventory)
-    context_discipline = _scenario_group_result("context_discipline", CONTEXT_SCENARIOS)
-    routing_reliability = _scenario_group_result("routing_reliability", ROUTING_RELIABILITY_SCENARIOS)
+    regression_48h = _regression_payload(
+        baseline_root=baseline_root,
+        inventory=inventory,
+        pack_timeout_seconds=pack_timeout_seconds,
+    )
+    context_discipline = _scenario_group_result("context_discipline", CONTEXT_SCENARIOS, pack_timeout_seconds=pack_timeout_seconds)
+    routing_reliability = _scenario_group_result("routing_reliability", ROUTING_RELIABILITY_SCENARIOS, pack_timeout_seconds=pack_timeout_seconds)
     routing_reliability["fast_status"] = routing_reliability["status"]
     routing_reliability["corpus"] = {
         "total": len(ROUTING_RELIABILITY_CASES),
@@ -878,9 +904,9 @@ def run(args: argparse.Namespace) -> int:
         "master_spec_scope": ["capability router", "historical routing regressions"],
         "master_spec_complete": False,
     }
-    research_quality = _scenario_group_result("research_quality", RESEARCH_SCENARIOS)
-    hive_integrity = _scenario_group_result("hive_integrity", HIVE_SCENARIOS)
-    voolbook_provenance = _scenario_group_result("voolbook_provenance", PROVENANCE_SCENARIOS)
+    research_quality = _scenario_group_result("research_quality", RESEARCH_SCENARIOS, pack_timeout_seconds=pack_timeout_seconds)
+    hive_integrity = _scenario_group_result("hive_integrity", HIVE_SCENARIOS, pack_timeout_seconds=pack_timeout_seconds)
+    voolbook_provenance = _scenario_group_result("voolbook_provenance", PROVENANCE_SCENARIOS, pack_timeout_seconds=pack_timeout_seconds)
 
     blockers: list[str] = []
     live_acceptance: dict[str, Any]
@@ -937,7 +963,7 @@ def run(args: argparse.Namespace) -> int:
             blind_pack_root=blind_pack_root,
             include_blind=not skip_blind_pack,
         )
-        routing_reliability["live"] = _live_routing_reliability_result()
+        routing_reliability["live"] = _live_routing_reliability_result(pack_timeout_seconds=pack_timeout_seconds)
         if routing_reliability["live"]["status"] != "pass":
             routing_reliability["status"] = "fail"
         if live_acceptance["status"] != "pass":
@@ -1081,6 +1107,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--runtime-home", default="")
     parser.add_argument("--workspace-root", default="")
     parser.add_argument("--skip-live-runtime", action="store_true")
+    parser.add_argument(
+        "--pack-timeout",
+        type=float,
+        default=0.0,
+        help="Per-pytest-pack execution bound in seconds (0 = unbounded). A pack that exceeds "
+        "it is terminated and reported as a failure with its partial output.",
+    )
     parser.add_argument("--procedural-seed", type=int, default=1337)
     parser.add_argument("--blind-pack-root", default=str(DEFAULT_BLIND_PACK_ROOT))
     parser.add_argument("--skip-blind-pack", action="store_true")

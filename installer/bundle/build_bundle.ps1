@@ -61,7 +61,7 @@ if ($LASTEXITCODE -ne 0) { throw "Embedded Python pip bootstrap failed." }
 if ($LASTEXITCODE -ne 0) { throw "Embedded Python setuptools/wheel bootstrap failed." }
 & $py -m pip install --no-build-isolation --no-warn-script-location -q `
     pydantic cryptography requests pynacl keyring psutil pyyaml "starlette>=0.37,<2.0" "uvicorn>=0.30,<1.0" solders `
-    pywebview pythonnet "pypdf==6.16.2" "xlrd==2.0.1"
+    pywebview pythonnet "pypdf==6.19.0" "xlrd==2.0.1"
 if ($LASTEXITCODE -ne 0) { throw "Embedded Python runtime dependency installation failed." }
 & $py -m pip check
 if ($LASTEXITCODE -ne 0) { throw "Embedded Python dependency check failed." }

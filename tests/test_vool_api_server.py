@@ -2470,6 +2470,42 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         fake_server.run.assert_called_once()
         self.assertTrue(hasattr(runtime, "shutdown"))
 
+    def test_main_shutdown_leaves_no_wallet_transfer_observer_behind(self) -> None:
+        """main() owns three boot-time background services; its shutdown must stop all three.
+
+        The reminder dispatcher and calendar sync were always stopped in main()'s finally,
+        but the wallet transfer observer was not — and it outlived the server inside any
+        in-process host of main(). Each surviving tick opened the wallet store against
+        whatever database the runtime-continuity authority pointed at, and the store's
+        first-touch schema pass on a fresh per-test database raced unrelated suites'
+        statements with sqlite3.OperationalError("database schema has changed") (CI run
+        35826172976 shard 2, test_turn_context_authority). This guard pins the lifecycle
+        contract so the omission cannot return silently.
+        """
+        from core.wallet import settlement as wallet_settlement
+
+        runtime = RuntimeServices(display_name="VOOL")
+        fake_uvicorn = mock.Mock()
+        fake_server = mock.Mock()
+        fake_uvicorn.Config.return_value = mock.sentinel.config
+        fake_uvicorn.Server.return_value = fake_server
+
+        with mock.patch("apps.vool_api_server._bootstrap", return_value=runtime), mock.patch.dict(
+            "sys.modules",
+            {"uvicorn": fake_uvicorn},
+        ), mock.patch(
+            "sys.argv",
+            ["vool-api-server", "--bind", "127.0.0.1", "--port", "18081"],
+        ):
+            exit_code = main()
+
+        self.assertEqual(exit_code, 0)
+        self.assertFalse(
+            wallet_settlement.observer_state()["alive"],
+            "main() returned but the wallet transfer observer is still running: an in-process "
+            "host of the server would leak per-tick schema writes into every later database",
+        )
+
     @unittest.skipUnless(os.environ.get("VOOL_LIVE_ROUTE_PROOF") == "1", "live route proof only")
     def test_live_trace_route_carries_workstation_deploy_proof(self) -> None:
         server = self._server_with_runtime()
