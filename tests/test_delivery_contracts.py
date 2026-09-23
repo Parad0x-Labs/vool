@@ -88,7 +88,7 @@ def test_ci_shard_step_measures_without_changing_the_verdict_or_the_partition() 
     )
     run_text = " ".join(str(run_step["run"]).split())
     assert "python ops/pytest_timing.py" in run_text
-    assert "--output .verification-logs/shard-${{ matrix.shard }}-timing.json" in run_text
+    assert '--output ".verification-logs/shard-${{ matrix.shard }}-timing.json"' in run_text
     # The pytest invocation the wrapper receives is the one the shard always ran.
     assert "-- -q --tb=short -p no:cacheprovider" in run_text
     assert "$(tr '\\n' ' ' < .verification-logs/shard-${{ matrix.shard }}-files.txt)" in run_text
