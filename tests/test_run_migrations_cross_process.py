@@ -64,15 +64,44 @@ while not go.exists():
 committed, errors = 0, []
 deadline = time.monotonic() + float(sys.argv[4])
 while time.monotonic() < deadline:
+    conn = None
     try:
         conn = get_connection(sys.argv[2])
+        # The caller owns the transaction (storage.db.get_connection's contract).
+        # Measured on the runner (instrumented capture, run 35622837193, SQLite
+        # 3.45.1): the bare autocommit CREATE TABLE below raised
+        # OperationalError SQLITE_SCHEMA (17, "database schema has changed")
+        # exactly once per round, in all four rounds; runs 35615031134 and
+        # 35626506389 leg A showed the same failing assertion. The interleaving
+        # was NOT traced directly: SQLITE_SCHEMA's documented meaning is that
+        # the schema changed after the statement was prepared, so "a concurrent
+        # first-use migration committed while this statement was in flight" is
+        # an inference from that documented semantics. BEGIN IMMEDIATE takes
+        # the database's write lock before the iteration's schema-touching work
+        # (documented SQLite locking -- the production stores already serialize
+        # their write paths on it), so each migration commit lands entirely
+        # before or after the iteration.
+        conn.execute("BEGIN IMMEDIATE")
         conn.execute("CREATE TABLE IF NOT EXISTS committed_probe (v INTEGER NOT NULL)")
         conn.execute("INSERT INTO committed_probe (v) VALUES (?)", (committed,))
         conn.commit()
         conn.close()
+        conn = None
         committed += 1
     except Exception as exc:
         errors.append(type(exc).__name__ + ": " + str(exc)[:80])
+        # The iteration failed: undo its own partial statements and release the
+        # handle. Rollback or close problems are themselves recorded, never
+        # swallowed -- nothing here hides the original finding.
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception as rollback_exc:
+                errors.append(type(rollback_exc).__name__ + ": " + str(rollback_exc)[:80])
+            try:
+                conn.close()
+            except Exception as close_exc:
+                errors.append(type(close_exc).__name__ + ": " + str(close_exc)[:80])
     time.sleep(0.003)
 print(json.dumps({"committed": committed, "errors": len(errors), "error_kinds": sorted(set(errors))[:5]}))
 """
@@ -164,6 +193,46 @@ def test_concurrent_first_use_migrations_lose_no_committed_row_and_poison_no_pro
         assert outcome["present"] == outcome["writer"]["committed"], f"committed rows were rewound: {outcome}"
         assert outcome["integrity"] == "ok", outcome
         assert outcome["snapshot_residue"] == [], outcome
+
+
+def test_a_failed_caller_transaction_rolls_back_its_own_changes_and_committed_rows_survive(
+    tmp_path: Path,
+) -> None:
+    """The caller-owned transaction boundary cuts both ways: a statement that fails
+    inside an explicit BEGIN IMMEDIATE must undo the WHOLE caller transaction --
+    including that transaction's own earlier statements -- while rows committed by
+    earlier transactions survive untouched and the store stays openable."""
+    import sqlite3
+
+    from storage.db import get_connection
+
+    db = tmp_path / "caller-tx.db"
+    committed_conn = get_connection(db)
+    try:
+        committed_conn.execute("BEGIN IMMEDIATE")
+        committed_conn.execute("CREATE TABLE IF NOT EXISTS committed_probe (v INTEGER NOT NULL)")
+        committed_conn.execute("INSERT INTO committed_probe (v) VALUES (1)")
+        committed_conn.commit()
+    finally:
+        committed_conn.close()
+
+    conn = get_connection(db)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("INSERT INTO committed_probe (v) VALUES (2)")
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO committed_probe (v) VALUES (NULL)")
+        conn.rollback()
+    finally:
+        conn.close()
+
+    after = get_connection(db)
+    try:
+        assert int(after.execute("SELECT COUNT(*) FROM committed_probe").fetchone()[0]) == 1
+        assert int(after.execute("SELECT v FROM committed_probe").fetchone()[0]) == 1
+        assert str(after.execute("PRAGMA integrity_check").fetchone()[0]) == "ok"
+    finally:
+        after.close()
 
 
 def test_an_up_to_date_store_is_never_snapshotted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

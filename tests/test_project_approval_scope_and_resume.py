@@ -226,8 +226,12 @@ def test_an_identical_replan_of_an_approved_edit_still_matches_the_token(tmp_pat
     resumed = {**ctx, "mode_approval_token": request["approval_id"]}
     # The re-planned turn writes back the EXACT content the operator approved.
     assert _decide("workspace.write_file", {"path": "one.txt", "content": "hello"}, resumed).effect is PermissionEffect.ALLOW
-    # Still one-time.
-    assert _decide("workspace.write_file", {"path": "one.txt", "content": "hello"}, resumed).effect is PermissionEffect.REQUIRE_APPROVAL
+    # Identical retries in the same task retain the reviewed authority; a new
+    # task does not inherit it. Physical duplicate effects are gated downstream.
+    assert _decide("workspace.write_file", {"path": "one.txt", "content": "hello"}, resumed).effect is PermissionEffect.ALLOW
+    set_active_mode("chat-a", "manual", project_id=project_id, client_turn_id="new-turn")
+    assert _decide("workspace.write_file", {"path": "one.txt", "content": "hello"},
+                   {**resumed, "cancel_turn_id": "new-turn"}, task="new-task").effect is PermissionEffect.REQUIRE_APPROVAL
 
 
 def test_a_replan_that_changes_even_one_byte_of_approved_content_requires_a_new_approval(tmp_path) -> None:
@@ -248,6 +252,10 @@ def test_the_resolved_action_fingerprint_stays_bound_to_session_task_target_and_
     ctx = _context("chat-a", root, project_id)
 
     def approved_token(path: str = "one.txt") -> str:
+        # Each boundary control starts with a fresh approval, not an exact-action
+        # grant left by the previous control in this same task.
+        reset_mode_permission_state()
+        set_active_mode("chat-a", "manual", project_id=project_id, client_turn_id="turn-a")
         request = _decide("workspace.write_file", {"path": path, "content": "x"}, ctx).approval_request
         resolve_approval(request["approval_id"], decision="allow")
         return str(request["approval_id"])

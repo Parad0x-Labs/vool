@@ -389,3 +389,52 @@ def test_machine_protected_record_reopens_without_passphrase_env(monkeypatch, tm
     second = signer_mod.load_or_create_local_keypair()
     assert second.peer_id == peer_first, "the protected record must reopen across restarts"
     assert signer_mod.key_storage_mode() == "encrypted_file"
+
+
+def test_machine_protected_record_reopens_even_with_a_passphrase_env(monkeypatch, tmp_path) -> None:
+    """2026-09-21 CI finding (pollution-matrix child session): an account-file-sealed record
+    and an ambient operator passphrase are two different seals. The loader used to try the
+    operator's key against the fallback's ciphertext and raise InvalidTag — bricking every
+    default-home signer read in a session that inherited VOOL_KEY_PASSPHRASE. The record's
+    own protection stamp decides which seal reopens it."""
+    importlib.reload(signer_mod)
+    _configure_signer_paths(tmp_path)
+    monkeypatch.delenv("VOOL_KEY_STORAGE_MODE", raising=False)
+    monkeypatch.delenv("VOOL_KEY_PASSPHRASE", raising=False)
+    monkeypatch.setattr(signer_mod, "_keyring_backend", lambda: None)  # no backend, no grant path
+
+    first = signer_mod.load_or_create_local_keypair()
+    peer_first = first.peer_id
+    assert signer_mod._record_protection(signer_mod._KEY_RECORD_PATH) == "account_file"
+
+    # The next boot carries an operator passphrase (e.g. a test session's autouse pin) while
+    # the profile still holds the unattended fallback's record and account file.
+    monkeypatch.setenv("VOOL_KEY_PASSPHRASE", "an-operator-secret-that-sealed-nothing")
+    signer_mod._LOCAL_KEYPAIR = None
+    second = signer_mod.load_or_create_local_keypair()
+    assert second.peer_id == peer_first, "the account-file seal must win over an ambient passphrase"
+
+
+def test_passphrase_record_never_falls_back_to_the_account_file(monkeypatch, tmp_path) -> None:
+    """Mirror of the same contract: a user-passphrase record must demand VOOL_KEY_PASSPHRASE
+    even when an unrelated account-file secret sits beside it — falling back would try the
+    wrong seal and surface InvalidTag instead of the operator-actionable message."""
+    importlib.reload(signer_mod)
+    _configure_signer_paths(tmp_path)
+    monkeypatch.setenv("VOOL_KEY_STORAGE_MODE", "file")
+    monkeypatch.setenv("VOOL_KEY_PASSPHRASE", "closed-test-secret")
+    assert signer_mod.load_or_create_local_keypair().peer_id
+    signer_mod._LOCAL_KEYPAIR = None
+
+    # An unattended boot later mints the fallback secret next to the passphrase record.
+    signer_mod._account_file_passphrase()
+    assert signer_mod._ACCOUNT_FILE_PROTECTION_PATH.exists()
+    monkeypatch.delenv("VOOL_KEY_PASSPHRASE", raising=False)
+    signer_mod._LOCAL_KEYPAIR = None
+
+    try:
+        signer_mod.load_or_create_local_keypair()
+    except RuntimeError as exc:
+        assert "VOOL_KEY_PASSPHRASE" in str(exc)
+    else:
+        raise AssertionError("a user_passphrase record must not decrypt via the account-file secret")

@@ -40,7 +40,7 @@ def test_the_client_guards_are_present() -> None:
     assert "if (liveCommit === PAGE_BUILD_COMMIT) return;" in html
     # Marked before location.reload(), so a broken substitution cannot loop the window.
     marked = html.index("sessionStorage.setItem(key, '1');")
-    reloaded = html.index("location.reload();")
+    reloaded = html.index("location.reload();", marked)
     assert marked < reloaded
     # The upgrade is noticed within a minute, not only at load.
     assert "setInterval(" in html and "60000" in html

@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "Bảng tài khoản lịch không tải được.",
     "settings.pane.notifications_missing": "Bảng thông báo không tải được.",
     "settings.pane.extras_missing": "Phần này không tải được.",
-    "settings.pane.wallet_missing": "Giao diện ví không tải được."
+    "settings.pane.wallet_missing": "Giao diện ví không tải được.",
+    "settings.row.accept_hive_tasks.label": "Nhận nhiệm vụ nghiên cứu chung",
+    "settings.row.accept_hive_tasks.help": "Cho phép VOOL nhận việc từ nhóm nhiệm vụ chung khi rảnh. Khi tắt, các tác tử khác vẫn thấy VOOL nhưng VOOL không nhận nhiệm vụ.",
+    "settings.row.accept_hive_tasks.effect": "Áp dụng ngay.",
+    "settings.row.idle_research_assist.label": "Nghiên cứu khi rảnh",
+    "settings.row.idle_research_assist.help": "Cho phép VOOL tiếp tục nghiên cứu câu hỏi đang mở khi bạn không gõ.",
+    "settings.row.idle_research_assist.effect": "Áp dụng ngay.",
+    "settings.row.hive_followups.label": "Thông báo kết quả cho tôi",
+    "settings.row.hive_followups.help": "Hiển thị tin nhắn tiếp nối khi nghiên cứu chung hoàn tất thay vì im lặng.",
+    "settings.row.hive_followups.effect": "Áp dụng từ tin nhắn kế tiếp của bạn. Lượt đang chạy giữ giá trị cũ.",
+    "settings.row.social_commons.label": "Trò chuyện với các tác tử khác",
+    "settings.row.social_commons.help": "Cho phép VOOL tham gia cộng đồng tác tử để cùng trao đổi ý tưởng.",
+    "settings.row.social_commons.effect": "Áp dụng ngay."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

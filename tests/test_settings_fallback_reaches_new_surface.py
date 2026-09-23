@@ -42,7 +42,8 @@ def test_every_supported_entry_path_routes_through_open_settings():
     assert "sBtn.addEventListener('click', openSettings)" in html                      # sidebar button
     assert re.search(r"e\.key === ','\) \{ e\.preventDefault\(\); openSettings\(\); \}", html)  # Cmd+,
     assert "openSettings: () => openSettings()," in html                               # page actions (palette)
-    assert "openSettings('memory')" in html                                             # the tour's "Edit one"
+    assert "openSettings(typeof d.section === 'string' ? d.section : '');" in html    # setup handoff
+    assert "d.type === 'vool-setup-open-settings'" in html
     assert "note.addEventListener('click', openSettings)" in html                       # paid-cloud note
     # The native bridge is still preferred, then the named popup, then the frame.
     body = _function_body(html, "openSettings")

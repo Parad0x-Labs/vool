@@ -54,3 +54,27 @@ def test_a_joint_claim_stays_supported_by_the_two_sources_together() -> None:
 def test_a_year_claim_about_a_named_subject_is_supported_by_its_own_page() -> None:
     status, reasons = _status("The Passat has been produced since 1973.", [PASSAT, GOLF], "1973")
     assert status == "supported", (status, reasons)
+
+
+def test_unrelated_numeric_sources_do_not_contradict_another_subject() -> None:
+    for question, answer, calculation in (
+        ("When did the Berlin Wall fall?", "The Berlin Wall fell in 1989.", "5+5 = 10."),
+        ("When did Apollo 11 land?", "Apollo 11 landed in 1969.", "7*7 = 49."),
+    ):
+        result = match_claims(answer=answer, notes=[{"summary": calculation}], request_text=question)
+        assert len(result.claims) == 1
+        claim = result.claims[0]
+        assert claim.status == "unsupported"  # unrelated evidence provides no support either
+        assert "subject_absent_from_source" in claim.reasons
+        assert not {"value_mismatch", "quantity_mismatch"}.intersection(claim.reasons)
+
+
+def test_conflicting_value_about_the_same_subject_is_still_refused() -> None:
+    result = match_claims(
+        answer="Apollo 11 landed in 1969.",
+        notes=[{"summary": "Apollo 11 landed in 1968."}],
+        request_text="When did Apollo 11 land?",
+    )
+    assert len(result.claims) == 1
+    assert result.claims[0].status == "unsupported"
+    assert "value_mismatch" in result.claims[0].reasons

@@ -247,6 +247,20 @@ def test_a_bound_workspace_allows_first_action_approval_immediately(tmp_path):
     assert chat_workspace_authority_state("chat-bound").get("workspace_root") == payload["scope"]["workspace_root"]
 
 
+@pytest.mark.parametrize("alias", [False, True])
+def test_a_claimed_root_matching_the_binding_grants_only_that_workspace(tmp_path, alias):
+    from core.mode_permission_policy import chat_workspace_authority_state
+
+    ws = _ws(tmp_path)
+    _bind_chat_to_workspace("chat-matching", ws)
+    _pending_workspace_ask("chat-matching", "turn-1", ws)
+    claimed = ws + "/." if alias else ws
+    response = _grant_chat_workspace({"session_id": "chat-matching", "workspace_root": claimed})
+    assert response.status == 200 and response.body["ok"], response.body
+    assert chat_workspace_authority_state("chat-matching")["workspace_root"] == ws
+    assert not chat_workspace_authority_state("another-chat").get("workspace_root")
+
+
 def test_an_unbound_chat_reports_the_stable_unbound_reason(tmp_path):
     """The client's folder-selection flow keys on a code, never on prose."""
     ws = _ws(tmp_path)

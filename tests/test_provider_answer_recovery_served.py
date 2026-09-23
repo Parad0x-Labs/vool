@@ -185,12 +185,31 @@ def _expire_price_cache(daemon) -> None:
 
 @pytest.fixture(scope="module")
 def price_review_journey(tmp_path_factory):
+    class _SealedUsePodDaemon(UsePodServedDaemon):
+        """The recovery journey's daemon, with the live web lane OFF.
+
+        This rig's premise is a sealed network: the synthetic UsePod service is the ONLY
+        remote peer. Measured on CI (run 35777904719, shard 5): with the web lane live, the
+        adaptive-research recognizer widened an ordinary turn (escalate_current_requirement),
+        its live search returned summarizer-tool marketing pages, the widening stood, and the
+        publication gate honestly REFUSED the journey's answer quoting scribbr.com and
+        quillbot.com as the turn's sources. Where the engines answer nothing the widening is
+        retracted and the journey passes -- so the suite's outcome rode on live search
+        results. Only this journey's daemon is sealed: the sibling suites that share
+        UsePodServedDaemon exercise lanes that legitimately ride the web and stay as they
+        are."""
+
+        def env(self) -> dict[str, str]:
+            env = super().env()
+            env["VOOL_DISABLE_WEB"] = "1"
+            return env
+
     token = str(uuid.uuid4())
     service = StrictUsePodService(
         tokens={token: 80_000_000},
         models={MODEL: [Listing("marketplace", MARKET_ID, *MARKET), Listing("centralized", *CENTRAL)]},
     ).start()
-    daemon = UsePodServedDaemon(tmp_path_factory.mktemp("recovery-usepod") / "home")
+    daemon = _SealedUsePodDaemon(tmp_path_factory.mktemp("recovery-usepod") / "home")
     try:
         daemon.start()
         status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})

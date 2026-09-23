@@ -73,8 +73,9 @@ class CountingProvider:
 
     ``system`` is recorded separately from ``messages`` because the dialect can carry the system
     prompt as a top-level field; policy-on-the-wire assertions must see both. Queued replies pop
-    ONLY for answer-lane calls (those carrying ``answer_marker`` in the request), so auxiliary
-    generations of a turn cannot silently consume a scripted answer.
+    ONLY for genuine answer-lane calls — a prompt-bearing request to a CHAT endpoint whose
+    request carries ``answer_marker`` — so capability probes (/api/show) and auxiliary lanes of
+    a turn cannot silently consume a scripted answer.
     """
 
     def __init__(self, table: dict[str, Any], *, answer_marker: str = "") -> None:
@@ -135,15 +136,35 @@ class CountingProvider:
                         }
                     )
                     queue = rig.replies.get(model)
+                    # The answer lane is a CHAT completion carrying a real prompt: /api/chat or
+                    # the OpenAI /v1 chat endpoints. Measured on CI (run 35752689216): the
+                    # daemon ALSO probes /api/show with empty messages mid-turn, and any pop
+                    # rule keyed on less than (chat endpoint AND prompt AND marker) lets those
+                    # probes or auxiliary lanes drain the scripted reply queue differently per
+                    # platform, so the exact-spend assertion below measures the rig, not the
+                    # guard.
+                    is_chat_call = self.path.startswith("/api/chat") or self.path.startswith("/v1/chat")
                     is_answer_lane = (
-                        not rig.answer_marker
-                        or rig.answer_marker in joined
-                        or rig.answer_marker in system_text
+                        bool(joined.strip())
+                        and is_chat_call
+                        and (
+                            not rig.answer_marker
+                            or rig.answer_marker in joined
+                            or rig.answer_marker in system_text
+                        )
                     )
                     if queue and is_answer_lane:
                         reply = str(queue.pop(0))
                     else:
                         reply = str(rig.table.get(model, ""))
+                    # The runtime adjudicates plain knowledge questions for entity ambiguity
+                    # before answering (a garbage judge reply fails CLOSED: the turn ships an
+                    # ask-back and no answer generation runs). This stub must speak the judge
+                    # protocol so the turn reaches the ANSWER lane this suite measures: a
+                    # judge-shaped probe always gets a valid unambiguous verdict, and the
+                    # language assertions keep measuring the answer lane, not the ask-back.
+                    if '"ambiguous": true or false' in joined or '"ambiguous": true or false' in system_text:
+                        reply = '{"ambiguous": false, "referents": [], "clarification": ""}'
 
                 if self.path.startswith("/v1/"):
                     return self._send(
@@ -306,6 +327,17 @@ class C18LanguageParityServed(unittest.TestCase):
                 # Keep the scripted provider the ONLY remote peer: the auxiliary live-research
                 # lane would otherwise consume queued provider replies mid-turn.
                 "VOOL_DISABLE_WEB": "1",
+                # Pin the daemon's persona name. First boot names the assistant from
+                # VOOL_AGENT_NAME, then the operator's real OpenClaw registration, then "VOOL"
+                # (core/onboarding.py ensure_bootstrap_identity) — so without this pin the
+                # answer lane's system prompt says "You are <whatever this machine calls its
+                # agent>", and the stub's answer_marker below only matched on a machine whose
+                # registration renamed the agent. Measured: CI run 35752689216 answered the
+                # turn as "You are VOOL...", the marker never matched, the queued CJK answer
+                # was never served, the guard found nothing to repair, and the exact-spend
+                # assertion read 1 != 2. The rig names the assistant itself so the wire is
+                # identical everywhere.
+                "VOOL_AGENT_NAME": "Atlas",
                 "OLLAMA_HOST": self.local.base_url,
                 "VOOL_OLLAMA_URL": self.local.base_url,
                 "VOOL_OLLAMA_CHAT_URL": f"{self.local.base_url}/api/chat",
@@ -407,7 +439,21 @@ class C18LanguageParityServed(unittest.TestCase):
 
             self.assertEqual(_reply_text(payload), ENGLISH_REPAIR)
             self.assertEqual(
-                self.local.generations_for(LOCAL), 2, "the guard must spend exactly one repair"
+                self.local.generations_for(LOCAL),
+                2,
+                "the guard must spend exactly one repair. Wire calls to the local model: "
+                + json.dumps(
+                    [
+                        {
+                            "path": c["path"],
+                            "prompt": c["prompt"][:100],
+                            "system": c["system"][:100],
+                        }
+                        for c in self.local.calls
+                        if c["model"] == LOCAL
+                    ],
+                    ensure_ascii=False,
+                ),
             )
             self.assertIn("Return the answer in English only", self.local.wire_text(LOCAL, -1))
 

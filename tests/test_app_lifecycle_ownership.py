@@ -54,7 +54,8 @@ def _driver(tmp_path: Path, name: str, body: str, env: dict[str, str] | None = N
 
 
 def _open_log(home_name: str, tmp_path: Path) -> str:
-    log_file = tmp_path / home_name / "Library" / "Application Support" / "VOOL" / "open.log"
+    state = Path("Library/Application Support") if sys.platform == "darwin" else Path(".local/state")
+    log_file = tmp_path / home_name / state / "VOOL" / "open.log"
     return log_file.read_text() if log_file.exists() else ""
 
 

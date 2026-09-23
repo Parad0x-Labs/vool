@@ -196,3 +196,22 @@ out(res);
     assert out["mode"] == "free", "keyboard move mode places the sprite in free mode"
     # Docked home x/y start at 0,0 in the stub; right+down must move it first press.
     assert out["afterKeys"][0] > 0 or out["afterKeys"][1] > 0, out["afterKeys"]
+
+
+def test_docked_home_clears_controls_exposed_by_its_first_move() -> None:
+    result = run_driver(r"""
+window.innerWidth = 1200; window.innerHeight = 800;
+const query = document.querySelector.bind(document);
+const rects = {
+  "#input": {left: 1000, right: 1200, top: 610, bottom: 720, width: 200, height: 110},
+  "#setupLine": {left: 1000, right: 1200, top: 480, bottom: 520, width: 200, height: 40}
+};
+document.querySelector = (s) => rects[s] ? {getBoundingClientRect: () => rects[s]} :
+  (["#send", "#permBar", "#cloudPill", ".tc-stop", ".proj-menu", "#attachStrip"].includes(s) ? null : query(s));
+window.VoolCompanion.dock();
+const layer = document.body.children.find(c => c.id === "companionLayer");
+const sprite = layer.children.find(c => c.attrs && c.attrs.role === "button");
+out({top: parseFloat(sprite.style.top), mode: window.VoolCompanion.pos().mode});
+""")
+    assert result["mode"] == "docked"
+    assert result["top"] + 112 < 480, result

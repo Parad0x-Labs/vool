@@ -17,7 +17,7 @@ class _FakeMemory:
     def __init__(self):
         self.stored: list[str] = []
 
-    def node_store(self, *, content, keywords, tags, context_description, embedding):
+    def node_store(self, *, content, keywords, tags, context_description, embedding, lineage_request_id=""):
         self.stored.append(content)
 
     def close(self):
@@ -32,7 +32,7 @@ def test_store_turn_redacts_secret_before_persist(monkeypatch):
     ensure_chat_namespace("sess", grant_current_receipts=False)
     policy = resolve_memory_access_policy(chat_id="sess")
 
-    cr.store_turn(
+    result = cr.store_turn(
         "sess",
         f"please remember api_key={_SECRET}",
         "noted",
@@ -40,6 +40,7 @@ def test_store_turn_redacts_secret_before_persist(monkeypatch):
     )
 
     # The turn was stored (it is a "remember" request), but the raw key is not in it.
+    assert result["status"] == "stored", result
     assert fake.stored, "high-importance turn should be persisted"
     for content in fake.stored:
         assert _SECRET not in content

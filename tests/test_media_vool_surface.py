@@ -23,7 +23,7 @@ VOOL_MEDIA_FILES = [
     VOOL_ROOT / "core" / "media_studio_chat_tools.py",
     VOOL_ROOT / "core" / "web" / "api" / "media_editor_api.py",
 ]
-NEBULA_ROOT = Path(os.environ.get("NEBULA_MEDIA_HOME", ""))
+NEBULA_ROOT = Path(os.environ.get("NEBULA_MEDIA_HOME") or VOOL_ROOT / "vendor" / "nebula-media")
 
 ffmpeg_ok = bool(shutil.which("ffmpeg"))
 

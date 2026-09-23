@@ -135,7 +135,7 @@ def test_answer_refuses_to_promise_an_exact_cap():
     # It concedes the shape of the promise.
     assert "brake, not a fence" in lowered
     assert "cannot promise" in lowered
-    assert "one call's cost" in lowered
+    assert "several in-flight calls" in lowered
     # It must NOT claim a guarantee.
     assert "i guarantee" not in lowered
     assert "guaranteed" not in lowered
@@ -153,25 +153,24 @@ def test_answer_gives_the_concrete_reasons_not_a_hedge():
 def test_answer_points_at_the_provider_as_the_only_hard_ceiling():
     out = maybe_handle_spend_cap_explainer_intent("what happens if I go over", owner_local=True).lower()
     assert "set it at the provider" in out
-    assert "only real one" in out
+    assert "check its billing terms" in out
     assert "alert is not a cap" in out
 
 
-def test_answer_discloses_that_this_build_s_caps_do_not_yet_bind():
-    """The generic explanation would imply the caps work as designed. On this branch they were
-    measured not to. Saying only the generic part would be a claim this build has not earned."""
-    out = maybe_handle_spend_cap_explainer_intent("how does the spend cap work", owner_local=True)
-    lowered = out.lower()
-    assert "unaudited" in lowered
-    assert "measured not to bind" in lowered
-    assert "$0.00" in out                      # the blind-settlement defect, named
-    assert "concurrent turns" in lowered       # the non-atomic cap, named
-
-
-def test_answer_states_no_custody_and_no_proxying():
+def test_answer_describes_atomic_caps_and_unknown_billing_truthfully():
     out = maybe_handle_spend_cap_explainer_intent("how does the spend cap work", owner_local=True).lower()
-    assert "never hold your money" in out
-    assert "never proxy the call" in out
+    assert "checks are atomic" in out
+    assert "unknown cost is not zero" in out
+    assert "stays held until reconciliation" in out
+    assert "not a spending limit" in out
+    assert "measured not to bind" not in out
+
+
+def test_answer_distinguishes_byok_from_wallet_provider_payments():
+    out = maybe_handle_spend_cap_explainer_intent("how does the spend cap work", owner_local=True).lower()
+    assert "your provider using your key" in out
+    assert "usepod wallet payments" in out
+    assert "these usd ceilings do not govern that lane" in out
 
 
 def test_answer_links_the_written_doc_and_the_doc_exists():
@@ -194,7 +193,7 @@ def test_numbers_come_from_the_real_policy_and_ledger():
                         prompt_tokens=100, output_tokens=100, usd_actual=0.42)
 
     out = maybe_handle_spend_cap_explainer_intent("how does the spend cap work", owner_local=True)
-    assert "of 7 (UTC day)" in out          # the cap the owner actually configured
+    assert "no call-count limit" in out  # the legacy count no longer authorizes spend
     assert "mode: auto" in out
     assert "$0.4200" in out                 # the ledger's real figure, not a placeholder
     assert "$5.00/day" in out               # the real USD ceiling from spend_limits()
@@ -257,3 +256,13 @@ def test_remote_caller_gets_the_truth_but_not_the_machine_state():
     assert "On this machine right now" not in out
     assert "0.42" not in out
     assert "of 7 (UTC day)" not in out
+
+
+def test_answer_shows_unpriced_liability_separately_from_reported_spend():
+    from core.model_spend_ledger import SpendLimits, reserve_spend, settle_spend
+
+    reserve_spend(model_call_id="missing-usage", task_id="t", subtask_id="s", model_id="m",
+                  maximum_usd=0.25, limits=SpendLimits(0.25, 1, 5, 25))
+    settle_spend("missing-usage", actual_usd=None)
+    out = maybe_handle_spend_cap_explainer_intent("how does the spend cap work", owner_local=True)
+    assert "unresolved budget held today: $0.2500 (not a confirmed charge)" in out

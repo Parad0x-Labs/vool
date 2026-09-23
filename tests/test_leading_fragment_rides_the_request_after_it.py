@@ -109,9 +109,10 @@ APART_CONTROLS = [
 
 @pytest.mark.parametrize(("case", "wording", "lane"), LEADING_FRAGMENT_FAMILY, ids=[row[0] for row in LEADING_FRAGMENT_FAMILY])
 def test_a_leading_fragment_rides_the_request_after_it(case, wording, lane):
-    requests = interpret_request(wording).requests
-    # The mint still cuts the leading fragment as a unit of its own: the case exercises the grain.
-    assert len(requests) >= 2, f"{case}: the mint did not cut the leading fragment: {[unit.text for unit in requests]}"
+    interpretation = interpret_request(wording)
+    requests = interpretation.requests
+    # A leading style constraint is a separate unit, but is not another request.
+    assert len(interpretation.units) >= 2, f"{case}: the mint did not cut the leading fragment"
     spans = execution_unit_spans(wording)
     assert [span.text for span in spans] == [wording.strip()], f"{case}: the leading fragment stood apart"
     assert len(spans[0].member_unit_ids) == len(requests), (case, spans[0].member_unit_ids)

@@ -266,13 +266,16 @@ def test_15_round008_and_round010_families_green():
     import os
     import subprocess
     import sys
-    env = dict(os.environ, PYTHONPATH="/Users/example-user/vool/vool-engine")
+    from pathlib import Path
+
+    repository = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, PYTHONPATH=str(repository))
     r = subprocess.run(
         [sys.executable, "-m", "pytest", "-q",
          "tests/test_round008_exact_words_fail_closed.py",
          "tests/test_round010_exact_words_plus_one_repair.py",
          "tests/test_round004_underrun_fallback.py",
          "-p", "no:randomly"],
-        capture_output=True, text=True, cwd="/Users/example-user/vool/vool-engine",
+        capture_output=True, text=True, cwd=repository,
         env=env)
     assert r.returncode == 0, f"historical families red:\n{r.stdout[-1500:]}"

@@ -203,7 +203,7 @@ def _paid_events(events):
     return [
         e["event_type"]
         for e in events
-        if e.get("event_type") in {"paid_call.reserved", "paid_call.settled", "paid_call.released"}
+        if e.get("event_type") in {"paid_call.reserved", "paid_call.settled", "paid_call.released", "paid_call.billing_ambiguous"}
     ]
 
 
@@ -284,9 +284,9 @@ def test_case4_non_owner_paid_pin_denied_no_substitution(anthropic_lane, free_op
 
 
 # ============================================================================================
-# 5. Paid adapter fails after reservation succeeds: no substitution; reservation closes.
+# 5. Paid adapter fails after dispatch: no substitution; uncertain liability stays held.
 # ============================================================================================
-def test_case5_paid_adapter_fails_after_reservation_releases_and_does_not_substitute(anthropic_lane, free_openrouter_lane, monkeypatch) -> None:
+def test_case5_paid_adapter_fails_after_dispatch_retains_hold_and_does_not_substitute(anthropic_lane, free_openrouter_lane, monkeypatch) -> None:
     from core.runtime_task_events import unregister_runtime_event_sink
 
     _set_policy(mode="off", daily_cap=25, free_cloud_enabled=True, auto_free_model="vendor/free-chat:free")
@@ -313,7 +313,9 @@ def test_case5_paid_adapter_fails_after_reservation_releases_and_does_not_substi
         unregister_runtime_event_sink(stream_id)
 
     assert decision.used_model is False and decision.source == "selected_model_blocked"
-    assert _paid_events(events) == ["paid_call.reserved", "paid_call.released"], _paid_events(events)
+    assert _paid_events(events) == ["paid_call.reserved", "paid_call.billing_ambiguous"], _paid_events(events)
+    ambiguous = next(e for e in events if e.get("event_type") == "paid_call.billing_ambiguous")
+    assert ambiguous.get("actual_usd") is None, ambiguous
     assert not any(OPENROUTER_HOST in u for u in urls), f"no free substitute may run: {urls}"
 
 

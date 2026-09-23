@@ -201,6 +201,16 @@ def _is_headless_shell(binary: str) -> bool:
     return os.path.basename(binary).startswith("chrome-headless-shell")
 
 
+_STDERR_TAIL_CHARS = 600
+
+
+def _stderr_tail(stderr: bytes) -> str:
+    """The browser's last words, bounded: enough to name a missing library or a sandbox
+    refusal, never enough to drag a page's worth of output into a typed status."""
+    text = (stderr or b"").decode("utf-8", errors="ignore").strip()
+    return text[-_STDERR_TAIL_CHARS:]
+
+
 class BrowserProfileUnavailableError(RuntimeError):
     """No disposable profile could be created, so nothing was launched.
 
@@ -286,23 +296,28 @@ def _chrome_argv(
     return argv, profile_dir
 
 
-def _run_chrome(argv: list[str], *, timeout_s: float) -> tuple[int, bytes]:
-    """Run the browser and return (returncode, stdout). Kills the whole process group on timeout.
+def _run_chrome(argv: list[str], *, timeout_s: float) -> tuple[int, bytes, bytes]:
+    """Run the browser and return (returncode, stdout, stderr tail). Kills the whole process
+    group on timeout.
 
     `start_new_session` matters: Chrome forks helper processes (GPU, network, renderer), and killing
     only the direct child leaves those helpers alive holding the port and the profile lock. On a
     long-running daemon that leak compounds until the machine runs out of processes.
+
+    stderr is captured (bounded, see `_stderr_tail`) rather than discarded: a browser that exits
+    cleanly-ish with an empty DOM -- chrome-headless-shell on CI Linux, run 35730553862:
+    `browser_empty_dom:rc5` -- is undiagnosable without the one line it printed about why.
     """
 
     process = subprocess.Popen(
         argv,
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         start_new_session=True,
     )
     try:
-        stdout, _ = process.communicate(timeout=timeout_s)
-        return process.returncode, stdout or b""
+        stdout, stderr = process.communicate(timeout=timeout_s)
+        return process.returncode, stdout or b"", stderr or b""
     except subprocess.TimeoutExpired:
         try:
             os.killpg(os.getpgid(process.pid), signal.SIGKILL)
@@ -347,7 +362,7 @@ def _chrome_render_unchecked(
     )
 
     try:
-        returncode, raw = _run_chrome(argv, timeout_s=timeout_s)
+        returncode, raw, stderr_raw = _run_chrome(argv, timeout_s=timeout_s)
     except subprocess.TimeoutExpired:
         _cleanup_isolated_profile(profile_dir)
         return {"status": "browser_timeout", "final_url": url}
@@ -359,8 +374,14 @@ def _chrome_render_unchecked(
     html_text = raw.decode("utf-8", errors="ignore")
     if not html_text.strip():
         # A zero-byte DOM with a clean exit code is still a failed render; reporting it as "ok"
-        # with empty text would let an empty page be cited as evidence.
-        return {"status": f"browser_empty_dom:rc{returncode}", "final_url": url}
+        # with empty text would let an empty page be cited as evidence. The browser's own last
+        # words ride along, bounded, because the exit code alone has proven not enough to act on
+        # (rc5 with no output told us nothing about WHY the headless shell printed nothing).
+        return {
+            "status": f"browser_empty_dom:rc{returncode}",
+            "final_url": url,
+            "stderr_tail": _stderr_tail(stderr_raw),
+        }
 
     from tools.web.http_fetch import strip_html
 

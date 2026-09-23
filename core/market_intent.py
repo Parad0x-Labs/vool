@@ -507,6 +507,25 @@ def market_quote_intent_present(text: str) -> bool:
     return market_semantics_present(text) or _has_unnegated_match(text, _RECENCY_RE)
 
 
+def market_attribute_coordination_ranges(text: str) -> tuple[tuple[int, int], ...]:
+    """Quote fields sharing a following object are one request, not separate demands.
+
+    "price and daily change for silver" shares the asset across both fields.
+    Protect only the field coordination: an asset already on either side, another
+    request verb, or a different domain must keep its own boundary.
+    """
+    attribute = (
+        r"(?:(?:the|current|latest|spot)\s+)*"
+        r"(?:prices?|quotes?|(?:daily\s+|24[- ]hours?\s+|24h\s+)?"
+        r"(?:percentage\s+|percent\s+)?changes?|market\s+caps?)"
+    )
+    coordinated = re.compile(
+        rf"\b{attribute}(?:\s*(?:,\s*(?:and\s+)?|and\s+){attribute})+\s+(?:of|for)\b",
+        re.IGNORECASE,
+    )
+    return tuple((match.start(), match.end()) for match in coordinated.finditer(str(text or "")))
+
+
 def market_terms_are_negated(text: str) -> bool:
     """True when the message names market terms and EVERY one of them is explicitly negated.
 

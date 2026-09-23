@@ -575,14 +575,14 @@ def _response_cost_estimate(manifest: Any, response: Any) -> Any | None:
         return None
 
 
-def _response_actual_usd(manifest: Any, response: Any) -> float:
-    """The USD to settle this response's reservation at. See :func:`_response_cost_estimate`.
+def _response_actual_usd(manifest: Any, response: Any) -> float | None:
+    """Return a priceable amount, or None so missing usage retains the budget hold."""
+    from core.model_pricing import BASIS_NO_USAGE
 
-    Falls back to 0.0 only when pricing itself is unavailable, which is bounded: the reservation's
-    own ceiling is what keeps standing against the caps when no number can be named.
-    """
     estimate = _response_cost_estimate(manifest, response)
-    return float(getattr(estimate, "usd", 0.0) or 0.0)
+    if estimate is None or getattr(estimate, "basis", "") == BASIS_NO_USAGE:
+        return None
+    return float(estimate.usd)
 
 
 @dataclass

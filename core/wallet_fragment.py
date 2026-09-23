@@ -1592,8 +1592,8 @@ function openSheet(p, cardControls, cardResult, opener){
     }
     var details = renderDetailsToggle();
     sheetRow(details, 'value_note', 'Funds', f.value_note);
-    sheetRow(details, 'from', 'From', (f.from_label ? f.from_label + ' · ' : '') + f.from_address);
-    sheetRow(details, 'to', 'To', f.to_address);
+    identRow(details, 'from', 'From', f.from_address, {prefix: f.from_label ? f.from_label + ' · ' : ''});
+    identRow(details, 'to', 'To', f.to_address, {note: f.recipient_saved ? f.recipient_label : 'unsaved address'});
     if (f.token_transfer) {
       // a token payment spends two assets: the principal in the token, the network fee in the gas asset
       sheetRow(details, 'balance', 'Current balance', f.principal_balance_human + ' ' + f.display_symbol + ' · ' + f.fee_balance_human + ' ' + f.gas_asset + ' for fees · observed at ' + f.balance_ref);

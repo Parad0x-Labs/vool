@@ -6,6 +6,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -99,6 +100,13 @@ def _seatbelt_subpath_literal(path: Path) -> str:
     # Seatbelt string literals are double-quoted; escape embedded quotes/backslashes.
     escaped = str(path).replace("\\", "\\\\").replace('"', '\\"')
     return f'(subpath "{escaped}")'
+
+
+def _private_read_roots() -> tuple[Path, ...]:
+    """Private host trees hidden unless the policy names a specific read or write root."""
+    candidates = (Path.home(), Path(tempfile.gettempdir()), Path("/tmp"), Path("/var/tmp"))
+    return tuple(dict.fromkeys(path.resolve() for path in candidates
+                               if path.is_dir() and path.resolve() != Path(path.anchor)))
 
 
 def _sensitive_read_deny_roots() -> list[Path]:
@@ -215,12 +223,9 @@ def _macos_confined_profile(
     # other worktrees, the operator's checkout, `~/.npmrc`, `~/.cargo/credentials` and a
     # downloads folder full of exports were on nobody's list, and a build script does not need
     # a path to be listed to read it.
-    home_deny = ""
-    try:
-        home_deny = "".join(_seatbelt_subpath_literal(v) for v in _path_variants(Path.home()))
-    except (OSError, RuntimeError):
-        home_deny = ""
-    home_deny_clause = f"(deny file-read-data {home_deny})" if home_deny else ""
+    private_deny = "".join(_seatbelt_subpath_literal(v)
+                           for root in _private_read_roots() for v in _path_variants(root))
+    private_deny_clause = f"(deny file-read-data {private_deny})" if private_deny else ""
     read_back = "".join(
         _seatbelt_subpath_literal(variant)
         for root in (*read_roots, *allowed_roots)
@@ -244,7 +249,7 @@ def _macos_confined_profile(
         f"{network_clause}"
         "(deny file-write*)"
         f"(allow file-write* {allow_clauses})"
-        f"{home_deny_clause}"
+        f"{private_deny_clause}"
         f"{read_back_clause}"
         f"{secret_deny_clause}"
         f"{protection_clause}"
@@ -597,7 +602,7 @@ class JobRunner:
         if isolated is not None:
             return isolated
         # No OS-enforced backend on this host, in ANY mode. macOS has sandbox-exec and Linux
-        # has bwrap/unshare/firejail, so reaching here means no kernel enforcement is possible
+        # has bwrap, so reaching here means no kernel enforcement is possible
         # — and there is no longer a mode that answers that by running the job anyway.
         # `heuristic_only` now relaxes NETWORK trust only; it never relaxes confinement, and on
         # a host with no backend it refuses exactly like the other two.
@@ -605,8 +610,8 @@ class JobRunner:
 
     def _no_kernel_isolation_message(self) -> str:
         base = (
-            "OS-level network isolation is required but unavailable "
-            "(expected one of: bwrap, unshare, firejail on Linux; sandbox-exec on macOS). "
+            "OS-level filesystem confinement and network isolation are required but unavailable "
+            "(expected bwrap on Linux; sandbox-exec on macOS). "
             "A backend may be installed and still unusable: containers and CI runners commonly "
             "ship util-linux but deny the namespace syscall, so each backend is probed for whether "
             "it actually runs, not merely for whether it is on PATH."
@@ -617,7 +622,7 @@ class JobRunner:
             # operator can make an informed choice instead of guessing.
             return (
                 f"{base} Windows has no kernel confinement backend, so executable tools cannot "
-                "run here at all: run VOOL under WSL2/Linux so bwrap/unshare/firejail provide "
+                "run here at all: run VOOL under WSL2/Linux so bwrap provides "
                 "kernel-enforced confinement. There is deliberately no override — the only thing "
                 "an override could buy is running the job with no boundary while still calling "
                 "it sandboxed."
@@ -634,12 +639,7 @@ class JobRunner:
         isolated = self._linux_bwrap_prefix(argv, allowed_roots)
         if isolated is not None:
             return isolated
-        isolated = self._linux_unshare_prefix(argv)
-        if isolated is not None:
-            return isolated
-        isolated = self._linux_firejail_prefix(argv)
-        if isolated is not None:
-            return isolated
+        # Network-only wrappers cannot enforce the filesystem contract.
         # macOS: real kernel-enforced network denial via Seatbelt (sandbox-exec).
         return self._macos_sandbox_exec_prefix(argv, allowed_roots)
 
@@ -651,7 +651,7 @@ class JobRunner:
         `unshare -n` and firejail's `--net=none` only ever express network isolation, so they
         offer nothing here -- only bwrap (`--ro-bind / /` plus selective `--bind`) and macOS
         Seatbelt can express "confine writes, permit network" independently. `None` means neither
-        backend exists on this host; the caller falls back to the bare static argv-guard.
+        backend exists on this host; the caller refuses the command.
         """
         isolated = self._linux_bwrap_prefix(argv, allowed_roots, deny_network=False)
         if isolated is not None:
@@ -674,8 +674,13 @@ class JobRunner:
             [sandbox_exec, "-p", "(version 1)(allow default)(deny network*)", "--", "true"],
         ):
             return None
+        # An explicitly selected executable may live in a private tool directory.
+        # Grant that file, never arbitrary path arguments or its unrelated siblings.
+        executable = shutil.which(argv[0]) if argv else None
+        program_reads = (Path(executable).resolve(),) if executable else ()
         profile = _macos_confined_profile(
-            allowed_roots, deny_network=deny_network, read_roots=tuple(self.policy.read_roots or ())
+            allowed_roots, deny_network=deny_network,
+            read_roots=(*tuple(self.policy.read_roots or ()), *program_reads)
         )
         return [sandbox_exec, "-p", profile, "--", *list(argv)]
 
@@ -719,32 +724,29 @@ class JobRunner:
         # which is the canonical way and gives children the null/zero/random/urandom a
         # toolchain opens without lending them any of the host's device nodes.
         cmd += ["--dev", "/dev"]
+        # /tmp is private above; host home and other temp trees are private too.
+        # Restore the policy's declared read roots BEFORE writable roots. Without these
+        # read binds a read-only plugin in /tmp cannot even execute its own handler.
+        private_roots = tuple(dict.fromkeys((Path("/tmp"), *_private_read_roots())))
+        for root in private_roots:
+            if root != Path("/tmp"):
+                cmd += ["--tmpfs", str(root)]
+        executable = shutil.which(argv[0]) if argv else None
+        program_reads = (Path(executable).resolve(),) if executable else ()
+        for root in dict.fromkeys((*self.policy.read_roots, self.policy.workspace_root, *program_reads)):
+            resolved = Path(root).resolve()
+            if resolved.exists():
+                cmd += ["--ro-bind", str(resolved), str(resolved)]
         for root in allowed_roots:
             resolved = str(root.resolve() if isinstance(root, Path) else Path(root).resolve())
             cmd += ["--bind", resolved, resolved]
+        # Mountpoint parents created inside the private tmpfs trees are otherwise
+        # writable. A child could report an unauthorized write there even though
+        # the file disappears with its namespace. Freeze those trees after all
+        # mountpoints exist; separately mounted write grants remain writable.
+        write_paths = tuple(Path(root).resolve() for root in allowed_roots)
+        for root in private_roots:
+            if not any(root == allowed or root.is_relative_to(allowed) for allowed in write_paths):
+                cmd += ["--remount-ro", str(root)]
         cmd += ["--", *list(argv)]
         return cmd
-
-    def _linux_unshare_prefix(self, argv: list[str]) -> list[str] | None:
-        if os.name != "posix":
-            return None
-        if not sys.platform.startswith("linux"):
-            return None
-        unshare = shutil.which("unshare")
-        if not unshare:
-            return None
-        if not _backend_usable("unshare", [unshare, "-n", "--", "true"]):
-            return None
-        return [unshare, "-n", "--", *list(argv)]
-
-    def _linux_firejail_prefix(self, argv: list[str]) -> list[str] | None:
-        if os.name != "posix":
-            return None
-        if not sys.platform.startswith("linux"):
-            return None
-        firejail = shutil.which("firejail")
-        if not firejail:
-            return None
-        if not _backend_usable("firejail", [firejail, "--net=none", "--quiet", "--", "true"]):
-            return None
-        return [firejail, "--net=none", "--quiet", "--", *list(argv)]

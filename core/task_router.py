@@ -751,6 +751,12 @@ _SEQUENCE_FORMAT_QUALIFIER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Output clauses have a closed vocabulary too: a mention of "list" must not
+# absorb a second request, and a format tail must not discard unknown work.
+_SEQUENCE_PRESENTATION_WORDS = frozenset(
+    ["output", "print", "return", "respond", "answer", "reply", "show", "give", "display", "format", "render", "state", "write", "tell", "what", "whats", "what's", "how", "is", "are", "does", "do", "me", "the", "a", "an", "my", "your", "of", "with", "in", "as", "at", "to", "but", "exactly", "only", "final", "resulting", "list", "array", "sequence", "seq", "vector", "stack", "queue", "numbers", "values", "value", "elements", "contents", "content", "result", "it", "now", "look", "looks", "like", "brackets", "bracket", "bracketed", "commas", "comma", "spaces", "space", "no", "absolutely", "punctuation", "end", "markdown", "explanation", "prose", "extra", "text", "nothing", "else", "verbatim", "raw", "one", "single", "line", "on", "without", "e", "g", "example", "json"]
+)
+
 #: Compact rendering is used only when the turn ASKS for it: "no spaces", an example like
 #: "[1,2,3] format" / "[1,2,3]-style", or "in brackets".
 _SEQUENCE_COMPACT_RE = re.compile(
@@ -868,6 +874,12 @@ def evaluate_sequence_ops_request(text: str) -> str | None:
     subject_match = _SEQUENCE_SUBJECT_RE.search(body[: declaration.start("list")])
     if not subject_match:
         return None
+    prefix = body[:subject_match.start()]
+    if not re.fullmatch(r"(?:(?:ok|okay|so|please|my|the|this)\b[\s,]*)*", prefix, re.IGNORECASE):
+        return None
+    # Only an optional sequence name may sit between its noun and declaration.
+    if not re.fullmatch(r"\s*(?:[A-Za-z]\w{0,15})?\s*", body[subject_match.end():declaration.start()]):
+        return None
     # The declared subject's own tokens ("Array Q" -> array, q) count as on-topic below: a
     # question naming the subject ("What is Q now?") is about the list by definition, and the
     # generic topic vocabulary cannot enumerate every name a user gives a list. Single letters
@@ -900,20 +912,15 @@ def evaluate_sequence_ops_request(text: str) -> str | None:
             continue
         if _SEQUENCE_OUTPUT_DIRECTIVE_RE.match(segment) or _SEQUENCE_QUESTION_RE.match(segment):
             segment_words = {word.lower() for word in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", segment)}
-            if _SEQUENCE_OUTPUT_TOPIC_RE.search(segment) or (subject_tokens & segment_words):
-                # Everything after the output directive is presentation, not operations. The
-                # directive's own comma-split tail ("commas", "but with absolutely no spaces
-                # (e", "[example])", "No punctuation at the end") arrived here as pseudo-steps
-                # and each declined the whole turn -- measured on the operator's real phrasing,
-                # which the lane's own paraphrased corpus never caught. A REAL step appearing
-                # after the directive still executes (fullmatch below); only unrecognized
-                # fragments are skipped once the directive has been seen.
+            if ((_SEQUENCE_OUTPUT_TOPIC_RE.search(segment) or (subject_tokens & segment_words))
+                    and segment_words <= (_SEQUENCE_PRESENTATION_WORDS | subject_tokens)):
                 in_format_tail = True
                 continue
             return None
         applied = _apply_sequence_step(segment, values)
         if applied is None:
-            if in_format_tail:
+            words = {word.lower() for word in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", segment)}
+            if in_format_tail and words and words <= _SEQUENCE_PRESENTATION_WORDS:
                 continue
             return None
         values = applied

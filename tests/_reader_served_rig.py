@@ -404,7 +404,12 @@ class ServedDaemon:
             "'timeout_seconds': 120, 'health_timeout_seconds': 5, 'temperature': 0.0, "
             "'supports_json_mode': False, 'supports_json_schema': False, 'context_window': 8192, "
             "'native_ollama_chat': True},\n"
-            f"    metadata={{'input_modalities': {(['text', 'image'] if self.vision else ['text'])!r}}},\n"
+            f"    metadata={{'input_modalities': {(['text', 'image'] if self.vision else ['text'])!r}, "
+            # The stub carries no weights: without a declared footprint the name-based estimator
+            # budgets it like an 8B model (7.5 GB), which the router's enforce_hardware_fit pass
+            # then excludes wholesale on smaller-RAM hosts (measured: the macOS CI runner lost
+            # every pinned stub lane to model_exceeds_hardware_budget). Declare the truth.
+            "'ram_budget_gb': 0.5, 'vram_budget_gb': 0.5},\n"
             "    enabled=True,\n"
             "))\n"
             "print('registered')\n"

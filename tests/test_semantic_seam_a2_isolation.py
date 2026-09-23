@@ -330,6 +330,8 @@ _ROOT = Path(__file__).resolve().parents[1]
 _FRESH_PROBE = f"""
 import sys
 sys.path.insert(0, {str(_ROOT)!r})
+from storage.migrations import run_migrations
+run_migrations()  # Fresh processes bootstrap their durable admission store before use.
 from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
 turn_id, content = sys.argv[1], sys.argv[2]
 reset_admission()

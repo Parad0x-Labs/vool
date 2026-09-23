@@ -494,10 +494,9 @@ def test_symlink_escape_writes_nothing(make_agent, tmp_path: Path) -> None:
 def test_mixed_write_and_weather_preserves_both_demands(make_agent, tmp_path: Path) -> None:
     """The audit's mixed shape: the write is deterministic; the live unit gets a typed outcome.
 
-    On a network-enabled runtime the weather unit answers from wttr.in. In this harness web
-    lookup is disabled, and the lane's honest TYPED decline is the correct outcome for that
-    unit — what must never happen is the write swallowing the question or the question's text
-    landing in the file.
+    In this harness fallback retrieval is disabled and no model is available. The composite
+    must name the unanswered weather demand alongside the completed write. A fast-path
+    refusal alone is not terminal: other typed retrieval lanes may still serve the demand.
     """
     agent = _make_agent(make_agent)
     result = _run(
@@ -511,19 +510,49 @@ def test_mixed_write_and_weather_preserves_both_demands(make_agent, tmp_path: Pa
     assert target.exists(), f"the write demand was lost; served result said: {result.get('response')!r}"
     assert target.read_text(encoding="utf-8") == "hello", "the question text must not leak into the file"
     answer = str(result.get("response") or "")
-    answered = "kaunas:" in answer.lower() or "live web lookup is disabled" in answer.lower()
-    assert answered, (
-        f"the live unit must be served (or typed-declined where web is off); got: {answer[:400]!r}"
-    )
+    assert "I could not answer this part of your message:" in answer, answer
+    assert "tell me the weather in Kaunas" in answer, answer
 
 
-def test_mixed_write_and_question_preserves_both_demands(make_agent, tmp_path: Path) -> None:
+def test_mixed_write_and_weather_serves_the_observed_reading(make_agent, tmp_path, monkeypatch, enable_web):
+    from retrieval.web_adapter import WebAdapter
+
+    searches = []
+
+    def weather_search(query, **_kwargs):
+        searches.append(query)
+        return [{"summary": "Kaunas: Cloudy, 11 C. Observed 09:00 AM.",
+                 "source_label": "wttr.in", "origin_domain": "wttr.in",
+                 "result_title": "Weather for Kaunas", "result_url": "https://wttr.in/Kaunas",
+                 "used_browser": False}]
+
+    monkeypatch.setattr(WebAdapter, "search_query", weather_search)
+    result = _run(_make_agent(make_agent), "create notes.txt containing hello and tell me the weather in Kaunas",
+                  tmp_path, session_id="sfw-weather-observed")
+    assert (tmp_path / "notes.txt").read_bytes() == b"hello"
+    assert searches and all("kaunas" in query.lower() for query in searches), searches
+    answer = str(result.get("response") or "")
+    assert "Cloudy" in answer and "11 C" in answer, answer
+    assert "could not answer" not in answer, answer
+
+
+@pytest.mark.parametrize(("content", "expected"), [
+    ('"hello and what is 2 plus 2?"', '"hello and what is 2 plus 2?"'),
+    ('exactly: hello and what is 2 plus 2?', 'hello and what is 2 plus 2?'),
+])
+def test_explicit_literal_content_does_not_become_a_sibling_question(make_agent, tmp_path, content, expected):
+    result = _run(_make_agent(make_agent), f"create notes.txt containing {content}", tmp_path, session_id="sfw-literal-question")
+    _assert_one_typed_write(result, tmp_path, "notes.txt", expected)
+
+
+@pytest.mark.parametrize(("question", "expected"), [("what is 2 plus 2?", "4"), ("what is 7 times 9?", "63")])
+def test_mixed_write_and_question_preserves_both_demands(make_agent, tmp_path: Path, question: str, expected: str) -> None:
     """The original mixed phrasing, connective and all: the write unit executes and the
     math unit is answered deterministically — neither demand is swallowed."""
     agent = _make_agent(make_agent)
     result = _run(
         agent,
-        "create notes.txt containing hello and what is 2 plus 2?",
+        f"create notes.txt containing hello and {question}",
         tmp_path,
         session_id="sfw-mixed-math",
     )
@@ -532,7 +561,7 @@ def test_mixed_write_and_question_preserves_both_demands(make_agent, tmp_path: P
     assert target.exists(), f"the write demand was lost; served result said: {result.get('response')!r}"
     assert target.read_text(encoding="utf-8") == "hello", "the question text must not leak into the file"
     answer = str(result.get("response") or "")
-    assert "4" in answer, f"the unrelated question must still be answered; got: {answer[:400]!r}"
+    assert expected in answer, f"the unrelated question must still be answered; got: {answer[:400]!r}"
 
 
 # --------------------------------------------------------------------------------------------

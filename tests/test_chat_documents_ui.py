@@ -602,6 +602,20 @@ def test_served_end_to_end_paste_door_retained_bytes_receipt_restart_retry_and_d
     assert receipt[0]["id"] == doc_id and receipt[0]["document"] is True and receipt[0]["sha256"] == hashlib.sha256(on_disk).hexdigest()
     # Retry: the last turn sent again (the page's own resend path, same turn id) re-binds the
     # released document and the runtime is handed the same bytes; nothing is bound twice.
+    # The page's resend precondition first: resendLastTurn silently returns while the chat is
+    # still busy — the answer bubble loses .pending at the FIRST content chunk, but the run only
+    # ends and releases its slot when the NDJSON stream closes, and the waits above can pass
+    # inside that window (measured, CI run 35752689216 shard 4: the resend no-oped there and the
+    # retry never reached the runtime). A user drives the affordance of an ended turn; the rig
+    # meets the same bar before driving the function directly.
+    page.wait_for_function(
+        """() => {
+             const st = chatStates[displayedChat];
+             const run = st && st.run;
+             return !!(run && run.ended && run.released) && !isChatBusy(displayedChat);
+           }""",
+        timeout=30000,
+    )
     page.evaluate("() => resendLastTurn(displayedChat)")
     page.wait_for_function("() => document.querySelectorAll('.msg.assistant:not(.pending)').length === 1 && document.querySelectorAll('.msg.user').length === 1", timeout=30000)
     page.wait_for_timeout(500)

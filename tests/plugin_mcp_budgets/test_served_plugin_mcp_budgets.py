@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import threading
+import uuid
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -153,6 +154,19 @@ def served(tmp_path: Path, request):
         env_extra["VOOL_MCP_CONFIG"] = str(_mcp_config(tmp_path, mcp_cwd))
 
     provider = ScriptedProvider({MODEL: "no script"}, after_tool_result={MODEL: "unused: the runtime renders the tool result itself"})
+    provider.budget_scripts = {}
+
+    def reply_for_request(body):
+        messages = body.get("messages") or []
+        if any(message.get("role") == "tool" for message in messages):
+            return None
+        prompt = " ".join(str(message.get("content") or "") for message in messages)
+        with provider._lock:
+            matches = [(prompt.rfind(marker), reply) for marker, reply in provider.budget_scripts.items()
+                       if marker in prompt]
+        return max(matches, key=lambda entry: entry[0])[1] if matches else None
+
+    provider.reply_fn = reply_for_request
     daemon = ServedDaemon(
         home,
         env_extra={
@@ -199,16 +213,16 @@ def served(tmp_path: Path, request):
 
 
 def _turn(daemon: ServedDaemon, provider: ScriptedProvider, *, session: str, tool: str, arguments: dict, text: str, ask: str = "") -> dict:
-    provider.table[MODEL] = _call(tool, arguments, f"call-{session}")
-    # Repair-demand phrasing: neutral asks are claimed by front-door fast paths before any
-    # model runs (measured in the served plugin journeys); naming the tool inside a failure-
-    # repair demand is the phrasing proven to reach the served model tool loop.
+    marker = "budget-request-" + uuid.uuid4().hex
+    with provider._lock:
+        provider.budget_scripts[marker] = _call(tool, arguments, marker)
+    # Ask for the registered effect itself. A coding-repair request correctly opens a
+    # code task and requires its reproduction/approval workflow before any mutation.
     payload = daemon.chat(
-        ask
-        or (
-            f"Find why this test fails, repair the root cause by using {tool.replace('__', '.')} "
-            f"({text}), run the focused test, and show me the evidence."
-        ),
+        (ask or (
+            f"Run the registered tool {tool.replace('__', '.')} to {text}. "
+            f"Use these exact arguments: {json.dumps(arguments)}"
+        )) + f" Request reference: {marker}.",
         session_id=session,
         model=MODEL,
         mode="auto",

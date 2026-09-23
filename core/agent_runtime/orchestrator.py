@@ -191,6 +191,13 @@ def synthesis_echoes_prior_reply(output_text: str, conversation_history: list[di
     return False
 
 
+def _step_succeeded(step: dict[str, Any]) -> bool:
+    """A recorded attempt is not proof that its requested work completed."""
+    if "ok" in step:
+        return step["ok"] is True
+    return str(step.get("status") or "").lower() in {"executed", "ok", "success"}
+
+
 def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]) -> str:
     structured = getattr(synthesis, "structured_output", None)
     if isinstance(structured, dict):
@@ -215,9 +222,10 @@ def tool_loop_final_message(synthesis: Any, executed_steps: list[dict[str, Any]]
         observation_message = _git_summary_observation_message(last_step)
         if observation_message:
             return observation_message
+        completed = sum(_step_succeeded(step) for step in executed_steps)
         return (
-            f"Completed {len(executed_steps)} real tool step{'s' if len(executed_steps) != 1 else ''}. "
-            f"Last result: {str(last_step.get('summary') or 'tool execution finished').strip()}"
+            f"{completed} of {len(executed_steps)} tool steps succeeded. "
+            f"Last result: {str(last_step.get('summary') or last_step.get('status') or 'outcome unconfirmed').strip()}"
         )
     return "I ran the available tools, but I do not have a grounded final synthesis yet."
 
@@ -238,10 +246,10 @@ def render_tool_loop_response(
         _normalized_reply_text(str(executed_steps[-1].get("summary") or "")) in _normalized_reply_text(message)
     ):
         return message
-    lines = ["Real steps completed:"]
+    lines = ["Real steps completed:" if all(_step_succeeded(step) for step in executed_steps) else "Tool results:"]
     for step in executed_steps:
         tool_name = str(step.get("tool_name") or "tool").strip()
-        summary = str(step.get("summary") or step.get("status") or "completed").strip()
+        summary = str(step.get("summary") or step.get("status") or "outcome unconfirmed").strip()
         lines.append(f"- {tool_name}: {summary}")
     if message:
         lines.extend(["", message])
@@ -254,7 +262,8 @@ def tool_intent_loop_workflow_summary(
     provider_id: str | None,
     validation_state: str,
 ) -> str:
-    lines = [f"- model-driven tool loop executed {len(executed_steps)} real step{'s' if len(executed_steps) != 1 else ''}"]
+    completed = sum(_step_succeeded(step) for step in executed_steps)
+    lines = [f"- tool loop returned {len(executed_steps)} results; {completed} steps succeeded"]
     if executed_steps:
         step_chain = " -> ".join(str(step.get("tool_name") or "tool").strip() for step in executed_steps[:6])
         if step_chain:

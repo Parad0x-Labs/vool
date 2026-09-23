@@ -10,6 +10,7 @@ projection, revocation and reconciliation over real HTTP.
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -137,6 +138,13 @@ def test_the_daemon_serves_money_state_written_by_independent_processes_and_keep
         except Exception as exc:  # pragma: no cover - environment gate, stated in the skip
             pytest.skip(f"served daemon could not boot here: {exc}")
         restarted = None
+        # The journey pins the process runtime state to the served home (probe.configure_home).
+        # The race children seal their node signer record under THAT home with their own
+        # passphrase, so if the pin outlives this test, the next signer reload in this pytest
+        # process resolves into the served home and dies with InvalidTag under the suite
+        # passphrase (measured 2026-09-21: tests/test_identity_lifecycle.py and tests/legacy/*
+        # red in the same shard). The finally hands every pinned piece back.
+        runtime_state = probe.runtime_state_snapshot()
         try:
             daemon_store = home / "data" / "vool_web0_v2.db"
             assert daemon_store.exists(), sorted(str(p.relative_to(home)) for p in home.rglob("*.db"))
@@ -213,11 +221,44 @@ def test_the_daemon_serves_money_state_written_by_independent_processes_and_keep
             if restarted is not None:
                 restarted.stop()
             daemon.stop()
-            from core import runtime_paths
-            from core.runtime_continuity import configure_runtime_continuity_db_path
+            probe.restore_runtime_state(runtime_state)
+            # What the journey must leave behind: EXACTLY the pre-journey state. Recorded for
+            # the guard case below, which runs immediately after this module's journey in every
+            # shard and ordering and must judge only THIS journey's give-back — not drift some
+            # earlier test in the shard left behind (a module-import snapshot would blame those
+            # too; CI run 35665692856 measured exactly that false attribution).
+            globals()["_RUNTIME_STATE_AFTER_JOURNEY"] = runtime_state
 
-            configure_runtime_continuity_db_path(None)
-            runtime_paths.configure_runtime_home(None)
+
+def test_the_served_daemon_test_leaves_the_process_runtime_home_behind_it():
+    """The served-home journey borrows the process runtime state, so it must give it back.
+
+    This module is collected as one unit, so this case runs immediately after the served-daemon
+    journey in every shard and ordering. The journey records the exact process state it restored
+    in its finally; anything else sitting here now is a leak from THAT journey. (Earlier tests
+    in the shard may leave their own drift — this guard does not judge them; the recorded
+    give-back is the journey's own, not a module-import pin. CI run 35665692856 showed the
+    import-pin shape blaming a pre-existing override-clearer from an unrelated file.) A leak
+    here sends every later signer-touching test in this pytest process into the served home —
+    the cross-suite poison measured on 2026-09-21.
+    """
+    after = globals().get("_RUNTIME_STATE_AFTER_JOURNEY")
+    assert after is not None, "the served-daemon journey never recorded its give-back"
+    now = probe.runtime_state_snapshot()
+    # Snapshot layout: (VOOL_HOME env, runtime-home override, default db override, continuity
+    # db override). The default-db piece is repointed per test by this package's own autouse
+    # store fixture, so it is not the journey's to give back; the leak class this guard pins
+    # is the HOME pieces.
+    assert now[0] == after[0], (
+        f"VOOL_HOME drifted out of the served-daemon journey: {now[0]!r} (restored {after[0]!r})"
+    )
+    assert now[1] == after[1], (
+        f"runtime-home override drifted out of the served-daemon journey: {now[1]!r} "
+        f"(restored {after[1]!r})"
+    )
+    assert now[3] == after[3], (
+        f"continuity db drifted out of the served-daemon journey: {now[3]!r} (restored {after[3]!r})"
+    )
 
 
 def test_this_test_runs_on_its_own_isolated_store(request, tmp_path):

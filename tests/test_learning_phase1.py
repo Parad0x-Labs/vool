@@ -221,10 +221,14 @@ class LearningPhase1Tests(unittest.TestCase):
                 "core.learning.procedure_shards.data_path",
                 side_effect=_data_path,
             ):
+                context = {
+                    "workspace": str(workspace), "session_id": "learning-1",
+                    "task_class": "debugging", "operating_mode": "auto",
+                }
                 applied = execute_runtime_tool(
                     "workspace.apply_unified_diff",
                     {"patch": patch_text},
-                    source_context={"workspace": str(workspace), "session_id": "learning-1", "task_class": "debugging"},
+                    source_context=context,
                 )
                 assert applied is not None
                 self.assertTrue(applied.ok)
@@ -232,16 +236,16 @@ class LearningPhase1Tests(unittest.TestCase):
                 validated = execute_runtime_tool(
                     "workspace.run_tests",
                     {"command": "python3 -m pytest -q test_app.py"},
-                    source_context={"workspace": str(workspace), "session_id": "learning-1", "task_class": "debugging"},
+                    source_context=context,
                 )
                 assert validated is not None
-                self.assertTrue(validated.ok)
+                self.assertTrue(validated.ok, validated)
                 self.assertEqual(validated.details["procedure_shard"]["task_class"], "debugging")
 
                 validated_again = execute_runtime_tool(
                     "workspace.run_tests",
                     {"command": "python3 -m pytest -q test_app.py"},
-                    source_context={"workspace": str(workspace), "session_id": "learning-1", "task_class": "debugging"},
+                    source_context=context,
                 )
                 assert validated_again is not None
                 self.assertTrue(validated_again.ok)

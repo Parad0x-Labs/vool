@@ -63,6 +63,39 @@ def live() -> dict[str, Any]:
     return build_snapshot()
 
 
+def test_the_snapshot_ignores_the_ambient_policy_cache() -> None:
+    """The declared policy governs the WHOLE catalog, contract-backed intents included.
+
+    Measured on CI 2026-09-22 (run 35730553862, shard 9): `build_snapshot(web=True)` lost exactly
+    `web.fetch` and `demo.plan` mid-shard — the two contracts gated on effective web availability —
+    because the contract half of the catalog read the process-global policy cache while the
+    hand-written half honored the declared `web=True`. Same binary, different surface depending on
+    which tests ran earlier in the process. `runtime_tool_specs` now threads its declared policy
+    through to the contracts; this pins that the snapshot cannot be flipped by ambient state again.
+
+    Local Only is deliberately NOT poisoned here: it is a per-turn truth the catalog legitimately
+    obeys ambient (a turn bound to Local Only must not be offered web tools whatever a caller
+    declares), and its fail-closed side has its own suite (test_local_only_zero_public_egress).
+    """
+    from core import policy_engine
+
+    previous_cache = getattr(policy_engine, "_POLICY_CACHE", None)
+    poisoned = dict(previous_cache or policy_engine.load())
+    system = dict(poisoned.get("system") or {})
+    system["allow_web_fallback"] = False
+    poisoned["system"] = system
+    policy_engine._POLICY_CACHE = poisoned
+    try:
+        snapshot = build_snapshot()
+    finally:
+        policy_engine._POLICY_CACHE = previous_cache
+    missing = sorted({"web.fetch", "demo.plan", "web.search"} - set(snapshot["intents"]))
+    assert not missing, (
+        f"the declared web=True policy stopped governing the whole catalog: {missing} dropped "
+        "because the AMBIENT policy cache said no-web"
+    )
+
+
 def test_no_intent_disappears_from_the_catalog(golden: dict, live: dict) -> None:
     missing = sorted(set(golden["intents"]) - set(live["intents"]))
     assert not missing, f"intents no longer advertised to the model: {missing}"

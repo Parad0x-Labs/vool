@@ -13,17 +13,25 @@ Fixed by removing the premature index statement from `SCHEMA_SQL` -- the correct
 already existed later in `run_migrations()`, immediately after `_add_column_if_missing` guarantees
 the column exists.
 
-The legacy database fixture here is built from the REAL historical schema at the reviewed tip
-(`git show 7ff50e8d...:storage/migrations.py`), not a hand-approximated shape -- that file has ZERO
-occurrences of `retry_idempotency_key`, confirmed directly, so this reproduces the exact upgrade
-path a real pre-existing installation goes through.
+The legacy database fixture here is the pre-retry-idempotency CONTRACT SHAPE, synthesized
+from this tree's own SCHEMA_SQL (the current schema minus exactly that upgrade: its column and
+its dependent unique index). It was originally built from the REAL historical schema at the
+reviewed tip (`git show 7ff50e8d...:storage/migrations.py`) -- a file with ZERO occurrences of
+`retry_idempotency_key`, confirmed directly at the time. That hash does not exist in the public
+tree (its history was rewritten at migration; the public root is 78f818b), so `git show` exited
+128 on every clone this suite can run on and all five fixture-dependent cases failed in CI and
+locally. The SHAPE is the contract, not the hash -- the same repair the store-upgrade fixtures
+already received -- and it preserves the original property: a real pre-existing installation
+whose `runtime_attempts` predates the retry-idempotency upgrade, which is exactly the upgrade
+path `run_migrations()` must survive. A fixture-contract case below fails loudly if the
+synthesis ever stops matching the live schema, so these cases can never silently degrade into
+fresh current-schema installs.
 """
 
 from __future__ import annotations
 
-import ast
+import re
 import sqlite3
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -37,27 +45,32 @@ from core.runtime_continuity import (
 )
 from storage.migrations import run_migrations
 
-_LEGACY_COMMIT = "7ff50e8d42ed13bbe9fc888ac649d6d942731202"
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+_LEGACY_COLUMN = "retry_idempotency_key"
+_LEGACY_INDEX = "idx_runtime_attempts_retry_idempotency"
 _legacy_schema_sql_cache: str | None = None
 
 
 def _legacy_schema_sql() -> str:
-    """The REAL `SCHEMA_SQL` string as it existed at the reviewed tip, extracted via `ast` (no
-    import, no execution of the historical file -- just its one string literal)."""
+    """The pre-retry-idempotency contract shape, derived from THIS tree's live SCHEMA_SQL.
+
+    Originally this extracted the real `SCHEMA_SQL` string at the reviewed tip
+    (`git show 7ff50e8d...:storage/migrations.py`) via `ast` -- no import, no execution of the
+    historical file. That hash is absent from the public tree (history rewritten at migration;
+    public root 78f818b), so `git show` exits 128 on every clone this suite can run on and the
+    five fixture-dependent cases failed (CI run 35570948370 and locally). The SHAPE is the
+    contract, not the hash: the current schema minus exactly the retry-idempotency upgrade --
+    the column and its dependent unique index -- is what a real installation from before that
+    upgrade looks like to `run_migrations()`. Keeping the synthesis anchored to the live
+    SCHEMA_SQL (never a hand-copied snapshot) is what the FixtureContractTests below guard."""
     global _legacy_schema_sql_cache
     if _legacy_schema_sql_cache is not None:
         return _legacy_schema_sql_cache
-    result = subprocess.run(
-        ["git", "show", f"{_LEGACY_COMMIT}:storage/migrations.py"],
-        cwd=str(_REPO_ROOT), capture_output=True, text=True, check=True,
-    )
-    tree = ast.parse(result.stdout)
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == "SCHEMA_SQL" for t in node.targets):
-            _legacy_schema_sql_cache = ast.literal_eval(node.value)
-            return _legacy_schema_sql_cache
-    raise RuntimeError("SCHEMA_SQL not found in the historical migrations.py")
+    from storage.migrations import SCHEMA_SQL
+
+    schema = re.sub(rf"\n\s*{_LEGACY_COLUMN} TEXT[^\n]*,?", "", SCHEMA_SQL)
+    schema = re.sub(rf"CREATE UNIQUE INDEX IF NOT EXISTS {_LEGACY_INDEX}[^;]*;", "", schema)
+    _legacy_schema_sql_cache = schema
+    return _legacy_schema_sql_cache
 
 
 def _build_legacy_database(db_path: Path) -> None:
@@ -143,7 +156,8 @@ class CaseAFreshEmptyDatabaseTests(_MigrationCaseBase):
 
 
 class CaseBHistoricalSchemaDatabaseTests(_MigrationCaseBase):
-    """Database built using the EXACT schema at the reviewed tip (7ff50e8d), no data yet."""
+    """Database built using the pre-retry-idempotency contract shape (the reviewed tip's
+    defining property: `runtime_attempts` without `retry_idempotency_key`), no data yet."""
 
     def test_upgrading_the_historical_schema_succeeds(self) -> None:
         _build_legacy_database(self._db_path)
@@ -254,6 +268,39 @@ class CaseEBothAlreadyExistTests(_MigrationCaseBase):
         reloaded = get_runtime_attempt(parent["attempt_id"])
         self.assertIsNotNone(reloaded, "an existing row must survive a redundant migration run")
         self._assert_lane_functional()
+
+
+class FixtureContractTests(_MigrationCaseBase):
+    """The fixture itself is under contract. The synthesis above derives the legacy shape
+    from the live SCHEMA_SQL by regex; if that ever stops matching (format drift, or the
+    upgrade itself disappearing from the product), the legacy cases would silently degrade
+    into fresh current-schema installs -- a hollow version of this suite that can no longer
+    catch the Final-Repair-1 defect class. Fail loudly instead."""
+
+    def test_the_legacy_fixture_really_predates_the_retry_idempotency_upgrade(self) -> None:
+        _build_legacy_database(self._db_path)
+        # A real legacy database HAS the table: on it, SCHEMA_SQL's CREATE TABLE IF NOT
+        # EXISTS must be a no-op, which is the entire premise of the upgrade cases.
+        conn = sqlite3.connect(str(self._db_path))
+        try:
+            tables = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'runtime_attempts'"
+                ).fetchall()
+            ]
+        finally:
+            conn.close()
+        self.assertEqual(tables, ["runtime_attempts"])
+        # ...and it predates the upgrade: neither the column nor its partial unique index.
+        self.assertFalse(_column_exists(self._db_path, "runtime_attempts", _LEGACY_COLUMN))
+        self.assertFalse(_index_exists(self._db_path, _LEGACY_INDEX))
+        # The synthesis must stay anchored to a live schema that still DEFINES the upgrade:
+        # if the product ever stops carrying this column, this suite's premise is void and
+        # the fixture would silently equal the current schema with nothing stripped.
+        from storage.migrations import SCHEMA_SQL
+
+        self.assertRegex(SCHEMA_SQL, rf"\n\s*{_LEGACY_COLUMN} TEXT[^\n]*,?")
 
 
 class SabotageMigrationOrderingTests(_MigrationCaseBase):

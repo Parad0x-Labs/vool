@@ -197,7 +197,7 @@ def test_conductor_settlement_terminalizes_its_orchestration_once(
     )
     monkeypatch.setattr(
         "core.model_spend_ledger.settle_spend",
-        lambda _call_id, *, actual_usd: SimpleNamespace(
+        lambda _call_id, *, actual_usd, billing_ambiguous=False: SimpleNamespace(
             actual_usd=actual_usd,
             status="settled",
         ),

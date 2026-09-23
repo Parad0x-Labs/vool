@@ -30,7 +30,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             tree = execute_runtime_tool(
                 "workspace.list_tree",
                 {"path": ".", "limit": 20},
-                source_context={"workspace": tmpdir},
+                source_context={"workspace": tmpdir, "operating_mode": "auto"},
             )
             assert tree is not None
             self.assertTrue(tree.ok)
@@ -41,7 +41,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             symbol = execute_runtime_tool(
                 "workspace.symbol_search",
                 {"symbol": "launch", "path": "src"},
-                source_context={"workspace": tmpdir},
+                source_context={"workspace": tmpdir, "operating_mode": "auto"},
             )
             assert symbol is not None
             self.assertTrue(symbol.ok)
@@ -66,7 +66,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             applied = execute_runtime_tool(
                 "workspace.apply_unified_diff",
                 {"patch": patch_text},
-                source_context={"workspace": tmpdir, "session_id": "session-1"},
+                source_context={"workspace": tmpdir, "session_id": "session-1", "operating_mode": "auto"},
             )
             assert applied is not None
             self.assertTrue(applied.ok)
@@ -76,7 +76,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             rolled_back = execute_runtime_tool(
                 "workspace.rollback_last_change",
                 {},
-                source_context={"workspace": tmpdir, "session_id": "session-1"},
+                source_context={"workspace": tmpdir, "session_id": "session-1", "operating_mode": "auto"},
             )
             assert rolled_back is not None
             self.assertTrue(rolled_back.ok)
@@ -102,7 +102,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 applied = execute_runtime_tool(
                     "workspace.apply_unified_diff",
                     {"patch": patch_text},
-                    source_context={"workspace": tmpdir, "session_id": "session-fallback"},
+                    source_context={"workspace": tmpdir, "session_id": "session-fallback", "operating_mode": "auto"},
                 )
 
             assert applied is not None
@@ -124,7 +124,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             status = execute_runtime_tool(
                 "workspace.git_status",
                 {},
-                source_context={"workspace": tmpdir},
+                source_context={"workspace": tmpdir, "operating_mode": "auto"},
             )
             assert status is not None
             self.assertTrue(status.ok)
@@ -133,7 +133,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             diff = execute_runtime_tool(
                 "workspace.git_diff",
                 {},
-                source_context={"workspace": tmpdir},
+                source_context={"workspace": tmpdir, "operating_mode": "auto"},
             )
             assert diff is not None
             self.assertTrue(diff.ok)
@@ -186,7 +186,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             summary = execute_runtime_tool(
                 "workspace.git_summary",
                 {},
-                source_context={"workspace": tmpdir},
+                source_context={"workspace": tmpdir, "operating_mode": "auto"},
             )
             assert summary is not None
             self.assertTrue(summary.ok)
@@ -222,7 +222,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             summary = execute_runtime_tool(
                 "workspace.git_summary",
                 {"recent_limit": 3},
-                source_context={"workspace": tmpdir},
+                source_context={"workspace": tmpdir, "operating_mode": "auto"},
             )
             assert summary is not None
             self.assertTrue(summary.ok)
@@ -244,7 +244,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 "workspace.run_tests",
                 {"command": "python3 -m pytest -q test_sample.py"},
-                source_context={"workspace": tmpdir},
+                source_context={"workspace": tmpdir, "operating_mode": "auto"},
             )
             assert result is not None
             self.assertTrue(result.ok)
@@ -266,7 +266,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 result = execute_runtime_tool(
                     "workspace.run_tests",
                     {"command": "python3 -m pytest -q test_sample.py"},
-                    source_context={"workspace": tmpdir},
+                    source_context={"workspace": tmpdir, "operating_mode": "auto"},
                 )
             assert result is not None
             self.assertTrue(result.ok)
@@ -326,7 +326,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 "orchestration.execute_envelope",
                 {"task_envelope": envelope.to_dict()},
-                source_context={"workspace": tmpdir, "session_id": "session-envelope"},
+                source_context={"workspace": tmpdir, "session_id": "session-envelope", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -394,7 +394,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 "orchestration.execute_envelope",
                 {"task_envelope": queen.to_dict()},
-                source_context={"workspace": tmpdir, "session_id": "session-queen"},
+                source_context={"workspace": tmpdir, "session_id": "session-queen", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -416,7 +416,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text="replace `return 41` with `return 42` in app.py, then run `python3 -m pytest -q test_app.py`",
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(decision.handled)
@@ -425,7 +425,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 decision.next_payload["intent"],
                 dict(decision.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-planned-envelope"},
+                source_context={"workspace": tmpdir, "session_id": "session-planned-envelope", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -448,7 +448,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text="replace `return 41` with `return 42`, then run `python3 -m pytest -q test_app.py`",
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(decision.handled)
@@ -461,7 +461,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 decision.next_payload["intent"],
                 dict(decision.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-planned-envelope-search"},
+                source_context={"workspace": tmpdir, "session_id": "session-planned-envelope-search", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -485,7 +485,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 ),
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(decision.handled)
@@ -496,7 +496,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 decision.next_payload["intent"],
                 dict(decision.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-preflight-failure"},
+                source_context={"workspace": tmpdir, "session_id": "session-preflight-failure", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -529,7 +529,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text="run `python3 -m pytest -q test_app.py` and fix the failing tests",
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(first.handled)
@@ -538,7 +538,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             validation_result = execute_runtime_tool(
                 first.next_payload["intent"],
                 dict(first.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-validation-followup"},
+                source_context={"workspace": tmpdir, "session_id": "session-validation-followup", "operating_mode": "auto"},
             )
 
             assert validation_result is not None
@@ -555,7 +555,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         "observation": dict(validation_result.details["observation"]),
                     }
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(second.handled)
@@ -589,7 +589,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         },
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(third.handled)
@@ -639,7 +639,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         },
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(fourth.handled)
@@ -706,7 +706,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         },
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(fifth.handled)
@@ -715,7 +715,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 fifth.next_payload["intent"],
                 dict(fifth.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-diagnosis-candidate-repair"},
+                source_context={"workspace": tmpdir, "session_id": "session-diagnosis-candidate-repair", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -740,12 +740,12 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text="run `python3 -m pytest -q test_app.py` and fix the failing tests",
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             validation_result = execute_runtime_tool(
                 validation.next_payload["intent"],
                 dict(validation.next_payload["arguments"]),
-                source_context={"workspace": tmpdir},
+                source_context={"workspace": tmpdir, "operating_mode": "auto"},
             )
             assert validation_result is not None
             self.assertFalse(validation_result.ok)
@@ -777,7 +777,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         },
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertEqual(search.next_payload["intent"], "workspace.symbol_search")
@@ -844,7 +844,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         },
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(next_read.handled)
@@ -869,12 +869,12 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text="run `python3 -m pytest -q test_app.py` and fix the failing tests",
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             validation_result = execute_runtime_tool(
                 validation.next_payload["intent"],
                 dict(validation.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-diagnosis-helper-repair"},
+                source_context={"workspace": tmpdir, "session_id": "session-diagnosis-helper-repair", "operating_mode": "auto"},
             )
 
             decision = plan_tool_workflow(
@@ -956,7 +956,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         },
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(decision.handled)
@@ -964,7 +964,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 decision.next_payload["intent"],
                 dict(decision.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-delegated-helper-repair"},
+                source_context={"workspace": tmpdir, "session_id": "session-delegated-helper-repair", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -989,12 +989,12 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text="run `python3 -m pytest -q test_app.py` and fix the failing tests",
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             validation_result = execute_runtime_tool(
                 validation.next_payload["intent"],
                 dict(validation.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-delegate-lookup-validation"},
+                source_context={"workspace": tmpdir, "session_id": "session-delegate-lookup-validation", "operating_mode": "auto"},
             )
 
             validation_observation = {
@@ -1063,7 +1063,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                     answer_symbol_observation,
                     app_read_observation,
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(delegate_lookup.handled)
@@ -1071,7 +1071,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             lookup_result = execute_runtime_tool(
                 delegate_lookup.next_payload["intent"],
                 dict(delegate_lookup.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-delegate-lookup-symbols"},
+                source_context={"workspace": tmpdir, "session_id": "session-delegate-lookup-symbols", "operating_mode": "auto"},
             )
 
             delegate_symbol_observation = {
@@ -1090,7 +1090,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                     app_read_observation,
                     delegate_symbol_observation,
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(helper_read.handled)
@@ -1098,7 +1098,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             helper_read_result = execute_runtime_tool(
                 helper_read.next_payload["intent"],
                 dict(helper_read.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-delegate-helper-read"},
+                source_context={"workspace": tmpdir, "session_id": "session-delegate-helper-read", "operating_mode": "auto"},
             )
 
             repair = plan_tool_workflow(
@@ -1116,7 +1116,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         "observation": dict(helper_read_result.details["observation"]),
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(repair.handled)
@@ -1124,7 +1124,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 repair.next_payload["intent"],
                 dict(repair.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-delegate-second-hop-repair"},
+                source_context={"workspace": tmpdir, "session_id": "session-delegate-second-hop-repair", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -1148,12 +1148,12 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text="run `python3 -m pytest -q test_app.py` and fix the failing tests",
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             validation_result = execute_runtime_tool(
                 validation.next_payload["intent"],
                 dict(validation.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-diagnosis-binding-repair"},
+                source_context={"workspace": tmpdir, "session_id": "session-diagnosis-binding-repair", "operating_mode": "auto"},
             )
 
             decision = plan_tool_workflow(
@@ -1217,7 +1217,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         },
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(decision.handled)
@@ -1225,7 +1225,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 decision.next_payload["intent"],
                 dict(decision.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-binding-repair"},
+                source_context={"workspace": tmpdir, "session_id": "session-binding-repair", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -1253,12 +1253,12 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text="run `python3 -m pytest -q test_app.py` and fix the failing tests",
                 task_class="debugging",
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             validation_result = execute_runtime_tool(
                 validation.next_payload["intent"],
                 dict(validation.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-imported-binding-repair"},
+                source_context={"workspace": tmpdir, "session_id": "session-imported-binding-repair", "operating_mode": "auto"},
             )
 
             decision = plan_tool_workflow(
@@ -1339,7 +1339,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         },
                     },
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(decision.handled)
@@ -1347,7 +1347,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 decision.next_payload["intent"],
                 dict(decision.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-imported-binding-envelope"},
+                source_context={"workspace": tmpdir, "session_id": "session-imported-binding-envelope", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -1398,7 +1398,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text=prompt,
                 task_class=classify(prompt)["task_class"],
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(decision.handled)
@@ -1410,7 +1410,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 decision.next_payload["intent"],
                 dict(decision.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-diff-repair"},
+                source_context={"workspace": tmpdir, "session_id": "session-diff-repair", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -1444,14 +1444,14 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text=prompt,
                 task_class=classify(prompt)["task_class"],
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(decision.handled)
             result = execute_runtime_tool(
                 decision.next_payload["intent"],
                 dict(decision.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-failed-repair-rollback"},
+                source_context={"workspace": tmpdir, "session_id": "session-failed-repair-rollback", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -1486,7 +1486,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text=prompt,
                 task_class=classify(prompt)["task_class"],
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(first.handled)
@@ -1494,7 +1494,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             result = execute_runtime_tool(
                 first.next_payload["intent"],
                 dict(first.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-failed-repair-followup"},
+                source_context={"workspace": tmpdir, "session_id": "session-failed-repair-followup", "operating_mode": "auto"},
             )
 
             assert result is not None
@@ -1513,7 +1513,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                         "details": dict(result.details or {}),
                     }
                 ],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(second.handled)
@@ -1538,7 +1538,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text=first_prompt,
                 task_class=classify(first_prompt)["task_class"],
                 executed_steps=[],
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
 
             self.assertTrue(first.handled)
@@ -1546,7 +1546,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             first_result = execute_runtime_tool(
                 first.next_payload["intent"],
                 dict(first.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-second-repair-attempt-1"},
+                source_context={"workspace": tmpdir, "session_id": "session-second-repair-attempt-1", "operating_mode": "auto"},
             )
 
             assert first_result is not None
@@ -1567,7 +1567,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text=first_prompt,
                 task_class=classify(first_prompt)["task_class"],
                 executed_steps=executed_steps,
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             self.assertEqual(second.next_payload["intent"], "workspace.read_file")
             executed_steps.append(
@@ -1594,7 +1594,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text=first_prompt,
                 task_class=classify(first_prompt)["task_class"],
                 executed_steps=executed_steps,
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             self.assertEqual(third.next_payload["intent"], "workspace.symbol_search")
             executed_steps.append(
@@ -1620,7 +1620,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text=first_prompt,
                 task_class=classify(first_prompt)["task_class"],
                 executed_steps=executed_steps,
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             self.assertEqual(fourth.next_payload["intent"], "workspace.read_file")
             self.assertEqual(fourth.next_payload["arguments"]["path"], "app.py")
@@ -1648,7 +1648,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
                 user_text=first_prompt,
                 task_class=classify(first_prompt)["task_class"],
                 executed_steps=executed_steps,
-                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir, "operating_mode": "auto"},
             )
             self.assertTrue(fifth.handled)
             self.assertEqual(fifth.reason, "planned_candidate_repair_after_validation_diagnosis")
@@ -1657,7 +1657,7 @@ class RuntimeExecutionOperatorPhase1Tests(unittest.TestCase):
             second_result = execute_runtime_tool(
                 fifth.next_payload["intent"],
                 dict(fifth.next_payload["arguments"]),
-                source_context={"workspace": tmpdir, "session_id": "session-second-repair-attempt-2"},
+                source_context={"workspace": tmpdir, "session_id": "session-second-repair-attempt-2", "operating_mode": "auto"},
             )
 
             assert second_result is not None

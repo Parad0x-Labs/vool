@@ -92,7 +92,91 @@ jobs:
           fi
           bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
       - name: Provision the served-browser lane (Playwright chromium)
-        run: python -m playwright install --with-deps chromium
+        # Ubuntu 24.04's restricted-unprivileged-userns AppArmor policy grants namespace
+        # creation only to binaries with a profile carrying `userns` — the bwrap step above
+        # grants it to bwrap ALONE. The bundled Chromium this lane serves renders through
+        # (find_browser_binary / select_bundled_chromium) launches with its namespace sandbox
+        # ON (the --no-sandbox escape is test/container-only by design and an invariant test
+        # pins its absence), so without the same right it refuses to start entirely: exit 5,
+        # empty DOM, the browser's "SUID sandbox" refusal on stderr (measured, run
+        # 35752689216 shard 2). The profile below grants ONLY the userns right to the exact
+        # playwright-cache binaries (versioned paths, resolved at runtime — both the
+        # headless-shell build the unattended preflight pins and the full build the locator's
+        # glob order prefers); Chromium's sandbox itself stays kernel-enforced. The bounded
+        # probe at the end fails this step loudly — instead of letting the render suites
+        # cascade or a launch hang the shard.
+        run: |
+          python -m playwright install --with-deps chromium
+          bins=()
+          while IFS= read -r bin; do
+            [ -n "$bin" ] || continue
+            bins+=("$bin")
+          done < <(find "$HOME/.cache/ms-playwright" -type f \
+            \( -name chrome -o -name chrome-headless-shell \) | sort)
+          if [ "${#bins[@]}" -eq 0 ]; then
+            echo "::error::no chromium binaries in the playwright cache — provisioning drifted"
+            exit 1
+          fi
+          profile_file=/etc/apparmor.d/vool-playwright-chromium
+          {
+            echo 'abi <abi/4.0>,'
+            echo 'include <tunables/global>'
+            i=0
+            for bin in "${bins[@]}"; do
+              echo "profile vool-playwright-chromium-$i $bin flags=(unconfined) {"
+              echo '  userns,'
+              echo '}'
+              i=$((i + 1))
+            done
+          } | sudo tee "$profile_file" >/dev/null
+          if ! sudo apparmor_parser -r "$profile_file"; then
+            echo "chromium profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          # Loud probe, HARD-BOUND, and limited to the headless-shell build the render lane
+          # actually pins (select_bundled_chromium prefers it; the failing CI test pinned it
+          # via VOOL_BROWSER_BINARY). Measured, cancelled run 35767154971: probing the FULL
+          # Chrome-for-Testing build hung every shard inside this step for 86 minutes -- the
+          # same fresh-profile hang under that build the preflight's binary preference
+          # documents. Two laws follow:
+          #   * a chromium launch is an UNBOUNDED subprocess without the engine's own
+          #     --virtual-time-budget AND a `timeout -k` wrapper;
+          #   * the browser's output must go to a FILE, never a command-substitution pipe:
+          #     chromium forks chrome_crashpad_handler helpers that inherit the pipe, and
+          #     when the parent is killed the orphans hold the pipe open and the caller
+          #     blocks forever (the cancelled run's cleanup killed two of them).
+          # The probe page's own bytes must appear in the dumped DOM. The full build keeps
+          # its userns grant above (identical profile mechanism, never launched here): its
+          # served lanes run through playwright's own launcher, green unmodified in
+          # 35752689216.
+          probe_fail=0
+          for bin in "${bins[@]}"; do
+            case "$(basename "$bin")" in chrome-headless-shell*) ;; *) continue ;; esac
+            probe_dir=$(mktemp -d)
+            ok=0
+            if timeout -k 5s 60s "$bin" --disable-gpu --no-first-run --no-default-browser-check \
+                 --disable-extensions --disable-background-networking \
+                 "--user-data-dir=$probe_dir" --virtual-time-budget=2000 \
+                 --dump-dom "data:text/html,<title>vool-probe</title>vool-probe" \
+                 >/tmp/vool-chromium-probe.dom 2>/tmp/vool-chromium-probe.err \
+                 && grep -q "vool-probe" /tmp/vool-chromium-probe.dom; then
+              ok=1
+            fi
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::the bundled chromium headless shell cannot render under its own namespace sandbox: $bin"
+              cat /tmp/vool-chromium-probe.err >&2
+              probe_fail=1
+            fi
+            rm -rf "$probe_dir"
+          done
+          exit $probe_fail
+      - name: Provision a virtual display for headful sessions
+        # The wallet-handoff contract opens one genuinely headful Chromium session (a handoff
+        # requires a VISIBLE browser by design). These runners have no display, so a headful
+        # launch cannot open and the lane times out waiting for the operator's session. A
+        # virtual framebuffer gives the headful lane a real display to map its window onto;
+        # every other test is unaffected.
+        run: sudo apt-get install -y xvfb
       - name: Resolve this shard's test files
         run: |
           mkdir -p .verification-logs
@@ -115,11 +199,17 @@ jobs:
           macos_only = {
               "tests/test_macos_app_packaging.py",
               "tests/updater/test_e2e_sandbox.py",
+              "tests/updater/test_boot_api_ui.py",
+              "tests/updater/test_final_p1.py",
+              "tests/updater/test_cli_and_tools.py",
               "tests/test_artifact_readers_contracts.py",
               "tests/test_artifact_readers_served_m1.py",
               "tests/test_artifact_readers_served_m2.py",
               "tests/test_audio_dictation.py",
               "tests/test_media_product_served.py",
+              "tests/wallet/test_wallet_approval_methods.py",
+              "tests/wallet/test_wallet_device_auth_ipc.py",
+              "tests/wallet/test_wallet_export_ui_served.py",
           }
           dropped = sorted(set(files) & macos_only)
           if set(dropped) != macos_only:
@@ -138,6 +228,7 @@ jobs:
           EOF
       - name: Run shard ${{ matrix.shard }}
         run: >-
+          xvfb-run -a --server-args="-screen 0 1280x1024x24"
           python -m pytest -q --tb=short -p no:cacheprovider
           $(tr '\n' ' ' < .verification-logs/shard-${{ matrix.shard }}-files.txt)
       - name: Upload shard log
@@ -157,7 +248,8 @@ jobs:
     # unconfined); the app-packaging contracts drive plutil and the bundle build script that
     # refuses Linux; the signed-update e2e drives the real `codesign`. The Linux shard
     # resolver routes exactly this file set here — pinned together by
-    # tests/test_delivery_contracts.py.
+    # tests/test_delivery_contracts.py. Device-auth wallet journeys require the
+    # macOS Keychain helper selector; portable PIN/password coverage also runs here.
     timeout-minutes: 90
     runs-on: macos-latest
     needs: verify
@@ -181,11 +273,17 @@ jobs:
           python -m pytest -q --tb=short -p no:cacheprovider
           tests/test_macos_app_packaging.py
           tests/updater/test_e2e_sandbox.py
+          tests/updater/test_boot_api_ui.py
+          tests/updater/test_final_p1.py
+          tests/updater/test_cli_and_tools.py
           tests/test_artifact_readers_contracts.py
           tests/test_artifact_readers_served_m1.py
           tests/test_artifact_readers_served_m2.py
           tests/test_audio_dictation.py
           tests/test_media_product_served.py
+          tests/wallet/test_wallet_approval_methods.py
+          tests/wallet/test_wallet_device_auth_ipc.py
+          tests/wallet/test_wallet_export_ui_served.py
       - name: Upload macos job log
         if: always()
         uses: actions/upload-artifact@v7

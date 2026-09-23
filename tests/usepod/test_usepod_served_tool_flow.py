@@ -2,12 +2,15 @@
 
 The runtime's own law (core/paid_call_reservation.py, "internal_tool_intent_call", present at the
 base) keeps an explicit PAID pin off a turn's internal tool-selection rounds: the pick authorizes
-the answering lane, not the loop machinery. This suite proves BOTH sides of that law through the
-served daemon rather than bypassing it:
+the answering lane, not the loop machinery. The router narrates that law as a routing event (the
+internal step rides the runtime lane; the owner's pick answers the turn) rather than as a blocked
+provider decision. This suite proves BOTH sides of that law through the served daemon rather than
+bypassing it:
 
-* a PINNED UsePod turn with a tool-shaped request refuses the selection round visibly, answers
-  plainly on the paid lane with exactly one dispatch, one reservation and a correlated receipt --
-  in BOTH wire protocols, on the original and a novel model;
+* a PINNED UsePod turn with a tool-shaped request keeps the selection round off the paid lane --
+  narrated visibly -- selects no tool, answers plainly on the paid lane with exactly one dispatch,
+  one reservation and a correlated receipt -- in BOTH wire protocols, on the original and a novel
+  model;
 * an UNPINNED turn drives a real tool round trip: the served tool loop offers the catalog, a
   labelled free loopback lane picks the harmless disposable local tool, the daemon EXECUTES it for
   real, and the tool result is returned to the provider in the next request on the wire;
@@ -238,7 +241,11 @@ def test_a_pinned_paid_turn_refuses_tool_selection_and_answers_with_exactly_one_
     _keep("pinned_openai_tool_refusal.json", {"status": status, "answer": answer, "events": events})
     assert status == 200, answer
     blob = json.dumps(events)
-    assert "internal_tool_intent_call" in blob, "the tool-selection refusal reason must be visible"
+    # The law narrated as routing, not as a blocked provider decision: the internal step rode the
+    # runtime lane and the owner's pick stayed the answering lane.
+    assert "Internal tool-selection step" in blob and "the owner's model pick answers the turn" in blob, \
+        "the tool-selection step's lane separation must be visible"
+    assert "internal_tool_intent_call" not in blob, "an internal step is not a provider failure"
     # The pin invariant: the refused selection round substitutes nothing (no free-lane round).
     assert free.requests == []
     # No tool ran: the paid pin answered plainly.
@@ -273,7 +280,9 @@ def test_the_same_law_holds_on_the_anthropic_lane_with_a_novel_model(served) -> 
     events = daemon.events(session_id)
     _keep("pinned_anthropic_tool_refusal.json", {"status": status, "answer": answer, "events": events})
     assert status == 200, answer
-    assert "internal_tool_intent_call" in json.dumps(events)
+    blob = json.dumps(events)
+    assert "Internal tool-selection step" in blob and "the owner's model pick answers the turn" in blob, blob
+    assert "internal_tool_intent_call" not in blob, "an internal step is not a provider failure"
     assert not [e for e in events if e.get("event_type") == "tool_executed"]
     arrived = service.requests_to(INFERENCE_PATHS["anthropic"])[before:]
     assert len(arrived) == 1

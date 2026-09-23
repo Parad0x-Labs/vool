@@ -113,7 +113,7 @@ def test_a_backend_on_path_but_denied_is_not_chosen(monkeypatch) -> None:
         runner._with_network_isolation(["true"], (runner.policy.workspace_root,))
 
     assert probed, "a backend on PATH was accepted without ever being probed for whether it works"
-    expected = "sandbox-exec" if sys.platform == "darwin" else "unshare"
+    expected = "sandbox-exec" if sys.platform == "darwin" else "bwrap:deny_network=True"
     assert expected in probed, f"this host's backend was not probed; probed={probed}"
     job_runner.reset_isolation_backend_probe_cache()
 

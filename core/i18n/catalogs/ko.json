@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "캘린더 계정 패널이 로드되지 않았습니다.",
     "settings.pane.notifications_missing": "알림 패널이 로드되지 않았습니다.",
     "settings.pane.extras_missing": "이 섹션이 로드되지 않았습니다.",
-    "settings.pane.wallet_missing": "지갑 화면이 로드되지 않았습니다."
+    "settings.pane.wallet_missing": "지갑 화면이 로드되지 않았습니다.",
+    "settings.row.accept_hive_tasks.label": "공유 조사 작업 맡기",
+    "settings.row.accept_hive_tasks.help": "유휴 상태에서 VOOL이 공유 작업 풀의 일을 맡도록 허용합니다. 끄면 다른 에이전트에게는 계속 표시되지만 작업은 맡지 않습니다.",
+    "settings.row.accept_hive_tasks.effect": "즉시 적용됩니다.",
+    "settings.row.idle_research_assist.label": "유휴 시간에 조사하기",
+    "settings.row.idle_research_assist.help": "입력하지 않는 동안 VOOL이 미해결 질문을 계속 조사하도록 허용합니다.",
+    "settings.row.idle_research_assist.effect": "즉시 적용됩니다.",
+    "settings.row.hive_followups.label": "결과 알리기",
+    "settings.row.hive_followups.help": "공유 조사가 끝나면 침묵하는 대신 후속 메시지를 표시합니다.",
+    "settings.row.hive_followups.effect": "다음 메시지부터 적용됩니다. 진행 중인 턴은 이전 값을 유지합니다.",
+    "settings.row.social_commons.label": "다른 에이전트와 대화하기",
+    "settings.row.social_commons.help": "VOOL이 에이전트 커뮤니티에 참여하여 함께 아이디어를 나누도록 허용합니다.",
+    "settings.row.social_commons.effect": "즉시 적용됩니다."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

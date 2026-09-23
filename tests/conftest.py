@@ -617,9 +617,31 @@ def _node_signing_key_stays_out_of_the_real_keychain(monkeypatch):
     even a test that overrides the mode back to ``auto`` still does not touch the OS keyring. Tests
     that genuinely exercise the keyring branch opt back in by monkeypatching the signer's backend
     with an in-memory fake, exactly as the Keychain credential tests do.
+
+    The record PATHS are the third half (2026-09-21 CI finding): ``network.signer`` freezes
+    ``_KEY_DIR = data_path("keys")`` at first import -- under the DEFAULT home when no test has set
+    ``VOOL_HOME`` yet -- so every test in one pytest process shares ONE keys directory. A test that
+    overrides the passphrase in-process (archaeology, signer storage contracts) then RE-SEALS that
+    shared record, and the next suite-passphrase reader dies with InvalidTag -- measured as the CI
+    demand-ownership "(InvalidTag:)" demand failures and the pollution-matrix child session.
+    Repointing the paths into a per-test directory (and resetting the cached keypair) makes each
+    test seal its own record with whatever passphrase it uses; the signer contract tests set their
+    own paths during the test, after this fixture has run, so they are unaffected.
     """
     monkeypatch.setenv("VOOL_KEY_STORAGE_MODE", "file")
     monkeypatch.setenv("VOOL_KEY_PASSPHRASE", "test-suite-only-never-a-real-key")
+    import network.signer as _signer
+
+    _keys_dir = Path(tempfile.mkdtemp(prefix="vool_pytest_signer_keys_")) / "keys"
+    monkeypatch.setattr(_signer, "_KEY_DIR", _keys_dir, raising=False)
+    monkeypatch.setattr(_signer, "_LEGACY_PRIV_KEY_PATH", _keys_dir / "node_signing_key.b64", raising=False)
+    monkeypatch.setattr(_signer, "_KEY_RECORD_PATH", _keys_dir / "node_signing_key.json", raising=False)
+    monkeypatch.setattr(_signer, "_KEYRING_RECORD_PATH", _keys_dir / "node_signing_key.keyring.json", raising=False)
+    monkeypatch.setattr(_signer, "_KEY_ARCHIVE_DIR", _keys_dir / "archive", raising=False)
+    monkeypatch.setattr(
+        _signer, "_ACCOUNT_FILE_PROTECTION_PATH", _keys_dir / "key_storage.passphrase", raising=False
+    )
+    monkeypatch.setattr(_signer, "_LOCAL_KEYPAIR", None, raising=False)
 
 
 @pytest.fixture(autouse=True)

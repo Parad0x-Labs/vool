@@ -116,7 +116,7 @@ def _hive_read_configured() -> bool:
         return False
 
 
-def runtime_tool_contracts() -> list[RuntimeToolContract]:
+def runtime_tool_contracts(*, web_available_fn: Any = None) -> list[RuntimeToolContract]:
     """The builtin contract list, with the product-edition floor applied.
 
     The edition floor is applied HERE — the single point every consumer of the
@@ -125,10 +125,21 @@ def runtime_tool_contracts() -> list[RuntimeToolContract]:
     ``disabled`` at direct dispatch, metadata-only in operator listings. It is
     re-evaluated on every call, so no late registration or preference change can
     outrun it (goal §4: NOT REGISTERED / NOT ROUTABLE / NOT INVOKABLE).
+
+    ``web_available_fn`` lets a caller that already holds a declared web policy
+    (``core.execution.capabilities.runtime_tool_specs`` threads its injected
+    ``allow_web_fallback_fn`` through here) govern the web-gated contracts with
+    THAT policy instead of the ambient one. Without it, a caller that pins the
+    web policy for the hand-written specs would still see the contract-backed
+    intents (`web.fetch`, `demo.plan`) flip with whatever process-global policy
+    state happens to be cached — two halves of one catalog answering to two
+    different authorities.
     """
     from core.code_assistant.contracts import with_step_argument_fields
 
-    return _apply_edition_floor(with_step_argument_fields(_runtime_tool_contracts_raw()))
+    return _apply_edition_floor(
+        with_step_argument_fields(_runtime_tool_contracts_raw(web_available_fn=web_available_fn))
+    )
 
 
 def _apply_edition_floor(
@@ -165,15 +176,20 @@ def _apply_edition_floor(
     return floored
 
 
-def _runtime_tool_contracts_raw() -> list[RuntimeToolContract]:
+def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[RuntimeToolContract]:
     read_enabled = bool(policy_engine.get("filesystem.allow_read_workspace", True))
     write_enabled = bool(policy_engine.get("filesystem.allow_write_workspace", False))
     sandbox_enabled = bool(policy_engine.get("execution.allow_sandbox_execution", False))
     # Effective per-turn availability, not the ambient machine default: a turn
     # under Local Only cannot reach the web whatever `allow_web_fallback` says.
-    from core.remote_fetch_policy import effective_web_available
+    # A caller that already declared the web policy passes `web_available_fn`,
+    # which replaces the whole chain for the web-gated contracts.
+    if web_available_fn is not None:
+        web_enabled = bool(web_available_fn())
+    else:
+        from core.remote_fetch_policy import effective_web_available
 
-    web_enabled = bool(effective_web_available())
+        web_enabled = bool(effective_web_available())
     browser_enabled = bool(policy_engine.browser_runtime_enabled())
     email_send_enabled = bool(policy_engine.get("email.send_enabled", False))
     email_read_enabled = bool(policy_engine.get("email.read_enabled", False))

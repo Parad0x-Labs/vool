@@ -143,22 +143,32 @@ def test_plugin_execution_writes_an_execution_record(plugin_world) -> None:
     assert records[0].resolved_target == "beta"
 
 
-def test_read_only_nested_handler_reads_own_assets_but_not_peer_files(plugin_world, tmp_path):
+@pytest.mark.parametrize("with_scratch", [False, True])
+def test_read_only_nested_handler_reads_own_assets_but_not_peer_files(plugin_world, tmp_path, with_scratch):
     from core.plugin_executor import run_plugin_tool
 
     (plugin_world / "catalog.json").write_text('{"paper": 17}')
     peer = tmp_path / "peer-private.txt"
     peer.write_text("unrelated contents")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / "data.txt").write_text("retained data")
     handler = plugin_world / "bin" / "catalog.py"
     handler.write_text(
-        "import json, os, pathlib\n"
+        "import errno, json, os, pathlib\n"
         "data = json.loads(pathlib.Path('catalog.json').read_text())\n"
+        "if os.environ.get('PLUGIN_SCRATCH'):\n"
+        "    scratch = pathlib.Path(os.environ['PLUGIN_SCRATCH']) / 'data.txt'\n"
+        "    assert scratch.read_text() == 'retained data'\n"
+        "    try:\n        scratch.write_text('changed')\n"
+        "    except OSError as exc:\n        assert exc.errno in (errno.EPERM, errno.EACCES, errno.EROFS)\n"
+        "    else:\n        raise AssertionError('read-only scratch was writable')\n"
         "denied = False\n"
         "try:\n    pathlib.Path(" + repr(str(peer)) + ").read_text()\n"
-        "except PermissionError:\n    denied = True\n"
+        "except (PermissionError, FileNotFoundError):\n    denied = True\n"
         "write_denied = False\n"
         "try:\n    pathlib.Path('unexpected.txt').write_text('changed')\n"
-        "except PermissionError:\n    write_denied = True\n"
+        "except OSError as exc:\n    write_denied = exc.errno in (errno.EPERM, errno.EACCES, errno.EROFS)\n"
         "print(json.dumps({'ok': True, 'text': str(data['paper']), "
         "'observation': {'cwd': os.getcwd(), 'peer_denied': denied, 'write_denied': write_denied}}))\n"
     )
@@ -170,6 +180,7 @@ def test_read_only_nested_handler_reads_own_assets_but_not_peer_files(plugin_wor
     result = run_plugin_tool(
         plugin_root=plugin_world, intent="pack.catalog", arguments={},
         handler={"entry": "bin/catalog.py"}, schema={}, read_only=True,
+        scratch_dir=str(scratch) if with_scratch else "",
     )
     assert result.ok, result.error
     assert result.text == "17"
@@ -178,9 +189,12 @@ def test_read_only_nested_handler_reads_own_assets_but_not_peer_files(plugin_wor
         "write_denied": True, "intent": "pack.catalog",
     }
     assert not (plugin_world / "unexpected.txt").exists()
+    assert peer.read_text() == "unrelated contents"
+    assert (scratch / "data.txt").read_text() == "retained data"
 
 
-def test_plugin_child_runs_confined_with_a_minimal_environment(plugin_world, tmp_path) -> None:
+@pytest.mark.parametrize("outside_parent", ["sibling", "temporary_root"])
+def test_plugin_child_runs_confined_with_a_minimal_environment(plugin_world, tmp_path, outside_parent) -> None:
     from core.plugin_executor import kernel_confinement_available
 
     if not kernel_confinement_available():
@@ -195,9 +209,12 @@ def test_plugin_child_runs_confined_with_a_minimal_environment(plugin_world, tmp
 
     # A write outside the plugin root and its scratch directory is denied by the kernel, not by
     # the handler's good manners.
+    import tempfile
+
     from tests._toolchain_fixtures import internal_scope
 
-    outside = str(tmp_path / f"outside-{uuid.uuid4().hex[:6]}.txt")
+    parent = tmp_path if outside_parent == "sibling" else Path(tempfile.gettempdir())
+    outside = str(parent / f"outside-{uuid.uuid4().hex[:6]}.txt")
     scope = internal_scope("test.confine", "create_files", intents=(f"{PLUGIN_ID}.touch",))
     denied = _run(f"{PLUGIN_ID}.touch", {"path": outside}, **scope)
     assert not denied.ok

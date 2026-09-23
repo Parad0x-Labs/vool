@@ -125,14 +125,37 @@ def test_nothing_executed_still_falls_through_to_research_honestly() -> None:
     scripts = [
         [_call("contacts.nonsense_tool")],
     ]
-    result, _router, _events = _drive(scripts, user_input=SAVE_INPUT)
+    result, _router, events = _drive(scripts, user_input=SAVE_INPUT)
     # An unknown tool cannot execute; nothing ran. The evidence-required turn hands back to the
     # research path exactly as before the repair (asserted by the fallthrough itself: either the
     # typed rejected-call response or None -- never a success narration with zero steps).
     if result is None:
         return
-    assert _steps(result) == [], result
+    # The attempted dispatch is retained for diagnosis. Its typed outcome, not
+    # presence in tool_steps, determines whether anything actually executed.
+    assert _steps(result) == ["contacts.nonsense_tool"], result
+    assert result.get("status") == "unsupported", result
     assert result.get("success") is False, result
+    assert "not wired" in result.get("response", ""), result
+    assert "Real steps completed" not in result.get("response", ""), result
+    assert not any(e.get("tool_name") == "contacts.nonsense_tool" and e.get("ok") for e in events)
+
+
+def test_refused_and_unknown_attempts_cannot_be_rendered_as_completed():
+    from core.agent_runtime.orchestrator import render_tool_loop_response, tool_loop_final_message
+
+    for status in ("cwd_outside_workspace", "blocked_by_mode", "pending_approval", "unknown"):
+        steps = [
+            {"tool_name": "workspace.read_file", "ok": True, "summary": "Read seed.txt"},
+            {"tool_name": "sandbox.run_command", "status": status, "ok": False,
+             "summary": "Nothing was run"},
+        ]
+        answer = render_tool_loop_response(final_message="The command did not run.", executed_steps=steps)
+        assert answer.startswith("Tool results:")
+        assert "Real steps completed" not in answer
+        assert "Read seed.txt" in answer and "Nothing was run" in answer
+        fallback = tool_loop_final_message(SimpleNamespace(), steps)
+        assert "1 of 2 tool steps succeeded" in fallback
 
 
 def test_a_quoted_example_is_not_executed_as_a_tool() -> None:

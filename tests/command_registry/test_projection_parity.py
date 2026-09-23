@@ -70,6 +70,16 @@ def _semantics(payload: dict) -> dict:
 # -- fixtures ---------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def empty_plugin_catalog(tmp_path, monkeypatch):
+    from tests._toolchain_fixtures import reset_toolchain_state
+
+    monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path / "plugins"))
+    reset_toolchain_state()
+    yield
+    reset_toolchain_state()
+
+
 @pytest.fixture
 def recorded_workspace(tmp_path: Path) -> Path:
     """A real blackbox-recorded workspace mutation, through the product recorder."""

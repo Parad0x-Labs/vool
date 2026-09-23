@@ -555,7 +555,7 @@ def _diagnose_rollback_conflict(
             return "target_missing" if existed_before else None
         if raw_target.is_dir() or not raw_target.is_file():
             return "target_type_changed"
-        current_hash = content_sha256(raw_target.read_text(encoding="utf-8", errors="replace"))
+        current_hash = content_sha256(raw_target.read_bytes().decode("utf-8", errors="replace"))
         if current_hash != expected_after_hash:
             return "content_changed"
         return None
@@ -616,7 +616,7 @@ def rollback_last_workspace_mutation(
         current_hash = ""
         if raw_target.exists() and not raw_target.is_symlink() and raw_target.is_file():
             with contextlib.suppress(OSError, UnicodeError):
-                current_hash = content_sha256(raw_target.read_text(encoding="utf-8", errors="replace"))
+                current_hash = content_sha256(raw_target.read_bytes().decode("utf-8", errors="replace"))
         conflicts.append(
             {
                 "path": relative_path,

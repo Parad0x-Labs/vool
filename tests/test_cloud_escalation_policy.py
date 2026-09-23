@@ -421,6 +421,7 @@ def test_openrouter_attribution_headers_reach_the_outbound_request(monkeypatch):
     from core.runtime_provider_defaults import _ensure_openrouter_byok_provider
 
     monkeypatch.setattr("core.credential_store.has_credential", lambda name: False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
     reg = _FakeRegistry()
     _ensure_openrouter_byok_provider(reg, env={"OPENROUTER_API_KEY": "sk-or-test"})
     adapter = OpenAICompatibleAdapter(reg.registered[0])

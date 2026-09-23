@@ -108,6 +108,52 @@ def test_the_same_correlation_with_other_content_or_another_named_payer_is_refus
     assert _count() == 1 and sol.send_count() == 1
 
 
+@pytest.mark.parametrize("response_payment", [False, True])
+def test_payment_purpose_is_pinned_by_the_owning_entry_point(nodes, response_payment):
+    from core.wallet import proposals, purpose, quotes, usepod
+
+    wallet = _pilot(BASE_SEPOLIA)
+    nodes["base"].fund(wallet["address"], 10**18)
+    mint = usepod.validate_x402_payment if response_payment else usepod.validate_topup
+    other = usepod.validate_topup if response_payment else usepod.validate_x402_payment
+    requirement = usepod.parse_requirement(_requirement(payment_kind="forged", resource="https://usepod.example/request"))
+    first = mint(requirement)
+    expected = usepod.KIND_RESPONSE if response_payment else usepod.KIND_CREDIT
+    assert usepod.operation_for_proposal(first["proposal_id"])["payment_kind"] == expected
+    proposal = proposals.get_proposal(first["proposal_id"])
+    view = purpose.purpose_for(proposal)
+    assert view["kind"] == (purpose.KIND_SERVICE if response_payment else purpose.KIND_CREDIT)
+    quote = quotes.mint_quote(proposal.proposal_id)
+    assert quote["fields"]["provider_payment_kind"] == expected
+    assert quote["fields"]["review"]["headline"] == ("Pay UsePod for this AI response" if response_payment else "Prepay provider credit")
+    assert mint(requirement)["proposal_id"] == first["proposal_id"]
+    with pytest.raises(WalletFault) as changed:
+        other(requirement)
+    assert changed.value.context["reason"] == "same_operation_different_payment_kind"
+    assert _count() == 1 and nodes["base"].sent == []
+
+
+def test_legacy_payment_purpose_stays_unknown_and_a_changed_kind_invalidates_the_quote(nodes):
+    from core.wallet import proposals, purpose, quotes, usepod
+    from core.wallet.store import connection
+
+    wallet = _pilot(BASE_SEPOLIA)
+    nodes["base"].fund(wallet["address"], 10**18)
+    requirement = usepod.parse_requirement(_requirement())
+    first = usepod.validate_topup(requirement)
+    proposal = proposals.get_proposal(first["proposal_id"])
+    quote = quotes.mint_quote(proposal.proposal_id)
+    with connection() as conn:
+        conn.execute("UPDATE wallet_usepod_operations SET payment_kind = 'unknown' WHERE proposal_id = ?", (proposal.proposal_id,))
+    with pytest.raises(WalletFault) as changed:
+        usepod.require_binding(proposal, moment=time.time(), quote_fields=quote["fields"])
+    assert changed.value.context["reason"] == "provider_requirement_changed"
+    assert purpose.purpose_for(proposal)["kind"] == purpose.KIND_UNKNOWN
+    assert usepod.validate_topup(requirement)["proposal_id"] == proposal.proposal_id
+    assert usepod.operation_for_proposal(proposal.proposal_id)["payment_kind"] == usepod.KIND_UNKNOWN
+    assert _count() == 1 and nodes["base"].sent == []
+
+
 def test_two_contenders_for_one_new_operation_mint_exactly_one_proposal_under_a_controlled_schedule(nodes, monkeypatch):
     """A holds the reservation and is paused inside the mint; B arrives: a typed refusal to retry, never a second
     mint; A completes; B's retry is the original. Events, not timing, order the schedule."""

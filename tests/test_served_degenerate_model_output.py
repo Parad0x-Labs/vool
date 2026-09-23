@@ -17,7 +17,7 @@ import pytest
 import tests._reader_served_rig as rig
 
 ROOT = Path(__file__).resolve().parents[1]
-FIX = ROOT / "validation-logs" / "comparison-truth-overnight-20260906" / "fixtures" / "comparison"
+FIX = ROOT / "tests" / "fixtures" / "comparison_coverage"
 SHIM = ROOT / "tests" / "fixture_transport"
 REASONING_ONLY = "<think>The user wants a comparison. I should list production periods first, then sales. Let me plan the sections.</think>"
 

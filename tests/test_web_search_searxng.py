@@ -25,7 +25,9 @@ class _Response:
 class SearXNGClientTests(unittest.TestCase):
     def test_searxng_parsing(self) -> None:
         payload = {"results": [{"title": "A", "url": "https://a.example", "content": "snippet", "engine": "test", "score": 1.0}]}
-        with mock.patch("urllib.request.urlopen", return_value=_Response(payload)) as urlopen:
+        from core.effect_gateway import named_background_effect_scope
+
+        with named_background_effect_scope("test.searxng_parser"), mock.patch("urllib.request.urlopen", return_value=_Response(payload)) as urlopen:
             client = SearXNGClient(base_url="http://127.0.0.1:8080", timeout_s=3)
             results = client.search("hello", max_results=5)
         self.assertEqual(len(results), 1)

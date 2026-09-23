@@ -128,7 +128,15 @@ def _await_state(run_id, wanted, timeout=20):
         payload = _get("/api/council/status", {"run": [run_id]})[1]
         seen = str(payload.get("run", {}).get("state") or "")
         if seen in wanted:
-            return payload
+            # The state is the STORE's word; the run's thread still owes its hand-back
+            # (restore the operator's pin, release the fence, move live -> paused). A pause
+            # whose machine has not come back yet is not a pause an operator can act on, so
+            # the wait covers the whole quiesce: state reached AND `live` gone false. CI
+            # 2026-09-22 (run 35730553862, shard 9) measured the gap: needs_attention visible
+            # while the pin was 0.03s from release, and the mid-finally thread re-registering
+            # itself after the previous test's teardown had already forgotten it.
+            if not payload.get("live"):
+                return payload
         if seen in _SETTLED and not payload.get("live"):
             raise AssertionError(
                 f"run settled in {seen!r}, which is not one of {sorted(wanted)}; "

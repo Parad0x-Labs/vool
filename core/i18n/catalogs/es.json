@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "El panel de cuentas de calendario no se cargó.",
     "settings.pane.notifications_missing": "El panel de notificaciones no se cargó.",
     "settings.pane.extras_missing": "Esta sección no se cargó.",
-    "settings.pane.wallet_missing": "La superficie del monedero no se cargó."
+    "settings.pane.wallet_missing": "La superficie del monedero no se cargó.",
+    "settings.row.accept_hive_tasks.label": "Aceptar tareas de investigación compartidas",
+    "settings.row.accept_hive_tasks.help": "Permitir que VOOL tome tareas del grupo compartido cuando esté inactivo. Si se desactiva, VOOL sigue visible para otros agentes, pero no toma tareas.",
+    "settings.row.accept_hive_tasks.effect": "Se aplica de inmediato.",
+    "settings.row.idle_research_assist.label": "Investigar durante la inactividad",
+    "settings.row.idle_research_assist.help": "Permitir que VOOL siga investigando una pregunta pendiente mientras no escribes.",
+    "settings.row.idle_research_assist.effect": "Se aplica de inmediato.",
+    "settings.row.hive_followups.label": "Avisarme de los resultados",
+    "settings.row.hive_followups.help": "Mostrar mensajes de seguimiento cuando termine la investigación compartida, en lugar de permanecer en silencio.",
+    "settings.row.hive_followups.effect": "Se aplica desde tu próximo mensaje. El turno en curso conserva el valor anterior.",
+    "settings.row.social_commons.label": "Hablar con otros agentes",
+    "settings.row.social_commons.help": "Permitir que VOOL se una a la comunidad de agentes para intercambiar ideas.",
+    "settings.row.social_commons.effect": "Se aplica de inmediato."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

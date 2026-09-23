@@ -65,13 +65,13 @@ def test_unsupported_commodities_become_explicit_subtasks_alongside_resolved_cry
         plan_id="p", attempt_id="a",
     )
     assert plan is not None
-    assert len(plan.subtasks) == 7  # requested cardinality: 4 market (2 resolved + 2 unsupported) + 3 weather
+    assert len(plan.subtasks) == 7  # requested cardinality: 4 market (3 resolved + 1 unsupported) + 3 weather
     market = plan.market_subtasks()
     assert len(market) == 4
     resolved = {t.arguments.get("asset_key") for t in market if t.operation == "market_quote"}
-    assert resolved == {"ethereum", "solana"}
+    assert resolved == {"ethereum", "solana", "brent_crude"}
     unsupported = {t.arguments.get("requested_text") for t in market if t.operation == "unsupported_market_entity"}
-    assert unsupported == {"oil", "copper"}
+    assert unsupported == {"copper"}
 
 
 def test_one_recognized_plus_one_unknown_asset_both_produce_subtasks() -> None:
@@ -131,9 +131,9 @@ def test_render_shows_unsupported_entities_as_unavailable_rows() -> None:
 
     assert "Ethereum" in rendered and "1,900.00" in rendered
     assert "Solana" in rendered and "73.00" in rendered
-    assert "Oil" in rendered
+    assert "Brent crude" in rendered
     assert "Copper" in rendered
-    assert rendered.count("unavailable") == 2  # oil and copper, each their own row
+    assert rendered.count("unavailable") == 2  # unavailable oil quote and unsupported copper, each their own row
     # The unsupported rows must not be silently absent, and must not corrupt the resolved ones.
     assert "Largest absolute 24-hour mover: Ethereum" in rendered
 
@@ -147,5 +147,5 @@ def test_sabotage_reverting_to_silent_omission_reproduces_the_incident() -> None
             "Current price and daily change for Ethereum, Solana, oil, and copper.", plan_id="p", attempt_id="a"
         )
     assert plan is not None
-    assert len(plan.market_subtasks()) == 2  # the bug, reproduced: oil/copper silently gone
-    assert {t.arguments["asset_key"] for t in plan.market_subtasks()} == {"ethereum", "solana"}
+    assert len(plan.market_subtasks()) == 3  # the bug, reproduced: unsupported copper silently gone
+    assert {t.arguments["asset_key"] for t in plan.market_subtasks()} == {"ethereum", "solana", "brent_crude"}

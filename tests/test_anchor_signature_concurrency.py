@@ -132,6 +132,8 @@ def test_concurrent_ensure_on_legacy_db_does_not_lose_signature() -> None:
             rendered="rendered",
             status="finalized",
             confidence=0.9,
+            finalization_id=f"final-{task_id}",
+            request_id=f"request-{task_id}",
         )
 
     sig_a = "A" + "y" * 80
@@ -168,3 +170,6 @@ def test_concurrent_ensure_on_legacy_db_does_not_lose_signature() -> None:
     assert row_a is not None and row_b is not None
     assert row_a["anchored_signature"] == sig_a
     assert row_b["anchored_signature"] == sig_b
+    for task_id, row in ((task_a, row_a), (task_b, row_b)):
+        assert row["finalization_id"] == f"final-{task_id}"
+        assert row["request_id"] == f"request-{task_id}"

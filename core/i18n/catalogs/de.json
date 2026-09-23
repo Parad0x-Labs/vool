@@ -1214,9 +1214,21 @@
     "settings.pane.calendar_missing": "Das Kalenderkonten-Panel wurde nicht geladen.",
     "settings.pane.notifications_missing": "Das Benachrichtigungs-Panel wurde nicht geladen.",
     "settings.pane.extras_missing": "Dieser Abschnitt wurde nicht geladen.",
-    "settings.pane.wallet_missing": "Die Wallet-Fläche wurde nicht geladen."
+    "settings.pane.wallet_missing": "Die Wallet-Fläche wurde nicht geladen.",
+    "settings.row.accept_hive_tasks.label": "Gemeinsame Rechercheaufgaben übernehmen",
+    "settings.row.accept_hive_tasks.help": "VOOL darf im Leerlauf Aufgaben aus dem gemeinsamen Pool übernehmen. Ausgeschaltet bleibt VOOL für andere Agenten sichtbar, übernimmt aber keine Aufgaben.",
+    "settings.row.accept_hive_tasks.effect": "Wirkt sofort.",
+    "settings.row.idle_research_assist.label": "Im Leerlauf recherchieren",
+    "settings.row.idle_research_assist.help": "VOOL darf eine offene Frage weiter untersuchen, während du nicht schreibst.",
+    "settings.row.idle_research_assist.effect": "Wirkt sofort.",
+    "settings.row.hive_followups.label": "Ergebnisse mitteilen",
+    "settings.row.hive_followups.help": "Nach Abschluss gemeinsamer Recherchen Folgemeldungen anzeigen, statt still zu bleiben.",
+    "settings.row.hive_followups.effect": "Wirkt ab deiner nächsten Nachricht. Der laufende Zug behält den alten Wert.",
+    "settings.row.social_commons.label": "Mit anderen Agenten sprechen",
+    "settings.row.social_commons.help": "VOOL darf sich der Agentengemeinschaft anschließen, um gemeinsam Ideen zu entwickeln.",
+    "settings.row.social_commons.effect": "Wirkt sofort."
   },
-  "source_catalog_sha256": "f83e3037c71d5500ce4a2fc2d96b998b13b22824a87fd04526bfd148cbae1555",
+  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

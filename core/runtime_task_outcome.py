@@ -480,6 +480,28 @@ def _validated_conductor_outcome(
     return normalize_runtime_task_outcome(declared)
 
 
+def _cancellation_marker_fired(source_context: Any) -> bool:
+    """The operator's stop marker, in the same vocabulary the agent spine's terminal boundary
+    accepts (an Event-like ``.is_set()`` or a plain callable token). A user cancellation must
+    not finalize as a provider/runtime failure there -- and by the same rule, not here either:
+    the HTTP front door's fulfillment truth feeds checkpoints and the model-sufficiency writer,
+    and a stopped turn that classifies FAILED has that writer record fabricated evidence about
+    a provider the operator simply stopped using."""
+    if not isinstance(source_context, dict):
+        return False
+    marker = source_context.get("cancel_event") or source_context.get("cancellation_token")
+    if marker is None:
+        return False
+    is_set = getattr(marker, "is_set", None)
+    probe = is_set if callable(is_set) else (marker if callable(marker) else None)
+    if probe is None:
+        return False
+    try:
+        return bool(probe())
+    except Exception:
+        return False
+
+
 def terminal_fulfillment_outcome(
     result: Any,
     *,
@@ -491,7 +513,37 @@ def terminal_fulfillment_outcome(
     The HTTP request may complete successfully while the user's task does not.  This classifier
     deliberately preserves that transport compatibility and answers only the fulfillment
     question used by checkpoints and terminal trace receipts.
+
+    An operator stop outranks the derived failure: whatever stage the turn was in when the
+    operator cancelled, the terminal truth is CANCELLED -- except a turn that genuinely
+    fulfilled (the answer was delivered before the stop landed) or one paused waiting for the
+    operator's approval, mirroring the attempt spine's precedence exactly.
     """
+    outcome = _derived_terminal_fulfillment_outcome(
+        result, source_context=source_context, call_accounting=call_accounting
+    )
+    if outcome.fulfillment_status in {FulfillmentStatus.FULFILLED, FulfillmentStatus.BLOCKED, FulfillmentStatus.CANCELLED}:
+        return outcome
+    if _cancellation_marker_fired(source_context):
+        return RuntimeTaskOutcome(
+            fulfillment_status=FulfillmentStatus.CANCELLED,
+            failure_stage="task_execution",
+            failure_codes=("cancelled",),
+            retryable=False,
+            origin_task_id=outcome.origin_task_id,
+            origin_checkpoint_id=outcome.origin_checkpoint_id,
+            original_request_hash=outcome.original_request_hash,
+        )
+    return outcome
+
+
+def _derived_terminal_fulfillment_outcome(
+    result: Any,
+    *,
+    source_context: Any = None,
+    call_accounting: Any = None,
+) -> RuntimeTaskOutcome:
+    """The stage-derived outcome, before the operator-stop override is applied."""
 
     payload = dict(result or {}) if isinstance(result, dict) else {}
     context = dict(source_context or {}) if isinstance(source_context, dict) else {}

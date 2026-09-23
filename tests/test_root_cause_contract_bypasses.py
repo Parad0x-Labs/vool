@@ -374,8 +374,12 @@ SUITE_REQUEST = (
 
 def _plan_repair(tmpdir: str, text: str) -> tuple[dict, dict]:
     from core.execution.planner import plan_tool_workflow
+    from core.mode_permission_policy import set_active_mode
 
-    ctx = {"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir}
+    session = "repair-" + Path(tmpdir).name
+    set_active_mode(session, "auto")
+    ctx = {"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir,
+           "session_id": session, "runtime_session_id": session, "operating_mode": "auto"}
     decision = plan_tool_workflow(
         user_text=text, task_class="debugging", executed_steps=[], source_context=ctx
     )

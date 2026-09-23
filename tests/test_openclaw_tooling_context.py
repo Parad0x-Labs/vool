@@ -877,10 +877,10 @@ class OpenClawToolingContextTests(unittest.TestCase):
         system_prompt = request.system_prompt().lower()
         self.assertEqual(request.output_mode, "tool_intent")
         self.assertIn("web.search", system_prompt)
-        self.assertIn("workspace.read_file", system_prompt)
-        self.assertIn("sandbox.run_command", system_prompt)
-        self.assertIn("hive.export_research_packet", system_prompt)
-        self.assertIn("hive.research_topic", system_prompt)
+        # Initial offers are navigators; domain tools appear after expansion.
+        self.assertIn("operator.list_tools", system_prompt)
+        self.assertIn("capability.expand_family", system_prompt)
+        self.assertIn("orchestration.execute_envelope", system_prompt)
         self.assertIn("respond.direct", system_prompt)
         self.assertIn("never invent intent names", system_prompt)
 
@@ -3931,7 +3931,8 @@ class OpenClawToolingContextTests(unittest.TestCase):
             self.assertTrue(target.is_file())
             self.assertEqual(target.read_text(encoding="utf-8"), "recovery succeeded 3525eb")
 
-        self.assertIn("cannot read that path", blocked["response"].lower())
+        self.assertIn("cannot read", blocked["response"].lower())
+        self.assertIn("blocked_3525eb.txt", blocked["response"])
         self.assertNotIn("bounded builder path", create["response"].lower())
         self.assertIn("recovery succeeded 3525eb", read["response"])
 

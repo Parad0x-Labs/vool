@@ -41,6 +41,43 @@ def test_unknown_events_contribute_nothing_rather_than_a_guess():
     assert classify_turn(observation_from_trace(None)) is TerminalState.UNCLASSIFIED
 
 
+def test_an_operator_stop_is_not_a_stage_failure_or_a_delivered_answer():
+    """The runtime refuses the next lane attempt with `turn_cancelled` when the operator stops a
+    turn mid-flight. That stop must classify as its own state — not success over text the stop
+    prevented from being delivered, and not a provider error blaming a provider that answered."""
+    events = [
+        {"event_type": "model.call_started", "message": ""},
+        {"event_type": "model.call_completed", "message": ""},
+        {
+            "event_type": "model_lane_failed",
+            "message": "",
+            "attempt_timings": [{"error": "turn_cancelled", "model_id": "m", "outcome": "failed"}],
+        },
+    ]
+    observation = observation_from_trace(events)
+    observation.raw_content = "text that was never delivered"
+    observation.final_text = "text that was never delivered"
+    assert classify_turn(observation) is TerminalState.OPERATOR_STOPPED
+
+
+def test_the_operator_stop_is_read_from_the_nested_details_shape_too():
+    events = [
+        {
+            "event_type": "model_routing_failed",
+            "details": {"error": "turn_cancelled"},
+        }
+    ]
+    assert classify_turn(observation_from_trace(events)) is TerminalState.OPERATOR_STOPPED
+
+
+def test_a_lane_failure_without_cancellation_is_not_an_operator_stop():
+    events = [
+        {"event_type": "model.call_started", "message": ""},
+        {"event_type": "model_lane_failed", "message": "", "error": "500 Server Error"},
+    ]
+    assert classify_turn(observation_from_trace(events)) is not TerminalState.OPERATOR_STOPPED
+
+
 def test_every_state_has_an_explanation():
     for state in TerminalState:
         assert explain(state).strip(), f"{state} ships without an explanation"

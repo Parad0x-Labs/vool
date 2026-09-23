@@ -30,6 +30,15 @@ OFF==OFF and OFF!=ON, which this cannot absorb.
 **`source_context` is compared by key set rather than dropped.** It is the caller's dict, mutated in
 place by the turn, so its values legitimately differ -- but if instrumentation ever wrote into it,
 the keys would diverge, and that is worth catching.
+
+**The finalization records are compared by content, not by identity.** Every served result now
+carries the records `run_once`'s finalization spine stashes on it (`_closure_verdict`,
+`_execution_identity`, `_presentation_selection`, `_semantic_admission`, `details`), and each
+embeds identities minted for that very turn -- obligation-set, attempt, request and tool-call ids,
+a per-process epoch and admission counter. A value like that cannot be compared across runs by
+design, so the records are excluded from the byte comparison and each keeps its own content
+comparison instead, minus its identity keys; see `_STRUCTURAL_ONLY` and
+`test_the_finalization_records_beside_their_identities_are_unchanged`.
 """
 from __future__ import annotations
 
@@ -65,7 +74,72 @@ _VARIED_BY_DESIGN = frozenset({"session_id", "task_id", "turn_id"})
 
 #: Compared structurally rather than by value: `honesty_receipt` embeds the turn's own hashes and an
 #: issue timestamp, and `source_context` is a mutated input dict.
-_STRUCTURAL_ONLY = frozenset({"honesty_receipt", "source_context"})
+#:
+#: The five fields below joined on measurement, not on preference. The finalization spine of
+#: `run_once` (`core/agent_runtime/agent.py`) stashes a record of the turn's execution on every
+#: served result, and each record embeds identities minted fresh for THIS turn: uuids for the
+#: obligation set (`set_id`/`set_version`), the attempt (`attempt_id`/`execution_id`/`request_id`,
+#: plus the per-process `runtime_epoch`), the presentation selection's `turn_id`, the semantic
+#: seam's `semantic_result_id` (which also carries a per-process admission counter), and the
+#: `tool_call_id` inside `details`. Two runs of the same text under the same flag mint different
+#: identities -- as they must -- so comparing these VALUES byte for byte re-classified all 252
+#: turns as "nondeterministic" and the proof covered nothing. That is not evidence about
+#: instrumentation, it is bookkeeping, and bookkeeping is set aside here.
+#:
+#: What is NOT set aside is the content beside those identities: which presentation was elected,
+#: whether the semantic result was admitted and from which route, whether the turn's obligations
+#: closed, which tool ran and what it observed, and how many attempts the identity counted. Each
+#: field keeps its own comparison, field by field minus its identity keys, in
+#: `test_the_finalization_records_beside_their_identities_are_unchanged`.
+_STRUCTURAL_ONLY = frozenset(
+    {
+        "honesty_receipt",
+        "source_context",
+        "_closure_verdict",
+        "_execution_identity",
+        "_presentation_selection",
+        "_semantic_admission",
+        "details",
+    }
+)
+
+#: The identity keys inside each structural record, dropped for the content comparison above.
+#: Nothing else is dropped from these records -- a change in any other key of any of them is a
+#: behaviour change and fails the proof.
+_STRUCTURAL_IDENTITIES: dict[str, frozenset[str]] = {
+    "_closure_verdict": frozenset({"set_id", "set_version"}),
+    "_execution_identity": frozenset(
+        {"attempt_id", "execution_id", "request_id", "runtime_epoch"}
+    ),
+    "_presentation_selection": frozenset({"turn_id"}),
+    "_semantic_admission": frozenset({"semantic_result_id"}),
+}
+
+
+def _structural_content(result: dict, field: str):
+    """A structural record with its identity keys removed, for content comparison."""
+    value = result.get(field)
+    if not isinstance(value, dict):
+        return value
+    dropped = _STRUCTURAL_IDENTITIES.get(field, frozenset())
+    return {key: item for key, item in value.items() if key not in dropped}
+
+
+def _without_tool_call_ids(value):
+    """`details` with every nested `tool_call_id` removed, at any depth.
+
+    The id is minted per tool call; the call itself -- name, validation, capability gap,
+    observation -- is the turn's behaviour and stays.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _without_tool_call_ids(item)
+            for key, item in value.items()
+            if key != "tool_call_id"
+        }
+    if isinstance(value, list):
+        return [_without_tool_call_ids(item) for item in value]
+    return value
 
 
 def _drive(make_agent, text: str, session_id: str, *, flag: str) -> dict:
@@ -183,10 +257,14 @@ def test_a_per_run_identity_is_the_only_thing_this_hides(make_agent_module, dete
     `turn_id`, `_comparable` would no longer catch it, so presence is checked here directly.
     """
     # A FAST-PATH turn, deliberately: `turn_id` is minted in `fast_path_result`, so a model-lane turn
-    # carries none at all and would prove nothing about the field being excluded here.
+    # carries none at all and would prove nothing about the field being excluded here. The empty turn
+    # is that fast-path turn now: the empty-turn gate answers it through the non-task fast lane
+    # (`empty_turn_fast_path`), which mints a `turn-...` id and an empty `task_id`, where "weather
+    # today" -- the original subject -- routes to the tool-intent lane and is task-bound. The subject
+    # follows the lane, not the other way round.
     try:
-        first = _drive(make_agent_module, "weather today", "identity-ctrl-a", flag="0")
-        second = _drive(make_agent_module, "weather today", "identity-ctrl-b", flag="0")
+        first = _drive(make_agent_module, "", "identity-ctrl-a", flag="0")
+        second = _drive(make_agent_module, "", "identity-ctrl-b", flag="0")
     finally:
         os.environ.pop("VOOL_SEMANTIC_REACH", None)
     assert first.get("turn_id") and second.get("turn_id"), (
@@ -303,6 +381,44 @@ def test_the_honesty_verdict_is_unchanged_by_instrumentation(deterministic) -> N
         if left != right:
             problems.append(f"{text!r}: off={left!r} on={right!r}")
     assert not problems, "the turn-level receipt verdict changed:\n" + "\n".join(problems[:5])
+
+
+def test_the_finalization_records_beside_their_identities_are_unchanged(deterministic) -> None:
+    """The structural records' CONTENT is compared, only their identity values are not.
+
+    Setting `_closure_verdict`, `_execution_identity`, `_presentation_selection`,
+    `_semantic_admission` and `details` aside from the byte comparison is only honest while what
+    those records SAY about the turn is still proven unchanged. Each is compared field by field
+    minus its identity keys (`_STRUCTURAL_IDENTITIES`): which presentation was elected and why,
+    whether the semantic result was admitted and from which route, whether the turn's obligations
+    closed and how many stayed open, which tool ran and what it observed, and how many attempts
+    the execution identity counted. Instrumentation that changed any of that fails here even
+    though the bytes of the record were never comparable. Presence is under observation too: a
+    record that appears under ON but not OFF (or vice versa) is instrumentation changing the
+    shape of the result, not its bookkeeping.
+    """
+    problems: list[str] = []
+    dict_fields = sorted(_STRUCTURAL_IDENTITIES)
+    for text, off, on in deterministic:
+        for field in dict_fields:
+            if (field in off) != (field in on):
+                problems.append(f"{text!r}: {field}: present off={field in off} on={field in on}")
+                continue
+            left, right = _structural_content(off, field), _structural_content(on, field)
+            if left != right:
+                problems.append(f"{text!r}: {field}: off={left!r} on={right!r}")
+        if ("details" in off) != ("details" in on):
+            problems.append(f"{text!r}: details: off={'details' in off} on={'details' in on}")
+            continue
+        left, right = _without_tool_call_ids(off.get("details")), _without_tool_call_ids(
+            on.get("details")
+        )
+        if left != right:
+            problems.append(f"{text!r}: details: off={left!r} on={right!r}")
+    assert not problems, (
+        "instrumentation changed what a finalization record says about the turn:\n"
+        + "\n".join(problems[:10])
+    )
 
 
 def test_instrumentation_adds_exactly_zero_model_calls(deterministic) -> None:

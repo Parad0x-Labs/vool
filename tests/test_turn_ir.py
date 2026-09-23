@@ -202,6 +202,9 @@ def test_a_demand_beside_a_prohibition_stays_a_demand() -> None:
         "Do NOT search the web for this, what is 2+2?",
         "Do NOT search the web for this. What is 2+2?",
         "Without searching, what is the capital of France?",
+        "Get the current TRY/EUR exchange rate without using the web",
+        "Explain photosynthesis without using the internet",
+        "Calculate 19 times 7 without using tools",
     ):
         assert classify_clause_kind(carries_a_demand) is not ClauseKind.CONSTRAINT, carries_a_demand
 
@@ -227,6 +230,18 @@ def test_a_framing_prefix_does_not_hide_the_request_behind_it() -> None:
     # Control: a prefix in front of nothing answerable stays UNKNOWN rather than being invented into
     # a request.
     assert classify_clause_kind("Thanks!") is ClauseKind.UNKNOWN
+
+
+@pytest.mark.parametrize("cities", ["Kaunas and Tallinn", "Oslo and Tromso"])
+def test_a_later_comparison_does_not_split_an_observed_list(cities) -> None:
+    text = (f"Get the current weather for {cities}, tell me which city is warmer, "
+            "and explain what a 6 degree difference means for choosing a coat.")
+    clauses = parse_turn_ir(text).clauses
+    assert [clause.request_text for clause in clauses] == [
+        f"Get the current weather for {cities}",
+        "tell me which city is warmer,",
+        "explain what a 6 degree difference means for choosing a coat.",
+    ]
 
 
 def test_constraint_detection_never_reshapes_clause_boundaries() -> None:

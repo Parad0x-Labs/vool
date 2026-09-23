@@ -1,0 +1,1438 @@
+{
+  "complete": true,
+  "counts": {
+    "ABSENT": 35,
+    "IMPLEMENTED": 11,
+    "PARTIAL": 23,
+    "SERVED-PROVEN": 32
+  },
+  "join": {
+    "authorities": 8,
+    "collected_node_ids": 4,
+    "release_critical_absent": 0,
+    "release_critical_prose_only": 0,
+    "release_critical_without_authority": 38,
+    "release_critical_without_caller": 8,
+    "rows": 101,
+    "with_production_caller": 44,
+    "with_served_proof": 18,
+    "without_production_caller": 57
+  },
+  "lane": "build/code-assistant-final-union-20260903 (union of build/native-code-assistant-unify-20260903 @2b32e91c and build/native-code-assistant-p1-20260902 @1d2aef5e)",
+  "next_missing_plane": "unchanged from the base tip: no release-critical row is ABSENT; the remaining ABSENT rows are out-of-scope capability planes (AST/dep-graph/repo-map context, multi-file features, PR/CI connectors, operator surfaces, PTY/streaming shell) graded release_critical=false with reasons. This union moved exactly two rows and changed no release_critical flag: 78 credential redaction PARTIAL->IMPLEMENTED, 82 secret scanning before commits/reports ABSENT->PARTIAL (report half only; the commit half belongs to KAS/RepoOps). The nearest un-owned work is the served half of the secret-free report and multi-mutation rollback ordering (row 95).",
+  "rows": [
+    {
+      "authority_resolved": false,
+      "capability": "AGENTS.md / repo rules discovery",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 1,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "git-aware file inventory respecting ignores",
+      "evidence": "core/execution/workspace_tools.py iter_workspace_files",
+      "note": "exists in runtime; not exercised through a code task",
+      "offered_tool": "",
+      "plane": 1,
+      "production_caller": "core/execution/workspace_tools.py:iter_workspace_files",
+      "release_critical": true,
+      "served_proof": [
+        "tests/test_runtime_execution_tools.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "fast text/regex search",
+      "evidence": "workspace.search_text",
+      "note": "exists; not exercised through a code task",
+      "offered_tool": "workspace.search_text",
+      "plane": 1,
+      "production_caller": "workspace.search_text",
+      "release_critical": true,
+      "served_proof": [
+        "tests/gauntlet/test_contract_map_golden.py",
+        "tests/gauntlet/test_tool_honesty_matrix.py",
+        "tests/gauntlet/test_tool_loop_gates.py",
+        "tests/gauntlet/tool_surface_golden.json"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "symbol/reference/definition lookup",
+      "evidence": "workspace.symbol_search",
+      "note": "symbol only; references/definitions absent",
+      "offered_tool": "workspace.symbol_search",
+      "plane": 1,
+      "production_caller": "workspace.symbol_search",
+      "release_critical": true,
+      "served_proof": [
+        "tests/gauntlet/test_contract_map_golden.py",
+        "tests/gauntlet/tool_surface_golden.json",
+        "tests/test_runtime_execution_operator_phase1.py",
+        "tests/test_runtime_execution_tools.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "AST-aware navigation and edits",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 1,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "dependency/import graph",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 1,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "repository map and relevant-context selection",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 1,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority": {
+        "edges": [
+          [
+            "core/runtime_execution_tools.py",
+            "_dispatch_runtime_tool"
+          ]
+        ],
+        "kind": "caller",
+        "note": "edge: _dispatch_runtime_tool returns _read_file(arguments, ...); non-text bytes answer status=\"binary_file\" (_is_probably_text sniffs the head); oversized is the line window (total_lines/truncated), not a byte-cap refusal; no generated/vendored detection exists, so the row stays PARTIAL",
+        "path": "core/runtime_execution_tools.py",
+        "symbol": "_read_file"
+      },
+      "authority_resolved": true,
+      "capability": "generated/vendored/binary/oversized detection",
+      "evidence": "workspace.read_file binary_file status",
+      "note": "binary only",
+      "offered_tool": "",
+      "plane": 1,
+      "production_caller": "",
+      "release_critical": true,
+      "served_proof": [
+        "tests/_authorship_certification.py",
+        "tests/_authorship_served_rig.py",
+        "tests/_blackbox_served_rig.py",
+        "tests/_credential_intelligence_support.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "incremental index invalidation after edits",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 1,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority": {
+        "edges": [
+          [
+            "core/code_assistant/task_runtime.py",
+            "_run_step"
+          ]
+        ],
+        "kind": "caller",
+        "note": "edge: CodeTaskRuntime._execute calls self._advance(...), which appends every executed boundary read to CodeTask.read_paths; propose() refuses a repair whose defect path is not in that read set (owner_not_read); read_paths is a gate input, not yet projected into the user-facing report — row stays PARTIAL",
+        "path": "core/code_assistant/task_runtime.py",
+        "symbol": "_advance"
+      },
+      "authority_resolved": true,
+      "capability": "explain which files shaped the decision",
+      "evidence": "code.task journal read_paths + report defect/defect path",
+      "note": "the journal now records every path the task read through the boundary; no ranking",
+      "offered_tool": "",
+      "plane": 1,
+      "production_caller": "",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority": {
+        "edges": [
+          [
+            "core/runtime_execution_tools.py",
+            "_dispatch_runtime_tool"
+          ]
+        ],
+        "kind": "caller",
+        "note": "edge: _dispatch_runtime_tool returns _read_file(...); start_line/max_lines (default 2000, ceiling 50000) plus strict-UTF-8 with the typed decode_lossy fallback, both declared on the workspace.read_file contract schema",
+        "path": "core/runtime_execution_tools.py",
+        "symbol": "_read_file"
+      },
+      "authority_resolved": true,
+      "capability": "read exact ranges and encodings",
+      "evidence": "workspace.read_file start_line/max_lines/decode_lossy",
+      "note": "",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "create / patch / replace",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "write_file through code.task.step on /api/chat; bytes on disk == approved sha256",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "rename",
+      "evidence": "machine.move_path",
+      "note": "not workspace-scoped through a code task",
+      "offered_tool": "machine.move_path",
+      "plane": 2,
+      "production_caller": "machine.move_path",
+      "release_critical": false,
+      "served_proof": [
+        "tests/gauntlet/test_contract_map_golden.py",
+        "tests/gauntlet/tool_surface_golden.json",
+        "tests/test_council_seat_containment.py",
+        "tests/test_council_seat_no_shell_and_cancellation.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "delete within approved scope",
+      "evidence": "code.task.rollback restores/deletes through Blackbox behind an Auto-mode approval",
+      "note": "the delete-class act is the rollback itself; a general delete tool remains out of scope",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [
+        "tests/_toolchain_fixtures.py",
+        "tests/_vool_browser_support.py",
+        "tests/adversarial/test_bug_report_adversarial.py",
+        "tests/behavioral_pack_v2.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "atomic multi-file edits",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "preserve encoding / line endings / permissions / exec bits",
+      "evidence": "",
+      "note": "not exercised",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "detect concurrent modification, refuse stale patches",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_concurrent_edits_to_the_same_file; tests/test_run_migrations_singleton.py",
+      "note": "served: two sessions on two stub models write calc.py concurrently from the same base hash; exactly one lands, the other is stale_base — served test passed once and failed three different ways under load 20-45 from another lane's full suite; it is load-gated (skipif load>16) until the box is quiet — the load-sensitive half is root-caused and repaired on this lane: two concurrent first turns shared one '.pre-migration' snapshot name and the finisher's discard unlinked it mid-copy, so the losing /api/chat turn died as an empty-body 500 before task_received. run_migrations is now serialized per process and each invocation snapshots under its own name; the 500 catch site logs its traceback. The load gate on the served test is left in place: it was not re-measured under load here.",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "prevent path traversal and symlink escape",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served: ../outside.txt and a symlink out of the tree refused through /api/chat, executed=False, outside file intact",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "preview and approve destructive changes",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "propose leaves bytes untouched; approval binds; served",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "Blackbox byte-exact rollback",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served: code.task.rollback in Auto leaves the write in place (delete-class approval); the operator rollback restores the exact pre-task bytes from the recorded Blackbox turn",
+      "offered_tool": "",
+      "plane": 2,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "bounded shell with cwd/env",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served: `rm -rf /` refused through /api/chat, executed=False, tree intact",
+      "offered_tool": "",
+      "plane": 3,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "streaming stdout/stderr",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 3,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "PTY for interactive commands",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 3,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "background-process lifecycle and tree cleanup",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 3,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "timeout / cancellation / output limits",
+      "evidence": "tests/test_code_assistant_served_gaps.py::test_served_cancel_interrupts_a_running_command",
+      "note": "served: /api/chat/cancel kills the in-flight sandbox process mid-run; journal records executed=True, ok=False, status=cancelled, task cancelled; marker file proves the command never completed",
+      "offered_tool": "",
+      "plane": 3,
+      "production_caller": "tests/test_code_assistant_served_gaps.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "no command injection through tool arguments",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served: rm -rf refused, ../ and symlink escapes refused, compound shell syntax blocked by the gate; underscore trust keys refused at the door",
+      "offered_tool": "",
+      "plane": 3,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "macOS / Linux / Windows adapters",
+      "evidence": "",
+      "note": "macOS exercised only",
+      "offered_tool": "",
+      "plane": 3,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "containers / remote execution visibly unavailable",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 3,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "detect project language/build system",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "Python minimum proven",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "real pytest reproduced failing then passing through /api/chat",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "JS/TS and shell minimum proven",
+      "evidence": "tests/test_code_assistant_served_gaps.py::test_served_javascript_repo_journey; tests/test_code_assistant_served_gaps.py::test_served_shell_repo_journey; tests/test_code_assistant_language_minimums.py::test_javascript_root_cause_journey; tests/test_code_assistant_language_minimums.py::test_typescript_root_cause_journey; tests/test_code_assistant_language_minimums.py::test_shell_root_cause_journey",
+      "note": "served: a JavaScript repo (node --test) and a POSIX shell repo (its own sh harness entered through the whitelisted node) each complete reproduce -> root cause -> proposal -> approval -> mutation -> narrow -> cumulative -> diff -> report — TypeScript is now covered too, but at the code.task door in-process (node >= 22.18 type-stripping, real `node --test` on a real repo), NOT through /api/chat: the JS and shell halves are served, the TS half is IMPLEMENTED. Each of the three journeys walks the full canonical stage machine including the boundary read of the owning file and a proposal rationale.",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "tests/test_code_assistant_served_gaps.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "focused tests before cumulative regression",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "narrow then cumulative through /api/chat; stage machine advanced",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "lint / formatting / type checking / build",
+      "evidence": "workspace.run_lint, workspace.run_formatter contracted",
+      "note": "type checking and build absent; lint/format not exercised through a task",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [
+        "tests/code_assistant/conftest.py",
+        "tests/code_assistant/test_contract.py",
+        "tests/code_assistant/test_review_evidence.py",
+        "tests/code_assistant/test_sabotage.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "parse failures into file/line evidence",
+      "evidence": "extract_observation_followup_hints",
+      "note": "not surfaced in code.task.report",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [
+        "tests/test_runtime_execution_tools.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "language-server adapter",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "debug logs and browser/runtime inspection",
+      "evidence": "browser.render contracted",
+      "note": "not exercised",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [
+        "tests/code_assistant/conftest.py",
+        "tests/code_assistant/test_contract.py",
+        "tests/code_assistant/test_review_evidence.py",
+        "tests/code_assistant/test_sabotage.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "dependency/package-manager operations require approval",
+      "evidence": "sandbox/job_runner.py ExecutionPolicy: package tools run confined with network egress denied",
+      "note": "package tools get a longer clock but never network; no dedicated approval class yet",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "sandbox/job_runner.py",
+      "release_critical": false,
+      "served_proof": [
+        "tests/_toolchain_fixtures.py",
+        "tests/behavioral_pack_v2.py",
+        "tests/command_registry/test_live_parity.py",
+        "tests/command_registry/test_model_tools.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "never claim a check ran when unavailable",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served: a forged `result` argument is refused at the door and never journaled; model prose claiming a test passed publishes no such claim and journals no step",
+      "offered_tool": "",
+      "plane": 4,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "status / diff",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "git diff through /api/chat lists only calc.py",
+      "offered_tool": "",
+      "plane": 5,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "history / blame / branch inspection",
+      "evidence": "workspace.git_status / git_diff / git_summary contracted and dispatched",
+      "note": "summary/diff/status served-proven through code.task.step; blame and branch inspection absent",
+      "offered_tool": "",
+      "plane": 5,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [
+        "tests/code_assistant/test_contract.py",
+        "tests/code_assistant/test_review.py",
+        "tests/foundation/test_r1_execution_invariant.py",
+        "tests/foundation/test_r4_fence_predicates.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "safe branch/worktree creation",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 5,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "stage and commit only with explicit authority",
+      "evidence": "no commit or stage tool is contracted in the runtime registry",
+      "note": "the assistant cannot commit at all, so the authority gate is moot; a deliberate commit-with-authority capability is future work",
+      "offered_tool": "",
+      "plane": 5,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [
+        "tests/_credential_intelligence_support.py",
+        "tests/_reader_served_rig.py",
+        "tests/_toolchain_fixtures.py",
+        "tests/blackbox_coverage/AMENDMENT_EVIDENCE_2026-09-02.md"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority": {
+        "assert_token": "default_denied",
+        "kind": "served",
+        "node_ids": [
+          "tests/repoops/test_repoops_adversarial.py::test_a_push_without_an_authorization_is_refused_and_the_remote_does_not_move",
+          "tests/repoops/test_repoops_adversarial.py::test_force_push_and_branch_deletion_are_denied_by_default",
+          "tests/test_git_command_gate.py::test_destructive_git_requires_approval"
+        ],
+        "note": "the evidence sentence is imprecise: repo.push IS contracted (network_publish, explicit_user_opt_in, simulate by default, force-push inexpressible); the named nodes drive repo.push through the real plane and assert the refusals and the default-denied force-push, and the git command gate classifies a pasted 'git push' as approval-gated; the authority's assert_token default_denied is asserted in the force-push test body — the exact typed status that proves the default denial",
+        "token": "repo.push"
+      },
+      "authority_resolved": true,
+      "capability": "never push by default",
+      "evidence": "no push tool is contracted",
+      "note": "",
+      "offered_tool": "",
+      "plane": 5,
+      "production_caller": "",
+      "release_critical": true,
+      "served_proof": [
+        "tests/code_assistant/conftest.py",
+        "tests/code_assistant/test_contract.py",
+        "tests/code_assistant/test_review_evidence.py",
+        "tests/code_assistant/test_sabotage.py"
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "dirty-tree ownership / preserve user changes",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 5,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "PR / issue / CI connectors",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 5,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "review mode with ranked defects",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 5,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "bug reproduction and root-cause repair",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "nine stages executed through /api/chat; journal + disk asserted",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "multi-file feature implementation",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "refactor with behavioural preservation",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "test creation and regression repair",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "security review",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "performance investigation",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "migration / change management",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "browser/UI verification",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "documentation from verified behaviour",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "release-readiness inspection",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 6,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority": {
+        "edges": [
+          [
+            "core/code_assistant/task_runtime.py",
+            "_result"
+          ]
+        ],
+        "kind": "caller",
+        "note": "edge: _result attaches plan=task.plan() to every runtime result; STAGES is a literal nine-tuple and plan() emits done/current/pending by linear index; dependencies beyond linear order do not exist, exactly as the row note says",
+        "path": "core/code_assistant/task_runtime.py",
+        "symbol": "plan"
+      },
+      "authority_resolved": true,
+      "capability": "typed plan with milestones and dependencies",
+      "evidence": "code.task.open plan: nine ordered stages with done/current/pending",
+      "note": "dependencies beyond linear order absent",
+      "offered_tool": "",
+      "plane": 7,
+      "production_caller": "",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "visible progress, current command, elapsed time",
+      "evidence": "journal carries stage, started_at/completed_at per step",
+      "note": "no operator surface",
+      "offered_tool": "",
+      "plane": 7,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "ask only when authority or a material choice is missing",
+      "evidence": "pending_approval surfaces from the mode matrix (rollback in Auto)",
+      "note": "",
+      "offered_tool": "",
+      "plane": 7,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "cancel / resume / retry safely",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served: replay of a completed step does not rewrite a deleted file; after cancel the control plane is withdrawn from the offer and nothing runs",
+      "offered_tool": "",
+      "plane": 7,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "checkpoint before risky work",
+      "evidence": "Blackbox INTENDED record durable before the handler moves a byte (core/blackbox/recorder.py)",
+      "note": "",
+      "offered_tool": "",
+      "plane": 7,
+      "production_caller": "core/blackbox/recorder.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "context compression preserves decisions/files/failures",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 7,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "model switching retains typed task state",
+      "evidence": "tests/test_code_assistant_task_runtime.py::test_task_resumes_from_the_journal_after_a_cold_restart; the journal is model-independent",
+      "note": "task state lives in the on-disk journal keyed by task_id/session, never in model context; a different model can drive the same task",
+      "offered_tool": "",
+      "plane": 7,
+      "production_caller": "tests/test_code_assistant_task_runtime.py",
+      "release_critical": true,
+      "served_proof": [
+        "tests/gauntlet/test_router_matrix.py",
+        "tests/native_skills/test_native_selection.py",
+        "tests/test_native_skill_served_turn.py",
+        "tests/test_x_editorial_engine.py"
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "parallel subtasks only without file-ownership collision",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 7,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "file / image / screenshot / document / long-paste attachments",
+      "evidence": "attachment lanes exist in the runtime",
+      "note": "not graded through the coding task",
+      "offered_tool": "",
+      "plane": 8,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [
+        "tests/_authorship_certification.py",
+        "tests/_authorship_served_rig.py",
+        "tests/_blackbox_served_rig.py",
+        "tests/_credential_intelligence_support.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "long paste becomes a named document artifact",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 8,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "render diffs, files changed, commands, tests, artifacts",
+      "evidence": "code.task.report carries them as data",
+      "note": "no rendering surface",
+      "offered_tool": "",
+      "plane": 8,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "clickable source locations",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 8,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "preview local web applications",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 8,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "never silently omit an attachment",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 8,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "existing registry is the only catalog authority",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "every offered name resolves in the one registry; unoffered call refused (observed)",
+      "offered_tool": "",
+      "plane": 9,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "skills / plugins / MCP through the same permission/effect system",
+      "evidence": "tests/test_code_assistant_served_gaps.py::test_served_plugin_direct_execution_is_refused_only_code_task_executes; tests/test_p0_plugin_dispatch_boundaries.py; tests/test_code_assistant_served_plugin_journeys.py; tests/test_plugin_intent_demand_tokens.py",
+      "note": "served: a registered plugin whose mutating tool attempts a direct workspace write (coached by its own skill) is refused with zero effects and an untouched handler log; only the contracted code.task path lands bytes — three further served journeys land here (malicious handler confined, manifest lie meets the same backstop, mutating plugin gated behind the same typed pending-approval). They were RED on this architecture for a reason worth naming: prose normalization split the dotted plugin token before demand signals ran, so the seat was never offered. _plugin_intents now also matches the whitespace-fused variant against the CLOSED registered vocabulary.",
+      "offered_tool": "",
+      "plane": 9,
+      "production_caller": "tests/test_code_assistant_served_gaps.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "tools offered by capability, availability, certification",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "demand-signal row seats code.task.open; open task seats its stage's control plane",
+      "offered_tool": "",
+      "plane": 9,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority": {
+        "edges": [
+          [
+            "core/tool_intent_executor.py",
+            "_execute_tool_intent_impl"
+          ]
+        ],
+        "kind": "caller",
+        "note": "edge: _execute_tool_intent_impl consults _undispatchable_execution before the permission gate and before any dispatch; a contract with supported=False answers status=\"disabled\" with its own unsupported_reason; the navigator keeps such tools visible as unavailable metadata, never seated",
+        "path": "core/tool_intent_executor.py",
+        "symbol": "_undispatchable_execution"
+      },
+      "authority_resolved": true,
+      "capability": "unsupported tools visible before failure",
+      "evidence": "contract.supported=False -> status=disabled at the door",
+      "note": "",
+      "offered_tool": "",
+      "plane": 9,
+      "production_caller": "",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "local and cloud dialects normalize identically",
+      "evidence": "tests/test_code_assistant_served_gaps.py::test_served_local_and_cloud_dialects_normalize_identically; tests/code_assistant/test_dialects.py::test_twin_engagements_produce_identical_journals_and_bytes",
+      "note": "served: cloud-native tool_calls and local-style text tool objects drive the same journey on identical repositories; journals land step-for-step identical",
+      "offered_tool": "",
+      "plane": 9,
+      "production_caller": "tests/test_code_assistant_served_gaps.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "parallel tool calls execute every validated member",
+      "evidence": "tests/code_assistant/test_dialects.py::test_parallel_cloud_calls_are_refused_one_at_a_time",
+      "note": "sequential execution is the coding lane's design: a parallel batch is refused typed (one proposal at a time), so there is no unvalidated member to execute",
+      "offered_tool": "",
+      "plane": 9,
+      "production_caller": "tests/code_assistant/test_dialects.py",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "permissions / confinement / effects / fault codes / receipts / Blackbox mandatory",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "served: declared permission actions gate code.task.*; Blackbox terminal_recorded on the served write",
+      "offered_tool": "",
+      "plane": 10,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "budgets",
+      "evidence": "",
+      "note": "not exercised",
+      "offered_tool": "",
+      "plane": 10,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "credential redaction",
+      "evidence": "core/faults/redaction.py; core/secret_redaction.py; core/code_assistant/task_runtime.py::CodeTaskRuntime._redact_publish; tests/test_code_assistant_secret_report.py",
+      "note": "in-process at the code.task door, 3/3: every string the report publishes (objective, defect reason, commands, receipts, proposals with full arguments, test payloads) is scrubbed through core.secret_redaction and the report declares a typed redactions count; a clean report declares zero. Not SERVED-PROVEN: no /api/chat drive plants a secret and reads the published report back. Precision is by construction (vendor shapes + the exact-value registry) — an unknown-format key is caught only if credential intake registered its exact value.",
+      "offered_tool": "",
+      "plane": 10,
+      "production_caller": "core/faults/redaction.py",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "model prose can never impersonate a tool result",
+      "evidence": "tests/test_code_assistant_served_journey.py",
+      "note": "served: an unoffered call is refused as unknown_tool_name; the final reply is the runtime's rendering, never model prose",
+      "offered_tool": "",
+      "plane": 10,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority": {
+        "edges": [
+          [
+            "core/blackbox/recorder.py",
+            "recorded_workspace_mutation"
+          ]
+        ],
+        "kind": "caller",
+        "note": "edge: recorded_workspace_mutation resolves identity = identity_from_context(context) and stamps it on every workspace-mutation journal entry; fault rows join on turn_key through faults_for_turn (core/faults/recorder.py)",
+        "path": "core/blackbox/identity.py",
+        "symbol": "identity_from_context"
+      },
+      "authority_resolved": true,
+      "capability": "every mutation and command attributable",
+      "evidence": "one Blackbox turn id per task; fault rows join on turn_key",
+      "note": "",
+      "offered_tool": "",
+      "plane": 10,
+      "production_caller": "",
+      "release_critical": true,
+      "served_proof": [
+        "tests/_served_sufficiency_provider.py",
+        "tests/project_archaeology/conftest.py",
+        "tests/test_activity_reads_execution_truth_from_the_events_endpoint.py",
+        "tests/test_agent_node_events_reach_companion.py"
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "final answer distinguishes completed / failed / refused / unresolved",
+      "evidence": "tests/test_code_assistant_served_journey.py",
+      "note": "the served reply carries the runtime's verdict and counts; tool-intent calls never claim authorship; renders_final_answer publishes the grounded result",
+      "offered_tool": "",
+      "plane": 10,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "secret scanning before commits/reports",
+      "evidence": "core/code_assistant/task_runtime.py::CodeTaskRuntime._redact_publish; tests/test_code_assistant_secret_report.py",
+      "note": "the REPORT half is done and tested (see row 78). The COMMIT half is absent here by ownership, not by oversight: this lane does not commit — commits belong to the KAS/RepoOps lane, and nothing scans a diff before it is committed.",
+      "offered_tool": "",
+      "plane": 10,
+      "production_caller": "core/code_assistant/task_runtime.py",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority": {
+        "before_dispatch_test": "tests/test_permission_authority_is_unconditional.py::test_modeless_outward_effect_is_not_dispatched",
+        "edges": [
+          [
+            "core/mode_permission_policy.py",
+            "decide_tool_call"
+          ],
+          [
+            "core/mode_permission_policy.py",
+            "preview_tool_call"
+          ]
+        ],
+        "kind": "refusal",
+        "note": "decide_tool_call returns PermissionEffect.REQUIRE_APPROVAL for delete-class (rollback included) and outward/spend actions in Auto and Manual; both production doors consult it before dispatch; the named test proves an outward effect answers status=\"pending_approval\" with the paid effect never called; grant_internal_authority mints only bounded, task/session-bound scopes (the code.task rollback: 120s, revoked in finally); plain network reads are allowed in Auto by design — the authority holds for public writes, spending and destructive effects [2026-09-21: decide_tool_call was split into a consuming wrapper plus the _decide_tool_call producer; the refusal token now lives in the producer and the edges are its two public doors.]",
+        "path": "core/mode_permission_policy.py",
+        "status_token": "REQUIRE_APPROVAL",
+        "symbol": "_decide_tool_call",
+        "test_token": "pending_approval"
+      },
+      "authority_resolved": true,
+      "capability": "network / public writes / spending / destructive need their authority",
+      "evidence": "rollback pending_approval in Auto until a bounded internal authority is minted",
+      "note": "",
+      "offered_tool": "",
+      "plane": 10,
+      "production_caller": "",
+      "release_critical": true,
+      "served_proof": [
+        "tests/blackbox_coverage/AMENDMENT_EVIDENCE_2026-09-02.md",
+        "tests/census_slice_receipts.py",
+        "tests/code_assistant/test_sabotage.py",
+        "tests/effect_budget/conftest.py"
+      ],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "chat remains primary",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "the journey is driven by chat turns on /api/chat",
+      "offered_tool": "",
+      "plane": 11,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "Activity/Steps/Changes/Files/Tests/Terminal/Receipts/Preview show real state",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 11,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "user can inspect, cancel, retry, approve, roll back",
+      "evidence": "tests/test_code_assistant_served_gaps.py::test_served_rollback_restores_exact_pre_task_bytes; tests/test_code_assistant_served_gaps.py::test_served_cancel_interrupts_a_running_command; tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served: report (inspect), /api/chat/cancel (cancel), replay of a completed step (retry), /api/mode resolve_approval + approval_token retry (approve), code.task.rollback restoring exact bytes (roll back)",
+      "offered_tool": "",
+      "plane": 11,
+      "production_caller": "tests/test_code_assistant_served_gaps.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "errors include stable code, diagnosis, next safe action",
+      "evidence": "fault codes filed per refusal; reason text carries the next step",
+      "note": "",
+      "offered_tool": "",
+      "plane": 11,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "no hidden pop-up / keychain loop",
+      "evidence": "",
+      "note": "not graded",
+      "offered_tool": "",
+      "plane": 11,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "Python defect repair",
+      "evidence": "tests/test_code_assistant_served_journey.py::test_served_root_cause_journey_through_api_chat",
+      "note": "served through /api/chat",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "TypeScript multi-file feature",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "browser UI bug",
+      "evidence": "",
+      "note": "",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "",
+      "release_critical": false,
+      "served_proof": [],
+      "status": "ABSENT"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "concurrent-edit conflict",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_concurrent_edits_to_the_same_file; tests/test_run_migrations_singleton.py",
+      "note": "served — served test passed once and failed three different ways under load 20-45 from another lane's full suite; it is load-gated (skipif load>16) until the box is quiet — the load-sensitive half is root-caused and repaired on this lane: two concurrent first turns shared one '.pre-migration' snapshot name and the finisher's discard unlinked it mid-copy, so the losing /api/chat turn died as an empty-body 500 before task_received. run_migrations is now serialized per process and each invocation snapshots under its own name; the 500 catch site logs its traceback. The load gate on the served test is left in place: it was not re-measured under load here.",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "cancellation mid-command",
+      "evidence": "tests/test_code_assistant_served_gaps.py::test_served_cancel_interrupts_a_running_command; tests/test_code_assistant_mid_command_cancellation.py",
+      "note": "served: the running command is killed by the turn's cancel signal; the journal records cancelled terminal truth and the marker file proves no completion — the seam is also proven against every shape this runtime puts on that context key: a threading.Event (served door), the composite event a code task builds, and a plain callable/flag (conductor and router seams). Only the first two answer is_set; a bare callable used to raise AttributeError inside JobRunner._wait and take the command down as a generic failure. A token that cannot be read now counts as SET.",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_gaps.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "failed test after mutation",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served: a wrong repair holds the stage at narrow_test; narrow.success False",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "exact rollback",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys",
+      "note": "served via the operator rollback of the recorded Blackbox turn — sabotage S5b (dropping the bounded internal authority the task mints for the inner delete-class effect) reds test_sabotage_rollback_restores_exact_defect_bytes_and_red_test, so the authority half is genuinely covered. GAP, measured on this lane: reversing the REPLAY ORDER (restoring the oldest Blackbox turn first instead of the newest) changes nothing any test observes — every rollback test drives a single mutation, so multi-mutation ordering is untested. Not graded down, because no test claimed it.",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "cold restart / resume",
+      "evidence": "tests/test_code_assistant_task_runtime.py::test_task_resumes_from_the_journal_after_a_cold_restart",
+      "note": "in-process registry reset; the task continues from the on-disk journal, a completed step replays",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_task_runtime.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "IMPLEMENTED"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "local-model and cloud-model tool execution",
+      "evidence": "tests/test_code_assistant_served_gaps.py::test_served_local_and_cloud_dialects_normalize_identically",
+      "note": "served: the same journey completes under a cloud-style native tool_calls lane and a local-style text-dialect lane (Ollama-dialect local models)",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_gaps.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "offline behaviour",
+      "evidence": "tests/test_code_assistant_served_gaps.py",
+      "note": "every served journey in this lane runs fully offline against local Ollama-dialect models on loopback; a dedicated network-outage journey is not separately scripted",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_gaps.py",
+      "release_critical": false,
+      "served_proof": [
+        "tests/code_assistant/test_sabotage.py",
+        "tests/test_code_assistant_task_runtime.py"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "malicious path / shell / plugin attempts",
+      "evidence": "tests/test_code_assistant_served_negative_journeys.py::test_served_negative_and_task_control_journeys; tests/test_code_assistant_served_gaps.py::test_served_plugin_direct_execution_is_refused_only_code_task_executes",
+      "note": "served: path escape, symlink escape, destructive shell, forged results, direct plugin execution and skill-coached bypass all refused with zero effects",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_negative_journeys.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    },
+    {
+      "authority_resolved": false,
+      "capability": "full served chat journey",
+      "evidence": "tests/test_code_assistant_served_journey.py",
+      "note": "ten turns through /api/chat, journal + disk + provider offers + final reply asserted; cancel/retry/rollback and the negative journeys are door-proven, not yet served",
+      "offered_tool": "",
+      "plane": 12,
+      "production_caller": "tests/test_code_assistant_served_journey.py",
+      "release_critical": true,
+      "served_proof": [],
+      "status": "SERVED-PROVEN"
+    }
+  ],
+  "sabotage_evidence": {
+    "logs": [
+      "docs/code_assistant/sabotage_evidence/sabotage_A_authorship_runtime_composed.log",
+      "docs/code_assistant/sabotage_evidence/sabotage_B_tool_offer.log"
+    ],
+    "runbook": "ops/sabotage_code_assistant_guards.sh",
+    "summary": "docs/code_assistant/sabotage_evidence/README.md",
+    "union_lane": "docs/code_assistant/EVIDENCE_2026-09-03_union.md"
+  },
+  "schema": "vool.code_assistant.acceptance_matrix.v1",
+  "statuses": [
+    "IMPLEMENTED",
+    "SERVED-PROVEN",
+    "PARTIAL",
+    "ABSENT"
+  ],
+  "updated": "2026-09-03"
+}

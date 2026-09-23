@@ -221,16 +221,15 @@ def test_the_sheet_shows_exactly_the_quote_and_refuses_replaced_or_expired_previ
         assert _value(sheet, "to") == fields["to_address"]
         assert _value(sheet, "balance") == f"{fields['balance_human']} {fields['gas_asset']} · observed at {fields['balance_ref']}"
         assert _value(sheet, "amount") == f"{fields['amount_human']} {fields['display_symbol']}"
-        # the fee, the maximum and the balance after read as the quote's shortened forms (an estimate marked, a maximum
-        # never understated, a minimum never overstated); the exact figures stay on the sheet, in Details
-        assert _value(sheet, "fee") == f"{fields['fee_estimate_display']} · {fields['fee_max_display']}"
-        assert _value(sheet, "max_total") == fields["max_total_display"]
+        # the fee, the maximum and the balance after read as the quote's exact figures, each
+        # labeled for what it is (an estimate marked, a maximum never understated, a minimum
+        # never overstated); the compact review above carries the server's own network-cost line
+        assert _value(sheet, "fee") == f"estimated {fields['fee_estimate_human']} {fields['gas_asset']} · at most {fields['fee_max_human']} {fields['gas_asset']}"
+        assert _value(sheet, "max_total") == f"{fields['max_total_human']} {fields['gas_asset']}"
         after = _value(sheet, "after")
-        assert after.startswith(f"{fields['estimated_after_display']} (estimate, not guaranteed)") and f"{fields['minimum_after_display']} if the fee reaches its maximum" in after
-        assert _value(sheet, "fee_exact") == f"{fields['fee_estimate_human']} {fields['gas_asset']}"
-        assert _value(sheet, "fee_max_exact") == f"{fields['fee_max_human']} {fields['gas_asset']}"
-        assert _value(sheet, "max_total_exact") == f"{fields['max_total_human']} {fields['gas_asset']}"
-        assert _value(sheet, "after_exact") == f"{fields['estimated_after_human']} {fields['gas_asset']} estimated · {fields['minimum_after_human']} {fields['gas_asset']} minimum"
+        assert after == f"{fields['estimated_after_human']} {fields['gas_asset']} (estimate, not guaranteed) · at least {fields['minimum_after_human']} {fields['gas_asset']} if the fee reaches its maximum"
+        review_network = sheet.locator('[data-review="network_cost"]').text_content() or ""
+        assert review_network == fields["review"]["network_line"], review_network
         assert page.evaluate("document.getElementById('vwSheetCredential').closest('[role=dialog]') !== null")
 
         # one sheet at a time: a second request queues behind the open one

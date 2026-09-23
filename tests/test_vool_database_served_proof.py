@@ -121,12 +121,16 @@ class OneShotToolProvider:
                 return self._send({"ok": True})
 
             def do_POST(self) -> None:
+                from core.entity_ambiguity import AMBIGUITY_SYSTEM_PROMPT
+
                 length = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
                 tools = [
                     str(((t or {}).get("function") or {}).get("name") or "") for t in (body.get("tools") or [])
                 ]
-                if tools:
+                if any(AMBIGUITY_SYSTEM_PROMPT in str(m.get("content", "")) for m in body.get("messages", [])):
+                    message = {"role": "assistant", "content": json.dumps({"ambiguous": False, "referents": [], "clarification": ""})}
+                elif tools:
                     rig.offered.append(tools)
                     message = {"role": "assistant", "content": "", "tool_calls": [dict(rig.call)]}
                 else:

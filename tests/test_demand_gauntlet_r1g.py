@@ -485,6 +485,7 @@ EXECUTABLE_TERMINAL_FAMILIES = (
                                    # -> agent._maybe_handle_workspace_audit_request
     "machine_fact_fast_path",       # turn_frontdoor.py direct machine-read handler
                                    # (machine.find_largest / free space)
+    "operator_action_dispatch",    # turn_dispatch.py handle_operator_actions, whole-turn gate
     "turn_frontdoor_deterministic", # handle_turn_frontdoor deterministic intents
     "conductor_multi_intent_plan",  # agent.py _maybe_answer_conductor_turn
     "demand_owned_mixed_turn",      # agent.py _maybe_answer_demand_owned_turn

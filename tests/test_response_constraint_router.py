@@ -861,7 +861,7 @@ def test_ordinary_chat_confirmation_retries_to_preserve_requested_identifier() -
     assert response.constraint_result["response_control"]["retry_attempted"] is True
 
 
-def test_ordinary_chat_budget_retries_then_bounds_the_visible_model_text() -> None:
+def test_advisory_chat_brevity_preserves_the_answer_without_an_extra_call() -> None:
     long_reply = " ".join(["useful"] * 125) + "."
     adapter = mock.Mock()
     adapter.run_text_task.side_effect = [
@@ -891,8 +891,8 @@ def test_ordinary_chat_budget_retries_then_bounds_the_visible_model_text() -> No
 
     assert error is None
     assert response is not None
-    assert len(response.output_text.split()) <= 110
-    assert adapter.run_text_task.call_count == 2
+    assert response.output_text == long_reply
+    assert adapter.run_text_task.call_count == 1
 
 
 def test_unexpected_language_gets_one_bounded_local_repair() -> None:

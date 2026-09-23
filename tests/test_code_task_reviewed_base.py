@@ -501,6 +501,43 @@ def test_a_claimed_approval_cannot_be_taken_by_another_process_mid_flight(stock_
     assert journal["steps"]["from-another-process"]["status"] == "approval_in_flight"
     assert [s["step_id"] for s in journal["steps"].values() if s["executed"] and s["intent"] == "workspace.write_file"] == ["claimed"]
 
+def test_a_reapproved_replacement_keeps_its_claim_despite_an_invalid_predecessor(stock_repo, tmp_path, monkeypatch):
+    """Recovery and concurrent execution must agree on the same fresh approval."""
+    from core.code_assistant.task_runtime import code_task_runtime
+
+    ctx, task_id, arguments, step = _approved(
+        stock_repo, intent="workspace.replace_in_file", explicit_hash=False, session="reapproved-claim"
+    )
+    (stock_repo / "inventory.py").write_text(EXTERNAL, encoding="utf-8")
+    assert step("stale", "workspace.replace_in_file", arguments).status == "stale_base"
+    assert step("reread", "workspace.read_file", {"path": "inventory.py"}).ok
+    assert _door("code.task.propose", {
+        "task_id": task_id, "proposal_id": "fresh", "intent": "workspace.replace_in_file",
+        "arguments": arguments, "rationale": "Owner inventory.py: add deliveries and retain the audit note.",
+    }, ctx).ok
+    assert _door("code.task.approve", {"task_id": task_id, "proposal_id": "fresh"}, ctx).ok
+    runtime = code_task_runtime()
+    dispatch = runtime._dispatch
+    competing = []
+
+    def race_at_dispatch(intent, dispatched, context):
+        if intent == "workspace.replace_in_file" and not competing:
+            competing.extend(_race_processes(tmp_path, ctx, [{
+                "task_id": task_id, "step_id": "competitor", "intent": intent, "arguments": arguments,
+            }]))
+        return dispatch(intent, dispatched, context)
+
+    monkeypatch.setattr(runtime, "_dispatch", race_at_dispatch)
+    result = step("fresh-write", "workspace.replace_in_file", arguments)
+    assert result.ok, (result.status, result.response_text)
+    assert competing == [{"ok": False, "status": "approval_in_flight", "executed": False}]
+    assert (stock_repo / "inventory.py").read_text() == EXTERNAL.replace("on_hand - delivered", "on_hand + delivered")
+    journal = _journal(task_id)
+    assert journal["proposals"]["restock-fix"]["invalidated"]
+    assert journal["proposals"]["fresh"]["consumed_by"] == "fresh-write"
+    assert not journal["proposals"]["fresh"]["invalidated"]
+
+
 @pytest.mark.parametrize(("age_minutes", "expected"), [(20, "released"), (2, "held")])
 def test_a_claim_left_by_a_stopped_instance_is_released_only_when_abandoned(stock_repo, age_minutes, expected):
     from datetime import datetime, timedelta, timezone
@@ -716,3 +753,35 @@ def test_the_downgrade_cli_never_writes_in_place(tmp_path):
     manifest = json.loads((dest / "JOURNAL_SCHEMA_MANIFEST.json").read_text())
     assert len(manifest["tasks"]) == 2
     assert main(["downgrade", "--source", str(source), "--dest", str(dest), "--target-schema", "2"]) == 2
+
+
+@pytest.mark.parametrize("intent", INTENTS)
+def test_reviewed_crlf_source_can_be_repaired_and_rolled_back_exactly(stock_repo, intent):
+    original = BUGGY.replace("\n", "\r\n")
+    repaired = FIXED.replace("\n", "\r\n")
+    target = stock_repo / "inventory.py"
+    target.write_bytes(original.encode())
+    ctx = _ctx(stock_repo, "crlf-repair")
+    task_id = _door("code.task.open", {"objective": "Repair restock while preserving the source format"}, ctx).details["task_id"]
+
+    def step(step_id, tool, arguments):
+        return _door("code.task.step", {"task_id": task_id, "step_id": step_id,
+                                       "intent": tool, "arguments": arguments}, ctx)
+
+    red = step("red", "workspace.run_tests", {"command": "python3 check_inventory.py"})
+    assert red.details["executed"] and red.details["tool_result"]["success"] is False
+    read = step("read", "workspace.read_file", {"path": "inventory.py"})
+    assert read.details["tool_result"]["hash"] == _sha(original)
+    assert _door("code.task.identify", {"task_id": task_id, "path": "inventory.py", "line": 2,
+                                       "reason": "restock subtracts deliveries"}, ctx).ok
+    args = {**_repair_arguments(intent, repaired), "expected_hash": _sha(original)}
+    proposed = _door("code.task.propose", {"task_id": task_id, "proposal_id": "crlf", "intent": intent,
+                                          "arguments": args, "rationale": "Owner inventory.py: add deliveries."}, ctx)
+    assert proposed.ok, proposed.response_text
+    assert _door("code.task.approve", {"task_id": task_id, "proposal_id": "crlf"}, ctx).ok
+    landed = step("apply", intent, args)
+    assert landed.ok, (landed.status, landed.response_text)
+    assert target.read_bytes() == repaired.encode()
+    restored = _door("code.task.rollback", {"task_id": task_id}, ctx)
+    assert restored.ok, restored.response_text
+    assert target.read_bytes() == original.encode()

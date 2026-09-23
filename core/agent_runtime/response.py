@@ -809,7 +809,7 @@ def strip_runtime_preamble(text: str, *, allow_planner_style: bool = False) -> s
     clean = str(text or "").strip()
     if allow_planner_style:
         return clean
-    if not clean.startswith("Real steps completed:"):
+    if not clean.startswith(("Real steps completed:", "Tool results:")):
         return clean
     parts = clean.split("\n\n", 1)
     if len(parts) == 2 and parts[1].strip():

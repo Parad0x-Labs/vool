@@ -120,6 +120,7 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("wallet_transfers", "fee_known_minor", "INTEGER"),
     ("wallet_transfers", "fee_missing_json", "TEXT NOT NULL DEFAULT '[]'"),
     ("wallet_usepod_operations", "digest_version", "INTEGER NOT NULL DEFAULT 1"),
+    ("wallet_usepod_operations", "payment_kind", "TEXT NOT NULL DEFAULT 'unknown'"),
     ("wallet_transfers", "fee_fork", "TEXT NOT NULL DEFAULT ''"),
     ("wallet_x402_bindings", "resource_method", "TEXT NOT NULL DEFAULT 'GET'"),
     ("wallet_x402_bindings", "facilitator_id", "TEXT NOT NULL DEFAULT ''"),

@@ -365,6 +365,14 @@ def _keychain_write_allowed() -> bool:
 _ACCOUNT_FILE_PROTECTION_PATH = _KEY_DIR / "key_storage.passphrase"
 
 
+def _record_protection(path: Path) -> str:
+    """The seal class stamped into an encrypted-seed record ("user_passphrase" or "account_file")."""
+    try:
+        return str(json.loads(path.read_text(encoding="utf-8")).get("protection") or "")
+    except Exception:
+        return ""
+
+
 def _account_file_passphrase() -> str:
     """The account-file fallback secret: a random value in a 0600 file next to the key records.
     Wraps the seed in AES-GCM so the fallback is never plaintext, but the protection boundary is
@@ -482,11 +490,7 @@ def key_storage_class() -> str:
     if _KEYRING_RECORD_PATH.exists():
         return assert_known_storage_class(STORAGE_CLASS_KEYCHAIN)
     if _KEY_RECORD_PATH.exists():
-        try:
-            protection = str(json.loads(_KEY_RECORD_PATH.read_text(encoding="utf-8")).get("protection") or "")
-        except Exception:
-            protection = ""
-        if protection == "account_file":
+        if _record_protection(_KEY_RECORD_PATH) == "account_file":
             return assert_known_storage_class(STORAGE_CLASS_ACCOUNT_FILE_PERMISSIONS)
         return assert_known_storage_class(STORAGE_CLASS_USER_PASSPHRASE)
     if _LEGACY_PRIV_KEY_PATH.exists():
@@ -519,15 +523,26 @@ def _load_or_create_local_keypair_unlocked() -> LocalKeypair:
 
     if _KEY_RECORD_PATH.exists():
         _enforce_private_key_permissions(_KEY_RECORD_PATH)
-        passphrase = _key_passphrase()
-        if passphrase is None and _ACCOUNT_FILE_PROTECTION_PATH.exists():
-            # A record sealed by OUR unattended fallback (machine protection secret) reopens
-            # without any operator env — otherwise the second boot would hard-fail.
+        # The seal class is stamped into the record itself. A record sealed by OUR unattended
+        # fallback (account-file secret) reopens with that secret even when an operator
+        # passphrase is ambient — the two secrets wrap different records, and trying the
+        # operator's key against the fallback's ciphertext only raises InvalidTag, bricking
+        # the node identity on the next attended boot. Symmetrically, a user-passphrase
+        # record never silently falls back to the account-file key: it demands its own seal.
+        if _record_protection(_KEY_RECORD_PATH) == "account_file":
+            if not _ACCOUNT_FILE_PROTECTION_PATH.exists():
+                raise RuntimeError(
+                    f"Encrypted signing key record at {_KEY_RECORD_PATH} is sealed by the "
+                    f"account-file fallback, but {_ACCOUNT_FILE_PROTECTION_PATH} is missing; "
+                    f"the seed cannot be reopened on this profile."
+                )
             passphrase = _account_file_passphrase()
-        if not passphrase:
-            raise RuntimeError(
-                f"Encrypted signing key record exists at {_KEY_RECORD_PATH} but {_KEY_PASSPHRASE_ENV} is not set."
-            )
+        else:
+            passphrase = _key_passphrase()
+            if not passphrase:
+                raise RuntimeError(
+                    f"Encrypted signing key record exists at {_KEY_RECORD_PATH} but {_KEY_PASSPHRASE_ENV} is not set."
+                )
         seed = _load_encrypted_seed(_KEY_RECORD_PATH, passphrase=passphrase)
         sk = _signing_key_from_seed(seed)
         _LOCAL_KEYPAIR = LocalKeypair(signing_key=sk, verify_key=_verify_key(sk))

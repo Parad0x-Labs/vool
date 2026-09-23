@@ -49,9 +49,12 @@ STATE_FAILED = "failed"
 STATE_RELEASED = "released"
 #: the requirement digest's rule set: 1 lowercased every recipient; 2 uses the row family's canonical recipient
 DIGEST_VERSION = 2
+KIND_CREDIT = "prepaid_credit"
+KIND_RESPONSE = "inference_x402"
+KIND_UNKNOWN = "unknown"
 
 _COLS = ("operation_key, provider, correlation_id, authority, network, asset, pay_to, amount_minor, expires_at, resource, requirement_digest, "
-         "proposal_id, wallet_id, state, mint_token, mint_lease_until, detail, created_at, updated_at, digest_version")
+         "proposal_id, wallet_id, state, mint_token, mint_lease_until, detail, created_at, updated_at, digest_version, payment_kind")
 _COL_NAMES = tuple(name.strip() for name in _COLS.split(","))
 
 
@@ -224,7 +227,7 @@ def validate_topup(requirement: TopUpRequirement, *, source_context: dict[str, A
     an exact positive decimal within storage, no signing account on the row. A replay of the same operation returns
     the original result whatever account is selected now; the same id with other content, or a different named payer,
     is a typed refusal; a second request while the first is still minting is a typed refusal to retry."""
-    return _mint_operation(requirement, accept_tokens=False, memo_label="UsePod top-up", source_context=source_context)
+    return _mint_operation(requirement, payment_kind=KIND_CREDIT, accept_tokens=False, memo_label="UsePod top-up", source_context=source_context)
 
 
 def validate_x402_payment(requirement: TopUpRequirement, *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -232,10 +235,10 @@ def validate_x402_payment(requirement: TopUpRequirement, *, source_context: dict
     may also be a token registered on the row (USDC on Solana): the lane then moves it with ``TransferChecked``, holds its
     principal in the token and its fee in the native coin, and counts it paid only when the confirmed transaction's own
     token balances show the principal moved. The payer is the wallet the payment authority named."""
-    return _mint_operation(requirement, accept_tokens=True, memo_label="UsePod x402 payment", source_context=source_context)
+    return _mint_operation(requirement, payment_kind=KIND_RESPONSE, accept_tokens=True, memo_label="UsePod x402 payment", source_context=source_context)
 
 
-def _mint_operation(requirement: TopUpRequirement, *, accept_tokens: bool, memo_label: str, source_context: dict[str, Any] | None) -> dict[str, Any]:
+def _mint_operation(requirement: TopUpRequirement, *, payment_kind: str, accept_tokens: bool, memo_label: str, source_context: dict[str, Any] | None) -> dict[str, Any]:
     spec = chains.resolve_network(requirement.network)
     environment.require_active(spec.network, source_context=source_context)
     if not capabilities.pilot_transfer_ready(spec):
@@ -267,13 +270,20 @@ def _mint_operation(requirement: TopUpRequirement, *, accept_tokens: bool, memo_
         if existing is None:
             conn.execute(
                 "INSERT INTO wallet_usepod_operations (operation_key, provider, correlation_id, authority, network, asset, pay_to, amount_minor, expires_at, resource, "
-                "requirement_digest, proposal_id, wallet_id, state, mint_token, mint_lease_until, detail, created_at, updated_at, digest_version) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?, ?, '', ?, ?, ?)",
+                "requirement_digest, proposal_id, wallet_id, state, mint_token, mint_lease_until, detail, created_at, updated_at, digest_version, payment_kind) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?, ?, '', ?, ?, ?, ?)",
                 (key, requirement.provider, requirement.correlation_id, AUTHORITY, spec.network, paid.symbol, recipient, int(minor), float(requirement.expires_at),
-                 requirement.resource, digest, STATE_MINTING, token, now + MINT_LEASE_SECONDS, utcnow(), utcnow(), DIGEST_VERSION),
+                 requirement.resource, digest, STATE_MINTING, token, now + MINT_LEASE_SECONDS, utcnow(), utcnow(), DIGEST_VERSION, payment_kind),
             )
             reserved = True
         else:
+            # The operation type is chosen by the owning entry point, never the
+            # provider payload or memo. Legacy records retain their unknown type;
+            # a replay cannot retroactively assert what their payment bought.
+            if existing.get("payment_kind") not in {KIND_UNKNOWN, payment_kind}:
+                raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={
+                    "reason": "same_operation_different_payment_kind", "correlation_id": requirement.correlation_id,
+                }, source_context=source_context)
             _certify(conn, existing, requirement, digest, minor, spec, recipient, source_context=source_context)
             reserved = _take_over_if_lawful(conn, existing, requirement, token=token, now=now, source_context=source_context)
     if not reserved:
@@ -435,6 +445,7 @@ def check_binding(conn: Any, proposal: Any, *, moment: float, quote_fields: dict
     if same and quote_fields:
         quoted_to = canonical_recipient(spec, str(quote_fields.get("to_address") or ""))
         same = quoted_to == pinned and int(quote_fields.get("amount_minor") or -1) == int(record["amount_minor"]) and str(quote_fields.get("network") or "") == str(record["network"])
+        same = same and str(quote_fields.get("provider_payment_kind") or KIND_UNKNOWN) == str(record.get("payment_kind") or KIND_UNKNOWN)
     if not same:
         raise wallet_fault("wallet_quote_mismatch", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "provider_requirement_changed", "correlation_id": record["correlation_id"]})
     if float(record["expires_at"]) <= float(moment):

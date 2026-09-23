@@ -124,7 +124,7 @@ def test_memory_pause_export_edit_restore_scope_and_forget_act_on_the_owning_aut
     page.click(f"[data-profile-item='{item_id}'] .profile-edit")
     page.fill(f"[data-profile-item='{item_id}'] .profile-edit-input", "Test Operator Two")
     page.click(f"[data-profile-item='{item_id}'] .profile-edit-save")
-    page.wait_for_function(f"() => (document.querySelector(\"[data-profile-item='{item_id}']\") || {{}}).textContent.includes('Test Operator Two')", timeout=15000)
+    page.wait_for_function(f"() => (document.querySelector(\"[data-profile-item='{item_id}']\") || {{}}).textContent?.includes('Test Operator Two')", timeout=15000)
     assert _profile_item(base, item_id)["value_text"] == "Test Operator Two"
     page.click(f"[data-profile-item='{item_id}'] .profile-restore")
     page.wait_for_function(f"() => {{ const r = document.querySelector(\"[data-profile-item='{item_id}']\"); return r && !r.textContent.includes('Test Operator Two'); }}", timeout=15000)
@@ -177,6 +177,10 @@ def test_advanced_group_links_to_web0_and_trace_and_both_surfaces_resolve(served
 def test_auto_fallback_free_model_is_chosen_from_settings_and_lands_on_the_policy(served):
     daemon, browser = served
     base = daemon.base_url
+    status, body = _post(base, "/api/settings/credentials", {
+        "provider": "openrouter", "value": "sk-or-v1-" + "0123456789abcdef" * 4,
+    })
+    assert status == 200 and not body.get("error"), (status, body)
     page = browser.new_page()
     page.goto(f"{base}/settings#models", wait_until="networkidle")
     page.wait_for_selector(f"select.auto-fallback option[value='{FREE_ID}']", state="attached", timeout=15000)

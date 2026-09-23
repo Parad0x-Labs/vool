@@ -229,8 +229,11 @@ class ServedDaemon:
         payload.update(extra)
         request = Request(f"{self.base_url}/api/chat", data=json.dumps(payload).encode("utf-8"),
                           headers={"Content-Type": "application/json"}, method="POST")
-        with urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            raise self._annotate_http_error(exc) from exc
 
     def chat_stream(self, message: str, *, session_id: str, model: str = "", timeout: float = 180.0, **extra: Any) -> dict[str, Any]:
         """The streamed chat lane the served UI uses: NDJSON frames, the last `done` frame is the
@@ -243,18 +246,31 @@ class ServedDaemon:
         request = Request(f"{self.base_url}/api/chat", data=json.dumps(payload).encode("utf-8"),
                           headers={"Content-Type": "application/json"}, method="POST")
         final: dict[str, Any] = {}
-        with urlopen(request, timeout=timeout) as response:
-            for raw_line in response:
-                line = raw_line.decode("utf-8").strip()
-                if not line:
-                    continue
-                try:
-                    frame = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(frame, dict):
-                    final = frame
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8").strip()
+                    if not line:
+                        continue
+                    try:
+                        frame = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(frame, dict):
+                        final = frame
+        except HTTPError as exc:
+            raise self._annotate_http_error(exc) from exc
         return final
+
+    def _annotate_http_error(self, exc: HTTPError) -> HTTPError:
+        """A served 5xx is the daemon's own exception surfacing, and its log names it. The bare
+        urllib error carries none of that, and once the runner's tmpdir is gone the failure is
+        undiagnosable -- measured, run 35777904719 shard 6: "HTTP Error 500" on a turn that
+        passes everywhere else, its traceback lost with the ephemeral home. The type stays
+        HTTPError so callers that catch it keep their behaviour; only the message grows."""
+        return HTTPError(
+            exc.url, exc.code, f"{exc.reason}\ndaemon log tail:\n{self.log_tail()}", exc.hdrs, None
+        )
 
     def cancel_turn(self, *, session_id: str, turn_id: str, timeout: float = 30.0) -> dict[str, Any]:
         """The operator's stop button: POST /api/chat/cancel for one in-flight turn."""

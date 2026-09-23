@@ -195,7 +195,8 @@ def test_price_gate_mounts_and_prefix_is_reserved() -> None:
     gate_at = page.find("window.VoolPriceGate = Object.freeze")
     companion_fragment_at = page.find("function vnBoot")
     assert -1 < extras_at < gate_at < companion_fragment_at
-    assert "vg-" not in _VOOL_CHAT_HTML
+    # The page reuses the gate button class; its CSS and overlay remain fragment-owned.
+    assert ".vg-" not in _VOOL_CHAT_HTML
     assert "vgOverlay" not in _VOOL_CHAT_HTML
 
 

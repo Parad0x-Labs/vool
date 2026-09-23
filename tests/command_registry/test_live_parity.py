@@ -118,7 +118,8 @@ def test_read_command_parity_across_cli_http_palette_and_model(live_server):
     assert _semantics(cli_payload) == _semantics(http_payload)
 
 
-def test_denied_mutation_parity_cli_http_and_unavailable(live_server):
+def test_denied_mutation_parity_cli_http_and_unavailable(live_server, monkeypatch, tmp_path):
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "empty-plugin-lifecycle.json"))
     base = live_server
     import contextlib
     import io
@@ -159,7 +160,8 @@ def test_denied_mutation_parity_cli_http_and_unavailable(live_server):
     assert _semantics(cli_payload) == _semantics(http_payload)
 
 
-def test_palette_route_served_over_real_http(live_server):
+def test_palette_route_served_over_real_http(live_server, monkeypatch, tmp_path):
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "empty-plugin-lifecycle.json"))
     status, payload = _http_json(live_server + "/api/commands/palette")
     assert status == 200
     assert payload["surface"] == "palette"
@@ -203,5 +205,4 @@ def test_registry_route_traverses_the_authority_exactly_once(live_server, monkey
     assert payload["data"]["store"] == "counted"
     assert len(calls) == 1, "the authority handler must run EXACTLY once per dispatch"
     reset_registry()
-
 

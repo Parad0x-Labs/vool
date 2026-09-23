@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 from pathlib import Path
 
 import pytest
@@ -58,9 +59,14 @@ def _patch_connection_factory(monkeypatch):
     created: list = []
     closed: list = []
     original = sdb.get_connection
+    owner_thread = threading.get_ident()
 
     def factory(db_path=None):
         real = original(db_path)
+        # Bootstrap's presence worker also opens budget-store connections. Those
+        # belong to another operation and may still be in flight at our assertion.
+        if threading.get_ident() != owner_thread:
+            return real
         created.append(real)
         return _CountingConn(real, closed)
 

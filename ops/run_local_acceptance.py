@@ -943,10 +943,15 @@ def fetch_manual_btc_verification(
 ) -> dict[str, Any]:
     # Outbound totality wave: even this operator-run acceptance fetch goes
     # through the ONE outbound door (veto + reporting) rather than raw urlopen.
+    from core.effect_gateway import named_background_effect_scope
     from core.remote_fetch_policy import open_remote_url
 
-    response = open_remote_url(str(profile.manual_btc_source_url), timeout=30.0)
-    payload = json.loads(response.read().decode("utf-8"))
+    with named_background_effect_scope("local_acceptance.manual_btc_verification"):
+        response = open_remote_url(str(profile.manual_btc_source_url), timeout=30.0)
+        try:
+            payload = json.loads(response.read().decode("utf-8"))
+        finally:
+            response.close()
     observed_amount = float(dict(payload.get("bitcoin") or {}).get("usd") or 0.0)
     observed_at = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
     acceptance_response = str(online_payload["results"]["P0.4_live_lookup"]["assistant_text"] or "").strip()

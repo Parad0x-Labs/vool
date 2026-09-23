@@ -233,6 +233,11 @@ def test_explicit_remote_fetch_false_uses_local_memory_on_trusted_surface(make_a
 
 
 def test_live_info_without_web_fallback_returns_deterministic_disabled_response(make_agent, context_result_factory):
+    """With the web fallback disabled, a live price ask never delivers unverified numbers.
+
+    The old deterministic pre-model refusal moved to the output truth guard: the model may run,
+    but a value-asserting answer about a current price this turn never observed is replaced by
+    the honest no-reading refusal, so no stale figure reaches the user."""
     agent = make_agent()
     agent.context_loader.load = mock.Mock(return_value=context_result_factory())  # type: ignore[assignment]
     agent.memory_router.resolve = mock.Mock(  # type: ignore[assignment]
@@ -241,7 +246,7 @@ def test_live_info_without_web_fallback_returns_deterministic_disabled_response(
             task_hash="fresh-web-disabled",
             provider_id="ollama:qwen",
             used_model=True,
-            output_text="should not be used",
+            output_text="The current BTC price is $67,432.18 according to CoinGecko, up 1.2% today.",
             confidence=0.84,
             trust_score=0.84,
         )
@@ -256,11 +261,12 @@ def test_live_info_without_web_fallback_returns_deterministic_disabled_response(
             source_context={"surface": "openclaw", "platform": "openclaw"},
         )
 
-    assert result["response_class"] == "utility_answer"
-    assert "live web lookup is disabled on this runtime" in result["response"].lower()
-    assert "can't verify current prices" in result["response"].lower()
-    assert "would you like me to attempt" not in result["response"].lower()
-    assert agent.memory_router.resolve.call_count == 0
+    response = result["response"].lower()
+    assert "67,432.18" not in response and "coingecko" not in response, result["response"]
+    assert "didn't run any live lookup" in response, result["response"]
+    assert "not going to state them" in response, result["response"]
+    for marker in FORBIDDEN_CHAT_WRAPPERS:
+        assert marker not in response
 
 
 def test_live_info_chat_surface_routes_model_wording_through_chat_research(make_agent, context_result_factory):
@@ -1040,20 +1046,7 @@ def test_empty_fresh_lookup_honestly_degrades_instead_of_using_memory_as_final_s
         agent,
         "_live_info_search_notes",
         return_value=[],
-    ), mock.patch(
-        "core.agent_runtime.agent.WebAdapter.planned_search_query",
-        return_value=[
-            {
-                "summary": "Telegram Bot API docs are the canonical source for Bot API updates.",
-                "confidence": 0.67,
-                "source_profile_id": "messaging_platform_docs",
-                "source_profile_label": "Messaging platform docs",
-                "result_title": "Telegram Bot API",
-                "result_url": "https://core.telegram.org/bots/api",
-                "origin_domain": "core.telegram.org",
-            }
-        ],
-    ) as planned_search, mock.patch("core.agent_runtime.agent.orchestrate_parent_task", return_value=None), mock.patch(
+    ), mock.patch("core.agent_runtime.agent.orchestrate_parent_task", return_value=None), mock.patch(
         "core.agent_runtime.agent.request_relevant_holders", return_value=[]
     ), mock.patch("core.agent_runtime.agent.dispatch_query_shard", return_value=None):
         result = agent.run_once(
@@ -1061,7 +1054,8 @@ def test_empty_fresh_lookup_honestly_degrades_instead_of_using_memory_as_final_s
             source_context={"surface": "openclaw", "platform": "openclaw"},
         )
 
-    assert planned_search.call_count >= 1
+    # The degrade is the memory-runtime guard now: a fresh-lookup turn that resolved to
+    # remembered text never presents it as a current answer, whatever search seam ran.
     assert "remembered text as a fresh answer" not in result["response"].lower()
     assert "could not ground a current answer confidently" in result["response"].lower()
     assert result["model_execution"]["source"] == "memory_hit"

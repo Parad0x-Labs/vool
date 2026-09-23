@@ -185,29 +185,30 @@ def test_an_unpriced_model_still_moves_the_ledger():
 # --- retries -------------------------------------------------------------------------------------
 
 
-def test_a_failed_attempt_then_a_retry_bills_both_attempts():
+def test_a_failed_attempt_then_a_retry_keeps_uncertain_bill_held():
     auth = _reserve("call-retry")
     pcr.release_owner_pick_paid_call(auth, reason="call_failed")  # attempt 1 reached the provider
     pcr.settle_owner_pick_paid_call(auth, actual_usd=SONNET_CALL_USD)  # attempt 2 came back
-    assert _ledger_actual_total() == pytest.approx(2 * SONNET_CALL_USD, abs=1e-9)
+    assert _ledger_actual_total() == pytest.approx(SONNET_CALL_USD, abs=1e-9)
+    _assert_held("call-retry")
 
 
-def test_a_retry_charge_is_recorded_even_though_the_reservation_was_already_closed():
-    """``settle_spend`` refuses a finalized row, so the retry's charge used to vanish. A spend the
-    ledger cannot see is a spend the caps cannot bind."""
+def test_a_priced_retry_does_not_drop_its_charge_against_an_ambiguous_reservation():
+    """Known retry cost counts alongside the prior unresolved liability."""
     auth = _reserve("call-closed")
     pcr.release_owner_pick_paid_call(auth, reason="call_failed")
-    assert _ledger_status("call-closed") == "call_failed"
+    assert _ledger_status("call-closed") == "billing_ambiguous"
     pcr.settle_owner_pick_paid_call(auth, actual_usd=SONNET_CALL_USD)
     assert _ledger_actual_total() > 0.0
 
 
-def test_two_failed_attempts_before_a_success_bill_three():
+def test_retry_usage_does_not_fabricate_prices_for_failed_attempts():
     auth = _reserve("call-retry-twice")
     pcr.release_owner_pick_paid_call(auth, reason="call_failed")
     pcr.release_owner_pick_paid_call(auth, reason="call_failed")
     pcr.settle_owner_pick_paid_call(auth, actual_usd=SONNET_CALL_USD)
-    assert _ledger_actual_total() == pytest.approx(3 * SONNET_CALL_USD, abs=1e-9)
+    assert _ledger_actual_total() == pytest.approx(SONNET_CALL_USD, abs=1e-9)
+    _assert_held("call-retry-twice")
 
 
 @pytest.mark.parametrize("reason", ["circuit_open", "provider_unhealthy", "prompt_budget_exceeded"])
@@ -221,12 +222,13 @@ def test_a_call_that_never_reached_the_provider_bills_nothing(reason):
     assert _ledger_status(f"call-{reason}") == reason
 
 
-def test_an_unsent_release_clears_a_prior_attempt_tally():
+def test_an_unsent_release_cannot_erase_a_prior_uncertain_liability():
     auth = _reserve("call-mixed")
     pcr.release_owner_pick_paid_call(auth, reason="call_failed")
     pcr.release_owner_pick_paid_call(auth, reason="circuit_open")
     pcr.settle_owner_pick_paid_call(auth, actual_usd=0.0)
     assert _ledger_actual_total() == pytest.approx(0.0, abs=1e-9)
+    _assert_held("call-mixed")
 
 
 def test_the_attempt_tally_is_dropped_once_the_reservation_closes():
@@ -257,3 +259,54 @@ def test_settlement_never_raises_on_an_unknown_reservation():
     pcr.settle_owner_pick_paid_call(_authorization("never-reserved"), actual_usd=SONNET_CALL_USD)
     # The charge is real and is still recorded, rather than dropped because the row is missing.
     assert _ledger_actual_total() == pytest.approx(SONNET_CALL_USD, abs=1e-9)
+
+
+def _assert_held(call_id, usd=0.25):
+    from core.model_spend_ledger import get_spend_reservation
+
+    row = get_spend_reservation(call_id)
+    assert row.status == "billing_ambiguous"
+    assert row.reserved_usd == pytest.approx(usd)
+
+
+@pytest.mark.parametrize("usage", [{}, None])
+def test_missing_usage_retains_budget_across_restart_and_blocks_next_call(usage):
+    from core.model_spend_ledger import settle_spend
+    from storage.db import reset_default_connection
+
+    for i in range(4):
+        auth = _reserve(f"unmetered-{i}")
+        amount = mfr._response_actual_usd(_sonnet_manifest(), SimpleNamespace(usage=usage))
+        assert amount is None
+        pcr.settle_owner_pick_paid_call(auth, actual_usd=amount)
+        _assert_held(f"unmetered-{i}")
+    assert _ledger_actual_total() == 0  # unknown is held separately, never invented as a bill
+    pcr._ATTEMPTS.clear()
+    reset_default_connection()
+    with pytest.raises(PermissionError, match="per_task_spend_cap_exceeded"):
+        _reserve("blocked-unmetered")
+    # Explicit reconciliation is the only operation that releases an ambiguous hold.
+    settled = settle_spend("unmetered-0", actual_usd=0.0)
+    assert settled.status == "settled" and settled.reserved_usd == 0
+    _reserve("after-reconciliation")
+
+
+def test_pricing_failure_is_unknown_not_zero(monkeypatch):
+    monkeypatch.setattr(mfr, "_response_cost_estimate", lambda *_: None)
+    assert mfr._response_actual_usd(_sonnet_manifest(), SimpleNamespace(usage={})) is None
+
+
+def test_provider_explicit_zero_releases_budget():
+    amount = mfr._response_actual_usd(_sonnet_manifest(), SimpleNamespace(usage={"cost": 0.0}))
+    assert amount == 0.0
+    pcr.settle_owner_pick_paid_call(_reserve("free-reported"), actual_usd=amount)
+    assert _ledger_status("free-reported") == "settled"
+
+
+def test_failed_dispatch_holds_budget_without_an_in_memory_attempt_tally():
+    auth = _reserve("uncertain-failure")
+    pcr.release_owner_pick_paid_call(auth, reason="call_failed")
+    pcr._ATTEMPTS.clear()
+    pcr.settle_owner_pick_paid_call(auth, actual_usd=SONNET_CALL_USD)
+    _assert_held("uncertain-failure")
+    assert _ledger_actual_total() == pytest.approx(SONNET_CALL_USD)

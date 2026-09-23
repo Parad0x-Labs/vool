@@ -653,6 +653,15 @@ def _source_supports(
     matched_entities = {e for e in anchors.entities if _entity_in_source(e, source)}
     matched_terms = set(anchors.terms) & source.terms
 
+    # Values from another subject neither support nor contradict this claim. Resolve
+    # subject identity first so an unrelated calculation cannot revoke stable knowledge.
+    if anchors.subjects and not any(_subject_in_source(subject, source) for subject in anchors.subjects):
+        return False, ("subject_absent_from_source",)
+    if anchors.entities and not matched_entities:
+        # The claim names something; a source that never mentions it cannot support it,
+        # even when an incidental number happens to coincide.
+        return False, ("entity_absent_from_source",)
+
     if anchors.numerics and source.numerics and not matched_numerics:
         return False, ("value_mismatch",)
     # A shared YEAR cannot carry a quantity: "37 million units by end of 2024" is not supported by a
@@ -660,12 +669,6 @@ def _source_supports(
     quantities = {value for value in anchors.numerics if not _year_like(value)}
     if quantities and source.numerics and not (quantities & source.numerics):
         return False, ("quantity_mismatch",)
-    if anchors.subjects and not any(_subject_in_source(subject, source) for subject in anchors.subjects):
-        return False, ("subject_absent_from_source",)
-    if anchors.entities and not matched_entities:
-        # The claim names something; a source that never mentions it cannot support it,
-        # even when an incidental number happens to coincide.
-        return False, ("entity_absent_from_source",)
 
     if anchors.specific:
         if matched_numerics:

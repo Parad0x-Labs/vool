@@ -31,14 +31,16 @@ from core.semantic.canonical_text import CanonicalText
 MESSAGE = "Give me the weather in Oslo and Tromso, and what is 137 x 29?"
 
 CLAUSE_REPLY = json.dumps(
-    [
+    {"requests": [
         {
-            "request": "the weather in Oslo and Tromso",
+            "request": "",
+            "source_clause_ids": ["clause-1"],
             "operation": "weather_lookup",
             "depends_on": [],
         },
-        {"request": "what is 137 x 29", "operation": "calculation", "depends_on": []},
-    ]
+        {"request": "", "source_clause_ids": ["clause-2"],
+         "operation": "calculation", "depends_on": []},
+    ]}
 )
 
 SEMANTIC_REPLY = json.dumps(
@@ -137,6 +139,9 @@ def test_the_two_stages_are_two_provider_calls(routing):
     ]
     assert clause_raw != semantic_raw, "the second call returned the first one's answer"
     assert clause_raw.startswith("[") and semantic_raw.startswith("{")
+    assert [entry["request"] for entry in json.loads(clause_raw)] == [
+        "Give me the weather in Oslo and Tromso,", "what is 137 x 29?",
+    ]
 
 
 def test_each_stage_sends_its_own_system_prompt(routing):
@@ -161,7 +166,10 @@ def test_each_stage_sends_its_own_provider_schema(routing):
         }
     )
     clause_schema, semantic_schema = (call["schema"] for call in transport.calls)
-    assert clause_schema["type"] == "array"
+    assert clause_schema["type"] == "object"
+    assert clause_schema["required"] == ["requests"]
+    assert clause_schema["properties"]["requests"]["type"] == "array"
+    assert "frames" not in clause_schema["properties"]
     assert semantic_schema["type"] == "object"
     assert "frames" in semantic_schema["properties"]
     assert clause_schema != semantic_schema

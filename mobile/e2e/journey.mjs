@@ -78,33 +78,6 @@ function crc32(buf) {
   return (crc ^ -1) >>> 0;
 }
 
-async function seedPendingApproval(path = "notes/journey.txt") {
-  // Mint a REAL pending approval through the product's own permission gate,
-  // in a sibling process sharing the daemon's VOOL_HOME. The gate persists
-  // it; the daemon's approvals.pending restores it (the durable path).
-  const { stdout } = await execFileP(PYTHON, ["-c", `
-import sys
-sys.argv = ["seed"]
-import os
-os.environ.setdefault("VOOL_HOME", ${JSON.stringify(HOME)})
-from core.runtime_paths import configure_runtime_home
-configure_runtime_home(${JSON.stringify(HOME)})
-from core.mode_permission_policy import decide_tool_call, set_active_mode
-session = "openclaw:" + "e5" * 10
-path = ${JSON.stringify(path)}
-set_active_mode(session, "manual", project_id="", client_turn_id="turn-e2e")
-decision = decide_tool_call(
-    intent="workspace.write_file",
-    arguments={"path": path, "content": "from the phone journey"},
-    task_id="turn-e2e",
-    source_context={"runtime_session_id": session, "operating_mode": "manual", "workspace_root": "/tmp"},
-)
-assert decision.approval_request is not None, decision.effect
-print(decision.approval_request["approval_id"])
-`], { env: { ...process.env } });
-  return stdout.trim();
-}
-
 async function main() {
   // -- 1. Desktop starts pairing (owner-local) --------------------------------
   const start = await post("/api/mobile/pairing/start", { device_hint: "journey phone" });
@@ -227,11 +200,16 @@ async function main() {
   log("proof chip", `state=${proof.state} actions=${proof.compact.actions}`);
 
   // -- 7. Needs-approval + decide typed actions (approve AND refuse) ------------
-  // Both approvals are raised up front: the daemon's pending-approval restore
-  // runs once per process (restart recovery, not a live file watch), so a
-  // second seed after the first read would be invisible to it.
-  const approvalId = await seedPendingApproval("notes/journey.txt");
-  const refuseId = await seedPendingApproval("notes/refused-by-phone.txt");
+  // Both approvals were minted through the product's own permission gate BEFORE
+  // the daemon booted (the harness passes their ids in VOOL_JOURNEY_APPROVAL_IDS):
+  // the daemon's pending-approval restore runs once per process (restart
+  // recovery, not a live file watch), so an approval written after the daemon
+  // already read the store would be invisible to it.
+  const seededIds = JSON.parse(process.env.VOOL_JOURNEY_APPROVAL_IDS || "null");
+  assert.ok(seededIds && seededIds.allow && seededIds.deny,
+    "journey needs pre-seeded approval ids (VOOL_JOURNEY_APPROVAL_IDS)");
+  const approvalId = seededIds.allow;
+  const refuseId = seededIds.deny;
   const pending = await client.pendingApprovals();
   const row = pending.find((a) => a.approval_id === approvalId);
   assert.ok(row, "seeded approval must be pending");

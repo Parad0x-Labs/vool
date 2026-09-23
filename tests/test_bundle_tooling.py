@@ -286,8 +286,9 @@ def test_edge_fallback_opener_is_chromeless_app_window() -> None:
 def test_build_bundle_copies_every_runtime_package_and_stays_lean() -> None:
     ps1 = (_BUNDLE / "build_bundle.ps1").read_text(encoding="utf-8")
     # Every top-level package the server imports must be copied (verified by running the bundle).
-    for pkg in ("apps", "core", "adapters", "storage", "network", "relay", "retrieval", "sandbox", "tools", "channels", "ops", "config"):
+    for pkg in ("apps", "core", "adapters", "storage", "network", "relay", "retrieval", "sandbox", "tools", "ops", "installer", "config", "skills", "plugins"):
         assert f'"{pkg}"' in ps1, f"build_bundle.ps1 must copy the {pkg} package"
+    assert not (_BUNDLE.parents[1] / "channels").exists(), "a restored runtime package must join the bundle inventory"
     # Lean deps only; the heavy ML stack must not be pip-installed into the bundle.
     for lean in ("pydantic", "cryptography", "uvicorn", "starlette", "solders"):
         assert lean in ps1

@@ -65,10 +65,44 @@ class _LedgerCase(unittest.TestCase):
 class AgentNodeEventsCarryTheTurnTests(_LedgerCase):
     def _emitter(self, session_id: str, source_context: dict | None):
         from apps.vool_agent import VoolAgent
+        from core.agent_runtime.runtime_checkpoint_support import RuntimeCheckpointSupportMixin
+        from core.agent_runtime.tool_result_workflow_surface import ToolResultWorkflowSurfaceMixin
 
-        # The real emitter factory. It reads nothing off `self`, and binding it through the class
-        # keeps this test on the production closure rather than a reimplementation of it.
-        return VoolAgent._agent_node_emitter(object(), session_id, source_context)
+        # The production emitter path without booting an agent: the node emitter's closure
+        # routes through `self._emit_runtime_event` (the durable-plus-streaming seam, from
+        # ToolResultWorkflowSurfaceMixin) and its checkpoint resolver (from
+        # RuntimeCheckpointSupportMixin) -- both stateless adapters, so a carrier of exactly
+        # those two mixins executes the real emission code, not a stand-in. The old bare
+        # object() predates the streaming route and died with AttributeError at the seam.
+        carrier = type(
+            "_NodeEmitterCarrier",
+            (RuntimeCheckpointSupportMixin, ToolResultWorkflowSurfaceMixin),
+            {},
+        )
+        # The real emitter factory, bound through the real class with a carrier that satisfies
+        # exactly the surface its streaming route reads -- the production closure, not a
+        # reimplementation of it.
+        return VoolAgent._agent_node_emitter(carrier(), session_id, source_context)
+
+    def test_a_context_without_a_session_key_still_lands_under_the_emitters_session(self) -> None:
+        # The conductor hands the emitter the raw ask context, which carries a turn id but no
+        # session key. The emitter's own session argument is then the only carrier of session
+        # identity: before the emitter captured it, those node rows were persisted NOWHERE
+        # (the streaming seam persists only what the source context names). The session must
+        # be filled in from the emitter's own argument and must never override a context that
+        # does name one.
+        emit = self._emitter("s-raw-ask", {"cancel_turn_id": "turn-raw"})
+        emit("agent_node_started", {"node_id": "n1", "operation": "noop"})
+        emit("agent_node_completed", {"node_id": "n1", "operation": "noop"})
+        rows = list_runtime_session_events("s-raw-ask")
+        self.assertEqual(len(rows), 2, rows)
+        for row in rows:
+            self.assertEqual(row.get("client_turn_id"), "turn-raw", row)
+
+        emit_override = self._emitter("s-emitter", {"cancel_turn_id": "t2", "session_id": "s-context"})
+        emit_override("agent_node_started", {"node_id": "n2", "operation": "noop"})
+        self.assertEqual(len(list_runtime_session_events("s-context")), 1)
+        self.assertEqual(len(list_runtime_session_events("s-emitter")), 0)
 
     def test_node_events_carry_the_client_turn_id_through_the_real_runner(self) -> None:
         emit = self._emitter("s-node", {"cancel_turn_id": "turn-77", "session_id": "s-node"})

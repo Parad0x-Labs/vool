@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path as _Path
 from typing import Any
 
 from core.adaptation_autopilot import get_adaptation_autopilot_status, schedule_adaptation_autopilot_tick
@@ -4275,8 +4276,6 @@ def _dispatch_post_inner(
                     )
                 claimed_root = str(body.get("workspace_root") or "").strip()
                 if claimed_root:
-                    from pathlib import Path as _Path
-
                     try:
                         matches = _Path(claimed_root).expanduser().resolve() == _Path(authoritative_root).resolve()
                     except (OSError, RuntimeError):

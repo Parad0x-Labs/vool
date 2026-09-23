@@ -50,13 +50,29 @@ def test_a_dead_port_launch_neither_probes_nor_starts_a_server(tmp_path):
     assert not log.exists(), f"the launcher reached out although the endpoint was configured elsewhere: {log.read_text() if log.exists() else ''}"
 
 
+def _wait_for_log_line(log: Path, prefix: str, timeout: float = 5.0) -> bool:
+    """Wait briefly for a BACKGROUND writer's line. The helper nohups `ollama serve` and
+    returns; the fake records its own invocation from that background process, so reading
+    the log the instant the parent exits races the writer (CI 2026-09-22, run 35730553862
+    shard 2: two synchronous curls present, the async `ollama serve` line not yet landed).
+    The assertion is unchanged -- only the read stops losing the race."""
+    import time as _time
+
+    deadline = _time.monotonic() + timeout
+    while _time.monotonic() < deadline:
+        if any(line.startswith(prefix) for line in log.read_text().splitlines()):
+            return True
+        _time.sleep(0.05)
+    return False
+
+
 def test_the_default_endpoint_starts_the_bundled_server_only_when_nothing_answers(tmp_path):
     bin_dir, log = _fakes(tmp_path, curl_exit=22)
     out = _bash(f'vool_ensure_bundled_ollama "{bin_dir}/ollama" "{tmp_path}/ollama.log"', {"PATH": f"{bin_dir}:/usr/bin:/bin"})
     calls = log.read_text().splitlines()
     assert "starting bundled ollama" in out.stdout
     assert calls[0].startswith("curl") and "http://127.0.0.1:11434/api/tags" in calls[0], calls
-    assert any(c.startswith("ollama serve") for c in calls), calls
+    assert _wait_for_log_line(log, "ollama serve"), calls
     bin_dir2, log2 = _fakes(tmp_path / "second", curl_exit=0)
     out2 = _bash(f'vool_ensure_bundled_ollama "{bin_dir2}/ollama" "{tmp_path}/ollama2.log"', {"PATH": f"{bin_dir2}:/usr/bin:/bin"})
     calls2 = log2.read_text().splitlines()

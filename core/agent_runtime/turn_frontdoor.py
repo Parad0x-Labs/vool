@@ -2117,7 +2117,20 @@ def handle_turn_frontdoor(
         # recorded slice answer marks the unit served, the demand-owned composite then skips
         # it, and the arithmetic beside the weather answered while the weather quietly died.
         # The refusal answers nothing; the turn continues so the lanes that can serve the
-        # demand (the typed live-data lane through the transport door) still own it.
+        # demand (the typed live-data lane through the transport door) still own it -- EXCEPT
+        # under the Local Only composite, where the same policy blocks every egress lane the
+        # continuation could reach. There, continuing is guaranteed-failure theater: the
+        # lanes run contained, the synthesis pass finds no certified author, and a completed
+        # honest refusal is destroyed by a task-failure that was policy all along (the
+        # first-run denial demo measured exactly this shape).
+        from core import policy_engine as _policy_engine
+
+        if (
+            bool(_policy_engine.local_only_mode())
+            and not bool(_policy_engine.allow_web_fallback())
+            and not bool(_policy_engine.get("network.outbound_enabled", False))
+        ):
+            return {"result": live_info_status}
         live_info_status = None
     if live_info_status is not None:
         return {"result": live_info_status}

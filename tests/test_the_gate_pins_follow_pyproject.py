@@ -57,28 +57,36 @@ def test_a_bump_in_pyproject_moves_the_gate(tmp_path, monkeypatch) -> None:
 
     original = PYPROJECT.read_text(encoding="utf-8")
     assert '"ruff==' in original
-    bumped = original.replace('"ruff==0.15.16"', '"ruff==9.9.9"')
+    previous = verify._required_tools()["ruff"]
+    bumped = original.replace(f'"ruff=={previous}"', '"ruff==9.9.9"')
     assert bumped != original, "the fixture no longer matches the declared pin"
 
-    PYPROJECT.write_text(bumped, encoding="utf-8")
+    declaration = tmp_path / "pyproject.toml"
+    monkeypatch.setattr(verify, "__file__", str(tmp_path / "ops" / "verify.py"))
+    declaration.write_text(bumped, encoding="utf-8")
     try:
         assert verify._required_tools()["ruff"] == "9.9.9"
     finally:
-        PYPROJECT.write_text(original, encoding="utf-8")
+        declaration.write_text(original, encoding="utf-8")
 
-    assert verify._required_tools()["ruff"] == "0.15.16"
+    assert verify._required_tools()["ruff"] == previous
 
 
-def test_a_missing_pin_fails_loudly_rather_than_defaulting(monkeypatch) -> None:
+def test_a_missing_pin_fails_loudly_rather_than_defaulting(tmp_path, monkeypatch) -> None:
     """If the declaration disappears, the gate must refuse rather than invent a version --
     a gate that guesses its own contract is worse than one that stops."""
     import ops.verify as verify
 
     original = PYPROJECT.read_text(encoding="utf-8")
-    PYPROJECT.write_text(original.replace('"ruff==0.15.16"', '"ruff>=0.3"'), encoding="utf-8")
+    previous = verify._required_tools()["ruff"]
+    unpinned = original.replace(f'"ruff=={previous}"', '"ruff>=0.3"')
+    assert unpinned != original, "the exact pin must be removed"
+    declaration = tmp_path / "pyproject.toml"
+    monkeypatch.setattr(verify, "__file__", str(tmp_path / "ops" / "verify.py"))
+    declaration.write_text(unpinned, encoding="utf-8")
     try:
         with pytest.raises(SystemExit) as caught:
             verify._required_tools()
         assert "ruff" in str(caught.value)
     finally:
-        PYPROJECT.write_text(original, encoding="utf-8")
+        declaration.write_text(original, encoding="utf-8")
