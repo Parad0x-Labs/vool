@@ -411,3 +411,82 @@ def test_receipts_persist_as_readable_files(browser_world) -> None:
         assert "session.open" in ops and "navigate" in ops, ops
         for row in rows:
             assert "op_id" in row and "ts" in row and "outcome" in row
+
+
+# ---------------------------------------------------------------------------
+# Start-page fail-soft (unit): the two exception shapes a start navigation can die of
+# ---------------------------------------------------------------------------
+
+
+class _FakeHandle:
+    """The session.open surface api.handle_intent touches after open_session."""
+
+    def __init__(self) -> None:
+        self.session = "s-failsoft"
+        self.primary_origin = "https://start.example"
+        self.current_url = ""
+        self.engine_binary = "fake-engine"
+        self.headless = True
+        self.profile_dir = "/tmp/fake-profile"
+        self.op_budget = 200
+
+    def touch(self, origin: str) -> None:
+        self.touched = origin
+
+    def submit(self, fn, wait_seconds: float):
+        raise self.error
+
+    def describe(self) -> dict:
+        return {"session": self.session}
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_note", "expected_outcome"),
+    [
+        pytest.param(
+            __import__("core.vool_browser.sessions", fromlist=["OpTimeout"]).OpTimeout(
+                "operation did not finish within 30s"
+            ),
+            "start page not reached (timeout)",
+            "timeout",
+            id="a-hung-start-page-is-a-typed-timeout-note",
+        ),
+        pytest.param(
+            __import__("core.vool_browser.sessions", fromlist=["OpFailed"]).OpFailed(
+                "net_refused", "the page refused the load"
+            ),
+            "start page not reached (net_refused)",
+            "net_refused",
+            id="a-refusing-start-page-keeps-its-typed-status",
+        ),
+    ],
+)
+def test_session_open_survives_a_failed_start_navigation_with_a_typed_note(
+    monkeypatch, error, expected_note, expected_outcome
+) -> None:
+    """Fail-soft contract: a start page that refuses OR HANGS costs the journey its
+    start page, never the session. The handler used to reach for ``.status``/
+    ``.message`` on BOTH exception shapes — OpTimeout carries neither — so a hung
+    start page crashed the fail-soft note itself with AttributeError instead of
+    returning the open session with a typed note (CI shard 9, run 35869013317,
+    tests/test_vool_browser_isolation.py::test_every_session_gets_a_fresh_profile...)."""
+    from core.vool_browser import api
+
+    handle = _FakeHandle()
+    handle.error = error
+    monkeypatch.setattr(api, "open_session", lambda **kwargs: handle)
+    recorded: list[dict] = []
+    monkeypatch.setattr(
+        api, "record_receipt", lambda h, **receipt: recorded.append(receipt) or receipt
+    )
+
+    result = api.handle_intent(
+        "vool-browser.session.open",
+        {"session": "s-failsoft", "start_url": "https://start.example/"},
+    )
+
+    assert result.ok is True, (result.status, result.response_text[:300])
+    assert result.status == "executed"
+    assert expected_note in result.response_text
+    nav = next(r for r in recorded if r.get("op") == "navigate")
+    assert nav["outcome"] == expected_outcome

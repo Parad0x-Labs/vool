@@ -137,12 +137,24 @@ def handle_intent(intent: str, arguments: dict[str, Any]) -> LaneResult:
                     origin=str(outcome.get("origin") or ""),
                     final_url=str(outcome.get("final_url") or start_url),
                     evidence={"start_url": start_url})
-            except (OpFailed, OpTimeout) as exc:
+            except OpFailed as exc:
+                # Fail-soft contract: a start page that refuses OR HANGS costs the
+                # journey its start page, never the session. The two exception shapes
+                # differ (OpFailed carries typed status/message; OpTimeout is bare),
+                # so each is normalized here — reaching for .status on an OpTimeout
+                # turned the fail-soft note itself into an AttributeError (CI shard 9,
+                # run 35869013317: a 30s navigation timeout on a loaded runner).
                 start_note = f"; start page not reached ({exc.status})"
                 record_receipt(
                     handle, op="navigate", outcome=exc.status,
                     origin=handle.primary_origin, final_url=start_url,
                     reason=exc.message[:200])
+            except OpTimeout as exc:
+                start_note = "; start page not reached (timeout)"
+                record_receipt(
+                    handle, op="navigate", outcome="timeout",
+                    origin=handle.primary_origin, final_url=start_url,
+                    reason=str(exc)[:200])
         record = record_receipt(
             handle, op=op, outcome="opened", origin=handle.primary_origin,
             final_url=handle.current_url or start_url,
