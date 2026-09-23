@@ -106,3 +106,12 @@ def test_canonical_source_path_is_root_confined(
         assert "escaped project root" in str(exc)
     else:
         raise AssertionError("path traversal was not rejected")
+
+
+def test_dark_null_grounding_survives_readme_presentation_changes() -> None:
+    for query in ("what is dark null?", "what is the dark null protocol?"):
+        passages = canonical.retrieve_canonical_passages(query)
+        durable = [p for p in passages if p.source_path == "docs/SYSTEM_SPINE.md"]
+        assert durable, "ecosystem grounding must retain a source beyond the landing README"
+        assert any("Groth16" in p.content for p in durable)
+        assert all(len(p.content_hash) == 64 for p in durable)
