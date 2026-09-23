@@ -133,6 +133,8 @@ A signature verifies the signed record's integrity; it is not a guarantee that e
 
 ## Explore further
 
+Meet the [related ecosystem projects](docs/SYSTEM_SPINE.md#related-ecosystem-projects), including Dark Null Protocol for privacy-preserving settlement.
+
 VOOL also includes optional wallet/payment integrations, local helper orchestration, and peer-network components. Their availability depends on configuration and feature maturity; check the runtime capability view for your installation. Wallet and spending features require their own setup and authorization.
 
 | Explore | Start here |

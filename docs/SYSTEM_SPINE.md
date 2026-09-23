@@ -87,3 +87,16 @@ Ignore the historical wrappers and archived handovers until you need them.
 - The repo is alpha-serious, not production-finished.
 - If you touch behavior, cumulative regression is mandatory.
 - If you touch messaging, reduce ambiguity instead of adding more nouns.
+
+
+## Related ecosystem projects
+
+These are separate Parad0x Labs projects. Their role in the ecosystem does not imply
+that every capability is enabled in the VOOL runtime.
+
+### Dark Null Protocol
+
+[Dark Null Protocol](https://github.com/Parad0x-Labs/Dark-Null-Protocol) is the ecosystem's
+privacy-preserving settlement project, using Groth16 zero-knowledge proofs. Its protocol
+and deployment details belong to that project's documentation. VOOL's own wallet and
+payment permissions are governed by its runtime configuration and spending policy.
