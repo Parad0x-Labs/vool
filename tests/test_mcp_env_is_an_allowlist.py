@@ -11,17 +11,11 @@ correct. An MCP server is the same trust class, so it now uses the same helper.
 A server still receives every variable its own config sets (`env=`), and may opt into named host
 variables (`env_allowlist=`). What it no longer gets is the ambient environment.
 
-The capture helper here drove the REAL `start()` from the start, but it used to record
-"whatever `Popen` call happened while patched, last write wins". `start()` waits out the
-client's handshake timeout AFTER spawning, so the patch stayed up for that whole wait — 30s for
-a client constructed without `timeout=`. Any OTHER thread's `Popen` in that window (a leaked
-watchdog spawning with ambient inheritance passes no `env=`) replaced the captured environment
-with `None` → `{}`, and the second capture of
-`test_a_host_variable_reaches_the_server_only_when_named` answered `KeyError: 'SHARED_ENDPOINT'`
-with a deterministic ~30.1s call duration — exactly CI runs 35849609728 / 35858135891
-(shard 3, green in the baseline composition where no such spawner preceded it). The capture is
-now keyed to the launch it exists to observe and the window is closed, so a concurrent spawn
-can no longer impersonate the server launch or eat its environment.
+The capture helper drives real `start()` but must identify this client's launch: a global
+last-write-wins Popen capture can be overwritten by another thread during the handshake.
+A synthetic concurrent spawn reproduced the CI KeyError and its 30-second timeout signature.
+The actual CI spawner has not been identified. Matching the launch and bounding the patch
+fix the demonstrated capture defect without claiming that a background-thread leak is fixed.
 """
 
 from __future__ import annotations
@@ -94,15 +88,16 @@ def _env_passed_to_popen(client: MCPStdioClient, monkeypatch) -> dict[str, str]:
             stray.append(argv_list)
         return _FakeProc()
 
-    monkeypatch.setattr(subprocess, "Popen", _fake_popen)
-    # `start()` performs a handshake after spawning; we only need the spawn. Closing afterwards
-    # keeps even a fake child from lingering on the client.
-    try:
-        with contextlib.suppress(Exception):
-            client.start()
-    finally:
-        with contextlib.suppress(Exception):
-            client.close()
+    # Restore Popen at the helper boundary, including after failed handshakes. Repeated
+    # captures must never wrap an earlier fake or leave it active for unrelated work.
+    with monkeypatch.context() as capture_patch:
+        capture_patch.setattr(subprocess, "Popen", _fake_popen)
+        try:
+            with contextlib.suppress(Exception):
+                client.start()
+        finally:
+            with contextlib.suppress(Exception):
+                client.close()
     assert "env" in captured, f"start() never spawned this client's server (stray spawns: {stray})"
     return captured["env"]
 
@@ -187,45 +182,44 @@ def test_the_client_defaults_to_an_empty_allowlist() -> None:
     assert MCPStdioClient("echo").env_allowlist == ()
 
 
-def test_a_concurrent_spawn_cannot_impersonate_the_server_launch(monkeypatch) -> None:
-    """The demonstrated CI failure mechanism, as a regression.
+@pytest.mark.parametrize("allowlisted", [False, True])
+def test_a_concurrent_spawn_cannot_impersonate_the_server_launch(monkeypatch, allowlisted) -> None:
+    """Force a second thread's ambient spawn AFTER the server launch, DURING capture.
 
-    Runs 35849609728 / 35858135891 (shard 3) failed with `KeyError: 'SHARED_ENDPOINT'` after a
-    deterministic ~30.1s — the second client's DEFAULT handshake timeout. The capture used to
-    stay patched for that whole wait and record the last `Popen` it saw, so a concurrent
-    spawn with ambient inheritance (no `env=` kwarg) overwrote the server launch's
-    environment with `{}`. Reproduced locally 2/2 by driving the real test under a synthetic
-    watchdog spawning every 0.5s; this test keeps that watchdog running while asserting the
-    capture still sees the launch's own environment.
+    Synchronize at the handshake boundary instead of hoping a periodic watchdog happens
+    to run inside a 0.1-second capture. A last-write-wins capture must fail this case.
     """
     monkeypatch.setenv("SHARED_ENDPOINT", "https://example.invalid")
-    stop = threading.Event()
-    thread = threading.Thread(target=_ambient_spawner, args=(stop,), daemon=True)
-    thread.start()
-    try:
-        withheld = _env_passed_to_popen(MCPStdioClient("echo", env={}, timeout=0.1), monkeypatch)
-        assert "SHARED_ENDPOINT" not in withheld
+    client = MCPStdioClient(
+        "echo", env={}, env_allowlist=("SHARED_ENDPOINT",) if allowlisted else (), timeout=0.1
+    )
+    popen_before = subprocess.Popen
+    observed = []
+    threads = []
 
-        offered = _env_passed_to_popen(
-            MCPStdioClient("echo", env={}, env_allowlist=("SHARED_ENDPOINT",), timeout=0.1), monkeypatch
-        )
-    finally:
-        stop.set()
+    def spawn_during_handshake(*args, **kwargs):
+        def spawn():
+            # The server has already spawned and capture is still patched.
+            observed.append((client._proc is not None, subprocess.Popen is not popen_before))
+            subprocess.Popen(["true", "-n", "synthetic-watchdog"])
+            observed.append("spawned")
+
+        thread = threading.Thread(target=spawn, daemon=True)
+        threads.append(thread)
+        thread.start()
         thread.join(timeout=5)
+        return {"serverInfo": {}}
 
-    assert offered["SHARED_ENDPOINT"] == "https://example.invalid"
+    monkeypatch.setattr(client, "_request", spawn_during_handshake)
+    child = _env_passed_to_popen(client, monkeypatch)
 
-
-def _ambient_spawner(stop: threading.Event) -> None:
-    """A leaked-watchdog stand-in: spawns on a cadence with ambient inheritance.
-
-    Under the helper's patch these never become real processes — the fake absorbs them — which
-    is exactly the CI condition being pinned: they must not be captured either.
-    """
-    while not stop.is_set():
-        with contextlib.suppress(Exception):
-            subprocess.Popen(["true", "-n", "synthetic-watchdog"])  # deliberately not probe-shaped
-        stop.wait(0.5)
+    assert observed == [(True, True), "spawned"], "concurrent spawn did not cross the capture window"
+    assert all(not thread.is_alive() for thread in threads)
+    assert subprocess.Popen is popen_before, "capture leaked its process-global patch"
+    if allowlisted:
+        assert child["SHARED_ENDPOINT"] == "https://example.invalid"
+    else:
+        assert "SHARED_ENDPOINT" not in child
 
 
 def test_the_capture_still_detects_a_restored_ambient_leak(monkeypatch) -> None:
