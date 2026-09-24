@@ -69,8 +69,10 @@ def _write_manifest(path: Path, targets: list[str]) -> Path:
 def _write_timing(
     path: Path, durations: dict[str, float | None], *, sys_platform: str = "linux"
 ) -> Path:
+    # Realistic v1 records: an executed file carries started_nodes > 0 beside
+    # its duration (the instrument always writes both).
     files = {
-        name: {"total_seconds": seconds}
+        name: {"total_seconds": seconds, "started_nodes": 1}
         for name, seconds in durations.items()
         if seconds is not None
     }
@@ -378,3 +380,72 @@ def test_cli_end_to_end_writes_plan_and_shard_files(tmp_path: Path) -> None:
     assert Counter(union) == Counter(sorted(durations))
     # The summary separates the measured/estimated labels.
     assert "ESTIMATES" in completed.stdout
+
+
+@pytest.mark.parametrize("complete", [False, None, "true", 1])
+def test_incomplete_timing_cannot_count_as_measured_coverage(tmp_path, complete):
+    repo, manifest, timing = _standard_setup(tmp_path, durations={"tests/test_a.py": 10.0})
+    payload = json.loads(timing.read_text())
+    payload["complete"] = complete
+    timing.write_text(json.dumps(payload))
+    with pytest.raises(PlanningError, match="incomplete"):
+        _plan(repo, manifest, timing)
+
+
+@pytest.mark.parametrize("environment", [None, {}, [], "linux", {"sys_platform": ""}])
+def test_missing_platform_identity_is_not_compatible_evidence(tmp_path, environment):
+    repo, manifest, timing = _standard_setup(tmp_path, durations={"tests/test_a.py": 10.0})
+    payload = json.loads(timing.read_text())
+    payload["environment"] = environment
+    timing.write_text(json.dumps(payload))
+    with pytest.raises(PlanningError, match="platform"):
+        _plan(repo, manifest, timing)
+
+
+def test_completed_red_run_remains_usable_timing_evidence(tmp_path):
+    repo, manifest, timing = _standard_setup(tmp_path, durations={"tests/test_a.py": 10.0})
+    payload = json.loads(timing.read_text())
+    payload["exitstatus"] = 1
+    timing.write_text(json.dumps(payload))
+    plan = _plan(repo, manifest, timing)
+    assert plan["coverage"]["fraction"] == 1.0
+    assert plan["weights"]["tests/test_a.py"]["estimated_seconds"] == 10.0
+
+
+def test_files_the_evidence_shows_never_started_are_not_measurements(tmp_path):
+    """complete:true with exitstatus 2 (interrupted, sessionfinish reached) still
+    records every collected file -- an unstarted file's record is collection
+    cost, not an execution duration, and must not pose as measured coverage."""
+    repo, manifest, timing = _standard_setup(
+        tmp_path,
+        durations={"tests/test_a.py": 10.0, "tests/test_b.py": 20.0, "tests/test_c.py": 30.0},
+    )
+    payload = json.loads(timing.read_text())
+    payload["exitstatus"] = 2
+    payload["files"]["tests/test_c.py"] = {"total_seconds": 0.4, "started_nodes": 0}
+    timing.write_text(json.dumps(payload))
+
+    plan = _plan(repo, manifest, timing)
+
+    assert plan["weights"]["tests/test_a.py"]["source"] == "measured"
+    assert plan["weights"]["tests/test_b.py"]["source"] == "measured"
+    assert plan["weights"]["tests/test_c.py"]["source"] == "fallback"
+    assert plan["coverage"]["fallback_file_names"] == ["tests/test_c.py"]
+    assert plan["coverage"]["invalid_sample_records"] == 1
+    assert plan["coverage"]["fraction"] == round(2 / 3, 4)
+
+
+def test_records_without_started_nodes_cannot_pose_as_measurements(tmp_path):
+    """started_nodes is how the schema distinguishes an executed file from a
+    collected one; a record without it is not verifiable as a duration sample."""
+    durations = {"tests/test_a.py": 10.0, "tests/test_b.py": 20.0}
+    repo, manifest, timing = _standard_setup(tmp_path, durations=durations)
+    payload = json.loads(timing.read_text())
+    payload["files"]["tests/test_b.py"] = {"total_seconds": 20.0}
+    timing.write_text(json.dumps(payload))
+
+    plan = _plan(repo, manifest, timing)
+
+    assert plan["weights"]["tests/test_a.py"]["source"] == "measured"
+    assert plan["weights"]["tests/test_b.py"]["source"] == "fallback"
+    assert plan["coverage"]["fallback_file_names"] == ["tests/test_b.py"]
