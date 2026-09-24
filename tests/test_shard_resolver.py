@@ -500,7 +500,12 @@ def test_snapshot_written_by_the_planner_loads_in_the_resolver(tmp_path: Path) -
                 "exitstatus": 0,
                 "environment": {"sys_platform": "linux"},
                 "source": {"git_head_sha": "a" * 40, "git_dirty": False},
-                "files": {name: {"total_seconds": float(index + 1)} for index, name in enumerate(linux)},
+                # Records must satisfy the strict evidence law (started_nodes >= 1):
+                # a duration without a started node is not a measurement.
+                "files": {
+                    name: {"total_seconds": float(index + 1), "started_nodes": index + 1}
+                    for index, name in enumerate(linux)
+                },
             }
         ),
         encoding="utf-8",
