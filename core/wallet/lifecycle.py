@@ -1768,7 +1768,7 @@ class PaymentLifecycle:
             reconciliation.resolve_payment_effect(proposal.proposal_id, applied=True, evidence=tx_hash, source="provider")
         receipts.journal_terminal({**base, "state": final_state, "tx_signature": redaction.publish_identifier(tx_hash)}, source_context=self.source_context)
         self._close_effect(effect, ok=final_state == proposals.STATE_CONFIRMED, reason=final_state)
-        receipt = receipts.record_receipt(proposal, state=final_state, tx_signature=tx_hash, extra={"x402_v2": {"resource_status": answer["status"], "settlement": settled_state, "verified_terms": verified, "resource_digest": hashlib.sha256(answer["body"]).hexdigest(), "resource_bytes": len(answer["body"]), "settlement_delivered": final_state == proposals.STATE_CONFIRMED}})
+        receipt = receipts.record_receipt(proposal, state=final_state, tx_signature=tx_hash, extra={"x402_v2": {"resource_status": answer["status"], "settlement": settled_state, "verified_terms": verified, "resource_digest": redaction.publish_identifier(hashlib.sha256(answer["body"]).hexdigest()), "resource_bytes": len(answer["body"]), "settlement_delivered": final_state == proposals.STATE_CONFIRMED}})
         receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=final_state == proposals.STATE_CONFIRMED, status=final_state, tx_signature=tx_hash)
         return receipt
 

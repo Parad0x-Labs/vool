@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from core.wallet.redaction import redact_wallet_record
+from core.wallet.redaction import publish_identifier, redact_wallet_record, vouch_digest_field
 from core.wallet.store import connection, dumps, loads, utcnow
 
 KIND_PAYMENT_INTENDED = "payment_intended"
@@ -61,10 +61,28 @@ def _record(conn: Any, proposal: Any, *, state: str, tx_signature: str = "", fau
     return receipt
 
 
+def _revouch_stored_digests(payload: Any) -> Any:
+    """Re-vouch the digest fields of a payload this store itself persisted. Everything here
+    already passed the write-time redaction boundary; the public-identifier registry is
+    process-local, so on readback -- after a restart, or before a surface re-redacts the
+    payload (wallet status embeds last_receipt) -- the store re-states which values are its
+    own minted digests. Only digest-named values in the producer's exact spelling register."""
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if vouch_digest_field(str(key), value):
+                publish_identifier(value)
+            else:
+                _revouch_stored_digests(value)
+    elif isinstance(payload, list | tuple):
+        for entry in payload:
+            _revouch_stored_digests(entry)
+    return payload
+
+
 def list_receipts(*, limit: int = 50) -> list[dict[str, Any]]:
     with connection() as conn:
         rows = conn.execute("SELECT payload_json FROM wallet_receipts ORDER BY created_at DESC, rowid DESC LIMIT ?", (int(limit),)).fetchall()
-    return [loads(r[0], {}) for r in rows]
+    return [_revouch_stored_digests(loads(r[0], {})) for r in rows]
 
 
 def last_receipt() -> dict[str, Any] | None:
