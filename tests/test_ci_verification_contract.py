@@ -41,6 +41,10 @@ EXPECTED_SHARD_PYTEST_PREFIX = (
 #: Pinned token for token like the pytest prefix itself: the wrapper is a measurement seam, not
 #: a place to hide command changes -- behind it, the invocation must still forward exactly
 #: EXPECTED_SHARD_PYTEST_PREFIX and still consume exactly the resolver's file list.
+EXPECTED_SHARD_WATCHDOG_PREFIX = (
+    "python", "ops/pytest_watchdog.py", "--phase-timeout", "600",
+    "--output", ".verification-logs/shard-${{ matrix.shard }}-watchdog", "--",
+)
 EXPECTED_SHARD_TIMING_PREFIX = (
     "python",
     "ops/pytest_timing.py",
@@ -94,7 +98,7 @@ def _assert_authoritative_contract(workflow: dict[str, Any]) -> None:
         assert "paths-ignore" not in triggers[event]
 
     verify = workflow["jobs"]["verify"]
-    assert "if" not in verify
+    assert verify["if"] == "github.event_name != 'workflow_dispatch' || !inputs.focused_ci"
     setup_steps = [
         step for step in verify["steps"] if str(step.get("uses", "")).startswith("actions/setup-python@")
     ]
@@ -123,6 +127,8 @@ def _assert_authoritative_contract(workflow: dict[str, Any]) -> None:
     tokens = shlex.split(command_text)
     if tuple(tokens[: len(EXPECTED_SHARD_DISPLAY_PREFIX)]) == EXPECTED_SHARD_DISPLAY_PREFIX:
         tokens = tokens[len(EXPECTED_SHARD_DISPLAY_PREFIX) :]
+    assert tuple(tokens[: len(EXPECTED_SHARD_WATCHDOG_PREFIX)]) == EXPECTED_SHARD_WATCHDOG_PREFIX
+    tokens = tokens[len(EXPECTED_SHARD_WATCHDOG_PREFIX) :]
     assert tuple(tokens[: len(EXPECTED_SHARD_TIMING_PREFIX)]) == EXPECTED_SHARD_TIMING_PREFIX, (
         "the shard must run through the timing wrapper with its manifest in .verification-logs/"
     )
@@ -164,7 +170,7 @@ def test_push_and_pr_ci_use_the_exact_authoritative_gate() -> None:
 
 @pytest.mark.parametrize(
     "mutation",
-    ("floating_python", "collect_only", "step_disabled", "job_disabled"),
+    ("floating_python", "collect_only", "step_disabled", "job_disabled", "watchdog_removed", "watchdog_unbounded"),
 )
 def test_contract_mutations_are_rejected(mutation: str) -> None:
     workflow = copy.deepcopy(_load_workflow())
@@ -177,6 +183,12 @@ def test_contract_mutations_are_rejected(mutation: str) -> None:
         gate["run"] += " --collect-only"
     elif mutation == "step_disabled":
         _named_step(workflow["jobs"]["tests"], "Run shard ${{ matrix.shard }}")["if"] = False
+    elif mutation == "watchdog_removed":
+        gate = _named_step(workflow["jobs"]["tests"], "Run shard ${{ matrix.shard }}")
+        gate["run"] = gate["run"].replace("ops/pytest_watchdog.py", "ops/not_a_watchdog.py")
+    elif mutation == "watchdog_unbounded":
+        gate = _named_step(workflow["jobs"]["tests"], "Run shard ${{ matrix.shard }}")
+        gate["run"] = gate["run"].replace("--phase-timeout 600", "--phase-timeout 0")
     else:
         verify["if"] = False
 
@@ -197,3 +209,19 @@ def test_verification_dependencies_are_exactly_pinned() -> None:
         exact = {item for item in dev if re.fullmatch(rf"{tool}==[0-9][0-9A-Za-z.\-]*", item)}
         assert exact, f"{tool} must carry an exact == pin in the dev extra, not a floor"
         assert len(exact) == 1, f"{tool} is declared more than once in the dev extra"
+
+
+def test_manual_diagnostics_cannot_impersonate_full_gate_checks():
+    workflow = _load_workflow()
+    diagnostic = workflow["jobs"]["focused_ci_diagnostics"]
+    assert diagnostic["if"] == "github.event_name == 'workflow_dispatch' && inputs.focused_ci"
+    assert diagnostic["name"] == "focused-ci-diagnostics-not-merge-gate"
+    assert diagnostic["timeout-minutes"] == 12
+    triggers = workflow.get("on", workflow.get(True))
+    assert triggers["workflow_dispatch"]["inputs"]["focused_ci"]["default"] is False
+    assert triggers["workflow_dispatch"]["inputs"]["focused_ci"]["type"] == "boolean"
+    for job in ("verify", "tests", "macos", "build"):
+        name = workflow["jobs"][job]["name"]
+        assert "github.event_name == 'workflow_dispatch' && inputs.focused_ci" in name
+        assert f"diagnostic-unused-{job}" in name
+    assert "'diagnostic' || 'full'" in workflow["concurrency"]["group"]

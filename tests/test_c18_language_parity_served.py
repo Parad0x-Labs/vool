@@ -203,10 +203,24 @@ class CountingProvider:
         with self._lock:
             return sum(1 for c in self.calls if c["model"] == model and c["prompt"].strip())
 
-    def wire_text(self, model: str, index: int = -1) -> str:
-        """The full recorded wire request (system field + messages) for one call."""
+    def answer_calls_for(self, model: str) -> list[dict[str, Any]]:
+        """Select answer requests by endpoint and lane, never by expected policy text."""
         with self._lock:
-            calls = [c for c in self.calls if c["model"] == model]
+            return [
+                dict(call) for call in self.calls
+                if call["model"] == model
+                and call["path"].startswith(("/api/chat", "/v1/chat"))
+                and call["prompt"].strip()
+                and (not self.answer_marker
+                     or self.answer_marker in call["prompt"]
+                     or self.answer_marker in call["system"])
+            ]
+
+    def wire_text(self, model: str, index: int = -1) -> str:
+        """An answer request; later metadata probes cannot replace the evidence."""
+        calls = self.answer_calls_for(model)
+        if not calls:
+            raise AssertionError(f"No answer request captured for {model}")
         call = calls[index]
         return f"{call['system']}\n{call['prompt']}"
 
@@ -509,8 +523,10 @@ class C18LanguageParityServed(unittest.TestCase):
             for thread in threads:
                 thread.join(timeout=300)
             self.assertEqual(sorted(results), ["other", "pref"], results)
-            with self.local._lock:
-                wires = [f"{c['system']}\n{c['prompt']}" for c in self.local.calls]
+            wires = [
+                f"{call['system']}\n{call['prompt']}"
+                for call in self.local.answer_calls_for(LOCAL)
+            ]
             self.assertGreaterEqual(len(wires), 2, wires)
             self.assertTrue(
                 any("Respond in Lithuanian." in wire for wire in wires),
