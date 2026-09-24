@@ -59,6 +59,13 @@ class _IsolatedStoresTestCase(unittest.TestCase):
 
         self._tmp = tempfile.TemporaryDirectory()
         home = Path(self._tmp.name) / "home"
+        # The session home (root-conftest pin) is borrowed state, not ours to delete:
+        # remember it so tearDown puts the process back exactly as it found it.
+        # Deleting instead poisoned every later test in the process that reads
+        # VOOL_HOME directly (measured: shard tests (8), run 35998811173 -- the
+        # spawned-session pin test died on KeyError after this suite ran).
+        self._previous_vool_home = os.environ.get("VOOL_HOME")
+        self._previous_mirror_dir = os.environ.get("VOOL_MIRROR_DATA_DIR")
         os.environ["VOOL_HOME"] = str(home)
         os.environ["VOOL_MIRROR_DATA_DIR"] = str(home / "relay_mirror")
         from core.runtime_paths import configure_runtime_home
@@ -108,8 +115,14 @@ class _IsolatedStoresTestCase(unittest.TestCase):
 
         sdb.configure_default_db_path(None)
         configure_runtime_home(None)
-        os.environ.pop("VOOL_HOME", None)
-        os.environ.pop("VOOL_MIRROR_DATA_DIR", None)
+        if self._previous_vool_home is None:
+            os.environ.pop("VOOL_HOME", None)
+        else:
+            os.environ["VOOL_HOME"] = self._previous_vool_home
+        if self._previous_mirror_dir is None:
+            os.environ.pop("VOOL_MIRROR_DATA_DIR", None)
+        else:
+            os.environ["VOOL_MIRROR_DATA_DIR"] = self._previous_mirror_dir
         self._tmp.cleanup()
 
 
