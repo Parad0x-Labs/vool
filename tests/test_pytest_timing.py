@@ -10,6 +10,7 @@ worse than no tool at all.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,11 +20,12 @@ from ops.pytest_timing import (
     SCHEMA,
     _TimingPlugin,
 )
-from ops.pytest_timing import (
-    main as timing_main,
-)
 
 WRAPPER = Path(__file__).resolve().parent.parent / "ops" / "pytest_timing.py"
+
+#: Set for the one nested re-run the regression pin spawns, so the inner copy
+#: of that same test does not recurse further (each level adds no evidence).
+_NESTED_PIN_ENV = "VOOL_TEST_TIMING_NESTED_PIN"
 
 
 def _write_suite(root: Path) -> tuple[Path, Path]:
@@ -43,7 +45,10 @@ def _write_suite(root: Path) -> tuple[Path, Path]:
     return root / "test_ok.py", root / "test_bad.py"
 
 
-def _run_wrapper(output: Path, *pytest_targets: Path) -> subprocess.CompletedProcess[str]:
+def _run_wrapper(
+    output: Path, *pytest_targets: Path, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    env = {**os.environ, **(extra_env or {})}
     return subprocess.run(
         [
             sys.executable,
@@ -61,7 +66,32 @@ def _run_wrapper(output: Path, *pytest_targets: Path) -> subprocess.CompletedPro
         text=True,
         check=False,
         cwd=str(WRAPPER.parent.parent),
+        env=env,
     )
+
+
+def _collect_only(*pytest_targets: Path) -> list[str]:
+    """Pytest's own node inventory for an argv -- the oracle for how the same
+    invocation keys its files, independent of where pytest's rootdir lands
+    (a target outside the checkout is keyed by its own rootdir, not basename)."""
+
+    plain = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            *[str(target) for target in pytest_targets],
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=str(WRAPPER.parent.parent),
+    )
+    return [line for line in plain.stdout.splitlines() if "::" in line]
 
 
 def _load(output: Path) -> dict:
@@ -79,7 +109,12 @@ def test_green_run_exits_zero_and_writes_complete_manifest(tmp_path: Path) -> No
     assert payload["schema"] == SCHEMA
     assert payload["complete"] is True
     assert payload["exitstatus"] == 0
-    record = payload["files"]["test_ok.py"]
+    # One record, keyed the way this argv's own collection keys the file: the
+    # nodeid prefix however pytest's rootdir expresses it, never a guessed
+    # basename (a target outside the checkout is NOT keyed by basename).
+    (ok_key,) = {nodeid.split("::", 1)[0] for nodeid in _collect_only(ok)}
+    assert set(payload["files"]) == {ok_key}
+    record = payload["files"][ok_key]
     assert record["collected_nodes"] == 1
     assert record["started_nodes"] == 1
     assert record["passed"] == 1
@@ -90,6 +125,7 @@ def test_green_run_exits_zero_and_writes_complete_manifest(tmp_path: Path) -> No
 def test_failing_test_stays_red_and_failure_is_recorded_with_diagnostics(tmp_path: Path) -> None:
     _, bad = _write_suite(tmp_path)
     output = tmp_path / "timing.json"
+    collected = _collect_only(bad)
 
     completed = _run_wrapper(output, bad)
 
@@ -99,11 +135,13 @@ def test_failing_test_stays_red_and_failure_is_recorded_with_diagnostics(tmp_pat
     assert payload["exitstatus"] == 1
     # Evidence exists beside the red verdict, and names the failing node.
     assert payload["complete"] is True
-    record = payload["files"]["test_bad.py"]
+    (bad_key,) = {nodeid.split("::", 1)[0] for nodeid in collected}
+    record = payload["files"][bad_key]
     assert record["failed"] == 1
     assert record["passed"] == 1
     failed = payload["failed_nodes"]
-    assert [entry["nodeid"] for entry in failed] == ["test_bad.py::test_fails"]
+    failing = [nodeid for nodeid in collected if nodeid.endswith("::test_fails")]
+    assert [entry["nodeid"] for entry in failed] == failing
     assert failed[0]["when"] == "call"
     assert failed[0]["duration_seconds"] > 0
 
@@ -143,8 +181,9 @@ def test_wrapper_neither_selects_skips_nor_reorders(tmp_path: Path) -> None:
 
     payload = _load(output)
     assert payload["invocation"]["pytest_args"][:1] == ["-q"]
-    # One file record per file, keyed the way the shard resolver keys files.
-    assert set(payload["files"]) == {"test_ok.py", "test_bad.py"}
+    # One file record per file, keyed the way this argv's own collection keys
+    # them (the nodeid prefix), whatever rootdir pytest assigns here.
+    assert set(payload["files"]) == {nodeid.split("::", 1)[0] for nodeid in plain_nodeids}
     # Collected == started == what plain pytest collects: nothing skipped, added,
     # or reordered by the instrument.
     assert payload["session"]["collected_total"] == len(plain_nodeids)
@@ -228,21 +267,31 @@ def test_non_finite_durations_are_dropped_not_recorded(tmp_path: Path) -> None:
     assert record["passed"] == 1
 
 
-def test_manifest_write_failure_is_red_not_green(tmp_path: Path, monkeypatch) -> None:
+def test_manifest_write_failure_is_red_not_green(tmp_path: Path) -> None:
+    """A manifest write that cannot land turns the wrapper red -- proven at the
+    process boundary against a genuinely unwritable target.
+
+    The earlier in-process form monkeypatched ``Path.write_text`` for the whole
+    process while calling the wrapper's main() from inside an outer pytest
+    session. When this suite itself runs under the timing wrapper, that global
+    patch also hit the OUTER instrument's periodic snapshot (CI run
+    35873216239: the snapshot boundary fell inside the patched window, the
+    wrapper correctly retained write_error, and an all-green shard went red).
+    The fault now lives exactly where the failure lives -- the output path is
+    an existing directory, so the manifest write fails with a real OSError --
+    and no foreign writer in any outer session is sabotaged."""
     ok, _ = _write_suite(tmp_path)
-    unwritable = tmp_path / "missing-dir" / "timing.json"
+    unwritable = tmp_path / "occupied-by-a-directory"
+    unwritable.mkdir()
 
-    def _fail(*args: object, **kwargs: object) -> None:
-        raise OSError("simulated disk failure")
+    completed = _run_wrapper(unwritable, ok)
 
-    monkeypatch.setattr(Path, "write_text", _fail)
-    # no:cacheprovider keeps pytest's own cache writes out of the way -- the
-    # failure under test is the MANIFEST write, and it alone must turn red.
-    exit_code = timing_main(
-        ["--output", str(unwritable), "--", "-p", "no:cacheprovider", str(ok)]
-    )
-
-    assert exit_code == 1
+    # The suite itself passes; the wrapper is red SOLELY because its evidence
+    # could not be written. Missing evidence can never read as green.
+    assert "1 passed" in completed.stdout
+    assert completed.returncode == 1
+    assert "timing manifest could not be written" in completed.stderr
+    assert "Error" in completed.stderr  # the recorded exception class (IsADirectoryError here)
 
 
 def test_setup_and_teardown_cost_is_attributed_to_the_file(tmp_path: Path) -> None:
@@ -262,3 +311,44 @@ def test_setup_and_teardown_cost_is_attributed_to_the_file(tmp_path: Path) -> No
     assert record["call_seconds"] == 0.2
     assert record["teardown_seconds"] == 0.3
     assert abs(record["total_seconds"] - 0.6) < 1e-9
+
+
+def test_nested_fault_injection_cannot_redden_the_outer_instrument(tmp_path: Path) -> None:
+    """Regression pin for CI run 35873216239, with the REAL wrapper around THIS
+    file and the snapshot boundary aligned onto the fault test.
+
+    The instrument snapshots its manifest every 512 test reports. The filler
+    file (164 passing tests) plus this file's six tests preceding the fault
+    test account for 510 reports; the fault test's setup report is #511, so
+    its CALL report -- the one that used to arrive while the retired
+    process-global ``Path.write_text`` patch was live -- is exactly #512.
+    With the fault confined to the child process, the outer wrapper must stay
+    green, write its manifest complete, and never report a write failure."""
+    if os.environ.get(_NESTED_PIN_ENV) == "1":
+        # This is the inner re-run the outer instance of this test spawns:
+        # recursing another level adds no evidence, so keep the suite green.
+        return
+    filler = tmp_path / "test_filler.py"
+    filler.write_text(
+        "".join(f"def test_filler_{index}():\n    assert True\n" for index in range(164)),
+        encoding="utf-8",
+    )
+    output = tmp_path / "outer-timing.json"
+
+    completed = _run_wrapper(output, filler, Path(__file__), extra_env={_NESTED_PIN_ENV: "1"})
+
+    assert completed.returncode == 0, completed.stderr
+    assert "timing manifest could not be written" not in completed.stderr
+    payload = _load(output)
+    assert payload["complete"] is True
+    assert payload["exitstatus"] == 0
+    # This file's record, keyed however this argv's own collection keys it.
+    collected = _collect_only(filler, Path(__file__))
+    this_key = next(
+        prefix
+        for prefix in (nodeid.split("::", 1)[0] for nodeid in collected)
+        if prefix.endswith("test_pytest_timing.py")
+    )
+    this_record = payload["files"][this_key]
+    assert this_record["collected_nodes"] == 9
+    assert this_record["started_nodes"] == 9
