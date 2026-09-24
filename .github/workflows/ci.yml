@@ -6,9 +6,14 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      focused_ci:
+        description: "Run bounded CI diagnostics only (not a merge gate)"
+        type: boolean
+        default: false
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.focused_ci && 'diagnostic' || 'full' }}
   cancel-in-progress: true
 
 env:
@@ -17,6 +22,8 @@ env:
 
 jobs:
   verify:
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.focused_ci && 'diagnostic-unused-verify' || 'verify' }}
+    if: github.event_name != 'workflow_dispatch' || !inputs.focused_ci
     # Lint + canonical collection: the fast authoritative legs. The 35.9k-test
     # suite itself runs in the shard matrix below — a single 2/4-core runner
     # cannot finish it inside GitHub's 6-hour job cap (measured: >2h per shard
@@ -54,6 +61,7 @@ jobs:
           include-hidden-files: true
 
   tests:
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.focused_ci && format('diagnostic-unused-tests ({0})', matrix.shard) || format('tests ({0})', matrix.shard) }}
     # The full suite, partitioned by test file across parallel runners.
     # Balance: files sorted by size, round-robin — no shard skipped, every
     # file runs exactly once.
@@ -238,6 +246,8 @@ jobs:
               raise SystemExit(f"shard {shard} resolved empty — partitioning bug")
           EOF
       - name: Run shard ${{ matrix.shard }}
+        # Bound any stalled collection/setup/call/teardown/shutdown phase to ten minutes.
+        # A timeout stays red and uploads the active node plus thread stacks.
         # Same pytest argv, same file order, same verdict -- wrapped in ops/pytest_timing.py
         # so each shard leaves a machine-readable per-file timing + outcome manifest in
         # .verification-logs/ (uploaded below even when this step fails). The wrapper's exit
@@ -245,7 +255,9 @@ jobs:
         # evidence beside the verdict, never a substitute for it.
         run: >-
           xvfb-run -a --server-args="-screen 0 1280x1024x24"
-          python ops/pytest_timing.py
+          python ops/pytest_watchdog.py --phase-timeout 600
+          --output ".verification-logs/shard-${{ matrix.shard }}-watchdog"
+          -- python ops/pytest_timing.py
           --output ".verification-logs/shard-${{ matrix.shard }}-timing.json"
           -- -q --tb=short -p no:cacheprovider
           $(tr '\n' ' ' < .verification-logs/shard-${{ matrix.shard }}-files.txt)
@@ -260,6 +272,7 @@ jobs:
           include-hidden-files: true
 
   macos:
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.focused_ci && 'diagnostic-unused-macos' || 'macos' }}
     # The genuinely macOS-only lanes, RUN here rather than skipped: the artifact-reader
     # decoders (PDFKit/pypdf/ffmpeg/Speech) are confined by Seatbelt, which exists only on
     # macOS (core/artifact_readers/_sandbox.py refuses rather than running a decoder
@@ -312,6 +325,7 @@ jobs:
           include-hidden-files: true
 
   build:
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.focused_ci && 'diagnostic-unused-build' || 'build' }}
     runs-on: ubuntu-latest
     needs: [verify, tests, macos]
     steps:
@@ -337,3 +351,39 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  focused_ci_diagnostics:
+    name: focused-ci-diagnostics-not-merge-gate
+    if: github.event_name == 'workflow_dispatch' && inputs.focused_ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies
+        run: python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Lint
+        run: python -m ruff check .
+      - name: Bounded CI regressions and stall-region diagnostic
+        run: >-
+          python ops/pytest_watchdog.py --phase-timeout 120
+          --output .verification-logs/focused-watchdog
+          -- python ops/pytest_timing.py --output .verification-logs/focused-timing.json
+          -- -q --tb=short -p no:cacheprovider
+          tests/test_ci_watchdog.py tests/test_pytest_timing.py tests/test_shard_plan.py
+          tests/test_ci_verification_contract.py tests/test_delivery_contracts.py
+          tests/test_c18_wire_capture.py tests/test_c18_language_parity_served.py
+          tests/test_every_response_says_what_produced_it.py
+          tests/pa_beta_gate/test_popular_provider_adapters.py
+          tests/test_transport_large_payload.py
+      - name: Upload focused diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: focused-ci-diagnostics-not-full-coverage
+          path: .verification-logs/
+          include-hidden-files: true
