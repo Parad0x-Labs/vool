@@ -111,6 +111,11 @@ def x402_rig(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_HOME", str(home))
     from core import runtime_paths
 
+    # The runtime-home override must not outlive this fixture: a later suite in the same
+    # process would resolve data_path() into this test's tmp home. Capture the OVERRIDE STATE
+    # (not active_vool_home(): the VOOL_HOME env is already patched to this fixture's home at
+    # this point, so the resolved value IS this home and re-pinning it would be a no-op).
+    previous_override = runtime_paths._VOOL_HOME_OVERRIDE
     runtime_paths.configure_runtime_home(home)
     token = str(uuid.uuid4())
     service = StrictUsePodService(
@@ -129,6 +134,7 @@ def x402_rig(tmp_path, monkeypatch):
         reset_monetary_authority()
         effect_budget.reset_effect_budget_process_state()
         configure_default_db_path(None)
+        runtime_paths.configure_runtime_home(previous_override)
 
 
 def _mint_x402_grant(*, per_operation: int = 5_000_000, payer: str = "9SynthPayer" + "1" * 33, revoked: bool = False, asset: str = "USDC", decimals: int = 6, fee_asset: str = "native", model: str = MODEL) -> str:

@@ -167,6 +167,9 @@ def served(tmp_path_factory):
         models={MODEL: [Listing("marketplace", MARKET_ID, *MARKET), Listing("centralized", *CENTRAL)]},
     ).start()
     daemon = MoneyLawDaemon(root / "home")
+    adopted = False
+    previous_override = None
+    previous_db_override = None
     try:
         daemon.start()
         status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
@@ -181,11 +184,33 @@ def served(tmp_path_factory):
         status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": MODEL})
         assert status == 200, approved
         served = SimpleNamespace(service=service, daemon=daemon, token=token, fingerprint=saved["credential_fingerprint"])
+        # adopt_store() rebinds PROCESS-GLOBAL seams (runtime home, default db path) to the
+        # daemon's home for in-process grant minting. Those seams outlive this module unless
+        # restored: a later suite in the same shard process then resolves data_path() into THIS
+        # daemon's home and reads ITS key record -- sealed with the rig passphrase -- and dies
+        # with cryptography.exceptions.InvalidTag (measured: run 35886493542 shard 3, 14
+        # test_meet_and_greet_service dispatch failures; reproduced locally with the exact
+        # error classes). Capture the OVERRIDE STATE for each seam -- active_vool_home()'s
+        # resolved value would pin a path where the original state was dynamic resolution.
+        from core import effect_budget, runtime_paths
+        from storage import db as _storage_db
+        from storage.db import configure_default_db_path
+
+        previous_override = runtime_paths._VOOL_HOME_OVERRIDE
+        previous_db_override = _storage_db._DEFAULT_DB_PATH_OVERRIDE
         daemon.adopt_store()
+        adopted = True
         yield served
     finally:
         daemon.stop()
         service.stop()
+        if adopted:
+            from core import effect_budget, runtime_paths
+            from storage.db import configure_default_db_path
+
+            runtime_paths.configure_runtime_home(previous_override)
+            configure_default_db_path(previous_db_override)
+            effect_budget.reset_effect_budget_process_state()
 
 
 #: The one session the synthetic grants bind: a task_envelope grant must name its task or
