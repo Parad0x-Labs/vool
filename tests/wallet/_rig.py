@@ -291,7 +291,7 @@ class ScriptedX402Resource:
     """A paid resource: 402 with an x402 offer until an X-PAYMENT header carries a signature
     the scripted RPC actually broadcast. Counts deliveries so a re-paid resource is visible."""
 
-    def __init__(self, rpc: ScriptedRpc, *, amount_minor: int = 1500, asset: str = "SOL", pay_to: str = DESTINATION) -> None:
+    def __init__(self, rpc: ScriptedRpc, *, amount_minor: int = 1500, asset: str = "SOL", pay_to: str = DESTINATION, port: int = 0) -> None:
         self.rpc = rpc
         self.amount_minor = amount_minor
         self.asset = asset
@@ -332,7 +332,7 @@ class ScriptedX402Resource:
                 self.end_headers()
                 self.wfile.write(body)
 
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._server = ThreadingHTTPServer(("127.0.0.1", int(port)), Handler)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
 
     @property
