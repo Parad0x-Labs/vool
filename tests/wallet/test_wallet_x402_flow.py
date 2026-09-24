@@ -116,3 +116,82 @@ def test_x402_payment_header_shape_is_the_x402_v1_exact_scheme(wallet_env, resou
     assert payload["x402Version"] == 1 and payload["scheme"] == "exact" and payload["network"] == "solana-devnet"
     assert payload["payload"]["signature"] == receipt.tx_signature and payload["payload"]["payer"] == profile.public_key
     assert payload["payload"]["payTo"] == DESTINATION
+
+
+def _deterministic_digest_resource(rpc, *, digest_contains_zero: bool):
+    """Bind the scripted resource on a port whose request digest deterministically lands in one
+    redaction class. A sha256-hex digest with no '0' also matches the canonical base58 secret
+    pattern -- the exact mechanism that masked a stored receipt digest in CI (run 35923574353,
+    digest d2ff21956d1eb476a5d5e3b28d354c45a1bb473c2c447a68dd6e3b5c2fc1d3a1). The port->digest
+    mapping is pure, so the class is chosen before any socket exists; candidates that are already
+    held just move to the next port of the same class."""
+    from core.wallet.x402 import _request_digest
+
+    candidates = []
+    for port in range(20000, 45000):
+        if ("0" in _request_digest("GET", f"http://127.0.0.1:{port}/paid/report")) == digest_contains_zero:
+            candidates.append(port)
+        if len(candidates) == 8:
+            break
+    for port in candidates:
+        try:
+            return ScriptedX402Resource(rpc, port=port)
+        except OSError:
+            continue
+    raise AssertionError("no free port in the requested digest class")
+
+
+@pytest.fixture(params=[False, True], ids=["digest-without-zero", "digest-with-zero"])
+def class_pinned_resource(wallet_env, monkeypatch, request):
+    monkeypatch.setenv("VOOL_WALLET_X402_CAP_MINOR", "2000")
+    monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
+    from core.wallet.x402 import _request_digest
+
+    with _deterministic_digest_resource(wallet_env["rpc"], digest_contains_zero=request.param) as server:
+        assert ("0" in _request_digest("GET", server.url)) == request.param
+        yield server
+
+
+def test_approved_payment_round_trips_the_original_digest_through_persistence(class_pinned_resource):
+    from core.wallet import approval, custody, lifecycle, receipts, x402
+    from core.wallet.x402 import _request_digest
+
+    expected = _request_digest("GET", class_pinned_resource.url)
+    profile = _pocket(custody)
+    parked = x402.fetch_paid_resource(class_pinned_resource.url, wallet_id=profile.wallet_id)
+    receipt = lifecycle.default_lifecycle().approve_and_execute(parked.proposal_id, approver=approval.PinApprover(PIN))
+    delivered = x402.retry_paid_resource(parked.proposal_id)
+    assert delivered.status == x402.OUTCOME_DELIVERED and b"PAID REPORT" in delivered.body
+    assert len(class_pinned_resource.deliveries) == 1 and class_pinned_resource.deliveries[0]["signature"] == receipt.tx_signature
+    binding = x402.binding_for_proposal(parked.proposal_id)
+    assert binding["request_digest"] == expected, "the binding carries the digest of the request that was actually retried"
+    bound = [r for r in receipts.list_receipts() if r.get("x402")]
+    assert bound, "the delivered payment wrote its receipt"
+    assert bound[0]["x402"]["request_digest"] == expected and bound[0]["tx_signature"] == receipt.tx_signature
+    assert bound[0]["x402"]["resource_digest"] == binding["resource_digest"]
+
+
+def test_wallet_record_redaction_keeps_x402_digests_and_still_masks_secret_shaped_values():
+    """The receipt-persistence contract at the redaction boundary, pinned without a socket: every
+    digest the wallet's x402 producer mints must survive redaction byte-for-byte -- including the
+    exact digest a CI run stored as '[redacted-key]' -- while secret-shaped values keep being
+    masked, even when they ride under digest-named fields."""
+    from core.wallet.redaction import redact_wallet_record
+
+    digests = [
+        "d2ff21956d1eb476a5d5e3b28d354c45a1bb473c2c447a68dd6e3b5c2fc1d3a1",  # the run-35923574353 offender
+        "e3f487dda88a2238b64e4cfc7177ad52af85831b576ed549dc7ea4ac1c95b54d",  # a different valid digest without '0'
+        "0abb7e26ee58bf2fdf62ec5905f11b86088955e77b74e1184e8533ded219e6cb",  # a valid digest containing '0'
+    ]
+    for digest in digests:
+        for key in ("request_digest", "resource_digest"):
+            clean = redact_wallet_record({"x402": {key: digest, "resource_status": 200}})
+            assert clean["x402"][key] == digest
+    secret = "4kWX9jmNvCnLzPQsThRbYfMdJgKUeHwZxVcBqNaSrTfDgLmEopWyuXABCDEFGHJKLMNPQRSTUV"
+    clean = redact_wallet_record({
+        "x402": {"request_digest": secret, "resource_digest": secret, "url": "http://127.0.0.1:20004/paid/report"},
+        "nested": {"leak": f"key {secret} end"},
+        "pin": "246810",
+    })
+    assert clean["x402"]["request_digest"] == "[redacted-key]" and clean["x402"]["resource_digest"] == "[redacted-key]"
+    assert secret not in clean["nested"]["leak"] and "pin" not in clean
