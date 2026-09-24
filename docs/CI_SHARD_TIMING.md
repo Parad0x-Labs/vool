@@ -83,9 +83,16 @@ The planner (contract tests in `tests/test_shard_plan.py`):
 - routes macOS-only files by the workflow's own pinned list, parsed out of
   `ci.yml` (there is no second list to drift);
 - uses the **median** measured per-file total across usable samples; files
-  without usable measurements (new files, rejected non-finite records) get a
-  deterministic fallback weight (median of measured files, or an explicit
-  `--fallback-weight`), and every fallback file is named in the plan;
+  without usable measurements (new files, rejected non-finite records, files the
+  evidence shows never started executing) get a deterministic fallback weight
+  (median of measured files, or an explicit `--fallback-weight`), and every
+  fallback file is named in the plan;
+- refuses incomplete snapshots and evidence without platform identity; completed
+  red runs remain usable measurements, with their failing verdict preserved. A
+  completed process is still not automatic full coverage: files absent from the
+  evidence (collection errors) or recorded with `started_nodes: 0` (interrupted
+  or early-stopped sessions that still reached sessionfinish) count as
+  unmeasured fallback, never as measurements;
 - refuses to plan from corrupt, wrong-schema, missing, or wholly
   incompatible-platform evidence, and refuses a plan whose assignment is not
   exactly the manifest's Linux files, each once;

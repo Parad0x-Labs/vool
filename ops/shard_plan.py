@@ -19,10 +19,12 @@ Hard rules this planner refuses to break:
   * deleted files and stale timing records cannot remove coverage: timings
     referencing files the manifest no longer collects are reported as stale
     and ignored, never propagated;
-  * missing, corrupt, schema-mismatched, or wholly unusable timing evidence
-    fails the planner -- it never silently degrades to a half-informed plan.
-    Individual non-finite sample records are rejected and the file falls back
-    to the deterministic default weight (reported, counted, never hidden);
+  * missing, corrupt, schema-mismatched, incomplete, or wholly unusable
+    timing evidence fails the planner -- it never silently degrades to a
+    half-informed plan. Individual non-finite sample records, and records of
+    files the evidence shows never started executing, are rejected and the
+    file falls back to the deterministic default weight (reported, counted,
+    never hidden);
   * timing inputs are DATA: JSON in, JSON out. No timing value is ever
     executed, interpolated into a command, or used as one;
   * platforms are not mixed: timing manifests carry the sys.platform they
@@ -127,30 +129,47 @@ def load_timing_evidence(
 
     Records measured on another platform are incompatible and dropped (counted,
     reported). Non-finite or negative sample values are rejected individually --
-    the file keeps its other samples, or falls back if none remain. Files absent
-    from the current manifest are NOT dropped silently here; they are collected
-    as stale and only classified once the manifest scope is known.
+    the file keeps its other samples, or falls back if none remain. A record
+    whose ``started_nodes`` shows the file never began executing (an
+    interrupted or early-stopped session still marks ``complete: true`` when
+    pytest reached sessionfinish) is not a duration measurement: it is rejected
+    so the file falls to the fallback weight and is named, never planned from
+    collection cost alone. Files absent from the current manifest are NOT
+    dropped silently here; they are collected as stale and only classified
+    once the manifest scope is known.
     """
 
     evidence = TimingEvidence()
     for path in paths:
         payload = _load_timing_file(path)
         evidence.sources.append(str(path))
-        environment = payload.get("environment") or {}
-        measured_platform = str(environment.get("sys_platform") or "")
+        if payload.get("complete") is not True:
+            raise PlanningError(f"timing evidence is incomplete ({path})")
+        environment = payload.get("environment")
+        if not isinstance(environment, dict) or not environment.get("sys_platform"):
+            raise PlanningError(f"timing evidence has no platform identity ({path})")
+        measured_platform = str(environment["sys_platform"])
         files = payload.get("files")
         if not isinstance(files, dict):
             raise PlanningError(f"timing evidence carries no per-file records ({path})")
         for file_path, record in sorted(files.items()):
-            if measured_platform and measured_platform != sys_platform:
+            if measured_platform != sys_platform:
                 evidence.incompatible_files.add(str(file_path))
                 continue
             total = record.get("total_seconds") if isinstance(record, dict) else None
+            started = record.get("started_nodes") if isinstance(record, dict) else None
             try:
                 seconds = float(total)
             except (TypeError, ValueError):
                 seconds = math.nan
-            if isinstance(total, bool) or not math.isfinite(seconds) or seconds < 0:
+            started_is_count = isinstance(started, int) and not isinstance(started, bool)
+            if (
+                isinstance(total, bool)
+                or not math.isfinite(seconds)
+                or seconds < 0
+                or not started_is_count
+                or started < 1
+            ):
                 evidence.invalid_samples += 1
                 evidence.invalid_by_file[str(file_path)] = (
                     evidence.invalid_by_file.get(str(file_path), 0) + 1
