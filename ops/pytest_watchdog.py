@@ -89,6 +89,31 @@ def _stop_group(process):
     process.wait(timeout=5)
 
 
+def _load_node_budgets(path):
+    """Measured per-file durations (``ops/shard_weights.json``'s ``weights`` map, or a flat
+    file→seconds map). A module-scoped fixture can legitimately spend the file's WHOLE measured
+    duration inside one opaque setup phase — the corpus replay module measures ~44 minutes —
+    and a flat phase bound would kill known-slow work as a stall. Budgets come only from a
+    completed instrumented run, so an unmeasured or new file keeps the base bound."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    candidate = payload.get("weights") if isinstance(payload.get("weights"), dict) else payload
+    return {str(key): float(value) for key, value in candidate.items()
+            if isinstance(value, (int, float)) and float(value) > 0}
+
+
+def _effective_phase_timeout(base, budgets, margin, node):
+    file_id = str(node or "").split("::", 1)[0]
+    measured = budgets.get(file_id) if budgets else None
+    if not measured:
+        return base
+    return max(base, math.ceil(measured * margin))
+
+
 def main(argv=None):
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["--child"]:
@@ -97,12 +122,18 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase-timeout", type=float, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--node-budgets", type=Path, default=None,
+                        help="measured per-file durations; a node's file may spend up to "
+                             "measured*margin in one phase before the bound applies")
+    parser.add_argument("--budget-margin", type=float, default=1.5)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     options = parser.parse_args(args)
     if os.name != "posix":
         parser.error("the CI watchdog requires POSIX process groups")
     if not math.isfinite(options.phase_timeout) or options.phase_timeout <= 0:
         parser.error("phase timeout must be positive and finite")
+    if not math.isfinite(options.budget_margin) or options.budget_margin < 1:
+        parser.error("budget margin must be finite and >= 1")
     command = options.command
     if command[:1] == ["--"]:
         command = command[1:]
@@ -110,6 +141,7 @@ def main(argv=None):
         parser.error("a command is required")
     output = options.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    budgets = _load_node_budgets(options.node_budgets) if options.node_budgets else {}
     progress = output / "progress.json"
     stacks = output / "stacks.log"
     # Use an exclusive directory per invocation; stale success must not survive.
@@ -143,10 +175,12 @@ def main(argv=None):
                     last = current
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
-            if time.monotonic() - last["at"] > options.phase_timeout:
+            effective = _effective_phase_timeout(options.phase_timeout, budgets,
+                                                 options.budget_margin, last.get("node"))
+            if time.monotonic() - last["at"] > effective:
                 timed_out = True
                 print(f"CI STALL: {last['phase']} {last['node']} exceeded "
-                      f"{options.phase_timeout:g}s; refusing an incomplete run", flush=True)
+                      f"{effective:g}s; refusing an incomplete run", flush=True)
                 if stacks.exists():
                     try:
                         os.kill(process.pid, signal.SIGUSR1)
