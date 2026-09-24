@@ -171,27 +171,81 @@ def test_approved_payment_round_trips_the_original_digest_through_persistence(cl
     assert bound[0]["x402"]["resource_digest"] == binding["resource_digest"]
 
 
-def test_wallet_record_redaction_keeps_x402_digests_and_still_masks_secret_shaped_values():
-    """The receipt-persistence contract at the redaction boundary, pinned without a socket: every
-    digest the wallet's x402 producer mints must survive redaction byte-for-byte -- including the
-    exact digest a CI run stored as '[redacted-key]' -- while secret-shaped values keep being
-    masked, even when they ride under digest-named fields."""
+def test_approved_payment_round_trips_the_digest_across_a_registry_restart(class_pinned_resource):
+    """The public-identifier registry is process-local, but receipts are durable: after a
+    restart (registries emptied between binding and delivery) the binding store re-vouches its
+    stored request digest on load, delivery re-vouches the fresh resource digest, and the
+    receipt store re-vouches on readback -- so persistence and later re-redaction of the
+    stored payload never corrupt a digest the wallet minted."""
+    from core.secret_redaction import clear_exact_secrets_for_tests
+    from core.wallet import approval, custody, lifecycle, receipts, x402
     from core.wallet.redaction import redact_wallet_record
+    from core.wallet.x402 import _request_digest
 
-    digests = [
-        "d2ff21956d1eb476a5d5e3b28d354c45a1bb473c2c447a68dd6e3b5c2fc1d3a1",  # the run-35923574353 offender
-        "e3f487dda88a2238b64e4cfc7177ad52af85831b576ed549dc7ea4ac1c95b54d",  # a different valid digest without '0'
-        "0abb7e26ee58bf2fdf62ec5905f11b86088955e77b74e1184e8533ded219e6cb",  # a valid digest containing '0'
-    ]
-    for digest in digests:
+    expected = _request_digest("GET", class_pinned_resource.url)
+    profile = _pocket(custody)
+    parked = x402.fetch_paid_resource(class_pinned_resource.url, wallet_id=profile.wallet_id)
+    clear_exact_secrets_for_tests()  # the restart: nothing minted survives in RAM
+    receipt = lifecycle.default_lifecycle().approve_and_execute(parked.proposal_id, approver=approval.PinApprover(PIN))
+    delivered = x402.retry_paid_resource(parked.proposal_id)
+    assert delivered.status == x402.OUTCOME_DELIVERED and b"PAID REPORT" in delivered.body
+    binding = x402.binding_for_proposal(parked.proposal_id)
+    assert binding["request_digest"] == expected
+    stored = next(r for r in receipts.list_receipts() if r.get("x402"))
+    assert stored["x402"]["request_digest"] == expected and stored["x402"]["resource_digest"] == binding["resource_digest"]
+    clear_exact_secrets_for_tests()  # readback alone must re-vouch: a status surface re-redacts stored payloads
+    payload = receipts.last_receipt()
+    reredacted = redact_wallet_record(payload)
+    assert reredacted["x402"]["request_digest"] == expected and reredacted["x402"]["resource_digest"] == binding["resource_digest"]
+
+
+def test_wallet_record_redaction_keeps_x402_digests_and_still_masks_secret_shaped_values():
+    """The receipt-persistence contract at the redaction boundary, pinned without a socket. A
+    digest-named field only preserves what the wallet's x402 producer actually minted and
+    vouched for; the canonical redactor stays the authority -- registered exact secrets win
+    over every exemption (review finding on the first PR45 head: a hex-shaped registered
+    secret passed the shape check and was copied untouched), and unvouched values keep
+    canonical treatment."""
+    from core.secret_redaction import clear_exact_secrets_for_tests, register_exact_secret, register_public_identifier
+    from core.wallet.redaction import redact_wallet_record
+    from core.wallet.x402 import _request_digest
+
+    clear_exact_secrets_for_tests()
+    minted = _request_digest("GET", "http://127.0.0.1:20004/paid/report")  # mint+vouch through the real producer
+    other_minted = _request_digest("GET", "http://127.0.0.1:20005/paid/report")
+    for digest in (minted, other_minted):
         for key in ("request_digest", "resource_digest"):
             clean = redact_wallet_record({"x402": {key: digest, "resource_status": 200}})
             assert clean["x402"][key] == digest
-    secret = "4kWX9jmNvCnLzPQsThRbYfMdJgKUeHwZxVcBqNaSrTfDgLmEopWyuXABCDEFGHJKLMNPQRSTUV"
-    clean = redact_wallet_record({
-        "x402": {"request_digest": secret, "resource_digest": secret, "url": "http://127.0.0.1:20004/paid/report"},
-        "nested": {"leak": f"key {secret} end"},
+    zeroed = "0abb7e26ee58bf2fdf62ec5905f11b86088955e77b74e1184e8533ded219e6cb"  # valid digest shape containing '0'
+    clean = redact_wallet_record({"x402": {"request_digest": zeroed, "resource_digest": zeroed}})
+    assert clean["x402"]["request_digest"] == zeroed and clean["x402"]["resource_digest"] == zeroed
+
+    # a REGISTERED EXACT SECRET in the producer's hex spelling is masked under digest names,
+    # at any nesting depth -- and exact-secret precedence holds even if the value is also
+    # registered public (hex shape establishes spelling, not trusted origin).
+    synthetic = "a1b2c3d4" * 8
+    register_exact_secret(synthetic)
+    register_public_identifier(synthetic)
+    payload = {
+        "x402": {"request_digest": synthetic, "resource_digest": synthetic, "url": "http://127.0.0.1:20004/paid/report"},
+        "nested": {"journal": {"request_digest": synthetic, "note": f"key {synthetic} end"}},
         "pin": "246810",
-    })
+    }
+    clean = redact_wallet_record(payload)
+    assert clean["x402"]["request_digest"] == "[redacted-credential]"
+    assert clean["x402"]["resource_digest"] == "[redacted-credential]"
+    assert clean["nested"]["journal"]["request_digest"] == "[redacted-credential]"
+    assert synthetic not in clean["nested"]["journal"]["note"] and "pin" not in clean
+
+    # an unvouched hex-shaped string (its preimage never passed through the producer, so nothing
+    # registered it) keeps the generic masker's verdict: the no-'0' spelling is masked
+    import hashlib
+
+    unvouched = hashlib.sha256(b"GET|http://never-minted.invalid/report/58").hexdigest()
+    assert "0" not in unvouched
+    assert redact_wallet_record({"request_digest": unvouched})["request_digest"] == "[redacted-key]"
+    secret = "4kWX9jmNvCnLzPQsThRbYfMdJgKUeHwZxVcBqNaSrTfDgLmEopWyuXABCDEFGHJKLMNPQRSTUV"
+    clean = redact_wallet_record({"x402": {"request_digest": secret, "resource_digest": secret}})
     assert clean["x402"]["request_digest"] == "[redacted-key]" and clean["x402"]["resource_digest"] == "[redacted-key]"
-    assert secret not in clean["nested"]["leak"] and "pin" not in clean
+    clear_exact_secrets_for_tests()

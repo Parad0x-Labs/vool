@@ -313,6 +313,11 @@ def _full_v2_journey(monkeypatch, evm_rig, signer, *, network: str, asset: str, 
         stored = [r for r in receipts.list_receipts() if r["proposal_id"] == proposal.proposal_id][-1]
         assert stored["x402_v2"]["settlement"] == "settled"
         assert stored["x402_v2"]["resource_bytes"] > 0
+        # the minted resource digest round-trips the redaction boundary unchanged: the wallet
+        # vouches for it at delivery, so the stored receipt still proves what was delivered
+        import hashlib
+
+        assert stored["x402_v2"]["resource_digest"] == hashlib.sha256(b"PAID V2 REPORT: quarterly numbers").hexdigest()
         return proposal, receipt, resource, engine
 
 

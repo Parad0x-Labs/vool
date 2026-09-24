@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.wallet import config, custody, proposals
+from core.wallet.redaction import publish_identifier
 from core.wallet.security import wallet_fault
 
 AUTHORITY = "core.wallet.x402"
@@ -177,12 +178,20 @@ def _origin_of(url: str) -> str:
 
 
 def _request_digest(method: str, url: str) -> str:
-    return hashlib.sha256(f"{method.upper()}|{url}".encode()).hexdigest()
+    """The binding key for one request. The wallet mints it, so it also vouches for it here:
+    registered as a public identifier the moment it exists, because receipt persistence must
+    keep this commitment byte-for-byte while the canonical masker keeps masking lookalikes."""
+    return publish_identifier(hashlib.sha256(f"{method.upper()}|{url}".encode()).hexdigest())
 
 
 def _binding_row(row: Any) -> dict[str, Any]:
     keys = _BINDING_COLS.split(", ")
-    return dict(zip(keys, row, strict=True))
+    binding = dict(zip(keys, row, strict=True))
+    # the binding store is the durable record of minted request digests; the registry is
+    # process-local, so every load from this trusted store re-vouches for its digest and a
+    # receipt written after a restart still round-trips unchanged.
+    publish_identifier(str(binding.get("request_digest") or ""))
+    return binding
 
 
 def binding_for_digest(request_digest: str) -> dict[str, Any] | None:
@@ -276,7 +285,7 @@ def _deliver(binding: dict[str, Any], proposal: proposals.TransactionProposal, *
     if status == PAYMENT_REQUIRED or status >= 400:
         _update_binding(binding["request_digest"], state=BINDING_PAID, resource_status=int(status))
         return X402Outcome(status=OUTCOME_REFUSED, http_status=status, body=body, proposal_id=proposal.proposal_id, binding_id=binding["binding_id"], tx_signature=proposal.tx_signature)
-    digest = hashlib.sha256(body).hexdigest()
+    digest = publish_identifier(hashlib.sha256(body).hexdigest())
     first_delivery = binding.get("state") != BINDING_DELIVERED
     _update_binding(binding["request_digest"], state=BINDING_DELIVERED, tx_signature=proposal.tx_signature, resource_status=int(status), resource_digest=digest, resource_bytes=len(body))
     if first_delivery:
