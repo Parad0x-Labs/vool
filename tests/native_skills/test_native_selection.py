@@ -22,6 +22,22 @@ import pytest
 
 from tests.test_native_skill_library import make_native_skill, native_world
 
+
+@pytest.fixture(autouse=True)
+def _isolated_permission_registry():
+    """decide_tool_call raises a PENDING approval prompt into the PROCESS-GLOBAL
+    mode/permission registry; one left behind hijacks a later suite's approval
+    auto-resolve (its rig resolves the stale token, the real approval stays pending,
+    the turn pauses as pending_approval, no transcript row is written, and
+    first-run-pact claims fail evidence_missing -- measured: run 36063857499
+    shard 6). Same setup/teardown discipline as the coding-approval isolation."""
+    from core.mode_permission_policy import reset_mode_permission_state
+
+    reset_mode_permission_state()
+    yield
+    reset_mode_permission_state()
+
+
 REQUIRED_PACKAGE_IDS = (
     "repo-onboarding",
     "root-cause-repair",

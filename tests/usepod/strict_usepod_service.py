@@ -150,7 +150,16 @@ class StrictUsePodService:
         return self
 
     def stop(self) -> None:
-        self._server.shutdown()
+        # shutdown() waits on the serve loop's shutdown event with NO timeout. A serve
+        # thread that stops observing its loop hangs the whole teardown: measured, full
+        # run 36063857499 shard 1 -- a 6.25s-measured file's teardown sat 26 minutes in
+        # socketserver.shutdown()'s Event.wait while the serve thread stayed in select.
+        # Bound the wait: a server that will not stop cleanly is closed anyway, and the
+        # daemon serve thread dies with the process instead of stalling the shard.
+        stopper = threading.Thread(target=self._server.shutdown, daemon=True)
+        stopper.start()
+        stopper.join(timeout=10.0)
+        self._thread.join(timeout=5.0)
         self._server.server_close()
 
     def __enter__(self) -> StrictUsePodService:
