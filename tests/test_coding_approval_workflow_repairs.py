@@ -53,8 +53,16 @@ def _isolated_runtime(tmp_path, monkeypatch):
     run_migrations()
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     os_consent_gate.set_consent_override_for_tests(lambda reason: False)
+    # These tests mint/grant approvals through the PROCESS-GLOBAL mode/permission registry;
+    # a PENDING entry left behind leaks past this suite (the residue that makes a later
+    # approval-gated rig auto-resolve the wrong token, so its turn pauses as pending_approval
+    # and never writes its conversation-log row). Same discipline as the sandbox-cwd isolation.
+    from core.mode_permission_policy import reset_mode_permission_state
+
+    reset_mode_permission_state()
     yield
     os_consent_gate.set_consent_override_for_tests(None)
+    reset_mode_permission_state()
     reset_runtime_continuity_state()
     configure_runtime_continuity_db_path(None)
     configure_default_db_path(None)

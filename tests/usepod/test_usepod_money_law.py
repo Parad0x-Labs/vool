@@ -44,9 +44,15 @@ def law(tmp_path, monkeypatch):
     from storage.db import configure_default_db_path
 
     configure_default_db_path(os.path.join(tmp_path, "effect_budget.db"))
-    from core import effect_budget
+    from core import effect_budget, runtime_paths
 
     effect_budget.reset_effect_budget_process_state()
+    # _home() rebinds the process-global runtime-home override; leaving it bound would send
+    # every LATER suite in this process (data_path/active_vool_home readers) into this test's
+    # tmp home. Restore the OVERRIDE STATE itself (None means dynamic env/receipt resolution),
+    # not active_vool_home()'s resolved value -- re-pinning the resolved path would shadow a
+    # later suite that re-points the home through the environment alone.
+    previous_override = runtime_paths._VOOL_HOME_OVERRIDE
     _home(tmp_path, monkeypatch)
     token = str(uuid.uuid4())
     service = StrictUsePodService(
@@ -59,7 +65,26 @@ def law(tmp_path, monkeypatch):
     finally:
         service.stop()
         effect_budget.reset_effect_budget_process_state()
+        # The consent/confirm tests install a process-global monetary authority; leaving it
+        # installed sends every LATER turn in this process down the budgeted path with no
+        # grant behind it. Uninstall it with the rest of the process state.
+        from core.usepod.monetary import reset_monetary_authority
+
+        reset_monetary_authority()
+        # The consent tests also register spend-grant approvals in the PROCESS-GLOBAL
+        # mode/permission registry. One left PENDING outlives this suite: a later runtime
+        # mirrors the registry into its own home's pending_approvals.json, a rig that
+        # auto-resolves "the" pending approval picks the stale spend consent instead of its
+        # own turn's approval, the re-run turn pauses as pending_approval again (which
+        # persist_memory=False deliberately keeps out of the transcript), and the served-turn
+        # row is never written -- first-run-pact task/denial claims then fail evidence_missing.
+        # reset_mode_permission_state() also clears the durable mirror under the CURRENT
+        # home, so it must run while the override still points at this test's tmp home.
+        from core.mode_permission_policy import reset_mode_permission_state
+
+        reset_mode_permission_state()
         configure_default_db_path(None)
+        runtime_paths.configure_runtime_home(previous_override)
 
 
 def _mint_grant(*, max_total: int = 5_000_000, per_operation: int = 5_000_000, models=(MODEL,), credit_liquidity="required", routes=("marketplace",), provider_account="upc_" + "1" * 32):

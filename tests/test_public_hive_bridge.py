@@ -271,8 +271,14 @@ def test_public_hive_bridge_surfaces_http_error_body_for_write_failures() -> Non
 def test_public_hive_bridge_allows_seed_urls_without_token() -> None:
     # Public hive is opt-in since #75, so enable it explicitly here; this test's subject is that
     # discovered seed URLs are accepted without an auth token, not the enable default.
+    # The runtime agent-bootstrap.json read is mocked too: a suite that legitimately ran the
+    # first-use hive seeding materializes the sample seeds into the session home's config dir,
+    # and the runtime file outranks this test's mocked sample by design -- the sample-vs-token
+    # subject here must not depend on which earlier suite seeded the session home.
     with mock.patch.dict(os.environ, {"VOOL_PUBLIC_HIVE_ENABLED": "1"}), mock.patch(
         "core.public_hive_bridge.ensure_public_hive_agent_bootstrap", return_value=None
+    ), mock.patch(
+        "core.public_hive_bridge._load_json_file", return_value={}
     ), mock.patch(
         "core.public_hive_bridge._load_agent_bootstrap",
         return_value={
@@ -454,8 +460,13 @@ def test_public_hive_bridge_ignores_discovered_auth_token_from_local_watch_confi
     }
     # Public hive is opt-in since #75, so enable it explicitly; this test's subject is that a
     # discovered auth token from the local watch config is ignored, not the enable default.
+    # The runtime agent-bootstrap.json read is mocked for the same reason as the seed-url
+    # control above: a session home seeded by an earlier suite would outrank this test's
+    # mocked sample/discovered inputs.
     with mock.patch.dict(os.environ, {"VOOL_PUBLIC_HIVE_ENABLED": "1"}), mock.patch(
         "core.public_hive_bridge.ensure_public_hive_agent_bootstrap", return_value=None
+    ), mock.patch(
+        "core.public_hive_bridge._load_json_file", return_value={}
     ), mock.patch(
         "core.public_hive_bridge._load_agent_bootstrap",
         return_value={},
