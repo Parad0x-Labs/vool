@@ -41,9 +41,15 @@ EXPECTED_SHARD_PYTEST_PREFIX = (
 #: writes the per-file timing manifest into .verification-logs/ beside the shard's file list.
 #: Pinned token for token like the pytest prefix itself: the wrapper is a measurement seam, not
 #: a place to hide command changes -- behind it, the invocation must still forward exactly
-#: EXPECTED_SHARD_PYTEST_PREFIX and still consume exactly the resolver's file list.
+#: EXPECTED_SHARD_PYTEST_PREFIX and still consume exactly the resolver's file list. The
+#: --node-budgets tokens are the duration-aware phase bound: a file with a measured duration in
+#: the committed snapshot may spend up to measured*1.5 in one phase before the flat 600s bound
+#: applies (a module-scoped fixture legitimately holds a whole file budget inside one opaque
+#: setup; measured: run 36063857499 shard 0 killed a 2647.95s-measured file at 600s). The
+#: loader fails soft when the snapshot is absent, so this pin holds on trees without it.
 EXPECTED_SHARD_WATCHDOG_PREFIX = (
     "python", "ops/pytest_watchdog.py", "--phase-timeout", "600",
+    "--node-budgets", "ops/shard_weights.json",
     "--output", ".verification-logs/shard-${{ matrix.shard }}-watchdog", "--",
 )
 EXPECTED_SHARD_TIMING_PREFIX = (

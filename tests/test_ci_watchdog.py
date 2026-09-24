@@ -13,7 +13,7 @@ import pytest
 WATCHDOG = Path(__file__).resolve().parents[1] / "ops" / "pytest_watchdog.py"
 
 
-def _run(tmp_path, source, *, timeout=2, conftest=""):
+def _run(tmp_path, source, *, timeout=2, conftest="", budgets=None, extra_watchdog_args=()):
     suite = tmp_path / "suite"
     suite.mkdir()
     (suite / "test_sample.py").write_text(source)
@@ -22,12 +22,16 @@ def _run(tmp_path, source, *, timeout=2, conftest=""):
     env = dict(os.environ, PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
     for name in ("PYTEST_ADDOPTS", "PYTEST_PLUGINS", "VOOL_CI_PROGRESS_PID"):
         env.pop(name, None)
-    result = subprocess.run(
-        [sys.executable, str(WATCHDOG), "--phase-timeout", str(timeout),
-         "--output", str(output), "--", sys.executable, "-m", "pytest",
-         "-q", "-p", "no:cacheprovider", "--confcutdir", str(suite), str(suite)],
-        cwd=suite, env=env, capture_output=True, text=True, timeout=15,
-    )
+    command = [sys.executable, str(WATCHDOG), "--phase-timeout", str(timeout),
+               "--output", str(output)]
+    if budgets is not None:
+        budgets_path = tmp_path / "budgets.json"
+        budgets_path.write_text(json.dumps(budgets))
+        command += ["--node-budgets", str(budgets_path)]
+    command += list(extra_watchdog_args)
+    command += ["--", sys.executable, "-m", "pytest",
+                "-q", "-p", "no:cacheprovider", "--confcutdir", str(suite), str(suite)]
+    result = subprocess.run(command, cwd=suite, env=env, capture_output=True, text=True, timeout=30)
     assert (output / "result.json").exists(), result.stdout + result.stderr
     return result, json.loads((output / "result.json").read_text()), output
 
@@ -126,3 +130,81 @@ def test_cancellation_reaps_the_owned_child_and_records_incomplete(tmp_path):
         if process.poll() is None:
             process.terminate()
             process.wait(timeout=5)
+
+
+# --- measured per-file phase budgets ----------------------------------------------------------
+
+
+def test_a_measured_node_may_spend_its_budget_in_one_phase(tmp_path):
+    """The shape of the corpus replay module: one module-scoped fixture legitimately holds the
+    file's WHOLE measured duration inside a single opaque setup phase. Without its budget the
+    base bound would kill known-slow work as a stall (measured: full run 36063857499 shard 0
+    killed a 2647.95s-measured file at the flat 600s phase bound)."""
+    conftest = (
+        "import time, pytest\n"
+        "@pytest.fixture(scope='module', autouse=True)\n"
+        "def corpus(): time.sleep(1.6)\n"
+    )
+    result, evidence, _ = _run(
+        tmp_path, "def test_ok(): pass\n", timeout=0.8, conftest=conftest,
+        budgets={"weights": {"test_sample.py": 2.0}, "provenance": {"run": 35873216239}},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert evidence["complete"] and not evidence["timed_out"]
+
+
+def test_a_measured_node_is_still_bounded_at_measured_times_margin(tmp_path):
+    # 2.0s measured * 1.5 margin = 3s bound; the stuck call dies there, not at the base.
+    result, evidence, _ = _run(
+        tmp_path, "import time\ndef test_stuck(): time.sleep(30)\n", timeout=0.8,
+        budgets={"test_sample.py": 2.0},
+    )
+    assert result.returncode == 124, result.stdout + result.stderr
+    assert evidence["timed_out"] and evidence["wall_seconds"] < 6
+    assert "exceeded 3s" in result.stdout
+
+
+def test_an_unmeasured_node_keeps_the_base_bound_even_with_budgets_present(tmp_path):
+    result, evidence, _ = _run(
+        tmp_path, "import time\ndef test_stuck(): time.sleep(30)\n", timeout=0.8,
+        budgets={"some/other_file.py": 60.0},
+    )
+    assert result.returncode == 124, result.stdout + result.stderr
+    assert evidence["timed_out"] and evidence["wall_seconds"] < 3
+    assert "exceeded 0.8s" in result.stdout
+
+
+def test_a_missing_budgets_file_degrades_to_the_base_bound(tmp_path):
+    result, evidence, _ = _run(
+        tmp_path, "import time\ndef test_stuck(): time.sleep(30)\n", timeout=0.8,
+        extra_watchdog_args=["--node-budgets", str(tmp_path / "absent.json")],
+    )
+    assert result.returncode == 124, result.stdout + result.stderr
+    assert evidence["timed_out"] and evidence["wall_seconds"] < 3
+
+
+def test_budget_loading_and_effective_bounds(tmp_path):
+    import json as _json
+
+    from ops.pytest_watchdog import _effective_phase_timeout, _load_node_budgets
+
+    # The committed snapshot's envelope ({"weights": {...}, provenance, ...}) parses; entries
+    # without a positive numeric duration are dropped, and broken/absent files degrade to no
+    # budgets at all.
+    payload = {"weights": {"a/test_x.py": 3.0, "b/test_y.py": "not-a-number", "c/z.py": 0}, "z": 1}
+    weights = tmp_path / "weights.json"
+    weights.write_text(_json.dumps(payload))
+    assert _load_node_budgets(weights) == {"a/test_x.py": 3.0}
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json")
+    assert _load_node_budgets(broken) == {}
+    assert _load_node_budgets(tmp_path / "absent.json") == {}
+
+    budgets = {"a/test_x.py": 3.0, "b/big.py": 800.0}
+    # A budget never LOWERS the base bound; it only raises it (ceil(measured*margin)).
+    assert _effective_phase_timeout(600, budgets, 1.5, "a/test_x.py::test_t") == 600
+    assert _effective_phase_timeout(2, budgets, 1.5, "a/test_x.py::test_t") == 5
+    assert _effective_phase_timeout(600, budgets, 1.5, "b/big.py::test_t") == 1200
+    assert _effective_phase_timeout(600, budgets, 1.5, "other.py::test_t") == 600
+    assert _effective_phase_timeout(600, {}, 1.5, "a/test_x.py::test_t") == 600
+    assert _effective_phase_timeout(600, budgets, 1.5, "") == 600

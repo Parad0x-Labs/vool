@@ -253,7 +253,12 @@ jobs:
             --output ".verification-logs/shard-${{ matrix.shard }}-files.txt"
       - name: Run shard ${{ matrix.shard }}
         # Bound any stalled collection/setup/call/teardown/shutdown phase to ten minutes.
-        # A timeout stays red and uploads the active node plus thread stacks.
+        # A timeout stays red and uploads the active node plus thread stacks. A file with a
+        # MEASURED duration in the committed timing snapshot may spend up to measured*1.5 in
+        # one phase first: a module-scoped fixture legitimately holds the file's whole budget
+        # inside one opaque setup (the corpus replay module measures ~44 minutes), and killing
+        # known-slow work as a stall is a false alarm, not containment. Unmeasured and new
+        # files keep the base ten-minute bound.
         # Same pytest argv, same file order, same verdict -- wrapped in ops/pytest_timing.py
         # so each shard leaves a machine-readable per-file timing + outcome manifest in
         # .verification-logs/ (uploaded below even when this step fails). The wrapper's exit
@@ -262,6 +267,7 @@ jobs:
         run: >-
           xvfb-run -a --server-args="-screen 0 1280x1024x24"
           python ops/pytest_watchdog.py --phase-timeout 600
+          --node-budgets ops/shard_weights.json
           --output ".verification-logs/shard-${{ matrix.shard }}-watchdog"
           -- python ops/pytest_timing.py
           --output ".verification-logs/shard-${{ matrix.shard }}-timing.json"
