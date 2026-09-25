@@ -45,7 +45,7 @@ def test_pyproject_runtime_extra_covers_installer_runtime_surface() -> None:
         '"openai>=1.0"',
         '"anthropic>=0.18"',
         '"sentence-transformers>=2.2"',
-        '"torch>=2.5"',
+        '"torch>=2.13.0"',
         '"transformers>=4.48"',
         '"playwright>=1.52,<2.0"',
         '"zstandard>=0.22.0"',
