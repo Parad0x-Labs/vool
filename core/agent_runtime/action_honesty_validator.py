@@ -540,21 +540,21 @@ _NOT_A_SELF_CLAIM_RE = re.compile(
 )
 # A filename or path the sentence says was inspected. Narrow on purpose: a bare word is not a
 # target, and a claim with no object ("I had a look") is not checkable.
-_CLAIMED_TARGET_RE = re.compile(
-    r"[`'\"]?((?:[\w\-.]+/)*[\w\-]+\.[A-Za-z][A-Za-z0-9]{0,5})[`'\"]?",
-)
-# Only a token whose extension is one a file actually has counts as a claimed target. Driven live
-# 2026-08-01: an audit report quoting `blob.startswith` was parsed as a claimed file `blob.starts`,
-# no execution record existed for that "file", and the ENTIRE report was replaced with "I did not
-# actually open `blob.starts`". Dotted CODE expressions are everywhere in a report that quotes the
-# code it audited; per this gate's own contract — fail open in every ambiguous direction — an
-# unknown extension is ambiguity, not a claim.
+# A filename or path the sentence says was inspected. Narrow on purpose: a bare word is not a
+# target, and a claim with no object ("I had a look") is not checkable. Only a token whose
+# extension is one a file actually has counts as a claimed target. Driven live 2026-08-01: an
+# audit report quoting `blob.startswith` was parsed as a claimed file `blob.starts`, no execution
+# record existed for that "file", and the ENTIRE report was replaced with "I did not actually
+# open `blob.starts`". Dotted CODE expressions are everywhere in a report that quotes the code it
+# audited; per this gate's own contract — fail open in every ambiguous direction — an unknown
+# extension is ambiguity, not a claim.
 #
-# The list itself now lives in `core/agent_runtime/file_target_contract.py`. It was private here,
-# and six days later `audit_target_in` re-decided the same question with a five-entry blocklist and
-# parsed `workspace.write_file` as a file. A fix that lives inside one extractor is a fix that does
-# not travel, so both extractors read one contract.
+# Both the extension list and the candidate extraction live in
+# `core/agent_runtime/file_target_contract.py`. The extraction is the shared linear scanner (the
+# same candidates the historical pattern captured, without its quadratic suffix rescans), so this
+# gate and the answer binder can never drift on what counts as a named file.
 from core.agent_runtime.file_target_contract import REAL_FILE_EXTENSIONS as _REAL_FILE_EXTENSIONS
+from core.agent_runtime.file_target_contract import iter_claimed_file_candidates
 
 
 def _claimed_inspection_targets(response: str, user_input: str) -> list[str]:
@@ -568,8 +568,7 @@ def _claimed_inspection_targets(response: str, user_input: str) -> list[str]:
 
     found: list[str] = []
     for text in (response, user_input):
-        for match in _CLAIMED_TARGET_RE.finditer(str(text or "")):
-            candidate = match.group(1)
+        for candidate in iter_claimed_file_candidates(str(text or "")):
             stem, _, extension = candidate.rpartition(".")
             if not stem or extension.lower() not in _REAL_FILE_EXTENSIONS:
                 continue

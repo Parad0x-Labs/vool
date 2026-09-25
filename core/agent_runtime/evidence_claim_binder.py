@@ -157,8 +157,11 @@ _REMOTE_SUBJECT_RE = re.compile(
 _URL_OR_DOMAIN_RE = re.compile(r"\b((?:https?://)?[a-z0-9][\w-]*(?:\.[a-z0-9][\w-]*)+(?:/[^\s`'\"),;]*)?)", re.IGNORECASE)
 _BRAND_TOKEN_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9-]{2,30})\b")
 # A file the sentence names. Same extension gate the inspection guard uses: an unknown extension is
-# ambiguity, and dotted code expressions (`blob.startswith`) are everywhere in a report.
-_FILENAME_RE = re.compile(r"[`'\"]?((?:[\w\-.]+/)*[\w\-]+\.[A-Za-z][A-Za-z0-9]{0,5})[`'\"]?")
+# ambiguity, and dotted code expressions (`blob.startswith`) are everywhere in a report. The
+# candidate extraction itself is the shared linear scanner in file_target_contract, so this binder
+# and the inspection guard can never drift on what counts as a named file.
+from core.agent_runtime.file_target_contract import iter_claimed_file_candidates as _iter_file_candidates
+
 # A generic denial of having read something, with no filename: "I never tried to read the file."
 _GENERIC_READ_RE = re.compile(
     r"\b(?:read|open(?:ed)?|access(?:ed)?|look(?:ed)?\s+at)\b\s+(?:the|that|any|this|it|your)\s*"
@@ -309,8 +312,7 @@ def _denial_subjects(sentence: str, evidence: TurnEvidence) -> list[tuple[str, s
             continue
         add(SUBJECT_HOST, token)
 
-    for match in _FILENAME_RE.finditer(sentence):
-        candidate = match.group(1)
+    for candidate in _iter_file_candidates(sentence):
         stem, _, extension = candidate.rpartition(".")
         if stem and extension.lower() in FILE_SUFFIXES:
             add(SUBJECT_PATH, candidate)
