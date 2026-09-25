@@ -15,14 +15,17 @@ def fail_session_storage(monkeypatch, sid, *, operation):
 
     target = session_dir() / f"{sid}.json"
     if operation == "write":
-        original = Path.write_text
+        import os
+        original = os.open
 
-        def write(path, *args, **kwargs):
-            if path == target.with_suffix(".json.tmp"):
+        def open_journal(path, *args, **kwargs):
+            if Path(path) == target.with_suffix(".json.tmp"):
                 raise OSError(errno.ENOSPC, "synthetic journal disk full")
             return original(path, *args, **kwargs)
 
-        monkeypatch.setattr(Path, "write_text", write)
+        # The owner now uses a no-follow descriptor instead of Path.write_text.
+        # Fail the actual journal I/O, retaining the pre-dispatch refusal proof.
+        monkeypatch.setattr(os, "open", open_journal)
     else:
         import os
         original = os.replace

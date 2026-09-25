@@ -18,7 +18,7 @@ from typing import Any
 
 
 def _sessions() -> list[dict[str, Any]]:
-    from core.repoops.plane import session_dir
+    from core.repoops.plane import _read_journal_bytes, session_dir, session_journal_path
 
     rows: list[dict[str, Any]] = []
     root = session_dir()
@@ -26,7 +26,10 @@ def _sessions() -> list[dict[str, Any]]:
         return rows
     for path in sorted(root.glob("*.json")):
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            state, raw = _read_journal_bytes(session_journal_path(path.stem))
+            if state != "ok":
+                continue
+            payload = json.loads(raw.decode("utf-8"))
         except Exception:
             continue
         binding = dict(payload.get("binding") or {})
@@ -62,14 +65,17 @@ def repo_sessions_payload() -> dict[str, Any]:
 
 
 def repo_session_payload(repo_session_id: str) -> dict[str, Any]:
-    from core.repoops.plane import session_dir
+    from core.repoops.plane import _read_journal_bytes, session_journal_path
 
     key = str(repo_session_id or "").strip()
     if not key:
         return {"found": False, "error": "an id is required"}
-    path = session_dir() / f"{key}.json"
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        path = session_journal_path(key)
+        state, raw = _read_journal_bytes(path)
+        if state != "ok":
+            return {"found": False, "error": "no readable repo session"}
+        payload = json.loads(raw.decode("utf-8"))
     except Exception:
         return {"found": False, "error": f"no repo session `{key}`"}
     return {"found": True, "session": payload}

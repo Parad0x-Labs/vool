@@ -36,6 +36,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import threading
 import time
 import uuid
@@ -124,6 +125,19 @@ def session_dir() -> Path:
     return store_root() / "repo_sessions"
 
 
+def session_journal_path(session_key: str, *, suffix: str = ".json") -> Path:
+    """A journal ID selects a basename, never a path supplied by a request or stored row."""
+    key = str(session_key or "").strip()
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", key) is None:
+        raise ValueError("invalid repo session identifier")
+    if suffix not in {".json", ".json.tmp", ".json.lock"}:
+        raise ValueError("invalid repo journal suffix")
+    path = session_dir() / f"{key}{suffix}"
+    if path.is_symlink():
+        raise ValueError("repo session journals cannot be symbolic links")
+    return path
+
+
 #: How long a journal write waits for another writer of the SAME session journal to finish.
 #: Journal writes take milliseconds; this bounds lock contention (wall clock), after which the
 #: write fails closed as "not durable" -- it never proceeds unlocked.
@@ -133,7 +147,11 @@ _JOURNAL_LOCK_WAIT_SECONDS = 5.0
 def _read_journal_bytes(path: Path) -> tuple[str, bytes]:
     """The journal file's exact bytes: ("ok", bytes), ("missing", b"") or ("unreadable", b"")."""
     try:
-        return "ok", path.read_bytes()
+        if path.is_symlink():
+            return "unreadable", b""
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(fd, "rb") as handle:
+            return "ok", handle.read()
     except FileNotFoundError:
         return "missing", b""
     except OSError:
@@ -344,11 +362,12 @@ class RepoOpsRuntime:
         with self._lock:
             session.updated_at = _utcnow()
             root = session_dir()
-            target = root / f"{session.session_key}.json"
-            tmp = root / f"{session.session_key}.json.tmp"
+            tmp = None
             try:
+                target = session_journal_path(session.session_key)
+                tmp = session_journal_path(session.session_key, suffix=".json.tmp")
                 root.mkdir(parents=True, exist_ok=True)
-                with _journal_lock(root / f"{session.session_key}.json.lock"):
+                with _journal_lock(session_journal_path(session.session_key, suffix=".json.lock")):
                     state, raw = _read_journal_bytes(target)
                     if state == "unreadable":
                         raise OSError("the session journal could not be read back for its revision check")
@@ -362,7 +381,9 @@ class RepoOpsRuntime:
                     session.journal_revision = disk_revision + 1
                     payload = json.dumps(session.to_json(), indent=2, default=str)
                     try:
-                        tmp.write_text(payload, encoding="utf-8")
+                        fd = os.open(tmp, os.O_CREAT | os.O_WRONLY | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+                        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                            handle.write(payload)
                         os.replace(tmp, target)
                     except Exception:
                         session.journal_revision = disk_revision
@@ -378,13 +399,18 @@ class RepoOpsRuntime:
                 # A journal that cannot be written must not silently pretend it was.
                 session.inspection.setdefault("journal_warning", "the session journal could not be written to disk")
                 with suppress(OSError):
-                    tmp.unlink(missing_ok=True)
+                    if tmp is not None:
+                        tmp.unlink(missing_ok=True)
                 return False
 
     def _journal_moved(self, session: RepoSession) -> bool:
         """Whether the journal on disk is no longer what this instance last read or wrote --
         a failed conditional write that lost to ANOTHER WRITER rather than to the disk."""
-        state, raw = _read_journal_bytes(session_dir() / f"{session.session_key}.json")
+        try:
+            path = session_journal_path(session.session_key)
+        except ValueError:
+            return False
+        state, raw = _read_journal_bytes(path)
         if state != "ok":
             return False
         return hashlib.sha256(raw).hexdigest() != self._synced.get(session.session_key, "")
@@ -397,11 +423,13 @@ class RepoOpsRuntime:
         writer has since advanced is stale and is replaced by the journal on disk: an old,
         unconsumed authorization held in a cache must never outlive its consumption on disk."""
         key = str(session_key or "").strip()
-        if not key:
+        try:
+            path = session_journal_path(key)
+        except ValueError:
             return None
         with self._lock:
             live = self._sessions.get(key)
-            state, raw = _read_journal_bytes(session_dir() / f"{key}.json")
+            state, raw = _read_journal_bytes(path)
             if state != "ok":
                 # Nothing readable on disk: a cached copy stays usable, and its writes stay
                 # conditional (they refuse to overwrite a journal they cannot account for).
@@ -411,6 +439,8 @@ class RepoOpsRuntime:
                 return live
             try:
                 session = RepoSession.from_json(json.loads(raw.decode("utf-8")))
+                if session.session_key != key:
+                    return None
             except Exception:
                 return live
             self._sessions[key] = session
@@ -486,11 +516,17 @@ class RepoOpsRuntime:
         OLDER than what the operator is looking at -- and a stale copy must never veto or
         forge the operator's act."""
         key = str(session_key or "").strip()
-        state, raw = _read_journal_bytes(session_dir() / f"{key}.json")
+        try:
+            path = session_journal_path(key)
+        except ValueError:
+            return self._require(key)
+        state, raw = _read_journal_bytes(path)
         if state != "ok":
             return self._require(session_key)
         try:
             session = RepoSession.from_json(json.loads(raw.decode("utf-8")))
+            if session.session_key != key:
+                return self._require(key)
         except Exception:
             return self._require(session_key)
         with self._lock:
