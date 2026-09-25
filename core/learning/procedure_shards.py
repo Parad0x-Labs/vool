@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import threading
 import uuid
@@ -227,6 +228,17 @@ def procedures_dir() -> str:
     return str(data_path("learning", "procedures"))
 
 
+def _record_path(procedure_id: str) -> Path:
+    """Only a portable record basename can select a procedure or its lock file."""
+    key = str(procedure_id or "").strip()
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", key) is None:
+        raise ValueError("invalid procedure identifier")
+    path = data_path("learning", "procedures") / f"{key}.json"
+    if path.is_symlink() or path.with_suffix(".json.lock").is_symlink():
+        raise ValueError("procedure records and locks cannot be symbolic links")
+    return path
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     """Write-then-rename so a crash mid-update can never leave a torn shard file."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -258,7 +270,7 @@ class _StoreFileLock:
         import fcntl
 
         self._lock_path.parent.mkdir(parents=True, exist_ok=True)
-        self._handle = os.open(str(self._lock_path), os.O_CREAT | os.O_RDWR, 0o644)
+        self._handle = os.open(str(self._lock_path), os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
         fcntl.flock(self._handle, fcntl.LOCK_EX)
         return self
 
@@ -272,9 +284,7 @@ class _StoreFileLock:
 
 
 def save_procedure_shard(shard: ProcedureShardV1) -> str:
-    root = data_path("learning", "procedures")
-    root.mkdir(parents=True, exist_ok=True)
-    path = root / f"{shard.procedure_id}.json"
+    path = _record_path(shard.procedure_id)
     with _STORE_LOCK:
         _atomic_write_json(path, shard.to_dict())
     return str(path)
@@ -282,7 +292,11 @@ def save_procedure_shard(shard: ProcedureShardV1) -> str:
 
 def _read_shard_file(path: Path) -> ProcedureShardV1 | None:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        if path.is_symlink():
+            return None
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(fd, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
     except Exception:
         return None
     if not isinstance(payload, dict):
@@ -312,8 +326,10 @@ def update_procedure_shard(
     clean_id = str(procedure_id or "").strip()
     if not clean_id:
         return None
-    root = data_path("learning", "procedures")
-    path = root / f"{clean_id}.json"
+    try:
+        path = _record_path(clean_id)
+    except ValueError:
+        return None
     with _STORE_LOCK, _StoreFileLock(path):
         shard = _read_shard_file(path)
         if shard is None:
@@ -321,6 +337,8 @@ def update_procedure_shard(
         next_shard = mutator(shard)
         if next_shard is None:
             return shard
+        if next_shard.procedure_id != clean_id:
+            raise ValueError("a procedure mutation cannot change its record identity")
         _atomic_write_json(path, next_shard.to_dict())
         return next_shard
 
@@ -337,16 +355,19 @@ def find_or_create_procedure_shard(
     clean_id = str(procedure_id or "").strip()
     if not clean_id:
         raise ValueError("find_or_create_procedure_shard requires a procedure id")
-    root = data_path("learning", "procedures")
-    path = root / f"{clean_id}.json"
+    path = _record_path(clean_id)
     with _STORE_LOCK, _StoreFileLock(path):
         existing = _read_shard_file(path)
         if existing is None:
             shard = build()
+            if shard.procedure_id != clean_id:
+                raise ValueError("a procedure must be created under its own identity")
             _atomic_write_json(path, shard.to_dict())
             _prune_store_locked(keep_ids={clean_id})
             return shard, True
         next_shard = mutate(existing)
+        if next_shard.procedure_id != clean_id:
+            raise ValueError("a procedure mutation cannot change its record identity")
         _atomic_write_json(path, next_shard.to_dict())
         return next_shard, False
 
@@ -530,8 +551,10 @@ def delete_procedure(procedure_id: str) -> bool:
     clean_id = str(procedure_id or "").strip()
     if not clean_id:
         return False
-    root = data_path("learning", "procedures")
-    path = root / f"{clean_id}.json"
+    try:
+        path = _record_path(clean_id)
+    except ValueError:
+        return False
     with _STORE_LOCK, _StoreFileLock(path):
         if not path.exists():
             return False
