@@ -4,6 +4,8 @@ import os
 from types import SimpleNamespace
 from unittest import mock
 
+import pytest
+
 from apps.vool_cli import cmd_providers
 from core.hardware_tier import MachineProbe, QwenTier
 from core.model_registry import ProviderAuditRow
@@ -52,7 +54,8 @@ def _install_profile_truth_with_provider_ids(*provider_ids: str) -> InstallProfi
     )
 
 
-def test_build_provider_registry_snapshot_collects_rows_and_warnings_from_registry() -> None:
+@pytest.mark.parametrize("provider_env", [{}, {"OPENROUTER_API_KEY": "synthetic-test-provider-key"}])
+def test_build_provider_registry_snapshot_collects_rows_and_warnings_from_registry(provider_env) -> None:
     row = ProviderAuditRow(
         provider_id="local-qwen-http:qwen2.5:14b",
         source_type="http",
@@ -67,9 +70,11 @@ def test_build_provider_registry_snapshot_collects_rows_and_warnings_from_regist
     registry = mock.Mock()
     registry.startup_warnings.return_value = ["missing health path"]
     registry.provider_audit_rows.return_value = [row]
+    # ModelRegistry returns None for an absent manifest, not a truthy child Mock.
+    registry.get_manifest.return_value = None
     registry.list_manifests.return_value = []
 
-    snapshot = build_provider_registry_snapshot(registry)
+    snapshot = build_provider_registry_snapshot(registry, env=provider_env)
 
     assert snapshot.warnings == ("missing health path",)
     assert snapshot.audit_rows == (row,)
