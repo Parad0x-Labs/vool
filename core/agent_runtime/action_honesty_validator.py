@@ -18,14 +18,14 @@ _NO_REPLY_FALLBACK = (
 _FALSE_ACTION_CLAIM_RE = re.compile(
     r"\b(?:"
     r"(?:file|files|temp\.txt|workspace|note|notes|wallet\s+key|wallet\s+keys)\s+"
-    r"(?:was|were|has\s+been|have\s+been)?\s*"
+    r"(?:(?:was|were|has\s+been|have\s+been)\s*)?"
     r"(?:deleted|created|edited|modified|written|saved|wiped|cleaned)|"
     r"(?:deleted|created|edited|modified|wrote|saved|wiped|cleaned)\s+"
     r"(?:the\s+)?(?:file|files|temp\.txt|workspace|wallet\s+key|wallet\s+keys)|"
     r"(?:tool|command)\s+(?:was\s+)?(?:executed|run)|"
     r"(?:executed|ran|used)\s+(?:the\s+)?(?:tool|command)|"
     r"(?:funds|sol|(?:crypto|wallet)\s+tokens?)\s+"
-    r"(?:were|was|have\s+been|has\s+been)?\s*(?:sent|moved|transferred)|"
+    r"(?:(?:were|was|have\s+been|has\s+been)\s*)?(?:sent|moved|transferred)|"
     r"(?:sent|moved|transferred)\s+(?:all\s+)?(?:funds|sol|(?:crypto|wallet)\s+tokens?)|"
     r"cleanup\s+(?:completed|finished|done)"
     r")\b",
@@ -334,7 +334,7 @@ def _split_clauses(text: str) -> list[str]:
     # Split on sentence AND clause boundaries (incl. ; : , —) so a trailing exempting clause
     # ("...; no need to do anything") cannot be glued to the claim it is supposed to (but does not)
     # negate.
-    return re.split(r"(?<=[.!?;:\n])\s+|,\s+|\s+[—-]\s+", str(text or ""))
+    return re.split(r"(?<=[.!?;:\n])\s+|,\s+|(?<![^\S\n])\s+[—-]\s+", str(text or ""))
 
 
 def _solicits_wallet_secret(text: str) -> bool:

@@ -366,7 +366,7 @@ def _is_name_verb(tokens: list[str], index: int) -> bool:
 
 # A clause boundary on the RAW text. The self-reference frames below have to be scoped to a single
 # clause, and `_tokens` throws punctuation away, so the split has to happen before tokenizing.
-_CLAUSE_SPLIT_RE = re.compile(r"[.!?;:,\n]+|\s+[-–—]{1,2}\s+")
+_CLAUSE_SPLIT_RE = re.compile(r"[.!?;:,\n]+|(?<![^\S\n])\s+[-–—]{1,2}\s+")
 
 #: The identity frames that contain no name word at all, as token sequences.
 _SELF_REFERENCE_FRAMES = (
@@ -408,7 +408,30 @@ _SELF_REFERENCE_TAIL_WORDS = (
 # A quoted span: the shape a user writes a prompt, an example or a test case in. Single quotes are
 # deliberately absent -- "what's my name" carries an apostrophe and treating it as a quote opener
 # would eat the question itself.
-_QUOTED_SPAN_RE = re.compile(r"\"[^\"]*\"|“[^”]*”|`[^`]*`|«[^»]*»")
+_QUOTE_OPEN_RE = re.compile('["“`«]')
+_QUOTE_CLOSE = {'"': '"', '“': '”', '`': '`', '«': '»'}
+
+
+def _mask_quoted_spans(raw: str) -> str:
+    # An unmatched curly opener must not scan the whole remaining message
+    # again at every following opener. Once a closing kind is absent, it is
+    # absent for the remaining suffix too. Successful spans consume their text.
+    pieces: list[str] = []
+    missing_closers: set[str] = set()
+    cursor = index = 0
+    while match := _QUOTE_OPEN_RE.search(raw, index):
+        start = match.start()
+        closer = _QUOTE_CLOSE[match.group()]
+        if closer not in missing_closers:
+            end = raw.find(closer, start + 1)
+            if end >= 0:
+                pieces.extend((raw[cursor:start], " "))
+                cursor = index = end + 1
+                continue
+            missing_closers.add(closer)
+        index = start + 1
+    pieces.append(raw[cursor:])
+    return "".join(pieces)
 
 
 def _outside_quoted_examples(text: str) -> str:
@@ -420,7 +443,7 @@ def _outside_quoted_examples(text: str) -> str:
     nothing outside the quotes keeps its original text.
     """
     raw = str(text or "")
-    stripped = _QUOTED_SPAN_RE.sub(" ", raw)
+    stripped = _mask_quoted_spans(raw)
     if stripped == raw or len(_tokens(stripped)) < 2:
         return raw
     return stripped
