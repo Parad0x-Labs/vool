@@ -4,7 +4,6 @@ Phantom-compatible external signing path through the injected provider surface.
 """
 from __future__ import annotations
 
-import itertools
 import json
 import sqlite3
 from pathlib import Path
@@ -155,12 +154,11 @@ def test_browser_one_time_recovery_display_leaves_no_trace(browser, daemon):
     # nowhere in the page, nowhere in browser storage, nowhere in the console
     assert phrase not in page.content()
     stores = page.evaluate("() => JSON.stringify({l: Object.assign({}, localStorage), s: Object.assign({}, sessionStorage)})")
-    for word in words:
-        assert word not in stores.split('"'), word
+    assert phrase_leaked(phrase, stores, run=2) is None, phrase_leaked(phrase, stores, run=2)
+    assert PIN not in stores.split('"')
     # a console line leaks the phrase when it carries the phrase itself or two of its words in order (a single word
     # such as "field" also occurs in Chromium's own DOM warnings); the PIN is an exact fixture secret
-    pairs = [f"{a} {b}" for a, b in itertools.pairwise(words)]
-    leaked = [line for line in console if phrase in line or PIN in line or any(pair in line for pair in pairs)]
+    leaked = [line for line in console if PIN in line or phrase_leaked(phrase, line, run=2)]
     assert not leaked, leaked
     # a reload cannot bring it back: the page, its API answers, the daemon's log, the DB, the journal
     page.reload(wait_until="networkidle")
@@ -184,9 +182,7 @@ def test_browser_one_time_recovery_display_leaves_no_trace(browser, daemon):
     page.close()
     # the durable surfaces, scanned last and read-only: the daemon's log, its database, the Blackbox journal
     for surface in (daemon["daemon"].log_tail(lines=600), _all_db_text(daemon["home"]), json.dumps([dict(e) for e in Journal(daemon["store"]).entries()])):
-        assert phrase not in surface
-        for word in words[:4]:
-            assert word not in surface.split('"')
+        assert phrase_leaked(phrase, surface, run=2) is None, phrase_leaked(phrase, surface, run=2)
 
 
 def test_browser_chat_flow_user_asks_model_proposes_operator_approves_with_pin(browser, daemon):
