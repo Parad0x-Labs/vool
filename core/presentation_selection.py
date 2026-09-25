@@ -203,7 +203,50 @@ UNKNOWN_CELLS = frozenset({"unknown", "-"})
 
 
 def _strip_fenced_blocks(text: str) -> str:
-    return re.sub(r"```[^\n]*\n.*?\n\s*```", "", str(text or ""), flags=re.DOTALL)
+    # Remove opener-line..closer-fence spans without the lazy rescans of the previous
+    # ````[^\n]*\n.*?\n\s*``` ```` pattern: a run of mid-line fences is a valid opener each
+    # time but never a closer, so every opener re-walked the whole suffix hunting a closing
+    # newline. Two suffix tables computed once make each opener O(1): the first
+    # non-whitespace position at or after each index, and from each index the first newline
+    # whose whitespace run leads directly to a fence closer. A failed opener (no closing
+    # newline after it, or no newline at all) resumes one character past itself, so later
+    # overlapping fences still start spans exactly like the pattern's next match attempt.
+    raw = str(text or "")
+    n = len(raw)
+    if n == 0:
+        return raw
+    next_nonspace = [n] * (n + 1)
+    for j in range(n - 1, -1, -1):
+        next_nonspace[j] = j if not raw[j].isspace() else next_nonspace[j + 1]
+    first_closing = [-1] * (n + 1)
+    for j in range(n - 1, -1, -1):
+        if raw[j] == "\n":
+            end = next_nonspace[j + 1]
+            if raw[end : end + 3] == "```":
+                first_closing[j] = j
+                continue
+        first_closing[j] = first_closing[j + 1]
+    out: list[str] = []
+    i = 0
+    while True:
+        idx = raw.find("```", i)
+        if idx < 0:
+            out.append(raw[i:])
+            break
+        opener_newline = raw.find("\n", idx + 3)
+        closer_newline = (
+            first_closing[opener_newline + 1]
+            if opener_newline >= 0 and opener_newline + 1 <= n
+            else -1
+        )
+        if closer_newline < 0:
+            out.append(raw[i : idx + 1])
+            i = idx + 1
+            continue
+        end = next_nonspace[closer_newline + 1]
+        out.append(raw[i:idx])
+        i = end + 3
+    return "".join(out)
 
 
 def _prose_lines(text: str) -> list[str]:
