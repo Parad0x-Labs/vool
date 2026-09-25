@@ -564,7 +564,74 @@ def _bounded_count(raw: Any, *, maximum: int = 200) -> int | None:
 
 
 def _masked_quoted_text(text: str) -> str:
-    return re.sub(r'"(?:\\.|[^"\\])*"|\'[^\'\n]*\'', " ", text)
+    # Mask double-quoted spans (a backslash escapes any character except a newline, including
+    # the closing quote) and single-quoted spans (no escapes, no newlines). The double-quote
+    # interior walk is deterministic -- every position either closes at one specific quote or
+    # can never close -- so the terminal of each walk position is memoized and shared: an
+    # unclosed or invalid-escape opener resumes one character past itself like the previous
+    # pattern's next match attempt, but a later opener inside the failed span (typically an
+    # escaped quote) reuses the already-resolved walk instead of rescanning the suffix.
+    # Single-quote failure regions are newline-delimited and contain no quote, so their
+    # forward scans are disjoint and each character is visited a bounded number of times.
+    n = len(text)
+    resolution: list[tuple[int, int] | None] = [None] * n
+
+    def _resolve_interior(start: int) -> tuple[int, int]:
+        path: list[int] = []
+        j = start
+        while True:
+            if j >= n:
+                terminal = (1, 0)
+                break
+            known = resolution[j]
+            if known is not None:
+                terminal = known
+                break
+            char = text[j]
+            if char == '"':
+                resolution[j] = (0, j)
+                terminal = resolution[j]
+                break
+            if char == "\\" and j + 1 < n and text[j + 1] != "\n":
+                path.append(j)
+                j += 2
+                continue
+            if char == "\\":
+                path.append(j)
+                terminal = (1, 0)
+                break
+            path.append(j)
+            j += 1
+        for position in path:
+            resolution[position] = terminal
+        return terminal
+
+    out: list[str] = []
+    i = 0
+    while i < n:
+        ch = text[i]
+        if ch == '"':
+            failed, close = _resolve_interior(i + 1)
+            if failed:
+                out.append(ch)
+                i += 1
+            else:
+                out.append(" ")
+                i = close + 1
+            continue
+        if ch == "'":
+            close = text.find("'", i + 1)
+            newline = text.find("\n", i + 1)
+            if close >= 0 and (newline < 0 or close < newline):
+                out.append(" ")
+                i = close + 1
+            else:
+                out.append(ch)
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def _flatten_payload_strings(value: Any) -> list[str]:
