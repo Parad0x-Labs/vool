@@ -76,7 +76,32 @@ def _exact_secrets_for_tests():
 
 
 # PEM private-key blocks (RSA/EC/OPENSSH/generic).
-_PEM_RE = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", re.DOTALL)
+_PEM_MARKER_RE = re.compile(r"-----(?P<kind>BEGIN|END) [A-Z0-9 ]*PRIVATE KEY-----")
+
+
+def _private_key_spans(value: str):
+    """Scan each marker once; an incomplete private key stays confidential too."""
+    start = None
+    for marker in _PEM_MARKER_RE.finditer(value):
+        if marker.group("kind") == "BEGIN":
+            if start is None:
+                start = marker.start()
+        elif start is not None:
+            yield start, marker.end()
+            start = None
+    if start is not None:
+        yield start, len(value)
+
+
+def _redact_private_keys(value: str) -> str:
+    pieces = []
+    end = 0
+    for start, stop in _private_key_spans(value):
+        pieces.extend((value[end:start], "[redacted-private-key]"))
+        end = stop
+    pieces.append(value[end:])
+    return "".join(pieces)
+
 # JSON Web Tokens (header.payload.signature, base64url).
 _JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\b")
 # Well-known API-key / token shapes (prefix + sufficient length to avoid false positives).
@@ -128,7 +153,7 @@ _LABELED_RE = re.compile(
     r"\s*[:=]\s*[\"']?([^\s\"']{4,})[\"']?"
 )
 
-_SPECIFIC = (_PEM_RE, _JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _BEARER_RE, _PATH_TOKEN_RE)
+_SPECIFIC = ( _JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _BEARER_RE, _PATH_TOKEN_RE)
 
 
 def redact_url_path_tokens(text: str) -> str:
@@ -153,7 +178,7 @@ def redact_secrets(text: str) -> str:
         if secret in value:
             value = value.replace(secret, "[redacted-credential]")
     value = redact_url_path_tokens(value)
-    value = _PEM_RE.sub("[redacted-private-key]", value)
+    value = _redact_private_keys(value)
     value = _JWT_RE.sub("[redacted-jwt]", value)
     value = _API_KEY_RE.sub("[redacted-api-key]", value)
     value = _B58_SECRET_RE.sub(_mask_key_shaped, value)
@@ -172,6 +197,8 @@ def contains_secret(text: str) -> bool:
     with _exact_lock:
         if any(secret in value for secret in _exact_secrets):
             return True
+    if next(_private_key_spans(value), None) is not None:
+        return True
     for pattern in _SPECIFIC:
         for match in pattern.finditer(value):
             if pattern in (_B58_SECRET_RE, _WIF_RE) and _is_public_identifier(match.group(0)):
