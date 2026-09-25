@@ -34,13 +34,14 @@ def decisions_path() -> Path:
 
 
 def _clean_message(text: str) -> str:
-    flat = " ".join(str(text or "").split())[:_MESSAGE_MAX]
     try:
         from core.secret_redaction import redact_secrets
 
-        return redact_secrets(flat)
+        # Redact the intact input before formatting/truncation can split a secret.
+        return " ".join(redact_secrets(str(text or "")).split())[:_MESSAGE_MAX]
     except Exception:
-        return flat
+        # Telemetry may fail soft; confidentiality must fail closed.
+        return "[message unavailable: redaction failed]"
 
 
 def record_decision(
