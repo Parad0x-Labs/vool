@@ -90,3 +90,15 @@ def test_scrubber_handles_nested_structures_and_non_strings():
     out = _scrub_persisted({"a": KEY, "b": [1, None, {"c": KEY}], "d": 42, "e": True})
     assert KEY not in json.dumps(out)
     assert out["d"] == 42 and out["e"] is True and out["b"][0] == 1
+
+
+def test_truncated_private_key_is_redacted_before_event_storage(store):
+    from core.runtime_continuity import append_runtime_event, list_runtime_session_events
+
+    body = "synthetic-private-key-body"
+    session = "pem-redaction-storage"
+    append_runtime_event(session_id=session, event_type="task_received",
+                         message="prefix -----BEGIN PRIVATE KEY-----\n" + body)
+    events = list_runtime_session_events(session, after_seq=0, limit=5)
+    assert body not in json.dumps(events)
+    assert events[0]["message"] == "prefix [redacted-private-key]"
