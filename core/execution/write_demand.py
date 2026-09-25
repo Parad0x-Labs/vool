@@ -841,9 +841,30 @@ def _dedupe(items: list[WriteItem]) -> list[WriteItem]:
 #: A sentence that performs or qualifies a write: a write verb, a file noun, or a content marker.
 _WRITING_SENTENCE_RE = re.compile(
     r"\b(?:create|make|write|put|save|add|append|generate|touch|new)\b|\bfiles?\b|\bcontaining\b|\bwith\s+the\s+text\b"
-    r"|[A-Za-z0-9_./-]+\.(?:py|js|ts|tsx|jsx|txt|md|json|yaml|yml|toml|csv|html|css)\b",
+    r"|(?<![A-Za-z0-9_./-])[A-Za-z0-9_./-]+\.(?:py|js|ts|tsx|jsx|txt|md|json|yaml|yml|toml|csv|html|css)\b",
     re.IGNORECASE,
 )
+
+
+_BARE_PATH_TOKEN_RE = re.compile(r"[A-Za-z0-9_./-]+")
+_SPLIT_FILE_EXTENSION_RE = re.compile(r"\s+(py|js|ts|tsx|jsx|txt|md|json|yaml|yml|toml)\b")
+
+
+def _normalize_split_file_extensions(text: str) -> str:
+    """Repair split extensions in one token pass, including successive path segments."""
+    pieces: list[str] = []
+    cursor = 0
+    for token in _BARE_PATH_TOKEN_RE.finditer(text):
+        start, end = max(cursor, token.start()), token.end()
+        if end - start < 2 or text[end - 1] != ".":
+            continue
+        extension = _SPLIT_FILE_EXTENSION_RE.match(text, end)
+        if extension is None:
+            continue
+        pieces.extend((text[cursor:start], text[start:end], extension.group(1)))
+        cursor = extension.end()
+    pieces.append(text[cursor:])
+    return "".join(pieces)
 
 
 def resolve_write_demand(text: str, *, workspace_root: str = "") -> WriteDemand | None:

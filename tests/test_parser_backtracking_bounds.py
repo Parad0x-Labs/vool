@@ -55,3 +55,17 @@ def test_whole_command_suffixes_do_not_repartition_whitespace(module, name, pref
     script = "import importlib,sys; p=getattr(importlib.import_module(sys.argv[1]), sys.argv[2]); assert p.match(sys.argv[3] + ' '*100000 + 'X') is None"
     subprocess.run([sys.executable, "-c", script, module, name, prefix],
                    check=True, timeout=3, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+def test_write_demand_filename_normalization_is_bounded():
+    script = ("from core.execution.write_demand import resolve_write_demand; "
+              "assert resolve_write_demand('a'*100000+'!') is None")
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+def test_split_extensions_preserve_successive_path_segments():
+    from core.execution.write_demand import _normalize_split_file_extensions
+
+    assert _normalize_split_file_extensions("create foo. py/bar. txt containing hi") == "create foo.py/bar.txt containing hi"
+    assert _normalize_split_file_extensions("notes. md then plain prose. nope") == "notes.md then plain prose. nope"
