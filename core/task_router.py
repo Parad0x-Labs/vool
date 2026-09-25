@@ -538,6 +538,25 @@ def _repair_mistyped_operator_words(expression: str, *, original: str) -> str:
     return _NUMBER_WORD_NUMBER_RE.sub(_repair, expression)
 
 
+_REVERSED_MATH_FILLER_RE = re.compile(
+    r"\s*(?:em\s+rof|esaelp|slp|zlp|sknaht|uoy\s+knaht|xht|yt|etam|nam)[\s,]*"
+)
+
+
+def _strip_trailing_math_fillers(expression: str) -> str:
+    # Consume the suffix once from the end. A repeated forward regex can explore
+    # exponentially many assignments of spaces between adjacent filler words.
+    reversed_text = expression[::-1]
+    cursor = 0
+    while cursor < len(reversed_text) and reversed_text[cursor] in "?!.":
+        cursor += 1
+    found = False
+    while (match := _REVERSED_MATH_FILLER_RE.match(reversed_text, cursor)) is not None:
+        cursor = match.end()
+        found = True
+    return expression[:len(expression) - cursor] if found else expression
+
+
 def _direct_math_expression(text: str) -> str:
     normalized = " ".join(str(text or "").strip().lower().split())
     if not normalized or len(normalized) > 120:
@@ -571,11 +590,7 @@ def _direct_math_expression(text: str) -> str:
     expression = str(question.group("expression") if question else normalized).strip()
     # Trailing filler, chained: "for me thx", "please!", "= ?". The `+` matters -- a single pass
     # left "for me" behind on "calc 80*81 for me thx" and the whole expression failed to parse.
-    expression = re.sub(
-        r"(?:[\s,]*(?:for\s+me|please|pls|plz|thanks|thank\s+you|thx|ty|mate|man)\s*)+[?!.]*$",
-        "",
-        expression,
-    ).strip()
+    expression = _strip_trailing_math_fillers(expression).strip()
     # A trailing "= ?" / "=" is how people ASK for the result ("80 times 81 = ?"), not part of the
     # expression; leaving it in makes the expression unparseable and hands plain arithmetic to a
     # model.
