@@ -69,3 +69,24 @@ def _english_wordlist(mnemonic_module) -> list[str]:
     words = mnemonic_module.WORDLIST_PATH.read_text(encoding="utf-8").split()
     assert len(words) == 2048, len(words)
     return words
+
+
+def test_browser_storage_common_word_collision_is_not_a_phrase_leak():
+    # A random BIP39 draw may contain the same ordinary word as a registry row.
+    phrase = "system winner thank year wave sausage worth useful legal winner thank yellow"
+    stores = json.dumps({"l": {"role": "system"}, "s": {"state": "sealed"}})
+    assert "system" in stores.split('"')  # the old per-word assertion failed here
+    assert phrase_leaked(phrase, stores, run=2) is None
+
+
+def test_browser_storage_still_detects_complete_partial_and_split_phrase_leaks():
+    words = PHRASE.split()
+    surfaces = [
+        json.dumps({"l": {"recovery": PHRASE}, "s": {}}),
+        json.dumps({"l": {"recovery": json.dumps(words)}, "s": {}}),
+        json.dumps({"l": {"note": " ".join(words[3:5])}, "s": {}}),
+        json.dumps({"l": {f"word{i}": word for i, word in enumerate(words)}, "s": {}}),
+        json.dumps({"l": {"note": " / ".join(words[i] for i in (0, 2, 4, 6, 7, 11))}}),
+    ]
+    for surface in surfaces:
+        assert phrase_leaked(PHRASE, surface, run=2) is not None, surface
