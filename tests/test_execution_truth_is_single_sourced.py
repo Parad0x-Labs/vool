@@ -497,7 +497,8 @@ def test_the_signed_receipt_does_not_borrow_another_turns_tool() -> None:
     ],
 )
 def test_the_invariant_holds_for_tools_never_seen_when_designing_it(tool: str) -> None:
-    turn = f"turn-unseen-{abs(hash(tool)) % 10_000}"
+    # Each parameter owns a distinct turn; a truncated randomized hash can collide.
+    turn = "turn-unseen-" + tool.encode("utf-8").hex()
     emit_runtime_event(
         _context(turn),
         event_type="tool_executed",
