@@ -40,10 +40,14 @@ class LocalSubprocessAdapter(ModelAdapter):
         command = self._command()
         from core.provider_call_deadline import effective_timeout_seconds
 
+        timeout_started = time.monotonic()
         timeout_seconds = effective_timeout_seconds(
             request,
             float(self.manifest.runtime_config.get("timeout_seconds") or 60.0),
         )
+        # Preparation and process creation consume this same budget. Starting
+        # a new timer after Popen would extend the enclosing turn deadline.
+        deadline = timeout_started + timeout_seconds
         env = os.environ.copy()
         env.update({str(k): str(v) for k, v in dict(self.manifest.runtime_config.get("env") or {}).items()})
         env.update({str(k): str(v) for k, v in extra_env.items()})
@@ -69,6 +73,8 @@ class LocalSubprocessAdapter(ModelAdapter):
         sealed_payload = permit.consume()
         input_text: str | None = json.dumps(sealed_payload, sort_keys=True)
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        if time.monotonic() >= deadline:
+            raise subprocess.TimeoutExpired(command, timeout_seconds)
         process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -79,10 +85,13 @@ class LocalSubprocessAdapter(ModelAdapter):
             creationflags=creationflags,
             start_new_session=os.name != "nt",
         )
-        deadline = time.monotonic() + timeout_seconds
         while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _terminate_process_tree(process)
+                raise subprocess.TimeoutExpired(command, timeout_seconds)
             try:
-                stdout, stderr = process.communicate(input=input_text, timeout=0.1)
+                stdout, stderr = process.communicate(input=input_text, timeout=min(0.1, remaining))
                 break
             except subprocess.TimeoutExpired:
                 input_text = None
