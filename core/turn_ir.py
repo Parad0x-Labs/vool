@@ -9,6 +9,7 @@ consume this representation without reparsing the user's words.
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -316,7 +317,7 @@ def _head_after_inverted_preposition(clean: str) -> tuple[re.Match[str], str] | 
     return match, remainder
 
 
-def _is_whole_clause_constraint(clean: str) -> bool:
+def _is_whole_clause_constraint(clean: str, *, directive_free: bool | None = None) -> bool:
     """Whether this clause only CONSTRAINS the answer and asks for nothing.
 
     Delegated to `core.retrieval_constraints`, which already owns prohibition recognition for this
@@ -327,6 +328,12 @@ def _is_whole_clause_constraint(clean: str) -> bool:
     The test is not "contains a prohibition" but "is NOTHING BUT one": `Do NOT search the web for
     this, what is 2+2?` carries a real demand and must stay a demand, and only its prohibition half
     is a constraint.
+
+    ``directive_free`` is a caller-supplied guarantee that NO negated retrieval directive occurs
+    anywhere in the suffix this clause came from. A prohibition needs a directive, so the answer is
+    False without running the full per-suffix analysis; the guarantee is only ever computed from a
+    wider span than ``clean`` (the clause is a prefix of the suffix, and the connector strip below
+    only removes a leading prefix), so absent directives stay absent.
     """
 
     from core.retrieval_constraints import analyze_retrieval_constraints
@@ -338,6 +345,11 @@ def _is_whole_clause_constraint(clean: str) -> bool:
     # (tests/test_followup_unavailable_effect_siblings.py caught it). A constraint is a property of
     # a clause; deciding it over a multi-sentence span is answering a different question.
     if _SENTENCE_TAIL_RE.search(clean):
+        return False
+
+    if directive_free:
+        # A prohibition cannot exist without a directive, and the caller guaranteed none occurs
+        # anywhere in the wider suffix. Same verdict as the analysis below, without re-running it.
         return False
 
     try:
@@ -369,13 +381,18 @@ def _is_whole_clause_constraint(clean: str) -> bool:
     return True
 
 
-def classify_clause_kind(request_text: str) -> ClauseKind:
-    """Return a conservative kind without inferring tools, authority, or live-data needs."""
+def classify_clause_kind(request_text: str, *, directive_free: bool | None = None) -> ClauseKind:
+    """Return a conservative kind without inferring tools, authority, or live-data needs.
+
+    ``directive_free`` carries a caller's guarantee (see ``_is_whole_clause_constraint``) that no
+    negated retrieval directive occurs in the wider span this clause was taken from; it can only
+    skip the constraint analysis, never change any other classification.
+    """
 
     clean = _CONNECTOR_PREFIX_RE.sub("", str(request_text or "").strip())
     if not clean:
         return ClauseKind.UNKNOWN
-    if _is_whole_clause_constraint(clean):
+    if _is_whole_clause_constraint(clean, directive_free=directive_free):
         return ClauseKind.CONSTRAINT
     if _RECALL_RE.search(clean):
         return ClauseKind.RECALL
@@ -509,18 +526,28 @@ def _structural_markers(text: str, quoted: tuple[bool, ...]) -> tuple[_Marker, .
     return ()
 
 
-def _starts_request(text: str, position: int) -> bool:
+def _starts_request(text: str, position: int, directive_starts: tuple[int, ...]) -> bool:
     # A later request must not turn an earlier list member into a request head:
     # "Kaunas and Tallinn, tell me ..." keeps both cities in the observation.
     # Framing classification applies to complete clauses, not across a possible
     # boundary while deciding where those clauses begin.
     head_span = _CLAUSE_BOUNDARY_SPLIT_RE.split(text[position:], maxsplit=1)[0]
-    return classify_clause_kind(head_span) is not ClauseKind.UNKNOWN
+    # The clause is a prefix of this suffix, so a directive anywhere in the suffix is the only way
+    # a prohibition can appear in the clause; when none does, the constraint analysis inside
+    # classification cannot fire and is skipped instead of re-scanned per separator.
+    directive_free = bisect_left(directive_starts, position) == len(directive_starts)
+    return classify_clause_kind(head_span, directive_free=directive_free) is not ClauseKind.UNKNOWN
 
 
 def _unmarked_spans(text: str, quoted: tuple[bool, ...]) -> tuple[tuple[int, int], ...]:
     """Split only at structural separators whose following text has a request head."""
 
+    # One pass over the whole turn answers, for every suffix at once, whether a negated
+    # retrieval directive could ever make its clause a constraint; per-separator suffixes then
+    # skip the prohibition analysis instead of re-scanning the remaining text once per separator.
+    from core.retrieval_constraints import negated_directive_positions
+
+    directive_starts = negated_directive_positions(text)
     boundaries: list[tuple[int, int]] = []
     for index, char in enumerate(text):
         if quoted[index] or char not in ",;\n.!?":
@@ -532,7 +559,7 @@ def _unmarked_spans(text: str, quoted: tuple[bool, ...]) -> tuple[tuple[int, int
             # The connector already owns this boundary; retain its preceding
             # punctuation in the source span as before.
             continue
-        if next_start >= len(text) or not _starts_request(text, next_start):
+        if next_start >= len(text) or not _starts_request(text, next_start, directive_starts):
             continue
         previous_end = index + 1 if char in ".!?" else index
         boundaries.append((previous_end, next_start))
@@ -540,7 +567,7 @@ def _unmarked_spans(text: str, quoted: tuple[bool, ...]) -> tuple[tuple[int, int
         if quoted[match.start()]:
             continue
         next_start = match.end()
-        if next_start < len(text) and _starts_request(text, next_start):
+        if next_start < len(text) and _starts_request(text, next_start, directive_starts):
             boundaries.append((match.start(), next_start))
 
     spans: list[tuple[int, int]] = []

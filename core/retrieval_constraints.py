@@ -367,12 +367,15 @@ class RetrievalRequestAuthority:
 
 
 def _negative_clause_end(text: str, start: int) -> int:
-    tail = text[start:]
-    candidates = [match.start() for pattern in (_HARD_CLAUSE_END_RE, _CONTRASTIVE_END_RE) if (match := pattern.search(tail))]
-    explanation = _EXPLANATION_TRANSITION_RE.search(tail)
-    if explanation is not None and explanation.start() > 0:
+    candidates = [
+        match.start()
+        for pattern in (_HARD_CLAUSE_END_RE, _CONTRASTIVE_END_RE)
+        if (match := pattern.search(text, start))
+    ]
+    explanation = _EXPLANATION_TRANSITION_RE.search(text, start)
+    if explanation is not None and explanation.start() > start:
         candidates.append(explanation.start())
-    return start + min(candidates) if candidates else len(text)
+    return min(candidates) if candidates else len(text)
 
 
 def _negative_clause_spans(text: str) -> tuple[tuple[int, int], ...]:
@@ -484,6 +487,17 @@ def _reported_example_spans(text: str) -> tuple[tuple[int, int], ...]:
         spans.append((start, end))
         cursor = max(end, match.end())
     return tuple(spans)
+
+
+def negated_directive_positions(text: str) -> tuple[int, ...]:
+    """Start offsets of every negated retrieval directive, in one linear pass.
+
+    Clause splitting asks the prohibition authority about every suffix of a turn; a suffix can
+    carry a prohibition only where a directive actually occurs, so callers that already hold the
+    whole text can answer "no prohibition possible here" from these offsets instead of re-running
+    the full analysis per suffix.
+    """
+    return tuple(match.start() for match in _NEGATED_RETRIEVAL_DIRECTIVE_RE.finditer(str(text or "")))
 
 
 def analyze_retrieval_constraints(text: str) -> RetrievalConstraints:
