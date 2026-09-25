@@ -1480,11 +1480,11 @@ def execution_unit_spans(text: str) -> tuple[ExecutionUnitSpan, ...]:
         shadow = _legacy_execution_unit_spans(value, interpretation.units)
         if len(shadow) != len(spans):
             SHADOW_DISAGREEMENTS.append(
-                {"text": value[:160], "interpretation": len(spans), "legacy_over_fragments": len(shadow)}
+                {"text_length": len(value), "interpretation": len(spans), "legacy_over_fragments": len(shadow)}
             )
             logging.getLogger("vool.interpretation").debug(
-                "interpretation_shadow_disagreement interpretation=%d legacy=%d text=%r",
-                len(spans), len(shadow), value[:120],
+                "interpretation_shadow_disagreement interpretation=%d legacy=%d text_length=%d",
+                len(spans), len(shadow), len(value),
             )
     except Exception:
         pass
