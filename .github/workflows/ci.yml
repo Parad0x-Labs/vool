@@ -378,6 +378,29 @@ jobs:
           python-version: "3.12.13"
       - name: Install verification dependencies
         run: python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        # Same provisioning as the tests matrix: the focused regression windows now include
+        # sandbox-laned suites (job_runner containment, forge dispatch, the MCP stub that
+        # refuses to start on a host that cannot confine). Without the backend those tests
+        # fail for ENVIRONMENT reasons -- six reds in focused run 36078696306, all six this
+        # gap -- which says nothing about the code under test. The profile grants ONLY bwrap
+        # the right to create its user namespace; confinement stays kernel-enforced, and the
+        # probe at the end fails loudly instead of letting the windows cascade.
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
+            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
       - name: Lint
         run: python -m ruff check .
       - name: Bounded CI regressions and stall-region diagnostic
