@@ -101,43 +101,73 @@ def test_the_db_census_closes_its_connection_when_no_row_exists(pact_rig, monkey
     assert len(closed) == 1, "the census connection leaked on the fall-through path"
 
 
-def test_the_db_census_closes_when_the_table_query_raises(monkeypatch, tmp_path):
-    """The execute that RAISES must still leave a closed connection behind."""
+@pytest.mark.parametrize("concurrent_caller", [False, True])
+def test_the_db_census_closes_when_the_table_query_raises(monkeypatch, tmp_path, concurrent_caller):
+    """Count the census owner, even while another caller holds a connection."""
     import storage.db as sdb
 
     opened = []
     closed = []
+    queries = []
     original = sdb.get_connection
+    owner_thread = threading.get_ident()
 
     def factory(db_path=None):
         conn = original(db_path)
+        # The census opens the first connection on this thread. Later signal
+        # probes and other threads retain their own behavior and lifetimes.
+        if threading.get_ident() != owner_thread or opened:
+            return conn
         opened.append(conn)
-        real_close = conn.close
-
-        class _RaisingExecute:
-            def __init__(self, conn):
-                self._conn = conn
-
-            def execute(self, *a, **k):
-                raise RuntimeError("boom")
-
-            def close(self):
-                closed.append("closed")
-                real_close()
 
         class _Proxy:
             def execute(self, *a, **k):
+                queries.append(a[0])
                 raise RuntimeError("boom")
 
             def close(self):
                 closed.append("closed")
-                real_close()
+                conn.close()
 
         return _Proxy()
 
     monkeypatch.setattr(sdb, "get_connection", factory)
-    first_run_pact.has_existing_signal()  # must not raise and must have closed the conn
-    assert len(opened) == len(closed), f"leaked: opened {len(opened)}, closed {len(closed)}"
+    ready = threading.Event()
+    release = threading.Event()
+    background_errors = []
+
+    def unrelated_caller():
+        conn = None
+        try:
+            conn = sdb.get_connection(str(tmp_path / "unrelated.db"))
+            assert conn.execute("SELECT 1").fetchone()[0] == 1
+            ready.set()
+            if not release.wait(10):
+                raise AssertionError("census did not release the background caller")
+        except Exception as exc:
+            background_errors.append(exc)
+        finally:
+            ready.set()
+            if conn is not None:
+                conn.close()
+
+    worker = threading.Thread(target=unrelated_caller) if concurrent_caller else None
+    try:
+        if worker is not None:
+            worker.start()
+            assert ready.wait(5), "background caller never acquired its connection"
+            assert not background_errors, background_errors
+        first_run_pact.has_existing_signal()
+        assert len(opened) == 1 and len(closed) == 1, (
+            f"census leaked: opened {len(opened)}, closed {len(closed)}"
+        )
+        assert len(queries) == 3, "the census must exercise every failing table query"
+    finally:
+        release.set()
+        if worker is not None:
+            worker.join(timeout=5)
+            assert not worker.is_alive(), "background caller did not terminate"
+    assert not background_errors, background_errors
 
 
 def test_seed_completes_on_a_real_sqlite_store_and_the_census_closes(pact_rig, monkeypatch):
