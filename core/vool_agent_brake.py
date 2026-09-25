@@ -33,7 +33,7 @@ _STOP_RE = re.compile(
     r"|stop\s+(?:the\s+)?(?:x402\s+)?(?:agent|spending|spend)"
     r"|pause\s+(?:the\s+)?(?:x402\s+)?agent"
     r"|emergency\s+stop|panic(?:\s+stop)?"
-    r")\s*[.!]*\s*$",
+    r")\s*(?:[.!]+\s*)?$",
     re.IGNORECASE,
 )
 _START_RE = re.compile(
@@ -43,7 +43,7 @@ _START_RE = re.compile(
     r"|/?unfreeze(?:\s+(?:the\s+)?(?:wallet|spending|spend|agent|x402))?"
     r"|resume\s+(?:the\s+)?(?:x402\s+)?(?:agent|spending|spend)"
     r"|start\s+(?:the\s+)?x402\s+agent"
-    r")\s*[.!]*\s*$",
+    r")\s*(?:[.!]+\s*)?$",
     re.IGNORECASE,
 )
 
@@ -57,7 +57,7 @@ _STOPALL_RE = re.compile(
     r"|kill\s+everything"
     r"|(?:shut\s*down|shutdown|kill|stop)\s+(?:all\s+of\s+)?vool"
     r"|shut\s+everything\s+down"
-    r")\s*[.!]*\s*$",
+    r")\s*(?:[.!]+\s*)?$",
     re.IGNORECASE,
 )
 

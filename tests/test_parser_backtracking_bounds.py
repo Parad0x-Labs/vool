@@ -45,3 +45,13 @@ def test_path_extraction_keeps_existing_spelling_and_capture(name, text, path):
 def test_request_grammar_nonmatches_do_not_explore_equivalent_partitions(script):
     subprocess.run([sys.executable, "-c", script], check=True, timeout=5,
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+@pytest.mark.parametrize("module,name,prefix", [
+    ("core.self_update_offer", "_STRICT_YES", "yes"),
+    ("core.vool_agent_brake", "_STOP_RE", "freeze"),
+])
+def test_whole_command_suffixes_do_not_repartition_whitespace(module, name, prefix):
+    script = "import importlib,sys; p=getattr(importlib.import_module(sys.argv[1]), sys.argv[2]); assert p.match(sys.argv[3] + ' '*100000 + 'X') is None"
+    subprocess.run([sys.executable, "-c", script, module, name, prefix],
+                   check=True, timeout=3, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})

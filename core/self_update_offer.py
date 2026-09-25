@@ -25,17 +25,17 @@ from typing import Any
 # like "update my readme").
 _APPLY_RE = re.compile(
     r"^\s*(?:yes[,\s]+)?(?:please\s+)?(?:go\s+ahead\s+and\s+)?(?:update|upgrade)"
-    r"(?:\s+(?:now|vool|it|please|yourself))*\s*[.!]*\s*$",
+    r"(?:\s+(?:now|vool|it|please|yourself))*\s*(?:[.!]+\s*)?$",
     re.IGNORECASE,
 )
 _APPLY_PHRASE_RE = re.compile(r"^\s*(?:please\s+)?(?:install|do|apply|run)\s+the\s+update\b", re.IGNORECASE)
 
 _STRICT_YES = re.compile(
-    r"^\s*(?:yes|yep|yeah|yup|ok(?:ay)?|sure|do\s+it|go(?:\s+ahead)?|proceed)\s*[.!]*\s*$",
+    r"^\s*(?:yes|yep|yeah|yup|ok(?:ay)?|sure|do\s+it|go(?:\s+ahead)?|proceed)\s*(?:[.!]+\s*)?$",
     re.IGNORECASE,
 )
 _STRICT_NO = re.compile(
-    r"^\s*(?:no|nope|nah|not\s+now|later|skip|dismiss|don'?t)\s*[.!]*\s*$",
+    r"^\s*(?:no|nope|nah|not\s+now|later|skip|dismiss|don'?t)\s*(?:[.!]+\s*)?$",
     re.IGNORECASE,
 )
 _GREETING_RE = re.compile(
