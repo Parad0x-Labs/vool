@@ -168,11 +168,19 @@ def _model_post(body):
         return res.status, {}
 
 
-def test_get_returns_server_authoritative_selection(monkeypatch):
+@pytest.mark.parametrize("previous_provider", ["openrouter", "anthropic"])
+def test_get_returns_server_authoritative_selection(_cached_catalog, monkeypatch, previous_provider):
+    from dataclasses import replace
+
+    from core import cloud_escalation_policy as cep
+
+    cep.save_policy(replace(cep.load_policy(), provider=previous_provider))
     monkeypatch.setattr("core.credential_store.has_credential", lambda name: False)
     assert _model_get()[1]["source"] == "server"
-    status, _payload = _model_post({"model": "deepseek/deepseek-chat-v3:free", "confirm_paid": False})
-    assert status == 200
+    status, payload = _model_post({
+        "model": "deepseek/deepseek-chat-v3:free", "provider": "openrouter", "confirm_paid": False,
+    })
+    assert status == 200, payload
     got = _model_get()[1]
     assert got["ok"] is True
     assert got["model"] == "deepseek/deepseek-chat-v3:free"
