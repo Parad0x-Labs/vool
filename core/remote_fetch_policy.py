@@ -272,6 +272,7 @@ def open_remote(
     keyed_or_keyless: str = "",
     no_proxy: bool = False,
     redirect_policy: str = "follow",
+    pinned_addresses: tuple[str, ...] | None = None,
 ) -> Any:
     """The ONE outbound HTTP door: enforce the veto, then report, then open.
 
@@ -289,6 +290,10 @@ def open_remote(
     with an EMPTY proxy handler, so ambient HTTP(S)_PROXY vars cannot position themselves
     between a pasted API key and the pinned provider host. Default False keeps every existing
     caller's transport byte-identical.
+
+    `pinned_addresses` retains a caller-validated DNS answer through socket connect,
+    preserving the URL hostname for TLS verification. It requires refused redirects,
+    disables proxies, and does not bypass permission or effect accounting.
 
     Refusal raises rather than returning empty, so a caller that ignores it fails closed instead of
     silently reporting "no results" for a request that was never allowed to run.
@@ -331,6 +336,7 @@ def open_remote(
         keyed_or_keyless=keyed_or_keyless,
         no_proxy=no_proxy,
         redirect_policy=redirect_policy,
+        pinned_addresses=pinned_addresses,
     )
 
 
@@ -397,6 +403,7 @@ def _open_enforced(
     keyed_or_keyless: str = "",
     no_proxy: bool = False,
     redirect_policy: str = "follow",
+    pinned_addresses: tuple[str, ...] | None = None,
 ) -> Any:
     """The door's enforcement body: veto, gateway consult, lifecycle, open.
 
@@ -516,7 +523,11 @@ def _open_enforced(
     note_remote_fetch_attempt(url)
     effect.begin_attempt()
     try:
-        if redirect_policy == "refuse":
+        if pinned_addresses is not None:
+            if redirect_policy != "refuse":
+                raise ValueError("Pinned addresses require per-hop redirect validation")
+            response = _no_redirect_opener(pinned_addresses=pinned_addresses, context=context).open(request, timeout=timeout)
+        elif redirect_policy == "refuse":
             # Origin-pinned callers (the wallet's outbound confinement) take each redirect
             # hop back through THIS door for re-validation instead of letting urllib's
             # default handler follow it beyond the validated origin. A request whose URL
@@ -548,13 +559,13 @@ _NO_REDIRECT_OPENER: Any = None
 _NO_REDIRECT_NO_PROXY_OPENER: Any = None
 
 
-def _no_redirect_opener(*, no_proxy: bool = False) -> Any:
+def _no_redirect_opener(*, no_proxy: bool = False, pinned_addresses: tuple[str, ...] | None = None, context: Any = None) -> Any:
     """An opener whose redirect handler REFUSES: a redirect is a new origin the caller has
     not validated. With redirect_policy="refuse" the door returns the 3xx itself so the
     origin-pinned caller can re-validate every hop through this door. ``no_proxy`` also empties
     the proxy handler, for a request whose URL itself carries a credential."""
     global _NO_REDIRECT_OPENER, _NO_REDIRECT_NO_PROXY_OPENER
-    cached = _NO_REDIRECT_NO_PROXY_OPENER if no_proxy else _NO_REDIRECT_OPENER
+    cached = None if pinned_addresses is not None else (_NO_REDIRECT_NO_PROXY_OPENER if no_proxy else _NO_REDIRECT_OPENER)
     if cached is None:
         import urllib.error
         import urllib.request
@@ -565,9 +576,15 @@ def _no_redirect_opener(*, no_proxy: bool = False) -> Any:
                 raise urllib.error.HTTPError(req.full_url, code, f"redirect_refused:{newurl}", headers, fp)
 
         handlers: list[Any] = [_RefuseRedirectHandler()]
-        if no_proxy:
+        if pinned_addresses is not None:
+            from core.pinned_http import pinned_http_handlers
+
+            handlers.extend(pinned_http_handlers(pinned_addresses, context=context))
+        if no_proxy or pinned_addresses is not None:
             handlers.insert(0, urllib.request.ProxyHandler({}))
         cached = urllib.request.build_opener(*handlers)
+        if pinned_addresses is not None:
+            return cached  # Per-request approval, never cache across targets or DNS answers.
         if no_proxy:
             _NO_REDIRECT_NO_PROXY_OPENER = cached
         else:
