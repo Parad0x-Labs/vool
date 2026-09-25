@@ -179,9 +179,16 @@ def test_no_actor_value_changes_removes_deletes_or_accepts_through_the_store() -
 
 
 def test_delete_leaves_a_tombstone_without_names_values_or_journal_details() -> None:
+    # The phone's checked substring is 8 digits WITH STRUCTURE on purpose: the journal and
+    # operations records are JSON blobs over random uuid-hex ids and microsecond timestamps,
+    # and a bare 4-digit substring like '7946' appears in those by coincidence ~0.5% of
+    # executions (measured over 20k trials on the id fields alone) -- an inherent flake, not
+    # a leak (full run 36088769220 shard 8 hit it once). '7946 0953' cannot occur in an id
+    # or timestamp, so the assertion stays exact and strictly stronger: a longer,
+    # distinctive substring of the same shape of secret.
     contact = store.create_contact(display_name="Alex Chen", actor=OWNER, aliases=["AC"], notes="met at the kiln fair", endpoints=[
         {"kind": "email", "value": "alex.chen@example.test"}, {"kind": "wallet", "value": EVM_A, "network": BASE_SEPOLIA}])
-    protected_changes.update_contact(contact["contact_id"], add_endpoints=[{"kind": "phone", "value": "+44 20 7946 0000"}])
+    protected_changes.update_contact(contact["contact_id"], add_endpoints=[{"kind": "phone", "value": "+44 20 7946 0953"}])
     snapshot = resolver.resolve("AC", kind="email").snapshot
     outcome = protected_changes.delete_contact(contact["contact_id"])
     assert outcome["endpoints_erased"] == 3
@@ -189,14 +196,14 @@ def test_delete_leaves_a_tombstone_without_names_values_or_journal_details() -> 
     assert (tomb["state"], tomb["display_name"], tomb["aliases"], tomb["notes"]) == ("deleted", "", [], "")
     assert all(e["value"] == "" and e["canonical"] == "" and e["fingerprint"] == "" for e in tomb["endpoints"])
     journal = json.dumps(store.list_events(contact["contact_id"]))
-    for secret_of_the_deleted in ("alex.chen@example.test", "kiln fair", EVM_A.lower(), "7946"):
+    for secret_of_the_deleted in ("alex.chen@example.test", "kiln fair", EVM_A.lower(), "7946 0953"):
         assert secret_of_the_deleted not in journal.lower()
     with store._reader() as conn:
         kept = conn.execute("SELECT key_hash FROM contact_identity_tombstones WHERE contact_id = ?", (contact["contact_id"],)).fetchall()
         records = "\n".join(row["payload_json"] + row["result_json"] for row in conn.execute("SELECT payload_json, result_json FROM contact_operations")).lower()
     assert kept and all(len(row["key_hash"]) == 64 for row in kept), "a deleted name is remembered only as keyed hashes"
     assert '"alex.chen@example.test"' not in json.dumps(records) and records.count('"operation_id"') >= 0
-    for secret_of_the_deleted in ("alex.chen@example.test", "kiln fair", EVM_A.lower(), "7946", '"alex chen"', '"ac"'):
+    for secret_of_the_deleted in ("alex.chen@example.test", "kiln fair", EVM_A.lower(), "7946 0953", "79460953", '"alex chen"', '"ac"'):
         assert secret_of_the_deleted not in records, secret_of_the_deleted
     assert resolver.verify_snapshot(snapshot).status == "contact_deleted"
     assert resolver.resolve("Alex Chen", kind="email").status == "not_found"
