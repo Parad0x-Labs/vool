@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
     "test:protocol": "node --test tests/protocol.test.mjs",
-    "e2e:journey": "node e2e/journey.mjs"
+    "e2e:journey": "node e2e/journey.mjs",
+    "postinstall": "patch-package --error-on-fail",
+    "test:tooling": "node --test tests/tooling-security.test.mjs"
   },
   "dependencies": {
     "expo": "~52.0.0",
@@ -22,11 +24,21 @@
     "expo-secure-store": "~14.0.0",
     "expo-status-bar": "~2.0.0",
     "react": "18.3.1",
-    "react-native": "0.76.5"
+    "react-native": "0.76.5",
+    "patch-package": "8.0.1"
   },
   "devDependencies": {
     "@types/react": "~18.3.12",
     "typescript": "~5.6.0"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "@expo/plist": {
+      "@xmldom/xmldom": "0.8.15"
+    },
+    "postcss": "8.5.23",
+    "tar": "7.5.21",
+    "uuid": "11.1.1",
+    "image-size": "2.0.3"
+  }
 }

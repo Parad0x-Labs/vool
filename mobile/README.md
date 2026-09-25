@@ -133,3 +133,18 @@ signed or installed — the toolchains are absent.
 | `GET  /api/mobile/devices` / `POST /api/mobile/devices/revoke` | desktop | list / revoke devices |
 | `GET  /api/mobile/receipts` | desktop | hash-chained audit journal |
 | `GET  /api/mobile/info` | anyone | capability leaf (catalog + fingerprint) |
+
+## Dependency security compatibility
+
+The lock overrides vulnerable transitive image-size, tar, PostCSS, UUID and
+Expo plist-parser releases. Expo 52 and its native-module versions stay unchanged.
+Two versioned `patch-package` patches adapt Metro 0.81.5 to image-size 2's
+buffer/file APIs and Expo CLI 0.22.28 to tar 7's named CommonJS exports.
+`npm ci` applies these patches and fails if they cannot be applied; do not use
+`--ignore-scripts` for a working install. Reassess/remove the patches when upgrading
+the owning Metro/Expo packages.
+
+Run `npm run test:tooling`, `npm run test:protocol`, `npm run typecheck` and
+`npm audit` after dependency changes. Tooling tests cover actual asset reads,
+template extraction, the Windows JavaScript extraction path, plist/CSS and UUID
+consumers. They complement native device testing; they do not replace it.
