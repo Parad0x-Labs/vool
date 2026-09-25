@@ -65,6 +65,10 @@ on:
       - "tests/test_validate_install_profile.py"
   workflow_dispatch:
 
+# These jobs read source and upload run artifacts; repository write access is unnecessary.
+permissions:
+  contents: read
+
 jobs:
   gauntlet:
     runs-on: windows-latest

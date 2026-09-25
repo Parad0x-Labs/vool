@@ -20,6 +20,10 @@ env:
   # Pin the pip environment once for every job in this workflow.
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
+# These jobs read source and upload run artifacts; repository write access is unnecessary.
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: ${{ github.event_name == 'workflow_dispatch' && inputs.focused_ci && 'diagnostic-unused-verify' || 'verify' }}
