@@ -19,6 +19,19 @@ DOCS_DIR = (PROJECT_ROOT / "docs").resolve()
 PROJECT_CONFIG_DIR = (PROJECT_ROOT / "config").resolve()
 WORKSPACE_DIR = (PROJECT_ROOT / "workspace").resolve()
 _VOOL_HOME_OVERRIDE: Path | None = None
+_RUNTIME_HOME_GENERATION = 0
+
+
+def runtime_home_generation() -> int:
+    """Monotonic count of in-process runtime-home authority changes.
+
+    Hot caches that must never outlive a home switch (the A8 digest-key cache)
+    compare this number instead of re-resolving the home's filesystem path on
+    every call: ``configure_runtime_home`` is the one owner that can move the
+    active home underneath a running process, so its count IS the home's
+    identity between resolutions.
+    """
+    return _RUNTIME_HOME_GENERATION
 
 
 def vool_env(name: str, default: str | None = None) -> str | None:
@@ -47,7 +60,8 @@ def user_runtime_default() -> Path:
 
 
 def configure_runtime_home(path: str | Path | None) -> None:
-    global _VOOL_HOME_OVERRIDE
+    global _VOOL_HOME_OVERRIDE, _RUNTIME_HOME_GENERATION
+    _RUNTIME_HOME_GENERATION += 1
     _VOOL_HOME_OVERRIDE = None if path is None else Path(path).expanduser().resolve()
 
 

@@ -66,3 +66,43 @@ def test_key_survives_cache_reset_and_database_switch_in_same_home(homes):
     assert fin._a8_digest_key() == first_key
     configure_default_db_path(home / "another.db")
     assert fin._a8_digest_key() == first_key
+
+
+def test_digest_key_is_served_from_cache_without_recomputing_its_path(homes, monkeypatch):
+    """The tombstone lookup consults the digest key on every governed read, so
+    the cache hit must not re-derive the key file's path: data_path() runs
+    ensure_runtime_dirs() (five mkdir syscalls) plus two full resolutions, and
+    served journeys issue hundreds of thousands of governed reads (measured
+    2026-09-25: that per-call resolution alone cost more than the fence's
+    queries and pushed CI served journeys past their watchdog budgets)."""
+    import core.runtime_paths as rp
+
+    homes("one")
+    fin._a8_digest_key()  # warm the cache; the counter starts from the next lookup
+    calls = {"data_path": 0}
+    real_data_path = rp.data_path
+
+    def counting_data_path(*parts):
+        calls["data_path"] += 1
+        return real_data_path(*parts)
+
+    monkeypatch.setattr(rp, "data_path", counting_data_path)
+    for _ in range(50):
+        fin._a8_digest_key()
+    assert calls["data_path"] == 0, "cached digest key must not re-resolve its path per call"
+
+
+def test_digest_key_reload_follows_the_runtime_home_authority(homes, monkeypatch):
+    """A home switch must reload the key (another profile's erasure key must
+    never be served), and the authority check is the runtime-home generation
+    plus the ambient home environment — the transitions that can move the key
+    file, without paying a filesystem resolution on every governed read."""
+    homes("one")
+    first = fin._a8_digest_key()
+    homes("one")  # same home re-configured: generation moves, the key file does not
+    assert fin._a8_digest_key() == first
+    homes("two")
+    assert fin._a8_digest_key() != first
+    configure_runtime_home(None)  # fall back to the environment home authority
+    monkeypatch.setenv("VOOL_HOME", str(homes("one")))
+    assert fin._a8_digest_key() == first
