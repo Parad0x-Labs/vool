@@ -320,7 +320,7 @@ _STRUCTURED_SCALAR_LITERAL_RE = re.compile(
     r"respond(?:\s+with)?)\s+"
     r"(?:only\s+)?(?:the\s+)?(?P<kind>word|number|digit|character|token)\s+"
     r"(?P<literal>[A-Za-z0-9_][A-Za-z0-9_-]{0,79})"
-    r"(?:\s+(?:please|pls|plz))?\s*[.!]?\s*$",
+    r"(?:\s+(?:please|pls|plz))?\s*(?:[.!]\s*)?$",
     re.IGNORECASE,
 )
 _ONE_CHARACTER_RE = re.compile(
@@ -943,7 +943,7 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
                 directive_text[max(0, _num_match.start() - 48): _num_match.start()]
             )
         )
-        _arithmetic = bool(re.search(r"\d+\s*[+\-x×*/]\s*\d+", directive_text))
+        _arithmetic = bool(re.search(r"(?<!\d)\d+\s*[+\-x×*/]\s*\d+", directive_text))
         numbers_only = _tail_shape or (
             (_verb_before or _arithmetic)
             and (not _continuation or _arithmetic)
