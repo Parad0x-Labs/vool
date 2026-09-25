@@ -57,6 +57,11 @@ class StreamTransportServer:
         self._client_sem: threading.BoundedSemaphore = threading.BoundedSemaphore(value=max_clients)
 
     def start(self, *, prebound_socket: socket.socket | None = None) -> StreamEndpoint:
+        from core.runtime_mode import checked_research_listener_host
+
+        self.host = checked_research_listener_host(self.host)
+        if prebound_socket is not None:
+            checked_research_listener_host(str(prebound_socket.getsockname()[0]))
         if self._sock is not None:
             sockname = self._sock.getsockname()
             return StreamEndpoint(host=str(sockname[0]), port=int(sockname[1]))

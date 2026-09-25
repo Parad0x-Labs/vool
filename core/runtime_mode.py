@@ -25,6 +25,7 @@ so every gate fails closed. See ``research/README.md`` for the full map.
 """
 from __future__ import annotations
 
+import ipaddress
 import os
 
 #: The single explicit opt-in. Deliberately not a preference, not an edition
@@ -76,3 +77,16 @@ def background_presence_threads_allowed(
     return research_networking_enabled(environ)
 
 
+
+def checked_research_listener_host(host: str) -> str:
+    """Allow local test listeners; require research opt-in for wider exposure."""
+    clean = str(host or "").strip()
+    if clean.casefold() == "localhost":
+        return "127.0.0.1"
+    try:
+        local = ipaddress.ip_address(clean).is_loopback
+    except ValueError:
+        local = False
+    if not local and not research_networking_enabled():
+        raise PermissionError("Non-loopback peer listeners require VOOL_RESEARCH_NETWORKING=1")
+    return clean
