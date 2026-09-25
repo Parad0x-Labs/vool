@@ -418,7 +418,7 @@ def _trim_unsupported_spans(line: str, unsupported_segments: list[str]) -> str |
     out = re.sub(r"(\*\*|__|\*|`)\s*\1", " ", out)
     out = re.sub(r"(?<!\S)(?:\*\*|__|\*|`)(?!\S)", " ", out)
     out = re.sub(r"[ \t]{2,}", " ", out)
-    out = re.sub(r"\s+([,.;:!?])", r"\1", out)
+    out = re.sub(r"(?<!\s)\s+([,.;:!?])", r"\1", out)
     # A removed sentence leaves its neighbours' punctuation touching (".;" / ";."): one mark.
     out = re.sub(r"([.!?])\s*[;,]", r"\1", out)
     out = re.sub(r";\s*([.!?])", r"\1", out)

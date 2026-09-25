@@ -372,7 +372,7 @@ _AUTHORITY_RANK = {
     "user_correction": 5,
 }
 _CORRECTION_RE = re.compile(
-    r"\b(?:actually|correction|correct that|i meant|not .+[,;]?\s*(?:it is|it's)|"
+    r"\b(?:actually|correction|correct that|i meant|"
     r"changed to|changed my mind|is now|update(?:d)? to|call me)\b",
     re.IGNORECASE,
 )
@@ -1547,8 +1547,30 @@ def derive_fact_key(
     )
 
 
+_NOT_CORRECTION_START_RE = re.compile(r"\bnot ", re.IGNORECASE)
+_NOT_CORRECTION_END_RE = re.compile(r"(?:it is|it's)\b", re.IGNORECASE)
+
+
 def is_user_correction(text: str) -> bool:
-    return bool(_CORRECTION_RE.search(str(text or "")))
+    raw = str(text or "")
+    if _CORRECTION_RE.search(raw):
+        return True
+    # The earliest "not " on a line covers every later candidate on that
+    # line. Search its suffix once, preserving the original one-character
+    # minimum and whitespace-only continuation across a newline.
+    offset = 0
+    for line in raw.split("\n"):
+        start = _NOT_CORRECTION_START_RE.search(line)
+        if start is not None and start.end() < len(line):
+            if _NOT_CORRECTION_END_RE.search(line, start.end() + 1):
+                return True
+            cursor = offset + len(line)
+            while cursor < len(raw) and raw[cursor].isspace():
+                cursor += 1
+            if _NOT_CORRECTION_END_RE.match(raw, cursor):
+                return True
+        offset += len(line) + 1
+    return False
 
 
 def record_memory_entry(

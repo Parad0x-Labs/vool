@@ -251,7 +251,7 @@ def _announced_item_count(text: str) -> int:
 #: A markdown table row: a line whose first visible character is a pipe. The separator row
 #: ("|---|---|") is a row too, and is skipped where it matters.
 _TABLE_ROW_RE = re.compile(r"^\s*\|")
-_TABLE_SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+\|?\s*$")
+_TABLE_SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+$")
 
 
 def _table_cells(line: str) -> list[str]:
