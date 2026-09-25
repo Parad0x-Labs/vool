@@ -1060,13 +1060,51 @@ def _document_count(session: str) -> int:
 # server names the document and the chip shows the server's name.
 
 _LOG_STAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}", re.MULTILINE)
-_LOG_LEVEL_RE = re.compile(r"^\s*(?:ERROR|WARN(?:ING)?|INFO|DEBUG|CRITICAL|FATAL)[:\s]", re.MULTILINE)
+# Whitespace inside these line rules is horizontal-only ([^\S\n]): the previous \s* crossed
+# blank lines, so every newline inside a blank run restarted the same whitespace scan and a
+# run with nothing at its end cost quadratic time. Every cross-newline match already implies
+# the same match at the keyword's own line start (the leading \s* could be empty), so line
+# starts keep the identical verdicts and match counts.
+_LOG_LEVEL_RE = re.compile(r"^[^\S\n]*(?:ERROR|WARN(?:ING)?|INFO|DEBUG|CRITICAL|FATAL)[:\s]", re.MULTILINE)
 _SHEBANG_SHELL_RE = re.compile(r"^#!.*\b(?:sh|bash|zsh)\b", re.MULTILINE)
-_SHELL_COMMAND_RE = re.compile(r"(?:^|\n)\s*(?:sudo |apt(?:-get)? |npm |yarn |git |rsync |export |cd |chmod |curl |docker )")
-_SQL_RE = re.compile(r"^\s*(?:SELECT\b[\s\S]{0,400}?\bFROM\b|INSERT INTO\b|CREATE TABLE\b|UPDATE\b[\s\S]{0,200}?\bSET\b|DELETE FROM\b|ALTER TABLE\b)", re.IGNORECASE | re.MULTILINE)
+_SHELL_COMMAND_RE = re.compile(r"(?:^|\n)[^\S\n]*(?:sudo |apt(?:-get)? |npm |yarn |git |rsync |export |cd |chmod |curl |docker )")
+_SQL_RE = re.compile(r"^[^\S\n]*(?:SELECT\b[\s\S]{0,400}?\bFROM\b|INSERT INTO\b|CREATE TABLE\b|UPDATE\b[\s\S]{0,200}?\bSET\b|DELETE FROM\b|ALTER TABLE\b)", re.IGNORECASE | re.MULTILINE)
 _JS_RE = re.compile(r"\b(?:function |const |let |=>)|console\.|\bexport (?:default|const|function)\b")
 _MARKDOWN_RE = re.compile(r"^#{1,6} \S|^```", re.MULTILINE)
-_YAML_NESTING_RE = re.compile(r"^\s+-\s|^\s{2,}\S", re.MULTILINE)
+
+
+def _yaml_nesting(text: str) -> bool:
+    """Linear equivalent of ``^\\s+-\\s|^\\s{2,}\\S`` under ``re.MULTILINE``.
+
+    The old leading ``\\s`` crossed blank lines, which made every blank run rescanned once
+    per line; it also made the verdict depend on the run: a top-level ``- `` item or a
+    single-space indent matched after one whitespace-only line but not at the start of the
+    document. That language is preserved exactly: a dash item counts when its own line is
+    indented or a whitespace-only line precedes it; a first non-whitespace character counts
+    when two or more whitespace characters reach back to a line start.
+    """
+    streak_lines = 0
+    streak_ws = 0
+    total = len(text)
+    offset = 0
+    for line in text.split("\n"):
+        line_len = len(line)
+        offset += line_len + 1
+        stripped = line.lstrip()
+        indent = line_len - len(stripped)
+        if not stripped:
+            streak_lines += 1
+            streak_ws += line_len + 1
+            continue
+        if (indent >= 1 or streak_lines >= 1) and stripped[0] == "-" and (
+            (len(stripped) >= 2 and stripped[1].isspace()) or (line_len == indent + 1 and offset <= total)
+        ):
+            return True
+        if indent >= 2 or (streak_lines >= 1 and streak_ws + indent >= 2):
+            return True
+        streak_lines = 0
+        streak_ws = 0
+    return False
 
 #: (extension, media type, rule) per family, in the order the authority tries them.
 DOCUMENT_TYPE_RULES: tuple[str, ...] = ("log", "json", "yaml", "csv", "python", "shell", "sql", "javascript", "markdown", "text")
@@ -1080,7 +1118,7 @@ def _looks_like_log(text: str) -> bool:
 
 
 def _parses_as_yaml(text: str) -> bool:
-    if not _YAML_NESTING_RE.search(text) or not re.search(r"^[A-Za-z_][\w.-]*:(?:[ \t]|\r?\n)", text, re.MULTILINE):
+    if not _yaml_nesting(text) or not re.search(r"^[A-Za-z_][\w.-]*:(?:[ \t]|\r?\n)", text, re.MULTILINE):
         return False
     try:
         import yaml  # type: ignore
