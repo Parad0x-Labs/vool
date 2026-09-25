@@ -106,6 +106,7 @@ def test_pinned_https_preserves_sni_and_checks_the_hostname(tmp_path, monkeypatc
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_context.minimum_version = ssl.TLSVersion.TLSv1_2
     server_context.load_cert_chain(cert_path, key_path)
     server_context.set_servername_callback(lambda sock, hostname, ctx: sni.append(hostname))
     server.socket = server_context.wrap_socket(server.socket, server_side=True)
