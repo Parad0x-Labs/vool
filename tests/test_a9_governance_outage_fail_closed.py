@@ -11,7 +11,7 @@ canonical transcript and the provider-facing request.
 Repaired invariant: readiness is tri-state —
 
   READY        table positively proven present (proven; cached);
-  ABSENT       table positively proven absent   (proven; cached);
+  ABSENT       table positively proven absent   (re-probed after initialization);
   UNAVAILABLE  the probe itself failed          (unknown; NEVER cached).
 
 A readiness outage is never proof that governance does not apply: for

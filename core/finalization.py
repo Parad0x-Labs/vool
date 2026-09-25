@@ -1583,13 +1583,11 @@ def payload_availability_for_hash(content_hash: str) -> str | None:
 # while deterministic tombstone lookup is preserved.
 # ---------------------------------------------------------------------------
 
-_a8_digest_key_cache: bytes | None = None
+_a8_digest_key_cache: tuple[str, bytes] | None = None
 _a8_store_ready_cache: bool | None = None
-# The per-process caches above hold facts about ONE governance database. They are
-# keyed to the active default DB path so a runtime-home/test-home switch cannot
-# serve a verdict (or key material) proven under a different store: a READY
-# verdict replayed against a fresh home queries a missing a7_finalizations table
-# and the write fence fail-closes every public surface.
+# Readiness belongs to the database; the digest key belongs to its key file.
+# These authorities need independent identities: loading either cache must
+# never make the other cache valid for a different home or database.
 _governance_cache_db_path: str | None = None
 
 
@@ -1615,11 +1613,10 @@ def governance_store_state() -> str:
       determined. An outage is never evidence that governance does not apply,
       so privacy callers treat this state fail-CLOSED.
 
-    Only the two PROVEN states are cached, and only while the active default
-    database is the one they were proven against (a runtime-home switch re-probes
-    rather than replaying another store's verdict). UNAVAILABLE is
-    never cached: a transient failure must not poison readiness into a durable
-    permissive verdict, and the next call re-probes so recovery stays possible.
+    Only READY is cached for the database where it was proven. ABSENT must
+    be re-probed: initialization or migration can create governance tables
+    at the same database path. UNAVAILABLE is never cached either. A failed
+    probe cannot become a durable permissive verdict.
 
     The probe reads sqlite_master instead of the governed table so that
     "table absent" is a successful query result, not an exception — the old
@@ -1631,8 +1628,6 @@ def governance_store_state() -> str:
         _governance_cache_db_path = None
     if _a8_store_ready_cache is True:
         return GOVERNANCE_STORE_READY
-    if _a8_store_ready_cache is False:
-        return GOVERNANCE_STORE_ABSENT
     try:
         conn = get_connection()
         try:
@@ -1644,7 +1639,7 @@ def governance_store_state() -> str:
             conn.close()
     except Exception:
         return GOVERNANCE_STORE_UNAVAILABLE
-    _a8_store_ready_cache = row is not None
+    _a8_store_ready_cache = True if row is not None else None
     from storage.db import active_default_db_path as _adp
 
     _governance_cache_db_path = _adp()
@@ -1732,14 +1727,16 @@ def writer_may_persist_text(text: str) -> bool:
 
 
 def _a8_digest_key() -> bytes:
-    global _a8_digest_key_cache, _governance_cache_db_path
-    if _a8_digest_key_cache and not _governance_cache_stale():
-        return _a8_digest_key_cache
+    global _a8_digest_key_cache
     import secrets
 
     from core.runtime_paths import data_path
 
     path = data_path("a8_digest_key.hex")
+    key_path = str(path.resolve())
+    cached = _a8_digest_key_cache
+    if cached is not None and cached[0] == key_path:
+        return cached[1]
     try:
         raw = path.read_text(encoding="utf-8").strip()
         key = bytes.fromhex(raw)
@@ -1751,11 +1748,7 @@ def _a8_digest_key() -> bytes:
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_text(key.hex(), encoding="utf-8")
         tmp.replace(path)
-    _a8_digest_key_cache = key
-    if _governance_cache_stale():
-        from storage.db import active_default_db_path as _adp
-
-        _governance_cache_db_path = _adp()
+    _a8_digest_key_cache = (key_path, key)
     return key
 
 
