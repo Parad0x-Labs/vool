@@ -1689,7 +1689,7 @@ def _conditional_setup_question(left: str, fragment: str) -> bool:
 #: list ("... in detail: A, B, C") is a DIFFERENT shape and stays one demand by its own frozen
 #: contract; this pattern only matches the comma/and enumeration without the colon.
 _COMPARISON_ATTRIBUTE_TAIL_RE = re.compile(
-    r"\s(?:on|for|across|about|in)\s+(?P<items>[a-z][a-z\s-]*(?:\s*,\s*[a-z][a-z\s-]*)*)\s*$",
+    r"\s(?:on|for|across|about|in)\s+(?P<items>[a-z][a-z\s-]*(?:,\s*[a-z][a-z\s-]*)*)$",
     re.IGNORECASE,
 )
 
@@ -1722,7 +1722,8 @@ def _comparison_attribute_spans(clause: str) -> list[tuple[int, int]] | None:
     if tail is None or tail.start() < head.end():
         return None
     items_text = str(tail.group("items") or "")
-    parts = [part.strip() for part in re.split(r"\s*,\s*|\s+and\s+", items_text) if part.strip()]
+    parts = [part.strip() for chunk in items_text.split(",")
+             for part in re.split(r"(?<=\s)and(?=\s)", chunk) if part.strip()]
     if not 2 <= len(parts) <= 8:
         return None
     for part in parts:

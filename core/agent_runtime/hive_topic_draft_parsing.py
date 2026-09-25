@@ -41,7 +41,7 @@ def extract_hive_topic_create_draft(agent: Any, text: str) -> dict[str, Any] | N
         title = re.sub(r"^.*?\bhive\b[?!.,:;-]*\s*", "", clean, flags=re.IGNORECASE)
     title = re.sub(r"^(?:name it|title|call it|called)\b\s*[:=-]?\s*", "", title, flags=re.IGNORECASE)
     title = re.sub(
-        r"^(?:(?:ok\s+)?(?:lets?|let'?s|can you|please|pls|now)\s+)*"
+        r"^(?:(?:ok\s+)?(?:let(?:s|'s)?|can you|please|pls|now)\s+)*"
         r"(?:create|make|start|open|add)\s+"
         r"(?:(?:a|the|new|hive|brain hive|this)\s+)*"
         r"(?:task|topic|thread)\s*"
