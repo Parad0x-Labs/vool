@@ -35,12 +35,29 @@ def isolated_council(tmp_path, monkeypatch):
     # keeps one test's leaked pin from reading as the next test's typed refusal.
     pin_lock.reset_on_startup()
     # A PRIOR test's run thread may still be draining (the local-seat-override convene
-    # above starts one). While it lives, _RUNS answers a fresh convene with a 409 that is
-    # about last test's run. Wait for it to end, then clear the registries either way.
-    for _ in range(100):
+    # above starts one; under a full-shard composition its unpatched seat factory can fight
+    # a dead provider for far longer than a short wait). While it lives, a fresh convene
+    # answers a 409 about LAST test's run, and the thread's finally later restores the
+    # operator pin and releases fences MID-TEST (measured: run 36079948280 shard 6, the
+    # adjudication test's convene/status answered 409/404 from a previous test's live
+    # thread; reproduced locally with the shard-6 60-file predecessor window). So the
+    # fixture stops every straggler through the product's own control first, then waits
+    # for the real exit -- and a run that still will not end is named loudly instead of
+    # being forgotten while its thread keeps interfering.
+    with council_api._LOCK:
+        stragglers = list(council_api._RUNS) + list(council_api._PAUSED)
+    for straggler in stragglers:
+        council_api.stop(straggler)
+    for _ in range(300):
         if not council_api._RUNS and not council_api._PAUSED:
             break
         time.sleep(0.05)
+    if council_api._RUNS or council_api._PAUSED:
+        still_live = sorted(council_api._RUNS) + sorted(council_api._PAUSED)
+        raise AssertionError(
+            f"a prior council run thread is still live after stop+drain: {still_live}; "
+            "its finally would restore the operator pin and release fences mid-test"
+        )
     council_api.forget_all_runs_for_tests()
 
     def _factory(base_url, dispatch_capability=""):
@@ -59,6 +76,24 @@ def isolated_council(tmp_path, monkeypatch):
 
     monkeypatch.setattr("core.council.api.live_seat_turn_factory", _factory)
     yield tmp_path
+    # TEARDOWN DRAIN FIRST, while THIS test's patches are still in force (pytest runs this
+    # post-yield block before monkeypatch undo). A run thread that outlives its test loses
+    # the stubbed factory and the patched run_store.data_path: its ledger appends then
+    # resolve data_path into the SESSION home, and under a full-shard composition each
+    # append grinds through Path.resolve slowly enough that the thread survives well past
+    # the next test's start -- its finally then restores the operator pin and releases the
+    # model-pin fence MID-TEST of the next suite (measured: run 36079948280 shard 6, the
+    # adjudication test's status polls answered 404; the thread was caught in
+    # run_store.append_event -> data_path -> Path.resolve). Stop every run this test
+    # convened through the product's own control and wait for the real thread exit.
+    with council_api._LOCK:
+        live_at_teardown = list(council_api._RUNS) + list(council_api._PAUSED)
+    for run_id in live_at_teardown:
+        council_api.stop(run_id)
+    for _ in range(300):
+        if not council_api._RUNS and not council_api._PAUSED:
+            break
+        time.sleep(0.05)
     pin_lock.reset_on_startup()
 
 
