@@ -1,13 +1,15 @@
 """The strict service rig's stop() must actually TERMINATE its server, not merely return.
 
-Bounded containment without a postcondition proof is a hidden leak (run 36063857499 shard 1:
-teardown sat 26 minutes inside socketserver.shutdown()'s unbounded Event.wait). These tests pin
-the postconditions the rig owes every borrower: stop() returns promptly, the serve THREAD is
-dead, the port no longer ACCEPTS, and a fresh server of the rig's own class rebinds it at once.
+stop() is deliberately non-blocking (a full CI shard's thread contention was measured
+stretching even bounded joins past 600s -- runs 36063857499 shard 1 and 36079948280
+shard 8), so THESE tests carry the proof: after stop(), within a bounded poll, the serve
+thread is dead, the port no longer accepts, and a fresh server of the rig's own class
+rebinds it immediately.
 """
 from __future__ import annotations
 
 import json
+import socket
 import time
 from http.server import ThreadingHTTPServer
 from urllib.request import urlopen
@@ -17,6 +19,19 @@ from tests.usepod.strict_usepod_service import StrictUsePodService
 
 def _service() -> StrictUsePodService:
     return StrictUsePodService(tokens={}, models={}).start()
+
+
+def _port_accepts(port: int) -> bool:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.settimeout(1.0)
+    try:
+        try:
+            probe.connect(("127.0.0.1", port))
+        except (ConnectionRefusedError, OSError):
+            return False
+        return True
+    finally:
+        probe.close()
 
 
 def test_stop_terminates_the_server_and_releases_the_port() -> None:
@@ -31,32 +46,21 @@ def test_stop_terminates_the_server_and_releases_the_port() -> None:
 
     started = time.monotonic()
     service.stop()
-    stopped_in = time.monotonic() - started
+    assert time.monotonic() - started < 2.0, "stop() must not block on thread scheduling"
 
+    # Bounded proof poll: the serve loop observes the shutdown flag on its next poll
+    # interval; a port that still accepts or a thread still alive past this bound is a
+    # real leak, not a scheduling artifact.
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline and (serve_thread.is_alive() or _port_accepts(port)):
+        time.sleep(0.1)
     assert not serve_thread.is_alive(), "the serve thread must be dead after stop()"
-    assert stopped_in < 10.0, f"stop() took {stopped_in:.1f}s; the bound is being ignored"
-
-    # Listener gone: a connect to the port is REFUSED. A bare bind() without SO_REUSEADDR
-    # would conflate TIME_WAIT residue from the served request with a live listener, so the
-    # refusal is the semantic proof that nothing accepts on this port anymore.
-    import socket
-
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.settimeout(2.0)
-    try:
-        try:
-            probe.connect(("127.0.0.1", port))
-        except ConnectionRefusedError:
-            pass
-        else:
-            raise AssertionError(f"port {port} still accepts connections after stop()")
-    finally:
-        probe.close()
+    assert not _port_accepts(port), f"port {port} still accepts connections after stop()"
 
     # Release in the rig's own reuse semantics: ThreadingHTTPServer sets allow_reuse_address,
     # so a fresh server of the same class binds the same port immediately.
     class _Noop:
-        def handle_request(self):  # never used; construction is the assertion
+        def process_request(self, *args):  # never used; construction is the assertion
             raise AssertionError("unreachable")
 
     replacement = ThreadingHTTPServer(("127.0.0.1", port), type(_Noop))
@@ -69,6 +73,10 @@ def test_stop_terminates_the_server_and_releases_the_port() -> None:
 def test_the_lifecycle_is_repeatable_back_to_back() -> None:
     first = _service()
     first.stop()
+
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline and first._thread.is_alive():
+        time.sleep(0.1)
     assert not first._thread.is_alive()
 
     second = _service()
@@ -77,4 +85,7 @@ def test_the_lifecycle_is_repeatable_back_to_back() -> None:
         assert second.requests == []
     finally:
         second.stop()
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline and second._thread.is_alive():
+        time.sleep(0.1)
     assert not second._thread.is_alive()

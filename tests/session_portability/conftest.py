@@ -23,6 +23,12 @@ def _clean_attachment_stage_and_meta():
         if path.is_file():
             path.unlink()
     yield
+    # The profile store is PROCESS-shared (the root conftest's test DB), and this lane's
+    # support.seed_profile_item writes a real row into it. Forget what was seeded through
+    # the profile's own authority so no later suite's turn bootstrap sees it.
+    from tests.session_portability import support as _support
+
+    _support.forget_seeded_profile_items()
 
 
 @pytest.fixture()

@@ -170,17 +170,43 @@ def seed_attachment(session_id: str = SESSION) -> dict[str, Any]:
     return bound[0] if bound else staged
 
 
-def seed_profile_item(session_id: str = SESSION) -> None:
-    """Remember one operator profile item sourced from this session."""
+#: Items this module seeded into the PROCESS-SHARED test profile store, in order, so the
+#: package conftest can forget them through the profile's own authority at test teardown.
+#: Without this, the seeded "response style" row survives into every LATER suite in the same
+#: pytest process: a later turn's bootstrap hydration then enriches its source_context with
+#: profile_context_lines/profile_used, and any exact-shape assertion on that context fails
+#: (measured: run 36079948280 shard 4, test_memory_fast_path_receives_lossless_user_text).
+_SEEDED_PROFILE_ITEMS: list[str] = []
+
+
+def seed_profile_item(session_id: str = SESSION) -> str:
+    """Remember one operator profile item sourced from this session; returns its item id."""
     from core.operator_profile import remember
 
-    remember(
+    change = remember(
         "owner_local",
         "response_style",
         "concise, no preamble",
         session_id=session_id,
         actor="pytest",
     )
+    item_id = str(getattr(change.item, "item_id", "") or "") if change.item else ""
+    if item_id:
+        _SEEDED_PROFILE_ITEMS.append(item_id)
+    return item_id
+
+
+def forget_seeded_profile_items() -> None:
+    """Forget everything seed_profile_item put into the shared store, through forget_item."""
+    from core.operator_profile import forget_item, reset_table_cache_for_tests
+
+    while _SEEDED_PROFILE_ITEMS:
+        item_id = _SEEDED_PROFILE_ITEMS.pop()
+        try:
+            forget_item(item_id, actor="pytest", reason="test cleanup")
+        except Exception:
+            pass  # an already-forgotten or refused item is the clean end-state
+    reset_table_cache_for_tests()
 
 
 def seed_foreign_session() -> None:
