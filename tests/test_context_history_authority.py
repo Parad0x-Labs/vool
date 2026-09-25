@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest import mock
 from uuid import uuid4
 
 import pytest
@@ -843,8 +845,12 @@ def _api_to_internal_request(current: str):
         "surface": "api",
         "source_context": source_context,
     }
-    internal = normalize_prompt(trace_id=task.task_id, **kwargs)
-    provider_request = MemoryFirstRouter()._build_request(**kwargs)
+    # These independent builds must receive the same clock input. A minute
+    # rollover between them changes the system prompt without changing history.
+    with mock.patch("core.prompt_normalizer.datetime", wraps=datetime) as clock:
+        clock.now.return_value = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
+        internal = normalize_prompt(trace_id=task.task_id, **kwargs)
+        provider_request = MemoryFirstRouter()._build_request(**kwargs)
     return internal, provider_request, interpretation
 
 
