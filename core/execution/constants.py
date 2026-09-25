@@ -1832,11 +1832,11 @@ _START_CODE_MARKERS = (
     "bootstrap",
 )
 _NAMED_PATH_RE = re.compile(
-    r"(?:named?|called|call)\s+(?:it\s+)?[`\"']?(?P<path>[A-Za-z0-9_./-]+(?:/[A-Za-z0-9_./-]+)*)[`\"']?",
+    r"(?:named?|called|call)\s+(?:it\s+)?[`\"']?(?P<path>[A-Za-z0-9_./-]+)[`\"']?",
     re.IGNORECASE,
 )
 _VERB_NAME_FOLDER_RE = re.compile(
-    r"\b(?:create|make|crate|creat|mkdir)\s+(?:the\s+|a\s+|an\s+)?(?P<path>[A-Za-z0-9_./-]+(?:/[A-Za-z0-9_./-]+)*)\s+(?:folder|directory|dir)\b",
+    r"\b(?:create|make|crate|creat|mkdir)\s+(?:the\s+|a\s+|an\s+)?(?P<path>[A-Za-z0-9_./-]+)\s+(?:folder|directory|dir)\b",
     re.IGNORECASE,
 )
 _FOLDER_PATH_RE = re.compile(
@@ -1844,11 +1844,11 @@ _FOLDER_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 _CREATE_PATH_RE = re.compile(
-    r"\b(?:create|make|setup|set up|bootstrap|mkdir)\s+(?P<path>[A-Za-z0-9_./-]+(?:/[A-Za-z0-9_./-]+)*)\b",
+    r"\b(?:create|make|setup|set up|bootstrap|mkdir)\s+(?P<path>[A-Za-z0-9_./-]+)\b",
     re.IGNORECASE,
 )
 _INTO_PATH_RE = re.compile(
-    r"\b(?:in|under|inside)\s+[`\"']?(?P<path>[A-Za-z0-9_./-]+(?:/[A-Za-z0-9_./-]+)*)[`\"']?",
+    r"\b(?:in|under|inside)\s+[`\"']?(?P<path>[A-Za-z0-9_./-]+)[`\"']?",
     re.IGNORECASE,
 )
 # The write-demand grammar was RETIRED into core/execution/write_demand.py — the one typed

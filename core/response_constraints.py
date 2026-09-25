@@ -18,7 +18,7 @@ from core.turn_ir import ResponseConstraint, parse_turn_ir
 # one word by any reading a user would give it, and "2026-08-15" already counted as one.
 # Measured: without this, no clock value can satisfy "answer in exactly one word" -- the
 # runtime declines a question it can answer correctly, and a weaker lane replies "15".
-_WORD_RE = re.compile(r"\b[\w'-]+(?::\d+[\w'-]*)*\b", re.UNICODE)
+_WORD_RE = re.compile(r"\b[\w'-]+(?::\d[\w'-]*)*\b", re.UNICODE)
 _SENTENCE_RE = re.compile(r"[^.!?]+(?:[.!?]+|$)", re.MULTILINE)
 # An enumeration marker ends in `.` and so satisfies `_SENTENCE_RE` on its own. Counting it as a
 # sentence is what produced the v0.5.0 smoke failure (QA-050-016/017/021): a three-part answer under

@@ -20,7 +20,7 @@ from typing import Any
 # seed 5150): the clock lane declined "what time is it in berlin Output exactly one word. asap"
 # because 03:12 failed a one-word contract it satisfied, and a model then answered 13:12 for a
 # city where it was 03:12.
-_WORD_RE = re.compile(r"\b[\w'-]+(?::\d+[\w'-]*)*\b", re.UNICODE)
+_WORD_RE = re.compile(r"\b[\w'-]+(?::\d[\w'-]*)*\b", re.UNICODE)
 _SENTENCE_RE = re.compile(r"[^.!?]+(?:[.!?]+|$)", re.MULTILINE)
 _COUNT_WORDS = {
     "one": 1,
