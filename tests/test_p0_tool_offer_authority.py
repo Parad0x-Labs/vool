@@ -25,6 +25,22 @@ from core.runtime_tool_contracts import runtime_tool_contract_map
 _STUB_MCP = str(Path(__file__).parent / "mcp_stub_server.py")
 
 
+@pytest.fixture(autouse=True)
+def _isolated_permission_registry():
+    """decide_tool_call raises a PENDING approval prompt into the PROCESS-GLOBAL
+    mode/permission registry; one left behind hijacks a later suite's approval
+    auto-resolve (its rig resolves the stale token, the real approval stays pending,
+    the turn pauses as pending_approval, no transcript row is written, and
+    first-run-pact claims fail evidence_missing -- the leak class measured across
+    runs 35886493542/36063857499). Same setup/teardown discipline as the other
+    permission-touching suites."""
+    from core.mode_permission_policy import reset_mode_permission_state
+
+    reset_mode_permission_state()
+    yield
+    reset_mode_permission_state()
+
+
 def _intents(specs: list[dict]) -> set[str]:
     return {str(s.get("intent") or "") for s in specs}
 
@@ -247,6 +263,16 @@ def _plugin_registered(tmp_path, monkeypatch):
     )
     tool_registry.reset()
     monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path))
+    # The plugin loader is ONE-SHOT per process (capability_graph._PLUGINS_LOADED): a suite that
+    # read any spec with plugin_runtime_tools on already loaded whatever plugins root existed
+    # then, and this fixture's own pack would never register -- the victim then seats only the
+    # builtin catalog (measured: run 36063857499 shard 7; reproduced locally with
+    # test_native_skill_library.py before this change). Reset the graph/loader state on ENTRY,
+    # the same reset the teardown below performs on exit, so this pack loads whatever ran before.
+    from core import capability_graph
+
+    capability_graph.reset()
+    capability_graph.init_graph()
     # Writing the manifest is DISCOVERY. The pack reaches the model's catalog only after the
     # lifecycle says installed, verified and enabled -- so the fixture performs those acts
     # instead of the census asserting on a pack nobody installed.

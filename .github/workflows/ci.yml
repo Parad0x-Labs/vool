@@ -381,6 +381,14 @@ jobs:
       - name: Lint
         run: python -m ruff check .
       - name: Bounded CI regressions and stall-region diagnostic
+        # The blocks after transport_large_payload are the ORDER-DEPENDENCE regression windows
+        # isolated from full run 36063857499's red shards: the Windows-simulation tests sit
+        # behind their exact CI predecessors (global os.name flips used to poison pytest's
+        # failure formatter -- now replaced by narrow per-module platform seams), the
+        # permission-prompt polluters sit before the first-run-pact victims they used to
+        # starve of transcript rows (evidence_missing), and the strict-service lifecycle
+        # proof pins the bounded stop's postconditions. Keeping the ordering preserves the
+        # composition each repair was proven against.
         run: >-
           python ops/pytest_watchdog.py --phase-timeout 120
           --output .verification-logs/focused-watchdog
@@ -392,6 +400,33 @@ jobs:
           tests/test_every_response_says_what_produced_it.py
           tests/pa_beta_gate/test_popular_provider_adapters.py
           tests/test_transport_large_payload.py
+          tests/test_paid_pin_price_acceptance_reuse.py
+          tests/test_code_task_terminal_completion.py
+          tests/test_toolsmith_repair_file_modes.py
+          tests/test_pasted_content_is_the_target_not_the_disk.py
+          tests/test_a_read_verb_in_authored_code_is_not_a_fetch.py
+          tests/test_adjudication_fulfillment.py
+          tests/test_isolated_proof_root_is_capability_bound.py
+          tests/test_shared_predicate_coordination_is_one_demand.py
+          tests/test_forge_v4_permission_review.py
+          tests/updater/test_trust_manifest.py
+          tests/test_bundle_tooling.py
+          tests/test_round007_setter_ack_states_the_value.py
+          tests/test_chat_page_cloud_pill.py
+          tests/test_local_model_door_and_probe_measurement.py
+          tests/test_fresh_home_startup_smoke.py
+          tests/test_runtime_model_gauntlet_additive_fixtures.py
+          tests/test_kernel_tier6_reconciliation.py
+          tests/test_round001_compose_transport_plaintext.py
+          tests/test_think_harder.py
+          tests/test_code_step_concrete_schema.py
+          tests/test_attempt_claim_refused_reporting.py
+          tests/test_start_windows_detached.py
+          tests/test_job_runner.py
+          tests/native_skills/test_native_selection.py
+          tests/test_first_run_pact_restart_multiplicity.py
+          tests/test_p0_tool_offer_authority.py
+          tests/usepod/test_strict_service_lifecycle.py
       - name: Upload focused diagnostics
         if: always()
         uses: actions/upload-artifact@v7

@@ -203,7 +203,10 @@ class JobRunnerTests(unittest.TestCase):
                     network_isolation_mode="auto",
                 )
             )
-            with patch("sandbox.job_runner.os.name", "nt"), patch(
+            # The narrow platform seam, never the global os.name: pathlib dispatches on os.name
+            # at Path() construction, so a global flip poisons every other Path in the process
+            # -- including pytest's own failure formatter (run 36063857499 shards 5/9).
+            with patch("sandbox.job_runner._is_windows_platform", return_value=True), patch(
                 "sandbox.job_runner.sys.platform", "win32"
             ), patch("sandbox.job_runner.shutil.which", return_value=None):
                 message = runner._no_kernel_isolation_message()

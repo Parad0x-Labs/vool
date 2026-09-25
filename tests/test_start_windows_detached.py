@@ -23,7 +23,10 @@ def test_wrap_command_leaves_executables_unchanged() -> None:
 
 
 def test_wrap_command_wraps_batch_launchers_on_windows(monkeypatch) -> None:
-    monkeypatch.setattr("installer.start_windows_detached.os.name", "nt")
+    # The narrow platform seam, never the global os.name: pathlib dispatches on os.name at
+    # Path() construction, so a global flip poisons every other Path in the process --
+    # including pytest's own failure formatter (run 36063857499 shards 5/9).
+    monkeypatch.setattr(start_windows_detached, "_is_windows_platform", lambda: True)
     monkeypatch.setenv("COMSPEC", "C:\\Windows\\System32\\cmd.exe")
 
     assert _wrap_command_for_windows(["C:\\Users\\test\\.local\\bin\\openclaw.cmd", "gateway", "run"]) == [
@@ -36,7 +39,7 @@ def test_wrap_command_wraps_batch_launchers_on_windows(monkeypatch) -> None:
 
 
 def test_creationflags_hide_windows_on_windows(monkeypatch) -> None:
-    monkeypatch.setattr("installer.start_windows_detached.os.name", "nt")
+    monkeypatch.setattr(start_windows_detached, "_is_windows_platform", lambda: True)
 
     assert _creationflags(include_breakaway=False) == (
         DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
