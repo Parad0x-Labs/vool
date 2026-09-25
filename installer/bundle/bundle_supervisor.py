@@ -18,6 +18,17 @@ _STARTUP_TIMEOUT_SECONDS = 60.0
 _MAX_BACKOFF_SECONDS = 30.0
 
 
+def _is_windows_platform() -> bool:
+    """Indirection over ``os.name == "nt"`` so tests can simulate "running on Windows" for one
+    call without mutating the real ``os.name`` -- ``pathlib.Path`` itself branches on ``os.name``
+    to choose ``WindowsPath``/``PosixPath``, so patching the global attribute directly breaks
+    every OTHER ``Path(...)`` construction for the duration of the patch, including ones made
+    deep inside pytest's own failure reporting (measured: full run 36063857499 shard 5 died with
+    ``cannot instantiate 'WindowsPath'`` inside ``_pytest``'s traceback formatter while rendering
+    an assertion failure, because a test had flipped the global)."""
+    return os.name == "nt"
+
+
 class BundleSupervisor:
     def __init__(self, root: Path, *, env: dict[str, str] | None = None) -> None:
         self.root = root.resolve()
@@ -117,7 +128,7 @@ class BundleSupervisor:
                 handle.write(b"0")
                 handle.flush()
             handle.seek(0)
-            if os.name == "nt":
+            if _is_windows_platform():
                 import msvcrt
 
                 msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
@@ -142,7 +153,7 @@ class BundleSupervisor:
             return
         with contextlib.suppress(ImportError, OSError):
             handle.seek(0)
-            if os.name == "nt":
+            if _is_windows_platform():
                 import msvcrt
 
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
@@ -185,7 +196,7 @@ class BundleSupervisor:
         log_path = self.log_dir / f"{name}.log"
         handle = log_path.open("ab")
         creationflags = 0
-        if os.name == "nt":
+        if _is_windows_platform():
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
                 subprocess, "CREATE_NEW_PROCESS_GROUP", 0
             )
@@ -228,7 +239,7 @@ class BundleSupervisor:
         handle = self.handles.pop(name, None)
         if child is not None and child.poll() is None:
             try:
-                if os.name == "nt":
+                if _is_windows_platform():
                     completed = subprocess.run(
                         ["taskkill.exe", "/PID", str(child.pid), "/T", "/F"],
                         stdin=subprocess.DEVNULL,
@@ -293,7 +304,7 @@ class BundleSupervisor:
 
     def _clear_stale_api_processes(self) -> None:
         """Stop only stale VOOL API Python processes before a bundle API start on Windows."""
-        if os.name != "nt":
+        if not _is_windows_platform():
             return
         command = (
             "Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | "

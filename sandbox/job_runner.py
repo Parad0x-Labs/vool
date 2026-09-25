@@ -26,6 +26,18 @@ from sandbox.resource_limits import (
 _HARDLINK_SCAN_FILE_LIMIT = 200_000
 
 
+
+def _is_windows_platform() -> bool:
+    """Indirection over ``os.name == "nt"`` so tests can simulate "running on Windows" for one
+    call without mutating the real ``os.name`` -- ``pathlib.Path`` itself branches on ``os.name``
+    to choose ``WindowsPath``/``PosixPath``, so patching the global attribute directly breaks
+    every OTHER ``Path(...)`` construction for the duration of the patch, including ones made
+    deep inside pytest's own failure reporting (measured: full run 36063857499 shards 5/9 died
+    with ``cannot instantiate 'WindowsPath'`` inside ``_pytest``'s traceback formatter while
+    rendering an assertion failure, because a test had flipped the global)."""
+    return os.name == "nt"
+
+
 class _JobCancelledError(Exception):
     """Internal: the cancel event fired while the job was running."""
 
@@ -325,7 +337,7 @@ def _terminate_process_group(process: subprocess.Popen, *, only_if_populated: bo
     signalling the group is a no-op unless something it spawned is still there. `ProcessLookup`
     means the group is empty, which is the outcome this function exists to produce.
     """
-    if os.name == "nt":  # pragma: no cover - no process groups of this shape on Windows
+    if _is_windows_platform():  # pragma: no cover - no process groups of this shape on Windows
         with contextlib.suppress(Exception):
             process.kill()
         return
@@ -616,7 +628,7 @@ class JobRunner:
             "ship util-linux but deny the namespace syscall, so each backend is probed for whether "
             "it actually runs, not merely for whether it is on PATH."
         )
-        if os.name == "nt":
+        if _is_windows_platform():
             # Native Windows has no kernel network-namespace backend, so a
             # no-network job fails closed here. Name the two real options so the
             # operator can make an informed choice instead of guessing.

@@ -150,17 +150,25 @@ class StrictUsePodService:
         return self
 
     def stop(self) -> None:
-        # shutdown() waits on the serve loop's shutdown event with NO timeout. A serve
-        # thread that stops observing its loop hangs the whole teardown: measured, full
-        # run 36063857499 shard 1 -- a 6.25s-measured file's teardown sat 26 minutes in
-        # socketserver.shutdown()'s Event.wait while the serve thread stayed in select.
-        # Bound the wait: a server that will not stop cleanly is closed anyway, and the
-        # daemon serve thread dies with the process instead of stalling the shard.
+        # socketserver.shutdown() waits on the serve loop's shutdown event with NO timeout.
+        # A serve thread that stops observing the loop hangs the whole teardown: measured,
+        # full run 36063857499 shard 1 -- a 6.25s-measured file's teardown sat 26 minutes in
+        # shutdown()'s Event.wait while the serve thread stayed parked in select. The stop is
+        # bounded and PROVES its postconditions: after the close, a serve thread that somehow
+        # survived is named loudly instead of leaking silently. (Why the loop stopped
+        # observing the request remains unproven -- plausibly extreme thread contention in the
+        # 35k-test shard process; this is bounded containment at the rig, not a root-cause fix.)
         stopper = threading.Thread(target=self._server.shutdown, daemon=True)
         stopper.start()
         stopper.join(timeout=10.0)
-        self._thread.join(timeout=5.0)
         self._server.server_close()
+        self._thread.join(timeout=5.0)
+        if self._thread.is_alive():
+            raise RuntimeError(
+                "StrictUsePodService serve thread is still alive after stop(): the listening "
+                "socket is closed, so its loop should have exited; a surviving thread means the "
+                "stop did not actually terminate the server"
+            )
 
     def __enter__(self) -> StrictUsePodService:
         return self.start()

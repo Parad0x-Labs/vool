@@ -128,7 +128,10 @@ def test_bundle_supervisor_stops_the_windows_process_tree(tmp_path, monkeypatch)
     child.poll.return_value = None
     child.wait.return_value = 0
     supervisor.processes["ollama"] = child
-    monkeypatch.setattr(bundle_supervisor.os, "name", "nt")
+    # The narrow platform seam, never the global os.name: pathlib dispatches on os.name at
+    # Path() construction, so a global flip poisons every other Path in the process --
+    # including pytest's own failure formatter (run 36063857499 shard 5).
+    monkeypatch.setattr(bundle_supervisor, "_is_windows_platform", lambda: True)
 
     with mock.patch(
         "installer.bundle.bundle_supervisor.subprocess.run",
@@ -196,7 +199,7 @@ def test_bundle_supervisor_clears_stale_api_processes_before_bundle_start(tmp_pa
     home = tmp_path / "home"
     supervisor = BundleSupervisor(root, env={"VOOL_HOME": str(home)})
     supervisor._prepare()
-    monkeypatch.setattr(bundle_supervisor.os, "name", "nt")
+    monkeypatch.setattr(bundle_supervisor, "_is_windows_platform", lambda: True)
 
     with mock.patch.object(supervisor, "_health_probe", return_value=False), mock.patch.object(
         supervisor, "_start"

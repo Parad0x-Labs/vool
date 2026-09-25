@@ -14,8 +14,19 @@ CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 CREATE_NO_WINDOW = 0x08000000
 
 
+def _is_windows_platform() -> bool:
+    """Indirection over ``os.name == "nt"`` so tests can simulate "running on Windows" for one
+    call without mutating the real ``os.name`` -- ``pathlib.Path`` itself branches on ``os.name``
+    to choose ``WindowsPath``/``PosixPath``, so patching the global attribute directly breaks
+    every OTHER ``Path(...)`` construction for the duration of the patch, including ones made
+    deep inside pytest's own failure reporting (measured: full run 36063857499 shards 5/9 died
+    with ``cannot instantiate 'WindowsPath'`` inside ``_pytest``'s traceback formatter while
+    rendering an assertion failure, because a test had flipped the global)."""
+    return os.name == "nt"
+
+
 def _wrap_command_for_windows(command: list[str]) -> list[str]:
-    if os.name != "nt" or not command:
+    if not _is_windows_platform() or not command:
         return command
     # Use os.path (string-only) rather than Path(command[0]).suffix here. When a
     # POSIX test fakes os.name="nt", pathlib.Path resolves to WindowsPath, which
@@ -29,7 +40,7 @@ def _wrap_command_for_windows(command: list[str]) -> list[str]:
 
 
 def _creationflags(*, include_breakaway: bool) -> int:
-    if os.name != "nt":
+    if not _is_windows_platform():
         return 0
     flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
     if include_breakaway:
@@ -67,7 +78,7 @@ def start_detached(*, command: list[str], cwd: str, stdout_path: str, stderr_pat
             "env": os.environ.copy(),
         }
         startupinfo_factory = getattr(subprocess, "STARTUPINFO", None)
-        if os.name == "nt" and startupinfo_factory is not None:
+        if _is_windows_platform() and startupinfo_factory is not None:
             startupinfo = startupinfo_factory()
             startupinfo.dwFlags |= getattr(subprocess, "STARTF_USESHOWWINDOW", 1)
             startupinfo.wShowWindow = 0
@@ -79,7 +90,7 @@ def start_detached(*, command: list[str], cwd: str, stdout_path: str, stderr_pat
                 **kwargs,
             )
         except OSError as exc:
-            if os.name != "nt" or getattr(exc, "winerror", None) != 5:
+            if not _is_windows_platform() or getattr(exc, "winerror", None) != 5:
                 raise
             process = subprocess.Popen(
                 wrapped,
