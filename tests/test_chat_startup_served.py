@@ -131,16 +131,39 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                 assert not errors, errors
                 # A hung model-selection read must neither dispatch nor trap
                 # the composer. Exercise the actual timeout and Stop button.
+                # Keep the real queue-claim request pending long enough to exercise
+                # the previous terminal run coexisting with a new composer action.
+                page.evaluate("""() => {
+                    const original = queueOp;
+                    queueOp = async function(op, chatId, extra) {
+                        if (op === 'claim') await new Promise(resolve => setTimeout(resolve, 750));
+                        return original(op, chatId, extra);
+                    };
+                    pumpQueue(displayedChat);
+                }""")
                 held = []
                 page.route("**/api/cloud/model?*", lambda route: held.append(route))
                 for cancel in (False, True):
+                    # A released run can still own a pending queue claim. Do not
+                    # mistake that run's terminal status for this button press.
+                    page.wait_for_function("!isChatBusy(displayedChat)", timeout=5000)
+                    previous_turn = page.evaluate("view.run && view.run.turnId")
                     before = len(sends)
+                    held_before = len(held)
                     page.locator("#input").fill("Hi")
                     started = time.monotonic()
                     page.locator("#send").click()
+                    page.wait_for_function(
+                        "previous => view.run && view.run.turnId !== previous && !view.run.released",
+                        arg=previous_turn, timeout=5000,
+                    )
                     if cancel:
-                        page.locator(".tc-stop").last.click()
-                    page.wait_for_function("view.run && view.run.released", timeout=7000)
+                        page.locator(".tc-stop").last.click(timeout=5000)
+                    page.wait_for_function(
+                        "previous => view.run && view.run.turnId !== previous && view.run.released",
+                        arg=previous_turn, timeout=7000,
+                    )
+                    assert len(held) > held_before, "model-selection fault was never exercised"
                     state = page.evaluate("({status:view.run.status,error:view.run.error})")
                     assert state["status"] == ("cancelled" if cancel else "failed"), state
                     if not cancel:
