@@ -150,25 +150,23 @@ class StrictUsePodService:
         return self
 
     def stop(self) -> None:
-        # socketserver.shutdown() waits on the serve loop's shutdown event with NO timeout.
-        # A serve thread that stops observing the loop hangs the whole teardown: measured,
-        # full run 36063857499 shard 1 -- a 6.25s-measured file's teardown sat 26 minutes in
-        # shutdown()'s Event.wait while the serve thread stayed parked in select. The stop is
-        # bounded and PROVES its postconditions: after the close, a serve thread that somehow
-        # survived is named loudly instead of leaking silently. (Why the loop stopped
-        # observing the request remains unproven -- plausibly extreme thread contention in the
-        # 35k-test shard process; this is bounded containment at the rig, not a root-cause fix.)
+        # socketserver.shutdown() waits on the serve loop's shutdown event with NO timeout
+        # (measured: full run 36063857499 shard 1 -- a 6.25s-measured file's teardown sat 26
+        # minutes in that Event.wait). Bounding the waits was NOT enough either: under the
+        # thread contention of a full CI shard (hundreds of residual test threads), even a
+        # 5s-bounded join was measured stretched past 600s because every GIL reacquisition
+        # after a blocking call is starved (run 36079948280 shard 8: main parked in
+        # thread.join at the watchdog kill while the serve thread sat healthy in select).
+        # So stop() performs NO blocking synchronization at all: the shutdown request runs
+        # on its own daemon thread, and the LISTENING SOCKET -- the resource any later
+        # server needs -- is closed synchronously here. A serve loop still in select sees
+        # the shutdown flag on its next 0.5s poll and exits (shutdown() sets the flag
+        # before its wait; the loop never touches the closed socket). Termination and port
+        # release are PROVEN by tests/test_strict_service_lifecycle.py, which polls
+        # bounded for the thread's death and the port's refusal in a healthy process.
         stopper = threading.Thread(target=self._server.shutdown, daemon=True)
         stopper.start()
-        stopper.join(timeout=10.0)
         self._server.server_close()
-        self._thread.join(timeout=5.0)
-        if self._thread.is_alive():
-            raise RuntimeError(
-                "StrictUsePodService serve thread is still alive after stop(): the listening "
-                "socket is closed, so its loop should have exited; a surviving thread means the "
-                "stop did not actually terminate the server"
-            )
 
     def __enter__(self) -> StrictUsePodService:
         return self.start()
