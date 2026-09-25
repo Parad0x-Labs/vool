@@ -261,7 +261,7 @@ class UDPTransportServer:
     def __init__(
         self,
         *,
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",
         port: int = 49152,
         on_message: Callable[[bytes, tuple[str, int]], None] | None = None,
     ) -> None:
@@ -284,6 +284,9 @@ class UDPTransportServer:
         self._stop = threading.Event()
 
     def start(self) -> TransportRuntime:
+        from core.runtime_mode import checked_research_listener_host
+
+        self.host = checked_research_listener_host(self.host)
         if self._thread and self._thread.is_alive():
             return TransportRuntime(
                 self.host,
@@ -414,6 +417,9 @@ class UDPTransportServer:
         raise bind_err
 
     def _bind_ephemeral_pair(self) -> tuple[socket.socket, StreamTransportServer, StreamEndpoint]:
+        from core.runtime_mode import checked_research_listener_host
+
+        self.host = checked_research_listener_host(self.host)
         last_error: Exception | None = None
         for _attempt in range(_EPHEMERAL_PAIR_RETRIES):
             stream_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
