@@ -131,6 +131,21 @@ def report_observations(tmp_path_factory) -> dict[str, dict[str, Any]]:
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("VOOL_BLACKBOX_DIR", str(base / "blackbox"))
         patch.setenv("VOOL_CODE_TASK_DIR", str(base / "code_tasks"))
+        # This module-scoped fixture runs its whole scenario at SETUP, BEFORE the
+        # function-scoped autouse fixtures pin VOOL_BLACKBOX_CAS_KEYS_FILE for the first
+        # test of the module. Left ambient, the CAS keyring resolves through the
+        # credential vault, whose availability depends on the signer state earlier tests
+        # leave behind -- and the recorder fails CLOSED (blackbox_key_unavailable) when
+        # that resolution fails. Measured: CI run 36265150283/36268704787/36272309227
+        # shard tests(3), all 15 nodes errored at this fixture's first step after the
+        # file-count change moved this module into a new shard neighborhood. Minting the
+        # module's own key file (the conftest fixture's own discipline, same keyring
+        # schema and crypto) makes setup independent of what any predecessor did.
+        from core.blackbox.coverage.cas_keys import CasKeyring
+
+        keys_file = base / "blackbox-cas-keys.json"
+        keys_file.write_text(CasKeyring.mint().to_json(), encoding="utf-8")
+        patch.setenv("VOOL_BLACKBOX_CAS_KEYS_FILE", str(keys_file))
         reset_mode_permission_state()
         code_task_runtime().reset()
         try:

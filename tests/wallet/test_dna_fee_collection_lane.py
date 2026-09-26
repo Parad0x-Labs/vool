@@ -44,6 +44,15 @@ def lane(monkeypatch, tmp_path):
     configure_runtime_continuity_db_path(active_default_db_path())
     from core import effect_budget, runtime_paths
 
+    # configure_runtime_home is a PROCESS-GLOBAL pin that monkeypatch cannot undo; left
+    # unset at teardown it outlived this fixture and every later test in the shard resolved
+    # the runtime home into this dead tmp dir (measured: the permission restart test's
+    # child read the session home while its parent's grant mirror landed here -- CI runs
+    # 36265150283/36268704787/36272309227, shard tests(3), three identical failures). The
+    # override STATE is captured per seam, not its resolved value, so a dynamic original
+    # stays dynamic (the usepod money-law rig's own discipline).
+    _previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
+    _previous_db_override = active_default_db_path()
     effect_budget.reset_effect_budget_process_state()
     home = tmp_path / "home"
     home.mkdir()
@@ -72,12 +81,15 @@ def lane(monkeypatch, tmp_path):
         node.create_mint(USDC_MAINNET_MINT, decimals=6)
         node.fund_sol(treasury, 5_000_000)
         node.open_token_account(treasury, USDC_MAINNET_MINT)
-        yield type("Lane", (), {"node": node, "treasury": treasury, "monkeypatch": monkeypatch})()
-    chains.invalidate_chain_identity()
-    store_module.reset_default_store()
-    wallet_api.reset_caller_binding_for_tests()
-    effect_budget.reset_effect_budget_process_state()
-    configure_default_db_path(None)
+        try:
+            yield type("Lane", (), {"node": node, "treasury": treasury, "monkeypatch": monkeypatch})()
+        finally:
+            chains.invalidate_chain_identity()
+            store_module.reset_default_store()
+            wallet_api.reset_caller_binding_for_tests()
+            effect_budget.reset_effect_budget_process_state()
+            runtime_paths.configure_runtime_home(_previous_home_override)
+            configure_default_db_path(_previous_db_override)
 
 
 def _payer(node, *, lamports: int = 20_000_000, usdc: int = 5_000_000) -> dict:
