@@ -106,3 +106,68 @@ def test_digest_key_reload_follows_the_runtime_home_authority(homes, monkeypatch
     configure_runtime_home(None)  # fall back to the environment home authority
     monkeypatch.setenv("VOOL_HOME", str(homes("one")))
     assert fin._a8_digest_key() == first
+
+
+def test_concurrent_key_loads_across_home_switches_leave_a_coherent_cache(homes):
+    """Identity and key must publish as ONE value. Two separate globals would
+    let interleaved loaders across a home switch store one home's key with the
+    other home's token, after which every governed read computes tombstone
+    digests under the wrong profile's key — and that home's ERASED tombstones
+    stop matching, which is the fail-open direction. Stress the interleaving
+    and require the quiescent cache to serve exactly the active home's key."""
+    import threading
+
+    from core.runtime_paths import runtime_home_generation
+
+    home_one, home_two = homes("one"), homes("two")
+    for home in (home_one, home_two):
+        configure_runtime_home(home)
+        fin._a8_digest_key()  # first load creates the key file
+    keys = {}
+    for home in (home_one, home_two):
+        keys[home] = bytes.fromhex(
+            (home / "data" / "a8_digest_key.hex").read_text(encoding="utf-8").strip()
+        )
+    fin.reset_governance_readiness_for_tests()
+    stop = threading.Event()
+    switches = 0
+
+    def switcher():
+        nonlocal switches
+        while not stop.is_set():
+            configure_runtime_home(home_one)
+            configure_runtime_home(home_two)
+            switches += 1
+
+    def loader():
+        while not stop.is_set():
+            fin._a8_digest_key()
+
+    workers = [threading.Thread(target=loader) for _ in range(3)]
+    workers.append(threading.Thread(target=switcher))
+    for worker in workers:
+        worker.start()
+    import time as _time
+
+    _time.sleep(0.25)
+    stop.set()
+    for worker in workers:
+        worker.join(timeout=5)
+    assert not any(worker.is_alive() for worker in workers)
+    assert switches > 0, "the switcher never ran; the race was not exercised"
+
+    # Quiescent coherence: the served key is the one whose home token matches
+    # the CURRENT authority, whatever the interleaving left behind.
+    import os as _os
+
+    configure_runtime_home(home_one)
+    served = fin._a8_digest_key()
+    token = (
+        runtime_home_generation(),
+        str(_os.environ.get("VOOL_HOME") or ""),
+        str(_os.environ.get("NULLA_HOME") or ""),
+    )
+    assert fin._a8_digest_key_cache[0] == token
+    assert served == keys[home_one], "cache served a key from the wrong home"
+    configure_runtime_home(home_two)
+    assert fin._a8_digest_key() == keys[home_two]

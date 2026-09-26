@@ -1583,29 +1583,31 @@ def payload_availability_for_hash(content_hash: str) -> str | None:
 # while deterministic tombstone lookup is preserved.
 # ---------------------------------------------------------------------------
 
-_a8_digest_key_cache: tuple[str, bytes] | None = None
 _a8_store_ready_cache: bool | None = None
 # Readiness belongs to the database; the digest key belongs to its key file.
 # These authorities need independent identities: loading either cache must
 # never make the other cache valid for a different home or database.
 _governance_cache_db_path: str | None = None
-# The digest key's per-call identity is the runtime-home AUTHORITY (generation
-# count plus the ambient home environment snapshot) rather than a freshly
-# resolved key-file path: data_path() runs ensure_runtime_dirs() (five mkdir
-# syscalls) and two full path resolutions, and the tombstone lookup consults
-# this key on every governed read. Re-resolving per call made served journeys
-# spend more time resolving one path than the rest of the privacy fence
-# (measured 2026-09-25: 181 us/call across ~680k governed reads on one email
-# journey, a 2.4x journey slowdown). The token flips on every transition that
-# can move the key file — configure_runtime_home (any switch, including
-# resets) bumps the generation, and a changed VOOL_HOME/NULLA_HOME changes the
-# snapshot — so a cached key is only served while the active home authority is
-# byte-for-byte the one the key was loaded under. Residual corner, accepted
-# and documented: a symlink inside an unchanged home path being re-pointed at
-# another profile's key file mid-process is not observable without the
-# per-call resolution this cache exists to avoid; every tested home transition
-# (override switch, environment switch, reset) invalidates.
-_a8_digest_key_home_token: tuple[int, str, str] | None = None
+# The digest key cache is ONE tuple — (runtime-home authority token, key) —
+# so identity and payload are published by a single rebinding and can never
+# tear across concurrent loaders. The token is the runtime-home AUTHORITY
+# (generation count plus the ambient home environment snapshot) rather than
+# a freshly resolved key-file path: data_path() runs ensure_runtime_dirs()
+# (five mkdir syscalls) and two full path resolutions, and the tombstone
+# lookup consults this key on every governed read. Re-resolving per call
+# made served journeys spend more time resolving one path than the rest of
+# the privacy fence (measured 2026-09-25: 181 us/call across ~680k governed
+# reads on one email journey, a 2.4x journey slowdown). The token flips on
+# every transition that can move the key file — configure_runtime_home
+# (any switch, including resets) bumps the generation, and a changed
+# VOOL_HOME/NULLA_HOME changes the snapshot — so a cached key is only
+# served while the active home authority is byte-for-byte the one the key
+# was loaded under. Residual corner, accepted and documented: a symlink
+# inside an unchanged home path being re-pointed at another profile's key
+# file mid-process is not observable without the per-call resolution this
+# cache exists to avoid; every contract-supported home transition (override
+# switch, environment switch, reset) invalidates.
+_a8_digest_key_cache: tuple[tuple[int, str, str], bytes] | None = None
 
 
 def _governance_cache_stale() -> bool:
@@ -1673,10 +1675,8 @@ def governance_store_ready() -> bool:
 
 def reset_governance_readiness_for_tests() -> None:
     global _a8_store_ready_cache, _a8_digest_key_cache, _governance_cache_db_path
-    global _a8_digest_key_home_token
     _a8_store_ready_cache = None
     _a8_digest_key_cache = None
-    _a8_digest_key_home_token = None
     _governance_cache_db_path = None
 
 
@@ -1746,7 +1746,7 @@ def writer_may_persist_text(text: str) -> bool:
 
 
 def _a8_digest_key() -> bytes:
-    global _a8_digest_key_cache, _a8_digest_key_home_token
+    global _a8_digest_key_cache
     import secrets
 
     from core.runtime_paths import data_path, runtime_home_generation
@@ -1757,10 +1757,9 @@ def _a8_digest_key() -> bytes:
         str(os.environ.get("NULLA_HOME") or ""),
     )
     cached = _a8_digest_key_cache
-    if cached is not None and _a8_digest_key_home_token == home_token:
+    if cached is not None and cached[0] == home_token:
         return cached[1]
     path = data_path("a8_digest_key.hex")
-    key_path = str(path.resolve())
     try:
         raw = path.read_text(encoding="utf-8").strip()
         key = bytes.fromhex(raw)
@@ -1772,8 +1771,11 @@ def _a8_digest_key() -> bytes:
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_text(key.hex(), encoding="utf-8")
         tmp.replace(path)
-    _a8_digest_key_cache = (key_path, key)
-    _a8_digest_key_home_token = home_token
+    # ONE rebinding carrying identity and payload together: two separate
+    # globals would let concurrent loaders across a home switch interleave
+    # (key from one home, token from the other) and serve the wrong profile's
+    # key for every later governed read. A single tuple cannot tear.
+    _a8_digest_key_cache = (home_token, key)
     return key
 
 
