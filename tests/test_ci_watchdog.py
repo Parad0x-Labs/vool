@@ -95,6 +95,46 @@ def test_outer():
     assert evidence["wall_seconds"] < 10
 
 
+def test_shared_fake_clock_suite_completes_and_cannot_falsify_a_stall(tmp_path):
+    """A test that simulates a business clock by patching the shared stdlib
+    ``time`` module (the usepod price-wait pattern) must complete normally, and
+    its fake timestamps must never drive the stall decision. On main CI
+    (artifact 10902318921) the teardown progress carried the fake ``at``
+    1000.2 while the child's real clock read 2967.6 and it had already advanced
+    to the next file: the supervisor declared a 600s "teardown stall" it had
+    never observed. Here the fake clock lags the real one by 10s (> the 2s
+    budget) with the same geometry, and the fixture's real 0.6s teardown hold
+    makes the contaminated entry deterministically observable by the 0.1s
+    polls -- success may not depend on catching a microsecond window."""
+    source = """import time
+import pytest
+
+@pytest.fixture
+def fake_business_clock():
+    ticks = [time.monotonic() - 10.0]
+    real = time.monotonic
+    time.monotonic = lambda: ticks[0]
+    yield ticks
+    time.sleep(0.6)
+    time.monotonic = real
+
+def test_price_wait_shape(fake_business_clock):
+    ticks = fake_business_clock
+    ticks[0] += 0.2
+
+def test_followup_normal():
+    open('advanced.txt', 'w').write('reached')
+"""
+    result, evidence, _ = _run(tmp_path, source)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert evidence["complete"] and not evidence["timed_out"]
+    assert "2 passed" in result.stdout
+    assert (tmp_path / "suite" / "advanced.txt").read_text() == "reached"
+    # The supervisor's own stall measurement stayed honest for the whole run:
+    # both tests plus the 0.6s teardown hold are far inside the 2s budget.
+    assert evidence["stalled_seconds"] < 2
+
+
 def test_cancellation_reaps_the_owned_child_and_records_incomplete(tmp_path):
     suite = tmp_path / "suite"
     suite.mkdir()

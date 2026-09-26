@@ -57,6 +57,14 @@ from ops.pytest_execution import _outcome_of
 #: validate against this string and refuse anything else.
 SCHEMA = "vool.pytest-timing.v1"
 
+#: Bound at import, before any test can patch the shared stdlib ``time``
+#: module (business-clock suites patch ``time.monotonic``; a mid-session
+#: snapshot flushed inside such a window used to compute a garbage -- even
+#: negative -- session wall from a fake now). Per-phase durations are pytest's
+#: own ``report.duration`` and were never affected; only this instrument's own
+#: start/now readings needed the captured reference.
+_REAL_MONOTONIC = time.monotonic
+
 #: The manifest is rewritten with ``complete: false`` every N test reports so a
 #: killed run leaves its progress on disk. One shard carries a few thousand
 #: nodes; at this cadence the rewrite cost is a handful of small writes.
@@ -120,7 +128,7 @@ class _TimingPlugin:
         self._pytest_args = [str(item) for item in pytest_args]
         self._files: dict[str, _FileTiming] = {}
         self._failed_nodes: list[dict[str, Any]] = []
-        self._started_at = time.monotonic()
+        self._started_at = _REAL_MONOTONIC()
         self._started_wall = time.time()
         self._collect_seconds_by_key: dict[str, float] = {}
         self._other_collect_seconds = 0.0
@@ -217,7 +225,10 @@ class _TimingPlugin:
             "complete": complete,
             "exitstatus": self._exitstatus,
             "session": {
-                "wall_seconds": round(time.monotonic() - self._started_at, 6),
+                # Non-negative by construction: the captured real clock makes
+                # the measurement immune to business-clock patches; the clamp
+                # is the belt-and-braces contract the planner relies on.
+                "wall_seconds": round(max(0.0, _REAL_MONOTONIC() - self._started_at), 6),
                 "started_at_epoch": round(self._started_wall, 3),
                 "other_collect_seconds": round(self._other_collect_seconds, 6),
                 "collected_total": sum(t.collected_nodes for t in self._files.values()),
