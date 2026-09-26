@@ -3,6 +3,18 @@
 A separate supervisor survives a stuck test, fixture, collection or interpreter
 shutdown. Only its direct child can update progress; nested pytest processes
 cannot hide an outer hang. Timeout is a red, incomplete run, never a skip.
+
+Clock authority: the CHILD's progress payload identifies the phase and node,
+but elapsed time is measured by the SUPERVISOR's own monotonic clock, from the
+moment it last observed the payload CHANGE. Tests may legitimately simulate a
+business clock by patching the shared stdlib ``time`` module (e.g. the usepod
+price-wait suite) while the teardown progress hook fires, and the run that
+produced artifact 10902318921 showed why child timestamps must never drive
+deadlines: the child reported the fake ``at`` 1000.2 while its real clock read
+2967.6 and it had already advanced to the next file -- the supervisor declared
+a 600s "teardown stall" 0.3s into real work. Supervisor-owned observation
+time also means a child-origin fake or future timestamp can neither trigger
+nor extend any real deadline.
 """
 from __future__ import annotations
 
@@ -24,6 +36,11 @@ _PROGRESS = "VOOL_CI_PROGRESS"
 _OWNER = "VOOL_CI_PROGRESS_PID"
 _STACK = "VOOL_CI_STACKS"
 _stack_stream = None
+#: Bound at import, before any test can patch the shared ``time`` module's
+#: ``monotonic`` attribute (the usepod price-wait suites do exactly that).
+#: The captured reference keeps the watchdog's own timestamps real even while
+#: a test's business clock is simulated.
+_MONOTONIC = time.monotonic
 
 
 def _progress(phase: str, node: str = "") -> None:
@@ -32,7 +49,7 @@ def _progress(phase: str, node: str = "") -> None:
     path = Path(os.environ[_PROGRESS])
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps({"pid": os.getpid(), "phase": phase,
-                                     "node": node, "at": time.monotonic()}))
+                                     "node": node, "at": _MONOTONIC()}))
     temporary.replace(path)
 
 
@@ -157,8 +174,20 @@ def main(argv=None):
     env["PYTHONPATH"] = os.pathsep.join(filter(None, [root, env.get("PYTHONPATH")]))
     process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
                                 "--child", *command], env=env, start_new_session=True)
-    started = time.monotonic()
+    started = _MONOTONIC()
     last = {"phase": "startup / plugin loading", "node": "", "at": started}
+    # Elapsed time is measured HERE, on the supervisor's own monotonic clock,
+    # from the last observed payload CHANGE -- never from the child-reported
+    # ``at`` field, which a test's business-clock patch of the shared time
+    # module can falsify while the watchdog's teardown hook fires (a fake
+    # ``at`` behind the real clock manufactured a "600s teardown stall" in a
+    # 0.3s window; artifact 10902318921). A payload change (new phase or node)
+    # is the same forward-progress signal the old ``at`` update carried, so
+    # genuine phase budgets -- including measured per-file ones -- keep their
+    # exact semantics; a fake or future child timestamp can no longer trip a
+    # false stall nor extend any real deadline.
+    last_payload = None
+    last_change = started
     timed_out = False
     interrupted = False
 
@@ -172,12 +201,17 @@ def main(argv=None):
             try:
                 current = json.loads(progress.read_text())
                 if current.get("pid") == process.pid:
+                    payload = (current.get("phase"), current.get("node"))
+                    if payload != last_payload:
+                        last_payload = payload
+                        last_change = _MONOTONIC()
                     last = current
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
             effective = _effective_phase_timeout(options.phase_timeout, budgets,
                                                  options.budget_margin, last.get("node"))
-            if time.monotonic() - last["at"] > effective:
+            elapsed = _MONOTONIC() - last_change
+            if elapsed > effective:
                 timed_out = True
                 print(f"CI STALL: {last['phase']} {last['node']} exceeded "
                       f"{effective:g}s; refusing an incomplete run", flush=True)
@@ -199,7 +233,11 @@ def main(argv=None):
     (output / "result.json").write_text(json.dumps({
         "complete": not (timed_out or interrupted), "exitstatus": code,
         "timed_out": timed_out, "interrupted": interrupted,
-        "last_progress": last, "wall_seconds": time.monotonic() - started,
+        "last_progress": last,
+        # The supervisor-measured seconds since the child last changed its
+        # phase/node payload -- the number the stall decision was made on.
+        "stalled_seconds": round(_MONOTONIC() - last_change, 3),
+        "wall_seconds": _MONOTONIC() - started,
     }, indent=2) + "\n")
     return code if code >= 0 else 128 - code
 
