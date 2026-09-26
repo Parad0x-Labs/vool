@@ -554,26 +554,50 @@ def runtime() -> Any:
 
             global _BOOTSTRAP_COUNT
             _BOOTSTRAP_COUNT += 1
-            _RUNTIME = bootstrap_runtime_services(
-                project_root=PROJECT_ROOT,
-                workstation_version=VOOL_WORKSTATION_DEPLOYMENT_VERSION,
-                run_prewarm=False,
-            )
-            # `core.final_answer_authorship` refuses an uncertified LOCAL model before its
-            # adapter is built, and every provider this harness seeds is a loopback model. Left
-            # uncertified, the scripted wire is never reached: the child's own self-test reports
-            # "model wire not reached on a real turn" and every scenario in the group reads as an
-            # INFRASTRUCTURE FAULT. Certifying the seeded registry is what an operator does for
-            # their own local models; the authority itself is untouched, and a scenario that
-            # wants to exercise refusal registers its own uncertified model.
-            from core.model_registry import ModelRegistry
-            from tests._authorship_certification import certify_for_authorship
+            # `bootstrap_runtime_services` seeds the owner identity into the SESSION-default
+            # home (this harness pins no VOOL_HOME of its own), and nothing restored it: the
+            # leaked agent_name survived into every later test in the process and made
+            # test_v050_assistant_identity_routing's `save_identity("Atlas")` refuse with
+            # "Display name already set" the moment a shard put both files in one run
+            # (CI run 36265150283, tests(6) job 108468581474). Confine the write: snapshot
+            # the identity file and the persona display name, restore both after the
+            # bootstrap -- the same discipline the identity suites' own
+            # `restored_agent_identity` fixtures use.
+            from core import onboarding
+            from core.identity_manager import load_active_persona, update_local_persona
 
-            for _manifest in ModelRegistry().list_manifests():
-                try:
-                    certify_for_authorship(_manifest)
-                except Exception:  # pragma: no cover - a manifest outside the probe's reach
-                    continue
+            _identity_path = onboarding._identity_path()
+            _identity_before = (
+                _identity_path.read_text(encoding="utf-8") if _identity_path.exists() else None
+            )
+            _persona_before = load_active_persona("default").display_name
+            try:
+                _RUNTIME = bootstrap_runtime_services(
+                    project_root=PROJECT_ROOT,
+                    workstation_version=VOOL_WORKSTATION_DEPLOYMENT_VERSION,
+                    run_prewarm=False,
+                )
+                # `core.final_answer_authorship` refuses an uncertified LOCAL model before its
+                # adapter is built, and every provider this harness seeds is a loopback model. Left
+                # uncertified, the scripted wire is never reached: the child's own self-test reports
+                # "model wire not reached on a real turn" and every scenario in the group reads as an
+                # INFRASTRUCTURE FAULT. Certifying the seeded registry is what an operator does for
+                # their own local models; the authority itself is untouched, and a scenario that
+                # wants to exercise refusal registers its own uncertified model.
+                from core.model_registry import ModelRegistry
+                from tests._authorship_certification import certify_for_authorship
+
+                for _manifest in ModelRegistry().list_manifests():
+                    try:
+                        certify_for_authorship(_manifest)
+                    except Exception:  # pragma: no cover - a manifest outside the probe's reach
+                        continue
+            finally:
+                if _identity_before is None:
+                    _identity_path.unlink(missing_ok=True)
+                else:
+                    _identity_path.write_text(_identity_before, encoding="utf-8")
+                update_local_persona("default", display_name=_persona_before)
         return _RUNTIME
 
 
