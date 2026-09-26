@@ -200,6 +200,15 @@ def test_base_review_reads_purpose_recipient_and_short_fees_with_exact_details(s
         assert chains["base"].send_count() == sends + 1
         page.wait_for_selector('#vwSheet', state="detached")
         result = card.locator(".vw-result")
+        # The label is eventually consistent: the approve answer already says state=confirmed,
+        # but the card still shows "Transfer Submitted…" until its own refresh lands (CI run
+        # 36268704787, tests(7): the synchronous read caught the pre-refresh label). The API
+        # state was asserted above; the UI's contract is that the label REACHES Confirmed, so
+        # wait for it bounded instead of snapshotting one arbitrary frame.
+        page.wait_for_function(
+            "document.querySelector('.vw-result .vw-transfer-label')?.textContent === 'Transfer Confirmed on Base Sepolia'",
+            timeout=30_000,
+        )
         assert result.locator(".vw-transfer-label").text_content() == "Transfer Confirmed on Base Sepolia"
         assert result.locator('[data-field="purpose"] .vw-purpose-headline').text_content() == f"Send 0.001 ETH to {to}"
         assert result.locator(".vw-transfer-detail .vw-ident").text_content() == to
@@ -301,7 +310,13 @@ def test_solana_decide_later_escape_fresh_quotes_expiry_and_late_replies(served,
         route, response = approve_hold.pop()
         route.fulfill(response=response)
         page.unroute(daemon.base_url + "/api/wallet/approve")
-        page.wait_for_function(f"document.querySelector('.vw-card[data-proposal=\"{first}\"] .vw-transfer-label') !== null", timeout=15_000)
+        # Same eventual-consistency contract as the Base review above: wait for the label to
+        # REACH its final text, not merely to exist (existence can precede the Confirmed
+        # refresh by a frame).
+        page.wait_for_function(
+            f"document.querySelector('.vw-card[data-proposal=\"{first}\"] .vw-transfer-label')?.textContent === 'Transfer Confirmed on Solana Devnet'",
+            timeout=15_000,
+        )
         assert card.locator(".vw-transfer-label").text_content() == "Transfer Confirmed on Solana Devnet"
         assert chains["sol"].send_count() == sends + 1
         assert decisions == [daemon.base_url + "/api/wallet/approve"]
