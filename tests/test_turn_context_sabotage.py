@@ -131,11 +131,21 @@ def source_sabotage(module_name: str, relative_path: str, replacements):
 @pytest.fixture()
 def tc_env(tmp_path, monkeypatch):
     """Per-test VOOL_HOME + SQLite, the operator_profile_rig isolated state."""
-    from core import finalization
+    from core import finalization, tool_memo
     from tests.operator_profile_rig import profile_env_generator
 
     finalization.reset_governance_readiness_for_tests()
+    # These sabotage tests register probe tools into the PROCESS-GLOBAL purity
+    # table (that is the code under test). Without a snapshot/restore the
+    # registration leaks into every later test in the same shard: a repartition
+    # that co-located this file with tests/test_tool_memo_cache_truth.py made
+    # its pristine-set assertion fail on the leaked 'sab7.probe' (measured
+    # 2026-09-26: run 36245722295 shard 9; reproduced on unchanged main by
+    # running the two files in one process).
+    pure_tools_snapshot = dict(tool_memo._PURE_TOOLS)
     yield from profile_env_generator(tmp_path, monkeypatch)
+    tool_memo._PURE_TOOLS.clear()
+    tool_memo._PURE_TOOLS.update(pure_tools_snapshot)
     finalization.reset_governance_readiness_for_tests()
 
 

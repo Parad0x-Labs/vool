@@ -193,6 +193,17 @@ def test_convene_runs_to_adjudication_and_status_tracks_it(isolated_council) -> 
     final = None
     while time.time() < deadline:
         status, snapshot = _get("/api/council/status", "127.0.0.1", {"run": [run_id]})
+        if status == 404:
+            # Startup window: convene answers as soon as the run thread is
+            # STARTED, but the first state file is written inside the thread
+            # after gate0 and containment arming. A status poll that wins that
+            # race reads "no such council run" for a run that exists (measured
+            # 2026-09-26: run 36245722295 shard 7; a loaded runner schedules
+            # the main thread's first poll before the daemon's first persist).
+            # Retry within the SAME deadline — a run that never appears still
+            # fails the final assertion below, by name.
+            time.sleep(0.1)
+            continue
         assert status == 200
         if snapshot["run"].get("state") in {"converged", "failed", "no_convergence", "crashed"}:
             final = snapshot
