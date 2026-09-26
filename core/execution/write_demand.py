@@ -40,8 +40,51 @@ from __future__ import annotations
 
 import posixpath
 import re
+from bisect import bisect_left
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NamedTuple
+
+_SPLIT_EXT_CLASS_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./-"
+)
+# A dot whose following whitespace separates it from a known extension. The stem class of the
+# grammar below includes the dot itself, so the previous `[class]+\.\s+ext` pattern backtracked
+# through every dot of a long run at every scan position -- quadratic on runs of "a.a.a".
+_SPLIT_EXT_OCCURRENCE_RE = re.compile(
+    r"(?<=\.)\s+(?P<ext>py|js|ts|tsx|jsx|txt|md|json|yaml|yml|toml)\b"
+)
+
+
+def _repair_split_extensions(raw: str) -> str:
+    """Close the whitespace in ``notes. txt`` -- exactly the replacements the previous
+    ``re.sub(r"[A-Za-z0-9_./-]+\\.\\s+(ext)\b", ...)`` made, in one linear pass.
+
+    A split extension is always a dot at the END of its character run (the whitespace after it
+    ends the run), so each occurrence is found directly instead of by backtracking. Two rules
+    keep the deleted whitespace identical to the old substitution: the dot needs one stem
+    character before it, and the engine only ever saw characters at or after the end of the
+    previous replacement, so an occurrence whose stem begins inside an earlier replacement is
+    left alone exactly as the scanner-skipping ``re.sub`` left it.
+    """
+    out: list[str] = []
+    copy_from = 0
+    resume = 0
+    for match in _SPLIT_EXT_OCCURRENCE_RE.finditer(raw):
+        dot = match.start() - 1
+        if dot < resume + 1:
+            continue
+        run_start = dot
+        while run_start > 0 and raw[run_start - 1] in _SPLIT_EXT_CLASS_CHARS:
+            run_start -= 1
+        if run_start == dot:
+            continue
+        out.append(raw[copy_from : match.start()])
+        copy_from = match.start("ext")
+        resume = match.end()
+    out.append(raw[copy_from:])
+    return "".join(out)
+
 
 # ── The retired write grammar (moved verbatim from core/execution/constants.py) ─────────────
 # ``constants.py`` re-exports these names; ``planner.py`` and the machine-tool audit test
@@ -104,6 +147,14 @@ _FOLDER_FIRST_CREATE_FILE_RE = re.compile(
     rf"{_WORKSPACE_TARGET_RE})[`\"']?(?:\s+inside)?\s+with(?:\s+exact(?:ly)?)?(?:\s+(?:this|the))?\s+text\s*:\s*(?P<content>.+)$",
     re.IGNORECASE | re.DOTALL,
 )
+# The two lazy path+extension write grammars below ("inside this workspace create <path> with
+# text: ...", "create file <path> in <dir> folder saying ...") are matched by the linear scanners
+# `_in_workspace_create_file_match` / `_file_in_folder_saying_match`, not by nested regex
+# quantifiers: a lazy `[^`"']+?\.[ext]+` path walks every dot of a quote-free run at every anchor
+# occurrence, so repeated anchors with no successful tail anywhere rescan the remaining text once
+# per anchor (measured: a 6000-anchor run exceeded a 3s subprocess deadline through
+# resolve_write_demand). The scanners yield the same first match and the same groups; the legacy
+# patterns are kept beside them as the documented language and the differential ground truth.
 _IN_WORKSPACE_CREATE_FILE_RE = re.compile(
     r"\binside\s+this\s+workspace\s+create\s+[`\"']?(?P<path>[^`\"']+?\.[A-Za-z0-9_+-]+)[`\"']?"
     r"\s+with(?:\s+exact(?:ly)?)?(?:\s+(?:this|the))?\s+text\s*:\s*(?P<content>.+)$",
@@ -113,6 +164,251 @@ _FILE_IN_FOLDER_SAYING_RE = re.compile(
     r"\bcreate\s+(?:a\s+)?file\s+[`\"']?(?P<path>[^`\"']+?\.[A-Za-z0-9_+-]+)[`\"']?"
     r"\s+in\s+(?:the\s+)?(?P<directory>[A-Za-z0-9 _./-]+?)\s+folder\s+saying\s+(?P<content>.+)$",
     re.IGNORECASE | re.DOTALL,
+)
+_IN_WORKSPACE_ANCHOR_RE = re.compile(
+    r"\binside\s+this\s+workspace\s+create(?P<gap>\s+)", re.IGNORECASE
+)
+_FILE_IN_FOLDER_ANCHOR_RE = re.compile(r"\bcreate\s+(?:a\s+)?file(?P<gap>\s+)", re.IGNORECASE)
+# The bounded "with … text:" tail that follows the extension run. The pad group records the
+# trailing `\s*` so a candidate at end-of-input can give one whitespace character back to the
+# required non-empty content, exactly as the regex engine backtracks.
+_WITH_TEXT_TAIL_RE = re.compile(
+    r"[`\"']?\s+with(?:\s+exact(?:ly)?)?(?:\s+(?:this|the))?\s+text\s*:(?P<pad>\s*)",
+    re.IGNORECASE,
+)
+_IN_MARKER_RE = re.compile(
+    r"[`\"']?\s+in(?P<gap>\s+)(?P<opt>the\s+)?", re.IGNORECASE
+)
+_FOLDER_SAYING_MARKER_RE = re.compile(r"\s+folder\s+saying(?P<pad>\s+)", re.IGNORECASE)
+_DELIMITED_QUOTES = "`'\""
+
+
+class DelimitedWriteMatch(NamedTuple):
+    """One matched write grammar: the path (and directory) it names and the literal content."""
+
+    path: str
+    content: str
+    directory: str = ""
+
+
+def _all_marker_matches(pattern: re.Pattern[str], text: str) -> list[re.Match[str]]:
+    """Every match of the bounded pattern, overlaps included.
+
+    ``finditer`` alone is not enough: matches that begin inside another match (a second
+    marker starting in a leading whitespace run) are exactly the ones a lazy path could
+    still reach, so scanning restarts one character past each match start.
+    """
+    found: list[re.Match[str]] = []
+    pos = 0
+    while (match := pattern.search(text, pos)) is not None:
+        found.append(match)
+        pos = match.start() + 1
+    return found
+
+
+def _content_start_after(
+    greedy_end: int, pad_start: int, text_end: int, *, pad_min: int = 0
+) -> int | None:
+    r"""Where `(?P<content>.+)$` starts after a marker that ended at ``greedy_end``.
+
+    The content needs at least one character. A marker whose greedy trailing whitespace ran to
+    the end of input gives one whitespace character back -- the engine's first backtracking
+    step -- which only helps while the pad keeps its own minimum (``\s*`` keeps zero,
+    ``\s+`` keeps one). A marker with nothing left to give cannot host content at all.
+    """
+    if greedy_end < text_end:
+        return greedy_end
+    if pad_start + pad_min < greedy_end:
+        return greedy_end - 1
+    return None
+
+
+def _delimited_path_candidates(
+    text: str,
+    tail_positions: list[tuple[int, int, int]],
+) -> list[tuple[int, int, int]]:
+    """``(dot, ext_end, content_start)`` for every dot+extension that a tail can follow.
+
+    The extension is greedy, and the tail always begins with a quote or whitespace -- never an
+    extension character -- so backtracking the extension can never land the tail inside the run:
+    a dot succeeds exactly when the tail matches at the END of its extension run. That makes the
+    candidate set computable once for the whole text instead of once per anchor.
+    """
+    candidates: list[tuple[int, int, int]] = []
+    n = len(text)
+    for tail_start, pad_start, tail_end in tail_positions:
+        prev = tail_start - 1
+        if prev < 0 or text[prev] not in _EXT_RUN_CHARS:
+            continue
+        run_start = prev
+        while run_start > 0 and text[run_start - 1] in _EXT_RUN_CHARS:
+            run_start -= 1
+        if run_start == 0 or text[run_start - 1] != ".":
+            continue
+        content_start = _content_start_after(tail_end, pad_start, n)
+        if content_start is None:
+            continue
+        candidates.append((run_start - 1, tail_start, content_start))
+    candidates.sort()
+    return candidates
+
+
+#: The extension run `[A-Za-z0-9_+-]+` of both grammars, as one frozenset for membership scans.
+_EXT_RUN_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_+-"
+)
+
+
+def _quote_free_end(text: str, start: int, quotes: list[int]) -> int:
+    i = bisect_left(quotes, start)
+    return quotes[i] if i < len(quotes) else len(text)
+
+
+def _anchor_path_starts(anchor: re.Match[str], raw: str) -> list[int]:
+    """Path-start positions an anchor allows, in the engine's backtracking order.
+
+    The anchor's trailing `\\s+` is greedy, but a path may begin inside the whitespace run:
+    "create file \n.py" only matches with the newline inside the path, because a path needs
+    one character before its dot. The optional quote after the anchor applies at the greedy
+    end only -- inside the run the next character is whitespace.
+    """
+    gap = anchor.span("gap")
+    starts = []
+    if anchor.end() < len(raw) and raw[anchor.end()] in _DELIMITED_QUOTES:
+        starts.append(anchor.end() + 1)
+    starts.append(anchor.end())
+    starts.extend(gap[0] + k for k in range(gap[1] - gap[0] - 1, 0, -1))
+    return starts
+
+
+def _in_workspace_create_file_match(text: str) -> DelimitedWriteMatch | None:
+    """First `inside this workspace create <path> with text: <content>` -- the same match the
+    legacy pattern above found, in bounded work per anchor instead of a lazy path walk."""
+    raw = str(text or "")
+    tails = [
+        (match.start(), match.start("pad"), match.end())
+        for match in _all_marker_matches(_WITH_TEXT_TAIL_RE, raw)
+    ]
+    candidates = _delimited_path_candidates(raw, tails)
+    if not candidates:
+        return None
+    dots = [dot for dot, _e, _c in candidates]
+    quotes = [match.start() for match in re.finditer(r"[`'\"]", raw)]
+    for anchor in _IN_WORKSPACE_ANCHOR_RE.finditer(raw):
+        for path_start in _anchor_path_starts(anchor, raw):
+            run_end = _quote_free_end(raw, path_start, quotes)
+            i = bisect_left(dots, path_start + 1)
+            if i < len(dots) and dots[i] < run_end:
+                _dot, ext_end, content_start = candidates[i]
+                return DelimitedWriteMatch(
+                    path=raw[path_start:ext_end], content=raw[content_start:]
+                )
+        # No dot in any run this anchor allows; the next anchor owns its own runs.
+    return None
+
+
+def _folder_directory_starts(marker: re.Match[str]) -> list[int]:
+    """Directory-start positions an `in` marker allows, in the engine's backtracking order.
+
+    The engine gives the optional `the` back first (the directory can absorb it), then shrinks
+    the marker's own whitespace one character at a time, retrying the optional greedily at
+    each width. Everything left of that whitespace is fixed by the preceding literal.
+    """
+    starts: list[int] = [marker.end()]
+    opt = marker.span("opt")
+    if opt != (-1, -1):
+        starts.append(opt[0])
+    gap = marker.span("gap")
+    for k in range(gap[1] - gap[0] - 1, 0, -1):
+        base = gap[0] + k
+        probe = _THE_AFTER_IN_RE.match(marker.string, base)
+        starts.append(probe.end() if probe is not None else base)
+        starts.append(base)
+    return starts
+
+
+#: `the\s+` retried after the marker's whitespace shrinks.
+_THE_AFTER_IN_RE = re.compile(r"the\s+", re.IGNORECASE)
+
+
+def _file_in_folder_candidates(raw: str) -> list[tuple[int, int, int, str]]:
+    """``(dot, ext_end, content_start, directory)`` for every continuation that can succeed.
+
+    A dot's extension run, the `in` marker after it, and the first `folder saying` marker with
+    an all-class directory before it are anchor-independent, so they are computed once; a
+    directory character outside the class breaks every longer candidate at the same marker
+    (the prefix property), which is why the first marker decides each variant.
+    """
+    n = len(raw)
+    folder_marks = _all_marker_matches(_FOLDER_SAYING_MARKER_RE, raw)
+    if not folder_marks:
+        return []
+    folder_starts = [match.start() for match in folder_marks]
+    next_nonclass = _next_outside_class(raw, _FOLDER_DIR_CHARS)
+    candidates: list[tuple[int, int, int, str]] = []
+    for run in re.finditer(r"[A-Za-z0-9_+-]+", raw):
+        start = run.start()
+        if start == 0 or raw[start - 1] != ".":
+            continue
+        marker = _IN_MARKER_RE.match(raw, run.end())
+        if marker is None:
+            continue
+        for dir_start in _folder_directory_starts(marker):
+            f = bisect_left(folder_starts, dir_start + 1)
+            if f >= len(folder_starts):
+                continue
+            fstart = folder_starts[f]
+            if next_nonclass[dir_start] < fstart:
+                # a character outside the directory class breaks every longer candidate too
+                continue
+            directory = raw[dir_start:fstart]
+            mark = folder_marks[f]
+            content_start = _content_start_after(
+                mark.end(), mark.start("pad"), n, pad_min=1
+            )
+            if content_start is None:
+                continue
+            candidates.append((start - 1, run.end(), content_start, directory))
+            break
+    candidates.sort()
+    return candidates
+
+
+def _next_outside_class(text: str, chars: frozenset[str]) -> list[int]:
+    """For each position, the first position at or after it outside ``chars``."""
+    n = len(text)
+    nxt = [n] * (n + 1)
+    for i in range(n - 1, -1, -1):
+        nxt[i] = i if text[i] not in chars else nxt[i + 1]
+    return nxt
+
+
+def _file_in_folder_saying_match(text: str) -> DelimitedWriteMatch | None:
+    """First `create file <path> in <dir> folder saying <content>` -- the same match the legacy
+    pattern above found, without the lazy path and directory walks."""
+    raw = str(text or "")
+    candidates = _file_in_folder_candidates(raw)
+    if not candidates:
+        return None
+    dots = [dot for dot, _e, _c, _d in candidates]
+    quotes = [match.start() for match in re.finditer(r"[`'\"]", raw)]
+    for anchor in _FILE_IN_FOLDER_ANCHOR_RE.finditer(raw):
+        for path_start in _anchor_path_starts(anchor, raw):
+            run_end = _quote_free_end(raw, path_start, quotes)
+            i = bisect_left(dots, path_start + 1)
+            if i < len(dots) and dots[i] < run_end:
+                _dot, ext_end, content_start, directory = candidates[i]
+                return DelimitedWriteMatch(
+                    path=raw[path_start:ext_end],
+                    content=raw[content_start:],
+                    directory=directory,
+                )
+    return None
+
+
+#: The directory class `[A-Za-z0-9 _./-]` of the file-in-folder grammar.
+_FOLDER_DIR_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _./-"
 )
 _APPEND_FILE_RE = re.compile(
     rf"\bappend(?:\s+a)?(?:\s+\w+)?\s+line\s+to\s+[`\"']?(?P<path>{_WORKSPACE_FILE_RE})[`\"']?\s*:\s*(?P<content>.+)$",
@@ -403,11 +699,8 @@ def resolve_write_demand(text: str, *, workspace_root: str = "") -> WriteDemand 
         return None
     # Input normalization protects "notes.txt." from losing its extension to sentence
     # punctuation; the retired grammar expects the same repaired text the planner always saw.
-    raw = re.sub(
-        r"(?P<stem>[A-Za-z0-9_./-]+)\.\s+(?P<ext>py|js|ts|tsx|jsx|txt|md|json|yaml|yml|toml)\b",
-        r"\g<stem>.\g<ext>",
-        raw,
-    )
+    raw = _repair_split_extensions(raw)
+    lowered = raw.casefold()
 
     from core.turn_ir import parse_turn_ir
 
@@ -502,46 +795,57 @@ def resolve_write_demand(text: str, *, workspace_root: str = "") -> WriteDemand 
         if items:
             return _finish(items, refused, directory=directory, mode=MODE_CREATE, raw=raw)
 
-    in_workspace = _IN_WORKSPACE_CREATE_FILE_RE.search(raw)
+    in_workspace = _in_workspace_create_file_match(raw)
     if in_workspace is not None:
-        add(str(in_workspace.group("path") or "").strip(), _content_of(in_workspace), marked_literal=True)
+        add(in_workspace.path.strip(), in_workspace.content.strip(), marked_literal=True)
         if items:
             return _finish(items, refused, directory="", mode=MODE_CREATE, raw=raw)
 
-    file_in_folder = _FILE_IN_FOLDER_SAYING_RE.search(raw)
+    file_in_folder = _file_in_folder_saying_match(raw)
     if file_in_folder is not None:
         from core.execution.planner import _clean_workspace_directory_path
 
         directory = _clean_workspace_directory_path(
-            str(file_in_folder.group("directory") or "").strip(),
+            file_in_folder.directory.strip(),
             workspace_root=workspace_root,
         )
         resolved, reason = confine_target(
-            str(file_in_folder.group("path") or "").strip(),
+            file_in_folder.path.strip(),
             base_dir=directory,
             workspace_root=workspace_root,
         )
         if reason:
-            refused.append((str(file_in_folder.group("path") or "").strip(), reason))
+            refused.append((file_in_folder.path.strip(), reason))
         else:
-            content = _content_of(file_in_folder)
+            content = file_in_folder.content.strip()
             if resolved and content:
                 items.append(WriteItem(path=resolved, content=content, action="write", content_kind=LITERAL))
         if items:
             return _finish(items, refused, directory=directory, mode=MODE_CREATE, raw=raw)
 
-    overwrite = _OVERWRITE_FILE_RE.search(raw)
+    overwrite = _OVERWRITE_FILE_RE.search(raw) if "overwrite" in lowered else None
     if overwrite is not None:
         add(str(overwrite.group("path") or "").strip(), _content_of(overwrite), marked_literal=True)
         if items:
             return _finish(items, refused, directory=base_dir, mode=MODE_OVERWRITE, raw=raw)
 
     seen_paths: set[str] = set()
+    # Every grammar in this family needs a literal content marker (case-insensitive: with /
+    # that says / saying / containing / holding) somewhere after its target. When none occurs,
+    # no pattern in the family can match at any position and the searches are skipped --
+    # without the skip, each of the text's anchors walked its unbounded `in`-bridge to the end
+    # of the line hunting a marker that never existed (measured: a 32000-anchor single-line
+    # payload spent minutes in this loop before returning nothing). Skipping a provably
+    # matchless search changes no verdict.
+    family_can_match = any(
+        marker in lowered
+        for marker in ("with", "that says", "saying", "containing", "holding")
+    )
     for pattern in (
         _CREATE_NAMED_FILE_WITH_CONTENT_RE,
         _INLINE_CREATE_FILE_RE,
         _PLAIN_CREATE_FILE_WITH_CONTENT_RE,
-    ):
+    ) if family_can_match else ():
         for match in pattern.finditer(raw):
             path_match = str(match.group("path") or "").strip()
             content = _strip_content_fences(_content_of(match))
