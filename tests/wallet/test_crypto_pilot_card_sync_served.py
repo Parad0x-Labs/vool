@@ -127,7 +127,12 @@ def test_cards_follow_approval_cancellation_and_expiry_from_other_surfaces(serve
         transfer = _approve_elsewhere(daemon, approved)
         assert node.send_count() == sends + 1
         card = page.locator(f'.vw-card[data-proposal="{approved}"]')
-        page.wait_for_function(f"document.querySelector('.vw-card[data-proposal=\"{approved}\"] .vw-transfer-label') !== null", timeout=15_000)
+        # The label is eventually consistent (see the Base review test): wait for it to
+        # REACH its final text, not merely to exist.
+        page.wait_for_function(
+            f"document.querySelector('.vw-card[data-proposal=\"{approved}\"] .vw-transfer-label')?.textContent === 'Transfer Confirmed on Solana Devnet'",
+            timeout=15_000,
+        )
         assert card.locator(".vw-review").count() == 0
         assert card.locator(".vw-transfer-label").text_content() == "Transfer Confirmed on Solana Devnet"
         assert card.locator(".vw-transfer-id").text_content() == f"Transaction {transfer['tx_id']}"
