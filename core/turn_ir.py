@@ -173,7 +173,7 @@ _EXPLICIT_MARKER_RE = re.compile(
 )
 _BULLET_MARKER_RE = re.compile(r"(?m)^[ \t]*(?P<bullet>[-*+•‣▪▫◦·–—])\s+")
 _REQUEST_HEAD_RE = re.compile(
-    r"^(?:(?:please|pls|plz|now|next|first|second|third|finally|physically|actually|immediately)\s+)*"
+    r"(?:(?:please|pls|plz|now|next|first|second|third|finally|physically|actually|immediately)\s+)*"
     r"(?P<head>[A-Za-z][A-Za-z']*)\b",
     re.IGNORECASE,
 )
@@ -216,12 +216,21 @@ _AUTHORED_ARTIFACT_RE = re.compile(
     r"|[^.!?;\n]{0,60}?\bin\s+the\s+[\w-]+\s+(?:file|table|module|schema|database|script|class)\b)",
     re.IGNORECASE,
 )
+# Leading-boundary-stripped form for span queries whose clause begins with the artifact noun.
+_AUTHORED_LEADING_RE = re.compile(
+    r"(?:variable|constant|function|method|class|column|field|table|schema|endpoint|route|"
+    r"migration|fixture|helper|handler|component)\b"
+    r"(?:[^.!?;\n]{0,60}?\b(?:called|named)\b"
+    r"|[^.!?;\n]{0,60}?\bin\s+(?:the\s+)?[\w./-]*\.\w{1,5}\b"
+    r"|[^.!?;\n]{0,60}?\bin\s+the\s+[\w-]+\s+(?:file|table|module|schema|database|script|class)\b)",
+    re.IGNORECASE,
+)
 _RECALL_RE = re.compile(
     r"\b(?:earlier|previous|prior|last\s+(?:answer|message|title)|remember|recall|said\s+before)\b",
     re.IGNORECASE,
 )
 _CONNECTOR_PREFIX_RE = re.compile(
-    r"^(?:(?:and|also|plus|then|and\s+then|and\s+also)\s*,?\s+)+",
+    r"(?:(?:and|also|plus|then|and\s+then|and\s+also)\s*,?\s+)+",
     re.IGNORECASE,
 )
 _REQUEST_CONNECTOR_RE = re.compile(
@@ -258,7 +267,7 @@ _ALL_REQUEST_HEADS: frozenset[str] = frozenset(
 #: A framing phrase may precede the request inside one clause: "From memory:", "Off the top of your
 #: head,". Bounded to a short lead ending at the FIRST ':' or ',' so this cannot swallow a real
 #: clause -- clause splitting has already run, so what remains is one request at most.
-_FRAMING_PREFIX_RE = re.compile(r"^[^:,?!.]{1,48}[:,]\s*")
+_FRAMING_PREFIX_RE = re.compile(r"[^:,?!.]{1,48}[:,]\s*")
 
 #: Where a second request may begin inside one clause. Used only to ask the prohibition authority
 #: about each part separately; it never re-splits the turn, which clause parsing already did.
@@ -266,21 +275,6 @@ _CLAUSE_BOUNDARY_SPLIT_RE = re.compile(r"[,;]\s*|(?<=[.?!])\s+")
 
 #: A sentence end followed by more text -- i.e. this span holds more than one sentence.
 _SENTENCE_TAIL_RE = re.compile(r"[.?!]\s+\S")
-
-
-def _head_after_framing_prefix(clean: str) -> tuple[re.Match[str], str] | None:
-    """Retry the request head once, past a leading framing phrase. `None` when nothing changes."""
-
-    prefix = _FRAMING_PREFIX_RE.match(clean)
-    if prefix is None:
-        return None
-    remainder = clean[prefix.end():].strip()
-    if not remainder:
-        return None
-    match = _REQUEST_HEAD_RE.match(remainder)
-    if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
-        return None
-    return match, remainder
 
 
 #: An inverted temporal interrogative -- the question's interrogative sits behind its object
@@ -292,32 +286,13 @@ def _head_after_framing_prefix(clean: str) -> tuple[re.Match[str], str] | None:
 #: as the knowledge question it is. Three prepositions and three interrogatives, no subject
 #: matter: this recognizes a sentence SHAPE, not a topic.
 _INVERTED_INTERROGATIVE_RE = re.compile(
-    r"^(?:in|on|at)\s+(?P<interrogative>what|which|whose)\b",
+    r"(?:in|on|at)\s+(?P<interrogative>what|which|whose)\b",
     re.IGNORECASE,
 )
 
 
-def _head_after_inverted_preposition(clean: str) -> tuple[re.Match[str], str] | None:
-    """Retry the request head once, behind an inverted interrogative's object.
 
-    Same contract as `_head_after_framing_prefix`: `None` when nothing changes, and the
-    caller reaches this only where the answer would otherwise be UNKNOWN, so it can add a
-    classification but never change one already made.
-    """
-
-    prefix = _INVERTED_INTERROGATIVE_RE.match(clean)
-    if prefix is None:
-        return None
-    remainder = clean[prefix.start("interrogative"):].strip()
-    if not remainder:
-        return None
-    match = _REQUEST_HEAD_RE.match(remainder)
-    if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
-        return None
-    return match, remainder
-
-
-def _is_whole_clause_constraint(clean: str, *, directive_free: bool | None = None) -> bool:
+def _is_whole_clause_constraint(clean: str) -> bool:
     """Whether this clause only CONSTRAINS the answer and asks for nothing.
 
     Delegated to `core.retrieval_constraints`, which already owns prohibition recognition for this
@@ -328,12 +303,6 @@ def _is_whole_clause_constraint(clean: str, *, directive_free: bool | None = Non
     The test is not "contains a prohibition" but "is NOTHING BUT one": `Do NOT search the web for
     this, what is 2+2?` carries a real demand and must stay a demand, and only its prohibition half
     is a constraint.
-
-    ``directive_free`` is a caller-supplied guarantee that NO negated retrieval directive occurs
-    anywhere in the suffix this clause came from. A prohibition needs a directive, so the answer is
-    False without running the full per-suffix analysis; the guarantee is only ever computed from a
-    wider span than ``clean`` (the clause is a prefix of the suffix, and the connector strip below
-    only removes a leading prefix), so absent directives stay absent.
     """
 
     from core.retrieval_constraints import analyze_retrieval_constraints
@@ -345,11 +314,6 @@ def _is_whole_clause_constraint(clean: str, *, directive_free: bool | None = Non
     # (tests/test_followup_unavailable_effect_siblings.py caught it). A constraint is a property of
     # a clause; deciding it over a multi-sentence span is answering a different question.
     if _SENTENCE_TAIL_RE.search(clean):
-        return False
-
-    if directive_free:
-        # A prohibition cannot exist without a directive, and the caller guaranteed none occurs
-        # anywhere in the wider suffix. Same verdict as the analysis below, without re-running it.
         return False
 
     try:
@@ -381,22 +345,170 @@ def _is_whole_clause_constraint(clean: str, *, directive_free: bool | None = Non
     return True
 
 
-def classify_clause_kind(request_text: str, *, directive_free: bool | None = None) -> ClauseKind:
-    """Return a conservative kind without inferring tools, authority, or live-data needs.
+# Head-gated content cues, hoisted from the classification body so the span index below can
+# precompute their positions once per turn. Bounded match length is what makes that safe.
+_PHYSICAL_APPLIANCE_RE = re.compile(
+    r"\b(?:physical|local)\b[^.!?;\n]{0,60}\b(?:printer|oven)\b"
+    r"|\b(?:printer|oven)\b[^.!?;\n]{0,60}\bphysical\b",
+    re.IGNORECASE,
+)
+_REWRITE_RUNTIME_TARGET_RE = re.compile(
+    r"\b(?:your|the\s+runtime(?:'s)?|the\s+assistant(?:'s)?)\b"
+    r"[^.!?;\n]{0,80}\b(?:internal|core|system|runtime|source)\b"
+    r"[^.!?;\n]{0,40}\b(?:code|instructions?|identity|name)\b",
+    re.IGNORECASE,
+)
+_GENERATIVE_NOUN_RE = re.compile(
+    r"\b(?:title|heading|headline|name|caption|recipe|code|script|program)\b",
+    re.IGNORECASE,
+)
+# Same patterns without the leading ``\b``: a clause cut out of the turn has no character before
+# its first one, so a keyword that BEGINS the clause is a hit for the clause even when the full
+# turn has a word character glued before it (only reachable right after a connector strip).
+_RECALL_LEADING_RE = re.compile(
+    r"(?:earlier|previous|prior|last\s+(?:answer|message|title)|remember|recall|said\s+before)\b",
+    re.IGNORECASE,
+)
+_PHYSICAL_LEADING_RE = re.compile(
+    r"(?:physical|local)\b[^.!?;\n]{0,60}\b(?:printer|oven)\b"
+    r"|(?:printer|oven)\b[^.!?;\n]{0,60}\bphysical\b",
+    re.IGNORECASE,
+)
+_REWRITE_LEADING_RE = re.compile(
+    r"(?:your|the\s+runtime(?:'s)?|the\s+assistant(?:'s)?)\b"
+    r"[^.!?;\n]{0,80}\b(?:internal|core|system|runtime|source)\b"
+    r"[^.!?;\n]{0,40}\b(?:code|instructions?|identity|name)\b",
+    re.IGNORECASE,
+)
+_GENERATIVE_LEADING_RE = re.compile(
+    r"(?:title|heading|headline|name|caption|recipe|code|script|program)\b",
+    re.IGNORECASE,
+)
+# "Tell them/him/her" is an act, not knowledge; checked anchored at the clause head.
+_TELL_TARGET_RE = re.compile(r"tell\s+(?:them|him|her)\b", re.IGNORECASE)
 
-    ``directive_free`` carries a caller's guarantee (see ``_is_whole_clause_constraint``) that no
-    negated retrieval directive occurs in the wider span this clause was taken from; it can only
-    skip the constraint analysis, never change any other classification.
+
+class _SpanKeywordTable:
+    """Match positions of one bounded-length keyword pattern, for span-membership queries.
+
+    Answers ``does pattern.search(text[lo:hi]) match`` without rescanning the span: matches
+    found once over the whole text cover everything strictly inside, the span's trailing edge
+    (a cut string can END a match the full text would have continued past ``hi``) is rechecked
+    against a bounded tail window, and a match beginning exactly at ``lo`` is rechecked without
+    the leading word boundary. Unbounded patterns must not use this table.
     """
 
-    clean = _CONNECTOR_PREFIX_RE.sub("", str(request_text or "").strip())
-    if not clean:
+    __slots__ = ("_ends", "_leading", "_max_len", "_pattern", "_starts")
+
+    def __init__(self, pattern: re.Pattern[str], leading: re.Pattern[str], max_len: int) -> None:
+        self._pattern = pattern
+        self._leading = leading
+        self._max_len = max_len
+        self._starts: tuple[int, ...] = ()
+        self._ends: tuple[int, ...] = ()
+
+    def index(self, text: str) -> None:
+        matches = list(self._pattern.finditer(text))
+        self._starts = tuple(match.start() for match in matches)
+        self._ends = tuple(match.end() for match in matches)
+
+    def hits(self, text: str, lo: int, hi: int) -> bool:
+        starts = self._starts
+        i = bisect_left(starts, lo)
+        n = len(starts)
+        while i < n:
+            start = starts[i]
+            if start >= hi:
+                break
+            if self._ends[i] <= hi:
+                return True
+            if start < hi - self._max_len:
+                # A bounded match that started this far before hi cannot still be open at hi;
+                # no recorded match can hit this span.
+                break
+            i += 1
+        window = hi - self._max_len
+        if window < lo:
+            window = lo
+        if self._pattern.search(text, window, hi) is not None:
+            return True
+        return self._leading.match(text, lo, hi) is not None
+
+
+class _ClauseScanIndex:
+    """Clause-classification inputs for one whole turn, computed in a single pass.
+
+    ``_unmarked_spans`` asks about the clause starting at every structural separator. Each
+    question the classification asks of a clause -- where does it end, could it carry a
+    retrieval prohibition, does it contain a recall word or a head-gated cue -- is answered
+    from these tables instead of slicing the suffix and rescanning it.
+    """
+
+    __slots__ = (
+        "authored",
+        "clause_ends",
+        "directive_starts",
+        "generative",
+        "physical",
+        "recall",
+        "rewrite",
+    )
+
+    def __init__(self, text: str) -> None:
+        from core.retrieval_constraints import negated_directive_positions
+
+        self.clause_ends: tuple[int, ...] = tuple(
+            match.start() for match in _CLAUSE_BOUNDARY_SPLIT_RE.finditer(text)
+        )
+        self.directive_starts: tuple[int, ...] = negated_directive_positions(text)
+        self.recall = _SpanKeywordTable(_RECALL_RE, _RECALL_LEADING_RE, 40)
+        self.physical = _SpanKeywordTable(_PHYSICAL_APPLIANCE_RE, _PHYSICAL_LEADING_RE, 200)
+        self.rewrite = _SpanKeywordTable(_REWRITE_RUNTIME_TARGET_RE, _REWRITE_LEADING_RE, 320)
+        self.authored = _SpanKeywordTable(_AUTHORED_ARTIFACT_RE, _AUTHORED_LEADING_RE, 320)
+        self.generative = _SpanKeywordTable(_GENERATIVE_NOUN_RE, _GENERATIVE_LEADING_RE, 40)
+        for table in (self.recall, self.physical, self.rewrite, self.authored, self.generative):
+            table.index(text)
+
+    def clause_end(self, position: int, text_end: int) -> int:
+        ends = self.clause_ends
+        i = bisect_left(ends, position)
+        return ends[i] if i < len(ends) else text_end
+
+    def directive_in(self, lo: int, hi: int) -> bool:
+        # Conservative on purpose: a directive merely STARTING inside the span runs the string
+        # authority, which then answers exactly. Only the absence of starts can skip it.
+        starts = self.directive_starts
+        i = bisect_left(starts, lo)
+        return i < len(starts) and starts[i] < hi
+
+
+def _classify_clause_span(
+    text: str, start: int, end: int, index: _ClauseScanIndex
+) -> ClauseKind:
+    """``classify_clause_kind`` over a span of the source turn -- see that function's contract.
+
+    Same steps in the same order; every question about span content is answered from the
+    caller's index (built once per turn) instead of a fresh scan, and the connector/head
+    parsing uses ``pos``/``endpos`` matches instead of slicing the clause out.
+    """
+    while start < end and text[start].isspace():
+        start += 1
+    while end > start and text[end - 1].isspace():
+        end -= 1
+    connectors = _CONNECTOR_PREFIX_RE.match(text, start, end)
+    if connectors is not None:
+        start = connectors.end()
+    if start >= end:
         return ClauseKind.UNKNOWN
-    if _is_whole_clause_constraint(clean, directive_free=directive_free):
+    # A prohibition needs a negated directive inside the clause; when none even starts here the
+    # constraint authority below would answer False, so it is not run. When one does, the
+    # ORIGINAL string authority decides -- on the exact clause text, exactly as before.
+    if index.directive_in(start, end) and _is_whole_clause_constraint(text[start:end]):
         return ClauseKind.CONSTRAINT
-    if _RECALL_RE.search(clean):
+    if index.recall.hits(text, start, end):
         return ClauseKind.RECALL
-    match = _REQUEST_HEAD_RE.match(clean)
+    match = _REQUEST_HEAD_RE.match(text, start, end)
+    clean_start = start
     if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
         # A framing prefix must not hide the request behind it. "From memory: what is the boiling
         # point of water at sea level in Celsius?" heads on "From", which no head set claims, so
@@ -406,37 +518,24 @@ def classify_clause_kind(request_text: str, *, directive_free: bool | None = Non
         #
         # Deliberately a FALLBACK, reached only where the answer would otherwise be UNKNOWN, so it
         # can add a classification but never change one this function already made.
-        retried = _head_after_framing_prefix(clean)
+        retried = _head_after_framing_prefix_span(text, start, end)
         if retried is None:
-            retried = _head_after_inverted_preposition(clean)
+            retried = _head_after_inverted_preposition_span(text, start, end)
         if retried is None:
             return ClauseKind.UNKNOWN
-        match, clean = retried
+        match, clean_start = retried
     head = match.group("head").casefold()
-    if head in {"print", "bake"} and re.search(
-        r"\b(?:physical|local)\b[^.!?;\n]{0,60}\b(?:printer|oven)\b"
-        r"|\b(?:printer|oven)\b[^.!?;\n]{0,60}\bphysical\b",
-        clean,
-        re.IGNORECASE,
-    ):
+    if head in {"print", "bake"} and index.physical.hits(text, clean_start, end):
         return ClauseKind.ACT
     if head in _COMPUTE_HEADS:
         return ClauseKind.COMPUTE
     if head in _OBSERVE_HEADS:
         return ClauseKind.OBSERVE
-    if head == "tell" and re.match(
-        r"^tell\s+(?:them|him|her)\b", clean, re.IGNORECASE
-    ):
+    if head == "tell" and _TELL_TARGET_RE.match(text, clean_start, end):
         return ClauseKind.ACT
     if head in _ACT_HEADS:
         return ClauseKind.ACT
-    if head == "rewrite" and re.search(
-        r"\b(?:your|the\s+runtime(?:'s)?|the\s+assistant(?:'s)?)\b"
-        r"[^.!?;\n]{0,80}\b(?:internal|core|system|runtime|source)\b"
-        r"[^.!?;\n]{0,40}\b(?:code|instructions?|identity|name)\b",
-        clean,
-        re.IGNORECASE,
-    ):
+    if head == "rewrite" and index.rewrite.hits(text, clean_start, end):
         # Rewriting text supplied by the user is a transform. Rewriting the running assistant's
         # own protected implementation is a requested side effect and must enter effect admission.
         return ClauseKind.ACT
@@ -448,19 +547,70 @@ def classify_clause_kind(request_text: str, *, directive_free: bool | None = Non
         # "Give a title" and "Name a heading" are generative even though ordinary factual
         # requests using the same verbs remain KNOW.  This narrow noun check avoids pretending a
         # deterministic parser understands the subject more deeply than it does.
-        if head in {"give", "name", "suggest"} and re.search(
-            r"\b(?:title|heading|headline|name|caption|recipe|code|script|program)\b",
-            clean,
-            re.IGNORECASE,
-        ):
+        if head in {"give", "name", "suggest"} and index.generative.hits(text, clean_start, end):
             return ClauseKind.CREATE
         # Same narrow-object policy for the one KNOW head that is also an ordinary authoring verb.
         # Without this, "define a variable called total in the report file" reaches read-only
         # knowledge admission and a request to change something is answered as an explanation.
-        if head == "define" and _AUTHORED_ARTIFACT_RE.search(clean):
+        if head == "define" and index.authored.hits(text, clean_start, end):
             return ClauseKind.CREATE
         return ClauseKind.KNOW
     return ClauseKind.UNKNOWN
+
+
+def _head_after_framing_prefix_span(
+    text: str, start: int, end: int
+) -> tuple[re.Match[str], int] | None:
+    """Retry the request head once, past a leading framing phrase. `None` when nothing changes."""
+
+    prefix = _FRAMING_PREFIX_RE.match(text, start, end)
+    if prefix is None:
+        return None
+    remainder_start = prefix.end()
+    while remainder_start < end and text[remainder_start].isspace():
+        remainder_start += 1
+    remainder_end = end
+    while remainder_end > remainder_start and text[remainder_end - 1].isspace():
+        remainder_end -= 1
+    if remainder_start >= remainder_end:
+        return None
+    match = _REQUEST_HEAD_RE.match(text, remainder_start, remainder_end)
+    if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
+        return None
+    return match, remainder_start
+
+
+def _head_after_inverted_preposition_span(
+    text: str, start: int, end: int
+) -> tuple[re.Match[str], int] | None:
+    """Retry the request head once, behind an inverted interrogative's object.
+
+    Reached only where the answer would otherwise be UNKNOWN, so it can add a classification
+    but never change one already made.
+    """
+
+    prefix = _INVERTED_INTERROGATIVE_RE.match(text, start, end)
+    if prefix is None:
+        return None
+    remainder_start = prefix.start("interrogative")
+    while remainder_start < end and text[remainder_start].isspace():
+        remainder_start += 1
+    remainder_end = end
+    while remainder_end > remainder_start and text[remainder_end - 1].isspace():
+        remainder_end -= 1
+    if remainder_start >= remainder_end:
+        return None
+    match = _REQUEST_HEAD_RE.match(text, remainder_start, remainder_end)
+    if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
+        return None
+    return match, remainder_start
+
+
+def classify_clause_kind(request_text: str) -> ClauseKind:
+    """Return a conservative kind without inferring tools, authority, or live-data needs."""
+
+    text = str(request_text or "")
+    return _classify_clause_span(text, 0, len(text), _ClauseScanIndex(text))
 
 
 def _quoted_positions(text: str) -> tuple[bool, ...]:
@@ -526,48 +676,46 @@ def _structural_markers(text: str, quoted: tuple[bool, ...]) -> tuple[_Marker, .
     return ()
 
 
-def _starts_request(text: str, position: int, directive_starts: tuple[int, ...]) -> bool:
+def _starts_request(text: str, position: int, index: _ClauseScanIndex) -> bool:
     # A later request must not turn an earlier list member into a request head:
     # "Kaunas and Tallinn, tell me ..." keeps both cities in the observation.
     # Framing classification applies to complete clauses, not across a possible
     # boundary while deciding where those clauses begin.
-    head_span = _CLAUSE_BOUNDARY_SPLIT_RE.split(text[position:], maxsplit=1)[0]
-    # The clause is a prefix of this suffix, so a directive anywhere in the suffix is the only way
-    # a prohibition can appear in the clause; when none does, the constraint analysis inside
-    # classification cannot fire and is skipped instead of re-scanned per separator.
-    directive_free = bisect_left(directive_starts, position) == len(directive_starts)
-    return classify_clause_kind(head_span, directive_free=directive_free) is not ClauseKind.UNKNOWN
+    #
+    # Callers hand over a position whose character is not whitespace, so the clause runs to the
+    # next recorded split boundary (or the end of the turn) without slicing the suffix out; the
+    # classification reads the caller's whole-turn index instead of rescanning the clause.
+    clause_end = index.clause_end(position, len(text))
+    return _classify_clause_span(text, position, clause_end, index) is not ClauseKind.UNKNOWN
 
 
 def _unmarked_spans(text: str, quoted: tuple[bool, ...]) -> tuple[tuple[int, int], ...]:
     """Split only at structural separators whose following text has a request head."""
 
-    # One pass over the whole turn answers, for every suffix at once, whether a negated
-    # retrieval directive could ever make its clause a constraint; per-separator suffixes then
-    # skip the prohibition analysis instead of re-scanning the remaining text once per separator.
-    from core.retrieval_constraints import negated_directive_positions
-
-    directive_starts = negated_directive_positions(text)
+    # One index per turn answers, for every separator at once, where each candidate clause
+    # ends and whether it could carry a prohibition, a recall word or a head-gated cue; the
+    # per-separator classification then never slices or rescans the remaining text.
+    index = _ClauseScanIndex(text)
     boundaries: list[tuple[int, int]] = []
-    for index, char in enumerate(text):
-        if quoted[index] or char not in ",;\n.!?":
+    for at, char in enumerate(text):
+        if quoted[at] or char not in ",;\n.!?":
             continue
-        next_start = index + 1
+        next_start = at + 1
         while next_start < len(text) and text[next_start].isspace():
             next_start += 1
         if char == "," and _REQUEST_CONNECTOR_RE.match(text, next_start):
             # The connector already owns this boundary; retain its preceding
             # punctuation in the source span as before.
             continue
-        if next_start >= len(text) or not _starts_request(text, next_start, directive_starts):
+        if next_start >= len(text) or not _starts_request(text, next_start, index):
             continue
-        previous_end = index + 1 if char in ".!?" else index
+        previous_end = at + 1 if char in ".!?" else at
         boundaries.append((previous_end, next_start))
     for match in _REQUEST_CONNECTOR_RE.finditer(text):
         if quoted[match.start()]:
             continue
         next_start = match.end()
-        if next_start < len(text) and _starts_request(text, next_start, directive_starts):
+        if next_start < len(text) and _starts_request(text, next_start, index):
             boundaries.append((match.start(), next_start))
 
     spans: list[tuple[int, int]] = []

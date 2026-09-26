@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -708,3 +710,116 @@ def test_failed_atomic_write_reports_failure_not_success(make_agent, tmp_path: P
         f"a failed write must not use success wording; got: {lowered[:300]!r}"
     )
     assert original is not None
+
+
+# ---------------------------------------------------------------------------
+# Clause-scan and write-grammar bounds (folded here: no new collected file)
+# parse_turn_ir asks about the clause after every structural separator, and
+# resolve_write_demand matches two lazy path grammars and a split-extension
+# repair. Each once re-scanned the remaining text per separator or per anchor
+# (measured: a 4000-separator turn took ~7s, a 32000-anchor payload minutes).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("script", [
+    "from core.turn_ir import parse_turn_ir; "
+    "parse_turn_ir('inside this workspace create ' + 'a.' * 4000, response_shape_parser=None)",
+    "from core.execution.write_demand import resolve_write_demand; "
+    "resolve_write_demand('inside this workspace create ' + 'a.' * 4000)",
+    "from core.turn_ir import parse_turn_ir; "
+    "parse_turn_ir('create file ' + 'a.' * 4000 + 'b in c folder saying y', response_shape_parser=None)",
+])
+def test_separator_runs_skip_per_suffix_prohibition_analysis(script):
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+@pytest.mark.parametrize("script", [
+    # repeated anchors of both lazy write grammars, with and without a reachable tail
+    "from core.execution.write_demand import resolve_write_demand; "
+    "resolve_write_demand('inside this workspace create a. ' * 20000)",
+    "from core.execution.write_demand import resolve_write_demand; "
+    "resolve_write_demand('create file a.py in b c. ' * 20000)",
+    "from core.execution.write_demand import resolve_write_demand; "
+    "resolve_write_demand('create file a.py with line: x. ' * 20000)",
+    # the split-extension repair over a long dot run
+    "from core.execution.write_demand import resolve_write_demand; "
+    "resolve_write_demand('inside this workspace create ' + 'a.' * 20000)",
+    # the same grammar in isolation
+    "from core.execution.write_demand import _in_workspace_create_file_match; "
+    "_in_workspace_create_file_match('inside this workspace create a. ' * 40000)",
+    "from core.execution.write_demand import _file_in_folder_saying_match; "
+    "_file_in_folder_saying_match('create file a.py in b c. ' * 40000)",
+    "from core.execution.write_demand import _repair_split_extensions; "
+    "_repair_split_extensions('a.' * 200000)",
+])
+def test_repeated_anchors_and_separators_stay_bounded(script):
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+@pytest.mark.parametrize("text,prohibited,kind,clause_count", [
+    ("Do NOT search the web for this", True, "CONSTRAINT", None),
+    ("get the rate without using the web", True, "UNKNOWN", None),
+    ("no web searches please, just answer", True, "CONSTRAINT", None),
+    ("Kaunas and Tallinn, tell me the weather", False, "KNOW", 2),
+    ("Do NOT search the web for this, what is 2+2?", True, None, 2),
+    ("Find my keys. Never search the internet. Tell me where they are.", True, None, 3),
+])
+def test_clause_splitting_and_prohibitions_are_unchanged(text, prohibited, kind, clause_count):
+    """A prohibition still constrains its clause and splits nothing it did not split before."""
+    from core.retrieval_constraints import analyze_retrieval_constraints
+    from core.turn_ir import classify_clause_kind, parse_turn_ir
+
+    assert analyze_retrieval_constraints(text).has_prohibition is prohibited
+    if kind is not None:
+        assert classify_clause_kind(text).name == kind
+    doc = parse_turn_ir(text, response_shape_parser=None)
+    assert len(doc.clauses) >= 1
+    if clause_count is not None:
+        assert len(doc.clauses) == clause_count
+
+
+@pytest.mark.parametrize("text", [
+    "inside this workspace create a.py with text: print('hi')",
+    "inside this workspace create `my notes.txt` with exactly the text: line one",
+    "create file a.py in src folder saying hello there",
+    "create file notes.md in the docs folder saying remember the milk",
+    "create notes. txt containing hello",
+    "create foo. py/bar. txt containing hi",
+    "Inside This Workspace Create X.py With Text: HI",
+    "CREATE FILE a.py IN b FOLDER SAYING x",
+    # the optional "the" belongs to the directory, not the marker
+    "create file a.py in the folder saying x",
+])
+def test_write_grammars_still_bind_real_commands(text):
+    from core.execution.write_demand import resolve_write_demand
+
+    demand = resolve_write_demand(text)
+    assert demand is not None and demand.items, text
+    assert all(item.content for item in demand.items)
+
+
+@pytest.mark.parametrize("text", [
+    # a path starting inside the anchor's whitespace still matches the grammar and is then
+    # refused downstream for the same reason it always was: a bare extension is not a file
+    "create file \n.py in b folder saying x",
+    "inside this workspace create  .py with text: x",
+])
+def test_whitespace_lead_paths_keep_their_refusal(text):
+    from core.execution.write_demand import resolve_write_demand
+
+    demand = resolve_write_demand(text)
+    assert demand is not None
+    assert demand.items == ()
+    assert any(reason == "not_a_file_target" for _path, reason in demand.refused_targets)
+
+
+def test_write_grammars_still_refuse_unconfined_targets():
+    from core.execution.write_demand import resolve_write_demand
+
+    demand = resolve_write_demand(
+        "create file ../../escape.py in b folder saying payload"
+    )
+    assert demand is not None
+    refused = [path for path, _reason in demand.refused_targets]
+    assert any("escape" in str(path) for path in refused)
