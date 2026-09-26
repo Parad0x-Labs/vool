@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -55,10 +56,39 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+#: Shapes that must never ride a PUBLIC failure artifact (pytest output IS public CI
+#: evidence). Same families the server-side ``_redact_text`` in the certification probe
+#: strips, applied here to whatever the rig lifts out of the daemon's own log files.
+_ARTIFACT_SECRET_RE = re.compile(
+    r"(?i)(bearer\s+)[a-z0-9._~+/=-]+|((?:api[_-]?key|token|secret|password)\s*[:=]\s*)\S+"
+)
+_ARTIFACT_HOME_PATH_RE = re.compile(r"(?:(?:/Users|/home)/[^/\s]+|[A-Za-z]:\\Users\\[^\\\s]+)")
+
+
+def redact_for_public_artifact(text: str, home: Path) -> str:
+    """Secret- and machine-path-free text for assertion messages that CI will publish.
+
+    The rig captures the daemon's own log tail when a certification fails, because a
+    bare-text 500 means the exception escaped the route handler entirely and its traceback
+    exists NOWHERE else: uvicorn's error logger propagates to the root logger, which
+    ``route_logging_to_file`` sends to ``<home>/data/logs/vool_api.log`` -- and the home is
+    disposable. That tail names the raising frame, but it was written for the operator's
+    private log, so it is redacted here before it can ride a test failure.
+    """
+    redacted = _ARTIFACT_SECRET_RE.sub(lambda m: f"{m.group(1) or m.group(2) or ''}[redacted]", str(text or ""))
+    redacted = _ARTIFACT_HOME_PATH_RE.sub("[home]", redacted)
+    for owned in (str(home), str(home.parent)):
+        if owned and owned != "/":
+            redacted = redacted.replace(owned, "[home]")
+    return redacted
+
+
 class CapturingProvider:
     """An Ollama-dialect endpoint that answers from a table and keeps every request in full."""
 
-    def __init__(self, table: dict[str, Any] | None = None, default: str = "Acknowledged.", reply_fn: Any = None) -> None:
+    def __init__(
+        self, table: dict[str, Any] | None = None, default: str = "Acknowledged.", reply_fn: Any = None
+    ) -> None:
         self.table = dict(table or {})
         self.default = default
         #: Optional `(request_body) -> str`: a scripted reply chosen from the prompt itself (a drive
@@ -121,7 +151,16 @@ class CapturingProvider:
                 if probe is not None:
                     if self.path.startswith("/v1/"):
                         return self._send(
-                            {"model": model, "choices": [{"index": 0, "finish_reason": "tool_calls" if probe.get("tool_calls") else "stop", "message": probe}]}
+                            {
+                                "model": model,
+                                "choices": [
+                                    {
+                                        "index": 0,
+                                        "finish_reason": "tool_calls" if probe.get("tool_calls") else "stop",
+                                        "message": probe,
+                                    }
+                                ],
+                            }
                         )
                     return self._send({"model": model, "done": True, "done_reason": "stop", "message": probe})
                 scripted = None
@@ -135,7 +174,9 @@ class CapturingProvider:
                     return self._send(
                         {
                             "model": model,
-                            "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": text}}],
+                            "choices": [
+                                {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": text}}
+                            ],
                             "usage": {"prompt_tokens": 40, "completion_tokens": 30},
                         }
                     )
@@ -186,8 +227,6 @@ class CapturingProvider:
         self._server.server_close()
 
 
-
-
 # --- the tool-calling half of the scripted provider -----------------------------------------------
 #
 # The runtime will not let an UNCERTIFIED local model author a final answer, and certification is a
@@ -210,7 +249,13 @@ def _tool_names(body: dict[str, Any]) -> set[str]:
     names: set[str] = set()
     for tool in body.get("tools") or []:
         if isinstance(tool, dict):
-            names.add(str(((tool.get("function") or {}) if isinstance(tool.get("function"), dict) else {}).get("name") or tool.get("name") or ""))
+            names.add(
+                str(
+                    ((tool.get("function") or {}) if isinstance(tool.get("function"), dict) else {}).get("name")
+                    or tool.get("name")
+                    or ""
+                )
+            )
     return {name for name in names if name}
 
 
@@ -233,7 +278,11 @@ def _tool_results(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _call(name: str, arguments: dict[str, Any], index: int) -> dict[str, Any]:
-    return {"id": f"call_{name}_{index}", "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}
+    return {
+        "id": f"call_{name}_{index}",
+        "type": "function",
+        "function": {"name": name, "arguments": json.dumps(arguments)},
+    }
 
 
 def _probe_reply(body: dict[str, Any]) -> dict[str, Any] | None:
@@ -244,7 +293,11 @@ def _probe_reply(body: dict[str, Any]) -> dict[str, Any] | None:
     if _PROBE_ECHO in offered and len(offered) == 1:
         # The repair case: the runtime rejected `repair-me` and named the token it wants instead.
         wanted = next((str(r.get("required_token") or "") for r in results if r.get("required_token")), "")
-        return {"role": "assistant", "content": "", "tool_calls": [_call(_PROBE_ECHO, {"token": wanted or "repair-me"}, 1)]}
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [_call(_PROBE_ECHO, {"token": wanted or "repair-me"}, 1)],
+        }
     if {_PROBE_ADD, _PROBE_NONCE} <= offered:
         return {
             "role": "assistant",
@@ -415,7 +468,12 @@ class ServedDaemon:
             "print('registered')\n"
         )
         completed = subprocess.run(
-            [sys.executable, "-c", script], cwd=str(REPO_ROOT), env=self.env(), capture_output=True, text=True, timeout=180
+            [sys.executable, "-c", script],
+            cwd=str(REPO_ROOT),
+            env=self.env(),
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
         if completed.returncode != 0:
             raise RuntimeError(f"provider registration failed:\n{completed.stdout}\n{completed.stderr}")
@@ -454,7 +512,15 @@ class ServedDaemon:
 
     # --- the doors under test -----------------------------------------------------------------
 
-    def upload(self, *, session_id: str, name: str, data: bytes, declared_type: str = "application/octet-stream", source: str = "") -> dict[str, Any]:
+    def upload(
+        self,
+        *,
+        session_id: str,
+        name: str,
+        data: bytes,
+        declared_type: str = "application/octet-stream",
+        source: str = "",
+    ) -> dict[str, Any]:
         """The REAL raw upload door, byte-for-byte, exactly as the composer posts to it."""
         headers = {
             "Content-Type": "application/octet-stream",
@@ -509,7 +575,15 @@ class ServedDaemon:
         except HTTPError as exc:
             return {"status": exc.code, **json.loads(exc.read().decode("utf-8") or "{}")}
 
-    def chat(self, message: str, *, session_id: str, attachments: list[str] | None = None, timeout: float = 300.0, **extra: Any) -> dict[str, Any]:
+    def chat(
+        self,
+        message: str,
+        *,
+        session_id: str,
+        attachments: list[str] | None = None,
+        timeout: float = 300.0,
+        **extra: Any,
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "messages": [{"role": "user", "content": message}],
             "stream": False,
@@ -536,8 +610,22 @@ class ServedDaemon:
         provider passes because it genuinely emits parallel tool calls with the right arguments,
         carries a sealed tool result into its next answer and repairs a rejected call -- which is
         what the probe measures. No certification row is written by hand.
+
+        A failed certification stays a failure. Its return value additionally carries the
+        daemon-side log tail (redacted for a public artifact), because the 2026-09-26 CI events
+        answered ``500`` with BARE body ``Internal Server Error`` -- uvicorn's own error text,
+        meaning the exception escaped the route's handler altogether and its traceback exists
+        only inside this disposable home's ``data/logs/vool_api.log``. With the tail attached,
+        the assertion that fails the test names the exception class and raising frame itself;
+        without it the evidence dies with the home. Capture never converts a failure into a
+        pass, and the redaction is asserted by
+        ``tests/test_certification_failure_evidence_served.py``.
         """
-        payload = {"provider_name": provider_name or self.provider_name, "model_name": model_name or self.model, "timeout_seconds": timeout}
+        payload = {
+            "provider_name": provider_name or self.provider_name,
+            "model_name": model_name or self.model,
+            "timeout_seconds": timeout,
+        }
         request = Request(
             f"{self.base_url}/api/model-tool-certification/run",
             data=json.dumps(payload).encode("utf-8"),
@@ -548,7 +636,53 @@ class ServedDaemon:
             with urlopen(request, timeout=timeout + 60) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            return {"state": "error", "http_status": exc.code, "body": exc.read().decode("utf-8", "replace")[:600]}
+            return {
+                "state": "error",
+                "http_status": exc.code,
+                "body": exc.read().decode("utf-8", "replace")[:600],
+                "server_log_tail": self.await_failure_log_tail(),
+            }
+        except (URLError, OSError) as exc:
+            # The daemon never answered at all (it died, or the socket went away): the
+            # daemon.log tail is the only witness, and it rides the same redaction.
+            return {
+                "state": "error",
+                "http_status": 0,
+                "body": f"{type(exc).__name__}: {exc}"[:600],
+                "server_log_tail": self.await_failure_log_tail(),
+            }
+
+    def await_failure_log_tail(self, *, settle_seconds: float = 2.5) -> str:
+        """``failure_log_tail`` after letting the server finish writing its evidence.
+
+        uvicorn sends the 500 bytes BEFORE it logs "Exception in ASGI application"
+        (measured: the traceback reaches vool_api.log within ~0.3s of the response).
+        A failed request therefore returns at the client slightly ahead of the only
+        record that names the raising frame, so the capture waits a bounded settle
+        window for an exception record to appear, then reads whatever is there.
+        """
+        api_log = self.home / "data" / "logs" / "vool_api.log"
+        deadline = time.monotonic() + max(0.0, settle_seconds)
+        while time.monotonic() < deadline:
+            try:
+                if "Traceback" in api_log.read_text("utf-8", "replace")[-20000:]:
+                    break
+            except OSError:
+                pass
+            time.sleep(0.1)
+        return self.failure_log_tail()
+
+    def failure_log_tail(self, *, api_lines: int = 80, daemon_lines: int = 20, cap: int = 12000) -> str:
+        """Bounded, redacted daemon-side evidence for a failed served request."""
+        parts: list[str] = []
+        api_log = self.home / "data" / "logs" / "vool_api.log"
+        try:
+            lines = api_log.read_text("utf-8", "replace").splitlines()
+            parts.append(f"--- {api_log.name} (last {api_lines} lines) ---\n" + "\n".join(lines[-api_lines:]))
+        except OSError:
+            parts.append(f"--- {api_log.name}: unreadable or absent ---")
+        parts.append(f"--- {self.log_path.name} (last {daemon_lines} lines) ---\n" + self.log_tail(daemon_lines))
+        return redact_for_public_artifact("\n".join(parts), self.home)[:cap]
 
     def models(self) -> list[dict[str, Any]]:
         with urlopen(f"{self.base_url}/api/tags", timeout=60) as response:
@@ -559,7 +693,9 @@ class ServedDaemon:
     def certification_status(self, *, provider_name: str = "", model_name: str = "") -> dict[str, Any]:
         from urllib.parse import urlencode
 
-        query = urlencode({"provider_name": provider_name or self.provider_name, "model_name": model_name or self.model})
+        query = urlencode(
+            {"provider_name": provider_name or self.provider_name, "model_name": model_name or self.model}
+        )
         with urlopen(f"{self.base_url}/api/model-tool-certification?{query}", timeout=60) as response:
             return json.loads(response.read().decode("utf-8"))
 

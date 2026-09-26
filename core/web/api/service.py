@@ -4052,10 +4052,17 @@ def _dispatch_post_inner(
         )
         from core.model_registry import ModelRegistry
 
-        manifest = ModelRegistry().get_manifest(provider_name, requested_model)
-        if manifest is None:
-            return apply_runtime_headers(json_response(404, {"error": "model provider not found"}), runtime)
+        # The manifest read is this door's first store touch and used to sit BEFORE the
+        # try below: an exception opening or reading the store escaped the route handler
+        # entirely, and uvicorn answered its BARE-text 500 (body 'Internal Server Error')
+        # with the traceback trapped in the ephemeral home's log -- the exact shape of the
+        # two 2026-09-26 CI certification failures (runs 36249845158 and 36259697477).
+        # Reading the manifest inside the same redacted-500 contract names the failure in
+        # the response body and the daemon log; the verdict stays an error.
         try:
+            manifest = ModelRegistry().get_manifest(provider_name, requested_model)
+            if manifest is None:
+                return apply_runtime_headers(json_response(404, {"error": "model provider not found"}), runtime)
             result = run_local_model_tool_certification(
                 manifest,
                 timeout_seconds=max(1.0, min(timeout_seconds, 300.0)),
