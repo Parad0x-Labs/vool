@@ -7,9 +7,9 @@ What this layer adds on top of the door:
 * an approved-origin policy — RPC endpoints must be the chain row's declared origins or the
   operator's explicit override; paid-resource targets must be public https (loopback only
   behind the explicit simulator switch);
-* DNS/IP rebinding screening — a hostname that resolves into private, reserved, link-local,
-  loopback (unless the switch is on) or otherwise non-global space is refused before any
-  socket;
+* DNS/IP confinement — non-global answers are refused (explicit simulator loopback
+  excepted). Approved numeric addresses are retained through connect, without a second DNS
+  lookup or proxy; the original hostname remains the TLS and HTTP authority;
 * redirect confinement — the door is called with ``redirect_policy="refuse"`` and each hop
   is re-validated here; a payment header is attached (as an UNREDIRECTED header) only when
   the hop's origin IS the approved challenge origin, so a redirect can neither change the
@@ -60,12 +60,11 @@ def _address_allowed(address_text: str) -> bool:
         return False
     if _loopback_switch() and address.is_loopback:
         return True
-    return not (address.is_private or address.is_link_local or address.is_reserved or address.is_multicast or address.is_unspecified or address.is_loopback)
+    return address.is_global and not (address.is_reserved or address.is_multicast)
 
 
-def validate_target(url: str, *, spec: chains.ChainIdentity | None = None, public_only: bool = True) -> str:
-    """The origin policy every wallet request passes BEFORE any socket. Returns the origin
-    (scheme://host[:port]) the request is pinned to."""
+def _validated_target(url: str, *, spec: chains.ChainIdentity | None = None, public_only: bool = True) -> tuple[str, tuple[str, ...]]:
+    """Return the approved origin and DNS answers for one hop, before any socket."""
     parts = urlsplit(str(url or "").strip())
     host = (parts.hostname or "").strip().lower()
     if parts.scheme not in {"http", "https"} or not host:
@@ -73,7 +72,10 @@ def validate_target(url: str, *, spec: chains.ChainIdentity | None = None, publi
     if host.endswith((".local", ".internal", ".lan", ".home.arpa")):
         raise wallet_fault("wallet_outbound_refused", authority=AUTHORITY, context={"reason": "private_namespace", "host": host[:80]})
     loopback = host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".localhost")
-    for address_text in resolve_host_addresses(host):
+    addresses = tuple(resolve_host_addresses(host))
+    if not addresses:
+        raise wallet_fault("wallet_outbound_refused", authority=AUTHORITY, context={"reason": "dns_no_addresses"})
+    for address_text in addresses:
         if not _address_allowed(address_text):
             raise wallet_fault("wallet_outbound_refused", authority=AUTHORITY, context={"reason": "non_global_address", "host": host[:80], "address": "private-or-reserved"})
     if loopback:
@@ -85,7 +87,12 @@ def validate_target(url: str, *, spec: chains.ChainIdentity | None = None, publi
         chains.rpc_origin_allowed_or_refuse(spec, str(url))
     port = parts.port
     origin = f"{parts.scheme}://{host}" + (f":{port}" if port else "")
-    return origin
+    return origin, addresses
+
+
+def validate_target(url: str, *, spec: chains.ChainIdentity | None = None, public_only: bool = True) -> str:
+    """Validate a target for display/policy checks; fetch retains the approved DNS answer."""
+    return _validated_target(url, spec=spec, public_only=public_only)[0]
 
 
 def _origin_of(url: str) -> str:
@@ -97,7 +104,7 @@ def _origin_of(url: str) -> str:
     return f"{parts.scheme}://{host}" + (f":{port}" if port else "")
 
 
-def _open_through_door(request, *, timeout: float, retry_of: str):
+def _open_through_door(request, *, timeout: float, retry_of: str, addresses: tuple[str, ...]):
     """The ONE door, with the wallet's named scope opened when no turn ledger is active."""
     from core.effect_gateway import current_effect_ledger
     from core.remote_fetch_policy import open_remote
@@ -106,8 +113,8 @@ def _open_through_door(request, *, timeout: float, retry_of: str):
         from core.effect_gateway import named_background_effect_scope
 
         with named_background_effect_scope("wallet.outbound"):
-            return open_remote(request, timeout=timeout, provider_id=PROVIDER_ID, keyed_or_keyless="keyless", retry_of=retry_of, redirect_policy="refuse")
-    return open_remote(request, timeout=timeout, provider_id=PROVIDER_ID, keyed_or_keyless="keyless", retry_of=retry_of, redirect_policy="refuse")
+            return open_remote(request, timeout=timeout, provider_id=PROVIDER_ID, keyed_or_keyless="keyless", retry_of=retry_of, redirect_policy="refuse", pinned_addresses=addresses)
+    return open_remote(request, timeout=timeout, provider_id=PROVIDER_ID, keyed_or_keyless="keyless", retry_of=retry_of, redirect_policy="refuse", pinned_addresses=addresses)
 
 
 def fetch(
@@ -135,7 +142,7 @@ def fetch(
     import urllib.request
 
     clean_url = str(url or "").strip()
-    current = validate_target(clean_url, spec=spec, public_only=True)
+    current, addresses = _validated_target(clean_url, spec=spec, public_only=True)
     remaining_payment = dict(payment_headers or {})
     for _hop in range(MAX_HOPS + 1):
         request = urllib.request.Request(clean_url, data=body, headers=dict(headers or {}), method=str(method or "GET").upper())
@@ -146,7 +153,7 @@ def fetch(
                 # request, so payment material cannot survive a hop we did not make.
                 request.add_unredirected_header(name, value)
         try:
-            response = _open_through_door(request, timeout=timeout, retry_of=retry_of)
+            response = _open_through_door(request, timeout=timeout, retry_of=retry_of, addresses=addresses)
         except urllib.error.HTTPError as exc:
             location = exc.headers.get("Location", "") if exc.headers else ""
             if 300 <= exc.code < 400 and location:
@@ -159,7 +166,7 @@ def fetch(
                 from urllib.parse import urljoin
 
                 clean_url = urljoin(clean_url, location)
-                current = validate_target(clean_url, spec=spec, public_only=True)
+                current, addresses = _validated_target(clean_url, spec=spec, public_only=True)
                 continue
             if 300 <= exc.code < 400:
                 raise wallet_fault("wallet_outbound_refused", authority=AUTHORITY, context={"reason": f"redirect_refused_{exc.code}", "host": current[:80]}) from None
