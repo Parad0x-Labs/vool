@@ -16,6 +16,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
@@ -176,6 +177,34 @@ def _answer(frame: dict[str, Any]) -> str:
     return text
 
 
+def _certify(daemon: Any, model: str) -> dict[str, Any]:
+    """POST one model-tool certification run and return its payload.
+
+    A served 5xx STAYS a failure. Its body is the only place the daemon names the exception
+    that escaped the probe's own handling (`safe_error_text(exc)`, already redacted
+    server-side): the 2026-09-26 tests(5) run (job 108425959066) answered this test's second
+    certification with HTTP 500 and lost exactly that evidence -- `urlopen` raises before the
+    test can read the answer, and the ephemeral home takes the daemon log with it. The body is
+    bounded and paired with the model identity; no raw prompt or credential rides it."""
+    request = Request(
+        f"{daemon.base_url}/api/model-tool-certification/run",
+        data=json.dumps(
+            {"provider_name": "ollama-local", "model_name": model, "timeout_seconds": 60}
+        ).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=180) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")
+        raise AssertionError(
+            f"certification of {model} failed: HTTP {exc.code} {exc.reason}; "
+            f"daemon response={body[:400]}"
+        ) from exc
+
+
 @pytest.mark.served
 @pytest.mark.skipif(not _SERVED_AVAILABLE, reason="served rig unavailable")
 def test_the_referenced_artifact_rides_the_final_provider_request_across_a_model_change(tmp_path) -> None:
@@ -189,16 +218,7 @@ def test_the_referenced_artifact_rides_the_final_provider_request_across_a_model
             # The tool-probe's sealed nonce is single-use per home, so the model that will
             # need the SECOND certification of this daemon certifies FIRST.
             for model in ("stub-chat:7b", "stub-chat:2b"):
-                request = Request(
-                    f"{daemon.base_url}/api/model-tool-certification/run",
-                    data=json.dumps(
-                        {"provider_name": "ollama-local", "model_name": model, "timeout_seconds": 60}
-                    ).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                with urlopen(request, timeout=180) as response:
-                    state = json.loads(response.read().decode("utf-8")).get("state")
+                state = _certify(daemon, model).get("state")
                 assert state == "verified", (model, state)
 
             session = "carry-session"
@@ -249,16 +269,7 @@ def test_a_refusal_quoting_a_fence_does_not_become_the_carried_artifact(tmp_path
         )
         run_in_home(home, seed)
         with ServedDaemon(home) as daemon:
-            request = Request(
-                f"{daemon.base_url}/api/model-tool-certification/run",
-                data=json.dumps(
-                    {"provider_name": "ollama-local", "model_name": "stub-chat:2b", "timeout_seconds": 60}
-                ).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urlopen(request, timeout=180) as response:
-                assert json.loads(response.read().decode("utf-8")).get("state") == "verified"
+            assert _certify(daemon, "stub-chat:2b").get("state") == "verified"
 
             session = "refusal-carry-session"
             daemon.chat_stream(REFUSAL_QUOTE_ASK, session_id=session, model="stub-chat:2b")

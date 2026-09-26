@@ -4065,6 +4065,14 @@ def _dispatch_post_inner(
         except Exception as exc:
             from core.local_model_tool_certification import CERTIFICATION_ROUTING_EFFECT
 
+            # The response carries only the redacted one-liner; the daemon log is where the
+            # full chain lives. The probe's own failures are recorded as measured `degraded`
+            # runs -- an exception reaching HERE escaped the probe's handling entirely, and
+            # without this line the 500's traceback exists nowhere, not even server-side
+            # (measured: the 2026-09-26 tests(5) 500 answered with no daemon-log trace).
+            logging.getLogger("vool.api").exception(
+                "model tool certification run failed (provider=%s model=%s)", provider_name, requested_model
+            )
             return apply_runtime_headers(
                 json_response(
                     500,

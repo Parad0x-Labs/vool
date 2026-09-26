@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import traceback
 from datetime import datetime, timezone
 from typing import Any
 
@@ -32,6 +33,11 @@ class _JsonFormatter(logging.Formatter):
                 payload[key] = val
         if record.exc_info and record.exc_info[1]:
             payload["exception"] = str(record.exc_info[1])
+            # The class name and the chain of frames are the diagnosis; `str(exc)` alone
+            # cannot say WHERE the raise came from (measured: the 2026-09-26 certification
+            # 500 logged its message with no way to name the raising call).
+            payload["exception_type"] = record.exc_info[0].__name__ if record.exc_info[0] else ""
+            payload["traceback"] = "".join(traceback.format_exception(*record.exc_info)).strip()
         return json.dumps(payload, default=str)
 
 
