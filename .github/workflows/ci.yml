@@ -175,8 +175,10 @@ jobs:
           # served lanes run through playwright's own launcher, green unmodified in
           # 35752689216.
           probe_fail=0
+          probe_count=0
           for bin in "${bins[@]}"; do
             case "$(basename "$bin")" in chrome-headless-shell*) ;; *) continue ;; esac
+            probe_count=$((probe_count + 1))
             probe_dir=$(mktemp -d)
             ok=0
             if timeout -k 5s 60s "$bin" --disable-gpu --no-first-run --no-default-browser-check \
@@ -194,6 +196,10 @@ jobs:
             fi
             rm -rf "$probe_dir"
           done
+          if [ "$probe_count" -eq 0 ]; then
+            echo "::error::no chrome-headless-shell binary in the playwright cache — the render lane's pinned build is missing (provisioning drifted); a preflight that probed nothing cannot pass"
+            exit 1
+          fi
           exit $probe_fail
       - name: Provision a virtual display for headful sessions
         # The wallet-handoff contract opens one genuinely headful Chromium session (a handoff
