@@ -42,7 +42,6 @@ from core.persistent_memory import (
 )
 from core.public_hive import client as public_hive_client
 from core.runtime_continuity import configure_runtime_continuity_db_path, reset_runtime_continuity_state
-from core.runtime_paths import configure_runtime_home
 from core.user_preferences import default_preferences, save_preferences
 from storage.db import active_default_db_path, configure_default_db_path, get_connection, reset_default_connection
 from storage.migrations import run_migrations
@@ -367,23 +366,6 @@ def request_turn_context_isolation() -> None:
 @pytest.fixture(autouse=True)
 def runtime_storage_reset() -> None:
     configure_default_db_path(_TEST_DB_PATH)
-    # The runtime-home OVERRIDE is session-critical process state, exactly like the db
-    # path re-pinned above -- and for the same measured reason: a function-scoped rig
-    # that calls configure_runtime_home(<its tmp home>) and never restores it leaves
-    # every LATER test in the process resolving active_data_dir()/active_config_home_dir()
-    # into that dead directory. The db seam already self-heals here; the home seam had no
-    # such re-pin, which is how the dna fee-collection lane's fixture poisoned its whole
-    # shard: the permission restart test's parent wrote the bypass-grant mirror under the
-    # leaked home while its child (env-based resolution) read the session home -- loaded 0,
-    # three consecutive CI runs (36265150283/36268704787/36272309227 shard tests(3)), and
-    # reproduced locally by shard-order replay. Re-pinning to the session home at every
-    # test setup keeps a rig's own home valid DURING its test (its fixture runs after this
-    # autouse one) while no stray pin outlives the test that set it.
-    # ... test that set it. The session home is the root conftest's own env pin
-    # (VOOL_HOME), so a spawned child session re-pins to ITS home the same way.
-    _session_home = str(os.environ.get("VOOL_HOME") or "").strip()
-    if _session_home:
-        configure_runtime_home(_session_home)
     reset_default_connection()
     configure_runtime_continuity_db_path(active_default_db_path())
     run_migrations()
