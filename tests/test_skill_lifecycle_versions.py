@@ -195,15 +195,21 @@ def test_concurrent_activations_of_one_skill_serialize_into_a_consistent_history
 ) -> None:
     drafts = [_stage(tmp_path, _SKILL_V1.replace("version proof lifecycle", f"variant {i} corpus"), name=f"d{i}")
               for i in range(6)]
+    # The creating activation is not raced. An install that must NOT overwrite can only
+    # succeed as the FIRST activation of a skill, and which racing thread is first is a
+    # scheduling outcome, not a contract: a legal schedule where an overwrite activation
+    # completes first must yield the truthful `exists` refusal (pinned below). Racing the
+    # creator against overwriters asserted a thread-ordering the runtime cannot promise.
+    assert install_skill(str(drafts[0]))["status"] == "ok", "the creating activation"
     results: list[dict] = []
     lock = threading.Lock()
 
     def install_one(index: int) -> None:
-        outcome = install_skill(str(drafts[index]), overwrite=(index > 0))
+        outcome = install_skill(str(drafts[index]), overwrite=True)
         with lock:
             results.append(outcome)
 
-    threads = [threading.Thread(target=install_one, args=(i,)) for i in range(6)]
+    threads = [threading.Thread(target=install_one, args=(i,)) for i in range(1, 6)]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -214,6 +220,105 @@ def test_concurrent_activations_of_one_skill_serialize_into_a_consistent_history
     assert history["head_version"] == 6, history
     versions = sorted(entry["version"] for entry in history["versions"])
     assert versions == [1, 2, 3, 4, 5, 6], "concurrent activations must not fork the history"
+    # Serialization must leave the head snapshot and the live file as the SAME bytes:
+    # the newest recorded version is what future turns load, and a history that
+    # disagrees with the active file cannot answer "which version is live".
+    head_entry = history["versions"][-1]
+    head_snapshot = _installed_skill_dir(plugin_root) / "versions" / f"v{head_entry['version']}.md"
+    active_bytes = (_installed_skill_dir(plugin_root) / "SKILL.md").read_bytes()
+    assert active_bytes == head_snapshot.read_bytes(), (
+        "the active file and the head version snapshot must agree after concurrent activations"
+    )
+
+
+def test_concurrent_non_overwrite_activation_refuses_and_records_nothing(
+    plugin_root: Path, tmp_path
+) -> None:
+    """Against an installed skill, a non-overwrite activation answers `exists` however
+    it is scheduled, while the overwrite activations it races all land: the refusal and
+    the successes coexist, and the refusal adds no version."""
+    assert install_skill(str(_stage(tmp_path, _SKILL_V1)))["status"] == "ok"
+    drafts = [_stage(tmp_path, _SKILL_V2.replace("version TWO", f"variant {i}"), name=f"r{i}")
+              for i in range(5)]
+    fresh = _stage(tmp_path, _SKILL_V2.replace("version TWO", "a fresh edit"), name="fresh")
+    outcomes: dict[str, dict] = {}
+    lock = threading.Lock()
+
+    def install_one(name: str, path: Path, overwrite: bool) -> None:
+        outcome = install_skill(str(path), overwrite=overwrite)
+        with lock:
+            outcomes[name] = outcome
+
+    threads = [
+        threading.Thread(target=install_one, args=(f"ow{i}", draft, True))
+        for i, draft in enumerate(drafts)
+    ]
+    threads.append(threading.Thread(target=install_one, args=("fresh", fresh, False)))
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert outcomes["fresh"]["status"] == "exists", outcomes["fresh"]
+    assert all(outcomes[f"ow{i}"]["status"] == "ok" for i in range(5)), outcomes
+    history = _history(plugin_root)
+    assert history["head_version"] == 6, history  # creator + five overwrites; the refusal recorded none
+    assert sorted(e["version"] for e in history["versions"]) == [1, 2, 3, 4, 5, 6]
+
+
+def test_non_overwrite_activation_cannot_clobber_bytes_landed_by_a_racing_install(
+    plugin_root: Path, tmp_path, monkeypatch
+) -> None:
+    """The exists-check and the copy are ONE step. A non-overwrite activation that
+    passed the check on an absent destination must still refuse once a racing
+    activation installs the skill mid-flight — its own copy must never land over the
+    installed bytes (and the racing copy cannot be torn by an interleaved writer)."""
+    import shutil as _shutil
+
+    import core.skill_tools as skill_tools
+
+    first = _stage(tmp_path, _SKILL_V1, name="cfirst")
+    second = _stage(tmp_path, _SKILL_V2, name="csecond")
+    reached = threading.Event()
+    release = threading.Event()
+    real_copyfile = _shutil.copyfile
+
+    def held_copyfile(src, dst, **kwargs):
+        if "cfirst" in str(src):
+            reached.set()
+            assert release.wait(timeout=10), "test never released the held copy"
+        return real_copyfile(src, dst, **kwargs)
+
+    monkeypatch.setattr(skill_tools.shutil, "copyfile", held_copyfile)
+    outcomes: dict[str, dict] = {}
+    lock = threading.Lock()
+
+    def install_one(name: str, path: Path, overwrite: bool) -> None:
+        outcome = install_skill(str(path), overwrite=overwrite)
+        with lock:
+            outcomes[name] = outcome
+
+    held = threading.Thread(target=install_one, args=("overwrite", first, True))
+    held.start()
+    assert reached.wait(timeout=10), "the overwrite activation never reached its copy"
+    racer = threading.Thread(target=install_one, args=("nonoverwrite", second, False))
+    racer.start()
+    # While the overwrite activation holds the serialization lock inside its copy, the
+    # non-overwrite activation must not be able to COMPLETE (without serialization it
+    # would run its own copy now and clobber). Detector, not the contract itself.
+    assert not racer.join(timeout=0.5), "the non-overwrite activation finished mid-install"
+    release.set()
+    held.join(timeout=10)
+    racer.join(timeout=10)
+    assert not racer.is_alive() and not held.is_alive(), "an activation thread hung"
+
+    assert outcomes["overwrite"]["status"] == "ok", outcomes["overwrite"]
+    assert outcomes["nonoverwrite"]["status"] == "exists", outcomes["nonoverwrite"]
+    active = (_installed_skill_dir(plugin_root) / "SKILL.md").read_text(encoding="utf-8")
+    assert active == _SKILL_V1, "the racing overwrite's bytes must survive untouched"
+    history = _history(plugin_root)
+    assert history["head_version"] == 1, "the refused activation must record no version"
+    assert [e["version"] for e in history["versions"]] == [1]
 
 
 # ---------------------------------------------------------------------------

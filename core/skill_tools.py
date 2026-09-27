@@ -41,6 +41,16 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 VERSIONS_DIRNAME = "versions"
 _HISTORY_LOCK = threading.Lock()
 
+# Activation-class mutations (install, rollback) serialize the whole check-copy-record
+# step on ONE lock. Without it the exists-check and the copy are separate moments: a
+# no-overwrite install that passed the check can clobber bytes a racing install already
+# landed (the refusal contract bypassed), and two concurrent copies into one SKILL.md can
+# interleave open/truncate/write and leave a torn file that is neither skill. In-process
+# serialization is the real domain here: installs are gated behind the one daemon's
+# approval flow; across processes the history store stays safe on its own (atomic
+# .tmp+replace) and SKILL.md degrades to last-writer-wins.
+_ACTIVATION_LOCK = threading.Lock()
+
 
 def _history_path(skill_dir: Path) -> Path:
     return skill_dir / VERSIONS_DIRNAME / "history.json"
@@ -254,34 +264,35 @@ def rollback_skill(name: str, *, version: int) -> dict[str, Any]:
             "reason": f"no installed skill named {name!r} to roll back",
         }
     wanted = int(version)
-    history = _read_history(skill_dir)
-    entry = next(
-        (dict(row) for row in history.get("versions") or [] if int(row.get("version") or 0) == wanted),
-        None,
-    )
-    if entry is None:
-        known = sorted(int(row.get("version") or 0) for row in history.get("versions") or [])
-        return {
-            "status": "unknown_version",
-            "reason": f"version {wanted} is not in the recorded history {known}",
-            "known_versions": known,
-        }
-    snapshot = skill_dir / VERSIONS_DIRNAME / f"v{wanted}.md"
-    if not snapshot.is_file():
-        return {
-            "status": "error",
-            "reason": f"the snapshot for version {wanted} is missing from {snapshot.parent}",
-        }
-    active = skill_dir / "SKILL.md"
-    tmp = active.with_name(active.name + ".tmp")
-    try:
-        tmp.write_bytes(snapshot.read_bytes())
-        tmp.replace(active)
-        recorded = _record_version(skill_dir, source="rollback", restored_from=wanted)
-    except OSError as exc:
-        with contextlib.suppress(OSError):
-            tmp.unlink(missing_ok=True)
-        return {"status": "error", "reason": f"{type(exc).__name__}: could not restore version {wanted}"}
+    with _ACTIVATION_LOCK:
+        history = _read_history(skill_dir)
+        entry = next(
+            (dict(row) for row in history.get("versions") or [] if int(row.get("version") or 0) == wanted),
+            None,
+        )
+        if entry is None:
+            known = sorted(int(row.get("version") or 0) for row in history.get("versions") or [])
+            return {
+                "status": "unknown_version",
+                "reason": f"version {wanted} is not in the recorded history {known}",
+                "known_versions": known,
+            }
+        snapshot = skill_dir / VERSIONS_DIRNAME / f"v{wanted}.md"
+        if not snapshot.is_file():
+            return {
+                "status": "error",
+                "reason": f"the snapshot for version {wanted} is missing from {snapshot.parent}",
+            }
+        active = skill_dir / "SKILL.md"
+        tmp = active.with_name(active.name + ".tmp")
+        try:
+            tmp.write_bytes(snapshot.read_bytes())
+            tmp.replace(active)
+            recorded = _record_version(skill_dir, source="rollback", restored_from=wanted)
+        except OSError as exc:
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
+            return {"status": "error", "reason": f"{type(exc).__name__}: could not restore version {wanted}"}
     return {
         "status": "ok",
         "path": str(active),
@@ -628,73 +639,74 @@ def install_skill(path: str, *, plugin_id: str = "local-skills", overwrite: bool
     clean_plugin = _slug(plugin_id) or "local-skills"
     destination_dir = plugins_root() / "plugins" / clean_plugin / "skills" / slug
     destination = destination_dir / "SKILL.md"
-    if destination.exists() and not overwrite:
-        return {
-            "status": "exists",
-            "reason": f"a skill is already installed at {destination}; pass overwrite to replace it",
-            "path": str(destination),
-        }
-    # IDENTITY-COLLISION GATE (recovered skill-identity law). The effective
-    # digest names the INSTRUCTIONS a skill carries, independent of packaging.
-    # Another installed skill with the same effective digest means this install
-    # would put one instruction set behind two names — a rename the operator
-    # cannot see, and the classic smuggling shape (repackage a refused skill
-    # under a fresh slug). Refused typed, with the collision named.
-    try:
-        incoming_effective = _instruction_digest_for_bytes(Path(source).read_bytes())
-        collisions = {
-            other: digest
-            for other, digest in _installed_effective_digests(slug).items()
-            if digest and digest == incoming_effective
-        }
-    except OSError:
-        collisions = {}
-    if collisions:
-        other = sorted(collisions)[0]
-        return {
-            "status": "refused",
-            "reason": (
-                f"identity collision: the instructions being installed are already active as "
-                f"{other!r} (same effective digest); a skill set cannot live behind two names"
-            ),
-            "path": str(source),
-            "collision_with": other,
-            "effective_sha256": incoming_effective,
-            "problems": [f"effective digest equals installed skill {other!r}"],
-        }
-    try:
-        destination_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, destination)
-        _ensure_plugin_manifest(plugins_root() / "plugins" / clean_plugin, clean_plugin)
-    except OSError as exc:
-        return {"status": "error", "reason": f"{type(exc).__name__}: could not install the skill"}
+    with _ACTIVATION_LOCK:
+        if destination.exists() and not overwrite:
+            return {
+                "status": "exists",
+                "reason": f"a skill is already installed at {destination}; pass overwrite to replace it",
+                "path": str(destination),
+            }
+        # IDENTITY-COLLISION GATE (recovered skill-identity law). The effective
+        # digest names the INSTRUCTIONS a skill carries, independent of packaging.
+        # Another installed skill with the same effective digest means this install
+        # would put one instruction set behind two names — a rename the operator
+        # cannot see, and the classic smuggling shape (repackage a refused skill
+        # under a fresh slug). Refused typed, with the collision named.
+        try:
+            incoming_effective = _instruction_digest_for_bytes(Path(source).read_bytes())
+            collisions = {
+                other: digest
+                for other, digest in _installed_effective_digests(slug).items()
+                if digest and digest == incoming_effective
+            }
+        except OSError:
+            collisions = {}
+        if collisions:
+            other = sorted(collisions)[0]
+            return {
+                "status": "refused",
+                "reason": (
+                    f"identity collision: the instructions being installed are already active as "
+                    f"{other!r} (same effective digest); a skill set cannot live behind two names"
+                ),
+                "path": str(source),
+                "collision_with": other,
+                "effective_sha256": incoming_effective,
+                "problems": [f"effective digest equals installed skill {other!r}"],
+            }
+        try:
+            destination_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
+            _ensure_plugin_manifest(plugins_root() / "plugins" / clean_plugin, clean_plugin)
+        except OSError as exc:
+            return {"status": "error", "reason": f"{type(exc).__name__}: could not install the skill"}
 
-    # Every activation is a version: the bytes just installed are snapshotted and recorded, so
-    # the next edit of this skill can be rolled back to exactly this state. The record is
-    # verified BY READING IT BACK — an install whose version did not persist is an error, not
-    # an unversioned success (an activation the history cannot account for is unauditable).
-    try:
-        recorded = _record_version(destination_dir, source="install")
-        persisted = _read_history(destination_dir)
-        head = int(persisted.get("head_version") or 0)
-        if head != int(recorded.get("version") or 0):
-            raise OSError("version history did not persist")
-    except OSError as exc:
-        return {
-            "status": "error",
-            "reason": f"{type(exc).__name__}: installed but could not record the version",
-            "path": str(destination),
-        }
+        # Every activation is a version: the bytes just installed are snapshotted and recorded, so
+        # the next edit of this skill can be rolled back to exactly this state. The record is
+        # verified BY READING IT BACK — an install whose version did not persist is an error, not
+        # an unversioned success (an activation the history cannot account for is unauditable).
+        try:
+            recorded = _record_version(destination_dir, source="install")
+            persisted = _read_history(destination_dir)
+            head = int(persisted.get("head_version") or 0)
+            if head != int(recorded.get("version") or 0):
+                raise OSError("version history did not persist")
+        except OSError as exc:
+            return {
+                "status": "error",
+                "reason": f"{type(exc).__name__}: installed but could not record the version",
+                "path": str(destination),
+            }
 
-    return {
-        "status": "ok",
-        "path": str(destination),
-        "plugin_id": clean_plugin,
-        "name": verdict.get("name"),
-        "version": recorded["version"],
-        "active": True,
-        "note": "the loader picks this up on the next turn; no restart is needed",
-    }
+        return {
+            "status": "ok",
+            "path": str(destination),
+            "plugin_id": clean_plugin,
+            "name": verdict.get("name"),
+            "version": recorded["version"],
+            "active": True,
+            "note": "the loader picks this up on the next turn; no restart is needed",
+        }
 
 
 def list_skills(workspace: str = "") -> dict[str, Any]:
