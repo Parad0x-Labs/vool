@@ -26,6 +26,33 @@ from core.agent_runtime.fast_live_info_price import (
 from core.agent_runtime.fast_live_info_quote_rendering import all_live_quotes
 
 
+@pytest.fixture(autouse=True)
+def _cold_coin_index(monkeypatch, tmp_path):
+    """Pin the CoinGecko rank index COLD for this module's decline contracts.
+
+    The unresolved-content contract these tests measure is "a request naming
+    something beyond the runtime's CURATED alias table is flagged, not silently
+    answered". Beyond the curated table, `tools/web/coin_index` resolves bare
+    tickers through a rank-index cache at ``<home>/cache/coingecko_rank_index.json``
+    (memory-memoized per process). Any earlier test whose SUBPROCESS runs outside
+    the session's network seal can warm that file with the live index -- measured:
+    ``test_workspace_read_probe_recursion::test_cold_request_interpretation_
+    terminates`` spawns exactly such a child, and once the file exists, "price for
+    BNB and ARB please?" resolves BOTH symbols, the leftover disappears, and the
+    decline contract reads as broken (CI run 36300065295, shard tests(9), both
+    attempts; reproduced locally by that single pair). The warm-index behavior has
+    its own owner (test_an_unlisted_ticker_is_resolved_not_dropped); this module
+    owns the cold one, so it pins both seams: the in-memory index is reset around
+    every test and the disk cache is pointed at an empty per-test path.
+    """
+    import tools.web.coin_index as coin_index
+
+    coin_index.reset_cache_for_test()
+    monkeypatch.setattr(coin_index, "_cache_path", lambda: tmp_path / "coingecko_rank_index.json")
+    yield
+    coin_index.reset_cache_for_test()
+
+
 def test_the_measured_query_names_both_assets() -> None:
     assert price_assets_named("btc price now? and sol price please") == ["btc", "sol"]
 
