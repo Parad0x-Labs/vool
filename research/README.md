@@ -5,10 +5,9 @@
 > architecture may change or be discarded.**
 
 This directory documents VOOL's research/production boundary. The research
-systems still live in their original locations (moving ~40 interconnected
-modules would rewrite hundreds of imports across the test suite for zero
-behavioral gain); the boundary is a **runtime gate** instead — an equally hard
-one, enforced at the production entrypoints by `core/runtime_mode.py` and exercised by
+systems remain in their original locations to preserve imports and shared
+dependencies. The production activation boundary is a **runtime gate**,
+enforced at the production entrypoints by `core/runtime_mode.py` and exercised by
 `tests/test_production_research_boundary.py`.
 
 Research source and service entrypoints remain in this repository; this page does
@@ -33,8 +32,8 @@ not abandoned code or permission to ignore security findings.
 
 ## The boundary
 
-A production build **never** starts any of the above. Every production choke
-point consults `core/runtime_mode.py`:
+Normal production startup does not enable peer research. The covered production
+entrypoints consult `core/runtime_mode.py`:
 
 - the API runtime does not boot the mesh daemon (no UDP 49152 / TCP 49153
   listener, no STUN public-endpoint probe);
@@ -87,5 +86,6 @@ Every pathway by which user input can leave the machine, categorized:
 | Request fragments to mesh peers, word for word | E. claimed unintended leakage | NOT VERIFIED: QUERY_SHARD carries a SHA-256 problem signature, never raw text |
 | "First words of messages to public search engines" | E. claimed unintended leakage | NOT VERIFIED as a distinct path: search queries are derived from the request the user asked to research; no prefix-truncation egress exists |
 
-Category E contains no verified finding. Category D is unreachable in a
-production build and requires the explicit research invocation.
+Category E contains no verified finding in this recorded audit. Category D is
+excluded from normal production activation by the research boundary. Explicit
+research invocations and direct service use require their own security review.
