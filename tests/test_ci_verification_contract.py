@@ -315,7 +315,7 @@ def _bin_stub(behavior: str, log_path: Path) -> str:
     return f"#!/bin/sh\necho \"$0\" >> '{log_path}'\n{bodies[behavior]}\nexit 0\n"
 
 
-def _write_stubs(sandbox: Path, layout: str, behavior: str) -> Path:
+def _write_stubs(sandbox: Path, layout: str, behavior: str, apparmor_rc: int = 0) -> Path:
     """HOME + PATH stubs reproducing one provisioning shape. Returns the stub-bin dir."""
     home = sandbox / "home"
     cache = home / ".cache" / "ms-playwright"
@@ -347,7 +347,9 @@ def _write_stubs(sandbox: Path, layout: str, behavior: str) -> Path:
         'case "$1" in\n'
         '  tee)\n'
         f'    shift; cat > "{captured}/$(basename "$1")"; exit 0 ;;\n'
-        '  apparmor_parser|apt-get|sysctl)\n'
+        '  apparmor_parser)\n'
+        f'    echo "stub apparmor_parser diagnostic" >&2; exit {apparmor_rc} ;;\n'
+        '  apt-get|sysctl)\n'
         '    exit 0 ;;\n'
         'esac\n'
         'exit 0\n',
@@ -456,3 +458,96 @@ def test_probe_requires_a_positive_count_in_the_shipped_text():
     for script in scripts:
         assert re.search(r"probe_count=\$\(\(probe_count \+ 1\)\)", script)
         assert re.search(r'\[ "\$probe_count" -eq 0 \]', script)
+
+
+# ---------------------------------------------------------------------------
+# AppArmor fail-fast contracts (folded here for the same partition-stability
+# reason as the preflight contracts above; subject is the same file's
+# provisioning scripts).
+# ---------------------------------------------------------------------------
+
+BWRAP_STEP = "Provision the kernel sandbox backend (bubblewrap)"
+CHROMIUM_RELAX_MARK = "refusing to relax the host-wide unprivileged-userns restriction"
+
+
+def _bwrap_scripts() -> dict[str, str]:
+    import yaml
+
+    found: dict[str, str] = {}
+    for path in (CI_YML, LLM_YML):
+        jobs = yaml.safe_load(path.read_text(encoding="utf-8"))["jobs"]
+        for job, body in jobs.items():
+            for step in body.get("steps", []):
+                if step.get("name") == BWRAP_STEP:
+                    key = f"{path.name}:{job}"
+                    assert key not in found
+                    found[key] = str(step["run"])
+    return found
+
+
+def _run_with_bwrap_stub(sandbox: Path, stubbin: Path, script: str):
+    (stubbin / "bwrap").write_text(
+        '#!/bin/sh\necho "$0 $*" >> "' + str(sandbox / "bwrap.log") + '"\nexit 0\n',
+        encoding="utf-8",
+    )
+    (stubbin / "bwrap").chmod(0o755)
+    return _run_preflight(script, sandbox, stubbin)
+
+
+def test_every_linux_lane_keeps_its_bwrap_script_verbatim_identical():
+    scripts = _bwrap_scripts()
+    assert len(scripts) >= 3, "ci.yml tests + focused diagnostics + llm_acceptance copies"
+    distinct = {text.rstrip() for text in scripts.values()}
+    assert len(distinct) == 1, f"bwrap provisioning copies drifted: {list(scripts)}"
+
+
+def test_no_workflow_relaxes_the_host_wide_userns_policy():
+    for path in (CI_YML, LLM_YML):
+        assert "apparmor_restrict_unprivileged_userns=0" not in path.read_text(encoding="utf-8"), (
+            f"{path.name}: a global unprivileged-userns relaxation crept back in"
+        )
+
+
+@pytest.mark.parametrize("apparmor_rc", [0, 1])
+def test_bwrap_provisioning_accepted_and_refused_shapes(apparmor_rc, tmp_path):
+    sandbox = tmp_path / "s"
+    sandbox.mkdir()
+    stubbin = _write_stubs(sandbox, "empty", "good", apparmor_rc=apparmor_rc)
+    script = next(iter(_bwrap_scripts().values()))
+    result = _run_with_bwrap_stub(sandbox, stubbin, script)
+    out = result.stdout + result.stderr
+    sudo_log = (sandbox / "sudo.log").read_text(encoding="utf-8")
+
+    if apparmor_rc == 0:
+        assert result.returncode == 0, out
+        assert (sandbox / "captured" / "bwrap").read_text(encoding="utf-8").count("userns,") == 1
+        assert (sandbox / "bwrap.log").exists(), "the confined-launch probe must still run under the accepted profile"
+    else:
+        assert result.returncode != 0
+        assert CHROMIUM_RELAX_MARK in out
+        assert "::error::" in out
+        assert "stub apparmor_parser diagnostic" in out, "the parser's own refusal reason must be shown"
+        assert (sandbox / "bwrap.log").exists() is False, "a refused profile must not proceed to launch"
+    assert "sysctl" not in sudo_log
+
+
+@pytest.mark.parametrize("apparmor_rc", [0, 1])
+def test_chromium_provisioning_accepted_and_refused_shapes(apparmor_rc, tmp_path):
+    sandbox = tmp_path / "s"
+    sandbox.mkdir()
+    stubbin = _write_stubs(sandbox, "shell", "good", apparmor_rc=apparmor_rc)
+    script = _preflight_script(CI_YML, _CI_PROBE_JOB)
+    result = _run_with_bwrap_stub(sandbox, stubbin, script)
+    out = result.stdout + result.stderr
+    sudo_log = (sandbox / "sudo.log").read_text(encoding="utf-8")
+    bins_log = sandbox / "bins.log"
+
+    if apparmor_rc == 0:
+        assert result.returncode == 0, out
+        assert bins_log.exists() and "chrome-headless-shell" in bins_log.read_text(encoding="utf-8")
+    else:
+        assert result.returncode != 0
+        assert "::error::" in out and CHROMIUM_RELAX_MARK in out
+        assert "stub apparmor_parser diagnostic" in out
+        assert not bins_log.exists(), "a refused profile must fail before any render probe"
+    assert "sysctl" not in sudo_log

@@ -75,9 +75,11 @@ jobs:
             userns,
           }
           PROFILE
-          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap; then
-            echo "bwrap profile refused by this host's apparmor; relaxing the userns restriction globally"
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap 2>/tmp/vool-bwrap-apparmor.err; then
+            echo "::error::this host's apparmor refused the bwrap userns profile — the sandbox backend cannot run confined here; refusing to relax the host-wide unprivileged-userns restriction to proceed"
+            cat /tmp/vool-bwrap-apparmor.err >&2
+            sudo cat /etc/apparmor.d/bwrap >&2
+            exit 1
           fi
           bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
 
@@ -110,9 +112,10 @@ jobs:
               i=$((i + 1))
             done
           } | sudo tee "$profile_file" >/dev/null
-          if ! sudo apparmor_parser -r "$profile_file"; then
-            echo "chromium profile refused by this host's apparmor; relaxing the userns restriction globally"
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          if ! sudo apparmor_parser -r "$profile_file" 2>/tmp/vool-chromium-apparmor.err; then
+            echo "::error::this host's apparmor refused the chromium userns profile — the served-browser lane cannot run confined here; refusing to relax the host-wide unprivileged-userns restriction to proceed"
+            cat /tmp/vool-chromium-apparmor.err >&2
+            exit 1
           fi
           probe_fail=0
           probe_count=0
