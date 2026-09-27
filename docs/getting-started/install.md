@@ -1,13 +1,20 @@
 ---
-description: How to download and install the VOOL AI assistant on macOS, Windows or Linux, including system requirements.
+description: How to install the VOOL AI assistant from source on macOS, Windows or Linux, including system requirements and how to verify a future packaged download.
 ---
 
 # Install
 
+VOOL has **no public installer release** yet. The supported install route is from source
+with the bootstrap script; packaged downloads will appear on the
+[releases page](https://github.com/Parad0x-Labs/vool/releases) when published. This page
+keeps the verification steps you will need when a packaged build is published — see
+[Release status](../trust/release-status.md) for the authoritative state of artifacts,
+signing and updates.
+
 ## Requirements
 
 | | Minimum | Comfortable |
-| --- | --- | ---: |
+| --- | ---: | ---: |
 | Memory | 8 GB | 16 GB or more |
 | Disk | 2 GB for the app | 20 GB with local models |
 | macOS | 14 Sonoma, Apple silicon | 14 Sonoma or newer |
@@ -17,44 +24,46 @@ description: How to download and install the VOOL AI assistant on macOS, Windows
 Local models need considerably more memory than the app itself. Sizing guidance is in
 [Run a local model](../guides/local-models.md).
 
-## macOS
+## Install from source
 
-1. Download `VOOL-0.6.0-beta-cffc5c3-macos-arm64.dmg` from [vool.dev](https://vool.dev/#cta). It runs on Apple silicon
-   (M1 or newer) with macOS 14 Sonoma or later.
-2. Open it and drag **VOOL** into `Applications`.
-3. On first launch macOS will refuse to open it, because the build is not notarized.
-   Open **System Settings → Privacy & Security**, find the VOOL entry, and choose
-   **Open Anyway**.
-
-{% hint style="warning" %}
-Beta builds are unsigned and not notarized. The Gatekeeper warning is expected
-for this stage, not a sign of a corrupted download. Verify the checksum published beside
-the installer before you bypass the warning.
-{% endhint %}
-
-## Windows
-
-1. Download the `.exe` installer.
-2. SmartScreen will show **Windows protected your PC**, because the build is unsigned.
-   Choose **More info → Run anyway** after checking the checksum.
-3. Follow the installer.
-
-## Linux
+Run the bootstrap script for your platform:
 
 ```bash
-tar -xzf vool-linux-x86_64.tar.gz
-cd vool
-./vool
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh
 ```
 
-## Verify the download
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
+```
+
+The installer prepares the Python environment, checks your hardware, sets up the local
+model, and launches the local services. Allow time and disk space for the initial model
+download. Local model inference works offline after setup; web tools and cloud models need
+a connection.
+
+## Packaged builds (not yet published)
+
+There is nothing to download yet. When a packaged build is published:
+
+* Verify its checksum against the checksums published beside it on the release — a
+  mismatch means a corrupted or tampered download: delete the file and download it again.
+* Beta builds are ad-hoc signed and not notarized. macOS Gatekeeper will refuse a first
+  launch: **System Settings → Privacy & Security → Open Anyway** after verifying the
+  checksum. Windows SmartScreen behaves the same way (**More info → Run anyway**).
+* Do not expect automatic updates: an update feed is not configured for beta artifacts.
+
+## Verify a download
+
+When a packaged artifact is published, verify it before running:
 
 ```bash
-shasum -a 256 VOOL-0.6.0-beta-cffc5c3-macos-arm64.dmg
+shasum -a 256 <downloaded-artifact>
 ```
 
-Compare the result against the checksum published beside the installer,
-[VOOL-0.6.0-beta-cffc5c3-macos-arm64.dmg.sha256](https://vool.dev/downloads/VOOL-0.6.0-beta-cffc5c3-macos-arm64.dmg.sha256). If they differ, delete the file and download it again.
+Compare the result against the checksum published with that release. If they differ,
+delete the file and download it again.
 
 ## Next
 

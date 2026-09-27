@@ -42,7 +42,7 @@ Workspace scopes and operating modes control what the agent can do. Choose how e
 
 ## Install
 
-**Current version: 0.6.0-beta.** Start from source with the commands below. Packaged downloads will appear on the [releases page](https://github.com/Parad0x-Labs/vool/releases) when published; there is no public installer release at present.
+**Current version: 0.6.0-beta.** Start from source with the commands below. Packaged downloads will appear on the [releases page](https://github.com/Parad0x-Labs/vool/releases) when published; there is no public installer release at present. The authoritative state of artifacts, signing and updates is the [release status](docs/trust/release-status.md) page.
 
 ### macOS / Linux
 
