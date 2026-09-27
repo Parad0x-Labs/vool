@@ -131,8 +131,34 @@ def test_until_off_grant_survives_a_restart_through_its_persisted_mirror(tmp_pat
     assert validate_bypass_grant(token, session_id="chat-1", workspace_root=ws) is not None
 
 
+@pytest.fixture
+def restart_run_home():
+    """One home for this test's TWO processes: the parent that writes the durable mirror
+    and the fresh child that must restore it.
+
+    The child resolves its home from the environment alone -- it cannot see this process's
+    ``_VOOL_HOME_OVERRIDE``. Any earlier test in the shard that pinned the override at its
+    own temporary home and did not restore it would make the PARENT write the mirror there
+    while the child reads the environment's home: a healthy durable grant then "fails" the
+    restart with ``loaded: 0``. That is harness pollution, not a product finding -- measured
+    twice now, each time after a file-count change reshuffled the shards (CI runs
+    36265150283/36268704787/36272309277 shard tests(3) via the dna fee lane; run 36287788877
+    shard tests(2) via the paid-reasoning recovery lane). Clearing the override for this
+    test makes the parent resolve exactly the way its child does; whatever was pinned is
+    restored after.
+    """
+    from core import runtime_paths
+
+    previous = runtime_paths._VOOL_HOME_OVERRIDE
+    runtime_paths.configure_runtime_home(None)
+    try:
+        yield
+    finally:
+        runtime_paths.configure_runtime_home(previous)
+
+
 @pytest.mark.real_restart_store
-def test_until_off_grant_survives_a_real_process_restart(tmp_path):
+def test_until_off_grant_survives_a_real_process_restart(tmp_path, restart_run_home):
     """The restart proof in a SECOND process, not a cleared dictionary.
 
     Restores and validates the grant from the durable mirror in a fresh interpreter against the
