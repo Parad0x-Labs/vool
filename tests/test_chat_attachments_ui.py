@@ -2,7 +2,8 @@
 
 Two lanes. The hermetic lane routes every request through `page.route`, so the page's own JS is
 driven end to end against controlled server answers: the Attach button, the native picker's
-accept list, removable chips, limits shown up front, refusals rendered in place, a failed upload
+accept list, removable chips, chips keeping selection order when concurrent uploads finish out
+of order, limits shown up front, refusals rendered in place, a failed upload
 retried without a duplicate message, chips restored after a reload, and two chats that cannot see
 each other's files. The served lane starts the REAL application over HTTP (uvicorn on an
 ephemeral loopback port) with a fake agent that records what the runtime handed it, so the whole
@@ -242,8 +243,13 @@ def test_selected_files_appear_as_removable_chips_with_previews_before_send(page
     assert [c["name"] for c in chips] == ["notes.txt", "shot.png"]
     assert chips[1]["hasThumb"] and not chips[0]["hasThumb"]
     assert all(c["hasRemove"] for c in chips)
-    assert [u["name"] for u in server.uploads] == ["notes.txt", "shot.png"]
-    assert server.uploads[0]["content_type"].startswith("application/octet-stream")
+    # Staged uploads are dispatched concurrently (the composer's Promise.all), so their arrival
+    # order at the door is unspecified -- what the product guarantees is each file's exact
+    # identity, bytes and session, plus selection order wherever order is user-visible (the
+    # chips above, the turn's binding in the send tests below). Identity and multiplicity stay
+    # exact here; arrival order is deliberately not asserted.
+    assert sorted(u["name"] for u in server.uploads) == ["notes.txt", "shot.png"]
+    assert all(u["content_type"].startswith("application/octet-stream") for u in server.uploads)
     assert all(u["session"] == page.evaluate("displayedChat") for u in server.uploads)
     # Nothing was sent: chips are a draft, not a message.
     assert server.chat_bodies == []
@@ -252,6 +258,32 @@ def test_selected_files_appear_as_removable_chips_with_previews_before_send(page
     _wait_chips(page, "chips.length === 1")
     assert [c["name"] for c in _chips(page)] == ["shot.png"]
     assert server.removed and server.removed[-1]["attachment_id"].startswith("att_")
+    assert errors == []
+
+
+def test_upload_completion_order_never_reorders_chips_or_the_bound_message(page) -> None:
+    page, server, errors = page
+    # A big first file makes the small second one arrive and finish uploading first, so the
+    # inverted completion order is exercised on purpose instead of waiting for the scheduler
+    # to race (main run 36339235012 lost that race once). Whatever order uploads finish in,
+    # selection order owns every user-visible list: the strip, the turn's binding, the bubble.
+    big = _text_file("big-notes.txt", "z" * (2 * 1024 * 1024))
+    _attach(page, [big, _png_file("late-shot.png")])
+    _wait_chips(page, "chips.length === 2 && chips.every((c) => c.dataset.state === 'ready')", timeout=10000)
+    chips = _chips(page)
+    assert [c["name"] for c in chips] == ["big-notes.txt", "late-shot.png"]
+    assert chips[1]["hasThumb"] and not chips[0]["hasThumb"]
+    assert sorted(u["name"] for u in server.uploads) == ["big-notes.txt", "late-shot.png"]
+    assert all(u["session"] == page.evaluate("displayedChat") for u in server.uploads)
+    names_by_id = {a["id"]: a["name"] for a in server.staged.get(page.evaluate("displayedChat"), [])}
+    page.fill("#input", "in what order did they finish?")
+    page.click("#send")
+    page.wait_for_function("() => document.querySelectorAll('.msg.assistant:not(.pending)').length === 1", timeout=10000)
+    assert [names_by_id[i] for i in server.chat_bodies[0]["attachments"]] == ["big-notes.txt", "late-shot.png"]
+    bubble = page.evaluate(
+        "() => [...document.querySelectorAll('.msg.user .msg-att .att-chip .att-name')].map((n) => n.textContent)"
+    )
+    assert bubble == ["big-notes.txt", "late-shot.png"]
     assert errors == []
 
 
