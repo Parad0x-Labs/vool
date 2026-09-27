@@ -45,13 +45,25 @@ Do not apply a repository-wide text rename across those meanings.
 
 ### Retired OpenClaw integration
 
+OpenClaw-specific skills are maintained in the separate
+[openclaw-skills repository](https://github.com/Parad0x-Labs/openclaw-skills).
 VOOL must not present OpenClaw installation, registration or skill distribution as
 its product purpose. Remaining bootstrap options, installer registration, generated
 launchers and OpenClaw-specific documentation are removal candidates. Removing
 them requires install/upgrade and direct VOOL launch verification, plus retention of
 generic API compatibility where it serves other clients. This documentation pass
 classifies the residual integration; it does not claim the installer is already
-decoupled. Do not redirect users to an unverified replacement repository.
+decoupled. This classification does not move or publish any skills.
+
+### Implementation status is not activation state
+
+`core/feature_flags.py` is a descriptive implementation-status catalogue, despite
+its name. `core/runtime_capabilities.py` consumes that catalogue together with
+`RuntimeContext.feature_flags`; production research activation has an additional
+authority in `core/runtime_mode.py`. A catalogue value such as `implemented` or
+`partial` does not establish that a service is running or allowed in this process.
+Capability reporting must be checked against those actual gates before making
+product claims. These existing readers cannot safely be removed as unused text.
 
 ## Research activation and packaging
 

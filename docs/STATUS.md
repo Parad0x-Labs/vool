@@ -1,6 +1,14 @@
-# VOOL Alpha Status
+# VOOL Engineering Status and Historical Notes
 
-Current status matrix. Updated 2026-07-20.
+For current product scope, start with the [README](../README.md),
+[release status](trust/release-status.md) and [subsystem status map](REPOSITORY_SCOPE.md).
+The dated sections below preserve engineering observations and their original
+evidence. They are not a current release checklist: version numbers, readiness
+claims and references to retired integrations must be read in their dated context.
+VOOL is the only current product name. Research and legacy code remaining in the
+tree does not make it part of the default product.
+
+Historical matrix last dated 2026-07-20; subsequent notes are retained below.
 
 ## 2026-07-20 Cross-lane: the paid lane now executes and its caps bind
 
