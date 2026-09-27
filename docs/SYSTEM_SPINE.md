@@ -73,7 +73,7 @@ Those names survived because they describe real sub-surfaces, but they all sit o
 
 ## How To Read The Top Level
 
-The top level is bigger than it should be, but the useful path is short:
+Start with these product and engineering entrypoints:
 
 1. [`README.md`](../README.md)
 2. [`docs/STATUS.md`](STATUS.md)
@@ -88,7 +88,8 @@ Ignore the historical wrappers and archived handovers until you need them.
 - The local runtime is the product center.
 - Hive, watch, and peer public-web surfaces are retained research; local chat and
   local execution receipts are separate current runtime surfaces.
-- The repo is alpha-serious, not production-finished.
+- Implementation status and release readiness are distinct; consult the current
+  release documentation rather than inferring support from source presence.
 - If you touch behavior, cumulative regression is mandatory.
 - If you touch messaging, reduce ambiguity instead of adding more nouns.
 
