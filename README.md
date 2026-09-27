@@ -60,7 +60,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/insta
 powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
-The installer prepares the Python environment, checks your hardware, sets up the local model and OpenClaw bridge, and launches the local services. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection.
+The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
 
 | Platform | Getting started |
 | --- | --- |
@@ -135,7 +135,7 @@ A signature verifies the signed record's integrity; it is not a guarantee that e
 
 Meet the [related ecosystem projects](docs/SYSTEM_SPINE.md#related-ecosystem-projects), including Dark Null Protocol for privacy-preserving settlement.
 
-VOOL also includes optional wallet/payment integrations, local helper orchestration, and peer-network components. Their availability depends on configuration and feature maturity; check the runtime capability view for your installation. Wallet and spending features require their own setup and authorization.
+VOOL also includes optional wallet/payment integrations and bounded local helper orchestration. Peer mesh, DHT and Brain Hive are retained experimental research, outside normal production networking. See the [repository scope map](docs/REPOSITORY_SCOPE.md) for current runtime, integration, research and compatibility boundaries. Wallet and spending features require their own setup and authorization.
 
 | Explore | Start here |
 | --- | --- |

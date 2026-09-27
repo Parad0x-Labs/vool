@@ -1,6 +1,8 @@
 # VOOL Repo Map
 
-This repo is one platform with multiple surfaces, not a bag of adjacent experiments.
+This repository contains the local runtime, optional integrations, retained research
+and historical source. Start with the [subsystem status map](REPOSITORY_SCOPE.md):
+the directory inventory below describes ownership, not default activation or release readiness.
 
 Core lane:
 
@@ -47,7 +49,7 @@ Core lane:
 7. `core/memory_first_router.py`
 8. `docs/RUNTIME_ARCHITECTURE_CONTRACT.md`
 9. `docs/STATUS.md`
-10. `docs/STATUS.md`
+10. `docs/REPOSITORY_SCOPE.md`
 11. `CONTRIBUTING.md`
 
 ## Package Maps
@@ -58,7 +60,11 @@ Core lane:
 - `tools/README.md`: explicit tool-contract boundary
 - `network/README.md`: transport/auth/routing boundary
 
-## Current Web0 Spine
+## Retained Web0 Extensions and Shared Runtime Dependencies
+
+This is a mixed extension/runtime inventory, not a claim that Web0 is all enabled
+or all dormant. The API exposes named routes, and the background poll loop also
+hosts update checking. See [activation boundaries](REPOSITORY_SCOPE.md#important-mixed-dependencies).
 
 - `core/web0_capability_broadcast.py`: `Web0CapabilityManifest` builder + `announce_from_env()` — fires at boot to announce TPS/tier/tools/price to the local mesh registry
 - `core/web0_mesh_registry.py`: SQLite-backed worker registry (TTL=300s, survives restarts, sorted by TPS desc); `announce_worker()` / `list_workers()` / `get_worker()` / `evict_expired()`
@@ -76,7 +82,10 @@ Core lane:
 - `storage/task_offer_store.py`: SQLite wrapper over `task_offers` table; `list_open_task_offers()` / `claim_task_offer()` / `complete_task_offer()` / `get_task_offer()`
 - `core/x402/client.py`: x402 HTTP 402 payment rail (stub/devnet/mainnet modes); hosts 12 Parad0x mainnet program ID constants + `PARAD0X_UPGRADE_AUTHORITY`
 
-## Current WAN Transport Spine
+## Experimental Research: WAN, Mesh and DHT
+
+These peer-network owners are retained in place. Standard production networking
+does not activate the research stack; see [research invocation](../research/README.md).
 
 - `apps/vool_daemon.py`: transport-mode discovery, capability advertising, and local presence broadcast entrypoint
 - `core/discovery_index.py`: endpoint-source priority, capability freshness scoring, authoritative multi-endpoint storage, best-endpoint compatibility selection, signed observed/API/bootstrap/self endpoint promotion, proof-timestamp-backed liveness ordering, candidate probe cooldown/failure memory, and delivery-target ordering that distinguishes fresh live mesh proof from stale registry proof while still serving deterministic compatibility views for older callers
@@ -93,7 +102,10 @@ Core lane:
 - `network/hole_punch.py`: hole-punch connectivity classification and attempt helpers
 - `network/dht.py`: bucketed routing table with iterative lookup-frontier helpers, stale-bucket refresh targets, bounded replacement-cache promotion for full buckets, fresh-first lookup candidate ordering with stale fallback, and endpoint-source provenance/liveness rules that keep referral-only peers out of verified reply exports and stop weaker gossip from refreshing observed-peer freshness
 
-## Current Dashboard Spine
+## Retained Research: Brain Hive and Coordination Dashboards
+
+These are research/service presentation owners, not the default desktop chat UI.
+Shared query and rendering dependencies remain in place.
 
 - `core/brain_hive_dashboard.py`: stable dashboard facade
 - `core/brain_hive_queries.py`: dashboard/watch/public read-model and query projection helpers
@@ -402,15 +414,19 @@ Core lane:
 
 ## What Lives At Root On Purpose
 
-- Cross-platform launchers such as `Start_VOOL.*`, `Talk_To_VOOL.*`, and `OpenClaw_VOOL.*`
+- Cross-platform launchers such as `Start_VOOL.*` and `Talk_To_VOOL.*`
 - Install entrypoints such as `Install_And_Run_VOOL.*` and `Install_VOOL.*`
 - Workspace support files such as `AGENTS.md`, `SOUL.md`, `USER.md`, `TOOLS.md`, and `MEMORY.md`
 
-These are visible because they serve install, operator, or workspace flows directly. Historical audits, handovers, and stray tests should not remain here.
+Current launchers serve install, operator or workspace flows. The remaining
+`OpenClaw_VOOL.*` launcher belongs to the retired integration tracked in
+[repository scope](REPOSITORY_SCOPE.md#retired-openclaw-integration), not the current
+product story. Root placement alone is not evidence a file is safe to delete.
 
-## Archive Policy
+## Historical Source and Documentation
 
-- Historical audits live in `docs/archive/audits/`
-- Historical handovers live in `docs/archive/handovers/` or `docs/archive/openclaw/`
-- Superseded install/status/pitch material lives under `docs/archive/`
-- Legacy tests that are still useful but should not pollute the root live under `tests/legacy/`
+- `recovery/` holds isolated historical source with provenance; see its README.
+- `research/` documents retained experimental systems and their activation boundary.
+- `nulladocs/` currently contains a clock-caller engineering inventory, not the public docs root.
+- Public documentation lives in `docs/`. Do not infer that previously documented archive
+  directories still exist, or delete source because an old map called it historical.

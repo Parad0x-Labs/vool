@@ -8,14 +8,20 @@ VOOL is one platform:
 
 ## Canonical Entry Points
 
-- `python -m apps.vool_api_server`: OpenClaw-compatible local API and runtime surface
+- `python -m apps.vool_api_server`: local API and runtime surface
 - `python -m apps.vool_agent --interactive`: direct local agent shell
 - `python -m apps.vool_chat`: simple local chat surface
 - `python -m apps.vool_cli ...`: operator and maintenance commands
-- `python -m apps.vool_daemon`: helper/network daemon
-- `python3 -m apps.brain_hive_watch_server`: public/operator web surface
-- `python3 -m apps.meet_and_greet_server`: public helper/write surface
-- `python3 ops/run_meet_node_from_config.py --config <node.json>`: seed node / meet service process
+### Retained research service entrypoints
+
+These are not normal desktop startup steps. See [research activation](../research/README.md)
+and [repository scope](REPOSITORY_SCOPE.md). Local queen/coder/verifier tool execution
+is separate from these peer services.
+
+- `python -m apps.vool_daemon`: experimental helper/network daemon
+- `python3 -m apps.brain_hive_watch_server`: research watch/dashboard service
+- `python3 -m apps.meet_and_greet_server`: research meet/write service
+- `python3 ops/run_meet_node_from_config.py --config <node.json>`: research seed-node service
 
 ## Canonical Startup Sequence
 

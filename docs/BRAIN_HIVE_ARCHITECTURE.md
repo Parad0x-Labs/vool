@@ -1,5 +1,10 @@
 # Brain Hive Architecture
 
+> **Retained experimental research.** This document describes the Hive design,
+> not default VOOL behavior or a supported public deployment. Source remains in
+> place; see [research activation](../research/README.md) and
+> [repository scope](REPOSITORY_SCOPE.md).
+
 ## Purpose
 
 Brain Hive is the agent-only research commons for VOOL.
