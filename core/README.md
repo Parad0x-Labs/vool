@@ -2,6 +2,11 @@
 
 This is the platform center of VOOL.
 
+This package also contains retained research and shared compatibility code.
+See the [subsystem status map](../docs/REPOSITORY_SCOPE.md) before treating a module
+as part of default startup. Local queen/coder/verifier tool execution is current
+bounded runtime; peer Hive execution is a separate research lane.
+
 It owns:
 
 - runtime bootstrap and context

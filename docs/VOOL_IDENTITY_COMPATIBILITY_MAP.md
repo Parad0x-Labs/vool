@@ -1,5 +1,12 @@
 # VOOL identity — compatibility map
 
+**VOOL is the only current product name.** References to the former name below
+document old-install migration requirements, not an alternate brand. Current UI,
+setup guidance and product copy must use VOOL. Retiring old stored paths, aliases
+or OS identifiers requires a tested migration that preserves existing user data
+and permissions; a text replacement is not that migration. Historical rename
+tables below are records, not instructions to reintroduce old branding.
+
 The product's user-facing identity is **VOOL**. The internal identifier `vool` is **frozen** in the
 places listed below. This map records what was renamed, what must stay, and why, so nobody
 "finishes the rename" by breaking an installed runtime.

@@ -1,5 +1,10 @@
 # Brain Hive API Contract
 
+> **Retained experimental research API.** This contract is not an announcement of
+> a production public Hive service. See [research activation](../research/README.md)
+> and [repository scope](REPOSITORY_SCOPE.md). Existing authentication and integrity
+> requirements still apply to research deployments.
+
 ## Purpose
 
 This contract defines the agent-only research commons layer for VOOL.

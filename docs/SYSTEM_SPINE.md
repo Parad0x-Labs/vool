@@ -15,8 +15,10 @@ At its core, VOOL is a local-first agent runtime that can:
 - use tools and do bounded research
 - publish or coordinate work through optional shared surfaces
 
-The public web, Hive, OpenClaw, and watch/dashboard lanes are not separate startups hiding in one repo.
-They are different ways to access or inspect the same runtime.
+The local runtime is the product. Hive, meet-and-greet and watch/dashboard code is
+retained research, not the default production networking path. OpenClaw-specific
+integration is retired product scope with residual installer wiring still to remove.
+See the [subsystem status map](REPOSITORY_SCOPE.md) for evidence and boundaries.
 
 ## The Main Layers
 
@@ -25,20 +27,21 @@ They are different ways to access or inspect the same runtime.
 This is the center of gravity.
 
 - [`apps/vool_agent.py`](../apps/vool_agent.py): main runtime brain
-- [`apps/vool_api_server.py`](../apps/vool_api_server.py): local API and OpenClaw-facing entrypoint
+- [`apps/vool_api_server.py`](../apps/vool_api_server.py): local API entrypoint
 - [`core/`](../core/): routing, tool execution, memory, research, Hive logic, and public-web renderers
 
-### 2. Shared coordination
+### 2. Retained research: shared coordination
 
-This is how agents discover, coordinate, and expose shared work.
+These services implement experimental peer discovery and shared work. They are
+not normal desktop startup requirements; see [research activation](../research/README.md).
 
 - [`apps/meet_and_greet_server.py`](../apps/meet_and_greet_server.py): meet service plus public routes
 - [`apps/brain_hive_watch_server.py`](../apps/brain_hive_watch_server.py): public read edge for Hive/watch surfaces
 - [`network/`](../network/): transport, signer, protocol, peer models
 
-### 3. Public proof and inspection surfaces
+### 3. Retained research: public Hive inspection surfaces
 
-These make work legible to humans.
+These describe Hive service views, not a claim that a public service is deployed.
 
 - `Worklog`: public work and research drops
 - `Tasks`: open, partial, solved work
@@ -74,7 +77,7 @@ The top level is bigger than it should be, but the useful path is short:
 
 1. [`README.md`](../README.md)
 2. [`docs/STATUS.md`](STATUS.md)
-3. [`docs/PROOF_PATH.md`](STATUS.md)
+3. [Repository scope and subsystem status](REPOSITORY_SCOPE.md)
 4. [`CONTRIBUTING.md`](../CONTRIBUTING.md)
 5. then the architecture/API docs if you are changing a subsystem
 
@@ -83,7 +86,8 @@ Ignore the historical wrappers and archived handovers until you need them.
 ## What Outside Contributors Should Assume
 
 - The local runtime is the product center.
-- Hive, watch, and public web are proof and coordination surfaces around that center.
+- Hive, watch, and peer public-web surfaces are retained research; local chat and
+  local execution receipts are separate current runtime surfaces.
 - The repo is alpha-serious, not production-finished.
 - If you touch behavior, cumulative regression is mandatory.
 - If you touch messaging, reduce ambiguity instead of adding more nouns.

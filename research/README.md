@@ -1,15 +1,21 @@
 # Research systems
 
 > **Experimental research. Not part of the standard VOOL production runtime.
-> Not shipped or enabled in official releases. Security assumptions, APIs and
+> Not enabled by normal production startup. Security assumptions, APIs and
 > architecture may change or be discarded.**
 
 This directory documents VOOL's research/production boundary. The research
 systems still live in their original locations (moving ~40 interconnected
 modules would rewrite hundreds of imports across the test suite for zero
 behavioral gain); the boundary is a **runtime gate** instead — an equally hard
-one, enforced by `core/runtime_mode.py` and proven by
+one, enforced at the production entrypoints by `core/runtime_mode.py` and exercised by
 `tests/test_production_research_boundary.py`.
+
+Research source and service entrypoints remain in this repository; this page does
+not assert that packaging excludes them. See the [subsystem status map](../docs/REPOSITORY_SCOPE.md)
+for local orchestration, Web0 shared dependencies, retired integrations and migration
+compatibility. Research classification means outside normal product networking,
+not abandoned code or permission to ignore security findings.
 
 ## What is research
 
@@ -22,6 +28,8 @@ one, enforced by `core/runtime_mode.py` and proven by
 | Autonomous peer work ("hive tasks") | `core/daemon/tasks.py`, `sandbox/helper_worker.py`, `core/daemon/mesh.py` | Executes TASK_ASSIGN capsules from remote peers (trust/capability-token guarded) |
 | Idle commons / autonomous research | `core/agent_runtime/presence.py`, `core/curiosity_roamer.py` | Idle-time hive posts under the user identity; pulls the public research queue |
 | Swarm query shards | `retrieval/swarm_query.py`, `core/shard_synthesizer.py`, `core/daemon/messages.py` | Broadcasts QUERY_SHARD to peers; serves learned summaries back |
+| DHT / WAN peer discovery | `network/dht.py`, `core/discovery_index.py`, `core/maintenance.py` | Experimental peer lookup and discovery support; retained with transport dependencies |
+| Hive dashboard and meet service views | `core/brain_hive_dashboard.py`, `core/dashboard/`, `apps/meet_and_greet_server.py` | Research/service inspection UI, separate from local chat |
 
 ## The boundary
 

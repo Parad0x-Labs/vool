@@ -1,5 +1,9 @@
 # Meet And Greet Server Architecture
 
+> **Retained experimental research.** This service is not required for normal
+> VOOL desktop use. The design below is not a public-deployment readiness claim.
+> See [research activation](../research/README.md) and [repository scope](REPOSITORY_SCOPE.md).
+
 ## Purpose
 
 The meet-and-greet server is the first shared entry point for trusted multi-node VOOL alpha.

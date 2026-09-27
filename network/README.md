@@ -2,6 +2,12 @@
 
 This package owns helper/peer transport and network boundaries.
 
+The mesh, DHT and peer-discovery stack is **retained experimental research**, not
+normal production networking. See [research activation](../research/README.md).
+Shared signing, authentication and transport helpers can have callers outside the
+daemon; preserve them and their tests. [Repository scope](../docs/REPOSITORY_SCOPE.md)
+distinguishes local orchestration from remote peer work.
+
 It should separate:
 
 - transport
