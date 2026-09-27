@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -538,3 +541,56 @@ def test_structured_haiku_format_has_a_three_line_contract() -> None:
 
     assert contract is not None
     assert contract.exact_lines == 3
+
+
+# ---------------------------------------------------------------------------
+# output_contract_quote_masking bounds contracts (folded here from a standalone file: a new
+# collected test file re-partitions the shards through ops/shard_resolver.py, and
+# the documented TestTemporaryRules order-dependence makes partition shifts a gate
+# roulette until its served-fixture-lane owner lands the fix).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("script", [
+    "from core.raw_output_contract import _masked_quoted_text; _masked_quoted_text('\"a\\\\' * 20000)",
+    "from core.raw_output_contract import parse_raw_output_contract; parse_raw_output_contract("
+    "'return exactly ' + '\"a\\\\' * 20000)",
+    "from core.raw_output_contract import _masked_quoted_text; _masked_quoted_text('\"' + ('ab\\\\' * 20000))",
+])
+def test_escaped_quote_runs_do_not_rescan_suffixes(script):
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("", ""),
+    ('"', '"'),
+    ('""', " "),
+    ("''", " "),
+    ('"a"', " "),
+    ('"a\\"b"', " "),
+    # An escaped quote stays interior; the span closes at the NEXT unescaped quote.
+    ('"say \\"hi\\"" ok', "  ok"),
+    ('"a\\', '"a\\'),
+    # Unclosed/invalid-escape openers stay unmasked; later quotes still open valid spans.
+    ('"broken \\"still\\" u\'ntil \' real', '"broken \\"still\\" u  real'),
+    ('"a\\\nb"', '"a\\\nb"'),
+    ('x "y" z', "x   z"),
+    ('a"b"c', "a c"),
+    ("a'b'c", "a c"),
+    ("'a\nb'", "'a\nb'"),
+    ('he said "one" and \'two\'', "he said   and  "),
+])
+def test_quote_masking_preserves_span_boundaries(text, expected):
+    from core.raw_output_contract import _masked_quoted_text
+
+    assert _masked_quoted_text(text) == expected
+
+
+def test_quoted_documentation_still_masks_downstream_instructions():
+    from core.raw_output_contract import parse_raw_output_contract
+
+    prompt = (
+        'In our docs, "return exactly \\"ONE WORD\\" and nothing else" is an example; '
+        "explain why it is brittle."
+    )
+    assert parse_raw_output_contract(prompt) is None
