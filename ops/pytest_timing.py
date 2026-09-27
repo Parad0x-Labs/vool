@@ -267,7 +267,25 @@ def _round_or_none(value: float | None) -> float | None:
     return None if value is None else round(value, 6)
 
 
+_SOURCE_IDENTITY_CACHE: dict[str, Any] | None = None
+
+
 def _source_identity() -> dict[str, Any]:
+    """The checkout's git identity, computed ONCE per process.
+
+    Two properties this hook must keep, both measured the hard way (CI run 36294291571,
+    shard tests(9), two attempts): it runs inside ``pytest_runtest_logreport`` — a hot
+    pytest hook — so (a) it must not spawn a subprocess per flush, and (b) no failure of
+    that spawn may escape into pytest's machinery. A test that monkeypatches
+    ``subprocess.run`` globally (the Apple Notes bridge refusal test does, deliberately)
+    turns any flush landing inside the test's window into an INTERNALERROR that kills the
+    whole shard, verdict and manifest alike. Caching removes the recurring spawn; catching
+    ``Exception`` (not just OSError/SubprocessError) means a patched or failing subprocess
+    degrades THIS flush's identity to unknown instead of killing the session.
+    """
+    global _SOURCE_IDENTITY_CACHE
+    if _SOURCE_IDENTITY_CACHE is not None:
+        return _SOURCE_IDENTITY_CACHE
     repo_root = Path(__file__).resolve().parent.parent
     try:
         head = subprocess.run(
@@ -284,13 +302,15 @@ def _source_identity() -> dict[str, Any]:
             timeout=15,
             check=True,
         ).stdout.splitlines()
-        return {
+        identity = {
             "git_head_sha": head,
             "git_dirty": bool(status),
             "git_changed_paths": len(status),
         }
-    except (OSError, subprocess.SubprocessError):
-        return {"git_head_sha": None, "git_dirty": None, "git_changed_paths": None}
+    except Exception:
+        identity = {"git_head_sha": None, "git_dirty": None, "git_changed_paths": None}
+    _SOURCE_IDENTITY_CACHE = identity
+    return identity
 
 
 def _environment_fingerprint() -> dict[str, Any]:
