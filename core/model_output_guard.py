@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
 # --- Model-output hygiene: foreign tool-call vocabulary + synthesis integrity ------------------
@@ -91,6 +91,293 @@ _ATTRIBUTED_TOOL_BLOCK_RE = re.compile(
 # is never matched.
 _CALL_DIRECTIVE_LINE_RE = re.compile(r"(?im)^[ \t>*_`\-]*call:[a-z_][a-z0-9_.]*\s*\([^\n]*$")
 _CALL_DIRECTIVE_PROBE_RE = re.compile(r"(?im)^[ \t>*_`\-]*call:[a-z_][a-z0-9_.]*\s*\(")
+
+
+# --- Linear tool-markup scans -------------------------------------------------------------------
+#
+# The block/tag patterns above pair a greedy `[^>]*` with a lazy `.*?` (or an optional close), so a
+# reply made of many unclosed openings made each regex scan the whole remaining tail per opening —
+# measured quadratic through `validate_contract` on main cfae90f (×4 per doubling: e.g. 300 ms at
+# 64k chars for the space-run form). The scanners below compute the SAME match set as the pinned
+# regexes in a single left-to-right pass: one precomputed index of close-tag and `>` positions, and
+# per opening a bisect instead of a rescan. The regexes stay compiled above as the differential
+# spec (scratch harness proves span equality); they must not be reinstated on the scrub path.
+
+_AMBIGUOUS_NAMES = ("tool", "tools", "invoke", "tool_use", "toolcall")
+_TOOL_BLOCK_NAMES = (
+    "tool_call", "tool_code", "function_call", "function_calls",
+    "function_results", "function_result", "tool_response", "tool_result", "tool_output",
+)
+# Every literal whose close tag (`</name>`) terminates one of the block scanners. Order matters
+# only for lookup; matching is exclusive because a full-text match plus the mandatory `>` can hold
+# at most one name at a given position (the `call`/`calls`, `result`/`results` pairs differ in the
+# char the shorter name would need to be `>`).
+_CLOSE_TAG_NAMES = frozenset({*_AMBIGUOUS_NAMES, *_TOOL_BLOCK_NAMES, "function"})
+
+
+_CI_LITERAL_CACHE: dict[str, re.Pattern[str]] = {}
+
+
+def _ci_starts_with(text: str, pos: int, literal: str) -> bool:
+    """Case-insensitive prefix test at ``pos`` with the engine's own IGNORECASE folding.
+
+    ``re.I`` folds İ/ı/ſ/Kelvin-K into ASCII in ways neither ``str.lower`` nor ``str.casefold``
+    reproduces, so the test goes through a cached one-shot literal regex — exactly the pinned
+    patterns' semantics at O(literal) cost. Every literal is a module constant, so the cache is
+    bounded to a handful of entries.
+    """
+    rx = _CI_LITERAL_CACHE.get(literal)
+    if rx is None:
+        rx = re.compile(re.escape(literal), re.IGNORECASE)
+        _CI_LITERAL_CACHE[literal] = rx
+    return rx.match(text, pos) is not None
+
+
+# `[a-z_:-]+` under IGNORECASE — a single character class, so the run match is linear.
+_ATTR_RUN_RE = re.compile(r"[a-z_:-]+", re.IGNORECASE)
+
+
+def _is_word_char(char: str) -> bool:
+    return char == "_" or char.isalnum()
+
+
+def _skip_ws(text: str, pos: int) -> int:
+    n = len(text)
+    while pos < n and text[pos].isspace():
+        pos += 1
+    return pos
+
+
+class _TagScanIndex:
+    """Close-tag, `}`-close and `>` positions for one string, built in a single pass.
+
+    ``close_spans`` maps each folded tag name to the sorted ``(start, end)`` spans of its exact
+    ``</name>`` occurrences; ``brace_closes`` maps a name to ``}`` positions whose following
+    whitespace run leads into that name's close tag (the ``\\s*</\\1>`` tail of the ambiguous
+    envelope); ``gt_positions`` is every ``>`` in the string, for the ``[^>]*>`` walks.
+    """
+
+    __slots__ = ("brace_closes", "close_spans", "gt_positions")
+
+    def __init__(self, text: str) -> None:
+        self.close_spans: dict[str, list[tuple[int, int]]] = {}
+        self.brace_closes: dict[str, list[tuple[int, int]]] = {}
+        self.gt_positions: list[int] = []
+        n = len(text)
+        pos = text.find(">")
+        while pos != -1:
+            self.gt_positions.append(pos)
+            pos = text.find(">", pos + 1)
+        pos = text.find("</")
+        while pos != -1:
+            for name in _CLOSE_TAG_NAMES:
+                after = pos + 2 + len(name)
+                if _ci_starts_with(text, pos + 2, name) and after <= n and text[after] == ">":
+                    self.close_spans.setdefault(name, []).append((pos, after + 1))
+                    break
+            pos = text.find("</", pos + 2)
+        pos = text.find("}")
+        while pos != -1:
+            close_start = _skip_ws(text, pos + 1)
+            for name in _CLOSE_TAG_NAMES:
+                after = close_start + 2 + len(name)
+                if _ci_starts_with(text, close_start, "</" + name) and after <= n and text[after] == ">":
+                    self.brace_closes.setdefault(name, []).append((pos, after + 1))
+                    break
+            pos = text.find("}", pos + 1)
+
+
+def _first_at_or_after(spans: list[tuple[int, int]], start: int) -> tuple[int, int] | None:
+    """First ``(a, b)`` with ``a >= start`` — spans are sorted by construction."""
+    for a, b in spans:
+        if a >= start:
+            return a, b
+    return None
+
+
+def _next_gt(index: _TagScanIndex, pos: int) -> int:
+    """Index of the first ``>`` at or after ``pos`` (len(text) when none)."""
+    gts = index.gt_positions
+    lo, hi = 0, len(gts)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if gts[mid] < pos:
+            lo = mid + 1
+        else:
+            hi = mid
+    return gts[lo] if lo < len(gts) else -1
+
+
+def _match_tag_name(
+    text: str, pos: int, names: tuple[str, ...], *, require_boundary: bool
+) -> tuple[str, int] | None:
+    """Match one of ``names`` at ``pos`` (alternation order), returning ``(name, end_pos)``.
+
+    ``require_boundary`` enforces the ``\\b`` after the name. Where a boundary is required, at most
+    one name can win at a position: every overlapping pair (tool/tools, tool/tool_use, …) differs
+    in a word character at the point the shorter name would need a boundary.
+    """
+    for name in names:
+        end = pos + len(name)
+        if _ci_starts_with(text, pos, name):
+            if not require_boundary or end >= len(text) or not _is_word_char(text[end]):
+                return name, end
+    return None
+
+
+def _iter_tag_blocks(
+    text: str,
+    index: _TagScanIndex,
+    *,
+    names: tuple[str, ...],
+    require_boundary: bool,
+    close_kind: str,
+    attr_required: bool = False,
+) -> Iterator[tuple[int, int, str]]:
+    """Spans of the block rules: ``<name …>`` optionally/mandatorily closed by ``</name>``.
+
+    ``close_kind`` is ``"brace"`` (ambiguous envelope: ``{…}`` then close), ``"required"`` (whole
+    block must be closed) or ``"optional"`` (attributed: a bare opening survives alone);
+    ``attr_required`` additionally demands the ``\\s+attr\\s*=\\s*`` opening shape of the
+    attributed rule. Yields the same non-overlapping left-to-right ``(start, end, name)`` spans the
+    pinned regex yields to ``finditer``/``sub``. Names are tried in alternation order and each must
+    complete its whole rule before the next is tried — the engine backtracks through alternatives
+    the same way. Every inner decomposition is unique (greedy classes with disjoint alphabets and
+    anchored literals), so one deterministic parse per name is exact.
+    """
+    n = len(text)
+    pos = text.find("<")
+    while pos != -1:
+        winner: tuple[str, int] | None = None
+        for name in names:
+            after_name = pos + 1 + len(name)
+            if not _ci_starts_with(text, pos + 1, name):
+                continue
+            if require_boundary and after_name < n and _is_word_char(text[after_name]):
+                continue
+            scan = after_name
+            if attr_required:
+                # `\s+[a-z_:-]+\s*=\s*` — ONE-OR-MORE whitespace, the attribute run, then `=`.
+                # The mandatory whitespace is what keeps `<tool_code=…` from parsing as name
+                # `tool` with attribute `_code`.
+                q = _skip_ws(text, scan)
+                if q == scan:
+                    continue
+                attr_match = _ATTR_RUN_RE.match(text, q)
+                if attr_match is None:
+                    continue
+                q = attr_match.end()
+                q = _skip_ws(text, q)
+                if q >= n or text[q] != "=":
+                    continue
+                scan = _skip_ws(text, q + 1)
+            gt = _next_gt(index, scan)
+            if gt == -1:
+                continue
+            opening_end = gt + 1
+            if close_kind == "brace":
+                brace = _skip_ws(text, opening_end)
+                if brace >= n or text[brace] != "{":
+                    continue
+                close = _first_at_or_after(index.brace_closes.get(name, ()), brace + 1)
+                if close is None:
+                    continue
+                winner = (name, close[1])
+            elif close_kind == "optional":
+                close = _first_at_or_after(index.close_spans.get(name, ()), opening_end)
+                winner = (name, close[1] if close is not None else opening_end)
+            else:  # "required"
+                close = _first_at_or_after(index.close_spans.get(name, ()), opening_end)
+                if close is None:
+                    continue
+                winner = (name, close[1])
+            break
+        if winner is None:
+            pos = text.find("<", pos + 1)
+            continue
+        name, end = winner
+        yield pos, end, text[pos + 1 : pos + 1 + len(name)]
+        pos = end
+
+
+def _iter_function_invokes(text: str, index: _TagScanIndex) -> Iterator[tuple[int, int, str]]:
+    """Spans of ``_FUNCTION_INVOKE_RE``: ``<function[=\\s][^>]*>`` plus nearest ``</function>``, if any."""
+    n = len(text)
+    pos = text.find("<")
+    while pos != -1:
+        after = pos + 1
+        if _ci_starts_with(text, after, "function") and after + 8 < n and (
+            text[after + 8] == "=" or text[after + 8].isspace()
+        ):
+            gt = _next_gt(index, after + 9)
+            if gt == -1:
+                pos = text.find("<", pos + 1)
+                continue
+            opening_end = gt + 1
+            close = _first_at_or_after(index.close_spans.get("function", ()), opening_end)
+            if close is not None:
+                yield pos, close[1], "function"
+                pos = close[1]
+            else:
+                yield pos, opening_end, "function"
+                pos = opening_end
+        else:
+            pos = text.find("<", pos + 1)
+
+
+def _iter_lone_tool_tags(text: str, index: _TagScanIndex) -> Iterator[tuple[int, int, str]]:
+    """Spans of ``_LONE_TOOL_TAG_RE``: a bare (possibly closing) tool tag with no partner required."""
+    n = len(text)
+    pos = text.find("<")
+    while pos != -1:
+        body = pos + 1
+        if body < n and text[body] == "/":
+            body += 1
+        matched = _match_tag_name(text, body, _TOOL_BLOCK_NAMES, require_boundary=True)
+        if matched is None:
+            pos = text.find("<", pos + 1)
+            continue
+        _name, after_name = matched
+        gt = _next_gt(index, after_name)
+        if gt == -1:
+            pos = text.find("<", pos + 1)
+            continue
+        yield pos, gt + 1, _name
+        pos = gt + 1
+
+
+def _remove_spans(text: str, spans: Iterable[tuple[int, int, object]]) -> str:
+    out: list[str] = []
+    prev = 0
+    for start, end, _name in spans:
+        out.append(text[prev:start])
+        prev = end
+    out.append(text[prev:])
+    return "".join(out)
+
+
+def _collapse_space_runs_before_newlines(text: str) -> str:
+    """``re.sub(r"[ \\t]+\\n", "\\n", text)`` as one linear pass (the run + newline both go)."""
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    while i < n:
+        char = text[i]
+        if char == " " or char == "\t":
+            j = i
+            while j < n and (text[j] == " " or text[j] == "\t"):
+                j += 1
+            if j < n and text[j] == "\n":
+                out.append("\n")
+                i = j + 1
+            else:
+                out.append(text[i:j])
+                i = j
+        else:
+            out.append(char)
+            i += 1
+    return "".join(out)
+
 
 
 # A JSON object that OPENS A LINE (optionally indented, optionally inside a ``` fence). Anchoring to
@@ -275,17 +562,33 @@ def foreign_markers(text: str) -> list[str]:
     # is the boolean that decides whether the guard runs at all, so a wrapper it cannot see is a
     # wrapper that reaches the user untouched. Reported by tag name rather than by the whole match,
     # which would put the leaked arguments into the log line.
-    for rx in (_AMBIGUOUS_TOOL_BLOCK_RE, _ATTRIBUTED_TOOL_BLOCK_RE):
-        for match in rx.finditer(s):
-            marker = f"<{match.group(1).lower()}>"
+    index = _TagScanIndex(s)
+    for spans in (
+        _iter_tag_blocks(
+            s, index, names=_AMBIGUOUS_NAMES, require_boundary=True, close_kind="brace"
+        ),
+        _iter_tag_blocks(
+            s,
+            index,
+            names=_AMBIGUOUS_NAMES,
+            require_boundary=False,
+            close_kind="optional",
+            attr_required=True,
+        ),
+    ):
+        for _start, _end, name in spans:
+            marker = f"<{name.lower()}>"
             if marker not in found:
                 found.append(marker)
-    for rx in (
-        _SPECIAL_TOKEN_PROBE_RE,
-        _LONE_TOOL_TAG_RE,
-        _FUNCTION_INVOKE_PROBE_RE,
-        _CALL_DIRECTIVE_PROBE_RE,
-    ):
+    for match in _SPECIAL_TOKEN_PROBE_RE.finditer(s):
+        token = match.group(0).strip()
+        if token and token not in found:
+            found.append(token)
+    for start, end, _name in _iter_lone_tool_tags(s, index):
+        token = s[start:end].strip()
+        if token and token not in found:
+            found.append(token)
+    for rx in (_FUNCTION_INVOKE_PROBE_RE, _CALL_DIRECTIVE_PROBE_RE):
         for match in rx.finditer(s):
             token = match.group(0).strip()
             if token and token not in found:
@@ -309,16 +612,33 @@ def scrub_foreign_markers(text: str) -> str:
     # Whole envelopes first, wrapper included. Doing this before the JSON-span pass is what stops
     # `<tool>{...}</tool>` on ONE line from escaping — the span scanner anchors on a line-opening
     # brace, and this form has none.
-    s = _AMBIGUOUS_TOOL_BLOCK_RE.sub("", s)
-    s = _ATTRIBUTED_TOOL_BLOCK_RE.sub("", s)
+    def _strip_blocks(
+        text: str, *, names: tuple[str, ...], boundary: bool, kind: str, attr: bool = False
+    ) -> str:
+        return _remove_spans(
+            text,
+            _iter_tag_blocks(
+                text,
+                _TagScanIndex(text),
+                names=names,
+                require_boundary=boundary,
+                close_kind=kind,
+                attr_required=attr,
+            ),
+        )
+
+    s = _strip_blocks(s, names=_AMBIGUOUS_NAMES, boundary=True, kind="brace")
+    s = _strip_blocks(
+        s, names=_AMBIGUOUS_NAMES, boundary=False, kind="optional", attr=True
+    )
     # Then the tag-only rules, BEFORE the emptiness probe rather than after it. The probe asks
     # whether any letter or digit survives; running it while `<tool>` and `</tool>` were still in the
     # string meant the letters of the tag name answered "yes", so a reply that was nothing but a
     # tool call was shown to the user as `<tool></tool>` instead of collapsing to a failed turn.
-    s = _TOOL_BLOCK_RE.sub("", s)
-    s = _FUNCTION_INVOKE_RE.sub("", s)
+    s = _strip_blocks(s, names=_TOOL_BLOCK_NAMES, boundary=True, kind="required")
+    s = _remove_spans(s, _iter_function_invokes(s, _TagScanIndex(s)))
     s = _SPECIAL_TOKEN_STRIP_RE.sub("", s)
-    s = _LONE_TOOL_TAG_RE.sub("", s)
+    s = _remove_spans(s, _iter_lone_tool_tags(s, _TagScanIndex(s)))
     s = _CALL_DIRECTIVE_LINE_RE.sub("", s)
 
     spans = _iter_tool_call_spans(s)
@@ -329,7 +649,7 @@ def scrub_foreign_markers(text: str) -> str:
     s = _EMPTY_FENCE_RE.sub("", s)
     if not re.search(r"[A-Za-z0-9]", s):
         return ""
-    s = re.sub(r"[ \t]+\n", "\n", s)
+    s = _collapse_space_runs_before_newlines(s)
     s = re.sub(r"\n{3,}", "\n\n", s)
     return s.strip()
 
