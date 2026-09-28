@@ -198,7 +198,38 @@ def _download_model_snapshot(*, spec: dict[str, Any], target_dir: Path) -> None:
         )
 
 
+def _sharded_index_confinement_error(model_dir: Path) -> str:
+    """'' when every sharded-checkpoint index keeps its ``weight_map`` inside the model dir.
+
+    A malicious model index can name shard files outside its directory (``../`` runs, absolute
+    paths) — the traversal class behind the accelerate advisory (GHSA-4j2p-28q2-5m79) and the
+    same weakness transformers' shard resolver has carried historically. VOOL loads staged
+    bases without ``device_map``, so that advisory's entrypoints are never reached; the
+    downloaded bytes are still untrusted input to the loader, so the verification gate refuses
+    an index whose shards are anything but bare filenames in the model dir. Checked BEFORE the
+    loader import, so a hostile staging directory is refused without loading ML dependencies.
+    """
+    import json
+
+    for index_path in model_dir.glob("*.index.json"):
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return f"unreadable checkpoint index: {index_path.name}"
+        weight_map = index.get("weight_map") if isinstance(index, dict) else None
+        if not isinstance(weight_map, dict):
+            continue  # not a sharded-checkpoint index; the loader rejects it on shape itself
+        for shard in weight_map.values():
+            name = str(shard or "")
+            if not name or name in {".", ".."} or "/" in name or "\\" in name or Path(name).name != name:
+                return f"checkpoint index {index_path.name} names a shard outside the model dir"
+    return ""
+
+
 def _verify_model_dir(*, model_dir: Path, trust_remote_code: bool) -> dict[str, Any]:
+    confinement_error = _sharded_index_confinement_error(model_dir)
+    if confinement_error:
+        raise ValueError(confinement_error)
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir), local_files_only=True, trust_remote_code=trust_remote_code)
