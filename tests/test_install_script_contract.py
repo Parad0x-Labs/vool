@@ -88,7 +88,12 @@ def test_install_script_hardens_openclaw_launcher_bootstrap() -> None:
     assert 'curl -sf --max-time 2 "http://127.0.0.1:11435/v1/models" >/dev/null 2>&1' in script
     assert 'if [[ "${launchd_runtime_consecutive}" -ge 5 ]]; then' in script
     assert 'say "Launchd runtime verified at http://127.0.0.1:11435 (stable health + /v1/models)"' in script
-    assert 'say "ERROR: launchd installed VOOL, but the API did not stay healthy long enough to verify /v1/models within 240 seconds."' in script
+    assert (
+        "say \"ERROR: launchd installed VOOL, but the API did not stay verifiably healthy "
+        "(VOOL /healthz identity + /v1/models) within 240 seconds.\"" in script
+    )
+    # The poll verifies the SERVED runtime's identity, not just curl exit status.
+    assert "supervised_health_is_vool" in script
     assert 'exec "${PROJECT_ROOT}/Start_VOOL.sh"' in script
     assert 'pull_models "${ollama_exe}" "${install_profile}" "${model_tag}"' in script
     assert 'pull_models "${ollama_exe}" "${install_profile}" "${model_tag}" "${runtime_home}"' in script
