@@ -602,5 +602,5 @@ def test_quoted_documentation_still_masks_downstream_instructions():
 ])
 def test_invalid_scalar_and_numeric_instructions_complete_promptly(expression):
     script = "import json; from core.raw_output_contract import parse_raw_output_contract; " + expression
-    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})

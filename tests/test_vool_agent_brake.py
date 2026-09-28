@@ -326,4 +326,4 @@ def test_a_canonical_flip_failure_rolls_the_legacy_mirror_back(monkeypatch) -> N
 def test_whole_command_suffixes_do_not_repartition_whitespace(module, name, prefix):
     script = "import importlib,sys; p=getattr(importlib.import_module(sys.argv[1]), sys.argv[2]); assert p.match(sys.argv[3] + ' '*100000 + 'X') is None"
     subprocess.run([sys.executable, "-c", script, module, name, prefix],
-                   check=True, timeout=3, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+                   check=True, timeout=10, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})

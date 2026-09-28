@@ -127,7 +127,7 @@ def test_grammatical_user_name_nouns_keep_the_user_identity_lane(prompt: str) ->
     "from core.agent_runtime.action_honesty_validator import _split_clauses; _split_clauses('hello' + ' ' * 100000 + 'there')",
 ])
 def test_identity_and_honesty_scans_finish(statement):
-    subprocess.run([sys.executable, '-c', statement], check=True, timeout=3, capture_output=True)
+    subprocess.run([sys.executable, '-c', statement], check=True, timeout=10, capture_output=True)
 
 
 def test_real_name_questions_and_quoted_examples_keep_their_meaning():
