@@ -53,3 +53,40 @@ class TrainableBaseManagerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShardedIndexConfinementTests(unittest.TestCase):
+    """The staged-base verification gate refuses a checkpoint index whose weight_map names
+    anything but a bare filename in the model dir (the accelerate-advisory traversal class,
+    GHSA-4j2p-28q2-5m79, guarded at VOOL's own untrusted-download boundary)."""
+
+    @staticmethod
+    def _dir_with_index(tmp: Path, weight_map: dict) -> Path:
+        model_dir = tmp / "model"
+        model_dir.mkdir(parents=True)
+        (model_dir / "config.json").write_text("{}", encoding="utf-8")
+        (model_dir / "model.safetensors.index.json").write_text(
+            json.dumps({"metadata": {"total_size": 1}, "weight_map": weight_map}), encoding="utf-8"
+        )
+        return model_dir
+
+    def test_a_escaping_weight_map_is_refused_before_any_loader_import(self) -> None:
+        from core.trainable_base_manager import _verify_model_dir
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for n, bad in enumerate(("../outside.safetensors", "/etc/passwd", "..\\win.safetensors", ".", "", "sub/shard.safetensors")):
+                with self.subTest(shard=bad):
+                    model_dir = self._dir_with_index(Path(tmpdir) / f"case-{n}", {"model.layers.0": bad})
+                    with self.assertRaises(ValueError) as raised:
+                        _verify_model_dir(model_dir=model_dir, trust_remote_code=False)
+                    self.assertIn("outside the model dir", str(raised.exception))
+
+    def test_a_confined_weight_map_passes_the_gate_check(self) -> None:
+        from core.trainable_base_manager import _sharded_index_confinement_error
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_dir = self._dir_with_index(Path(tmpdir), {"model.layers.0": "model-00001-of-00002.safetensors", "lm_head.weight": "model-00002-of-00002.safetensors"})
+            self.assertEqual(_sharded_index_confinement_error(model_dir), "")
+            # a directory with no index at all is simply not sharded
+            (model_dir / "model.safetensors.index.json").unlink()
+            self.assertEqual(_sharded_index_confinement_error(model_dir), "")
