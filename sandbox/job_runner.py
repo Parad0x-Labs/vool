@@ -115,8 +115,18 @@ def _seatbelt_subpath_literal(path: Path) -> str:
 
 
 def _private_read_roots() -> tuple[Path, ...]:
-    """Private host trees hidden unless the policy names a specific read or write root."""
-    candidates = (Path.home(), Path(tempfile.gettempdir()), Path("/tmp"), Path("/var/tmp"))
+    """Private host trees hidden unless the policy names a specific read or write root.
+
+    `/Volumes` joins the home and the temp trees: on macOS it is every mounted external
+    volume — the operator's other disks — and a confined job has no business reading their
+    contents by default. A volume the operator DOES name (a workspace or read root on an
+    external disk) is re-allowed by the named-root layers on both backends: Seatbelt's
+    last-match-wins allow clause follows the deny, and bwrap's --ro-bind/--bind restores the
+    named path after the private tmpfs.
+    """
+    candidates = (
+        Path.home(), Path(tempfile.gettempdir()), Path("/tmp"), Path("/var/tmp"), Path("/Volumes"),
+    )
     return tuple(dict.fromkeys(path.resolve() for path in candidates
                                if path.is_dir() and path.resolve() != Path(path.anchor)))
 
@@ -327,43 +337,50 @@ def _hard_linked_entry(roots: tuple[Path, ...]) -> tuple[Path | None, bool]:
     return None, True
 
 
-def _terminate_process_group(process: subprocess.Popen, *, only_if_populated: bool = False) -> None:
-    """Kill the job's whole process group — children, grandchildren, everything.
+def _terminate_process_group(process: subprocess.Popen, *, pgid: int | None = None) -> None:
+    """Terminate all descendants remaining in the job's process group.
 
-    The group id IS the child's pid because `run` starts it with `start_new_session=True`.
-    SIGTERM first so a well-behaved tool can flush, then SIGKILL for anything that ignores it.
+    The group id IS the child's pid because `run` starts it with `start_new_session=True`, so
+    `run` tracks it from creation and passes it in: on the success-path sweep the direct child
+    is already reaped, and `os.getpgid(process.pid)` on a reaped pid raises ProcessLookupError
+    BEFORE the sweep — which made "no orphan survives" dead code there — while a pid the kernel
+    has recycled would name an UNRELATED group. The tracked pgid is the only group ever
+    signalled. SIGTERM first so a well-behaved tool can flush, then SIGKILL for anything that
+    ignores it.
 
-    `only_if_populated` is the success-path sweep: the direct child is already reaped, so
-    signalling the group is a no-op unless something it spawned is still there. `ProcessLookup`
-    means the group is empty, which is the outcome this function exists to produce.
+    A group that is already empty (everything reaped) answers the probe with ProcessLookup and
+    the sweep is a no-op — the outcome this function exists to produce. Descendants that
+    escaped the group entirely (their own `setsid()`) cannot be signalled by group id; the
+    kernel confinement profile is inherited across fork/exec, so they remain confined.
     """
     if _is_windows_platform():  # pragma: no cover - no process groups of this shape on Windows
         with contextlib.suppress(Exception):
             process.kill()
         return
-    pid = process.pid
+    target_pgid = pgid if pgid is not None else process.pid
+    if target_pgid is None or target_pgid <= 0:
+        return
     try:
-        pgid = os.getpgid(pid)
+        our_pgid = os.getpgid(0)
+    except OSError:  # pragma: no cover - defensive: cannot learn our own group
+        our_pgid = None
+    if our_pgid is not None and target_pgid == our_pgid:  # pragma: no cover - never signal our own group
+        return
+    try:
+        os.killpg(target_pgid, 0)
     except (OSError, ProcessLookupError):
-        return
-    if pgid == os.getpgid(0):  # pragma: no cover - defensive: never signal our own group
-        return
-    if only_if_populated:
-        try:
-            os.killpg(pgid, 0)
-        except (OSError, ProcessLookupError):
-            return
+        return  # the group is empty: nothing to terminate
     with contextlib.suppress(OSError, ProcessLookupError):
-        os.killpg(pgid, signal.SIGTERM)
+        os.killpg(target_pgid, signal.SIGTERM)
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
         try:
-            os.killpg(pgid, 0)
+            os.killpg(target_pgid, 0)
         except (OSError, ProcessLookupError):
             break
         time.sleep(0.05)
     with contextlib.suppress(OSError, ProcessLookupError):
-        os.killpg(pgid, signal.SIGKILL)
+        os.killpg(target_pgid, signal.SIGKILL)
     with contextlib.suppress(Exception):
         process.wait(timeout=5)
 
@@ -490,13 +507,17 @@ class JobRunner:
             env=env,
             start_new_session=True,
         )
+        # The group id IS the child's pid (start_new_session), captured at creation: the child
+        # may be reaped — or its pid recycled — by the time any teardown runs, and the tracked
+        # value is the only group the teardown will ever signal.
+        pgid = process.pid
         try:
             stdout, stderr = self._wait(process, cancel_event)
         except _JobCancelledError:
             # The operator withdrew the job. Same teardown as a timeout — the whole process
             # group, children and grandchildren — and a distinct code so the receipt can say
             # "cancelled" rather than "failed".
-            _terminate_process_group(process)
+            _terminate_process_group(process, pgid=pgid)
             partial_out, partial_err = "", ""
             with contextlib.suppress(Exception):
                 partial_out, partial_err = process.communicate(timeout=5)
@@ -507,7 +528,7 @@ class JobRunner:
                 stderr=_truncate(f"{partial_err}\n{note}".strip(), self.policy.max_output_kb),
             )
         except subprocess.TimeoutExpired as exc:
-            _terminate_process_group(process)
+            _terminate_process_group(process, pgid=pgid)
             partial_stdout = _decode_partial(exc.stdout)
             partial_stderr = _decode_partial(exc.stderr)
             with contextlib.suppress(Exception):
@@ -527,13 +548,14 @@ class JobRunner:
         except BaseException:
             # Cancellation (KeyboardInterrupt), a caller thread dying, anything at all: the
             # process group does not outlive the call that started it.
-            _terminate_process_group(process)
+            _terminate_process_group(process, pgid=pgid)
             raise
         finally:
             # A job that returned normally can still have left the group populated — a
             # backgrounded grandchild does not keep the parent alive. Sweeping unconditionally
-            # is what makes "no orphan survives" true on the success path too.
-            _terminate_process_group(process, only_if_populated=True)
+            # is what makes "no orphan survives" true on the success path too: the tracked pgid
+            # answers even though the direct child is already reaped here.
+            _terminate_process_group(process, pgid=pgid)
         return ExecutionResult(
             returncode=int(process.returncode),
             stdout=_truncate(stdout, self.policy.max_output_kb),
