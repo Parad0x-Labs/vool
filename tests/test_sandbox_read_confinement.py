@@ -11,6 +11,7 @@ import pytest
 
 from sandbox.job_runner import (
     _macos_confined_profile,
+    _private_read_roots,
     _seatbelt_subpath_literal,
     _sensitive_read_deny_roots,
 )
@@ -34,6 +35,27 @@ def test_sensitive_roots_include_the_named_exfil_targets():
     home = Path.home()
     for target in (home / ".ssh", home / ".aws", home / ".vool_runtime"):
         assert target in roots, target
+
+
+def test_private_read_roots_include_mounted_volumes():
+    """/Volumes is every mounted external volume on macOS: it belongs to the private trees a
+    confined job cannot read unless the policy names a root there."""
+    if not Path("/Volumes").is_dir():
+        pytest.skip("no /Volumes mount point on this host")
+    assert Path("/Volumes") in _private_read_roots()
+
+
+def test_profile_denies_external_volume_reads_and_restores_named_workspaces():
+    """The layer-1 deny names /Volumes, and a workspace the policy NAMES on an external volume
+    is re-allowed AFTER the deny — Seatbelt is last-match-wins, so supported external
+    workspaces keep working while every sibling volume stays unreadable."""
+    prof = _macos_confined_profile((Path("/tmp/ws"),), read_roots=(Path("/Volumes/MyExternalWS"),))
+    volumes_deny = _seatbelt_subpath_literal(Path("/Volumes"))
+    external_ws_allow = _seatbelt_subpath_literal(Path("/Volumes/MyExternalWS"))
+    assert volumes_deny in prof, "the profile must deny reads of mounted volumes"
+    assert external_ws_allow in prof, "a named external workspace must be re-allowed"
+    assert prof.find(volumes_deny) < prof.find(external_ws_allow), \
+        "the allow must follow the deny (Seatbelt is last-match-wins)"
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="seatbelt is macOS-only")
@@ -60,3 +82,27 @@ def test_live_seatbelt_blocks_reading_a_secret_file(tmp_path):
         assert "not permitted" in (r.stderr or "").lower()
     finally:
         canary.unlink(missing_ok=True)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="seatbelt is macOS-only")
+def test_live_seatbelt_blocks_listing_external_volumes(tmp_path):
+    """Real kernel enforcement of the volume deny: a confined child cannot list /Volumes'
+    contents (reading nothing of the operator's disks), while listing its own workspace still
+    works under the same profile."""
+    if not Path("/Volumes").is_dir():
+        pytest.skip("no /Volumes mount point on this host")
+    prof = _macos_confined_profile((tmp_path.resolve(),))
+    with tempfile.NamedTemporaryFile("w", suffix=".sb", delete=False) as f:
+        f.write(prof)
+        sbf = f.name
+    denied = subprocess.run(
+        ["sandbox-exec", "-f", sbf, "python3", "-c", "import os; os.listdir('/Volumes')"],
+        capture_output=True, text=True, timeout=20,
+    )
+    assert denied.returncode != 0
+    assert "not permitted" in (denied.stderr or "").lower()
+    allowed = subprocess.run(
+        ["sandbox-exec", "-f", sbf, "python3", "-c", f"import os; os.listdir({str(tmp_path.resolve())!r})"],
+        capture_output=True, text=True, timeout=20,
+    )
+    assert allowed.returncode == 0, allowed.stderr

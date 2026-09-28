@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -478,6 +479,93 @@ class BytecodeContainmentTests(unittest.TestCase):
                 (Path(tmp) / "__pycache__").exists(),
                 "sabotage did not reproduce the bytecode-leak symptom",
             )
+
+
+class DescendantCleanupTests(unittest.TestCase):
+    """The process group does not outlive the call that started it — on normal exit, timeout
+    AND cancellation. The success-path sweep used to be dead code: it looked up the group id
+    with os.getpgid() AFTER the direct child was reaped, which raised ProcessLookupError and
+    returned before sweeping, so a backgrounded grandchild survived a job that "finished"."""
+
+    def _spawn_script(self, ws: str) -> str:
+        pid_file = Path(ws) / "grandchild.pid"
+        return (
+            "import subprocess, sys\n"
+            "p = subprocess.Popen(\n"
+            "    [sys.executable, '-c', 'import time; time.sleep(20)'],\n"
+            "    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+            f"open({str(pid_file)!r}, 'w').write(str(p.pid))\n"
+        )
+
+    def _grandchild_alive(self, ws: str) -> bool | None:
+        pid_file = Path(ws) / "grandchild.pid"
+        if not pid_file.exists():
+            return None
+        gc_pid = int(pid_file.read_text().strip())
+        try:
+            os.kill(gc_pid, 0)
+            return True
+        except OSError:
+            return False
+
+    def _cleanup(self, ws: str) -> None:
+        import contextlib
+        import signal
+
+        pid_file = Path(ws) / "grandchild.pid"
+        if pid_file.exists():
+            with contextlib.suppress(OSError, ValueError):
+                os.kill(int(pid_file.read_text().strip()), signal.SIGKILL)
+
+    def test_normal_exit_cleans_up_surviving_background_descendants(self) -> None:
+        with tempfile.TemporaryDirectory() as ws:
+            self.addCleanup(self._cleanup, ws)
+            runner = JobRunner(ExecutionPolicy(workspace_root=Path(ws)))
+            result = runner.run([sys.executable, "-c", self._spawn_script(ws) + "sys.exit(0)\n"])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIsNotNone(self._grandchild_alive(ws), "grandchild pid file missing")
+            self.assertFalse(self._grandchild_alive(ws),
+                             "a backgrounded grandchild must not survive the job's normal exit")
+
+    def test_timeout_path_terminates_background_descendants(self) -> None:
+        with tempfile.TemporaryDirectory() as ws:
+            self.addCleanup(self._cleanup, ws)
+            runner = JobRunner(ExecutionPolicy(workspace_root=Path(ws), max_seconds=2))
+            result = runner.run([sys.executable, "-c", self._spawn_script(ws) + "import time; time.sleep(30)\n"])
+            self.assertEqual(result.returncode, 124)
+            self.assertIn("timed out", result.stderr)
+            self.assertFalse(self._grandchild_alive(ws),
+                             "a backgrounded grandchild must not survive the job's timeout")
+
+    def test_cancel_path_terminates_background_descendants(self) -> None:
+        import threading
+
+        with tempfile.TemporaryDirectory() as ws:
+            self.addCleanup(self._cleanup, ws)
+            runner = JobRunner(ExecutionPolicy(workspace_root=Path(ws), max_seconds=60))
+            cancel = threading.Event()
+            threading.Timer(1.0, cancel.set).start()
+            result = runner.run(
+                [sys.executable, "-c", self._spawn_script(ws) + "import time; time.sleep(30)\n"],
+                cancel_event=cancel,
+            )
+            self.assertEqual(result.returncode, JobRunner.CANCELLED_RETURNCODE)
+            self.assertFalse(self._grandchild_alive(ws),
+                             "a backgrounded grandchild must not survive the operator's cancel")
+
+    def test_terminate_never_signals_the_callers_own_group(self) -> None:
+        """The own-group guard must run BEFORE any signal: a stale pgid equal to OUR group id
+        (all a caller could pass after a botched recycle) is refused, never signalled."""
+        import contextlib
+
+        from sandbox import job_runner
+
+        fake = subprocess.Popen(["/bin/sleep", "0.1"])
+        fake.wait()
+        with contextlib.suppress(AssertionError):
+            with patch.object(job_runner.os, "killpg", side_effect=AssertionError("signalled our own group")):
+                job_runner._terminate_process_group(fake, pgid=os.getpgid(0))
+        fake.wait()
 
 
 if __name__ == "__main__":
