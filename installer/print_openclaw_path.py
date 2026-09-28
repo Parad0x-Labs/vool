@@ -1,26 +1,30 @@
-"""Print one resolved OpenClaw path for Windows batch installers."""
+"""Retired OpenClaw path helper.
+
+The OpenClaw integration is removed from VOOL product paths; VOOL never reads,
+writes, or discovers third-party OpenClaw state anymore. This entrypoint remains
+as an honest side-effect-free refusal so old callers fail loudly instead of
+silently succeeding.
+"""
 
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+RETIREMENT_NOTICE = (
+    "OpenClaw integration is retired from VOOL. VOOL installs and starts natively "
+    "(Start_VOOL / Talk_To_VOOL / Open_Web0) and does not read or write OpenClaw "
+    "state. OpenClaw-specific skills live separately: "
+    "https://github.com/Parad0x-Labs/openclaw-skills"
+)
 
-from core.openclaw_locator import discover_openclaw_paths
 
-
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="print_openclaw_path")
     parser.add_argument("field", choices=["config_path", "compat_bridge_dir"])
-    args = parser.parse_args()
-
-    paths = discover_openclaw_paths(create_default=True)
-    print(getattr(paths, args.field))
-    return 0
+    parser.parse_args(argv)
+    print(RETIREMENT_NOTICE, file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

@@ -74,11 +74,12 @@ def test_control_plane_workspace_materializes_outside_a_packaged_bundle(tmp_path
     assert (home / "workspace" / "templates").is_dir()
 
 
-def test_openclaw_tools_md_seeds_into_the_agent_workspace_never_the_source_root(
+def test_openclaw_registration_refuses_and_never_writes_the_bundle_or_third_party_home(
     tmp_path: Path, monkeypatch
 ) -> None:
-    """RED for the live TOOLS.md-in-bundle write: register() seeded the grounded TOOLS.md into
-    project_root — the packaged app's read-only source tree — instead of the agent workspace."""
+    """OpenClaw registration is retired: the refusal must be side-effect-free — nothing
+    lands in the packaged app's read-only source tree, and an unrelated third-party
+    OpenClaw home is left byte-for-byte intact (no TOOLS.md seeding either)."""
     import contextlib
     import io
 
@@ -91,15 +92,16 @@ def test_openclaw_tools_md_seeds_into_the_agent_workspace_never_the_source_root(
     from installer.register_openclaw_agent import register
 
     with contextlib.redirect_stdout(io.StringIO()):
-        register(
+        ok = register(
             project_root=str(app_root),
             vool_home=str(tmp_path / "vool-home"),
             openclaw_home=str(openclaw_home),
         )
+    assert ok is False
     stray = list(app_root.rglob("*"))
     assert stray == [], f"registration wrote into the bundle source tree: {stray[:5]}"
     seeded = list(openclaw_home.rglob("TOOLS.md"))
-    assert seeded, "the grounded TOOLS.md must be seeded into the agent workspace"
+    assert seeded == [], "retired registration must not seed anything into a third-party home"
 
 
 def test_dev_checkout_workspace_default_is_unchanged(tmp_path: Path, monkeypatch) -> None:
