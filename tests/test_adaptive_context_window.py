@@ -235,3 +235,44 @@ def test_unparseable_override_still_fails_closed_to_the_baseline() -> None:
     # A typo must not silently promote the machine to the wide adaptive window it would otherwise get.
     assert sizing["selected_num_ctx"] == 4096
     assert sizing["context_sizing_policy"] == "flat_invalid_override"
+
+
+# --- scan bounds (CodeQL polynomial-redos 133) ----------------------------------------------------
+#
+# The MoE probe `\d+(?:\.\d+)?x\d+(?:\.\d+)?b` rescanned a digit run from every start position:
+# 30 s at 64k chars through _ollama_context_sizing on main cfae90f, with model tags arriving
+# unbounded from router/summarizer/arbiter calls. The b-anchored walk must stay linear and keep
+# deciding exactly the same question (fail-closed on MoE shapes, open on dense ones).
+
+import time
+
+
+def test_moe_probe_digit_run_stays_linear() -> None:
+    def run(size: int) -> float:
+        tag = "mixtral" + "1" * size + "z"
+        start = time.perf_counter()
+        _ollama_context_sizing("general", model_tag=tag, bucket="A", env={})
+        return time.perf_counter() - start
+
+    small, large = run(16_000), run(64_000)
+    assert large / small < 8.0, f"x4 size grew x{large / small:.1f} — super-linear rescan is back"
+
+
+def test_moe_probe_keeps_its_exact_decisions() -> None:
+    probe = provider_defaults._moe_probe_matches
+    # Fail-closed MoE shapes (decimals on either side of the x).
+    assert probe("mixtral:8x7b")
+    assert probe("1.5x2b")
+    assert probe("2x4.5b")
+    assert probe("3.5x2.25b")
+    assert probe("0x0b")
+    # Dense tags and fragments must NOT trip the fail-closed gate.
+    assert not probe("llama3:70b")
+    assert not probe("8x7")            # no b at all
+    assert not probe("87b")            # digits but no x
+    assert not probe("8.7b")           # decimal but no x
+    assert not probe("x2b")            # no expert count before the x
+    assert not probe("8xb")            # no expert size before the b
+    assert probe("8x7bc")            # the 8x7b prefix still matches
+    # The fail-closed gate still holds end-to-end for an unknown MoE tag.
+    assert provider_defaults._known_model_parameter_billions("mixtral:8x7b") is None
