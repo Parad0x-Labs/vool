@@ -343,15 +343,21 @@ def _terminate_process_group(process: subprocess.Popen, *, pgid: int | None = No
     The group id IS the child's pid because `run` starts it with `start_new_session=True`, so
     `run` tracks it from creation and passes it in: on the success-path sweep the direct child
     is already reaped, and `os.getpgid(process.pid)` on a reaped pid raises ProcessLookupError
-    BEFORE the sweep — which made "no orphan survives" dead code there — while a pid the kernel
-    has recycled would name an UNRELATED group. The tracked pgid is the only group ever
-    signalled. SIGTERM first so a well-behaved tool can flush, then SIGKILL for anything that
-    ignores it.
+    BEFORE the sweep — which made "no orphan survives" dead code there.
 
-    A group that is already empty (everything reaped) answers the probe with ProcessLookup and
-    the sweep is a no-op — the outcome this function exists to produce. Descendants that
-    escaped the group entirely (their own `setsid()`) cannot be signalled by group id; the
-    kernel confinement profile is inherited across fork/exec, so they remain confined.
+    Once a probe establishes the group is GONE, nothing further is ever signalled through that
+    identifier: an integer process-group id is not a non-reusable identity, and the kernel may
+    hand it to an unrelated process group the moment its last member is reaped. Escalation to
+    SIGKILL happens only while the group is still demonstrably present at the end of the grace
+    period; disappearance and inability-to-inspect both return without further signals.
+
+    The remaining race, stated exactly: between any presence probe and the signal that follows
+    it, the last member can exit and the id can be reused, so that one signal can land on an
+    unrelated group. Linux closes this class with pidfd; macOS has no equivalent for process
+    groups, so the window is documented, not closed — and never widened (no name scans, no
+    signalling of groups this job did not create). Detached descendants (their own `setsid()`)
+    are outside group signalling entirely and remain confined only by the inherited kernel
+    profile; no claim is made that every descendant is terminated.
     """
     if _is_windows_platform():  # pragma: no cover - no process groups of this shape on Windows
         with contextlib.suppress(Exception):
@@ -369,15 +375,19 @@ def _terminate_process_group(process: subprocess.Popen, *, pgid: int | None = No
     try:
         os.killpg(target_pgid, 0)
     except (OSError, ProcessLookupError):
-        return  # the group is empty: nothing to terminate
+        return  # the group is empty or uninspectable: nothing to terminate, nothing to signal
     with contextlib.suppress(OSError, ProcessLookupError):
         os.killpg(target_pgid, signal.SIGTERM)
     deadline = time.monotonic() + 3.0
-    while time.monotonic() < deadline:
+    while True:
         try:
             os.killpg(target_pgid, 0)
         except (OSError, ProcessLookupError):
-            break
+            # The group is gone. Its identifier is now free — everything after this point
+            # would be signalling whatever the kernel gave the id to next, so stop here.
+            return
+        if time.monotonic() >= deadline:
+            break  # still present after the grace period: escalate
         time.sleep(0.05)
     with contextlib.suppress(OSError, ProcessLookupError):
         os.killpg(target_pgid, signal.SIGKILL)
@@ -508,16 +518,33 @@ class JobRunner:
             start_new_session=True,
         )
         # The group id IS the child's pid (start_new_session), captured at creation: the child
-        # may be reaped — or its pid recycled — by the time any teardown runs, and the tracked
-        # value is the only group the teardown will ever signal.
+        # may be reaped by the time any teardown runs, and the tracked value is the identifier
+        # every teardown probes and signals.
         pgid = process.pid
+        teardown_done = False
+
+        def teardown() -> None:
+            """Own the group teardown exactly ONCE per run.
+
+            Every path — cancel, timeout, caller exception, normal return — goes through this
+            one door. The except arms below must tear down before they drain the pipes, and the
+            finally arm sweeps the success path; without the once-flag those two would BOTH run,
+            and the second teardown would re-signal an identifier the first already proved gone
+            — with the kernel free to have handed that id to an unrelated process group.
+            """
+            nonlocal teardown_done
+            if teardown_done:
+                return
+            teardown_done = True
+            _terminate_process_group(process, pgid=pgid)
+
         try:
             stdout, stderr = self._wait(process, cancel_event)
         except _JobCancelledError:
             # The operator withdrew the job. Same teardown as a timeout — the whole process
             # group, children and grandchildren — and a distinct code so the receipt can say
             # "cancelled" rather than "failed".
-            _terminate_process_group(process, pgid=pgid)
+            teardown()
             partial_out, partial_err = "", ""
             with contextlib.suppress(Exception):
                 partial_out, partial_err = process.communicate(timeout=5)
@@ -528,7 +555,7 @@ class JobRunner:
                 stderr=_truncate(f"{partial_err}\n{note}".strip(), self.policy.max_output_kb),
             )
         except subprocess.TimeoutExpired as exc:
-            _terminate_process_group(process, pgid=pgid)
+            teardown()
             partial_stdout = _decode_partial(exc.stdout)
             partial_stderr = _decode_partial(exc.stderr)
             with contextlib.suppress(Exception):
@@ -548,14 +575,15 @@ class JobRunner:
         except BaseException:
             # Cancellation (KeyboardInterrupt), a caller thread dying, anything at all: the
             # process group does not outlive the call that started it.
-            _terminate_process_group(process, pgid=pgid)
+            teardown()
             raise
         finally:
             # A job that returned normally can still have left the group populated — a
-            # backgrounded grandchild does not keep the parent alive. Sweeping unconditionally
-            # is what makes "no orphan survives" true on the success path too: the tracked pgid
-            # answers even though the direct child is already reaped here.
-            _terminate_process_group(process, pgid=pgid)
+            # backgrounded grandchild does not keep the parent alive. This arm sweeps the
+            # success path (the except arms already owned their teardown through the same
+            # once-only door), so "no orphan survives" holds on every path without any path
+            # signalling the group identifier twice.
+            teardown()
         return ExecutionResult(
             returncode=int(process.returncode),
             stdout=_truncate(stdout, self.policy.max_output_kb),

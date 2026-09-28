@@ -554,18 +554,136 @@ class DescendantCleanupTests(unittest.TestCase):
                              "a backgrounded grandchild must not survive the operator's cancel")
 
     def test_terminate_never_signals_the_callers_own_group(self) -> None:
-        """The own-group guard must run BEFORE any signal: a stale pgid equal to OUR group id
-        (all a caller could pass after a botched recycle) is refused, never signalled."""
-        import contextlib
+        """The own-group guard must run BEFORE any signal: a pgid equal to OUR group id is
+        refused, never probed, never signalled."""
+        from sandbox import job_runner
+
+        fake = subprocess.Popen([sys.executable, "-c", "pass"])
+        fake.wait()
+        signalled: list[int] = []
+        with patch.object(job_runner.os, "killpg", side_effect=lambda pgid, sig: signalled.append(sig)):
+            job_runner._terminate_process_group(fake, pgid=os.getpgid(0))
+        self.assertEqual(signalled, [], "our own group must never be signalled")
+
+
+class ProcessGroupTeardownTests(unittest.TestCase):
+    """The teardown's signal SEQUENCE under controlled OS hooks (no real signals), and the
+    cleanup OWNERSHIP in run(). Once a probe establishes the group's absence, nothing further
+    may be signalled through that identifier: the kernel is free to have reused it for an
+    unrelated process group. Review evidence: the earlier shape recorded
+    [0, SIGTERM, 0 -> ProcessLookupError, SIGKILL] — a SIGKILL to an identifier already known
+    free."""
+
+    PGID = 999_999  # never a real group: every OS call below is hooked
+
+    def _reaped_process(self) -> subprocess.Popen:
+        proc = subprocess.Popen([sys.executable, "-c", "pass"])
+        proc.wait()
+        return proc
+
+    def test_no_signal_after_the_group_is_proven_gone(self) -> None:
+        import signal as signal_mod
 
         from sandbox import job_runner
 
-        fake = subprocess.Popen(["/bin/sleep", "0.1"])
-        fake.wait()
-        with contextlib.suppress(AssertionError):
-            with patch.object(job_runner.os, "killpg", side_effect=AssertionError("signalled our own group")):
-                job_runner._terminate_process_group(fake, pgid=os.getpgid(0))
-        fake.wait()
+        calls: list[int] = []
+
+        def fake_killpg(pgid: int, sig: int) -> None:
+            calls.append(sig)
+            if len(calls) == 3:  # the SECOND probe answers: the group has disappeared
+                raise ProcessLookupError()
+
+        with patch.object(job_runner.os, "killpg", side_effect=fake_killpg):
+            job_runner._terminate_process_group(self._reaped_process(), pgid=self.PGID)
+        self.assertEqual(calls, [0, signal_mod.SIGTERM, 0],
+                         "the recorded sequence must END at the failing probe — no SIGKILL after "
+                         "the identifier is known free (a reused id would take that signal)")
+
+    def test_an_already_gone_group_is_never_signalled(self) -> None:
+        from sandbox import job_runner
+
+        calls: list[int] = []
+
+        def fake_killpg(pgid: int, sig: int) -> None:
+            calls.append(sig)
+            raise ProcessLookupError()
+
+        with patch.object(job_runner.os, "killpg", side_effect=fake_killpg):
+            job_runner._terminate_process_group(self._reaped_process(), pgid=self.PGID)
+        self.assertEqual(calls, [0], "a first-probe ProcessLookup must end everything: probe only")
+
+    def test_escalation_happens_only_while_the_group_remains_present(self) -> None:
+        import signal as signal_mod
+
+        from sandbox import job_runner
+
+        calls: list[int] = []
+        clock = iter(float(t) for t in range(0, 20))
+
+        with patch.object(job_runner.os, "killpg", side_effect=lambda pgid, sig: calls.append(sig)), \
+                patch.object(job_runner.time, "monotonic", side_effect=lambda: next(clock)), \
+                patch.object(job_runner.time, "sleep", side_effect=lambda s: None):
+            job_runner._terminate_process_group(self._reaped_process(), pgid=self.PGID)
+        self.assertIn(signal_mod.SIGTERM, calls)
+        self.assertEqual(calls[-1], signal_mod.SIGKILL,
+                         "a group still present at the deadline is escalated to SIGKILL")
+        self.assertNotIn(None, calls)
+
+    def test_timeout_path_tears_the_group_down_exactly_once(self) -> None:
+        from sandbox import job_runner
+
+        with tempfile.TemporaryDirectory() as ws:
+            runner = JobRunner(ExecutionPolicy(workspace_root=Path(ws), max_seconds=1))
+            real = job_runner._terminate_process_group
+            calls: list[int] = []
+
+            def counting(process, *, pgid=None):
+                calls.append(pgid)
+                return real(process, pgid=pgid)
+
+            with patch.object(job_runner, "_terminate_process_group", side_effect=counting):
+                result = runner.run([sys.executable, "-c", "import time; time.sleep(30)"])
+            self.assertEqual(result.returncode, 124)
+            self.assertEqual(len(calls), 1, "timeout teardown + finally sweep must be ONE teardown")
+
+    def test_cancel_path_tears_the_group_down_exactly_once(self) -> None:
+        import threading
+
+        from sandbox import job_runner
+
+        with tempfile.TemporaryDirectory() as ws:
+            runner = JobRunner(ExecutionPolicy(workspace_root=Path(ws), max_seconds=60))
+            real = job_runner._terminate_process_group
+            calls: list[int] = []
+
+            def counting(process, *, pgid=None):
+                calls.append(pgid)
+                return real(process, pgid=pgid)
+
+            cancel = threading.Event()
+            threading.Timer(0.7, cancel.set).start()
+            with patch.object(job_runner, "_terminate_process_group", side_effect=counting):
+                result = runner.run([sys.executable, "-c", "import time; time.sleep(30)"],
+                                    cancel_event=cancel)
+            self.assertEqual(result.returncode, JobRunner.CANCELLED_RETURNCODE)
+            self.assertEqual(len(calls), 1, "cancel teardown + finally sweep must be ONE teardown")
+
+    def test_normal_exit_tears_the_group_down_exactly_once(self) -> None:
+        from sandbox import job_runner
+
+        with tempfile.TemporaryDirectory() as ws:
+            runner = JobRunner(ExecutionPolicy(workspace_root=Path(ws)))
+            real = job_runner._terminate_process_group
+            calls: list[int] = []
+
+            def counting(process, *, pgid=None):
+                calls.append(pgid)
+                return real(process, pgid=pgid)
+
+            with patch.object(job_runner, "_terminate_process_group", side_effect=counting):
+                result = runner.run([sys.executable, "-c", "pass"])
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(len(calls), 1, "the success-path sweep is the one and only teardown")
 
 
 if __name__ == "__main__":
