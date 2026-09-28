@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlsplit
 
 from core.kas.contract import ForgeAdapter, TransportDeniedError, TransportUnknownError
 
@@ -32,15 +33,73 @@ def transport_factory() -> Callable[..., Any] | None:
     return _TRANSPORT_FACTORY
 
 
-def provider_for_remote(url: str) -> str:
-    """Which forge a remote URL names. Empty when it names none we have an adapter for."""
+def _remote_hostname(url: str) -> str:
+    """The host a remote URL names: scheme forms (https://, ssh://, git://), SCP-style git
+    remotes (git@host:path) and bare host/path shapes. A host that merely embeds a
+    provider's name (github.com.evil.com) names ITSELF, not that provider."""
 
-    text = str(url or "").strip().lower()
+    text = str(url or "").strip()
     if not text:
         return ""
-    if "github.com" in text:
-        return "github"
-    if "gitlab.com" in text or "/gitlab" in text:
+    if "://" in text:
+        return str(urlsplit(text).hostname or "").strip().lower()
+    head = text.split("/", 1)[0]
+    if "@" in head:
+        head = head.rsplit("@", 1)[1]
+    return head.split(":", 1)[0].strip().lower()
+
+
+def _provider_hosts(provider: str) -> tuple[str, ...]:
+    """The hosts that name `provider`: its public hosts, plus the owner's base-URL override
+    host when one is configured — the same override law ``core.kas.registry`` pins the
+    adapter's transport with, read on the VOOL side of the boundary."""
+
+    import os
+
+    hosts = {"github": ("github.com", "www.github.com"), "gitlab": ("gitlab.com", "www.gitlab.com")}[provider]
+    override = str(os.environ.get(f"VOOL_FORGE_BASE_URL_{provider.upper()}") or "").strip()
+    if override:
+        host = str(urlsplit(override).hostname or "").strip().lower()
+        if host:
+            hosts += (host,)
+    return hosts
+
+
+def _remote_path(url: str) -> str:
+    """The path component of a remote URL — scheme forms parsed, bare host/path split at the
+    first slash. A ``/gitlab`` marker in HERE names a path-hosted GitLab; the same marker
+    found in the raw text would also fire for a host like ``gitlab.com.evil.attacker.test``,
+    because ``://gitlab`` already contains it."""
+
+    text = str(url or "").strip()
+    if "://" in text:
+        return str(urlsplit(text).path or "")
+    if "/" in text:
+        return "/" + text.split("/", 1)[1]
+    return ""
+
+
+def provider_for_remote(url: str) -> str:
+    """Which forge a remote URL names. Empty when it names none we have an adapter for.
+
+    The match is on the HOST the remote names, exactly. A substring match would classify
+    github.com.evil.com as GitHub and mygitlab.com as GitLab, pointing an
+    operator-authorized forge action at the wrong real forge; the transport's host pinning
+    keeps such a mislabel from ever reaching an arbitrary host, and this exact match keeps
+    it from reaching the wrong pinned one. The supported self-hosted lanes stay open: the
+    owner's base-URL override host classifies, and a ``/gitlab`` path still selects GitLab
+    for path-hosted instances."""
+
+    text = str(url or "").strip()
+    if not text:
+        return ""
+    host = _remote_hostname(text)
+    if host:
+        if host in _provider_hosts("github"):
+            return "github"
+        if host in _provider_hosts("gitlab"):
+            return "gitlab"
+    if "/gitlab" in _remote_path(text).lower():
         return "gitlab"
     return ""
 
