@@ -198,21 +198,55 @@ def _download_model_snapshot(*, spec: dict[str, Any], target_dir: Path) -> None:
         )
 
 
+#: One checkpoint index is a small JSON of tensor-name → filename; larger than this is not one.
+_MAX_INDEX_BYTES = 2 * 1024 * 1024
+
+
 def _sharded_index_confinement_error(model_dir: Path) -> str:
-    """'' when every sharded-checkpoint index keeps its ``weight_map`` inside the model dir.
+    """'' when every sharded-checkpoint index is PROVEN to load shards from inside model_dir.
 
     A malicious model index can name shard files outside its directory (``../`` runs, absolute
-    paths) — the traversal class behind the accelerate advisory (GHSA-4j2p-28q2-5m79) and the
-    same weakness transformers' shard resolver has carried historically. VOOL loads staged
-    bases without ``device_map``, so that advisory's entrypoints are never reached; the
-    downloaded bytes are still untrusted input to the loader, so the verification gate refuses
-    an index whose shards are anything but bare filenames in the model dir. Checked BEFORE the
-    loader import, so a hostile staging directory is refused without loading ML dependencies.
-    """
+    paths, Windows drive-relative ``C:name`` spellings) — the traversal class behind the
+    accelerate advisory (GHSA-4j2p-28q2-5m79) and the same weakness transformers' shard
+    resolver has carried historically. VOOL loads staged bases without ``device_map``, so that
+    advisory's entrypoints are never reached; the downloaded bytes are still untrusted input
+    to the loader, so this gate refuses an index whose shards are anything but BARE FILENAMES.
+    Lexical spelling alone is not confinement, so every shard the index names is then proven
+    on the FILESYSTEM, before any loader (or ML dependency) is imported:
+
+    * a REGULAR FILE — not a symbolic link (this lane stages real files: snapshot_download
+      writes into ``local_dir`` without symlinks, so a link here is planted, and a link that
+      resolves outside the dir reads outside it), not a FIFO/device (a named pipe blocks the
+      reader), not a directory, and not a hard link whose inode lives outside;
+    * the index file ITSELF must be a regular non-symlink file of sane size — a symlinked or
+      special-file index is read through the same trust boundary.
+
+    A missing shard is left to the loader's own error: it reads nothing. The check and the
+    load remain two moments — a process that can rewrite model_dir after this gate is on the
+    machine-owner side of the boundary; this is not a remote vector."""
     import json
+    import stat
+
+    def _regular_proven(path: Path) -> str:
+        try:
+            info = path.lstat()
+        except OSError:
+            return ""  # absent: the loader's own error; nothing is read through this gate
+        if stat.S_ISLNK(info.st_mode):
+            return f"{path.name} is a symbolic link"
+        if not stat.S_ISREG(info.st_mode):
+            return f"{path.name} is not a regular file"
+        if info.st_nlink != 1:
+            return f"{path.name} is a hard link (inode shared outside the model dir)"
+        return ""
 
     for index_path in model_dir.glob("*.index.json"):
+        problem = _regular_proven(index_path)
+        if problem:
+            return f"checkpoint index refused: {problem}"
         try:
+            if index_path.stat().st_size > _MAX_INDEX_BYTES:
+                return f"checkpoint index {index_path.name} is implausibly large"
             index = json.loads(index_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return f"unreadable checkpoint index: {index_path.name}"
@@ -220,9 +254,14 @@ def _sharded_index_confinement_error(model_dir: Path) -> str:
         if not isinstance(weight_map, dict):
             continue  # not a sharded-checkpoint index; the loader rejects it on shape itself
         for shard in weight_map.values():
-            name = str(shard or "")
-            if not name or name in {".", ".."} or "/" in name or "\\" in name or Path(name).name != name:
+            if not isinstance(shard, str):
+                return f"checkpoint index {index_path.name} names a non-string shard"
+            name = shard
+            if not name or name in {".", ".."} or "/" in name or "\\" in name or ":" in name or Path(name).name != name:
                 return f"checkpoint index {index_path.name} names a shard outside the model dir"
+            problem = _regular_proven(model_dir / name)
+            if problem:
+                return f"checkpoint index {index_path.name}: shard {problem}"
     return ""
 
 
