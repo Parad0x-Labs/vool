@@ -10,6 +10,9 @@ explicit command fires.
 from __future__ import annotations
 
 import dataclasses
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -314,3 +317,13 @@ def test_a_canonical_flip_failure_rolls_the_legacy_mirror_back(monkeypatch) -> N
     assert state.policy.frozen is True
     monkeypatch.undo()
     assert limits.is_frozen() is True, "the canonical freeze must be untouched by a failed flip"
+
+
+@pytest.mark.parametrize("module,name,prefix", [
+    ("core.self_update_offer", "_STRICT_YES", "yes"),
+    ("core.vool_agent_brake", "_STOP_RE", "freeze"),
+])
+def test_whole_command_suffixes_do_not_repartition_whitespace(module, name, prefix):
+    script = "import importlib,sys; p=getattr(importlib.import_module(sys.argv[1]), sys.argv[2]); assert p.match(sys.argv[3] + ' '*100000 + 'X') is None"
+    subprocess.run([sys.executable, "-c", script, module, name, prefix],
+                   check=True, timeout=3, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})

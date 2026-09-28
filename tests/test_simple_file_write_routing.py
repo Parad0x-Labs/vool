@@ -823,3 +823,37 @@ def test_write_grammars_still_refuse_unconfined_targets():
     assert demand is not None
     refused = [path for path, _reason in demand.refused_targets]
     assert any("escape" in str(path) for path in refused)
+@pytest.mark.parametrize("name,text", [
+    ("_VERB_NAME_FOLDER_RE", "create " + "a/" * 30 + "!"),
+    ("_CREATE_PATH_RE", "create " + "/" * 30 + "!"),
+])
+def test_folder_path_nonmatch_finishes_without_exponential_backtracking(name, text):
+    script = "from core.execution import constants; import sys; getattr(constants, sys.argv[1]).search(sys.argv[2])"
+    subprocess.run([sys.executable, "-c", script, name, text], check=True,
+        timeout=3, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+@pytest.mark.parametrize("name,text,path", [
+    ("_NAMED_PATH_RE", "named `src/a-b/file.txt`", "src/a-b/file.txt"),
+    ("_VERB_NAME_FOLDER_RE", "create a src/a-b folder", "src/a-b"),
+    ("_CREATE_PATH_RE", "create ../sandbox/sub", "../sandbox/sub"),
+    ("_INTO_PATH_RE", "inside '/tmp/my_dir'", "/tmp/my_dir"),
+])
+def test_path_extraction_keeps_existing_spelling_and_capture(name, text, path):
+    from core.execution import constants
+    match = getattr(constants, name).search(text)
+    assert match and match.group("path") == path
+
+
+def test_write_demand_filename_normalization_is_bounded():
+    script = ("from core.execution.write_demand import resolve_write_demand; "
+              "assert resolve_write_demand('a'*100000+'!') is None")
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+def test_split_extensions_preserve_successive_path_segments():
+    from core.execution.write_demand import _normalize_split_file_extensions
+
+    assert _normalize_split_file_extensions("create foo. py/bar. txt containing hi") == "create foo.py/bar.txt containing hi"
+    assert _normalize_split_file_extensions("notes. md then plain prose. nope") == "notes.md then plain prose. nope"

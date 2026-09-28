@@ -430,3 +430,10 @@ def test_denial_subjects_still_bind_named_files():
 
     subjects = _denial_subjects("I did not read config.yaml", TurnEvidence())
     assert (SUBJECT_PATH, "config.yaml") in subjects
+
+
+def test_completed_actions_still_require_evidence():
+    from core.agent_runtime.action_honesty_validator import completion_claim_kind
+    for text in ('files were deleted', 'files deleted', 'funds have been sent', 'funds sent'):
+        assert completion_claim_kind(text) == 'mutation'
+    assert completion_claim_kind('Nothing was executed, no files were deleted.') == ''
