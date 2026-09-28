@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from pathlib import Path
 
@@ -188,13 +189,22 @@ def test_model_switch_invariance_between_provider_lanes(served_rig, tmp_path) ->
         "The operator explicitly selected model",
     )
 
+    # The guidance carries the live clock sentence ("The current date and time is
+    # <weekday, HH:MM> (<zone>, UTC offset <±hhmm>)"), and two renders a second apart
+    # can straddle a minute boundary -- observed failing CI twice that way (PR73's
+    # shard 6 at 13:23→13:24 and main at 18:36→18:37). The clock is not a lane
+    # property, so the invariance comparison tokenizes that one sentence on BOTH
+    # sides instead of comparing wall-clock text; everything else stays compared
+    # byte for byte.
+    _CLOCK_SENTENCE_RE = re.compile(r"The current date and time is [^(]*\([^)]*\)")
+
     def _section(text: str) -> str:
         stop = len(text)
         for head in _FOLLOWING_SEGMENT_HEADS:
             found = text.find(head)
             if 0 <= found < stop:
                 stop = found
-        return text[:stop]
+        return _CLOCK_SENTENCE_RE.sub("<live clock>", text[:stop])
 
     per_model = {_m: _build_for_model(_m) for _m in (
         PROVIDER_MANIFEST_ID, "ollama-local:qwen2.5:7b", "ollama-local:qwen3:4b",
