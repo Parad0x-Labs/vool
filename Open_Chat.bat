@@ -42,6 +42,10 @@ if !READY! neq 1 (
 )
 
 :open
-start "" "%CHAT_URL%"
+REM The open goes through the same powershell boundary the health checks already use, so
+REM the launcher's whole external-command surface stays one isolable contract (and every
+REM invocation is shaped the same on a real machine: Start-Process with a URL opens the
+REM default browser exactly like `start ""` did).
+powershell -NoProfile -Command "Start-Process '%CHAT_URL%'" >nul 2>&1
 echo Chat opened at %CHAT_URL%
 endlocal
