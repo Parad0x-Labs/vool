@@ -132,3 +132,56 @@ def test_typed_refusal_after_strict_cue_blocks_the_legacy_extractor() -> None:
     # by the legacy regex with different bytes.
     message = "Respond with exactly this and nothing else:   "
     assert exact_response_target(message) == ""
+
+
+# --- scan bounds (CodeQL polynomial-redos 128) -----------------------------------------------------
+#
+# The legacy boundary ran the lazy-target regex directly on the raw user message: a 32k
+# "reply with exactly" message with a punctuation desert cost 4.7 s on main cfae90f (and a
+# whitespace desert minutes) at the served API's final boundary. The linear parser must stay
+# linear and keep the pinned pattern's exact first-match target.
+
+import time
+
+from core.web.api.response_control import _EXACT_RESPONSE_RE, _match_exact_response
+
+
+def _boundary_latency(message: str) -> float:
+    start = time.perf_counter()
+    apply_exact_response_control({"response": "stub"}, message)
+    return time.perf_counter() - start
+
+
+def test_punctuation_desert_at_the_boundary_stays_linear() -> None:
+    small = _boundary_latency("Reply with exactly done" + "!" * 8_000 + "Z")
+    large = _boundary_latency("Reply with exactly done" + "!" * 64_000 + "Z")
+    assert large / small < 16.0, f"x8 size grew x{large / small:.1f} — super-linear retry is back"
+
+
+def test_whitespace_desert_at_the_boundary_stays_linear() -> None:
+    apply_exact_response_control({"response": "stub"}, "Reply with exactly a" + " " * 8_000 + "Z")
+    small = _boundary_latency("Reply with exactly a" + " " * 16_000 + "Z")
+    large = _boundary_latency("Reply with exactly a" + " " * 128_000 + "Z")
+    assert large / small < 16.0, f"x8 size grew x{large / small:.1f} — super-linear retry is back"
+
+
+def test_linear_parser_matches_the_pinned_pattern_on_the_cue_grammar() -> None:
+    cases = [
+        "Reply with exactly PONG",
+        "Respond with exactly this and nothing else: VERBATIM-PROOF-2291",
+        "say exactly \"quoted bytes\" and nothing else.",
+        "[SYS] answer with exactly the following token: ABC-123",
+        "output exactly the string MARKER no extra text",
+        "reply with exactly this and nothing else",
+        "answer with exactly X and nothing else",
+        "Reply with exactly done" + "!" * 500,      # punctuation absorbed after a short target
+        "Reply with exactly done" + "!" * 500 + "Z",  # blocked tail: no match at all
+        "reply exactly print and  nothing else!!?",   # two spaces after the and
+        "return Exactlywith  the following phrase AND  no extra text",
+        "please summarize the attached notes",        # no cue
+    ]
+    for message in cases:
+        stripped = message.strip()
+        expected = _EXACT_RESPONSE_RE.match(stripped)
+        expected_target = expected.group("target") if expected else None
+        assert _match_exact_response(stripped) == expected_target, message
