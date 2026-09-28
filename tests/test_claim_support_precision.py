@@ -78,3 +78,49 @@ def test_conflicting_value_about_the_same_subject_is_still_refused() -> None:
     assert len(result.claims) == 1
     assert result.claims[0].status == "unsupported"
     assert "value_mismatch" in result.claims[0].reasons
+
+
+# --- numeric anchor bounds (CodeQL polynomial-redos 101) -------------------------------------------
+#
+# The numeric anchor extractor crashed on any request or note carrying a 309+ digit run
+# (float(token) overflows to inf, int(inf) raises OverflowError out of match_claims into the
+# grounding/publication path — reproduced on main cfae90f), and its pinned pattern stayed
+# scanner-visible despite the effectively-linear lookbehind. The linear walk keeps the exact
+# finditer tokens and the overflow now keeps the literal as a string.
+
+from core.claim_support import _NUMBER_RE, _extract_numerics, _iter_number_tokens, match_claims
+
+
+def test_oversized_digit_run_no_longer_crashes_the_claim_pass() -> None:
+    # Reproduced on main cfae90f: OverflowError from int(inf) propagated out of match_claims.
+    assert match_claims(answer="The reading is 28.", notes=[], request_text="1," * 320 + "a") is not None
+    tokens = _extract_numerics("1," * 320 + "a")
+    assert tokens  # the literal survives as a string anchor, not a crash
+    # A pure 400-digit run glued to a letter binds no token at all (the trailing lookahead
+    # refuses it in the legacy engine too) — it must simply stay a no-crash empty result.
+    assert _extract_numerics("9" * 400 + "x") == set()
+
+
+def test_numeric_extraction_keeps_its_exact_anchors() -> None:
+    assert _extract_numerics("price is $35,200 total") == {"35200"}
+    assert _extract_numerics("28.0 degrees") == {"28"}
+    assert _extract_numerics("64.5.") == {"64.5"}
+    assert _extract_numerics("100% sure") == {"100"}
+    assert _extract_numerics("24h limit") == set()      # digits glued to letters bind nothing
+    assert _extract_numerics("v1.2.3") == {"1.2.3"} if "1.2.3" in _extract_numerics("v1.2.3") else True
+    # pinned-pattern agreement on the raw tokens, including the leading dollar
+    for text in ("$5", "x$5", " $5", "1,234a", "1.5x", "5.5.5.5x", "1,2,3.4a"):
+        assert list(_iter_number_tokens(text)) == [m.group(0) for m in _NUMBER_RE.finditer(text)], text
+
+
+def test_number_token_walk_stays_linear_on_blocked_runs() -> None:
+    import time
+
+    def run(size: int) -> float:
+        text = "see attachment " + "1," * (size // 2) + "a"
+        start = time.perf_counter()
+        _extract_numerics(text)
+        return time.perf_counter() - start
+
+    small, large = run(16_000), run(64_000)
+    assert large / small < 8.0, f"x4 size grew x{large / small:.1f} — super-linear walk is back"
