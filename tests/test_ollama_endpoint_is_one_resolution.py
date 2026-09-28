@@ -37,7 +37,6 @@ ALLOWED = {
     "core/local_model_admission.py": "a log excerpt in a docstring",
     "core/kernel/repl.py": "developer REPL entry point, not the app",
     "installer/provider_probe.py": "env-aware resolver's final default (VOOL_RAW_OLLAMA_API_URL, OLLAMA_HOST first); doctor-only caller",
-    "installer/register_openclaw_agent.py": "env-aware resolver's final default (VOOL_RAW_OLLAMA_API_URL, OLLAMA_HOST first)",
     "installer/bundle/bundle_supervisor.py": "the Windows .exe supervisor's health probe for its bundled ollama.exe; Windows lane (KAS) owns the file; not run by the macOS app",
     "installer/vool_stop.py": "prose in a docstring",
 }
