@@ -135,6 +135,7 @@ _LIFECYCLE_ACTIONS = ("install", "verify", "enable", "disable", "update", "revok
 def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
     from core import plugin_lifecycle
     from core.plugin_catalog import plugins_root
+    from core.plugin_tools import confined_plugin_id
 
     name = str(action or "").strip().lower()
     pid = str(plugin_id or "").strip()
@@ -142,6 +143,9 @@ def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
         return {"ok": False, "error": f"unknown action `{name}`; the acts are {list(_LIFECYCLE_ACTIONS)}"}
     if not pid:
         return {"ok": False, "error": "plugin_id is required"}
+    pid = confined_plugin_id(pid)
+    if not pid:
+        return {"ok": False, "error": "plugin_id must name one directory under plugins/"}
     base = plugins_root()
     root = (Path(base) / "plugins" / pid) if base is not None else None
     try:
@@ -183,7 +187,11 @@ def plugin_lifecycle_action(*, action: str, plugin_id: str) -> dict[str, Any]:
 def _reregister_pack(pid: str, base) -> tuple[bool, str]:
     """Bring the one registry's contracts for one pack in line with its lifecycle state."""
     from core import plugin_tools, tool_registry
+    from core.plugin_tools import confined_plugin_id
 
+    pid = confined_plugin_id(pid)
+    if not pid:
+        return False, "plugin_id must name one directory under plugins/"
     try:
         manifest = Path(base) / "plugins" / pid / ".codex-plugin" / "plugin.json"
         if not manifest.is_file():
