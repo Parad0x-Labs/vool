@@ -315,7 +315,14 @@ def redact_url_path_tokens(text: str) -> str:
 
 
 def redact_secrets(text: str) -> str:
-    """Return `text` with high-confidence secrets masked and everything else untouched. Never raises."""
+    """Return `text` with high-confidence secrets masked and everything else untouched. Never raises.
+
+    The exact guarantee: every pattern rule (keys, JWTs, private keys, bearer values, labelled
+    secrets, registered exact values) always applies, but recovery-phrase masking applies ONLY
+    when the canonical wordlist is loaded. A caller that persists or exports this output AS
+    secret-free must refuse while ``mnemonic_redaction_available()`` is False — otherwise a
+    phrase rides the output as "protected" plaintext (the routing decision log shows the
+    fail-closed pattern)."""
     if not text:
         return text
     value = str(text)
@@ -338,7 +345,12 @@ def redact_secrets(text: str) -> str:
 
 
 def contains_secret(text: str) -> bool:
-    """True if `text` appears to contain a high-confidence secret (used to gate/flag, never to store)."""
+    """True if `text` appears to contain a high-confidence secret (used to gate/flag, never to store).
+
+    True is detection; False is NOT proof of absence. When the canonical wordlist is
+    unavailable, a recovery phrase is invisible to this predicate, so a gate that releases
+    data out of the machine on False must also refuse while ``mnemonic_redaction_available()``
+    is False."""
     if not text:
         return False
     value = str(text)
