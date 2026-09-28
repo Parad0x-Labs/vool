@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import logging
 import re
@@ -5981,13 +5982,16 @@ def _dispatch_post_inner(
                 sp_session = str(body.get("session_id") or "").strip()
                 sp_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
                 sp_dir = runtime_paths.data_path("session_bundles")
-                # The filename fragment is DERIVED from the session id, and session ids are
-                # data (native kinds carry colons; a long-lived home can hold any shape its
-                # writers accepted). Sanitize path syntax in the derived filename — never in
-                # the identity itself — so no session id can steer the bundle file outside
-                # session_bundles. The stamp keeps derived names distinct.
-                sp_fragment = re.sub(r"[^A-Za-z0-9._-]+", "_", sp_session).strip("._") or "session"
-                sp_out = sp_dir / f"{sp_fragment}-{sp_stamp}.voolsession"
+                # The FILE name is DERIVED data, never the identity. A session id is a logical
+                # identity under the native namespace law — native kinds carry colons, and a
+                # long-lived home can hold legacy ids with separators or Unicode — so the
+                # derived name is a bounded ASCII fragment plus a digest of the full id:
+                # distinct sessions never share a file, no id shape can exceed filename
+                # limits, and no id can steer the path outside session_bundles. The identity
+                # itself rides unchanged inside the bundle and its receipt.
+                sp_fragment = re.sub(r"[^A-Za-z0-9._-]+", "_", sp_session).strip("._")[:48] or "session"
+                sp_digest = hashlib.sha256(sp_session.encode("utf-8")).hexdigest()[:16]
+                sp_out = sp_dir / f"{sp_fragment}-{sp_digest}-{sp_stamp}.voolsession"
                 result = session_portability.export_session(sp_session, sp_out, passphrase=sp_passphrase)
             else:
                 result = session_portability.import_bundle(
