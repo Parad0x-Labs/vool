@@ -353,11 +353,14 @@ def _terminate_process_group(process: subprocess.Popen, *, pgid: int | None = No
 
     The remaining race, stated exactly: between any presence probe and the signal that follows
     it, the last member can exit and the id can be reused, so that one signal can land on an
-    unrelated group. Linux closes this class with pidfd; macOS has no equivalent for process
-    groups, so the window is documented, not closed — and never widened (no name scans, no
-    signalling of groups this job did not create). Detached descendants (their own `setsid()`)
-    are outside group signalling entirely and remain confined only by the inherited kernel
-    profile; no claim is made that every descendant is terminated.
+    unrelated group. Linux's pidfd does not close this class: it is a handle to ONE process
+    (that pid pinned against reuse only while the fd is open), not a whole-group lifetime
+    guarantee — the group can outlive its leader, and group signalling still goes through the
+    numeric id. macOS has no equivalent for process groups either, so the window is documented,
+    not closed — and never widened (no name scans, no signalling of groups this job did not
+    create). Detached descendants (their own `setsid()`) are outside group signalling entirely
+    and remain confined only by the inherited kernel profile; no claim is made that every
+    descendant is terminated.
     """
     if _is_windows_platform():  # pragma: no cover - no process groups of this shape on Windows
         with contextlib.suppress(Exception):
