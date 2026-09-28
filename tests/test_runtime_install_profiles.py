@@ -970,3 +970,46 @@ def test_installed_ollama_tags_uses_bounded_http_probe_never_subprocess(monkeypa
 
     assert calls["n"] == 1  # the HTTP probe was used
     assert {"qwen3:8b", "llama3:latest"} <= tags
+
+
+def test_required_memory_embedding_models_follow_local_model_policy() -> None:
+    """The native memory-embedding lane is provisioned exactly when local models run.
+
+    This pull used to ride the retired OpenClaw setup gate; its native authority is
+    local-model policy (the embedding service goes through local Ollama), so remote-only
+    or locally-disabled runtimes get an empty tuple and nothing is downloaded.
+    """
+    from core.runtime_install_profiles import (
+        DEFAULT_MEMORY_EMBEDDING_MODEL,
+        required_memory_embedding_models,
+    )
+
+    assert DEFAULT_MEMORY_EMBEDDING_MODEL == "nomic-embed-text"
+    assert required_memory_embedding_models(env={}) == ("nomic-embed-text",)
+    assert required_memory_embedding_models(env={"VOOL_LOCAL_MODELS_ENABLED": "0"}) == ()
+
+
+def test_chat_required_models_stay_chat_only() -> None:
+    """Appending the embedding model to the chat authority would fabricate a chat lane in
+    the served provider registry (runtime_provider_defaults derives roles from it), so the
+    two authorities must stay separate."""
+    from core.hardware_tier import MachineProbe
+    from core.runtime_install_profiles import (
+        required_memory_embedding_models,
+        required_ollama_models_for_profile,
+    )
+
+    probe = MachineProbe(8, 12.0, None, None, "cpu")
+    chat_models = required_ollama_models_for_profile(
+        profile_id="local-only",
+        model_tag="qwen3:8b",
+        probe=probe,
+        runtime_home=None,
+        env={},
+    )
+    assert chat_models, "the local-only profile must require chat models"
+    assert "nomic-embed-text" not in chat_models
+
+    embedding_models = required_memory_embedding_models(env={})
+    assert embedding_models == ("nomic-embed-text",)
+    assert not set(embedding_models) & set(chat_models)

@@ -779,6 +779,18 @@ provision_optional_llamacpp_lane() {
 }
 
 
+detect_memory_embedding_models() {
+  local runtime_home="$1"
+  "${VENV_DIR}/bin/python" -c "
+import sys
+sys.path.insert(0, '${PROJECT_ROOT}')
+from core.runtime_install_profiles import required_memory_embedding_models
+for item in required_memory_embedding_models(runtime_home='${runtime_home}'):
+    print(item)
+" 2>/dev/null || true
+}
+
+
 detect_required_ollama_models() {
   local install_profile="$1"
   local model_tag="$2"
@@ -1589,7 +1601,6 @@ pull_models() {
   local install_profile="$2"
   local model_tag="$3"
   local runtime_home="$4"
-  local openclaw_enabled="${5:-0}"
   if [[ -z "${ollama_exe}" ]]; then
     say "Step 12/14: Model pull skipped because Ollama is unavailable."
     return
@@ -1609,10 +1620,12 @@ pull_models() {
   while IFS= read -r required_model; do
     pull_one_ollama_model
   done < <(detect_required_ollama_models "${install_profile}" "${model_tag}" "${runtime_home}")
-  if [[ "${openclaw_enabled}" == "1" ]]; then
-    required_model="nomic-embed-text"
+  # Native semantic-memory lane: VOOL's embedding service prefers it through local
+  # Ollama. Provisioning follows the core authority (local-models policy), not the retired
+  # OpenClaw gate; the pull stays best-effort so offline installs only warn.
+  while IFS= read -r required_model; do
     pull_one_ollama_model
-  fi
+  done < <(detect_memory_embedding_models "${runtime_home}")
 }
 
 
@@ -1872,7 +1885,7 @@ main() {
   ollama_exe="$(ensure_ollama_installed)"
   start_ollama_server "${ollama_exe}"
   heal_ollama_gpu_library
-  pull_models "${ollama_exe}" "${install_profile}" "${model_tag}" "${runtime_home}" "${openclaw_enabled}"
+  pull_models "${ollama_exe}" "${install_profile}" "${model_tag}" "${runtime_home}"
   configure_liquefy
   install_macos_launch_agent "${runtime_home}"
   write_install_receipt "${runtime_home}" "${model_tag}" "${openclaw_enabled}" "${ollama_exe}" "${openclaw_agent_dir}" "${LAUNCH_AGENT_PATH}" "${agent_wallet_pubkey:-}"

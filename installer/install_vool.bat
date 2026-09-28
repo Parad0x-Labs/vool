@@ -507,6 +507,23 @@ for %%M in (%MODELS_TO_PULL_LIST%) do (
     )
   )
 )
+REM Native semantic-memory lane: VOOL's embedding service prefers nomic-embed-text through
+REM local Ollama (provisioning follows the core local-models policy, not the retired
+REM OpenClaw gate; the pull stays best-effort so offline installs only warn).
+if not "%OLLAMA_EXE%"=="" (
+  set "MEMORY_EMBEDDING_MODEL=nomic-embed-text"
+  "%OLLAMA_EXE%" list 2>nul | findstr /i /c:"!MEMORY_EMBEDDING_MODEL!" >nul 2>&1
+  if !errorlevel! neq 0 (
+    echo Downloading native memory embedding model !MEMORY_EMBEDDING_MODEL! to %OLLAMA_MODELS_DIR%...
+    "%OLLAMA_EXE%" pull !MEMORY_EMBEDDING_MODEL!
+    if !errorlevel! neq 0 (
+      echo WARNING: Native memory embedding model pull failed. You can run this manually later:
+      echo   "%OLLAMA_EXE%" pull !MEMORY_EMBEDDING_MODEL!
+    )
+  ) else (
+    echo Native memory embedding model !MEMORY_EMBEDDING_MODEL! already available.
+  )
+)
 
 :skip_ollama_model
 
