@@ -68,3 +68,29 @@ def test_a_recovery_phrase_typed_in_chat_never_reaches_the_decision_log(tmp_path
         assert "[redacted-mnemonic]" in rows[-1]["message"]
     finally:
         runtime_paths.configure_runtime_home(None)
+
+
+def test_a_broken_install_fails_the_row_closed_instead_of_storing_a_phrase(tmp_path, monkeypatch):
+    """The wordlist ships as package data; if an install is broken and detection cannot arm,
+    the routing row must refuse to persist message text at all — 'redacted' must never be a
+    plaintext success for a shape the log cannot see."""
+    import core.secret_redaction as sr
+    from core.wallet.mnemonic import generate_mnemonic
+
+    def broken_read():
+        raise OSError("wordlist absent (broken install)")
+
+    monkeypatch.setattr(sr, "_read_bip39_wordlist", broken_read)
+    monkeypatch.setattr(sr, "_BIP39_INDEX", None)
+    runtime_paths.configure_runtime_home(tmp_path / "home")
+    assert sr.mnemonic_redaction_available() is False  # the outage is active for this row
+    try:
+        phrase = generate_mnemonic(strength_bits=128)
+        rdl.record_decision(session_id="s", user_input=f"i saved this: {phrase} ok", family="fixture", handled=True)
+        stored = rdl.decisions_path().read_text()
+        assert "[message unavailable: secret-shape protection unavailable]" in stored
+        for word in phrase.split():
+            assert word not in stored, word
+    finally:
+        runtime_paths.configure_runtime_home(None)
+        monkeypatch.setattr(sr, "_BIP39_INDEX", None)
