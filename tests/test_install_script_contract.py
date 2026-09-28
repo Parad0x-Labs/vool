@@ -281,3 +281,190 @@ def test_ensure_python_helper_uses_winget_then_pythonorg_fallback() -> None:
     # for/f reads it intact even with a non-ASCII username), not stdout.
     assert "$OutFile" in helper
     assert "Set-Content -LiteralPath $OutFile -Value $found -Encoding Oem" in helper
+
+
+# ------------------------------------------------------------------------------------------
+# Executed main-flow regression: the REAL installer control flow must complete with only
+# external side-effect boundaries stubbed. Introduced by the OpenClaw retirement, which
+# deleted seed_agent_identity() while main still called it: bash exited 127
+# ("seed_agent_identity: command not found") only mid-install, which source-only
+# assertions cannot catch. These tests run real main() to completion.
+# ------------------------------------------------------------------------------------------
+
+_MAIN_STUBS = """ensure_python() { :; }
+bootstrap_python_toolchain() { :; }
+create_or_update_venv() {
+  mkdir -p "${VENV_DIR}/bin"
+  if [[ -n "${HARNESS_REAL_PYTHON:-}" ]]; then
+    printf '#!/usr/bin/env bash\nexec "%s" "$@"\n' "${HARNESS_REAL_PYTHON}" > "${VENV_DIR}/bin/python"
+    chmod +x "${VENV_DIR}/bin/python"
+  fi
+}
+install_dependencies() { :; }
+initialize_runtime() { :; }
+bootstrap_public_hive_auth() { :; }
+install_playwright_runtime() { :; }
+bootstrap_xsearch() { :; }
+ensure_profile_remote_credentials() { :; }
+provision_optional_llamacpp_lane() { :; }
+install_macos_launch_agent() { :; }
+install_linux_xdg_autostart() { :; }
+install_linux_keepalive_service() { :; }
+ensure_ollama_api_key() { :; }
+ensure_ollama_installed() { printf 'ollama-stub'; }
+start_ollama_server() { :; }
+heal_ollama_gpu_library() { :; }
+pull_models() { :; }
+configure_liquefy() { :; }
+write_install_receipt() { :; }
+run_install_doctor() { :; }
+create_desktop_shortcut() { :; }
+detect_required_ollama_models() { :; }
+validate_selected_install_profile() { :; }
+"""
+
+_MAIN_HARNESS = "#!/usr/bin/env bash\nset -euo pipefail\nsource \"${HARNESS_FUNCTIONS}\"\n"
+
+
+def _run_installer_main(
+    tmp_path: Path,
+    *,
+    real_python: str | None,
+    agent_name: str,
+    runtime_home: Path,
+) -> "subprocess.CompletedProcess[str]":
+    import os
+    import subprocess
+
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    installer_src = (PROJECT_ROOT / "installer" / "install_vool.sh").read_text(encoding="utf-8")
+    cut = installer_src.rfind('\nparse_args "$@"')
+    assert cut != -1
+    functions_path = tmp_path / "installer_functions.sh"
+    functions_path.write_text(installer_src[:cut] + "\n" + _MAIN_STUBS, encoding="utf-8")
+
+    harness_path = tmp_path / "run_main.sh"
+    harness_path.write_text(
+        _MAIN_HARNESS
+        + "\n".join(
+            [
+                'PROJECT_ROOT="${HARNESS_PROJECT_ROOT}"',
+                'SCRIPT_DIR="${HARNESS_SCRIPT_DIR}"',
+                'VENV_DIR="${PROJECT_ROOT}/.venv"',
+                "AUTO_YES=1",
+                "AUTO_START=0",
+                'RUNTIME_HOME_OVERRIDE="${HARNESS_RUNTIME_HOME}"',
+                'AGENT_NAME_OVERRIDE="${HARNESS_AGENT_NAME}"',
+                'VOOL_HOME="${HARNESS_RUNTIME_HOME}"',
+                'LAUNCH_AGENT_PATH=""',
+                'DESKTOP_SHORTCUT_PATH=""',
+                "main",
+                'rc=$?',
+                'printf "\\nHARNESS_MAIN_RC=%s\\n" "${rc}"',
+                'exit "${rc}"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    home = tmp_path / "isolated-home"
+    home.mkdir(parents=True, exist_ok=True)
+
+    from tests.platform_helpers import bash_script_args
+
+    user_site = ""
+    if real_python:
+        import site
+
+        candidate = site.getusersitepackages()
+        if Path(candidate).is_dir():
+            user_site = str(candidate)
+    env = {
+        **os.environ,
+        "HOME": str(home),
+        "PYTHONPATH": user_site,
+        "HARNESS_FUNCTIONS": str(functions_path),
+        "HARNESS_PROJECT_ROOT": str(project_root),
+        "HARNESS_SCRIPT_DIR": str(PROJECT_ROOT / "installer"),
+        "HARNESS_RUNTIME_HOME": str(runtime_home),
+        "HARNESS_AGENT_NAME": agent_name,
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    if real_python:
+        env["HARNESS_REAL_PYTHON"] = real_python
+    return subprocess.run(
+        bash_script_args(harness_path),
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+        timeout=300,
+    )
+
+
+def test_installer_main_flow_completes_and_seeds_native_identity(tmp_path: Path) -> None:
+    import json
+    import sys
+
+    runtime_home = tmp_path / "runtime"
+    result = _run_installer_main(
+        tmp_path / "run1",
+        real_python=sys.executable,
+        agent_name="InstallFlowName",
+        runtime_home=runtime_home,
+    )
+
+    combined = result.stdout + result.stderr
+    assert "command not found" not in combined, combined[-2000:]
+    assert "HARNESS_MAIN_RC=0" in result.stdout, combined[-2000:]
+    identity_path = runtime_home / "data" / "owner_identity.json"
+    assert identity_path.is_file(), "main flow must persist the owner identity"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    assert identity["agent_name"] == "InstallFlowName"
+
+
+def test_installer_main_flow_preserves_existing_identity(tmp_path: Path) -> None:
+    import json
+    import sys
+
+    runtime_home = tmp_path / "runtime"
+    first = _run_installer_main(
+        tmp_path / "run1",
+        real_python=sys.executable,
+        agent_name="OriginalName",
+        runtime_home=runtime_home,
+    )
+    assert "HARNESS_MAIN_RC=0" in first.stdout
+
+    second = _run_installer_main(
+        tmp_path / "run2",
+        real_python=sys.executable,
+        agent_name="ShouldNotWin",
+        runtime_home=runtime_home,
+    )
+    combined = second.stdout + second.stderr
+    assert "command not found" not in combined, combined[-2000:]
+    assert "HARNESS_MAIN_RC=0" in second.stdout, combined[-2000:]
+    identity = json.loads((runtime_home / "data" / "owner_identity.json").read_text(encoding="utf-8"))
+    assert identity["agent_name"] == "OriginalName", "a re-install must not rename the owner's agent"
+
+
+def test_installer_main_flow_falls_back_to_requested_name_when_runtime_python_is_unavailable(
+    tmp_path: Path,
+) -> None:
+    # The documented failure boundary: before the venv exists, seed_agent_identity cannot
+    # invoke seed_identity.py; the install must still complete using the requested name.
+    runtime_home = tmp_path / "runtime"
+    result = _run_installer_main(
+        tmp_path / "run1",
+        real_python=None,
+        agent_name="FallbackName",
+        runtime_home=runtime_home,
+    )
+
+    combined = result.stdout + result.stderr
+    assert "command not found" not in combined, combined[-2000:]
+    assert "HARNESS_MAIN_RC=0" in result.stdout, combined[-2000:]
+    assert "Visible agent name: FallbackName" in result.stdout
+    assert not (runtime_home / "data" / "owner_identity.json").exists()
