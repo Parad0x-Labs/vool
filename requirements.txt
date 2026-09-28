@@ -8,7 +8,7 @@ pyyaml>=6.0
 pypdf==6.19.0  # Projection of the confined PDF fallback in pyproject.toml.
 reportlab==5.0.1
 markdown-it-py==4.2.0
-xlrd==2.0.1  # Projection of the legacy XLS reader in pyproject.toml.
+xlrd==2.0.2  # Projection of the legacy XLS reader in pyproject.toml.
 
 # HTTP / Networking
 requests>=2.28
