@@ -245,3 +245,49 @@ def test_model_parameter_billions_unaffected_for_registered_moe_models() -> None
     # active, count) -- the metadata lookup returns before the regex fallback is ever reached, so
     # this fix must not change its answer.
     assert model_parameter_billions("qwen3:30b-a3b") == 30.0
+
+
+# --- scan bounds (CodeQL polynomial-redos 109 and its storage twin) ------------------------------
+#
+# `re.search(r"(\d+(?:\.\d+)?)b", clean)` rescanned a digit run from every start position: 37 s at
+# 64k chars through model_parameter_billions/model_storage_gb on main cfae90f, with model ids
+# arriving unbounded from catalog picks and plan manifests. The b-anchored backward walk must stay
+# linear and keep the exact leftmost capture.
+
+import time
+
+from core.local_model_bundles import model_storage_gb
+
+
+def _run_digit_run(fn, size: int) -> float:
+    name = "openrouter/x" + "1" * size
+    start = time.perf_counter()
+    fn(name)
+    return time.perf_counter() - start
+
+
+def test_unterminated_digit_run_in_model_id_stays_linear() -> None:
+    # x4 time per x4 size would be linear (~1.0); the legacy rescan was ~x16.
+    small = _run_digit_run(model_parameter_billions, 16_000)
+    large = _run_digit_run(model_parameter_billions, 64_000)
+    assert large / small < 8.0, f"x4 size grew x{large / small:.1f} — super-linear rescan is back"
+
+
+def test_storage_lookup_digit_run_stays_linear() -> None:
+    small = _run_digit_run(model_storage_gb, 16_000)
+    large = _run_digit_run(model_storage_gb, 64_000)
+    assert large / small < 8.0, f"x4 size grew x{large / small:.1f} — super-linear rescan is back"
+
+
+def test_number_before_b_extraction_matches_the_pinned_shapes() -> None:
+    # Ordinary positives, decimals, MoE ids, adjacency negatives and non-ASCII digits.
+    assert model_parameter_billions("qwen2.5:14b-instruct-q4_k_m") == 14.0
+    assert model_parameter_billions("0.6b-tiny") == 0.6
+    assert model_parameter_billions("some-vendor/plain-70b-model") == 70.0
+    assert model_parameter_billions("nemotron-3-ultra-550b-a55b") == 55.0  # active segment wins
+    assert model_parameter_billions("no digits here") == 8.0
+    assert model_storage_gb("no digits here") == 8.0
+    assert model_storage_gb("7b") == 5.2  # max(1.0, 7*0.75) rounded
+    # 'b' preceded by a non-digit never starts a match; leading dots are not the decimal part.
+    assert model_parameter_billions("model-b") == 8.0
+    assert model_parameter_billions("v.b") == 8.0

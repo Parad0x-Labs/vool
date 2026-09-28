@@ -621,14 +621,42 @@ LOCAL_BUNDLE_SPECS: dict[str, LocalBundleSpec] = {
 }
 
 
+def _first_number_before_b(clean: str) -> str | None:
+    r"""The leftmost capture of ``(\d+(?:\.\d+)?)b`` in an already-lowercased model id.
+
+    The regex rescans a digit run from every start position (37 s at 64k chars through
+    `model_parameter_billions`/`model_storage_gb` on main cfae90f — CodeQL 109 and its twin at
+    the storage lookup), because model ids arrive from catalog picks and plan manifests with no
+    length bound. Anchoring at the terminal ``b`` and walking the number backwards finds the SAME
+    leftmost greedy match in one pass: the number ending at the first eligible ``b`` always starts
+    the leftmost match (digit runs before later ``b`` positions cannot start earlier than the run
+    before the first one).
+    """
+    pos = clean.find("b")
+    while pos != -1:
+        q = pos - 1
+        if q >= 0 and clean[q].isdecimal():
+            while q > 0 and clean[q - 1].isdecimal():
+                q -= 1
+            start = q
+            # The optional `(?:\.\d+)?` prefix: digits, a dot, then the run that reaches the `b`.
+            if start > 1 and clean[start - 1] == "." and clean[start - 2].isdecimal():
+                start -= 2
+                while start > 0 and clean[start - 1].isdecimal():
+                    start -= 1
+            return clean[start:pos]
+        pos = clean.find("b", pos + 1)
+    return None
+
+
 def model_storage_gb(model_name: str) -> float:
     clean = str(model_name or "").strip().lower()
     if clean in MODEL_STORAGE_GB:
         return float(MODEL_STORAGE_GB[clean])
 
-    match = re.search(r"(\d+(?:\.\d+)?)b", clean)
-    if match:
-        return round(max(1.0, float(match.group(1)) * 0.75), 1)
+    token = _first_number_before_b(clean)
+    if token:
+        return round(max(1.0, float(token) * 0.75), 1)
     return 8.0
 
 
@@ -684,9 +712,9 @@ def model_parameter_billions(model_name: str) -> float:
     if active_match:
         return float(active_match.group(1))
 
-    match = re.search(r"(\d+(?:\.\d+)?)b", clean)
-    if match:
-        return float(match.group(1))
+    token = _first_number_before_b(clean)
+    if token:
+        return float(token)
     return 8.0
 
 
