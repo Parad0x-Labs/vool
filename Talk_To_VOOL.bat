@@ -8,7 +8,7 @@ set "VOOL_PROJECT_ROOT=%SCRIPT_ROOT%"
 
 if not exist "%PYTHON_EXE%" (
   echo VOOL is not installed yet. Bootstrapping...
-  call "%SCRIPT_ROOT%\installer\install_vool.bat" /Y "/OPENCLAW=default"
+  call "%SCRIPT_ROOT%\installer\install_vool.bat" /Y
   if errorlevel 1 exit /b 1
 )
 

@@ -34,7 +34,8 @@ def test_pyproject_package_discovery_lists_runtime_package_roots() -> None:
     assert "from adapters." in model_registry
     assert "from tools.registry" in tool_executor
     assert "from relay." in channel_actions
-    assert "from installer.register_openclaw_agent import register" in onboarding
+    assert "from installer.register_openclaw_agent import register" not in onboarding
+    assert "openclaw" not in onboarding.lower().replace("openclaw_registration", "")
 
 
 def test_pyproject_runtime_extra_covers_installer_runtime_surface() -> None:
@@ -240,34 +241,32 @@ def test_install_profile_selection_is_available_across_bootstrap_and_installer_s
     assert "first-class installer/runtime lane yet" not in readme
 
 
-def test_windows_openclaw_launcher_uses_receipt_model_unless_explicitly_overridden() -> None:
+def test_windows_retired_openclaw_launcher_is_a_side_effect_free_stub() -> None:
     launcher = (REPO_ROOT / "OpenClaw_VOOL.bat").read_text(encoding="utf-8")
     runtime = (REPO_ROOT / "core" / "web" / "api" / "runtime.py").read_text(encoding="utf-8")
+    start_launcher_native = (REPO_ROOT / "Start_VOOL.bat").read_text(encoding="utf-8")
 
-    assert 'if not "%VOOL_ALLOW_MODEL_ENV_OVERRIDE%"=="1" set "VOOL_OLLAMA_MODEL=%MODEL_TAG%"' in launcher
-    assert 'if "%VOOL_OLLAMA_MODEL%"=="" set "VOOL_OLLAMA_MODEL=%MODEL_TAG%"' in launcher
-    assert 'if not "%VOOL_OLLAMA_MODEL%"=="" set "MODEL_TAG=%VOOL_OLLAMA_MODEL%"' in launcher
-    assert "where openclaw.cmd" in launcher
-    assert "where openclaw.exe" in launcher
-    assert 'set "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS=1"' in launcher
-    assert 'for %%I in ("%SCRIPT_DIR%.") do set "SCRIPT_ROOT=%%~fI"' in launcher
-    assert 'register_openclaw_agent.py" "%SCRIPT_ROOT%" "%VOOL_HOME%" "%MODEL_TAG%" "%DISPLAY_NAME%"' in launcher
-    assert "http://127.0.0.1:11435/healthz" in launcher
-    assert "installer\\start_windows_detached.py" in launcher
-    assert "vool_background.vbs" in launcher
-    assert 'schtasks /run /tn "VOOL_Daemon"' in launcher
-    assert "%SystemRoot%\\System32\\wscript.exe" in launcher
-    assert "%SCRIPT_ROOT%\\vool_background.vbs" in launcher
-    assert 'start "VOOL API" /MIN' not in launcher
-    assert '--cwd "%SCRIPT_ROOT%"' in launcher
-    assert "goto ensure_gateway" in launcher
-    assert ":ensure_gateway" in launcher
-    assert "timeout /t" not in launcher
-    assert "for /L %%i in (1,1,120)" in launcher
-    assert "for /L %%j in (1,1,90)" in launcher
-    assert "-Tail 80" in launcher
-    assert 'type "%TEMP%\\vool_api.err.log"' not in launcher
-    assert "Start-Sleep -Seconds 1" in launcher
+    # The stub refuses honestly and points at native startup + the separate skills repo.
+    assert "retired from VOOL" in launcher
+    assert "Start_VOOL.bat" in launcher
+    assert "Talk_To_VOOL.bat" in launcher
+    assert "Open_Web0.bat" in launcher
+    assert "https://github.com/Parad0x-Labs/openclaw-skills" in launcher
+    assert "exit /b 1" in launcher
+    # No third-party discovery, registration, UI patching, or gateway startup remains.
+    assert "where openclaw" not in launcher
+    assert "register_openclaw_agent.py" not in launcher
+    assert "inject_openclaw_web0_pill.py" not in launcher
+    assert "patch_openclaw_session_retry.py" not in launcher
+    assert "openclaw_locator" not in launcher
+    assert "18789" not in launcher
+    assert "schtasks" not in launcher
+    # The native receipt-model resolution the retired launcher used to carry still holds
+    # on the native start path (receipt model honored unless explicitly overridden).
+    assert 'if not "!RECEIPT_MODEL!"=="" if not "%VOOL_ALLOW_MODEL_ENV_OVERRIDE%"=="1" set "VOOL_OLLAMA_MODEL=!RECEIPT_MODEL!"' in start_launcher_native
+    assert 'if "%VOOL_OLLAMA_MODEL%"=="" if not "!RECEIPT_MODEL!"=="" set "VOOL_OLLAMA_MODEL=!RECEIPT_MODEL!"' in start_launcher_native
+    assert 'set "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS=1"' in start_launcher_native
+    assert 'for %%I in ("%SCRIPT_DIR%.") do set "SCRIPT_ROOT=%%~fI"' in start_launcher_native
     background_cmd = (REPO_ROOT / "vool_background.cmd").read_text(encoding="utf-8")
     assert "goto run" in background_cmd
     assert "http://127.0.0.1:11435/healthz" in background_cmd
@@ -291,9 +290,4 @@ def test_windows_openclaw_launcher_uses_receipt_model_unless_explicitly_overridd
     assert "Adaptive compute mode daemon disabled" in runtime
     assert "VOOL_ENABLE_WINDOWS_MESH_DAEMON" in runtime
     assert "Mesh daemon disabled" in runtime
-    assert "Test-NetConnection -ComputerName 127.0.0.1 -Port 18789" in launcher
-    assert "%USERPROFILE%\\.local\\bin\\openclaw.cmd" in launcher
-    assert 'from core.openclaw_locator import load_gateway_token; print(load_gateway_token())' in launcher
-    assert "vool_api.err.log" in launcher
-    assert "vool_api_child.err.log" in launcher
-    assert "vool_gateway.err.log" in launcher
+    assert "VOOL_OPENCLAW_GATEWAY_PORT" not in launcher

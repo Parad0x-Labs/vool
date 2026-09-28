@@ -54,7 +54,6 @@ def test_install_script_hardens_openclaw_launcher_bootstrap() -> None:
     assert 'port_listening() {' in script
     assert 'spawn_detached() {' in script
     assert 'curl -sf --max-time 2 "\\${url}" >/dev/null 2>&1' in script
-    assert 'if port_listening "127.0.0.1" "\\${VOOL_OPENCLAW_API_PORT}"; then' in script
     assert 'cd "${PROJECT_ROOT}"' in script
     assert 'export VOOL_HOME="\\${VOOL_HOME:-${runtime_home}}"' in script
     # The starter deliberately does NOT default VOOL_WORKSPACE_ROOT: pinning it made
@@ -75,13 +74,12 @@ def test_install_script_hardens_openclaw_launcher_bootstrap() -> None:
     assert 'api_pid="\\$(spawn_detached "\\${API_LOG_PATH}" "\\${VENV_PY}" -m apps.vool_api_server --port "\\${VOOL_OPENCLAW_API_PORT}")"' in script
     assert 'wait_for_http_ready "\\${VOOL_OPENCLAW_API_URL}/healthz" 240 "\\${api_pid}" 5' in script
     assert 'start_new_session=True' in script
-    assert 'api_pid="\\$(spawn_detached /tmp/vool_api_server.log "\\${PROJECT_ROOT}/Start_VOOL.sh")"' in script
-    assert 'wait_for_http_ready "\\${VOOL_OPENCLAW_API_URL}/healthz" 30 "\\${api_pid}" 3' in script
-    assert 'spawn_detached /tmp/vool_openclaw.log ollama launch openclaw --yes --model "\\${MODEL_TAG}"' in script
-    assert 'launch openclaw --yes --config --model "${model_tag}"' in script
-    assert 'openclaw gateway run --force' in script
-    assert '${HOME}/.openclaw-default' in script
-    assert 'Skipping Ollama OpenClaw auto-config for isolated home' in script
+    # OpenClaw retirement: no gateway startup, no third-party config discovery, no registration.
+    assert 'ollama launch openclaw' not in script
+    assert 'openclaw gateway run' not in script
+    assert 'discover_openclaw_paths' not in script
+    assert 'register_openclaw_agent.py' not in script
+    assert 'write_retired_openclaw_stub() {' in script
     assert 'say "Verifying live launch through the shell launcher..."' in script
     assert 'local launchd_runtime_ready=0' in script
     assert 'local launchd_runtime_consecutive=0' in script
@@ -90,7 +88,7 @@ def test_install_script_hardens_openclaw_launcher_bootstrap() -> None:
     assert 'if [[ "${launchd_runtime_consecutive}" -ge 5 ]]; then' in script
     assert 'say "Launchd runtime verified at http://127.0.0.1:11435 (stable health + /v1/models)"' in script
     assert 'say "ERROR: launchd installed VOOL, but the API did not stay healthy long enough to verify /v1/models within 240 seconds."' in script
-    assert 'exec "${PROJECT_ROOT}/OpenClaw_VOOL.sh"' in script
+    assert 'exec "${PROJECT_ROOT}/Start_VOOL.sh"' in script
     assert 'pull_models "${ollama_exe}" "${install_profile}" "${model_tag}"' in script
     assert 'pull_models "${ollama_exe}" "${install_profile}" "${model_tag}" "${runtime_home}" "${openclaw_enabled}"' in script
     assert 'required_model="nomic-embed-text"' in script
@@ -140,16 +138,15 @@ def test_windows_launchers_avoid_nested_quote_for_loop_around_python_exe() -> No
     assert re.search(r"for /f[^\n]*\('\"%VENV_DIR%\\Scripts\\python\.exe\"", install_bat_script) is None
 
 
-def test_windows_installer_uses_headless_safe_openclaw_bootstrap() -> None:
+def test_windows_installer_never_installs_or_boots_openclaw_software() -> None:
     install_bat_script = (PROJECT_ROOT / "installer" / "install_vool.bat").read_text(encoding="utf-8")
 
-    # The Ollama CLI's OpenClaw bootstrap subcommand cannot run headless here (it demands
-    # an interactive terminal for model selection even with --yes and a model flag set),
-    # and without its config-only flag it launches an attached interactive TUI that would
-    # hang a headless install. The installer must not fall back to that subcommand.
+    # OpenClaw retirement: the installer must not install, boot, or invoke third-party
+    # OpenClaw software through any path (Ollama's bootstrap subcommand or npm).
     assert '"%OLLAMA_EXE%" launch openclaw' not in install_bat_script
-    assert "npm install -g openclaw" in install_bat_script
-    assert "where npm" in install_bat_script
+    assert "npm install -g openclaw" not in install_bat_script
+    assert "where openclaw" not in install_bat_script
+    assert "OpenClaw registration retired" in install_bat_script
 
 
 def test_windows_launchers_use_module_entrypoint_for_api_server() -> None:
@@ -171,8 +168,12 @@ def test_windows_launchers_use_module_entrypoint_for_api_server() -> None:
     assert "-m apps.vool_api_server" in start_launcher
     assert '"%PYTHONW_EXE%" -m apps.vool_api_server' in start_launcher
     assert "vool_api_server.log" in start_launcher
-    assert "http://127.0.0.1:11435/healthz" in openclaw_launcher
-    assert "installer\\start_windows_detached.py" in openclaw_launcher
+    # OpenClaw_VOOL.bat is a side-effect-free retirement stub.
+    assert "retired from VOOL" in openclaw_launcher
+    assert "Start_VOOL.bat" in openclaw_launcher
+    assert "Open_Web0.bat" in openclaw_launcher
+    assert "https://github.com/Parad0x-Labs/openclaw-skills" in openclaw_launcher
+    assert "exit /b 1" in openclaw_launcher
     assert "Start_VOOL.bat" in background_cmd
     assert "vool_background.cmd" in install_bat_script
     assert "goto run" in background_cmd
@@ -183,32 +184,14 @@ def test_windows_launchers_use_module_entrypoint_for_api_server() -> None:
     assert "vool_api_child.log" in background_cmd
     assert "vool_api_child.err.log" in background_cmd
     assert "call \"%SCRIPT_DIR%Start_VOOL.bat\"" not in background_cmd
-    assert "vool_background.vbs" in openclaw_launcher
-    assert "%SystemRoot%\\System32\\wscript.exe" in openclaw_launcher
     assert 'schtasks /create /tn "VOOL_Daemon" /tr "\\"%SystemRoot%\\System32\\wscript.exe\\" \\"%VBS_PATH%\\""' in install_bat_script
-    assert 'start "VOOL API" /MIN' not in openclaw_launcher
     assert "BeginConnect('127.0.0.1', 11435" in background_cmd
-    assert "Could not start VOOL API" in openclaw_launcher
-    assert "vool_api.err.log" in openclaw_launcher
-    assert "where openclaw.cmd" in openclaw_launcher
-    assert "where openclaw.exe" in openclaw_launcher
-    assert "VOOL_ALLOW_MODEL_ENV_OVERRIDE" in openclaw_launcher
-    assert 'from core.openclaw_locator import load_gateway_token; print(load_gateway_token())' in openclaw_launcher
-    assert "%USERPROFILE%\\.local\\bin\\openclaw.cmd" in openclaw_launcher
-    assert "gateway run --force --port 18789" in openclaw_launcher
-    assert "goto ensure_gateway" in openclaw_launcher
-    assert ":ensure_gateway" in openclaw_launcher
-    assert "timeout /t" not in openclaw_launcher
-    assert "for /L %%i in (1,1,120)" in openclaw_launcher
-    assert "for /L %%j in (1,1,90)" in openclaw_launcher
-    assert "-Tail 80" in openclaw_launcher
-    assert 'type "%TEMP%\\vool_api.err.log"' not in openclaw_launcher
-    assert 'Start-Sleep -Seconds 1' in openclaw_launcher
-    assert "Test-NetConnection -ComputerName 127.0.0.1 -Port 18789" in openclaw_launcher
-    assert "vool_gateway.err.log" in openclaw_launcher
-    assert "OpenClaw gateway did not become reachable on 127.0.0.1:18789" in openclaw_launcher
-    assert "OpenClaw CLI not found on PATH. Installing OpenClaw..." in install_bat_script
-    assert "OPENCLAW_MEMORY_MODEL=nomic-embed-text" in install_bat_script
+    assert "for /L %%i in (1,1,120)" not in openclaw_launcher
+    assert "Test-NetConnection" not in openclaw_launcher
+    assert "18789" not in openclaw_launcher
+    assert "register_openclaw_agent.py" not in openclaw_launcher
+    assert "inject_openclaw_web0_pill.py" not in openclaw_launcher
+    assert "patch_openclaw_session_retry.py" not in openclaw_launcher
 
 
 def test_background_processes_run_without_visible_console_windows() -> None:
@@ -220,10 +203,9 @@ def test_background_processes_run_without_visible_console_windows() -> None:
     assert 'set "PYTHONW_EXE=%SCRIPT_ROOT%\\.venv\\Scripts\\pythonw.exe"' in start_launcher
     assert '"%PYTHONW_EXE%" -m apps.vool_api_server >> "%TEMP%\\vool_api_server.log" 2>&1' in start_launcher
 
-    # OpenClaw gateway: hidden .vbs task launcher via the env var openclaw honors, set both in the
-    # live launcher session and persisted by the installer so the daemon task is registered hidden.
-    assert 'set "OPENCLAW_WINDOWS_TASK_HIDDEN_LAUNCHER=1"' in openclaw_launcher
-    assert 'setx OPENCLAW_WINDOWS_TASK_HIDDEN_LAUNCHER "1"' in install_bat_script
+    # OpenClaw retirement: no gateway is started, so its hidden-task env var is not set anywhere.
+    assert "OPENCLAW_WINDOWS_TASK_HIDDEN_LAUNCHER" not in openclaw_launcher
+    assert "OPENCLAW_WINDOWS_TASK_HIDDEN_LAUNCHER" not in install_bat_script
 
 
 def test_install_script_surfaces_machine_probe_command() -> None:

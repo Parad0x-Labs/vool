@@ -139,7 +139,7 @@ $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = "VOOL + OpenClaw local installer"
+$title.Text = "VOOL local installer"
 $title.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
 $title.AutoSize = $true
 $title.Left = 24
@@ -191,7 +191,7 @@ $browseButton.Add_Click({
 $form.Controls.Add($browseButton)
 
 $startCheck = New-Object System.Windows.Forms.CheckBox
-$startCheck.Text = "Start VOOL and OpenClaw after install"
+$startCheck.Text = "Start VOOL after install"
 $startCheck.Left = 170
 $startCheck.Top = 150
 $startCheck.Width = 320
