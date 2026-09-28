@@ -208,3 +208,97 @@ def test_draft_status_roundtrip(tmp_path) -> None:
     assert status["state"] == "draft"
     assert status["fingerprint"] == draft.fingerprint
     assert status["consent"] is None
+
+
+# --- recovery-phrase outbound protection (wave2 export guards) ----------------------
+#
+# The outbound scanner can only see a recovery phrase when the canonical BIP-39 wordlist
+# ships (package data). These tests prove the PUBLIC publisher workflow: a phrase-bearing
+# report previews clean with the phrase masked while armed, the publisher refuses (typed,
+# nothing emitted) while protection is down, and the same draft recovers in-process with
+# genuine secret findings still enforced.
+
+
+def _mnemonic() -> str:
+    from core.wallet.mnemonic import generate_mnemonic
+
+    return generate_mnemonic(strength_bits=128)  # a real checksum-valid 12-word phrase
+
+
+def _degrade_phrase_protection(monkeypatch) -> None:
+    """Make the wordlist unavailable at its real loading authority, cache reset deliberately."""
+    import core.secret_redaction as sr
+
+    def _missing() -> list[str]:
+        raise FileNotFoundError("canonical wordlist missing (simulated broken install)")
+
+    monkeypatch.setattr(sr, "_read_bip39_wordlist", _missing)
+    monkeypatch.setattr(sr, "_BIP39_INDEX", None)
+
+
+def test_phrase_bearing_report_previews_clean_with_the_phrase_masked(tmp_path) -> None:
+    phrase = _mnemonic()
+    service = _service(tmp_path)
+    draft = service.create_draft(
+        **{**_draft_kwargs(), "actual": f"daemon crashed after the owner pasted {phrase}"}
+    )
+    preview = service.preview(draft.report_id)
+    outbound = json.dumps(preview.issue, ensure_ascii=False)
+    assert phrase not in outbound
+    assert "[redacted-mnemonic]" in outbound
+
+
+def test_public_publisher_refuses_while_phrase_protection_is_down(tmp_path, monkeypatch) -> None:
+    receipts = tmp_path / "bug_reports" / "receipts.jsonl"
+    _degrade_phrase_protection(monkeypatch)
+    phrase = _mnemonic()
+    service = _service(tmp_path)
+    draft = service.create_draft(
+        **{**_draft_kwargs(), "actual": f"daemon crashed after the owner pasted {phrase}"}
+    )
+
+    # the publisher's outbound gate refuses with a typed error naming the degraded state
+    with pytest.raises(UnsafeReportContentError) as raised:
+        service.preview(draft.report_id)
+    assert any(rule == "secret_shape_protection_unavailable" for rule, _start in raised.value.findings)
+    # submission is unreachable while degraded: it requires an approved preview whose payload
+    # hash it re-validates, and preview refuses — so submit can only fail closed, not emit
+    result = service.submit(
+        draft.report_id, transport=FakeTransport(), credential_lookup=_fake_credential
+    )
+    assert result.status == "failed"
+    assert result.failure_code == "approval_required"
+    # nothing left the machine: no receipt stream was created or appended
+    assert not receipts.exists()
+
+
+def test_publisher_recovers_in_process_and_keeps_genuine_findings(tmp_path, monkeypatch) -> None:
+    phrase = _mnemonic()
+    service = _service(tmp_path)
+    # the draft is created while protection is ARMED: the phrase is masked at creation, so
+    # the stored material is clean and the workflow itself is what must survive the outage
+    draft = service.create_draft(
+        **{**_draft_kwargs(), "actual": f"daemon crashed after the owner pasted {phrase}"}
+    )
+    assert service.preview(draft.report_id).issue  # armed: the workflow works
+
+    _degrade_phrase_protection(monkeypatch)
+    with pytest.raises(UnsafeReportContentError) as raised:
+        service.preview(draft.report_id)
+    assert any(rule == "secret_shape_protection_unavailable" for rule, _start in raised.value.findings)
+
+    monkeypatch.undo()  # restore the real wordlist reader — same process
+    import core.secret_redaction as sr
+
+    sr._BIP39_INDEX = None  # drop any cache so the next call loads through the real reader
+
+    preview = service.preview(draft.report_id)
+    outbound = json.dumps(preview.issue, ensure_ascii=False)
+    assert phrase not in outbound
+    assert "[redacted-mnemonic]" in outbound
+    # genuine findings are NOT suppressed by recovery: a real vendor token still fails closed
+    from core.bug_report.schema import SanitizedMaterial
+
+    with pytest.raises(UnsafeReportContentError) as raised:
+        SanitizedMaterial.from_payload({"note": f"leak {SECRET_TOKEN}"})
+    assert any(rule != "secret_shape_protection_unavailable" for rule, _start in raised.value.findings)
