@@ -16,6 +16,7 @@ every preview through the quote door. Proven here:
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -213,7 +214,14 @@ def test_base_review_reads_purpose_recipient_and_short_fees_with_exact_details(s
         assert result.locator('[data-field="purpose"] .vw-purpose-headline').text_content() == f"Send 0.001 ETH to {to}"
         assert result.locator(".vw-transfer-detail .vw-ident").text_content() == to
         record = _get(daemon, f"/api/wallet/transfers?proposal_id={proposal_id}")["transfer"]
-        fee_line = result.locator(".vw-transfer-detail", has_text="Fee ").text_content()
+        # has_text with a string is case-insensitive, so a transfer that also renders
+        # the DNA companion line ("DNA fee collection with this payment: ...") matched
+        # two .vw-transfer-detail nodes and failed strict mode (main CI 109066412937).
+        # The anchored case-sensitive regex selects only the genuine fee line; the
+        # exact-equality assertion below stays the real check.
+        fee_line = result.locator(
+            ".vw-transfer-detail", has_text=re.compile(r"^Fee ")
+        ).text_content()
         assert fee_line == f"Fee {record['charged_fee_display']} (exactly {record['charged_fee_human']} ETH)", fee_line
         assert record["fee_fork"] == "jovian" and record["fee_state"] == "exact"
         assert result.locator("a.vw-explorer").text_content() == "View on Basescan"
