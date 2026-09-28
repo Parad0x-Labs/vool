@@ -338,3 +338,211 @@ def test_windows_stub_launcher_executes_as_refusal_from_path_with_spaces(tmp_pat
     assert unrelated_config.read_text(encoding="utf-8") == unrelated_before, (
         "the refusal stub must leave unrelated third-party config byte-for-byte intact"
     )
+
+
+def test_open_chat_bat_opens_through_the_powershell_boundary() -> None:
+    """The chat launcher's whole external-command surface is one contract: powershell.
+
+    The browser open rides the same powershell boundary the health checks already use, so
+    the executed Windows cases below can isolate and record every external effect. On a
+    real machine Start-Process with a URL opens the default browser exactly like the old
+    `start ""` did.
+    """
+    launcher = (REPO_ROOT / "Open_Chat.bat").read_text(encoding="utf-8")
+    assert 'powershell -NoProfile -Command "Start-Process \'%CHAT_URL%\'"' in launcher
+    assert 'start "" "%CHAT_URL%"' not in launcher
+    # The health/startup contract is unchanged.
+    assert "schtasks /query /tn \"VOOL_Daemon\"" in launcher
+    assert "vool_background.vbs" in launcher
+    assert "http://127.0.0.1:11435/healthz" in launcher
+
+
+_WINDOWS_DOUBLE_PY = r'''
+import json, re, sys
+from pathlib import Path
+
+kind = sys.argv[1]
+args = " ".join(sys.argv[2:])
+base = Path(sys.argv[3])
+entry = {"kind": kind, "args": args}
+code = 0
+if kind == "powershell":
+    if "Invoke-WebRequest" in args:
+        mode = (base / "health-mode.txt").read_text(encoding="utf-8").strip()
+        if mode.startswith("flaky:"):
+            need = int(mode.split(":", 1)[1])
+            counter_file = base / "health-counter.txt"
+            calls = int(counter_file.read_text(encoding="utf-8") or 0) + 1 if counter_file.exists() else 1
+            counter_file.write_text(str(calls), encoding="utf-8")
+            code = 0 if calls > need else 1
+        else:
+            code = 0 if mode == "healthy" else 1
+        entry["health"] = bool(code == 0)
+    elif "Start-Sleep" in args:
+        entry["sleep"] = True
+    elif "Start-Process" in args:
+        match = re.search(r"Start-Process '([^']+)'", args)
+        entry["opened_url"] = match.group(1) if match else ""
+    else:
+        code = 2
+elif kind == "schtasks":
+    mode = (base / "schtasks-mode.txt").read_text(encoding="utf-8").strip()
+    code = 0 if mode == "ok" else 1
+    entry["subcommand"] = "/run" if "/run" in args else ("/query" if "/query" in args else "?")
+else:
+    code = 2
+with open(base / ("calls-" + kind + ".jsonl"), "a", encoding="utf-8") as fh:
+    fh.write(json.dumps(entry) + "\n")
+raise SystemExit(code)
+'''
+
+
+def _open_chat_bat_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str]:
+    """Isolated cmd.exe execution rig for the REAL Open_Chat.bat: a project directory with
+    spaces, an isolated USERPROFILE with a planted unrelated config, and recorded
+    powershell/schtasks doubles (.cmd shims resolved ahead of the real executables through
+    PATH). No real scheduled task, powershell, script host or browser is ever invoked."""
+    import os
+    import shutil
+    import sys
+
+    run_dir = tmp_path / "Vool Space Project"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(REPO_ROOT / "Open_Chat.bat", run_dir / "Open_Chat.bat")
+
+    doubles = tmp_path / "doubles"
+    doubles.mkdir(parents=True, exist_ok=True)
+    (doubles / "health-mode.txt").write_text("healthy", encoding="utf-8")
+    (doubles / "schtasks-mode.txt").write_text("ok", encoding="utf-8")
+    double_py = doubles / "cmd_double.py"
+    double_py.write_text(_WINDOWS_DOUBLE_PY, encoding="utf-8")
+    for name in ("powershell", "schtasks"):
+        shim = doubles / (name + ".cmd")
+        shim.write_text(
+            f'@"{sys.executable}" "{double_py}" {name} "{doubles}" %*\n',
+            encoding="utf-8",
+        )
+
+    fake_home = tmp_path / "isolated-home"
+    openclaw_dir = fake_home / ".openclaw"
+    openclaw_dir.mkdir(parents=True)
+    unrelated_config = openclaw_dir / "openclaw.json"
+    unrelated_config.write_text('{"model": "unrelated", "reserveTokensFloor": 99000}', encoding="utf-8")
+
+    env = {
+        **os.environ,
+        "PATH": str(doubles) + os.pathsep + os.environ.get("PATH", ""),
+        "USERPROFILE": str(fake_home),
+    }
+    return run_dir, doubles, unrelated_config, env
+
+
+def _run_open_chat_bat(run_dir: Path, env: dict, timeout: int = 120):
+    import subprocess
+
+    return subprocess.run(
+        ["cmd.exe", "/d", "/c", str(run_dir / "Open_Chat.bat")],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=timeout,
+    )
+
+
+def _win32_or_skip() -> None:
+    import sys
+
+    if sys.platform != "win32":
+        import pytest
+
+        pytest.skip("cmd.exe batch execution requires a Windows host (Windows fresh-host gauntlet)")
+
+
+def _calls(doubles: Path, kind: str) -> list[dict]:
+    import json
+
+    path = doubles / f"calls-{kind}.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def test_open_chat_bat_executed_healthy_opens_chat_without_starting_anything(tmp_path: Path) -> None:
+    """EXECUTED on Windows: an already-healthy runtime opens the chat page through the
+    powershell boundary with zero schtasks/startup activity, from a path with spaces,
+    leaving unrelated third-party config byte-for-byte intact."""
+    _win32_or_skip()
+    run_dir, doubles, config, env = _open_chat_bat_fixture(tmp_path)
+    (doubles / "health-mode.txt").write_text("healthy", encoding="utf-8")
+
+    result = _run_open_chat_bat(run_dir, env)
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "Chat opened at http://127.0.0.1:11435/chat" in combined
+    ps = _calls(doubles, "powershell")
+    assert ps and ps[0].get("health") is True, "the healthy arm must check health first"
+    assert any(entry.get("opened_url") == "http://127.0.0.1:11435/chat" for entry in ps)
+    assert _calls(doubles, "schtasks") == [], "a healthy runtime must not be restarted"
+    assert config.read_text(encoding="utf-8") == '{"model": "unrelated", "reserveTokensFloor": 99000}'
+
+
+def test_open_chat_bat_executed_missing_installation_refuses_honestly(tmp_path: Path) -> None:
+    """EXECUTED on Windows: health down, no scheduled task, no background launcher in the
+    project directory -> the honest not-installed refusal, exit 1, nothing opened."""
+    _win32_or_skip()
+    run_dir, doubles, config, env = _open_chat_bat_fixture(tmp_path)
+    (doubles / "health-mode.txt").write_text("unhealthy", encoding="utf-8")
+    (doubles / "schtasks-mode.txt").write_text("fail", encoding="utf-8")
+
+    result = _run_open_chat_bat(run_dir, env)
+    combined = result.stdout + result.stderr
+    assert result.returncode == 1, combined
+    assert "ERROR: VOOL is not installed yet. Run installer\\install_vool.bat first." in combined
+    tasks = _calls(doubles, "schtasks")
+    assert [e.get("subcommand") for e in tasks] == ["/query"], "a missing task must not be run"
+    assert not any("opened_url" in e for e in _calls(doubles, "powershell"))
+    assert config.read_text(encoding="utf-8") == '{"model": "unrelated", "reserveTokensFloor": 99000}'
+
+
+def test_open_chat_bat_executed_startup_success_opens_after_becoming_healthy(tmp_path: Path) -> None:
+    """EXECUTED on Windows: health down, the scheduled task runs, health becomes healthy
+    during the poll -> chat opened, exit 0."""
+    _win32_or_skip()
+    run_dir, doubles, config, env = _open_chat_bat_fixture(tmp_path)
+    (doubles / "health-mode.txt").write_text("flaky:2", encoding="utf-8")
+    (doubles / "schtasks-mode.txt").write_text("ok", encoding="utf-8")
+
+    result = _run_open_chat_bat(run_dir, env)
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "Starting VOOL..." in combined
+    assert "Chat opened at http://127.0.0.1:11435/chat" in combined
+    assert [e.get("subcommand") for e in _calls(doubles, "schtasks")] == ["/query", "/run"]
+    health_sequence = [e["health"] for e in _calls(doubles, "powershell") if "health" in e]
+    assert health_sequence[:1] == [False], "startup begins from an unhealthy port"
+    assert health_sequence[-1] is True
+    assert config.read_text(encoding="utf-8") == '{"model": "unrelated", "reserveTokensFloor": 99000}'
+
+
+def test_open_chat_bat_executed_startup_failure_reports_bounded_error(tmp_path: Path) -> None:
+    """EXECUTED on Windows: the task runs but health never becomes healthy -> the bounded
+    poll exhausts (120 iterations against the instant doubles), the honest error, exit 1,
+    and nothing is opened."""
+    _win32_or_skip()
+    run_dir, doubles, config, env = _open_chat_bat_fixture(tmp_path)
+    (doubles / "health-mode.txt").write_text("unhealthy", encoding="utf-8")
+    (doubles / "schtasks-mode.txt").write_text("ok", encoding="utf-8")
+
+    # The bounded poll spawns 240 double processes (sleep + health per iteration); give the
+    # slowest gauntlet host headroom without touching the launcher's own bounds.
+    result = _run_open_chat_bat(run_dir, env, timeout=300)
+    combined = result.stdout + result.stderr
+    assert result.returncode == 1, combined
+    assert "ERROR: VOOL API did not become healthy on http://127.0.0.1:11435/healthz." in combined
+    ps = _calls(doubles, "powershell")
+    health_calls = [e for e in ps if "health" in e]
+    assert len(health_calls) == 1 + 120, "the initial check plus the full bounded poll"
+    sleeps = [e for e in ps if e.get("sleep")]
+    assert len(sleeps) == 120
+    assert not any("opened_url" in e for e in ps)
+    assert config.read_text(encoding="utf-8") == '{"model": "unrelated", "reserveTokensFloor": 99000}'
