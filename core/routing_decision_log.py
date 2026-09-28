@@ -10,15 +10,22 @@ message is truncated + secret-redacted before it is written. Appends are lock-gu
 fail-soft — telemetry must never break a turn. The file self-rotates (keeps the newest tail)
 so it cannot grow without bound.
 
-Data minimization and retention, exactly: a row carries the timestamp, a session id (capped
-at 80 chars), the message REDACTED FIRST and only then truncated to 160 chars, family/claims/
-arbiter labels, and — in the shadow sqlite — only a SHA-256 digest of that already-redacted
-message. The row refuses the message (fail-closed) whenever secret-shape protection is
-unavailable or redaction faults; plaintext is never written in either case. There is no
+Data minimization and retention, exactly: of the MESSAGE, only a redacted-then-truncated
+(160 chars) prefix is written, and that write fails closed — the row refuses the message
+whenever secret-shape protection is unavailable or redaction faults. The redaction guarantee
+is that narrow: shapes the shared redactor masks (recovery phrases among them, when the
+canonical wordlist is armed) are masked; no detector makes arbitrary text secret-free. The
+row's other fields — timestamp, session id (capped at 80 chars), family/claims/arbiter
+labels — are identifiers, NOT passed through the message redactor; they are written as the
+callers provide them (session ids follow the canonical folded-handle contract; family and
+arbiter strings are code-built). The shadow sqlite record stores a SHA-256 digest of the
+already-redacted message plus the same identifier metadata — not only a digest. There is no
 served reader: ``recent_decisions``/``decision_stats`` serve owner-local diagnostics and
 gauntlet mining only. Rows are diagnostics, not conversation: chat deletion's promise covers
 the transcript, learned memory, meta, namespace and DB dialogue rows — routing rows persist
-as redacted telemetry until rotation trims them to the newest 1000.
+as telemetry until the ~512KB rotation trigger fires, which then keeps the newest 1000 rows
+(a file under the threshold keeps everything; the shadow store has no rotation policy of its
+own).
 """
 from __future__ import annotations
 
