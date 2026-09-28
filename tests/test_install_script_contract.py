@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -332,7 +333,7 @@ def _run_installer_main(
     real_python: str | None,
     agent_name: str,
     runtime_home: Path,
-) -> "subprocess.CompletedProcess[str]":
+) -> subprocess.CompletedProcess[str]:
     import os
     import subprocess
 
