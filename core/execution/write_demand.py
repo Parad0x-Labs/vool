@@ -220,6 +220,133 @@ _FOLDER_SAYING_MARKER_RE = re.compile(r"\s+folder\s+saying(?P<pad>\s+)", re.IGNO
 _DELIMITED_QUOTES = "`'\""
 
 
+def _ws_run_end(raw: str, pos: int, end: int) -> int:
+    while pos < end and raw[pos].isspace():
+        pos += 1
+    return pos
+
+
+def _ws_run_start(raw: str, pos: int, floor: int) -> int:
+    while pos > floor and raw[pos - 1].isspace():
+        pos -= 1
+    return pos
+
+
+def _lit_at(raw: str, pos: int, word: str) -> bool:
+    return raw[pos : pos + len(word)].casefold() == word
+
+
+def _match_in_marker(raw: str, pos: int) -> tuple[tuple[int, int], tuple[int, int], int] | None:
+    """The anchored match of `_IN_MARKER_RE` at ``pos``: (gap span, opt span, end).
+
+    The pattern's parse is deterministic -- its `\\s+` runs are each followed by a
+    literal, so a shorter run never lets a later element match -- which is what
+    makes the hand scan exact. The quote is taken when present (the only other
+    branch needs whitespace at the quote's position and fails immediately).
+    """
+    n = len(raw)
+    p = pos
+    if p < n and raw[p] in _DELIMITED_QUOTES:
+        p += 1
+    ws_end = _ws_run_end(raw, p, n)
+    if ws_end == p or not _lit_at(raw, ws_end, "in"):
+        return None
+    gap_start = ws_end + 2
+    gap_end = _ws_run_end(raw, gap_start, n)
+    if gap_end == gap_start:
+        return None
+    opt = (-1, -1)
+    end = gap_end
+    if _lit_at(raw, end, "the"):
+        opt_ws = _ws_run_end(raw, end + 3, n)
+        if opt_ws > end + 3:
+            opt = (end, opt_ws)
+            end = opt_ws
+    return (gap_start, gap_end), opt, end
+
+
+def _iter_folder_saying_marks(raw: str) -> list[tuple[int, int, int]]:
+    """``(start, end, pad_start)`` for every `_FOLDER_SAYING_MARKER_RE` match, in the
+    overlapping order `_all_marker_matches` produces: one match per position of the
+    whitespace run in front of each ``folder saying``.
+
+    The `\\s+` leads and pads of the marker and tail patterns are the remaining
+    polynomial shapes the scanner flags on uncontrolled turns; each of these parses
+    is deterministic (every `\\s+` is followed by a literal), so the hand scans are
+    exact and the regexes stay only for the differential harness.
+    """
+    n = len(raw)
+    out: list[tuple[int, int, int]] = []
+    pos = 0
+    while True:
+        f = raw.casefold().find("folder", pos)
+        if f < 0:
+            break
+        pos = f + 1
+        run = _ws_run_start(raw, f, 0)
+        saying_at = _ws_run_end(raw, f + 6, n)
+        if run == f or saying_at == f + 6 or not _lit_at(raw, saying_at, "saying"):
+            continue
+        word_end = f + 6
+        saying_end = _ws_run_end(raw, word_end, n) + 6
+        pad_start = saying_end
+        pad_end = _ws_run_end(raw, pad_start, n)
+        if pad_end == pad_start:
+            continue  # the marker's pad is `\s+`: "folder saying" with no space after is no marker
+        for start in range(run, f):
+            out.append((start, pad_end, pad_start))
+    return out
+
+
+def _iter_with_text_tails(raw: str) -> list[tuple[int, int, int]]:
+    """``(start, pad_start, end)`` for every `_WITH_TEXT_TAIL_RE` match, in the
+    overlapping order `_all_marker_matches` produces: one match per admissible lead
+    position (each whitespace-run position, plus the quote one character earlier).
+
+    After ``with`` the optional ``exact(ly)`` and ``this|the`` groups and the
+    mandatory ``text`` are all literal-anchored, so the greedy parse is the match;
+    the pad records the `\\s*` after the colon and ``end`` its greedy end.
+    """
+    n = len(raw)
+    out: list[tuple[int, int, int]] = []
+    pos = 0
+    folded = raw.casefold()
+    while True:
+        w = folded.find("with", pos)
+        pos = w + 1
+        if w < 0:
+            break
+        run = _ws_run_start(raw, w, 0)
+        if run == w:
+            continue
+        p = _ws_run_end(raw, w + 4, n)
+        if p == w + 4:
+            continue  # the tail's first element after `with` is always whitespace
+        if _lit_at(raw, p, "exact"):
+            q = p + 5
+            if _lit_at(raw, q, "ly"):
+                q += 2
+            if q < n and raw[q].isspace():
+                p = _ws_run_end(raw, q, n)
+        if _lit_at(raw, p, "this") or _lit_at(raw, p, "the"):
+            q = p + (4 if _lit_at(raw, p, "this") else 3)
+            if q < n and raw[q].isspace():
+                p = _ws_run_end(raw, q, n)
+        if not _lit_at(raw, p, "text"):
+            continue
+        p = _ws_run_end(raw, p + 4, n)
+        if p >= n or raw[p] != ":":
+            continue
+        pad_start = p + 1
+        end = _ws_run_end(raw, pad_start, n)
+        leads = list(range(run, w))
+        if run > 0 and raw[run - 1] in _DELIMITED_QUOTES:
+            leads.append(run - 1)
+        for start in sorted(leads):
+            out.append((start, pad_start, end))
+    return out
+
+
 class DelimitedWriteMatch(NamedTuple):
     """One matched write grammar: the path (and directory) it names and the literal content."""
 
@@ -322,10 +449,7 @@ def _in_workspace_create_file_match(text: str) -> DelimitedWriteMatch | None:
     """First `inside this workspace create <path> with text: <content>` -- the same match the
     legacy pattern above found, in bounded work per anchor instead of a lazy path walk."""
     raw = str(text or "")
-    tails = [
-        (match.start(), match.start("pad"), match.end())
-        for match in _all_marker_matches(_WITH_TEXT_TAIL_RE, raw)
-    ]
+    tails = _iter_with_text_tails(raw)
     candidates = _delimited_path_candidates(raw, tails)
     if not candidates:
         return None
@@ -344,21 +468,20 @@ def _in_workspace_create_file_match(text: str) -> DelimitedWriteMatch | None:
     return None
 
 
-def _folder_directory_starts(marker: re.Match[str]) -> list[int]:
+def _folder_directory_starts(raw: str, marker: tuple[tuple[int, int], tuple[int, int], int]) -> list[int]:
     """Directory-start positions an `in` marker allows, in the engine's backtracking order.
 
     The engine gives the optional `the` back first (the directory can absorb it), then shrinks
     the marker's own whitespace one character at a time, retrying the optional greedily at
     each width. Everything left of that whitespace is fixed by the preceding literal.
     """
-    starts: list[int] = [marker.end()]
-    opt = marker.span("opt")
+    gap, opt, marker_end = marker
+    starts: list[int] = [marker_end]
     if opt != (-1, -1):
         starts.append(opt[0])
-    gap = marker.span("gap")
     for k in range(gap[1] - gap[0] - 1, 0, -1):
         base = gap[0] + k
-        probe = _THE_AFTER_IN_RE.match(marker.string, base)
+        probe = _THE_AFTER_IN_RE.match(raw, base)
         starts.append(probe.end() if probe is not None else base)
         starts.append(base)
     return starts
@@ -377,20 +500,20 @@ def _file_in_folder_candidates(raw: str) -> list[tuple[int, int, int, str]]:
     (the prefix property), which is why the first marker decides each variant.
     """
     n = len(raw)
-    folder_marks = _all_marker_matches(_FOLDER_SAYING_MARKER_RE, raw)
+    folder_marks = _iter_folder_saying_marks(raw)
     if not folder_marks:
         return []
-    folder_starts = [match.start() for match in folder_marks]
+    folder_starts = [start for start, _end, _pad in folder_marks]
     next_nonclass = _next_outside_class(raw, _FOLDER_DIR_CHARS)
     candidates: list[tuple[int, int, int, str]] = []
     for run in re.finditer(r"[A-Za-z0-9_+-]+", raw):
         start = run.start()
         if start == 0 or raw[start - 1] != ".":
             continue
-        marker = _IN_MARKER_RE.match(raw, run.end())
+        marker = _match_in_marker(raw, run.end())
         if marker is None:
             continue
-        for dir_start in _folder_directory_starts(marker):
+        for dir_start in _folder_directory_starts(raw, marker):
             f = bisect_left(folder_starts, dir_start + 1)
             if f >= len(folder_starts):
                 continue
@@ -401,7 +524,7 @@ def _file_in_folder_candidates(raw: str) -> list[tuple[int, int, int, str]]:
             directory = raw[dir_start:fstart]
             mark = folder_marks[f]
             content_start = _content_start_after(
-                mark.end(), mark.start("pad"), n, pad_min=1
+                mark[1], mark[2], n, pad_min=1
             )
             if content_start is None:
                 continue
