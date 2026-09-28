@@ -203,6 +203,7 @@ def preview_import(
     from core.session_portability.importer import (
         _check_authority,
         _check_bounds,
+        _check_identities,
         _derived_session_id,
         _session_exists,
     )
@@ -255,6 +256,7 @@ def preview_import(
             raise PortabilityRefused("BUNDLE_MALFORMED", str(exc)) from exc
         _check_bounds(payload, attachment_members)
         _check_authority(payload, attachment_members)
+        _check_identities(payload)
 
         receipts = payload.get("receipts") or {}
         summary["counts"] = {
