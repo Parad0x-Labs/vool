@@ -53,7 +53,12 @@ def _bounds() -> dict[str, int]:
 def preview_export(session_id: str, *, env: dict[str, str] | None = None) -> dict[str, Any]:
     """State EXACTLY what an export of this session will produce — the same collection pass the
     export runs, minus the write. Counts, embedded files, redactions, scope."""
-    from core.session_portability.collect import OverBound, SessionNotFound, collect_session
+    from core.session_portability.collect import (
+        OverBound,
+        RedactionUnavailable,
+        SessionNotFound,
+        collect_session,
+    )
 
     try:
         payload, _attachment_bytes, counts, redactions = collect_session(session_id)
@@ -65,6 +70,11 @@ def preview_export(session_id: str, *, env: dict[str, str] | None = None) -> dic
         raise PortabilityRefused(
             "BUNDLE_LIMIT_EXCEEDED",
             f"This session exceeds the {exc.bound} bound ({exc.limit}); it cannot export as one bundle.",
+        ) from exc
+    except RedactionUnavailable as exc:
+        raise PortabilityRefused(
+            "SECRET_PROTECTION_UNAVAILABLE",
+            f"Export refused: {exc}",
         ) from exc
 
     embedded = payload.get("evidence", {}).get("embedded") or []
@@ -93,7 +103,12 @@ def export_session(
 ) -> dict[str, Any]:
     """Export one session to a `.voolsession` file. Returns the export receipt."""
     from core.session_portability.bundle import write_bundle
-    from core.session_portability.collect import OverBound, SessionNotFound, collect_session
+    from core.session_portability.collect import (
+        OverBound,
+        RedactionUnavailable,
+        SessionNotFound,
+        collect_session,
+    )
 
     try:
         payload, attachment_bytes, counts, redactions = collect_session(session_id)
@@ -105,6 +120,11 @@ def export_session(
         raise PortabilityRefused(
             "BUNDLE_LIMIT_EXCEEDED",
             f"This session exceeds the {exc.bound} bound ({exc.limit}); it cannot export as one bundle.",
+        ) from exc
+    except RedactionUnavailable as exc:
+        raise PortabilityRefused(
+            "SECRET_PROTECTION_UNAVAILABLE",
+            f"Export refused: {exc}",
         ) from exc
 
     identity = write_bundle(Path(out_path), payload, attachment_bytes, passphrase=passphrase)
