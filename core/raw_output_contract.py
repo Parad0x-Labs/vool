@@ -358,6 +358,37 @@ _NUMBERS_ONLY_OF_RE = re.compile(
     r"\bnumbers?\s+only\b[^.!?\n]{0,16}\bof\b|\bof\b[^.!?\n]{0,16}\bnumbers?\s+only\b",
     re.IGNORECASE,
 )
+# Arithmetic sharing the turn. The two digit runs around the operator are polynomial in a
+# shape a static scan cannot rule out, so the scanner below walks the text once instead; the
+# regex stays for the differential harness that pins the scanner to it.
+_ARITHMETIC_RE = re.compile(r"(?<!\d)\d+\s*[+\-x×*/]\s*\d+")
+_ARITHMETIC_OP_CHARS = frozenset("+-x×*/")
+
+
+def _contains_arithmetic(raw: str) -> bool:
+    """Whether ``_ARITHMETIC_RE`` matches anywhere, in one pass.
+
+    A left side is live while only digits and whitespace have been seen since the last
+    digit run; an operator needs one more whitespace-only step to a digit on the right.
+    The left lookbehind holds for free: a maximal digit run never starts after a digit.
+    """
+    left_live = False
+    n = len(raw)
+    for i, char in enumerate(raw):
+        if char.isdecimal():
+            left_live = True
+        elif char.isspace():
+            continue
+        elif char in _ARITHMETIC_OP_CHARS and left_live:
+            k = i + 1
+            while k < n and raw[k].isspace():
+                k += 1
+            if k < n and raw[k].isdecimal():
+                return True
+            left_live = False
+        else:
+            left_live = False
+    return False
 # "just the number" / "number only" binds the same byte-strict contract as
 # "JSON only": the served answer must be the bare figure — no prose, no list,
 # no units, no markdown. Measured live 2026-08-29 (watch session): "what is
@@ -943,7 +974,7 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
                 directive_text[max(0, _num_match.start() - 48): _num_match.start()]
             )
         )
-        _arithmetic = bool(re.search(r"(?<!\d)\d+\s*[+\-x×*/]\s*\d+", directive_text))
+        _arithmetic = _contains_arithmetic(directive_text)
         numbers_only = _tail_shape or (
             (_verb_before or _arithmetic)
             and (not _continuation or _arithmetic)

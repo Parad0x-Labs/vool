@@ -853,7 +853,12 @@ def test_write_demand_filename_normalization_is_bounded():
 
 
 def test_split_extensions_preserve_successive_path_segments():
-    from core.execution.write_demand import _normalize_split_file_extensions
+    from core.execution.write_demand import _repair_split_extensions
 
-    assert _normalize_split_file_extensions("create foo. py/bar. txt containing hi") == "create foo.py/bar.txt containing hi"
-    assert _normalize_split_file_extensions("notes. md then plain prose. nope") == "notes.md then plain prose. nope"
+    assert _repair_split_extensions("create foo. py/bar. txt containing hi") == "create foo.py/bar.txt containing hi"
+    assert _repair_split_extensions("notes. md then plain prose. nope") == "notes.md then plain prose. nope"
+    # Non-ASCII stems keep the retired grammar's ASCII class, so only the class-stemmed
+    # dot closes; tabs separate like spaces, and a word that only starts with an
+    # extension word stays prose.
+    assert _repair_split_extensions("séparé. md. py") == "séparé. md.py"
+    assert _repair_split_extensions("a.\t\tpy after. python stays") == "a.py after. python stays"

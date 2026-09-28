@@ -123,8 +123,11 @@ def test_grammatical_user_name_nouns_keep_the_user_identity_lane(prompt: str) ->
 @pytest.mark.parametrize("statement", [
     "from core.user_identity_authority import classify_identity_question; classify_identity_question('“' * 100000 + ' name')",
     "from core.user_identity_authority import classify_identity_question; classify_identity_question('hello' + ' ' * 100000 + 'there')",
+    "from core.user_identity_authority import classify_identity_question; classify_identity_question('am \\n \\n' * 50000 + 'who am I?')",
+    "from core.user_identity_authority import _split_raw_clauses; _split_raw_clauses('\\n \\n' * 100000 + 'x')",
     "from core.agent_runtime.action_honesty_validator import completion_claim_kind; completion_claim_kind('files' + ' ' * 100000 + 'possibly')",
     "from core.agent_runtime.action_honesty_validator import _split_clauses; _split_clauses('hello' + ' ' * 100000 + 'there')",
+    "from core.agent_runtime.action_honesty_validator import _split_clauses; _split_clauses('x,\\t' * 50000 + '— y')",
 ])
 def test_identity_and_honesty_scans_finish(statement):
     subprocess.run([sys.executable, '-c', statement], check=True, timeout=10, capture_output=True)
@@ -135,3 +138,21 @@ def test_real_name_questions_and_quoted_examples_keep_their_meaning():
     assert classify_identity_question('What is my name?').asks_user_identity
     assert classify_identity_question('"What is my name?"').asks_user_identity
     assert not classify_identity_question('Explain this example: “What is my name?”').asks_user_identity
+
+
+def test_clause_boundaries_keep_their_exact_splitting_meaning():
+    """The clause splitter is a linear scan pinned to its retired regex: one or two
+    dashes between whitespace runs separate clauses, three dashes do not, and the
+    punctuation alternative keeps the whitespace after the boundary character."""
+    from core.user_identity_authority import _split_raw_clauses
+
+    assert _split_raw_clauses("who am I - really") == ["who am I", "really"]
+    assert _split_raw_clauses("my name — please recall it") == ["my name", "please recall it"]
+    assert _split_raw_clauses("a -- b") == ["a", "b"]
+    assert _split_raw_clauses("a --- b") == ["a --- b"]
+    assert _split_raw_clauses("one. two; three") == ["one", " two", " three"]
+    assert _split_raw_clauses("keep ,  close") == ["keep ", "  close"]
+    assert _split_raw_clauses("x\n- y") == ["x", "- y"]
+    assert _split_raw_clauses("x \n- y") == ["x", "y"]
+    assert _split_raw_clauses("a\t–\tb") == ["a", "b"]
+    assert _split_raw_clauses("no boundary here") == ["no boundary here"]

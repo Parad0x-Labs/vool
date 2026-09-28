@@ -437,3 +437,23 @@ def test_completed_actions_still_require_evidence():
     for text in ('files were deleted', 'files deleted', 'funds have been sent', 'funds sent'):
         assert completion_claim_kind(text) == 'mutation'
     assert completion_claim_kind('Nothing was executed, no files were deleted.') == ''
+
+
+def test_exemption_clauses_still_split_at_their_own_boundaries():
+    """The clause splitter is a linear scan pinned to its retired regex: whitespace after
+    a sentence ender separates, a comma needs whitespace after it, a single em dash or
+    hyphen between whitespace runs separates, and two hyphens do not."""
+    from core.agent_runtime.action_honesty_validator import _split_clauses
+
+    assert _split_clauses("files were deleted; no need to do anything") == [
+        "files were deleted;", "no need to do anything",
+    ]
+    assert _split_clauses("done, nothing else") == ["done", "nothing else"]
+    assert _split_clauses("x — y") == ["x", "y"]
+    assert _split_clauses("x - y") == ["x", "y"]
+    assert _split_clauses("x -- y") == ["x -- y"]
+    assert _split_clauses("one. two") == ["one.", "two"]
+    assert _split_clauses("ends, no ws comma,") == ["ends", "no ws comma,"]
+    assert _split_clauses("hello  ,  world") == ["hello  ", "world"]
+    assert _split_clauses("x,\ty") == ["x", "y"]
+    assert _split_clauses("funds   sent") == ["funds   sent"]

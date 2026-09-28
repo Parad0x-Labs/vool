@@ -95,3 +95,21 @@ def test_remaining_guard_nonmatches_do_not_revisit_suffixes(script):
 def test_correction_scanner_preserves_line_and_payload_boundaries(text, expected):
     from core.memory.entries import is_user_correction
     assert is_user_correction(text) is expected
+
+
+def test_trim_squeezes_the_punctuation_a_removed_sentence_leaves_behind():
+    """The squeeze is a linear scan pinned to its retired regex: a whitespace run in
+    front of a surviving punctuation mark drops, and a segment that cannot be located
+    still withholds the whole line."""
+    from core.grounding_publication import _trim_unsupported_spans
+
+    assert _trim_unsupported_spans(
+        "keep this. remove this. tail stays", ["remove this"]
+    ) == "keep this.. tail stays"
+    assert _trim_unsupported_spans(
+        "keep this. remove this ,  ,tail", ["remove this"]
+    ) == "keep this.,tail"
+    assert _trim_unsupported_spans(
+        "alpha remove this beta. next stays", ["remove this"]
+    ) == "alpha beta. next stays"
+    assert _trim_unsupported_spans("a  ,  b", ["nothing matches here x"]) is None
