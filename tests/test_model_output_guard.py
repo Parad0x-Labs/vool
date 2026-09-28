@@ -279,3 +279,118 @@ def test_ordinary_line_opening_json_is_released_not_eaten():
     shown, tail = _drive_stream(chunks)
     assert '"name": "myapp"' in (shown + tail), "legitimate JSON was swallowed"
     assert "That looks right." in (shown + tail)
+
+
+# --- scan bounds (CodeQL polynomial-redos 110/111 + same-class siblings) ------------------------
+#
+# The block/tag rules paired a greedy `[^>]*` with a lazy `.*?` (or optional close), so a reply of
+# many unclosed openings made each pattern rescan the whole tail: measured quadratic on main
+# cfae90f through validate_contract (x4 per doubling; 300 ms at 64k for the space-run form,
+# 2.99 s for the function-invoke chain). The linear scanners must stay linear AND keep the exact
+# legacy match set -- the span-equivalence cases below pin both through the public choke point.
+
+import math
+import time
+
+from core.model_output_guard import _collapse_space_runs_before_newlines
+
+_LINEAR_BUDGET = 6.0  # per-doubling runtime ratio tolerated before the scan is super-linear
+
+
+def _worst_case_runtime(build_reply, *, sizes=(16_000, 64_000)) -> float:
+    """Runtime ratio between two sizes for an adversarial reply through validate_contract.
+
+    A linear scan doubles when the input doubles; a quadratic one quadruples. The returned ratio
+    is sizes[-1]-over-sizes[0] normalised per doubling, so ~2.0 means linear.
+    """
+    timings = []
+    for size in sizes:
+        reply = build_reply(size)
+        start = time.perf_counter()
+        validate_contract("plain_text", reply)
+        timings.append(time.perf_counter() - start)
+    doublings = round(math.log2(sizes[-1] / sizes[0]))
+    return (timings[-1] / timings[0]) ** (1.0 / doublings)
+
+
+def test_unclosed_function_invoke_chain_stays_linear():
+    # Alert 110's shape: every opening lazily rescanned the tail for </function>.
+    ratio = _worst_case_runtime(lambda n: ("<function=x>next " * (n // 16)) + "tail")
+    assert ratio < _LINEAR_BUDGET, f"per-doubling ratio {ratio:.2f} is super-linear"
+
+
+def test_unterminated_space_run_stays_linear():
+    # Alert 111's shape: `[ \t]+\n` rescanned the run from every position.
+    ratio = _worst_case_runtime(lambda n: "<tool_call>gone</tool_call>\n" + " " * n + "x")
+    assert ratio < _LINEAR_BUDGET, f"per-doubling ratio {ratio:.2f} is super-linear"
+
+
+def test_unclosed_tag_families_stay_linear():
+    # The same lazy-scan class in the sibling rules (not separately flagged only because the
+    # backreference hides the shape from the scanner): ambiguous envelopes, attributed wrappers,
+    # unpaired tool blocks and unclosed lone tags.
+    shapes = (
+        lambda n: "<tool>{" * (n // 7),          # ambiguous envelope, no closing brace
+        lambda n: "<invoke x=y>" * (n // 13),    # attributed wrapper, never closed
+        lambda n: "<tool_call>a" * (n // 12),    # tool block, no closing tag
+        lambda n: "<tool_call" * (n // 9),       # lone tag, no '>' at all
+    )
+    for shape in shapes:
+        ratio = _worst_case_runtime(shape)
+        assert ratio < _LINEAR_BUDGET, f"per-doubling ratio {ratio:.2f} is super-linear"
+
+
+def test_scrub_matches_the_pinned_regexes_on_adversarial_markup():
+    # The legacy patterns stay compiled as the spec; the delivered scanners must agree with them
+    # on ordinary replies, on hostile case folding (re.I folds İ/ı/ſ into ASCII), on nested
+    # openings and on truncated markup.
+    import re
+
+    from core import model_output_guard as guard
+
+    cases = [
+        "plain answer",
+        "A <function=go>(\"q\") B",
+        "<tool>{\"a\":1}</tool>",
+        "<tool> {} </tool>",
+        "<tool>{}</tools>",                      # mismatched close -> no envelope removal
+        "<TOOL>{\"a\":1}</ToOl>",                # hostile case folding
+        "<İnvoke x=1>",                          # re.I folds İ with i
+        "<tool_use a:b-c = \"q\">body</tool_use>",
+        "<invoke x=1>",                          # attributed, bare opening survives
+        "<invoke x=1>body</invoke>",
+        "<tool_call>a" * 6,                      # truncated chain
+        "<function=1><function=2>x</function>",  # nested: first opening eats to the one close
+        "text <tool_call>\n{\"name\":\"web.search\",\"arguments\":{}}\n</tool_call> tail",
+    ]
+    for text in cases:
+        assert guard._AMBIGUOUS_TOOL_BLOCK_RE.sub("", text) == guard._remove_spans(
+            text,
+            guard._iter_tag_blocks(
+                text, guard._TagScanIndex(text),
+                names=guard._AMBIGUOUS_NAMES, require_boundary=True, close_kind="brace",
+            ),
+        ), text
+        assert guard._TOOL_BLOCK_RE.sub("", text) == guard._remove_spans(
+            text,
+            guard._iter_tag_blocks(
+                text, guard._TagScanIndex(text),
+                names=guard._TOOL_BLOCK_NAMES, require_boundary=True, close_kind="required",
+            ),
+        ), text
+        assert guard._FUNCTION_INVOKE_RE.sub("", text) == guard._remove_spans(
+            text, guard._iter_function_invokes(text, guard._TagScanIndex(text))
+        ), text
+        assert guard._LONE_TOOL_TAG_RE.sub("", text) == guard._remove_spans(
+            text, guard._iter_lone_tool_tags(text, guard._TagScanIndex(text))
+        ), text
+        assert re.sub(r"[ \t]+\n", "\n", text) == _collapse_space_runs_before_newlines(text), text
+
+
+def test_collapse_space_runs_matches_the_regex_semantics():
+    # Ordinary positives, negatives and the exact replacement bytes.
+    assert _collapse_space_runs_before_newlines("trail   \nnext") == "trail\nnext"
+    assert _collapse_space_runs_before_newlines("tabs\t\t\nnext") == "tabs\nnext"
+    assert _collapse_space_runs_before_newlines("no newline here   ") == "no newline here   "
+    assert _collapse_space_runs_before_newlines("   \n   \n") == "\n\n"
+    assert _collapse_space_runs_before_newlines("") == ""
