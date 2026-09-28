@@ -298,6 +298,60 @@ _CONNECTOR_PREFIX_RE = re.compile(
     r"(?:(?:and|also|plus|then|and\s+then|and\s+also)\s*,?\s+)+",
     re.IGNORECASE,
 )
+#: The starred connector group above is the remaining polynomial shape the scanner
+#: flags on uncontrolled turns. `_consume_connector_prefix` reproduces its greedy
+#: match exactly: every connector word is literal-anchored and every separator ends
+#: in mandatory whitespace, so a shorter whitespace run never lets a later element
+#: match and the consumed end is a deterministic walk. The pattern stays for the
+#: differential harness that pins the scanner to it.
+_CONNECTOR_WORDS = ("and", "also", "plus", "then")
+
+
+def _lit_at_ci(text: str, pos: int, end: int, word: str) -> bool:
+    return pos + len(word) <= end and text[pos:pos + len(word)].casefold() == word
+
+
+def _consume_connector_prefix(text: str, start: int, end: int) -> int | None:
+    r"""The end of `_CONNECTOR_PREFIX_RE.match(text, start, end)`, or None.
+
+    One iteration is a connector word — `and`/`also`/`plus`/`then`, with `and`
+    optionally extending through whitespace into `then`/`also` — followed by the
+    separator `\s*,?\s+`: greedy whitespace, one optional comma, then at least
+    one whitespace. The walk stops at the first position where neither fits; the
+    returned end is after the last separator, exactly where the regex's greedy
+    repetition ends.
+    """
+    pos = start
+    matched = False
+    while pos < end:
+        word_end: int | None = None
+        # the alternation's own order: `and` is tried before `and\s+then`, and the
+        # short word always leaves a separator the long branch would also need, so
+        # the two-word branches are unreachable in the engine's first match
+        for word in _CONNECTOR_WORDS:
+            if _lit_at_ci(text, pos, end, word):
+                word_end = pos + len(word)
+                break
+        if word_end is None:
+            break
+        run_end = word_end
+        while run_end < end and text[run_end].isspace():
+            run_end += 1
+        if run_end < end and text[run_end] == ",":
+            after_comma = run_end + 1
+            while after_comma < end and text[after_comma].isspace():
+                after_comma += 1
+            if after_comma > run_end + 1:
+                pos = after_comma
+                matched = True
+                continue
+        if run_end > word_end:
+            # the leading `\s*` gives the run back to the mandatory `\s+`
+            pos = run_end
+            matched = True
+            continue
+        break
+    return pos if matched else None
 _REQUEST_CONNECTOR_RE = re.compile(
     r"\b(?:and\s+then|and\s+also|and|then|also|plus)\b\s*,?\s+",
     re.IGNORECASE,
@@ -560,9 +614,9 @@ def _classify_clause_span(
         start += 1
     while end > start and text[end - 1].isspace():
         end -= 1
-    connectors = _CONNECTOR_PREFIX_RE.match(text, start, end)
+    connectors = _consume_connector_prefix(text, start, end)
     if connectors is not None:
-        start = connectors.end()
+        start = connectors
     if start >= end:
         return ClauseKind.UNKNOWN
     # A prohibition needs a negated directive inside the clause; when none even starts here the
