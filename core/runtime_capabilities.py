@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import os
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from typing import Any
 
 from core import policy_engine
@@ -264,47 +262,35 @@ def _workspace_access_capability(runtime: RuntimeContext) -> dict[str, Any]:
 
 
 def _compaction_effective_config() -> dict[str, Any]:
-    path = Path(os.environ.get("OPENCLAW_CONFIG_PATH") or Path.home() / ".openclaw" / "openclaw.json")
-    base = {
-        "status": "missing",
-        "config_source": str(path),
+    """VOOL's own compaction truth, read from the native summarizer authority.
+
+    This reporting used to derive token-reserve and recovery claims from an
+    unrelated third-party OpenClaw config that never governed VOOL's runtime.
+    VOOL's actual compaction is message-count based (core/conversation_summarizer),
+    carries no token-reserve recoverability guarantee, and can fall back to an
+    extractive summary when no model answers — so those states are reported as
+    explicitly unknown instead of being invented from a retired config.
+    """
+    from core import conversation_summarizer
+
+    return {
+        "status": "native",
+        "authority": "core/conversation_summarizer.py",
+        "summary_threshold_messages": conversation_summarizer.SUMMARY_THRESHOLD,
+        "keep_recent_messages": conversation_summarizer.KEEP_RECENT,
+        "summary_stride_messages": conversation_summarizer.SUMMARY_STRIDE,
+        "extractive_fallback_marker": conversation_summarizer.EXTRACTIVE_FALLBACK_MARKER,
         "reserveTokensFloor": None,
         "keepRecentTokens": None,
-        "mode": "",
-        "can_recover": False,
+        "mode": "message_count",
+        "can_recover": None,
+        "can_recover_reason": (
+            "VOOL native compaction keeps recent messages verbatim and summarizes the "
+            "older prefix; it asserts no token-reserve recoverability guarantee, so "
+            "recovery readiness is reported as unknown rather than derived from a "
+            "retired third-party config."
+        ),
     }
-    if not path.exists():
-        return base
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        compaction = (
-            dict(payload.get("agents") or {})
-            .get("defaults", {})
-            .get("compaction", {})
-        )
-        if not isinstance(compaction, dict):
-            return {**base, "status": "not_configured"}
-        reserve = compaction.get("reserveTokensFloor")
-        keep_recent = compaction.get("keepRecentTokens")
-        reserve_int = _optional_int(reserve)
-        keep_recent_int = _optional_int(keep_recent)
-        return {
-            **base,
-            "status": "configured",
-            "reserveTokensFloor": reserve_int if reserve_int is not None else reserve,
-            "keepRecentTokens": keep_recent_int if keep_recent_int is not None else keep_recent,
-            "mode": str(compaction.get("mode") or "").strip(),
-            "can_recover": int(reserve_int or 0) >= 20_000,
-        }
-    except Exception as exc:
-        return {**base, "status": "unreadable", "error": str(exc)}
-
-
-def _optional_int(value: object) -> int | None:
-    text = str(value or "").strip()
-    if not text.isdigit():
-        return None
-    return int(text)
 
 
 def _backend_family(provider_id: str, model_id: str) -> str:

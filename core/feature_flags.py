@@ -3,8 +3,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from core.runtime_paths import project_path
-
 
 @dataclass(frozen=True)
 class FeatureFlag:
@@ -43,8 +41,10 @@ def get_feature_flags() -> list[FeatureFlag]:
         FeatureFlag("MEET_CLUSTER_REPLICATION", "partial", "Pull-based snapshot and delta replication exist for meet nodes, but global convergence is not yet proven across live regions."),
         FeatureFlag(
             "OPENCLAW_INTEGRATION_READY",
-            "partial",
-            f"Integration target retained via optional sidecars; standalone mode remains valid. Reference: {project_path('core', 'dna_payment_bridge.py')}",
+            "retired",
+            "OpenClaw integration is retired from VOOL product paths; VOOL installs, starts, and chats natively. "
+            "OpenClaw-specific skills live in the separate repository https://github.com/Parad0x-Labs/openclaw-skills. "
+            "Unrelated OpenClaw installations are never read or modified by VOOL.",
         ),
     ]
 

@@ -140,26 +140,7 @@ def test_runtime_capability_snapshot_exposes_feature_flags_and_capability_rows()
     assert capabilities["remote_only_backend_fallback"]["state"] == "disabled_by_policy"
 
 
-def test_runtime_capability_snapshot_reports_openclaw_compaction_floor(tmp_path) -> None:
-    config_dir = tmp_path / ".openclaw"
-    config_dir.mkdir()
-    config_path = config_dir / "openclaw.json"
-    config_path.write_text(
-        json.dumps(
-            {
-                "agents": {
-                    "defaults": {
-                        "compaction": {
-                            "mode": "safeguard",
-                            "keepRecentTokens": 12000,
-                            "reserveTokensFloor": 20000,
-                        }
-                    }
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+def _snapshot_with_isolated_home(tmp_path, monkeypatch, home_dir) -> dict:
     install_profile = InstallProfileTruth(
         profile_id="local-only",
         label="Local only",
@@ -180,7 +161,9 @@ def test_runtime_capability_snapshot_reports_openclaw_compaction_floor(tmp_path)
     )
     provider_snapshot = ProviderRegistrySnapshot(warnings=tuple(), audit_rows=tuple(), capability_truth=tuple())
 
-    with mock.patch("core.runtime_capabilities.Path.home", return_value=tmp_path), mock.patch(
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("OPENCLAW_CONFIG_PATH", str(home_dir / ".openclaw" / "openclaw.json"))
+    with mock.patch(
         "core.runtime_capabilities.probe_machine",
         return_value=MachineProbe(8, 12.0, None, None, "cpu"),
     ), mock.patch(
@@ -193,12 +176,70 @@ def test_runtime_capability_snapshot_reports_openclaw_compaction_floor(tmp_path)
         "core.runtime_capabilities.build_install_profile_truth",
         return_value=install_profile,
     ):
-        snapshot = runtime_capability_snapshot(_context())
+        return runtime_capability_snapshot(_context())
+
+
+def test_runtime_capability_snapshot_reports_native_compaction_truth(tmp_path, monkeypatch) -> None:
+    """Compaction truth comes from VOOL's own summarizer authority, not a third-party config."""
+    from core import conversation_summarizer
+
+    snapshot = _snapshot_with_isolated_home(tmp_path, monkeypatch, tmp_path)
 
     compaction = snapshot["compaction_effective_config"]
-    assert compaction["status"] == "configured"
-    assert compaction["reserveTokensFloor"] == 20000
-    assert compaction["can_recover"] is True
+    assert compaction["status"] == "native"
+    assert compaction["authority"] == "core/conversation_summarizer.py"
+    assert compaction["summary_threshold_messages"] == conversation_summarizer.SUMMARY_THRESHOLD
+    assert compaction["keep_recent_messages"] == conversation_summarizer.KEEP_RECENT
+    assert compaction["summary_stride_messages"] == conversation_summarizer.SUMMARY_STRIDE
+    assert compaction["extractive_fallback_marker"] == conversation_summarizer.EXTRACTIVE_FALLBACK_MARKER
+    # Token-reserve fields are retained for response compatibility but truthfully unknown:
+    # VOOL's message-count compaction asserts no token-reserve recoverability guarantee.
+    assert compaction["reserveTokensFloor"] is None
+    assert compaction["keepRecentTokens"] is None
+    assert compaction["mode"] == "message_count"
+    assert compaction["can_recover"] is None
+    assert "unknown" in compaction["can_recover_reason"]
+
+
+def test_runtime_capability_snapshot_compaction_ignores_unrelated_openclaw_config_states(tmp_path, monkeypatch) -> None:
+    """Absent, malformed, and valid unrelated OpenClaw config must all leave compaction truth identical."""
+    from core import conversation_summarizer
+
+    # Absent: no OpenClaw home at all.
+    absent = _snapshot_with_isolated_home(tmp_path, monkeypatch, tmp_path / "absent-home")["compaction_effective_config"]
+
+    # Malformed: broken JSON.
+    malformed_home = tmp_path / "malformed-home"
+    (malformed_home / ".openclaw").mkdir(parents=True)
+    (malformed_home / ".openclaw" / "openclaw.json").write_text("{not json", encoding="utf-8")
+    malformed = _snapshot_with_isolated_home(tmp_path, monkeypatch, malformed_home)["compaction_effective_config"]
+
+    # Valid unrelated config with compaction values that used to control this payload.
+    valid_home = tmp_path / "valid-home"
+    (valid_home / ".openclaw").mkdir(parents=True)
+    config_path = valid_home / ".openclaw" / "openclaw.json"
+    original_config = json.dumps(
+        {
+            "agents": {
+                "defaults": {
+                    "compaction": {
+                        "mode": "safeguard",
+                        "keepRecentTokens": 12000,
+                        "reserveTokensFloor": 20000,
+                    }
+                }
+            }
+        }
+    )
+    config_path.write_text(original_config, encoding="utf-8")
+    valid = _snapshot_with_isolated_home(tmp_path, monkeypatch, valid_home)["compaction_effective_config"]
+
+    assert absent == malformed == valid
+    assert absent["status"] == "native"
+    assert absent["can_recover"] is None
+    assert absent["summary_threshold_messages"] == conversation_summarizer.SUMMARY_THRESHOLD
+    # The unrelated config is left byte-for-byte intact.
+    assert config_path.read_text(encoding="utf-8") == original_config
 
 
 def test_runtime_capability_snapshot_uses_measured_provider_truth_for_profile_and_payload() -> None:
