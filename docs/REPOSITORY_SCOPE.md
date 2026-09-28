@@ -16,7 +16,7 @@ status and [engineering status](STATUS.md) for more detailed implementation note
 | --- | --- | --- |
 | Local API, chat, memory, tools and permission enforcement | Current runtime | `apps/vool_api_server.py`, `core/web/api/`, `core/agent_runtime/`, `core/execution/` and `storage/`. Preserve supported workflows. |
 | Queen/coder/verifier roles and local orchestration | Current bounded runtime, configuration-dependent | `core/runtime_execution_tools.py` exposes `orchestration.execute_envelope`; `core/orchestration/` owns execution and result merging. These roles are also used by `core/runtime_install_profiles.py` and provider routing. They are not evidence of an enabled peer network. |
-| OpenClaw-specific bridge, registration and launchers | Retired integration; residual wiring pending removal | OpenClaw skills belong in a separate repository, not VOOL's product scope. `installer/bootstrap_vool.sh` still passes setup options and `installer/install_vool.sh` still calls `installer/register_openclaw_agent.py`; this label does not remove those calls. Preserve generic API clients while decoupling product setup from the retired integration. |
+| OpenClaw-specific bridge, registration and launchers | Retired integration; residual wiring removed | OpenClaw skills belong in a separate repository, not VOOL's product scope. The installer no longer passes OpenClaw setup options or calls the registration helper; retired launchers are side-effect-free stubs and `core/openclaw_locator.py` is gone. Generic OpenAI-compatible API clients are preserved. Preserve generic API clients while decoupling product setup from the retired integration. |
 | `.null` names, `null://`, Web0 browser and payment extensions | Retained extension surface; mixed activation boundaries | `core/web/api/service.py` serves `/web0`, `/null-browser`, `/api/web0/resolve` and `/api/null`; `core/null_protocol.py` parses the protocol. Remote dial has its own opt-in policy. These paths are not all governed by the research-networking flag. |
 | UDP/TCP mesh, DHT, peer discovery and swarm retrieval | Experimental research; outside normal production networking | `core/runtime_mode.py` gates production entrypoints through explicit research opt-in. Owners include `core/daemon/`, `network/dht.py`, `network/transport.py` and `retrieval/swarm_query.py`. See [research systems](../research/README.md). |
 | Public Hive presence, autonomous peer tasks and idle commons | Experimental research | `core/agent_runtime/presence.py`, `core/public_hive/` and the daemon task lane belong to research networking. Research service invocation is distinct from ordinary web research requested by a user. |
@@ -48,12 +48,13 @@ Do not apply a repository-wide text rename across those meanings.
 OpenClaw-specific skills are maintained in the separate
 [openclaw-skills repository](https://github.com/Parad0x-Labs/openclaw-skills).
 VOOL must not present OpenClaw installation, registration or skill distribution as
-its product purpose. Remaining bootstrap options, installer registration, generated
-launchers and OpenClaw-specific documentation are removal candidates. Removing
-them requires install/upgrade and direct VOOL launch verification, plus retention of
-generic API compatibility where it serves other clients. This documentation pass
-classifies the residual integration; it does not claim the installer is already
-decoupled. This classification does not move or publish any skills.
+its product purpose. The bootstrap options, installer registration, generated
+launchers and locator wiring have been removed from supported product paths: VOOL
+installs, starts and chats natively, the retired OpenClaw-only launchers and
+helpers are side-effect-free refusal stubs, and unrelated OpenClaw installations
+are never read or modified. Generic OpenAI-compatible API clients are retained
+where they serve other clients. This classification does not move or publish any
+skills.
 
 ### Implementation status is not activation state
 
