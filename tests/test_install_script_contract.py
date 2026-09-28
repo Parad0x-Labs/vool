@@ -172,6 +172,7 @@ def test_windows_launchers_use_module_entrypoint_for_api_server() -> None:
     # OpenClaw_VOOL.bat is a side-effect-free retirement stub.
     assert "retired from VOOL" in openclaw_launcher
     assert "Start_VOOL.bat" in openclaw_launcher
+    assert "Open_Chat.bat" in openclaw_launcher
     assert "Open_Web0.bat" in openclaw_launcher
     assert "https://github.com/Parad0x-Labs/openclaw-skills" in openclaw_launcher
     assert "exit /b 1" in openclaw_launcher

@@ -361,7 +361,7 @@ if !errorlevel! neq 0 (
 if exist "%TEMP%\vool_install_profile_validate.txt" del /f /q "%TEMP%\vool_install_profile_validate.txt" >nul 2>&1
 
 echo Step 7/14: Verifying launchers...
-for %%L in ("Start_VOOL.bat" "Talk_To_VOOL.bat" "OpenClaw_VOOL.bat" "Stop_VOOL.bat" "vool_background.vbs" "vool_background.cmd") do (
+for %%L in ("Start_VOOL.bat" "Talk_To_VOOL.bat" "Open_Chat.bat" "Open_Web0.bat" "OpenClaw_VOOL.bat" "Stop_VOOL.bat" "vool_background.vbs" "vool_background.cmd") do (
   if not exist "%PROJECT_ROOT%\%%~L" (
     echo ERROR: Missing Windows launcher %%~L.
     exit /b 1
@@ -375,7 +375,7 @@ set "DESKTOP_SHORTCUT="
 REM A previous install may have left the retired "OpenClaw + VOOL" shortcut; it is our own
 REM generated shortcut (now a stub), so remove it in favor of the native one.
 if exist "%USERPROFILE%\Desktop\OpenClaw + VOOL.lnk" del /f /q "%USERPROFILE%\Desktop\OpenClaw + VOOL.lnk" >nul 2>&1
-for /f "usebackq delims=" %%D in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%create_desktop_shortcut.ps1" -TargetPath "%PROJECT_ROOT%\Open_Web0.bat" -WorkingDirectory "%PROJECT_ROOT%" -LinkPath "%USERPROFILE%\Desktop\VOOL.lnk" -IconPath "%SCRIPT_DIR%assets\vool.ico" 2^>nul`) do set "DESKTOP_SHORTCUT=%%D"
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%create_desktop_shortcut.ps1" -TargetPath "%PROJECT_ROOT%\Open_Chat.bat" -WorkingDirectory "%PROJECT_ROOT%" -LinkPath "%USERPROFILE%\Desktop\VOOL.lnk" -IconPath "%SCRIPT_DIR%assets\vool.ico" 2^>nul`) do set "DESKTOP_SHORTCUT=%%D"
 if defined DESKTOP_SHORTCUT echo Desktop shortcut created: !DESKTOP_SHORTCUT!
 if not defined DESKTOP_SHORTCUT echo WARNING: Could not create Desktop shortcut automatically.
 
@@ -557,7 +557,8 @@ echo VOOL starts automatically at login. No manual steps.
 echo.
 echo Visible agent name: %AGENT_NAME%
 echo Selected model: %MODEL_TAG%
-echo To open now:  %PROJECT_ROOT%\Open_Web0.bat
+echo To chat now:   %PROJECT_ROOT%\Open_Chat.bat
+echo Web0 browser:  %PROJECT_ROOT%\Open_Web0.bat
 echo To start headless:  %PROJECT_ROOT%\Start_VOOL.bat
 if defined DESKTOP_SHORTCUT echo Desktop:      %DESKTOP_SHORTCUT%
 echo.

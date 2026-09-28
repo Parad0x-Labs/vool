@@ -1145,8 +1145,9 @@ modifies an existing OpenClaw installation.
 
 Start VOOL natively instead:
   Start_VOOL.sh    start the VOOL API + mesh daemon
+  Open_Chat.sh     open the VOOL chat page (primary surface)
   Talk_To_VOOL.sh  terminal chat
-  Open_Web0.sh     open the local web UI in your browser
+  Open_Web0.sh     open the local .null browser
 
 OpenClaw-specific skills are maintained separately:
   https://github.com/Parad0x-Labs/openclaw-skills
@@ -1213,6 +1214,38 @@ if ! is_healthy; then
 fi
 open_url "${WEB0_URL}"
 echo "Web0 browser opened at ${WEB0_URL}"
+LAUNCHER_HEAD
+  chmod +x "${target_path}"
+}
+
+
+# The PRIMARY user surface: VOOL's own chat page (/chat), served by the always-on API
+# server (core/vool_chat_page.py). Same ensure-healthy-then-open contract as the web0
+# launcher; Open_Web0 stays a separate optional tool for the .null browser.
+write_chat_page_launcher() {
+  local target_path="$1"
+  cat >"${target_path}" <<'LAUNCHER_HEAD'
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${SCRIPT_DIR}"
+CHAT_URL="http://127.0.0.1:11435/chat"
+HEALTH_URL="http://127.0.0.1:11435/healthz"
+is_healthy() { curl -fsS --max-time 2 "${HEALTH_URL}" >/dev/null 2>&1; }
+open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
+if ! is_healthy; then
+  if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
+    echo "Starting VOOL..."
+    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >/tmp/vool_api_server.log 2>&1 &
+  else
+    echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
+    exit 1
+  fi
+  for _ in $(seq 1 120); do is_healthy && break; sleep 1; done
+  if ! is_healthy; then echo "ERROR: VOOL API did not become healthy on ${HEALTH_URL}." >&2; exit 1; fi
+fi
+open_url "${CHAT_URL}"
+echo "Chat opened at ${CHAT_URL}"
 LAUNCHER_HEAD
   chmod +x "${target_path}"
 }
@@ -1288,8 +1321,8 @@ create_desktop_shortcut() {
       rm -rf "${mac_desktop}/OpenClaw + VOOL.app"
       say "Removed retired desktop shortcut: ${mac_desktop}/OpenClaw + VOOL.app"
     fi
-    if [[ -f "${PROJECT_ROOT}/Open_Web0.sh" ]]; then
-      make_mac_app_bundle "${mac_desktop}/VOOL.app" "${PROJECT_ROOT}/Open_Web0.sh" \
+    if [[ -f "${PROJECT_ROOT}/Open_Chat.sh" ]]; then
+      make_mac_app_bundle "${mac_desktop}/VOOL.app" "${PROJECT_ROOT}/Open_Chat.sh" \
         "VOOL" "ai.vool.launcher.vool" "${assets_dir}/vool.icns"
       DESKTOP_SHORTCUT_PATH="${mac_desktop}/VOOL.app"
     fi
@@ -1323,8 +1356,8 @@ create_desktop_shortcut() {
 [Desktop Entry]
 Type=Application
 Name=VOOL
-Comment=Start VOOL and open the local web UI
-Exec=/usr/bin/env bash "${PROJECT_ROOT}/Open_Web0.sh"
+Comment=Start VOOL and open chat
+Exec=/usr/bin/env bash "${PROJECT_ROOT}/Open_Chat.sh"
 Icon=${assets_dir}/vool.png
 Path=${PROJECT_ROOT}
 Terminal=false
@@ -1811,11 +1844,13 @@ main() {
   write_retired_openclaw_stub "${PROJECT_ROOT}/OpenClaw_VOOL.sh"
   write_stop_launcher "${PROJECT_ROOT}/Stop_VOOL.sh"
   write_web0_launcher "${PROJECT_ROOT}/Open_Web0.sh"
+  write_chat_page_launcher "${PROJECT_ROOT}/Open_Chat.sh"
   write_mac_wrapper "${PROJECT_ROOT}/Start_VOOL.command" "${PROJECT_ROOT}/Start_VOOL.sh"
   write_mac_wrapper "${PROJECT_ROOT}/Talk_To_VOOL.command" "${PROJECT_ROOT}/Talk_To_VOOL.sh"
   write_mac_wrapper "${PROJECT_ROOT}/OpenClaw_VOOL.command" "${PROJECT_ROOT}/OpenClaw_VOOL.sh"
   write_mac_wrapper "${PROJECT_ROOT}/Stop_VOOL.command" "${PROJECT_ROOT}/Stop_VOOL.sh"
   write_mac_wrapper "${PROJECT_ROOT}/Open_Web0.command" "${PROJECT_ROOT}/Open_Web0.sh"
+  write_mac_wrapper "${PROJECT_ROOT}/Open_Chat.command" "${PROJECT_ROOT}/Open_Chat.sh"
   if [[ -f "${PROJECT_ROOT}/Verify_VOOL.sh" ]]; then
     write_mac_wrapper "${PROJECT_ROOT}/Verify_VOOL.command" "${PROJECT_ROOT}/Verify_VOOL.sh"
   fi
@@ -1872,7 +1907,8 @@ main() {
   say "Selected bundle: ${recommended_bundle_id:-unknown} -> ${recommended_bundle_models}"
   say "Profile: ${install_profile_display}"
   say "Start:   ${PROJECT_ROOT}/Start_VOOL.sh"
-  say "Web UI:  ${PROJECT_ROOT}/Open_Web0.sh"
+  say "Chat:    ${PROJECT_ROOT}/Open_Chat.sh (web chat UI)"
+  say "Web0:    ${PROJECT_ROOT}/Open_Web0.sh (.null browser)"
   if [[ -n "${DESKTOP_SHORTCUT_PATH}" ]]; then
     say "Desktop: ${DESKTOP_SHORTCUT_PATH}"
   fi
