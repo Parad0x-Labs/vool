@@ -77,8 +77,10 @@ def test_shell_bootstrap_falls_back_to_canonical_installer() -> None:
     assert '${INSTALL_DIR}/installer/install_vool.sh' in script
     assert script.index('${INSTALL_DIR}/installer/install_vool.sh') < script.index('${INSTALL_DIR}/install_vool.sh')
     assert 'exec_with_profile_args "${launcher}"' in script
-    assert 'exec_with_profile_args "${canonical}" --yes --start --openclaw default' in script
-    assert 'exec_with_profile_args "${canonical}" --yes --openclaw default' in script
+    assert 'exec_with_profile_args "${canonical}" --yes --start' in script
+    assert 'exec_with_profile_args "${canonical}" --yes' in script
+    # OpenClaw retirement: the bootstrap never requests third-party setup.
+    assert "--openclaw" not in script
     assert 'no usable installer entrypoint was found' in script
 
 
@@ -149,8 +151,9 @@ def test_powershell_bootstrap_falls_back_to_canonical_installer() -> None:
     assert 'install_vool.bat' in script
     assert 'installer\\\\install_vool.bat' in script
     assert script.index('installer\\\\install_vool.bat') < script.index('install_vool.bat')
-    assert '& $canonical /Y /START "/OPENCLAW=default" @profileArgs' in script
-    assert '& $canonical /Y "/OPENCLAW=default" @profileArgs' in script
+    assert '& $canonical /Y /START @profileArgs' in script
+    assert '& $canonical /Y @profileArgs' in script
+    assert "/OPENCLAW=" not in script
     assert 'no usable installer entrypoint was found' in script
 
 

@@ -55,7 +55,7 @@ def test_the_interactive_exec_passes_the_port():
 
 def test_the_announced_origin_follows_the_port():
     body = _launcher_template_body()
-    announce = [ln for ln in body.splitlines() if "OpenClaw connects to" in ln]
+    announce = [ln for ln in body.splitlines() if "VOOL API serves" in ln]
     assert announce, "the launcher announces its origin"
     for line in announce:
         assert "VOOL_OPENCLAW_API_URL" in line, (
