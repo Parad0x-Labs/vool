@@ -139,6 +139,16 @@ _NEGATED_RETRIEVAL_DIRECTIVE_RE = re.compile(
 # A negative instruction normally ends at a sentence boundary.  Contrastive transitions are also
 # boundaries because they introduce independent positive work: "don't search X, but fetch Y".
 _HARD_CLAUSE_END_RE = re.compile(r"[.!?;\n]+")
+# The transition patterns' `,?\s+` lead is the polynomial shape the scanner flags on
+# uncontrolled turns (a long whitespace run re-tries every alternation branch per
+# backtrack step). The keyword alternations below are plain literals, and
+# `_transition_search` reproduces each original pattern's exact leftmost match —
+# for one keyword occurrence the valid match starts are the optional comma before
+# its whitespace run and the run itself, so the earliest start at or after `start`
+# is max(comma-or-run-start, start) whenever that is still inside the run — with
+# the explanation chain's optional (pls|please) and (just|only) groups consumed
+# greedily leftward exactly as backtracking would. The original patterns remain
+# for the differential harness that pins this reconstruction.
 _CONTRASTIVE_END_RE = re.compile(
     r",?\s+\b(?:but|however|instead|rather|yet|then|and\s+then)\b",
     re.IGNORECASE,
@@ -148,6 +158,68 @@ _EXPLANATION_TRANSITION_RE = re.compile(
     r"(?:explain|define|describe|tell\s+me|answer)\b",
     re.IGNORECASE,
 )
+_CONTRASTIVE_KEYWORD_RE = re.compile(r"(?:and\s+then|but|however|instead|rather|yet|then)\b", re.IGNORECASE)
+_EXPLANATION_VERB_RE = re.compile(r"(?:explain|define|describe|tell\s+me|answer)\b", re.IGNORECASE)
+
+
+def _earliest_transition_start(text: str, start: int, element_start: int) -> int | None:
+    """Earliest index in the optional-comma-plus-whitespace-run window for one keyword.
+
+    ``element_start`` is where the keyword (or the explanation chain) begins. The
+    whitespace run immediately before it is scanned once; the window of valid match
+    starts is the optional comma in front of the run plus the run itself.
+    """
+    a = element_start
+    while a - 1 >= start and text[a - 1].isspace():
+        a -= 1
+    if element_start - a < 1:
+        return None
+    lo = a - 1 if a - 1 >= start and text[a - 1] == "," else a
+    hi = element_start - 1
+    if lo > hi:
+        return None
+    return max(lo, start)
+
+
+def _transition_search(pattern: re.Pattern[str], text: str, start: int, *, chain: bool) -> int | None:
+    """The exact `.start()` of `pattern.search(text, start)`, or None, without the
+    flagged `,?\\s+` lead. ``chain`` extends the leftward scan over the explanation
+    pattern's optional (pls|please) and (just|only) groups before the mandatory
+    whitespace run."""
+    best: int | None = None
+    pos = start
+    while (match := pattern.search(text, pos)) is not None:
+        element_start = match.start()
+        pos = element_start + 1
+        if chain:
+            # Greedy chain construction, then backtracking exactly as the pattern's
+            # optional groups would: if the mandatory whitespace before the chain
+            # head is missing, the front group is dropped and the next-shorter
+            # chain is tried, down to the bare verb.
+            verb_start = element_start
+            heads = [verb_start]
+            head = verb_start
+            for words in (("just", "only"), ("pls", "please")):
+                run = head
+                while run - 1 >= start and text[run - 1].isspace():
+                    run -= 1
+                if run < head:
+                    for word in words:
+                        w = run - len(word)
+                        if w >= start and text[w:run].casefold() == word:
+                            heads.insert(0, w)
+                            head = w
+                            break
+            found = None
+            for candidate in heads:
+                found = _earliest_transition_start(text, start, candidate)
+                if found is not None:
+                    break
+        else:
+            found = _earliest_transition_start(text, start, element_start)
+        if found is not None and (best is None or found < best):
+            best = found
+    return best
 # The verb that opened the cancelled request comes from the SHARED vocabulary, not a private
 # seven-word list. That list omitted `find`, so "Find me the best mechanical keyboard under $100 on
 # the web. WAIT. Abort the product lookup completely." kept its opening clause in the eligible text
@@ -369,12 +441,15 @@ class RetrievalRequestAuthority:
 def _negative_clause_end(text: str, start: int) -> int:
     candidates = [
         match.start()
-        for pattern in (_HARD_CLAUSE_END_RE, _CONTRASTIVE_END_RE)
+        for pattern in (_HARD_CLAUSE_END_RE,)
         if (match := pattern.search(text, start))
     ]
-    explanation = _EXPLANATION_TRANSITION_RE.search(text, start)
-    if explanation is not None and explanation.start() > start:
-        candidates.append(explanation.start())
+    contrastive = _transition_search(_CONTRASTIVE_KEYWORD_RE, text, start, chain=False)
+    if contrastive is not None:
+        candidates.append(contrastive)
+    explanation = _transition_search(_EXPLANATION_VERB_RE, text, start, chain=True)
+    if explanation is not None and explanation > start:
+        candidates.append(explanation)
     return min(candidates) if candidates else len(text)
 
 

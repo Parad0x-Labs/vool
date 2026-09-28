@@ -51,9 +51,46 @@ _SPLIT_EXT_CLASS_CHARS = frozenset(
 # A dot whose following whitespace separates it from a known extension. The stem class of the
 # grammar below includes the dot itself, so the previous `[class]+\.\s+ext` pattern backtracked
 # through every dot of a long run at every scan position -- quadratic on runs of "a.a.a".
+# The scanner's own `(?<=\.)\s+` lead re-tries every extension word per whitespace-run
+# backtrack step, so `_iter_split_ext_occurrences` walks dots directly instead; the
+# regex stays for the differential harness that pins the iterator to it.
 _SPLIT_EXT_OCCURRENCE_RE = re.compile(
     r"(?<=\.)\s+(?P<ext>py|js|ts|tsx|jsx|txt|md|json|yaml|yml|toml)\b"
 )
+_SPLIT_EXT_WORDS = ("json", "yaml", "toml", "tsx", "jsx", "txt", "yml", "md", "py", "js", "ts")
+_SPLIT_EXT_WORD_CHAR_RE = re.compile(r"\w")
+
+
+def _iter_split_ext_occurrences(raw: str):
+    """``(start, ext_start, end)`` for every `_SPLIT_EXT_OCCURRENCE_RE` match, in order.
+
+    A split extension's dot ends its character run (the whitespace after it ends
+    the run), the extension word starts at the end of that whitespace run, and the
+    longest word followed by a word boundary is the one the ordered alternation
+    plus `\\b` selects. Each dot is visited once; a failed or consumed occurrence
+    never rescans the text behind it.
+    """
+    n = len(raw)
+    pos = 0
+    while pos < n:
+        dot = raw.find(".", pos)
+        if dot < 0:
+            return
+        j = dot + 1
+        while j < n and raw[j].isspace():
+            j += 1
+        if j > dot + 1:
+            for word in _SPLIT_EXT_WORDS:
+                end = j + len(word)
+                if raw[j:end] == word and (end >= n or not _SPLIT_EXT_WORD_CHAR_RE.match(raw[end])):
+                    yield dot + 1, j, end
+                    pos = end
+                    break
+            else:
+                pos = j
+                continue
+            continue
+        pos = dot + 1
 
 
 def _repair_split_extensions(raw: str) -> str:
@@ -70,8 +107,8 @@ def _repair_split_extensions(raw: str) -> str:
     out: list[str] = []
     copy_from = 0
     resume = 0
-    for match in _SPLIT_EXT_OCCURRENCE_RE.finditer(raw):
-        dot = match.start() - 1
+    for m_start, ext_start, m_end in _iter_split_ext_occurrences(raw):
+        dot = m_start - 1
         if dot < resume + 1:
             continue
         run_start = dot
@@ -79,9 +116,9 @@ def _repair_split_extensions(raw: str) -> str:
             run_start -= 1
         if run_start == dot:
             continue
-        out.append(raw[copy_from : match.start()])
-        copy_from = match.start("ext")
-        resume = match.end()
+        out.append(raw[copy_from:m_start])
+        copy_from = ext_start
+        resume = m_end
     out.append(raw[copy_from:])
     return "".join(out)
 
