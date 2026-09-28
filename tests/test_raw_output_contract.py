@@ -604,3 +604,29 @@ def test_invalid_scalar_and_numeric_instructions_complete_promptly(expression):
     script = "import json; from core.raw_output_contract import parse_raw_output_contract; " + expression
     subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+def test_arithmetic_sharing_the_turn_keeps_the_numbers_only_gate():
+    """The arithmetic detector is a linear scan pinned to its retired regex: any digit,
+    whitespace-only step, operator, whitespace-only step, digit sequence counts -- in
+    every multiplication spelling the request grammar knows, and in the decimal digits
+    the engine's ``\\d`` also admits."""
+    from core.raw_output_contract import _contains_arithmetic
+
+    assert _contains_arithmetic("2 + 2")
+    assert _contains_arithmetic("12x34")
+    assert _contains_arithmetic("2×3 / 4")
+    assert _contains_arithmetic("7-3")
+    assert _contains_arithmetic("٣+٤")
+    assert not _contains_arithmetic("1 + x")
+    assert not _contains_arithmetic("version 1.2.3")
+    assert not _contains_arithmetic("only words here")
+
+
+@pytest.mark.parametrize("script", [
+    "from core.raw_output_contract import _contains_arithmetic; _contains_arithmetic('0 +0 '*25000 + '+')",
+    "from core.raw_output_contract import _contains_arithmetic; _contains_arithmetic('0'*100000 + '+')",
+])
+def test_arithmetic_scan_stays_bounded(script):
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})

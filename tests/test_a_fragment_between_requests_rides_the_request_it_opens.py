@@ -215,3 +215,31 @@ def test_open_between_cases_keep_the_look_back_reading(case, wording, fragment, 
 )
 def test_a_binder_that_binds_every_unit_moves_a_near_miss(case, wording, units):
     assert [span.text for span in execution_unit_spans(wording)] == units, case
+
+
+def test_a_comparison_distributed_over_attributes_still_splits_per_attribute():
+    """The "compare <subjects> on A, B and C" enumeration stays one demand per attribute.
+
+    The attribute tail is a linear scan pinned to its retired regex: the enumeration
+    closes the clause, every item is a short attribute phrase, and the preposition
+    keyword matches case-insensitively with tab/space separators, exactly as before.
+    """
+    from core.agent_runtime.answer_coverage import _comparison_attribute_spans
+
+    assert _comparison_attribute_spans(
+        "compare the VW Passat and the Golf on prices, sales and engines"
+    ) == [(38, 44), (46, 51), (56, 63)]
+    assert _comparison_attribute_spans(
+        "COMPARE the VW Passat and the Golf ON prices, sales and engines"
+    ) is not None
+    assert _comparison_attribute_spans(
+        "compare the VW Passat and the Golf on prices,  sales\tand engines"
+    ) is not None
+    assert _comparison_attribute_spans("compare x and y for a\t,b and c") == [(20, 21), (23, 24), (29, 30)]
+    # the colon-facet contract keeps a colon-introduced list whole; a single attribute,
+    # a digit item and a clause without the enumeration shape never split
+    assert _comparison_attribute_spans(
+        "compare the VW Passat and the Golf in detail: prices, sales and engines"
+    ) is None
+    assert _comparison_attribute_spans("compare the VW Passat and the Golf on prices") is None
+    assert _comparison_attribute_spans("compare the VW Passat and the Golf on prices, 1 and 2") is None

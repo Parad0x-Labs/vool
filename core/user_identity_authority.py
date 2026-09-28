@@ -366,7 +366,72 @@ def _is_name_verb(tokens: list[str], index: int) -> bool:
 
 # A clause boundary on the RAW text. The self-reference frames below have to be scoped to a single
 # clause, and `_tokens` throws punctuation away, so the split has to happen before tokenizing.
+# The dash alternative re-tried the whole remaining whitespace run at every start the lookbehind
+# still permits (after each newline inside the run) -- quadratic on "\n \n" walls -- so the split
+# below walks the text once instead; the regex stays for the differential harness that pins the
+# splitter to it.
 _CLAUSE_SPLIT_RE = re.compile(r"[.!?;:,\n]+|(?<![^\S\n])\s+[-–—]{1,2}\s+")
+_CLAUSE_BOUNDARY_CHARS = frozenset(".!?;:,\n")
+_CLAUSE_DASH_CHARS = frozenset("-–—")
+
+
+def _split_raw_clauses(raw: str) -> list[str]:
+    """``raw`` split exactly where ``_CLAUSE_SPLIT_RE`` splits it, in one pass.
+
+    The punctuation alternative is a maximal run of boundary characters. The dash
+    alternative starts at the first whitespace of its run (the lookbehind rejects a
+    start preceded by non-newline whitespace), takes one or two dashes, and needs at
+    least one whitespace after them; when a second dash is taken the character after
+    it must be whitespace, and a one-dash fallback can never rescue that case because
+    the character after the first dash is the second dash itself. A run whose end is
+    not a dash can never open a separator no matter which of its interior positions
+    the lookbehind still permits, so the scan jumps straight to the run's next newline
+    (the punctuation alternative's own split point) and reuses the run's end.
+    """
+    parts: list[str] = []
+    part_start = 0
+    i = 0
+    n = len(raw)
+    run_end_cache = -1
+    while i < n:
+        char = raw[i]
+        if char in _CLAUSE_BOUNDARY_CHARS:
+            end = i + 1
+            while end < n and raw[end] in _CLAUSE_BOUNDARY_CHARS:
+                end += 1
+        elif char.isspace():
+            # the maximal whitespace run containing i, computed once: a boundary-character
+            # run never crosses out of it, so the cache stays valid until the scan leaves it
+            run_end = run_end_cache if run_end_cache > i else i + 1
+            while run_end < n and raw[run_end].isspace():
+                run_end += 1
+            run_end_cache = run_end
+            if i > 0 and raw[i - 1].isspace() and raw[i - 1] != "\n":
+                nl = raw.find("\n", i + 1, run_end)
+                i = nl if nl >= 0 else run_end
+                continue
+            after_dash = run_end
+            if after_dash < n and raw[after_dash] in _CLAUSE_DASH_CHARS:
+                after_dash += 1
+                if after_dash < n and raw[after_dash] in _CLAUSE_DASH_CHARS:
+                    after_dash += 1
+                if after_dash < n and raw[after_dash].isspace():
+                    end = after_dash + 1
+                    while end < n and raw[end].isspace():
+                        end += 1
+                    parts.append(raw[part_start:i])
+                    part_start = i = end
+                    continue
+            nl = raw.find("\n", i + 1, run_end)
+            i = nl if nl >= 0 else run_end
+            continue
+        else:
+            i += 1
+            continue
+        parts.append(raw[part_start:i])
+        part_start = i = end
+    parts.append(raw[part_start:])
+    return parts
 
 #: The identity frames that contain no name word at all, as token sequences.
 _SELF_REFERENCE_FRAMES = (
@@ -451,7 +516,7 @@ def _outside_quoted_examples(text: str) -> str:
 
 def _clauses(text: str) -> list[list[str]]:
     """``text`` split at clause boundaries, each clause tokenized."""
-    tokenized = (_tokens(part) for part in _CLAUSE_SPLIT_RE.split(str(text or "")))
+    tokenized = (_tokens(part) for part in _split_raw_clauses(str(text or "")))
     return [tokens for tokens in tokenized if tokens]
 
 

@@ -401,6 +401,36 @@ def _locate_ignoring_markers(line: str, needle: str) -> tuple[int, int] | None:
     return index_map[found], index_map[found + len(needle) - 1] + 1
 
 
+# The whitespace a removed sentence leaves in front of a surviving punctuation mark. The two
+# adjacent quantifier runs are polynomial in a shape a static scan cannot rule out, so the
+# squeeze below walks the line once instead; the regex stays for the differential harness that
+# pins the squeeze to it.
+_PUNCTUATION_SQUEEZE_RE = re.compile(r"(?<!\s)\s+([,.;:!?])")
+_PUNCTUATION_MARK_CHARS = frozenset(",.;:!?")
+
+
+def _squeeze_spaces_before_punctuation(raw: str) -> str:
+    """``raw`` with each whitespace run before a punctuation mark dropped, exactly as
+    ``_PUNCTUATION_SQUEEZE_RE`` substitutes: the mark keeps its place, a run that reaches the
+    start of the line is dropped with it, and a maximal run always satisfies the lookbehind
+    because the character before it is not whitespace by construction."""
+    out: list[str] = []
+    copy_from = 0
+    for i, char in enumerate(raw):
+        if char not in _PUNCTUATION_MARK_CHARS:
+            continue
+        run_start = i
+        while run_start > 0 and raw[run_start - 1].isspace():
+            run_start -= 1
+        if run_start == i:
+            continue
+        out.append(raw[copy_from:run_start])
+        out.append(char)
+        copy_from = i + 1
+    out.append(raw[copy_from:])
+    return "".join(out)
+
+
 def _trim_unsupported_spans(line: str, unsupported_segments: list[str]) -> str | None:
     """`line` with each unsupported sentence removed where it stands, or None when any of them
     cannot be located verbatim (the caller then withholds the whole line, as before)."""
@@ -418,7 +448,7 @@ def _trim_unsupported_spans(line: str, unsupported_segments: list[str]) -> str |
     out = re.sub(r"(\*\*|__|\*|`)\s*\1", " ", out)
     out = re.sub(r"(?<!\S)(?:\*\*|__|\*|`)(?!\S)", " ", out)
     out = re.sub(r"[ \t]{2,}", " ", out)
-    out = re.sub(r"(?<!\s)\s+([,.;:!?])", r"\1", out)
+    out = _squeeze_spaces_before_punctuation(out)
     # A removed sentence leaves its neighbours' punctuation touching (".;" / ";."): one mark.
     out = re.sub(r"([.!?])\s*[;,]", r"\1", out)
     out = re.sub(r";\s*([.!?])", r"\1", out)

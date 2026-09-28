@@ -1688,10 +1688,110 @@ def _conditional_setup_question(left: str, fragment: str) -> bool:
 #: tail that distributes one comparison over coordinated attributes. The colon-introduced facet
 #: list ("... in detail: A, B, C") is a DIFFERENT shape and stays one demand by its own frozen
 #: contract; this pattern only matches the comma/and enumeration without the colon.
+#: The items group's starred repetition re-partitioned the whitespace inside earlier items on
+#: every failing close -- quadratic on tab-separated enumerations -- so the scanner below walks
+#: the tail once instead; the regex stays for the differential harness that pins the scanner
+#: to it.
 _COMPARISON_ATTRIBUTE_TAIL_RE = re.compile(
     r"\s(?:on|for|across|about|in)\s+(?P<items>[a-z][a-z\s-]*(?:,\s*[a-z][a-z\s-]*)*)$",
     re.IGNORECASE,
 )
+
+#: The keywords in one tuple: no two of them can match at the same position, because every
+#: pair differs within its first two characters and the character after the keyword must be
+#: whitespace.
+_COMPARISON_TAIL_KEYWORDS = ("about", "across", "for", "on", "in")
+
+_COMPARISON_TAIL_LETTERS: frozenset[str] | None = None
+_COMPARISON_TAIL_KEYWORD_SETS: dict[str, frozenset[str]] | None = None
+
+
+def _comparison_tail_letter_chars() -> frozenset[str]:
+    """The characters the tail's ``[a-z]`` class matches under ``re.IGNORECASE``.
+
+    Case-insensitive matching also admits the few characters whose case folding reaches
+    an ASCII letter (``İ``, ``ı``, ``ſ``, and ``K`` where the interpreter folds it), and
+    that set differs between interpreter versions -- so it is derived from the engine
+    itself, once, instead of being spelled out. No character above the range scanned
+    here folds into the ASCII letters.
+    """
+    global _COMPARISON_TAIL_LETTERS
+    if _COMPARISON_TAIL_LETTERS is None:
+        _COMPARISON_TAIL_LETTERS = frozenset(
+            char
+            for char in map(chr, range(0x11000))
+            if re.fullmatch(r"[a-z]", char, re.IGNORECASE)
+        )
+    return _COMPARISON_TAIL_LETTERS
+
+
+def _comparison_tail_keyword_sets() -> dict[str, frozenset[str]]:
+    """For each keyword letter, the characters matching it under ``re.IGNORECASE``.
+
+    Derived from the engine with the same one-time scan as the letter class above, so the
+    scanner's keyword comparison stays exactly the engine's on every interpreter.
+    """
+    global _COMPARISON_TAIL_KEYWORD_SETS
+    if _COMPARISON_TAIL_KEYWORD_SETS is None:
+        lits = "".join(sorted({lit for word in _COMPARISON_TAIL_KEYWORDS for lit in word}))
+        sets: dict[str, set[str]] = {lit: {lit, lit.upper()} for lit in lits}
+        klass = re.compile(f"[{lits}]", re.IGNORECASE)
+        for char in map(chr, range(0x11000)):
+            if klass.fullmatch(char):
+                for lit in lits:
+                    if re.fullmatch(lit, char, re.IGNORECASE):
+                        sets[lit].add(char)
+        _COMPARISON_TAIL_KEYWORD_SETS = {lit: frozenset(chars) for lit, chars in sets.items()}
+    return _COMPARISON_TAIL_KEYWORD_SETS
+
+
+def _comparison_attribute_tail(value: str) -> tuple[int, int] | None:
+    """``(start, items_start)`` of the leftmost ``_COMPARISON_ATTRIBUTE_TAIL_RE`` match.
+
+    The pattern is anchored at the end of the string, so any match spans from its start
+    to the final character and the items group is the whole suffix from its first
+    letter. A position matches exactly when a keyword follows its whitespace, another
+    whitespace run follows the keyword and lands on a letter, and the rest of the string
+    is class characters (letters, whitespace, hyphen) with every comma followed by
+    optional whitespace and a letter -- the only decomposition the starred group admits.
+    That suffix property is computed once, right to left, so a failing candidate costs
+    constant work instead of rescanning the enumeration behind it.
+    """
+    letters = _comparison_tail_letter_chars()
+    keyword_sets = _comparison_tail_keyword_sets()
+    n = len(value)
+    # rest[k]: value[k:] completes the items grammar once its first letter is consumed.
+    # The class star may stop anywhere, so a class character simply inherits its
+    # successor, and a comma needs its whitespace run to land on a letter.
+    rest = [False] * (n + 1)
+    rest[n] = True
+    for k in range(n - 1, -1, -1):
+        char = value[k]
+        if char in letters or char.isspace() or char == "-":
+            rest[k] = rest[k + 1]
+        elif char == ",":
+            j = k + 1
+            while j < n and value[j].isspace():
+                j += 1
+            rest[k] = j < n and value[j] in letters and rest[j + 1]
+    for start in range(n - 1):
+        if not value[start].isspace():
+            continue
+        items_start = -1
+        for word in _COMPARISON_TAIL_KEYWORDS:
+            end = start + 1 + len(word)
+            if end < n and all(
+                value[j] in keyword_sets[lit] for j, lit in enumerate(word, start + 1)
+            ):
+                items_start = end
+                break
+        if items_start < 0 or not value[items_start].isspace():
+            continue
+        while items_start < n and value[items_start].isspace():
+            items_start += 1
+        if items_start < n and value[items_start] in letters and rest[items_start + 1]:
+            return (start, items_start)
+    return None
 
 #: The open-ended tail that says the list continues: "<short attribute> and so on". An explicit
 #: marker from the writer that a coordinated item stands on its own at this comma.
@@ -1718,10 +1818,11 @@ def _comparison_attribute_spans(clause: str) -> list[tuple[int, int]] | None:
         return None
     if ":" in value:
         return None
-    tail = _COMPARISON_ATTRIBUTE_TAIL_RE.search(value)
-    if tail is None or tail.start() < head.end():
+    tail = _comparison_attribute_tail(value)
+    if tail is None or tail[0] < head.end():
         return None
-    items_text = str(tail.group("items") or "")
+    items_start = tail[1]
+    items_text = value[items_start:]
     parts = [part.strip() for chunk in items_text.split(",")
              for part in re.split(r"(?<=\s)and(?=\s)", chunk) if part.strip()]
     if not 2 <= len(parts) <= 8:
@@ -1733,7 +1834,7 @@ def _comparison_attribute_spans(clause: str) -> list[tuple[int, int]] | None:
         if words[0] in _DEMAND_HEADS or any(char.isdigit() for char in part):
             return None
     spans: list[tuple[int, int]] = []
-    cursor = tail.start("items")
+    cursor = items_start
     for part in parts:
         at = value.find(part, cursor)
         if at < 0:

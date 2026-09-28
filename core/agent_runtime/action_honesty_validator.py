@@ -330,11 +330,62 @@ def _split_sentences(text: str) -> list[str]:
     return re.split(r"(?<=[.!?\n])\s+", str(text or ""))
 
 
+# A clause boundary. The dash separator's whitespace runs on both of its sides make the
+# alternation's cost polynomial in a shape a static scan cannot rule out, so the splitter
+# below walks the text once instead; the regex stays for the differential harness that
+# pins the splitter to it.
+_CLAUSE_SPLIT_RE = re.compile(r"(?<=[.!?;:\n])\s+|,\s+|(?<![^\S\n])\s+[—-]\s+")
+_SENTENCE_END_CHARS = frozenset(".!?;:\n")
+_CLAUSE_DASH_CHARS = frozenset("—-")
+
+
 def _split_clauses(text: str) -> list[str]:
     # Split on sentence AND clause boundaries (incl. ; : , —) so a trailing exempting clause
     # ("...; no need to do anything") cannot be glued to the claim it is supposed to (but does not)
     # negate.
-    return re.split(r"(?<=[.!?;:\n])\s+|,\s+|(?<![^\S\n])\s+[—-]\s+", str(text or ""))
+    #
+    # Exactly the separators the regex above finds: a maximal whitespace run after a sentence
+    # ender; a comma with at least one whitespace after it (maximal run); and a maximal
+    # whitespace run led by the text start or a non-newline-whitespace-free character (the
+    # lookbehind), a single em dash or hyphen, and another maximal whitespace run.
+    raw = str(text or "")
+    parts: list[str] = []
+    part_start = 0
+    i = 0
+    n = len(raw)
+    while i < n:
+        char = raw[i]
+        end = -1
+        if char.isspace() and i > 0 and raw[i - 1] in _SENTENCE_END_CHARS:
+            end = i + 1
+            while end < n and raw[end].isspace():
+                end += 1
+        elif char == ",":
+            end = i + 1
+            while end < n and raw[end].isspace():
+                end += 1
+            if end == i + 1:
+                end = -1  # ",\s+" needs at least one whitespace after the comma
+        elif char.isspace() and (i == 0 or not (raw[i - 1].isspace() and raw[i - 1] != "\n")):
+            run_end = i + 1
+            while run_end < n and raw[run_end].isspace():
+                run_end += 1
+            if (
+                run_end < n
+                and raw[run_end] in _CLAUSE_DASH_CHARS
+                and run_end + 1 < n
+                and raw[run_end + 1].isspace()
+            ):
+                end = run_end + 2
+                while end < n and raw[end].isspace():
+                    end += 1
+        if end < 0:
+            i += 1
+            continue
+        parts.append(raw[part_start:i])
+        part_start = i = end
+    parts.append(raw[part_start:])
+    return parts
 
 
 def _solicits_wallet_secret(text: str) -> bool:
