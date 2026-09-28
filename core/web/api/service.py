@@ -5981,7 +5981,13 @@ def _dispatch_post_inner(
                 sp_session = str(body.get("session_id") or "").strip()
                 sp_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
                 sp_dir = runtime_paths.data_path("session_bundles")
-                sp_out = sp_dir / f"{sp_session.replace(':', '_') or 'session'}-{sp_stamp}.voolsession"
+                # The filename fragment is DERIVED from the session id, and session ids are
+                # data (native kinds carry colons; a long-lived home can hold any shape its
+                # writers accepted). Sanitize path syntax in the derived filename — never in
+                # the identity itself — so no session id can steer the bundle file outside
+                # session_bundles. The stamp keeps derived names distinct.
+                sp_fragment = re.sub(r"[^A-Za-z0-9._-]+", "_", sp_session).strip("._") or "session"
+                sp_out = sp_dir / f"{sp_fragment}-{sp_stamp}.voolsession"
                 result = session_portability.export_session(sp_session, sp_out, passphrase=sp_passphrase)
             else:
                 result = session_portability.import_bundle(

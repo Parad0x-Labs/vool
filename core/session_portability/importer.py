@@ -132,6 +132,7 @@ def _import_verified(
 
     _check_bounds(payload, attachment_members)
     _check_authority(payload, attachment_members)
+    _check_identities(payload)
 
     source_session_id = str((payload.get("session") or {}).get("session_id") or "")
     if not source_session_id:
@@ -349,6 +350,62 @@ def _check_authority(payload: dict[str, Any], attachment_members: dict[str, byte
                     f"Embedded attachment '{item.get('name')}' carries credential material "
                     "and was refused.",
                 )
+
+
+# --------------------------------------------------------------------------- identities
+
+
+def _component_safe(value: str, *, allow_colon: bool) -> bool:
+    """One path component: no separators, parent steps, absolute prefixes or NUL.
+
+    A colon is part of NATIVE session kinds ("openclaw:<digest>", "auto-research:<topic>")
+    and is never filename-joined verbatim — the served export route maps it away before its
+    join — so session ids admit it. Ids that ARE joined verbatim into filenames (attachment
+    ids, the bundle id) refuse it too: on Windows a prefix like ``C:`` or ``C:id`` redirects
+    the join to that drive.
+    """
+    clean = str(value or "").strip()
+    if not clean or clean in {".", ".."}:
+        return False
+    if "/" in clean or "\\" in clean or "\x00" in clean:
+        return False
+    return allow_colon or ":" not in clean
+
+
+def _check_identities(payload: dict[str, Any]) -> None:
+    """The bundle names its own identities, and identities become file paths downstream.
+
+    A session id lands in the served export route's FILENAME join, and each attachment id
+    (with the bundle id) names the staged and published attachment files. A bundle is
+    third-party data — a colleague's export — so a declared id that is not one path component
+    names a path OUTSIDE those stores rather than an identity. Refuse it before any write,
+    exactly as the bounds and authority checks do; honest ids from every VOOL build are single
+    components (``openclaw:<digest>``, ``att_<hex>``, the manifest's hex bundle digest).
+    """
+    from core.session_portability.api import PortabilityRefused
+
+    session_id = str((payload.get("session") or {}).get("session_id") or "")
+    if not _component_safe(session_id, allow_colon=True):
+        raise PortabilityRefused(
+            "BUNDLE_MALFORMED",
+            f"The bundle names session '{session_id}' — a session id is one path component "
+            "(no separators, parent steps or absolute prefixes); nothing was imported.",
+        )
+    bundle_id = str(payload.get("bundle_id") or "")
+    if bundle_id and not _component_safe(bundle_id, allow_colon=False):
+        raise PortabilityRefused(
+            "BUNDLE_MALFORMED",
+            f"The bundle declares id '{bundle_id}', which is not one path component; "
+            "nothing was imported.",
+        )
+    for item in (payload.get("evidence") or {}).get("embedded") or []:
+        attachment_id = str(item.get("attachment_id") or "")
+        if not _component_safe(attachment_id, allow_colon=False):
+            raise PortabilityRefused(
+                "BUNDLE_MALFORMED",
+                f"Embedded attachment '{item.get('name')}' declares id '{attachment_id}' — an "
+                "attachment id names ONE file in the attachments store; nothing was imported.",
+            )
 
 
 # --------------------------------------------------------------------------- existence/collision

@@ -216,3 +216,80 @@ def test_no_imported_task_auto_executes(tmp_path):
             conn.close()
         assert checkpoints == 0, "no imported checkpoint may exist, let alone execute"
         assert attempts == 0, "no imported attempt may exist, let alone execute"
+
+
+# --------------------------------------------------------------------------------------
+# Declared identities: an id a bundle names about itself is data, and it becomes a path
+# --------------------------------------------------------------------------------------
+
+
+def test_a_traversal_session_id_is_refused_before_any_write(tmp_path):
+    """A colleague's bundle declaring session '../pwned' names a path, not an identity: the
+    id lands in the served export route's filename join, so it is refused before any write."""
+    from core.session_portability import api
+
+    payload, _ = _export_raw(tmp_path)
+    payload["session"] = dict(payload.get("session") or {}, session_id="../pwned-session")
+    out = _rewrite_payload(tmp_path, payload, "traversal-session.voolsession")
+
+    fresh = tmp_path / "fresh-home"
+    with pytest.raises(api.PortabilityRefused) as err:
+        api.import_bundle(out, home=fresh)
+    assert err.value.code == "BUNDLE_MALFORMED"
+    assert not fresh.exists() or list(fresh.rglob("chat_attachments")) == []
+
+
+def test_a_traversal_attachment_id_is_refused_before_any_write(tmp_path):
+    """The attachment id names the staged and published attachment files; path syntax in it
+    wrote attachment bytes OUTSIDE the store before the publish rename even crashed."""
+    from core.session_portability import api
+
+    payload, _ = _export_raw(tmp_path)
+    embedded = list((payload.get("evidence") or {}).get("embedded") or [])
+    assert embedded, "fixture: the seeded attachment must be part of the export"
+    embedded[0]["attachment_id"] = "../evil-att"
+    out = _rewrite_payload(tmp_path, payload, "traversal-attachment.voolsession")
+
+    fresh = tmp_path / "fresh-home"
+    with pytest.raises(api.PortabilityRefused) as err:
+        api.import_bundle(out, home=fresh)
+    assert err.value.code == "BUNDLE_MALFORMED"
+    if fresh.exists():
+        assert list(fresh.rglob("evil-att*")) == []
+        assert list(fresh.rglob("*.bin")) == []
+
+
+def test_preview_refuses_the_same_path_syntax_ids_the_import_refuses(tmp_path):
+    """The preview is the confirmation gate the operator decides on: it must tell the truth
+    about the import, refusing what the import refuses."""
+    from core.session_portability import api
+
+    payload, _ = _export_raw(tmp_path)
+    payload["session"] = dict(payload.get("session") or {}, session_id="a/b")
+    out = _rewrite_payload(tmp_path, payload, "preview-traversal.voolsession")
+    with pytest.raises(api.PortabilityRefused) as err:
+        api.preview_import(out)
+    assert err.value.code == "BUNDLE_MALFORMED"
+
+
+@pytest.mark.parametrize(
+    "bad", ["..", ".", "a/b", "a\\b", "/abs", "a\x00b", "C:", "C:pack", "\\\\server\\share"]
+)
+def test_path_syntax_bundle_ids_are_refused_by_the_identity_check(bad):
+    from core.session_portability.api import PortabilityRefused
+    from core.session_portability.importer import _check_identities
+
+    with pytest.raises(PortabilityRefused):
+        _check_identities({"session": {"session_id": "sess-1"}, "bundle_id": bad, "evidence": {}})
+
+
+@pytest.mark.parametrize(
+    "good_session",
+    ["openclaw:aaaaaaaaaaaaaaaaaaaa", "auto-research:topic", "sess-4f2a9b1c3d00", "intake-0016ff"],
+)
+def test_native_session_id_kinds_pass_the_identity_check(good_session):
+    """Colons are native session-kind syntax (openclaw:<digest>, auto-research:<topic>) and
+    never reach a filename join verbatim; every native kind keeps importing."""
+    from core.session_portability.importer import _check_identities
+
+    _check_identities({"session": {"session_id": good_session}, "bundle_id": "a" * 64, "evidence": {}})

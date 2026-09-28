@@ -75,6 +75,35 @@ def test_export_route_writes_a_bundle_under_the_home(app, seeded):
     assert summary["session"]["session_id"] == SESSION
 
 
+def test_export_route_sanitizes_a_path_syntax_session_id_into_the_home(app, tmp_path):
+    """The export filename is DERIVED from the session id, and a session id is data a home's
+    writers may have accepted (native kinds carry colons; nothing forbids other punctuation
+    at birth). Path syntax is sanitized in the derived filename — never in the identity — so
+    no session id can steer the bundle file outside session_bundles."""
+    from pathlib import Path
+
+    evil = "auto-research:topic/../../outside"
+    support.seed_turns(session_id=evil)
+    support.set_session_meta(session_id=evil, title="weird but real")
+
+    status, body = _post(app, EXPORT, {"session_id": evil})
+    assert status == 200, body
+    assert body["ok"] is True, body
+
+    out = Path(body["path"])
+    bundles_root = runtime_paths.data_path("session_bundles").resolve()
+    assert out.is_file()
+    assert out.resolve().relative_to(bundles_root)  # the file is INSIDE the bundles root
+    # and the traversal fragment escaped nothing
+    assert not (bundles_root.parent / "outside").exists()
+    assert not (bundles_root.parent / "topic").exists()
+
+    from core.session_portability import api as portability_api
+
+    summary = portability_api.inspect_bundle(out)
+    assert summary["session"]["session_id"] == evil  # the identity inside the bundle is intact
+
+
 def test_import_route_lands_a_bundle_in_this_home(app, seeded, tmp_path):
     from core.session_portability import api
 
