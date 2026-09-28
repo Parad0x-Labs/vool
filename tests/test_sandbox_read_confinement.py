@@ -106,3 +106,46 @@ def test_live_seatbelt_blocks_listing_external_volumes(tmp_path):
         capture_output=True, text=True, timeout=20,
     )
     assert allowed.returncode == 0, allowed.stderr
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="seatbelt is macOS-only")
+def test_live_named_root_is_restored_inside_a_denied_tree_and_siblings_stay_denied():
+    """Executable deny-then-allow proof with CONTROLLED INTERNAL fixtures — the same
+    layer-1-deny plus named-root-allow mechanism an external-volume workspace goes through,
+    without touching any owner's data: a read root named inside a denied tree is readable
+    again (the supported external-workspace positive), while a SIBLING directory under the
+    same deny stays unreadable (the sibling-volume refusal)."""
+    import shutil
+
+    denied_root = Path(tempfile.gettempdir()).resolve()  # a private read root in the profile
+    control = Path(tempfile.mkdtemp(prefix="vool-deny-allow-", dir=str(denied_root)))
+    try:
+        named = control / "named-workspace"
+        sibling = control / "sibling-secret"
+        named.mkdir()
+        sibling.mkdir()
+        (named / "readme.txt").write_text("ALLOWED")
+        (sibling / "secret.txt").write_text("DENIED")
+        prof = _macos_confined_profile((control / "job-ws",), read_roots=(named,))
+        with tempfile.NamedTemporaryFile("w", suffix=".sb", delete=False) as f:
+            f.write(prof)
+            sbf = f.name
+        script = (
+            "import sys\n"
+            f"assert open({str(named / 'readme.txt')!r}).read() == 'ALLOWED'\n"
+            "try:\n"
+            f"    open({str(sibling / 'secret.txt')!r}).read()\n"
+            "except PermissionError:\n"
+            "    print('SIBLING_DENIED')\n"
+            "    sys.exit(0)\n"
+            "print('SIBLING_READ')\n"
+            "sys.exit(3)\n"
+        )
+        r = subprocess.run(
+            ["sandbox-exec", "-f", sbf, "python3", "-c", script],
+            capture_output=True, text=True, timeout=20,
+        )
+        assert r.returncode == 0, (r.stdout, r.stderr)
+        assert "SIBLING_DENIED" in r.stdout, (r.stdout, r.stderr)
+    finally:
+        shutil.rmtree(control, ignore_errors=True)
