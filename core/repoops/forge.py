@@ -36,13 +36,17 @@ def transport_factory() -> Callable[..., Any] | None:
 def _remote_hostname(url: str) -> str:
     """The host a remote URL names: scheme forms (https://, ssh://, git://), SCP-style git
     remotes (git@host:path) and bare host/path shapes. A host that merely embeds a
-    provider's name (github.com.evil.com) names ITSELF, not that provider."""
+    provider's name (github.com.evil.com) names ITSELF, not that provider. Malformed input
+    (e.g. an unclosed IPv6 bracket) names no host — the caller refuses it, never raises."""
 
     text = str(url or "").strip()
     if not text:
         return ""
     if "://" in text:
-        return str(urlsplit(text).hostname or "").strip().lower()
+        try:
+            return str(urlsplit(text).hostname or "").strip().lower()
+        except ValueError:
+            return ""
     head = text.split("/", 1)[0]
     if "@" in head:
         head = head.rsplit("@", 1)[1]
@@ -52,54 +56,44 @@ def _remote_hostname(url: str) -> str:
 def _provider_hosts(provider: str) -> tuple[str, ...]:
     """The hosts that name `provider`: its public hosts, plus the owner's base-URL override
     host when one is configured — the same override law ``core.kas.registry`` pins the
-    adapter's transport with, read on the VOOL side of the boundary."""
+    adapter's transport with, read on the VOOL side of the boundary. This is the ONLY
+    self-hosted authority: a remote classifies as GitLab when its HOST is exactly one of
+    these, never because of path text."""
 
     import os
 
     hosts = {"github": ("github.com", "www.github.com"), "gitlab": ("gitlab.com", "www.gitlab.com")}[provider]
     override = str(os.environ.get(f"VOOL_FORGE_BASE_URL_{provider.upper()}") or "").strip()
     if override:
-        host = str(urlsplit(override).hostname or "").strip().lower()
+        host = _remote_hostname(override)
         if host:
             hosts += (host,)
     return hosts
 
 
-def _remote_path(url: str) -> str:
-    """The path component of a remote URL — scheme forms parsed, bare host/path split at the
-    first slash. A ``/gitlab`` marker in HERE names a path-hosted GitLab; the same marker
-    found in the raw text would also fire for a host like ``gitlab.com.evil.attacker.test``,
-    because ``://gitlab`` already contains it."""
-
-    text = str(url or "").strip()
-    if "://" in text:
-        return str(urlsplit(text).path or "")
-    if "/" in text:
-        return "/" + text.split("/", 1)[1]
-    return ""
-
-
 def provider_for_remote(url: str) -> str:
     """Which forge a remote URL names. Empty when it names none we have an adapter for.
 
-    The match is on the HOST the remote names, exactly. A substring match would classify
-    github.com.evil.com as GitHub and mygitlab.com as GitLab, pointing an
-    operator-authorized forge action at the wrong real forge; the transport's host pinning
-    keeps such a mislabel from ever reaching an arbitrary host, and this exact match keeps
-    it from reaching the wrong pinned one. The supported self-hosted lanes stay open: the
-    owner's base-URL override host classifies, and a ``/gitlab`` path still selects GitLab
-    for path-hosted instances."""
+    The match is on the HOST the remote names, exactly, against the provider's public hosts
+    plus the owner's configured override host. A substring match (in the host or anywhere in
+    the path) would classify github.com.evil.com, mygitlab.com or
+    unrelated.example/gitlab-mirror/… as a real provider and point an operator-authorized
+    forge action at the WRONG real pinned forge — the transport's host pinning keeps such a
+    mislabel from reaching an arbitrary host, but pinning cannot make the choice of provider
+    correct. Self-hosted and path-hosted instances classify through their configured
+    authority: set VOOL_FORGE_BASE_URL_GITLAB (or _GITHUB) to the instance's origin, and
+    remotes on exactly that host — any path layout — classify. Malformed remotes name no
+    host and classify nothing; callers turn that into their own refusal."""
 
     text = str(url or "").strip()
     if not text:
         return ""
     host = _remote_hostname(text)
-    if host:
-        if host in _provider_hosts("github"):
-            return "github"
-        if host in _provider_hosts("gitlab"):
-            return "gitlab"
-    if "/gitlab" in _remote_path(text).lower():
+    if not host:
+        return ""
+    if host in _provider_hosts("github"):
+        return "github"
+    if host in _provider_hosts("gitlab"):
         return "gitlab"
     return ""
 
