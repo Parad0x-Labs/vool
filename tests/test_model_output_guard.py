@@ -394,3 +394,83 @@ def test_collapse_space_runs_matches_the_regex_semantics():
     assert _collapse_space_runs_before_newlines("no newline here   ") == "no newline here   "
     assert _collapse_space_runs_before_newlines("   \n   \n") == "\n\n"
     assert _collapse_space_runs_before_newlines("") == ""
+
+
+# --- follow-up corrections: EOF closers, repeated closed blocks, detection gate -------------------
+
+# Three reproduced gaps in the linear scanners (frozen witnesses preserved in
+# scratch/followup-failures-before.txt): an incomplete close tag ending exactly at end-of-input
+# crashed the index build with IndexError (baseline returned the text unchanged), the close-span
+# lookup restarted from index zero per opening (quadratic across many sequential closed blocks:
+# 225 ms vs baseline 3.9 ms at 4000), and the detection gate still ran the probe regex whose
+# `[^>]*>` retries a missing `>` across repeated openings (a baseline-retained gap, quadratic).
+
+
+def test_incomplete_closers_at_end_of_input_pass_through_unchanged():
+    # Baseline on pristine cfae90f returns each of these UNCHANGED with no markers; the index
+    # build must not crash on a close name that ends exactly at EOF (no '>' byte to index).
+    frozen = ["</tool", "</function", "}</invoke", "ordinary prose </tool_call"]
+    for text in frozen:
+        assert foreign_markers(text) == [], text
+        assert scrub_foreign_markers(text) == text, text
+        assert validate_contract("plain_text", text).normalized_text == text, text
+
+
+def test_truncated_closers_for_both_index_families_stay_baseline_exact():
+    # The exact-tag family (`</name>`) and the brace family (`}</name>`) each need their own
+    # '>' byte; truncation anywhere before it means no close, so the opening rules decide —
+    # these must match the pinned regexes byte-for-byte.
+    cases = [
+        "<tool_call>a</tool_call",      # truncated block close at EOF: block survives
+        "<tool>{}</tool ",               # truncated ambiguous close: envelope survives
+        "<tool_use>{1}</tool_use",
+        "<function=x>body</function",
+        "<invoke a=1>b</invoke" * 2,
+    ]
+    import re
+
+    from core import model_output_guard as guard
+
+    for text in cases:
+        assert guard._TOOL_BLOCK_RE.sub("", text) == guard._remove_spans(
+            text,
+            guard._iter_tag_blocks(
+                text, guard._TagScanIndex(text),
+                names=guard._TOOL_BLOCK_NAMES, require_boundary=True, close_kind="required",
+            ),
+        ), text
+        assert guard._AMBIGUOUS_TOOL_BLOCK_RE.sub("", text) == guard._remove_spans(
+            text,
+            guard._iter_tag_blocks(
+                text, guard._TagScanIndex(text),
+                names=guard._AMBIGUOUS_NAMES, require_boundary=True, close_kind="brace",
+            ),
+        ), text
+        assert guard._FUNCTION_INVOKE_RE.sub("", text) == guard._remove_spans(
+            text, guard._iter_function_invokes(text, guard._TagScanIndex(text))
+        ), text
+        # the whole pipeline still agrees with the pinned pipeline
+        assert re.sub(r"[ \t]+\n", "\n", text) == _collapse_space_runs_before_newlines(text)
+
+
+def test_repeated_closed_envelopes_scrub_cleanly_and_stay_bounded():
+    # The follow-up witness: many sequential COMPLETE envelopes. Content stays exact (a pure
+    # tool-call chain scrubs to the empty failed turn) and the per-doubling cost stays ~x2
+    # (the restart-from-zero lookup grew x4: 225 ms at 4000 blocks vs baseline 3.9 ms).
+    assert scrub_foreign_markers("<function=x>body</function>" * 40) == ""
+    assert scrub_foreign_markers("head " + "<tool_call>q</tool_call>" * 40 + " tail") == "head  tail"
+    small = _worst_case_runtime(lambda n: "<function=x>body</function>" * (n // 26))
+    assert small < _LINEAR_BUDGET, f"per-doubling ratio {small:.2f} is super-linear"
+
+
+def test_detection_gate_repeated_openings_stay_bounded():
+    # The gate runs on EVERY provider output; its function probe used to rescan for a missing
+    # '>' across repeated openings (x4 per doubling on pristine main too — a retained gap).
+    # Markers keep their exact text, uniqueness and the eight-marker cap.
+    assert foreign_markers("<function=x>go</function> <FUNCTION=y> <function tail") == [
+        "<function=x>",
+        "<FUNCTION=y>",
+    ]
+    assert foreign_markers("<function=a>" * 40) == ["<function=a>"]  # uniqueness, not 40 rows
+    ratio = _worst_case_runtime(lambda n: "<function=" * (n // 10))
+    assert ratio < _LINEAR_BUDGET, f"per-doubling ratio {ratio:.2f} is super-linear"
