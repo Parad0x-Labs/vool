@@ -445,6 +445,37 @@ def _flat_ollama_context_window(bundle_role: str) -> int:
     return _BASELINE_CONTEXT_WINDOW
 
 
+def _moe_probe_matches(clean: str) -> bool:
+    r"""Whether ``\d+(?:\.\d+)?x\d+(?:\.\d+)?b`` matches an already-lowercased model tag.
+
+    The regex rescans a digit run from every start position (30 s at 64k chars through
+    `_ollama_context_sizing` on main cfae90f — CodeQL 133), and model tags reach this gate from
+    router/summarizer/arbiter calls with no length bound. Anchoring at the terminal ``b`` and
+    walking the expert-size number backwards decides the same question in one pass: the boolean
+    only needs SOME ``A x B b`` decomposition, and ``A`` is satisfied exactly when a digit sits
+    immediately before the ``x``, so only ``B``'s two shapes (with or without its decimal part)
+    need trying per ``b``.
+    """
+    pos = clean.find("b")
+    while pos != -1:
+        q = pos - 1
+        if q >= 0 and clean[q].isdecimal():
+            while q > 0 and clean[q - 1].isdecimal():
+                q -= 1
+            # B without its decimal part: `x` immediately before the digit run.
+            if q > 0 and clean[q - 1] == "x" and q >= 2 and clean[q - 2].isdecimal():
+                return True
+            # B with its decimal part: digits, a dot, then the run reaching the b.
+            if q > 1 and clean[q - 1] == "." and clean[q - 2].isdecimal():
+                b_start = q - 2
+                while b_start > 0 and clean[b_start - 1].isdecimal():
+                    b_start -= 1
+                if b_start > 0 and clean[b_start - 1] == "x" and b_start >= 2 and clean[b_start - 2].isdecimal():
+                    return True
+        pos = clean.find("b", pos + 1)
+    return False
+
+
 def _known_model_parameter_billions(model_tag: str) -> float | None:
     """Return a model's total parameter count only when the tag or registry proves it."""
     clean = str(model_tag or "").strip().lower()
@@ -461,7 +492,7 @@ def _known_model_parameter_billions(model_tag: str) -> float | None:
     # total parameters. Parsing its trailing 7b as the model size would grant an
     # unsafe <=8B context ceiling. Fail closed unless registry metadata above
     # provides the actual total.
-    if re.search(r"\d+(?:\.\d+)?x\d+(?:\.\d+)?b", clean):
+    if _moe_probe_matches(clean):
         return None
     match = re.search(r"(?:^|[^0-9.])(\d+(?:\.\d+)?)b(?:[^a-z0-9]|$)", clean)
     if not match:
