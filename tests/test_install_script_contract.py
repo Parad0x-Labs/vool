@@ -332,6 +332,17 @@ validate_selected_install_profile() { :; }
 _MAIN_HARNESS = "#!/usr/bin/env bash\nset -euo pipefail\nsource \"${HARNESS_FUNCTIONS}\"\n"
 
 
+def _sh(value: str | Path) -> str:
+    """One interpolation rule for every host path embedded in generated shell: convert for
+    Git-Bash (tests/platform_helpers.bash_path) and shell-quote, so paths with spaces and
+    Windows-native trees survive verbatim."""
+    import shlex
+
+    from tests.platform_helpers import bash_path
+
+    return shlex.quote(bash_path(str(value)))
+
+
 def _run_installer_main(
     tmp_path: Path,
     *,
@@ -340,7 +351,8 @@ def _run_installer_main(
     runtime_home: Path,
     auto_start: bool = False,
     launch_agent_path: str = "",
-    path_prepend: str = "",
+    keep_functions: tuple[str, ...] = (),
+    sleep_fast: bool = False,
     override_functions: str = "",
 ) -> subprocess.CompletedProcess[str]:
     import os
@@ -350,8 +362,24 @@ def _run_installer_main(
     installer_src = (PROJECT_ROOT / "installer" / "install_vool.sh").read_text(encoding="utf-8")
     cut = installer_src.rfind('\nparse_args "$@"')
     assert cut != -1
+    # Boundary doubles are FUNCTIONS, never PATH shadowing: a Git-Bash login shell may
+    # rewrite PATH, and Windows uses a different separator, but a defined function always
+    # wins over any binary the resolver would find. keep_functions drops a stub so the
+    # REAL installer body runs (the owning setup boundary) with only its external
+    # service-manager commands doubled via override_functions.
+    stubs = _MAIN_STUBS
+    for name in keep_functions:
+        needle = f"{name}() {{ :; }}\n"
+        assert needle in stubs, f"cannot keep non-stubbed or multi-line function: {name}"
+        stubs = stubs.replace(needle, "")
     functions_path = tmp_path / "installer_functions.sh"
-    functions_path.write_text(installer_src[:cut] + "\n" + _MAIN_STUBS, encoding="utf-8")
+    functions_path.write_text(installer_src[:cut] + "\n" + stubs, encoding="utf-8")
+
+    extra_functions = ""
+    if sleep_fast:
+        # Test-only time double for the bounded verification poll: the production loop and
+        # its 240-iteration limit stay byte-for-byte intact.
+        extra_functions += "sleep() { :; }\n"
 
     harness_path = tmp_path / "run_main.sh"
     harness_path.write_text(
@@ -366,9 +394,10 @@ def _run_installer_main(
                 'RUNTIME_HOME_OVERRIDE="${HARNESS_RUNTIME_HOME}"',
                 'AGENT_NAME_OVERRIDE="${HARNESS_AGENT_NAME}"',
                 'VOOL_HOME="${HARNESS_RUNTIME_HOME}"',
-                f'LAUNCH_AGENT_PATH="{launch_agent_path}"',
+                f"LAUNCH_AGENT_PATH={_sh(launch_agent_path)}",
                 'DESKTOP_SHORTCUT_PATH=""',
                 override_functions,
+                extra_functions,
                 "main",
                 'rc=$?',
                 'printf "\\nHARNESS_MAIN_RC=%s\\n" "${rc}"',
@@ -402,8 +431,6 @@ def _run_installer_main(
         "HARNESS_AGENT_NAME": agent_name,
         "PYTHONDONTWRITEBYTECODE": "1",
     }
-    if path_prepend:
-        env["PATH"] = f"{path_prepend}:{env.get('PATH', '')}"
     if real_python:
         env["HARNESS_REAL_PYTHON"] = real_python
     return subprocess.run(
@@ -483,77 +510,329 @@ def test_installer_main_flow_falls_back_to_requested_name_when_runtime_python_is
     assert not (runtime_home / "data" / "owner_identity.json").exists()
 
 
-def _healthy_curl_stub(tmp_path: Path) -> tuple[Path, Path]:
-    """A curl that records every URL and answers healthy, standing in for an
-    already-running VOOL API on the canonical port. The boundary under test is main()'s
-    --start SEQUENCE (verify the supervised runtime vs exec a second server), not curl."""
-    stub_dir = tmp_path / "stubbin"
-    stub_dir.mkdir(parents=True, exist_ok=True)
-    record = tmp_path / "curl-urls.txt"
-    curl = stub_dir / "curl"
-    curl.write_text(
-        "#!/usr/bin/env bash\n"
-        f'printf "%s\\n" "$*" >> "{record}"\n'
-        "exit 0\n",
-        encoding="utf-8",
+class _VerifyFixtureServer:
+    """A real loopback HTTP server on the canonical 127.0.0.1:11435 for the --start
+    verification boundary: real curl, real sockets, real main flow. Modes:
+
+    - ``vool``: the served /healthz payload contract (ok=true + runtime.app_version) and a
+      /v1/models 200 — the intended healthy runtime.
+    - ``foreign200``: HTTP 200 with a NON-VOOL body at both paths — an unrelated service
+      squatting on the port.
+    - ``intermittent``: alternates 200/503 on the polled paths so the consecutive-success
+      counter must reset and verification must ultimately fail.
+
+    Every request is logged so poll patterns and bootstrap-before-poll ordering are provable.
+    ``/bootstrap-marker`` is the ordering probe the service-manager double reports through.
+    """
+
+    VOOL_HEALTH = {
+        "ok": True,
+        "agent": "FixtureAgent",
+        "daemon": False,
+        "runtime": {"app_version": "0.6.0", "protocol_version": 1},
+    }
+
+    def __init__(self, tmp_path: Path, mode: str) -> None:
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        self.log_path = tmp_path / "fixture-requests.jsonl"
+        self.mode = mode
+        state: dict[str, int] = {"calls": 0}
+        rig = self
+
+        class _Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *_a: object) -> None:
+                return
+
+            def _send(self, payload: dict, status: int = 200) -> None:
+                import json
+
+                body = json.dumps(payload).encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self) -> None:
+                import json
+
+                with rig._lock:
+                    with open(rig.log_path, "a", encoding="utf-8") as fh:
+                        fh.write(json.dumps({"path": self.path}) + "\n")
+                    if rig.mode == "intermittent":
+                        state["calls"] += 1
+                        healthy = state["calls"] % 2 == 1
+                    else:
+                        healthy = True
+                if self.path.startswith("/bootstrap-marker"):
+                    return self._send({"ok": True})
+                if rig.mode == "vool":
+                    if self.path.startswith("/healthz"):
+                        return self._send(dict(_VerifyFixtureServer.VOOL_HEALTH))
+                    if self.path.startswith("/v1/models"):
+                        return self._send({"object": "list", "data": []})
+                    return self._send({})
+                if not healthy:
+                    return self._send({"error": "unavailable"}, status=503)
+                if self.path.startswith("/healthz"):
+                    return self._send({"status": "ok", "service": "unrelated-demo-app"})
+                return self._send({"models": []})
+
+        self._lock = threading.Lock()
+        try:
+            self._server = ThreadingHTTPServer(("127.0.0.1", 11435), _Handler)
+        except OSError:
+            import pytest
+
+            pytest.skip("canonical port 11435 is busy in this environment")
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+
+    def paths(self) -> list[str]:
+        import json
+
+        if not self.log_path.exists():
+            return []
+        return [json.loads(line)["path"] for line in self.log_path.read_text(encoding="utf-8").splitlines()]
+
+    def stop(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+
+
+def _supervisor_boundary_doubles(tmp_path: Path) -> str:
+    """Function doubles for the OWNING supervisor setup boundary: the REAL
+    install_macos_launch_agent runs, but launchctl is recorded (and reports through the
+    fixture's /bootstrap-marker so bootstrap-before-verification ordering is provable in one
+    linear request log). No real service manager, scheduled task or owner state is touched."""
+    record = tmp_path / "launchctl-calls.txt"
+    return (
+        "launchctl() {\n"
+        f"  printf '%s\\n' \"$*\" >> {_sh(record)}\n"
+        "  curl -sf --max-time 2 http://127.0.0.1:11435/bootstrap-marker >/dev/null 2>&1 || true\n"
+        "  return 0\n"
+        "}\n"
     )
-    curl.chmod(0o755)
-    return stub_dir, record
 
 
-def test_installer_start_flag_verifies_supervised_runtime_instead_of_second_bind(
+def _canary_direct_launcher(tmp_path: Path) -> Path:
+    """A canary Start_VOOL.sh in the harness's project root: if main() ever took the
+    direct-start branch it would exec this and leave the marker behind (and exit 42)."""
+    marker = tmp_path / "direct-start-ran.txt"
+    start_script = tmp_path / "run1" / "project" / "Start_VOOL.sh"
+    start_script.parent.mkdir(parents=True, exist_ok=True)
+    start_script.write_text(f"#!/usr/bin/env bash\ntouch {_sh(marker)}\nexit 42\n", encoding="utf-8")
+    start_script.chmod(0o755)
+    return marker
+
+
+def test_installer_start_verify_accepts_real_vool_health_and_rejects_foreign_services(
     tmp_path: Path,
 ) -> None:
-    """--start after an install that owns a supervisor VERIFIES health; it never execs a
-    second server against the port the supervisor already bound.
+    """--start with an installed supervisor VERIFIES the served runtime, against REAL network
+    fixtures on the canonical port — not a body-discarding curl stub.
 
-    On macOS the installer always installs and bootstraps the launchd keep-alive agent
-    BEFORE the --start step (install_macos_launch_agent sets LAUNCH_AGENT_PATH during the
-    install steps), so the supported sequence is: supervisor starts the API during the
-    install, then --start polls /healthz + /v1/models for stable health and exits 0/1.
-    An already-healthy instance on the canonical port is reused by that poll -- no second
-    bind, no exit 3 (the API server's own bind-failure code, reached only on the direct
-    Start_VOOL.sh path when no supervisor was installed).
+    Arms: the intended healthy runtime (verified, exit 0, no second bind, supervisor
+    bootstrapped BEFORE the first health poll); an unrelated HTTP-200 service (refused with
+    the honest error — the old status-only poll falsely declared it verified); intermittent
+    health (consecutive-success reset, bounded failure exit 1) with the production loop and
+    limits intact and only the test-side sleep doubled.
     """
     import sys
 
-    stub_dir, record = _healthy_curl_stub(tmp_path)
-    # A canary launcher: if main() took the direct-start branch it would exec this and
-    # leave the marker behind (and exit 42); the verified branch must never touch it.
-    # The harness derives PROJECT_ROOT as <run-dir>/project, so the canary lives there.
-    project_root = tmp_path / "run1" / "project"
-    marker = tmp_path / "direct-start-ran.txt"
-    start_script = project_root / "Start_VOOL.sh"
-    start_script.parent.mkdir(parents=True, exist_ok=True)
-    start_script.write_text(
-        f'#!/usr/bin/env bash\ntouch "{marker}"\nexit 42\n',
-        encoding="utf-8",
-    )
-    start_script.chmod(0o755)
+    # ---- arm 1: intended healthy runtime -------------------------------------------
+    fixture = _VerifyFixtureServer(tmp_path / "fx1", "vool")
+    try:
+        marker = _canary_direct_launcher(tmp_path)
+        runtime_home = tmp_path / "runtime1"
+        result = _run_installer_main(
+            tmp_path / "run1",
+            real_python=sys.executable,
+            agent_name="StartVerify",
+            runtime_home=runtime_home,
+            auto_start=True,
+            launch_agent_path="",  # the OWNing setup boundary sets this (or not) below
+            keep_functions=("install_macos_launch_agent",),
+            override_functions=_supervisor_boundary_doubles(tmp_path / "run1")
+            + "write_launcher() { :; }\n",
+        )
+        combined = result.stdout + result.stderr
+        assert "command not found" not in combined, combined[-2000:]
+        assert result.returncode == 0, combined[-2000:]
+        assert "Launchd runtime verified" in result.stdout
+        assert not marker.exists(), "the verify branch must not exec the direct launcher"
+        paths = fixture.paths()
+        assert "/bootstrap-marker" in paths, "the supervisor setup boundary must run"
+        assert "/healthz" in paths and "/v1/models" in paths
+        assert paths.index("/bootstrap-marker") < paths.index("/healthz"), (
+            "the supervisor must be bootstrapped before --start verifies health"
+        )
+    finally:
+        fixture.stop()
 
-    runtime_home = tmp_path / "runtime"
-    result = _run_installer_main(
-        tmp_path / "run1",
-        real_python=sys.executable,
-        agent_name="StartVerify",
-        runtime_home=runtime_home,
-        auto_start=True,
-        launch_agent_path="/tmp/ai.vool.runtime.plist",
-        path_prepend=str(stub_dir),
-        # Keep the canary launcher in place: the real write_launcher would overwrite it,
-        # and launcher generation is pinned by its own suite, not by this sequence test.
-        override_functions="write_launcher() { :; }",
-    )
+    # ---- arm 2: unrelated HTTP-200 service on the port ------------------------------
+    fixture = _VerifyFixtureServer(tmp_path / "fx2", "foreign200")
+    try:
+        result = _run_installer_main(
+            tmp_path / "run2",
+            real_python=sys.executable,
+            agent_name="StartForeign",
+            runtime_home=tmp_path / "runtime2",
+            auto_start=True,
+            launch_agent_path="",
+            keep_functions=("install_macos_launch_agent",),
+            sleep_fast=True,
+            override_functions=_supervisor_boundary_doubles(tmp_path / "run2")
+            + "write_launcher() { :; }\n",
+        )
+        combined = result.stdout + result.stderr
+        assert result.returncode == 1, combined[-2000:]
+        assert "Launchd runtime verified" not in result.stdout
+        assert "did not stay verifiably healthy" in result.stdout
+        assert fixture.paths().count("/healthz") >= 1
+    finally:
+        fixture.stop()
 
-    combined = result.stdout + result.stderr
-    assert "command not found" not in combined, combined[-2000:]
-    # The verified branch exits 0 from inside main(), so the harness's own rc line is absent.
-    assert result.returncode == 0, combined[-2000:]
-    assert "Launchd runtime verified" in result.stdout
-    assert not marker.exists(), "the --start verify branch must not exec the direct launcher"
-    polled = record.read_text(encoding="utf-8").splitlines()
-    assert any(line.endswith("http://127.0.0.1:11435/healthz") for line in polled)
-    assert any(line.endswith("http://127.0.0.1:11435/v1/models") for line in polled)
+    # ---- arm 3: intermittent health — consecutive reset, bounded failure ------------
+    fixture = _VerifyFixtureServer(tmp_path / "fx3", "intermittent")
+    try:
+        result = _run_installer_main(
+            tmp_path / "run3",
+            real_python=sys.executable,
+            agent_name="StartFlaky",
+            runtime_home=tmp_path / "runtime3",
+            auto_start=True,
+            launch_agent_path="",
+            keep_functions=("install_macos_launch_agent",),
+            sleep_fast=True,
+            override_functions=_supervisor_boundary_doubles(tmp_path / "run3")
+            + "write_launcher() { :; }\n",
+        )
+        combined = result.stdout + result.stderr
+        assert result.returncode == 1, combined[-2000:]
+        assert "did not stay verifiably healthy" in result.stdout
+        # Alternating 200/503 never reaches 5 consecutive successes: the counter reset.
+        assert fixture.paths().count("/healthz") >= 5
+    finally:
+        fixture.stop()
+
+
+def test_installer_start_verify_reuse_and_home_identity_boundary(tmp_path: Path) -> None:
+    """What supervised reuse proves — and what it deliberately does not.
+
+    A healthy VOOL runtime already serving the canonical port is REUSED by --start (service
+    identity verified through the served health payload; exit 0, no second bind). WHICH
+    home owns that runtime is a different question, answered by the API's own per-home
+    pidfile record (data/vool_api.pid — the authority doctor/stop read): the serving home
+    carries a live pid; the newly installed home does not. --start verifies a VOOL-served
+    runtime, not this home's runtime, and that boundary is what this test records.
+    """
+    import os
+    import sys
+
+    fixture = _VerifyFixtureServer(tmp_path / "fx", "vool")
+    try:
+        serving_home = tmp_path / "serving-home"
+        (serving_home / "data").mkdir(parents=True)
+        (serving_home / "data" / "vool_api.pid").write_text(str(os.getpid()), encoding="utf-8")
+        installed_home = tmp_path / "installed-home"
+
+        result = _run_installer_main(
+            tmp_path / "run1",
+            real_python=sys.executable,
+            agent_name="StartReuse",
+            runtime_home=installed_home,
+            auto_start=True,
+            launch_agent_path="",
+            keep_functions=("install_macos_launch_agent",),
+            sleep_fast=True,
+            override_functions=_supervisor_boundary_doubles(tmp_path / "run1")
+            + "write_launcher() { :; }\n",
+        )
+        combined = result.stdout + result.stderr
+        assert result.returncode == 0, combined[-2000:]
+        assert "Launchd runtime verified" in result.stdout
+
+        # The per-home pidfile contract distinguishes the serving runtime's home.
+        serving_pid = int((serving_home / "data" / "vool_api.pid").read_text(encoding="utf-8").strip())
+        assert serving_pid == os.getpid()  # a live process — exactly what doctor/stop check
+        assert not (installed_home / "data" / "vool_api.pid").exists(), (
+            "the newly installed home owns no running API; --start verified the served runtime's"
+            " identity, and the per-home pidfile is the recorded boundary between homes"
+        )
+    finally:
+        fixture.stop()
+
+
+def test_installer_without_start_bootstraps_supervisor_but_does_not_verify(tmp_path: Path) -> None:
+    """The supported no-start distinction, through the owning setup boundary.
+
+    AUTO_START=0 does NOT mean "no service": on macOS the installer still installs and
+    bootstraps the RunAtLoad/KeepAlive supervisor during the install steps (launchd may start
+    the runtime at load). What --start adds is VERIFICATION (and the direct-launch fallback).
+    With the REAL install_macos_launch_agent running under recorded launchctl doubles: the
+    supervisor setup is invoked, the plist (Darwin) or XDG autostart entry (elsewhere) is
+    written with the supervisor environment, and NO health verification poll runs.
+    """
+    import platform
+    import sys
+
+    fixture = _VerifyFixtureServer(tmp_path / "fx", "vool")
+    try:
+        runtime_home = tmp_path / "runtime1"
+        # The REAL owning setup boundary runs. On Darwin that is install_macos_launch_agent
+        # (launchctl doubled); elsewhere it chains into the real Linux keepalive installer,
+        # whose systemctl probe is doubled to "no user bus" so it lands on the XDG autostart
+        # fallback hermetically — no real service manager is contacted on any platform.
+        keep = ("install_macos_launch_agent",)
+        if platform.system() != "Darwin":
+            keep = (*keep, "install_linux_keepalive_service", "install_linux_xdg_autostart")
+        result = _run_installer_main(
+            tmp_path / "run1",
+            real_python=sys.executable,
+            agent_name="NoStart",
+            runtime_home=runtime_home,
+            auto_start=False,
+            launch_agent_path="",
+            keep_functions=keep,
+            override_functions=_supervisor_boundary_doubles(tmp_path / "run1")
+            + "systemctl() { return 1; }\n"
+            + "write_launcher() { :; }\n",
+        )
+        combined = result.stdout + result.stderr
+        assert "command not found" not in combined, combined[-2000:]
+        assert "HARNESS_MAIN_RC=0" in result.stdout, combined[-2000:]
+        assert "Launching VOOL now" not in result.stdout, "no --start means no verification pass"
+
+        launchctl_record = tmp_path / "run1" / "launchctl-calls.txt"
+        isolated_home = tmp_path / "run1" / "isolated-home"
+        if platform.system() == "Darwin":
+            assert launchctl_record.exists(), "install must bootstrap the supervisor even without --start"
+            plist = isolated_home / "Library" / "LaunchAgents" / "ai.vool.runtime.plist"
+            assert plist.is_file(), "the launch agent plist must be written by the owning boundary"
+            body = plist.read_text(encoding="utf-8")
+            assert "<key>RunAtLoad</key>" in body and "<key>KeepAlive</key>" in body
+            assert "<key>VOOL_LAUNCHD_SUPERVISOR</key>" in body
+            assert str(runtime_home) in body or str(tmp_path / "runtime1") in body
+        else:
+            # No systemd user bus in the harness environment: the owning boundary falls back
+            # to the XDG autostart entry with the same supervisor environment.
+            autostart = isolated_home / ".config" / "autostart" / "vool-runtime.desktop"
+            assert autostart.is_file(), "the supervisor autostart entry must be written"
+            body = autostart.read_text(encoding="utf-8")
+            assert "VOOL_LAUNCHD_SUPERVISOR=1" in body
+
+        # No verification ran: the fixture saw no health poll (only the doubles' markers,
+        # which the launchctl double only emits when it is invoked — and only on Darwin).
+        paths = fixture.paths()
+        assert "/healthz" not in paths, "without --start the installer must not poll health"
+    finally:
+        fixture.stop()
 
 
 def test_installer_start_flag_without_supervisor_runs_direct_launcher(tmp_path: Path) -> None:
@@ -595,7 +874,13 @@ def test_installer_start_flag_without_supervisor_runs_direct_launcher(tmp_path: 
 
 def test_pull_models_skips_cleanly_when_ollama_unavailable(tmp_path: Path) -> None:
     """Missing/offline model backend at install time: the pull step skips with a warning
-    instead of failing the install or silently pretending models were provisioned."""
+    instead of failing the install or silently pretending models were provisioned.
+
+    The non-execution proof is a REAL boundary spy: a recording fake Ollama exists on disk
+    for both arms. In the control arm (available backend) the same spy provably records the
+    model operations, so its silence in the unavailable arm is evidence, not an accident of
+    a path nothing would ever write.
+    """
     import subprocess
     import sys
 
@@ -605,43 +890,69 @@ def test_pull_models_skips_cleanly_when_ollama_unavailable(tmp_path: Path) -> No
     prefix, marker_line, _ = installer_script.partition('\nparse_args "$@"\n')
     assert marker_line
 
+    # The spy: a real executable that records every model operation it is asked for.
+    fake_ollama = tmp_path / "ollama-spy"
     record = tmp_path / "recorded.txt"
+    fake_ollama.write_text(
+        "#!/usr/bin/env bash\n"
+        f'printf "%s %s\\n" "$1" "${{2:-}}" >> {_sh(record)}\n'
+        'if [[ "$1" == "list" ]]; then exit 0; fi\n'  # nothing installed: every model pulls
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_ollama.chmod(0o755)
+
     venv_bin = tmp_path / ".venv" / "bin"
     venv_bin.mkdir(parents=True)
     (venv_bin / "python").write_text(
-        "#!/usr/bin/env bash\nexec " + sys.executable + ' "$@"\n',
+        f"#!/usr/bin/env bash\nexec {_sh(sys.executable)} \"$@\"\n",
         encoding="utf-8",
     )
     (venv_bin / "python").chmod(0o755)
 
-    runtime_home = tmp_path / "runtime"
-    runtime_home.mkdir()
-    harness = tmp_path / "run_pull.sh"
-    harness.write_text(
-        prefix
-        + "\n"
-        + "\n".join(
-            [
-                f'PROJECT_ROOT="{PROJECT_ROOT}"',
-                f'SCRIPT_DIR="{PROJECT_ROOT}/installer"',
-                f'VENV_DIR="{tmp_path}/.venv"',
-                # Empty ollama executable: the "backend unavailable" boundary.
-                f'pull_models "" "local-only" "qwen3:8b" "{runtime_home}"',
-            ]
+    def run_pull(ollama_exe: str, run_dir: Path) -> subprocess.CompletedProcess[str]:
+        runtime_home = run_dir / "runtime"
+        runtime_home.mkdir(parents=True, exist_ok=True)
+        harness = run_dir / "run_pull.sh"
+        harness.write_text(
+            prefix
+            + "\n"
+            + "\n".join(
+                [
+                    f"PROJECT_ROOT={_sh(PROJECT_ROOT)}",
+                    f"SCRIPT_DIR={_sh(PROJECT_ROOT / 'installer')}",
+                    f"VENV_DIR={_sh(tmp_path / '.venv')}",
+                    f"pull_models {_sh(ollama_exe)} 'local-only' 'qwen3:8b' {_sh(runtime_home)}",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
         )
-        + "\n",
-        encoding="utf-8",
+        return subprocess.run(
+            bash_script_args(harness),
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+            timeout=120,
+        )
+
+    # Control arm — available backend: the spy must catch the attempted model operations.
+    control = run_pull(str(fake_ollama), tmp_path / "control")
+    assert control.returncode == 0, control.stdout + control.stderr
+    recorded = [line for line in record.read_text(encoding="utf-8").splitlines() if line.startswith("pull ")]
+    assert recorded, "control arm: the spy must prove it records model operations"
+    assert any(model.startswith("qwen") for model in (r.split(" ", 1)[1] for r in recorded))
+
+    # Unavailable arm — empty backend executable: honest skip, and the spy stays silent.
+    record.unlink()
+    unavailable = run_pull("", tmp_path / "unavailable")
+    assert unavailable.returncode == 0, unavailable.stdout + unavailable.stderr
+    assert "Model pull skipped because Ollama is unavailable" in unavailable.stdout
+    assert "Downloading" not in unavailable.stdout
+    assert not record.exists(), (
+        "no model operation may run without a backend — the spy (proven active in the"
+        " control arm) recorded nothing"
     )
-    result = subprocess.run(
-        bash_script_args(harness),
-        capture_output=True,
-        text=True,
-        cwd=tmp_path,
-        timeout=120,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "Model pull skipped because Ollama is unavailable" in result.stdout
-    assert not record.exists(), "no model operation may run without a backend"
 
 
 def test_pull_models_provisions_native_embedding_lane_with_recording_ollama(tmp_path: Path) -> None:
@@ -678,7 +989,7 @@ def test_pull_models_provisions_native_embedding_lane_with_recording_ollama(tmp_
     venv_bin = tmp_path / ".venv" / "bin"
     venv_bin.mkdir(parents=True)
     (venv_bin / "python").write_text(
-        "#!/usr/bin/env bash\nexec " + sys.executable + ' "$@"\n',
+        f"#!/usr/bin/env bash\nexec {_sh(sys.executable)} \"$@\"\n",
         encoding="utf-8",
     )
     (venv_bin / "python").chmod(0o755)
@@ -691,10 +1002,10 @@ def test_pull_models_provisions_native_embedding_lane_with_recording_ollama(tmp_
         + "\n"
         + "\n".join(
             [
-                f'PROJECT_ROOT="{PROJECT_ROOT}"',
-                f'SCRIPT_DIR="{PROJECT_ROOT}/installer"',
-                f'VENV_DIR="{tmp_path}/.venv"',
-                f'pull_models "{fake_ollama}" "local-only" "qwen3:8b" "{runtime_home}"',
+                f"PROJECT_ROOT={_sh(PROJECT_ROOT)}",
+                f"SCRIPT_DIR={_sh(PROJECT_ROOT / 'installer')}",
+                f"VENV_DIR={_sh(tmp_path / '.venv')}",
+                f"pull_models {_sh(fake_ollama)} 'local-only' 'qwen3:8b' {_sh(runtime_home)}",
             ]
         )
         + "\n",
