@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import json
 import re
 from collections.abc import Iterable, Iterator, Mapping
@@ -172,7 +173,10 @@ class _TagScanIndex:
         while pos != -1:
             for name in _CLOSE_TAG_NAMES:
                 after = pos + 2 + len(name)
-                if _ci_starts_with(text, pos + 2, name) and after <= n and text[after] == ">":
+                # `after < n`, not `<=`: the close tag needs its own `>` byte, and a name ending
+                # exactly at end-of-input has none to index (an incomplete closer is left alone,
+                # exactly like the pinned patterns).
+                if _ci_starts_with(text, pos + 2, name) and after < n and text[after] == ">":
                     self.close_spans.setdefault(name, []).append((pos, after + 1))
                     break
             pos = text.find("</", pos + 2)
@@ -181,18 +185,23 @@ class _TagScanIndex:
             close_start = _skip_ws(text, pos + 1)
             for name in _CLOSE_TAG_NAMES:
                 after = close_start + 2 + len(name)
-                if _ci_starts_with(text, close_start, "</" + name) and after <= n and text[after] == ">":
+                if _ci_starts_with(text, close_start, "</" + name) and after < n and text[after] == ">":
                     self.brace_closes.setdefault(name, []).append((pos, after + 1))
                     break
             pos = text.find("}", pos + 1)
 
 
 def _first_at_or_after(spans: list[tuple[int, int]], start: int) -> tuple[int, int] | None:
-    """First ``(a, b)`` with ``a >= start`` — spans are sorted by construction."""
-    for a, b in spans:
-        if a >= start:
-            return a, b
-    return None
+    """First span whose start is at or after ``start``, by binary search.
+
+    The span lists are built in ascending order, so each lookup costs O(log k). Repeated
+    closed blocks therefore cost (openings + closes) · log(closes) overall — the earlier
+    restart-from-zero scan summed the whole preceding prefix per opening and was quadratic
+    in the block count (measured on the closed-envelope witness). Not strictly linear:
+    logarithmic per lookup.
+    """
+    i = bisect.bisect_left(spans, (start,))
+    return spans[i] if i < len(spans) else None
 
 
 def _next_gt(index: _TagScanIndex, pos: int) -> int:
@@ -321,6 +330,32 @@ def _iter_function_invokes(text: str, index: _TagScanIndex) -> Iterator[tuple[in
             else:
                 yield pos, opening_end, "function"
                 pos = opening_end
+        else:
+            pos = text.find("<", pos + 1)
+
+
+def _iter_function_openings(text: str, index: _TagScanIndex) -> Iterator[tuple[int, int]]:
+    """Opening-tag spans of the pinned ``_FUNCTION_INVOKE_PROBE_RE``: ``<function[=\\s][^>]*>``.
+
+    The detection gate ran the probe regex directly over the whole text, and its ``[^>]*>``
+    retries a missing ``>`` across repeated openings (quadratic in the unclosed-chain shape —
+    a gate gap retained from baseline, measured through ``foreign_markers``). Looking each
+    opening's ``>`` up in the precomputed index instead bounds every step to O(log n); the
+    yielded span bytes are exactly the probe's ``group(0)``.
+    """
+    n = len(text)
+    pos = text.find("<")
+    while pos != -1:
+        after = pos + 1
+        if _ci_starts_with(text, after, "function") and after + 8 < n and (
+            text[after + 8] == "=" or text[after + 8].isspace()
+        ):
+            gt = _next_gt(index, after + 9)
+            if gt == -1:
+                pos = text.find("<", pos + 1)
+                continue
+            yield pos, gt + 1
+            pos = gt + 1
         else:
             pos = text.find("<", pos + 1)
 
@@ -588,11 +623,14 @@ def foreign_markers(text: str) -> list[str]:
         token = s[start:end].strip()
         if token and token not in found:
             found.append(token)
-    for rx in (_FUNCTION_INVOKE_PROBE_RE, _CALL_DIRECTIVE_PROBE_RE):
-        for match in rx.finditer(s):
-            token = match.group(0).strip()
-            if token and token not in found:
-                found.append(token)
+    for start, end in _iter_function_openings(s, index):
+        token = s[start:end].strip()
+        if token and token not in found:
+            found.append(token)
+    for match in _CALL_DIRECTIVE_PROBE_RE.finditer(s):
+        token = match.group(0).strip()
+        if token and token not in found:
+            found.append(token)
     return found[:8]
 
 
