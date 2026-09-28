@@ -31,6 +31,21 @@ def _export_raw(tmp_path, name="raw.voolsession"):
     return api.load_payload(out), out
 
 
+def _export_raw_with_attachments(tmp_path, name="raw-with-attachments.voolsession"):
+    """The same real export, with its embedded attachment BYTES carried alongside the payload,
+    so a rewritten bundle still contains every member its evidence references — and a refusal
+    provably comes from the check under test, not from a bundle that lost its members."""
+    from core.session_portability import api
+    from core.session_portability import bundle as bundle_format
+
+    out = tmp_path / name
+    api.export_session(SESSION, out)
+    _, _, members, _ = bundle_format.read_bundle(out)
+    payload = api.load_payload(out)
+    attachments = {key: data for key, data in members.items() if key.startswith("attachments/")}
+    return payload, attachments
+
+
 def _rewrite_payload(tmp_path, payload, name, attachments=None):
     out = tmp_path / name
     bundle_format.write_bundle(out, payload, attachments or {}, passphrase="")
@@ -219,18 +234,37 @@ def test_no_imported_task_auto_executes(tmp_path):
 
 
 # --------------------------------------------------------------------------------------
-# Declared identities: an id a bundle names about itself is data, and it becomes a path
+# Declared identities: session identity and filesystem storage key are DISTINCT contracts
 # --------------------------------------------------------------------------------------
 
 
-def test_a_traversal_session_id_is_refused_before_any_write(tmp_path):
-    """A colleague's bundle declaring session '../pwned' names a path, not an identity: the
-    id lands in the served export route's filename join, so it is refused before any write."""
+def test_a_native_shaped_traversal_session_id_imports_with_its_identity(tmp_path):
+    """Correction for the review: a session id is a LOGICAL identity under the native
+    namespace law (core.context_namespace._clean_id), which accepts separators — banning path
+    syntax would invalidate sessions this product itself created. The traversal protection
+    lives at the FILE-JOIN owners: attachment/bundle ids (refused below) and the served export
+    route's derived filename (pinned in the seam suite)."""
     from core.session_portability import api
 
-    payload, _ = _export_raw(tmp_path)
+    payload, attachments = _export_raw_with_attachments(tmp_path)
     payload["session"] = dict(payload.get("session") or {}, session_id="../pwned-session")
-    out = _rewrite_payload(tmp_path, payload, "traversal-session.voolsession")
+    out = _rewrite_payload(tmp_path, payload, "traversal-session.voolsession", attachments=attachments)
+
+    fresh = tmp_path / "fresh-home"
+    receipt = api.import_bundle(out, home=fresh)
+    assert receipt["ok"] is True
+    assert receipt["imported_session_id"] == "../pwned-session"
+
+
+@pytest.mark.parametrize("bad_session", ["", "   ", "a\nb", "a\x00b", "b" * 241])
+def test_native_invalid_session_ids_are_refused_before_any_write(tmp_path, bad_session):
+    """What the native law refuses — empty, control characters, over 240 characters — the
+    import refuses too, typed, before any write."""
+    from core.session_portability import api
+
+    payload, attachments = _export_raw_with_attachments(tmp_path)
+    payload["session"] = dict(payload.get("session") or {}, session_id=bad_session)
+    out = _rewrite_payload(tmp_path, payload, "native-invalid-session.voolsession", attachments=attachments)
 
     fresh = tmp_path / "fresh-home"
     with pytest.raises(api.PortabilityRefused) as err:
@@ -244,11 +278,11 @@ def test_a_traversal_attachment_id_is_refused_before_any_write(tmp_path):
     wrote attachment bytes OUTSIDE the store before the publish rename even crashed."""
     from core.session_portability import api
 
-    payload, _ = _export_raw(tmp_path)
+    payload, attachments = _export_raw_with_attachments(tmp_path)
     embedded = list((payload.get("evidence") or {}).get("embedded") or [])
     assert embedded, "fixture: the seeded attachment must be part of the export"
     embedded[0]["attachment_id"] = "../evil-att"
-    out = _rewrite_payload(tmp_path, payload, "traversal-attachment.voolsession")
+    out = _rewrite_payload(tmp_path, payload, "traversal-attachment.voolsession", attachments=attachments)
 
     fresh = tmp_path / "fresh-home"
     with pytest.raises(api.PortabilityRefused) as err:
@@ -259,16 +293,23 @@ def test_a_traversal_attachment_id_is_refused_before_any_write(tmp_path):
         assert list(fresh.rglob("*.bin")) == []
 
 
-def test_preview_refuses_the_same_path_syntax_ids_the_import_refuses(tmp_path):
-    """The preview is the confirmation gate the operator decides on: it must tell the truth
-    about the import, refusing what the import refuses."""
+def test_preview_agrees_with_the_identity_law(tmp_path):
+    """The preview is the confirmation gate the operator decides on: it accepts exactly what
+    the import accepts (a separator-bearing native id previews fine) and refuses exactly what
+    the import refuses (a native-invalid id)."""
     from core.session_portability import api
 
-    payload, _ = _export_raw(tmp_path)
-    payload["session"] = dict(payload.get("session") or {}, session_id="a/b")
-    out = _rewrite_payload(tmp_path, payload, "preview-traversal.voolsession")
+    payload, attachments = _export_raw_with_attachments(tmp_path)
+    payload["session"] = dict(payload.get("session") or {}, session_id="review/topic")
+    out = _rewrite_payload(tmp_path, payload, "preview-native.voolsession", attachments=attachments)
+    summary = api.preview_import(out)
+    assert summary["ok"] is True
+    assert summary["source_session_id"] == "review/topic"
+
+    payload["session"] = dict(payload.get("session") or {}, session_id="a\nb")
+    refused = _rewrite_payload(tmp_path, payload, "preview-invalid.voolsession", attachments=attachments)
     with pytest.raises(api.PortabilityRefused) as err:
-        api.preview_import(out)
+        api.preview_import(refused)
     assert err.value.code == "BUNDLE_MALFORMED"
 
 
@@ -285,11 +326,20 @@ def test_path_syntax_bundle_ids_are_refused_by_the_identity_check(bad):
 
 @pytest.mark.parametrize(
     "good_session",
-    ["openclaw:aaaaaaaaaaaaaaaaaaaa", "auto-research:topic", "sess-4f2a9b1c3d00", "intake-0016ff"],
+    [
+        "openclaw:aaaaaaaaaaaaaaaaaaaa",
+        "auto-research:topic",
+        "sess-4f2a9b1c3d00",
+        "intake-0016ff",
+        "review/topic",          # native namespace law accepts separators
+        "../pwned-session",      # traversal-shaped AND native-valid: logical identity only
+        "計画-" + "話" * 100,     # unicode identity
+        "a" * 240,               # the native length bound itself
+    ],
 )
 def test_native_session_id_kinds_pass_the_identity_check(good_session):
-    """Colons are native session-kind syntax (openclaw:<digest>, auto-research:<topic>) and
-    never reach a filename join verbatim; every native kind keeps importing."""
+    """Every session id the native namespace law accepts keeps importing: colons, separators,
+    unicode and the full 240-character bound are IDENTITY syntax, not filename syntax."""
     from core.session_portability.importer import _check_identities
 
     _check_identities({"session": {"session_id": good_session}, "bundle_id": "a" * 64, "evidence": {}})

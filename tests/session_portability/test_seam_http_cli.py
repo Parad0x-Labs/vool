@@ -76,10 +76,11 @@ def test_export_route_writes_a_bundle_under_the_home(app, seeded):
 
 
 def test_export_route_sanitizes_a_path_syntax_session_id_into_the_home(app, tmp_path):
-    """The export filename is DERIVED from the session id, and a session id is data a home's
-    writers may have accepted (native kinds carry colons; nothing forbids other punctuation
-    at birth). Path syntax is sanitized in the derived filename — never in the identity — so
-    no session id can steer the bundle file outside session_bundles."""
+    """The export FILE name is derived data, never the identity: a session id is a logical
+    identity under the native namespace law (which accepts separators), and the derived name
+    — bounded ASCII fragment + digest of the full id — makes every id shape safe at the join.
+    This is the join-owner fix for the original escape: a planted traversal id steered the
+    bundle file outside session_bundles."""
     from pathlib import Path
 
     evil = "auto-research:topic/../../outside"
@@ -94,6 +95,7 @@ def test_export_route_sanitizes_a_path_syntax_session_id_into_the_home(app, tmp_
     bundles_root = runtime_paths.data_path("session_bundles").resolve()
     assert out.is_file()
     assert out.resolve().relative_to(bundles_root)  # the file is INSIDE the bundles root
+    assert len(out.name.encode("utf-8")) <= 255  # bounded derived name, any id shape
     # and the traversal fragment escaped nothing
     assert not (bundles_root.parent / "outside").exists()
     assert not (bundles_root.parent / "topic").exists()
@@ -102,6 +104,88 @@ def test_export_route_sanitizes_a_path_syntax_session_id_into_the_home(app, tmp_
 
     summary = portability_api.inspect_bundle(out)
     assert summary["session"]["session_id"] == evil  # the identity inside the bundle is intact
+
+
+def test_native_slash_session_id_roundtrips_export_and_import(app, tmp_path):
+    """The compatibility question the review named, resolved with the production-backed
+    fixtures: 'review/topic' is a session id this product's namespace law accepts, so a real
+    home can hold it. Served export and fresh-home import must both work, the identity must
+    survive verbatim, and re-importing the exact bundle must refuse rather than fork history."""
+    from pathlib import Path
+
+    from core.session_portability import api as portability_api
+    from core.session_portability.paths import scoped_home
+
+    native = "review/topic"
+    support.seed_turns(session_id=native)
+    support.set_session_meta(session_id=native, title="native slash id")
+
+    status, exported = _post(app, EXPORT, {"session_id": native})
+    assert status == 200, exported
+    assert exported["ok"] is True, exported
+
+    out = Path(exported["path"])
+    bundles_root = runtime_paths.data_path("session_bundles").resolve()
+    assert out.is_file()
+    out.resolve().relative_to(bundles_root)
+    assert portability_api.inspect_bundle(out)["session"]["session_id"] == native
+
+    fresh = tmp_path / "fresh-home"
+    receipt = portability_api.import_bundle(out, home=fresh)
+    assert receipt["ok"] is True, receipt
+    assert receipt["imported_session_id"] == native  # no resident copy: identity verbatim
+
+    from core.memory.entries import recent_conversation_events
+
+    with scoped_home(fresh):
+        turns = list(recent_conversation_events(native, limit=10))
+    assert len(turns) == 2  # the conversation itself made the trip
+
+    with pytest.raises(portability_api.PortabilityRefused) as err:
+        portability_api.import_bundle(out, home=fresh)
+    assert err.value.code == "BUNDLE_ALREADY_IMPORTED"  # idempotence preserved
+
+
+def test_distinct_sessions_with_colliding_fragments_never_share_a_bundle_file(app):
+    """Three distinct native ids whose sanitized fragments are identical ('review_topic')
+    must still produce three distinct files: the derived name carries a digest of the FULL
+    id, so no two sessions are conflated and no session silently loses its export."""
+    from pathlib import Path
+
+    ids = ("review/topic", "review topic", "review-topic")
+    names = set()
+    for sid in ids:
+        support.seed_turns(session_id=sid)
+        status, exported = _post(app, EXPORT, {"session_id": sid})
+        assert status == 200, exported
+        assert exported["ok"] is True, exported
+        names.add(Path(exported["path"]).name)
+    assert len(names) == len(ids)
+
+
+def test_a_240_char_unicode_session_id_exports_a_bounded_derived_file(app):
+    """The native length bound (240) and unicode identities are legal; the derived file name
+    stays a bounded ASCII string whatever the identity looks like."""
+    from pathlib import Path
+
+    sid = "計画-" + "話" * 100 + "/topic"
+    assert len(sid) <= 240
+    support.seed_turns(session_id=sid)
+    support.set_session_meta(session_id=sid, title="unicode long id")
+
+    status, exported = _post(app, EXPORT, {"session_id": sid})
+    assert status == 200, exported
+    assert exported["ok"] is True, exported
+
+    out = Path(exported["path"])
+    assert len(out.name.encode("utf-8")) <= 255
+    assert out.name.isascii()
+    bundles_root = runtime_paths.data_path("session_bundles").resolve()
+    out.resolve().relative_to(bundles_root)
+
+    from core.session_portability import api as portability_api
+
+    assert portability_api.inspect_bundle(out)["session"]["session_id"] == sid
 
 
 def test_import_route_lands_a_bundle_in_this_home(app, seeded, tmp_path):
