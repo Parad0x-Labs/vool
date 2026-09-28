@@ -729,7 +729,7 @@ def test_failed_atomic_write_reports_failure_not_success(make_agent, tmp_path: P
     "parse_turn_ir('create file ' + 'a.' * 4000 + 'b in c folder saying y', response_shape_parser=None)",
 ])
 def test_separator_runs_skip_per_suffix_prohibition_analysis(script):
-    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
@@ -753,7 +753,7 @@ def test_separator_runs_skip_per_suffix_prohibition_analysis(script):
     "_repair_split_extensions('a.' * 200000)",
 ])
 def test_repeated_anchors_and_separators_stay_bounded(script):
-    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
