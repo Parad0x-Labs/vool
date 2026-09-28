@@ -9,37 +9,52 @@ in passing; when they disagree with this page, this page wins.
 
 ## Current stage
 
-VOOL is in **beta**. There is **no public installer release**: the supported install path
-is from source — see [Install](../getting-started/install.md). Packaged downloads will
-appear on the [releases page](https://github.com/Parad0x-Labs/vool/releases) when published.
+VOOL is in **beta**. The release supported by this repository is **from source** — see
+[Install](../getting-started/install.md). Nothing is published on the
+[releases page](https://github.com/Parad0x-Labs/vool/releases): the only GitHub release is
+a **private draft** (`0.6.0-beta-migrated-20260919`) for owner review.
 
-A macOS arm64 disk image exists only as a **private draft release for owner review**
-(`0.6.0-beta-migrated-20260919`): `VOOL-0.6.0-beta-macos-arm64.dmg`, built as a
-self-contained bundle (macOS 14+) from the repository's initial public source commit
-`e1034c9b`, not from current `main`. It is not publicly downloadable, and a filename alone
-is not proof of what any separately distributed build contains.
+Two distinct macOS artifacts exist across the verified channels (checked 2026-09-28):
+
+1. **GitHub private draft** — `VOOL-0.6.0-beta-macos-arm64.dmg`, a self-contained bundle
+   (macOS 14+) built from the repository's initial public source commit `e1034c9b`, not
+   from current `main`. Draft-only: not publicly downloadable, with draft `SHA256SUMS`
+   and a `BUILD_MANIFEST.json` recording that source.
+2. **vool.dev public download** — `https://vool.dev/downloads/VOOL-0.6.0-beta-cffc5c3-macos-arm64.dmg`,
+   publicly served (HTTP 200, Cloudflare, last modified 2026-09-19) with a sidecar
+   `.sha256` (`82d78398…b23e8f7`, which matched the served bytes when checked). Its
+   in-bundle `BUILD_MANIFEST.json` self-attests source commit `cffc5c36…` built
+   2026-09-19. That manifest is embedded by the build, not signed by a release authority:
+   it is provenance as claimed by the artifact, independently verified only down to the
+   published checksum. The two channel artifacts differ in name, size and digest — they
+   are not the same file.
+
+This repository's release records cover the GitHub channel; the website channel is
+operated separately. Source remains the supported install route documented here.
 
 | | Status |
 | --- | --- |
-| Public installers | None; source install is the supported route |
+| Public installers | macOS DMG publicly downloadable from vool.dev (see above); no published GitHub release, no Windows/Linux artifacts on any verified channel |
 | Owner-review draft | macOS arm64 DMG only (private draft release, not published) |
-| Published checksums | Draft-release `SHA256SUMS` only; no public checksum page |
-| Code signing | Ad-hoc (macOS draft only); not Developer ID |
-| macOS notarization | Not notarized |
-| Signed update manifest | No configured update feed; automatic updates are not operational |
+| Published checksums | vool.dev sidecar `.sha256` (verified against served bytes) and draft-release `SHA256SUMS` |
+| Code signing | Ad-hoc, both macOS artifacts (verified on the vool.dev artifact: `codesign -dv` reports `Signature=adhoc`, no TeamIdentifier); not Developer ID |
+| macOS notarization | Not notarized (the vool.dev artifact is rejected by `spctl -a`; its own page tells users to bypass Gatekeeper) |
+| Signed update manifest | No configured update feed in either artifact (empty `manifest_url`, empty trusted-publisher keys ⇒ the signed updater fails closed); automatic updates are not operational |
 | API stability | Changing between builds |
 
-Windows and Linux installer artifacts do not exist at any stage of the release path today.
-Source installs on those platforms are covered by CI (Windows gauntlet, Linux test shards),
-which is source compatibility, not a shipped desktop release.
+Windows and Linux installer artifacts do not exist on any verified channel (the website
+marks them "coming soon"). Source installs on those platforms are covered by CI (Windows
+gauntlet, Linux test shards), which is source compatibility, not a shipped desktop release.
 
 ## What that means for you
 
-* If you run the owner-review draft on macOS, Gatekeeper will refuse it on first launch —
-  ad-hoc signing without notarization is expected at this stage, not a sign of a corrupted
-  download. Verify the checksum from the draft release before bypassing the warning.
+* If you run a macOS artifact, Gatekeeper will refuse it on first launch — ad-hoc signing
+  without notarization is expected at this stage, not a sign of a corrupted download.
+  Verify the checksum published beside the download before bypassing the warning.
 * Configuration formats can change between builds.
-* Do not expect automatic updates: no update feed is configured for any artifact.
+* Do not expect automatic updates: no update feed is configured for any artifact, and the
+  signed-manifest updater correctly reports updates unavailable rather than fetching
+  anything.
 
 ## Beta and pilot limitations, stated explicitly
 

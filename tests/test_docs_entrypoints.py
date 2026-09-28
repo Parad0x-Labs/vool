@@ -23,8 +23,13 @@ def test_readme_frontloads_install_and_honest_platform_claims() -> None:
     assert "local-first personal agent" in readme
     assert "0.6.0-beta" in early, "current beta version must be stated up front"
     assert "## ⚡ Install" in early or "## Install" in early
-    # Source installation is the public path; the only packaged release is a draft.
-    assert "no public installer release" in early
+    # Source installation is the public path this repository supports; the only GitHub
+    # packaged release is a private draft, and the separately operated website download
+    # must be named as unverified-by-this-repository rather than lumped into a global
+    # "no public installer" claim.
+    assert "publishes no installer release" in early
+    assert "private owner-review draft" in early
+    assert "verify its sidecar checksum" in early
     assert "**Beta, shipped**" not in readme
     assert "**macOS / Apple Silicon**" in early
     assert "**Linux**" in early and "Linux test shards" in early
