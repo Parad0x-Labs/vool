@@ -177,6 +177,71 @@ _REQUEST_HEAD_RE = re.compile(
     r"(?P<head>[A-Za-z][A-Za-z']*)\b",
     re.IGNORECASE,
 )
+#: The starred prefix group of `_REQUEST_HEAD_RE` is the polynomial shape the scanner
+#: flags on uncontrolled turns. `_match_request_head` below reproduces the pattern's
+#: exact backtracking semantics (greedy prefix consumption, then the head retried at
+#: each earlier stop; the head itself greedy over letters and apostrophes with the
+#: `\b` retry that apostrophes make reachable) in one linear pass. The pattern stays
+#: for the differential harness that pins the scanner to it.
+_REQUEST_PREFIX_WORDS = (
+    "please", "pls", "plz", "now", "next", "first", "second", "third",
+    "finally", "physically", "actually", "immediately",
+)
+_HEAD_RUN_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz'")
+_HEAD_START_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz")
+_WORD_CHAR_RE = re.compile(r"\w", re.UNICODE)
+
+
+def _is_word_char(ch: str) -> bool:
+    return bool(_WORD_CHAR_RE.match(ch))
+
+
+def _match_request_head(text: str, start: int, end: int) -> str | None:
+    """The captured head of `_REQUEST_HEAD_RE.match(text, start, end)`, or None.
+
+    Consume prefix words greedily (each literal word followed by one whole
+    whitespace run — a shorter run can never help, since a prefix word and a head
+    both start on a word character), then try the head at every stop from the last
+    back to the start, exactly as backtracking would. A head is the longest cut of
+    the letter-apostrophe run whose end satisfies `\\b`; apostrophes are not word
+    characters, so the cut before one can be the boundary the greedy run misses.
+    """
+    if start >= end:
+        return None
+    stops: list[int] = [start]
+    pos = start
+    while pos < end:
+        consumed = False
+        for word in _REQUEST_PREFIX_WORDS:
+            word_end = pos + len(word)
+            if (
+                word_end < end
+                and text[pos:word_end].casefold() == word
+                and text[word_end].isspace()
+            ):
+                after = word_end + 1
+                while after < end and text[after].isspace():
+                    after += 1
+                stops.append(after)
+                pos = after
+                consumed = True
+                break
+        if not consumed:
+            break
+    for stop in reversed(stops):
+        if stop >= end or not (text[stop].isascii() and text[stop].lower() in _HEAD_START_CHARS):
+            continue
+        run_end = stop + 1
+        while run_end < end and text[run_end].isascii() and text[run_end].lower() in _HEAD_RUN_CHARS:
+            run_end += 1
+        cut = run_end
+        while cut > stop:
+            before_is_word = _is_word_char(text[cut - 1])
+            after_is_word = cut < end and _is_word_char(text[cut])
+            if before_is_word != after_is_word:
+                return text[stop:cut]
+            cut -= 1
+    return None
 _KNOW_HEADS = frozenset(
     {
         "answer", "define", "describe", "explain", "give", "identify", "list", "name",
@@ -337,8 +402,8 @@ def _is_whole_clause_constraint(clean: str) -> bool:
             # ("get the rate without using the web") leaves a positive request head;
             # a pure ban ("do not search the web") leaves no request at all.
             eligible = analyze_retrieval_constraints(candidate).eligible_text.strip()
-            match = _REQUEST_HEAD_RE.match(eligible)
-            if match is not None and match.group("head").casefold() in _ALL_REQUEST_HEADS:
+            head = _match_request_head(eligible, 0, len(eligible))
+            if head is not None and head.casefold() in _ALL_REQUEST_HEADS:
                 return False
         except Exception:
             return False
@@ -507,9 +572,9 @@ def _classify_clause_span(
         return ClauseKind.CONSTRAINT
     if index.recall.hits(text, start, end):
         return ClauseKind.RECALL
-    match = _REQUEST_HEAD_RE.match(text, start, end)
+    head = _match_request_head(text, start, end)
     clean_start = start
-    if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
+    if head is None or head.casefold() not in _ALL_REQUEST_HEADS:
         # A framing prefix must not hide the request behind it. "From memory: what is the boiling
         # point of water at sea level in Celsius?" heads on "From", which no head set claims, so
         # the clause read as UNKNOWN and the composer reported an answerable question as "the
@@ -523,8 +588,8 @@ def _classify_clause_span(
             retried = _head_after_inverted_preposition_span(text, start, end)
         if retried is None:
             return ClauseKind.UNKNOWN
-        match, clean_start = retried
-    head = match.group("head").casefold()
+        head, clean_start = retried
+    head = head.casefold()
     if head in {"print", "bake"} and index.physical.hits(text, clean_start, end):
         return ClauseKind.ACT
     if head in _COMPUTE_HEADS:
@@ -560,7 +625,7 @@ def _classify_clause_span(
 
 def _head_after_framing_prefix_span(
     text: str, start: int, end: int
-) -> tuple[re.Match[str], int] | None:
+) -> tuple[str, int] | None:
     """Retry the request head once, past a leading framing phrase. `None` when nothing changes."""
 
     prefix = _FRAMING_PREFIX_RE.match(text, start, end)
@@ -574,15 +639,15 @@ def _head_after_framing_prefix_span(
         remainder_end -= 1
     if remainder_start >= remainder_end:
         return None
-    match = _REQUEST_HEAD_RE.match(text, remainder_start, remainder_end)
-    if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
+    head = _match_request_head(text, remainder_start, remainder_end)
+    if head is None or head.casefold() not in _ALL_REQUEST_HEADS:
         return None
-    return match, remainder_start
+    return head, remainder_start
 
 
 def _head_after_inverted_preposition_span(
     text: str, start: int, end: int
-) -> tuple[re.Match[str], int] | None:
+) -> tuple[str, int] | None:
     """Retry the request head once, behind an inverted interrogative's object.
 
     Reached only where the answer would otherwise be UNKNOWN, so it can add a classification
@@ -600,10 +665,10 @@ def _head_after_inverted_preposition_span(
         remainder_end -= 1
     if remainder_start >= remainder_end:
         return None
-    match = _REQUEST_HEAD_RE.match(text, remainder_start, remainder_end)
-    if match is None or match.group("head").casefold() not in _ALL_REQUEST_HEADS:
+    head = _match_request_head(text, remainder_start, remainder_end)
+    if head is None or head.casefold() not in _ALL_REQUEST_HEADS:
         return None
-    return match, remainder_start
+    return head, remainder_start
 
 
 def classify_clause_kind(request_text: str) -> ClauseKind:
