@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import contextlib
-import io
 import json
 import os
 from pathlib import Path
 
-from core.openclaw_locator import load_registered_agent_name
-from core.runtime_paths import PROJECT_ROOT, active_vool_home, data_path
+from core.runtime_paths import data_path
 
 _IDENTITY_FILE = "owner_identity.json"
 
@@ -67,7 +64,6 @@ def save_identity(
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    _sync_name_to_openclaw(agent_name.strip())
     return path
 
 
@@ -78,7 +74,6 @@ def force_rename(new_name: str) -> Path:
     existing["agent_name"] = new_name.strip()
     existing["updated_at"] = _now_iso()
     path.write_text(json.dumps(existing, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    _sync_name_to_openclaw(new_name.strip())
     return path
 
 
@@ -103,7 +98,7 @@ def ensure_bootstrap_identity(
     privacy_pact: str = "Store memory locally by default. Never share secrets or personal identity without explicit approval.",
     owner_note: str = "",
 ) -> dict:
-    """Create a first-boot identity using installer/env/OpenClaw hints."""
+    """Create a first-boot identity using the installer/env name hint."""
     existing = load_identity()
     if existing.get("agent_name"):
         _ensure_voolbook_registration(existing["agent_name"])
@@ -111,7 +106,6 @@ def ensure_bootstrap_identity(
 
     chosen_name = (
         os.environ.get("VOOL_AGENT_NAME", "").strip()
-        or _load_openclaw_agent_name()
         or default_agent_name.strip()
         or "VOOL"
     )
@@ -124,34 +118,6 @@ def ensure_bootstrap_identity(
         pass
     _ensure_voolbook_registration(chosen_name)
     return load_identity()
-
-
-def ensure_openclaw_registration(*, display_name: str | None = None, model_tag: str = "") -> bool:
-    """Keep the OpenClaw config/agent bridge aligned with VOOL's current identity."""
-    chosen_name = str(display_name or get_agent_display_name() or "VOOL").strip() or "VOOL"
-    try:
-        from installer.register_openclaw_agent import register
-
-        with contextlib.redirect_stdout(io.StringIO()):
-            return bool(
-                register(
-                    project_root=str(PROJECT_ROOT),
-                    vool_home=str(active_vool_home()),
-                    model_tag=model_tag,
-                    display_name=chosen_name,
-                )
-            )
-    except Exception:
-        return False
-
-
-def _sync_name_to_openclaw(display_name: str) -> None:
-    """Push the chosen name into OpenClaw's openclaw.json so the Agents UI updates."""
-    ensure_openclaw_registration(display_name=display_name)
-
-
-def _load_openclaw_agent_name() -> str:
-    return load_registered_agent_name("vool")
 
 
 # ---------------------------------------------------------------------------

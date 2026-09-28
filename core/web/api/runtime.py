@@ -47,7 +47,6 @@ from core.memory_recall_intent import (
 from core.model_registry import ModelRegistry
 from core.onboarding import (
     ensure_bootstrap_identity,
-    ensure_openclaw_registration,
     get_agent_display_name,
     is_first_boot,
 )
@@ -990,10 +989,6 @@ def bootstrap_runtime_services(
 
     persona = load_active_persona("default")
     display_name = get_agent_display_name()
-    if ensure_openclaw_registration(display_name=display_name, model_tag=runtime_model_tag):
-        logger.info("OpenClaw registration ensured for agent '%s'.", display_name)
-    else:
-        logger.warning("OpenClaw registration could not be refreshed automatically.")
 
     agent = VoolAgent(
         backend_name=selection.backend_name,
