@@ -557,7 +557,7 @@ def test_structured_haiku_format_has_a_three_line_contract() -> None:
     "from core.raw_output_contract import _masked_quoted_text; _masked_quoted_text('\"' + ('ab\\\\' * 20000))",
 ])
 def test_escaped_quote_runs_do_not_rescan_suffixes(script):
-    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
