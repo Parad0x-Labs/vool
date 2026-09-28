@@ -155,6 +155,81 @@ _LABELED_RE = re.compile(
 
 _SPECIFIC = ( _JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _BEARER_RE, _PATH_TOKEN_RE)
 
+# A BIP-39 recovery phrase typed as plain words ("i wrote this down: used term aspect …") with
+# no label at all. The labelled rule below masks only the FIRST whitespace token of its value,
+# so even ``mnemonic: <12 words>`` kept eleven of twelve words readable — and under the BIP-39
+# checksum the missing word is recoverable from the 2048-word list. A run of 12/15/18/21/24
+# wordlist words that ALSO passes the BIP-39 checksum is a recovery phrase with effectively no
+# false-positive risk (natural language clears the wordlist far less often than the checksum
+# fails), which is the precision bar this module holds. The wordlist is the wallet product's
+# own canonical file, read as DATA here: this module never imports wallet code, never gains a
+# dependency, and never raises — a missing/unreadable file disables the rule and changes
+# nothing else.
+_BIP39_VALID_COUNTS = (24, 21, 18, 15, 12)  # longest first: a sub-run of a longer phrase must not win
+_BIP39_EDGE = ".,;:!?\"'`()[]{}<>–—"
+_BIP39_INDEX: dict[str, int] | None = None
+
+
+def _bip39_index() -> dict[str, int]:
+    global _BIP39_INDEX
+    if _BIP39_INDEX is None:
+        try:
+            from pathlib import Path
+
+            words = (Path(__file__).resolve().parent / "wallet" / "bip39_english.txt").read_text(encoding="utf-8").split()
+            _BIP39_INDEX = {w: i for i, w in enumerate(words)} if len(words) == 2048 else {}
+        except Exception:
+            _BIP39_INDEX = {}
+    return _BIP39_INDEX
+
+
+def _is_bip39_phrase(tokens: list[str]) -> bool:
+    import hashlib
+
+    index = _bip39_index()
+    if not index or len(tokens) not in {12, 15, 18, 21, 24}:
+        return False
+    if any(t not in index for t in tokens):
+        return False
+    bits = "".join(bin(index[t])[2:].zfill(11) for t in tokens)
+    checksum_bits = len(tokens) * 11 // 33
+    entropy_bits = bits[:-checksum_bits]
+    entropy = int(entropy_bits, 2).to_bytes(len(entropy_bits) // 8, "big")
+    expected = bin(hashlib.sha256(entropy).digest()[0])[2:].zfill(8)[:checksum_bits]
+    return bits[-checksum_bits:] == expected
+
+
+def _redact_bip39_phrases(value: str) -> str:
+    """Mask complete BIP-39 recovery phrases typed as plain word runs (checksum-verified).
+
+    Longest run wins, edge punctuation is tolerated on the run's outer words, and the masked
+    span covers the raw tokens — so ``… somewhere: used term aspect … idea -- is that safe``
+    keeps its prose and loses exactly the phrase."""
+    if not value or not _bip39_index():
+        return value
+    tokens = list(re.finditer(r"\S+", value))
+    pieces: list[str] = []
+    out_end = 0
+    i = 0
+    while i < len(tokens):
+        replaced = False
+        for count in _BIP39_VALID_COUNTS:
+            window = tokens[i : i + count]
+            if len(window) < count:
+                continue
+            words = [t.group(0).strip(_BIP39_EDGE) for t in window]
+            if _is_bip39_phrase(words):
+                pieces.append(value[out_end : window[0].start()])
+                pieces.append("[redacted-mnemonic]")
+                out_end = window[-1].end()
+                i += count
+                replaced = True
+                break
+        if not replaced:
+            i += 1
+    pieces.append(value[out_end:])
+    return "".join(pieces)
+
 
 def redact_url_path_tokens(text: str) -> str:
     """Mask only credentials carried in a URL path (see ``_PATH_TOKEN_RE``). Never raises.
@@ -179,6 +254,7 @@ def redact_secrets(text: str) -> str:
             value = value.replace(secret, "[redacted-credential]")
     value = redact_url_path_tokens(value)
     value = _redact_private_keys(value)
+    value = _redact_bip39_phrases(value)
     value = _JWT_RE.sub("[redacted-jwt]", value)
     value = _API_KEY_RE.sub("[redacted-api-key]", value)
     value = _B58_SECRET_RE.sub(_mask_key_shaped, value)
@@ -198,6 +274,8 @@ def contains_secret(text: str) -> bool:
         if any(secret in value for secret in _exact_secrets):
             return True
     if next(_private_key_spans(value), None) is not None:
+        return True
+    if _redact_bip39_phrases(value) != value:
         return True
     for pattern in _SPECIFIC:
         for match in pattern.finditer(value):

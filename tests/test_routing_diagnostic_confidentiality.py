@@ -41,3 +41,30 @@ def test_shadow_disagreement_retains_counts_not_request_content(monkeypatch, cap
     finally:
         demand_ownership.SHADOW_DISAGREEMENTS.clear()
         demand_ownership.SHADOW_DISAGREEMENTS.extend(original)
+
+
+def test_a_recovery_phrase_typed_in_chat_never_reaches_the_decision_log(tmp_path):
+    """Alert 155's actual secret-bearing flow: an UNLABELLED BIP-39 phrase in a dispatched
+    message must not persist, in whole or in part, to routing_decisions.jsonl."""
+    from core.wallet.mnemonic import generate_mnemonic
+
+    runtime_paths.configure_runtime_home(tmp_path / "home")
+    try:
+        phrase = generate_mnemonic(strength_bits=128)
+        rdl.record_decision(
+            session_id="s",
+            user_input=f"i wrote this down somewhere: {phrase} -- is that safe?",
+            family="fixture",
+            handled=True,
+        )
+        import re as _re
+
+        stored = rdl.decisions_path().read_text()
+        rows = rdl.recent_decisions()
+        assert rows and rows[-1]["family"] == "fixture"
+        assert phrase not in stored
+        for word in phrase.split():  # word-BOUNDED: 'age' must not fail on 'message'
+            assert not _re.search(rf"\b{_re.escape(word)}\b", stored), word
+        assert "[redacted-mnemonic]" in rows[-1]["message"]
+    finally:
+        runtime_paths.configure_runtime_home(None)
