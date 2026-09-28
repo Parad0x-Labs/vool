@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from unittest import mock
 
 import pytest
@@ -206,3 +209,13 @@ def test_chat_surface_envelope_routes_unknown_prompt_without_model_classifier() 
 
     assert envelope.inputs["task_class"] == "chat_conversation"
     assert envelope.inputs["routing_profile"]["output_mode"] == "plain_text"
+
+
+@pytest.mark.parametrize("script", [
+    "from core.task_router import _direct_math_expression; _direct_math_expression('1+1 ' + 'ty '*36 + 'X')",
+    "from core.agent_runtime.answer_coverage import _COMPARISON_ATTRIBUTE_TAIL_RE as p; p.search(' on ' + 'a    ,'*24 + 'a!')",
+    "from core.agent_runtime.hive_topic_draft_parsing import extract_hive_topic_create_draft; from tests.test_agent_runtime_hive_topic_drafting import _DraftingAgent; a=_DraftingAgent(); a._looks_like_hive_topic_create_request=lambda _: True; extract_hive_topic_create_draft(a, 'lets '*32 + 'bogus')",
+])
+def test_request_grammar_nonmatches_do_not_explore_equivalent_partitions(script):
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=5,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})

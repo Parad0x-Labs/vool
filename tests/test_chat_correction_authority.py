@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+
+import pytest
+
 from core.bootstrap_context import _with_authoritative_corrections
 from core.memory.entries import derive_fact_key, is_user_correction
 
@@ -66,3 +72,26 @@ def test_unrelated_turn_does_not_reinject_an_old_correction_as_the_topic() -> No
     assert all(item["role"] != "system" for item in result)
     assert all("paper sketches" not in item["content"] for item in result)
     assert any("five-minute walk" in item["content"] for item in result)
+
+
+@pytest.mark.parametrize("script", [
+    "from core.incomplete_answer import inspect_answer_completeness; inspect_answer_completeness('| A | B |\\n|' + ' '*100000 + 'x')",
+    "from core.grounding_publication import _trim_unsupported_spans; _trim_unsupported_spans('remove' + '\\u00a0'*100000 + 'tail', ['remove'])",
+    "from core.memory.entries import is_user_correction; is_user_correction('not something '*10000 + '!')",
+])
+def test_remaining_guard_nonmatches_do_not_revisit_suffixes(script):
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("not red, it is blue", True),
+    ("not x\nit is blue", True),
+    ("not \nit is blue", False),
+    ("not x\nunrelated it is blue", False),
+    ("not x; it's blue", True),
+    ("not something, maybe later", False),
+])
+def test_correction_scanner_preserves_line_and_payload_boundaries(text, expected):
+    from core.memory.entries import is_user_correction
+    assert is_user_correction(text) is expected

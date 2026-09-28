@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import pytest
 
 from core.response_constraints import (
@@ -305,3 +308,12 @@ def test_short_constraint_preserves_complete_answers_and_fragments(text: str) ->
     check = check_response_constraint(text, constraint)
 
     assert check.compliant is True
+
+
+def test_response_word_owners_keep_the_same_clock_and_word_contract():
+    from core import raw_output_contract, response_constraints
+    for text, expected in [("06:49 2026-08-15", ["06:49", "2026-08-15"]),
+                           ("alpha:123xyz beta", ["alpha:123xyz", "beta"]),
+                           ("can't naïve", ["can't", "naïve"])]:
+        assert response_constraints._WORD_RE.findall(text) == expected
+        assert raw_output_contract._WORD_RE.findall(text) == expected
