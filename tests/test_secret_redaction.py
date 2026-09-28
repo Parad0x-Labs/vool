@@ -190,3 +190,37 @@ def test_bitcoin_wif_private_key_is_redacted_but_addresses_survive():
     # A normal Solana public address (32-44 chars) must stay readable.
     addr = "9M949Afyfrobert5tZ1Xg8g2Nq1r9dQh2Y6b3c4d5e6"
     assert addr in redact_secrets(f"pay {addr}")
+
+
+def test_bip39_recovery_phrase_is_redacted_even_unlabelled():
+    from core.secret_redaction import contains_secret, redact_secrets
+    from core.wallet.mnemonic import generate_mnemonic
+
+    phrase = generate_mnemonic(strength_bits=128)  # a REAL checksum-valid 12-word phrase
+    # unlabelled, mid-sentence, with prose on both sides
+    masked = redact_secrets(f"i wrote this down somewhere: {phrase} -- is that safe?")
+    assert phrase not in masked
+    assert masked == "i wrote this down somewhere: [redacted-mnemonic] -- is that safe?"
+    # labelled: the labelled rule alone masked only the FIRST word, leaving eleven readable
+    assert redact_secrets(f"mnemonic: {phrase}") == "mnemonic: [redacted]"
+    assert contains_secret(phrase) is True
+
+
+def test_bip39_redaction_takes_the_longest_valid_run_and_tolerates_edge_punctuation():
+    from core.secret_redaction import redact_secrets
+    from core.wallet.mnemonic import generate_mnemonic
+
+    words24 = generate_mnemonic(strength_bits=256).split()
+    masked = redact_secrets(f"backup: {' '.join(words24)} done.")
+    assert " ".join(words24) not in masked
+    assert masked == "backup: [redacted-mnemonic] done."
+
+
+def test_a_word_run_without_the_bip39_checksum_is_not_mangled():
+    from core.secret_redaction import redact_secrets
+
+    # twelve real wordlist words whose checksum does not validate: ordinary prose, untouched
+    run = " ".join(
+        ["abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse", "access", "accident"]
+    )
+    assert redact_secrets(f"the list starts {run} and continues") == f"the list starts {run} and continues"
