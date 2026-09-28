@@ -1245,7 +1245,7 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         ), mock.patch("core.web.api.runtime.load_active_persona", return_value=persona), mock.patch(
             "core.web.api.runtime.get_agent_display_name",
             return_value="VOOL",
-        ), mock.patch("core.web.api.runtime.ensure_openclaw_registration", return_value=True), mock.patch(
+        ), mock.patch(
             "core.web.api.runtime.VoolAgent",
             return_value=agent,
         ), mock.patch("core.web.api.runtime.resolve_local_worker_capacity", return_value=(3, 3)), mock.patch(
@@ -1444,9 +1444,6 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
             "core.web.api.runtime.get_agent_display_name",
             return_value="VOOL",
         ), mock.patch(
-            "core.web.api.runtime.ensure_openclaw_registration",
-            return_value=True,
-        ), mock.patch(
             "core.web.api.runtime.VoolAgent",
             return_value=agent,
         ), mock.patch(
@@ -1521,9 +1518,6 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         ), mock.patch(
             "core.web.api.runtime.get_agent_display_name",
             return_value="VOOL",
-        ), mock.patch(
-            "core.web.api.runtime.ensure_openclaw_registration",
-            return_value=True,
         ), mock.patch(
             "core.web.api.runtime.VoolAgent",
             return_value=agent,
@@ -1620,9 +1614,6 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
             "core.web.api.runtime.get_agent_display_name",
             return_value="VOOL",
         ), mock.patch(
-            "core.web.api.runtime.ensure_openclaw_registration",
-            return_value=True,
-        ), mock.patch(
             "core.web.api.runtime.VoolAgent",
             return_value=agent,
         ), mock.patch(
@@ -1704,9 +1695,6 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         ), mock.patch(
             "core.web.api.runtime.get_agent_display_name",
             return_value="VOOL",
-        ), mock.patch(
-            "core.web.api.runtime.ensure_openclaw_registration",
-            return_value=True,
         ), mock.patch(
             "core.web.api.runtime.VoolAgent",
             return_value=agent,
@@ -1791,7 +1779,6 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
             stack.enter_context(mock.patch("core.web.api.runtime.log_prewarm_results"))
             stack.enter_context(mock.patch("core.web.api.runtime.load_active_persona", return_value=persona))
             stack.enter_context(mock.patch("core.web.api.runtime.get_agent_display_name", return_value="VOOL"))
-            stack.enter_context(mock.patch("core.web.api.runtime.ensure_openclaw_registration", return_value=True))
             stack.enter_context(mock.patch("core.web.api.runtime.VoolAgent", return_value=agent))
             stack.enter_context(
                 mock.patch("core.web.api.runtime.resolve_local_worker_capacity", return_value=(3, 3))
@@ -3014,8 +3001,6 @@ class OllamaModelPullTests(unittest.TestCase):
             "core.web.api.runtime.load_active_persona", return_value=persona
         ), mock.patch(
             "core.web.api.runtime.get_agent_display_name", return_value="VOOL"
-        ), mock.patch(
-            "core.web.api.runtime.ensure_openclaw_registration", return_value=True
         ), mock.patch("core.web.api.runtime.VoolAgent", return_value=mock.Mock()), mock.patch(
             "core.web.api.runtime.resolve_local_worker_capacity", return_value=(3, 3)
         ), mock.patch(
