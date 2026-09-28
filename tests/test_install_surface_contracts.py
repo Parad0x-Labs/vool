@@ -292,3 +292,49 @@ def test_windows_retired_openclaw_launcher_is_a_side_effect_free_stub() -> None:
     assert "VOOL_ENABLE_WINDOWS_MESH_DAEMON" in runtime
     assert "Mesh daemon disabled" in runtime
     assert "VOOL_OPENCLAW_GATEWAY_PORT" not in launcher
+
+
+def test_windows_stub_launcher_executes_as_refusal_from_path_with_spaces(tmp_path: Path) -> None:
+    """EXECUTED on a Windows host: the retired OpenClaw launcher must refuse (exit 1,
+    honest notice) with zero side effects on an unrelated third-party config, including
+    when invoked through cmd.exe from a project path that contains spaces.
+
+    On non-Windows platforms cmd.exe cannot execute a .bat, so this case is a plain
+    PENDING-PLATFORM skip -- never a local pass. DELIVERY runs it through the Windows
+    fresh-host gauntlet (Test_VOOL_Windows_Gauntlet.cmd), whose focused regression
+    selection includes this file.
+    """
+    import os
+    import shutil
+    import subprocess
+    import sys
+
+    if sys.platform != "win32":
+        import pytest
+
+        pytest.skip("cmd.exe batch execution requires a Windows host (Windows fresh-host gauntlet)")
+
+    run_dir = tmp_path / "Vool Space Project"
+    run_dir.mkdir()
+    shutil.copyfile(REPO_ROOT / "OpenClaw_VOOL.bat", run_dir / "OpenClaw_VOOL.bat")
+
+    fake_home = tmp_path / "isolated-home"
+    openclaw_dir = fake_home / ".openclaw"
+    openclaw_dir.mkdir(parents=True)
+    unrelated_config = openclaw_dir / "openclaw.json"
+    unrelated_before = '{"model": "unrelated", "reserveTokensFloor": 99000}'
+    unrelated_config.write_text(unrelated_before, encoding="utf-8")
+
+    completed = subprocess.run(
+        ["cmd.exe", "/d", "/c", str(run_dir / "OpenClaw_VOOL.bat")],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "USERPROFILE": str(fake_home)},
+        timeout=60,
+    )
+    combined = completed.stdout + completed.stderr
+    assert completed.returncode == 1, combined
+    assert "retired from VOOL" in combined
+    assert unrelated_config.read_text(encoding="utf-8") == unrelated_before, (
+        "the refusal stub must leave unrelated third-party config byte-for-byte intact"
+    )
