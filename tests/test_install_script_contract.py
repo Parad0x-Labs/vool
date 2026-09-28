@@ -91,8 +91,12 @@ def test_install_script_hardens_openclaw_launcher_bootstrap() -> None:
     assert 'say "ERROR: launchd installed VOOL, but the API did not stay healthy long enough to verify /v1/models within 240 seconds."' in script
     assert 'exec "${PROJECT_ROOT}/Start_VOOL.sh"' in script
     assert 'pull_models "${ollama_exe}" "${install_profile}" "${model_tag}"' in script
-    assert 'pull_models "${ollama_exe}" "${install_profile}" "${model_tag}" "${runtime_home}" "${openclaw_enabled}"' in script
-    assert 'required_model="nomic-embed-text"' in script
+    assert 'pull_models "${ollama_exe}" "${install_profile}" "${model_tag}" "${runtime_home}"' in script
+    # Native memory-embedding provisioning (decoupled from the retired OpenClaw gate):
+    # pull_models consults the core authority for the embedding lane, not a mode flag.
+    assert 'detect_memory_embedding_models() {' in script
+    assert '< <(detect_memory_embedding_models "${runtime_home}")' in script
+    assert '"${runtime_home}" "${openclaw_enabled}"' not in script
 
 
 def test_install_script_launch_agent_enables_supervised_runtime() -> None:
@@ -159,7 +163,7 @@ def test_windows_launchers_use_module_entrypoint_for_api_server() -> None:
     assert 'for %%I in ("%PROJECT_ROOT%\\..\\.vool_runtime") do set "VOOL_HOME_DEFAULT=%%~fI"' in install_bat_script
     assert "Step 7/14: Verifying launchers" in install_bat_script
     assert "persist_windows_runtime_config.py" in install_bat_script
-    assert '"Start_VOOL.bat" "Talk_To_VOOL.bat" "OpenClaw_VOOL.bat" "Stop_VOOL.bat" "vool_background.vbs" "vool_background.cmd"' in install_bat_script
+    assert '"Start_VOOL.bat" "Talk_To_VOOL.bat" "Open_Chat.bat" "Open_Web0.bat" "OpenClaw_VOOL.bat" "Stop_VOOL.bat" "vool_background.vbs" "vool_background.cmd"' in install_bat_script
     assert "Missing Windows launcher" in install_bat_script
     assert 'set "VBS_PATH=%PROJECT_ROOT%\\vool_background.vbs"' in install_bat_script
     assert 'set "BACKGROUND_CMD_PATH=%PROJECT_ROOT%\\vool_background.cmd"' in install_bat_script
@@ -470,3 +474,73 @@ def test_installer_main_flow_falls_back_to_requested_name_when_runtime_python_is
     assert "HARNESS_MAIN_RC=0" in result.stdout, combined[-2000:]
     assert "Visible agent name: FallbackName" in result.stdout
     assert not (runtime_home / "data" / "owner_identity.json").exists()
+
+
+def test_pull_models_provisions_native_embedding_lane_with_recording_ollama(tmp_path: Path) -> None:
+    """Executed pull_models proof against a recording fake Ollama (no real pulls).
+
+    Fresh native installs must provision the semantic-memory embedding model through the
+    core local-model policy authority — the pull that used to hide behind the retired
+    OpenClaw gate. The fake Ollama records `list` and `pull` invocations so the requested
+    model set is asserted without downloading anything.
+    """
+    import subprocess
+
+    from tests.platform_helpers import bash_script_args
+
+    fake_ollama = tmp_path / "ollama"
+    record = tmp_path / "recorded.txt"
+    fake_ollama.write_text(
+        "#!/usr/bin/env bash\n"
+        'printf "%s %s\\n" "$1" "${2:-}" >> ' + f'"{record}"\n'
+        'if [[ "$1" == "list" ]]; then exit 0; fi\n'  # nothing installed: every model pulls
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_ollama.chmod(0o755)
+
+    installer_script = (PROJECT_ROOT / "installer" / "install_vool.sh").read_text(encoding="utf-8")
+    prefix, marker, _ = installer_script.partition('\nparse_args "$@"\n')
+    assert marker
+
+    # The embedding shim resolves the core authority through the venv python, so give the
+    # harness a wrapper that runs the real interpreter.
+    import sys
+
+    venv_bin = tmp_path / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    (venv_bin / "python").write_text(
+        "#!/usr/bin/env bash\nexec " + sys.executable + ' "$@"\n',
+        encoding="utf-8",
+    )
+    (venv_bin / "python").chmod(0o755)
+
+    runtime_home = tmp_path / "runtime"
+    runtime_home.mkdir()
+    harness = tmp_path / "run_pull.sh"
+    harness.write_text(
+        prefix
+        + "\n"
+        + "\n".join(
+            [
+                f'PROJECT_ROOT="{PROJECT_ROOT}"',
+                f'SCRIPT_DIR="{PROJECT_ROOT}/installer"',
+                f'VENV_DIR="{tmp_path}/.venv"',
+                f'pull_models "{fake_ollama}" "local-only" "qwen3:8b" "{runtime_home}"',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        bash_script_args(harness),
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    requested = [line.split(" ", 1)[1].strip() for line in record.read_text(encoding="utf-8").splitlines() if line.startswith("pull ")]
+    assert "nomic-embed-text" in requested, f"native embedding lane not provisioned: {requested}"
+    assert any(model.startswith("qwen") for model in requested), f"chat models missing from pull: {requested}"

@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from core.local_model_bundles import model_storage_gb, safe_disk_floor_gb
-from core.runtime_install_profiles import default_ollama_models_path
+from core.runtime_install_profiles import DEFAULT_MEMORY_EMBEDDING_MODEL, default_ollama_models_path
 
-DEFAULT_OPENCLAW_MEMORY_MODEL = "nomic-embed-text"
+# Legacy name kept for the Windows installer's drive-planning reference; the authority
+# for what the model IS lives in core.runtime_install_profiles.
+DEFAULT_OPENCLAW_MEMORY_MODEL = DEFAULT_MEMORY_EMBEDDING_MODEL
 
 
 def build_model_store_drive_plan(

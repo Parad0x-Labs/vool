@@ -714,6 +714,34 @@ def _required_ollama_models(
     )
 
 
+# VOOL's native semantic-memory embedding model (core/embedding_service prefers it through
+# the local Ollama lane). Provisioning used to ride the retired OpenClaw setup gate; this
+# constant is its native authority.
+DEFAULT_MEMORY_EMBEDDING_MODEL = "nomic-embed-text"
+
+
+def required_memory_embedding_models(
+    *,
+    runtime_home: str | Path | None = None,
+    env: Mapping[str, str] | None = None,
+) -> tuple[str, ...]:
+    """The memory-embedding models a fresh native install should provision.
+
+    Required exactly when local models are enabled for this runtime (the embedding lane
+    runs through local Ollama); remote-only installs and runtimes that disable local
+    models get an empty tuple, and the pull itself stays best-effort so an offline
+    install degrades to the deterministic embedding fallback with a warning instead of
+    failing the install.
+    """
+    from core.local_model_policy import resolve_local_model_policy
+
+    env_map = os.environ if env is None else env
+    policy = resolve_local_model_policy(env=env_map, runtime_home=runtime_home)
+    if not policy.local_models_enabled:
+        return tuple()
+    return (DEFAULT_MEMORY_EMBEDDING_MODEL,)
+
+
 def required_ollama_models_for_profile(
     *,
     profile_id: str,
@@ -1394,6 +1422,7 @@ def _installed_ollama_model_tags(
 
 
 __all__ = [
+    "DEFAULT_MEMORY_EMBEDDING_MODEL",
     "INSTALL_PROFILE_CHOICES",
     "PUBLIC_INSTALL_PROFILE_CHOICES",
     "InstallProfileProvider",
@@ -1410,5 +1439,6 @@ __all__ = [
     "normalize_install_profile_id",
     "persist_install_profile_record",
     "preferred_install_profile_id",
+    "required_memory_embedding_models",
     "required_ollama_models_for_profile",
 ]
