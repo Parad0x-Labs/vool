@@ -63,9 +63,12 @@ def test_a_recovery_phrase_typed_in_chat_never_reaches_the_decision_log(tmp_path
         rows = rdl.recent_decisions()
         assert rows and rows[-1]["family"] == "fixture"
         assert phrase not in stored
-        for word in phrase.split():  # word-BOUNDED: 'age' must not fail on 'message'
-            assert not _re.search(rf"\b{_re.escape(word)}\b", stored), word
-        assert "[redacted-mnemonic]" in rows[-1]["message"]
+        # check the row's message VALUE, not the raw JSON line: keys like "message" and
+        # "family" are themselves BIP-39 words and must not be mistaken for phrase content
+        message_value = str(rows[-1]["message"])
+        assert "[redacted-mnemonic]" in message_value
+        for word in phrase.split():
+            assert not _re.search(rf"\b{_re.escape(word)}\b", message_value), word
     finally:
         runtime_paths.configure_runtime_home(None)
 
@@ -87,10 +90,14 @@ def test_a_broken_install_fails_the_row_closed_instead_of_storing_a_phrase(tmp_p
     try:
         phrase = generate_mnemonic(strength_bits=128)
         rdl.record_decision(session_id="s", user_input=f"i saved this: {phrase} ok", family="fixture", handled=True)
+        import json as _json
+
         stored = rdl.decisions_path().read_text()
-        assert "[message unavailable: secret-shape protection unavailable]" in stored
-        for word in phrase.split():
-            assert word not in stored, word
+        # the row's message VALUE is the refusal (checked on the parsed row: JSON keys like
+        # "message" are themselves BIP-39 words and must not be mistaken for phrase content)
+        row = _json.loads(stored.strip().splitlines()[-1])
+        assert row["message"] == "[message unavailable: secret-shape protection unavailable]"
+        assert phrase not in stored  # and the phrase, as a whole, is nowhere in the file
     finally:
         runtime_paths.configure_runtime_home(None)
         monkeypatch.setattr(sr, "_BIP39_INDEX", None)
