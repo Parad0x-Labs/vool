@@ -1201,3 +1201,81 @@ def test_gitlab_draft_title_survives_a_title_update() -> None:
     assert answer.title == "New" and answer.draft is True
     sent = json.loads(_calls(gl, method="PUT")[0]["body"])
     assert sent["title"] == "Draft: New"
+
+
+# ---------------------------------------------------------------------------
+# Remote-URL provider classification (core.repoops.forge.provider_for_remote)
+# ---------------------------------------------------------------------------
+
+
+def test_a_host_that_embeds_a_provider_name_names_itself() -> None:
+    from core.repoops.forge import provider_for_remote
+
+    for remote in (
+        "https://github.com.evil.com/acme/api.git",
+        "https://evil.com/github.com/acme/api.git",
+        "https://GitHub.com.evil.com/acme/api.git",
+        "https://gitlab.com.evil.attacker.test/g/p.git",
+        "https://mygitlab.com/g/p.git",
+        "git@github.com.evil.com:acme/api.git",
+        "git@mygitlab.com:g/p.git",
+        "github.com.evil.com/acme/api.git",
+    ):
+        assert provider_for_remote(remote) == "", remote
+    # a /gitlab PATH on another host is the path-hosted GitLab shape, not a host embedding:
+    # it classifies (the supported lane) and the transport stays pinned to gitlab.com itself
+    assert provider_for_remote("https://evil.com/gitlab/g/p.git") == "gitlab"
+
+
+def test_every_legitimate_remote_shape_still_classifies() -> None:
+    from core.repoops.forge import provider_for_remote
+
+    github = (
+        "https://github.com/acme/api.git",
+        "https://www.github.com/acme/api.git",
+        "git@github.com:acme/api.git",
+        "ssh://git@github.com/acme/api.git",
+        "git://github.com/acme/api.git",
+        "github.com/acme/api",
+        "https://github.com/acme/api",
+    )
+    for remote in github:
+        assert provider_for_remote(remote) == "github", remote
+    gitlab = (
+        "https://gitlab.com/g/p.git",
+        "https://www.gitlab.com/g/p.git",
+        "git@gitlab.com:g/p.git",
+        "ssh://git@gitlab.com/g/p.git",
+        "gitlab.com/g/p",
+        # path-hosted GitLab behind the owner's base-URL override
+        "https://forge.example.com/gitlab/g/p.git",
+    )
+    for remote in gitlab:
+        assert provider_for_remote(remote) == "gitlab", remote
+    assert provider_for_remote("") == ""
+    assert provider_for_remote("https://gitea.company.example/acme/api.git") == ""
+
+
+def test_the_owners_self_hosted_override_host_classifies(monkeypatch) -> None:
+    from core.repoops.forge import provider_for_remote
+
+    monkeypatch.setenv("VOOL_FORGE_BASE_URL_GITLAB", "https://mygitlab.example")
+    assert provider_for_remote("https://mygitlab.example/g/p.git") == "gitlab"
+    assert provider_for_remote("git@mygitlab.example:g/p.git") == "gitlab"
+    # the override widens nothing beyond its own host
+    assert provider_for_remote("https://mygitlab.example.evil.com/g/p.git") == ""
+    assert provider_for_remote("https://github.com.evil.com/acme/api.git") == ""
+
+
+def test_a_substring_host_cannot_pick_a_provider_the_transport_would_then_pin() -> None:
+    from core.kas.registry import _allowed_hosts
+    from core.repoops.forge import provider_for_remote
+
+    # before any adapter exists: a refused classification names no provider, so no
+    # pinned-host transport is ever built for an attacker-shaped remote
+    for remote in (
+        "https://github.com.evil.com/acme/api.git",
+        "https://gitlab.com.evil.attacker.test/g/p.git",
+    ):
+        provider = provider_for_remote(remote)
+        assert provider == "" and _allowed_hosts(provider, "") == (), remote
