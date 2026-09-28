@@ -34,7 +34,7 @@ from core.bug_report.redaction import (
     _is_v6_candidate,
     _looks_like_secret_run,
 )
-from core.secret_redaction import contains_secret
+from core.secret_redaction import contains_secret, mnemonic_redaction_available
 
 # Spans the pipeline itself generated from sanitized material (content-free digests).
 _DIGEST_FIELD_RE = re.compile(
@@ -113,6 +113,11 @@ def scan_text(text: str) -> tuple[ScanFinding, ...]:
     # ignored first: "token: [redacted]" would otherwise look like a labelled secret.
     if contains_secret(_MARKER_RE.sub(" ", value)):
         findings.append(ScanFinding(rule="secret_vendor", start=0))
+
+    # Fail closed on a degraded install: without the canonical wordlist the backstop above
+    # cannot see a recovery phrase, and "clean" would ship one out of the machine.
+    if not mnemonic_redaction_available():
+        findings.append(ScanFinding(rule="secret_shape_protection_unavailable", start=0))
 
     check("cookie_header", _COOKIE_HEADER_RE)
     check("auth_header", _AUTH_HEADER_RE)
