@@ -23,6 +23,11 @@ class SessionNotFound(LookupError):
     pass
 
 
+class RedactionUnavailable(RuntimeError):
+    """The export redaction pass cannot see every secret shape (broken install: the canonical
+    BIP-39 wordlist is missing), so no bundle may leave the home."""
+
+
 class OverBound(LookupError):
     def __init__(self, bound: str, limit: int) -> None:
         super().__init__(f"session exceeds the {bound} bound ({limit})")
@@ -82,6 +87,13 @@ def collect_session(session_id: str) -> tuple[dict[str, Any], dict[str, bytes], 
         session_summaries_path,
     )
     from core.operator_profile import export_profile
+    from core.secret_redaction import mnemonic_redaction_available
+
+    if not mnemonic_redaction_available():
+        raise RedactionUnavailable(
+            "secret-shape protection is unavailable (broken install: the BIP-39 wordlist is "
+            "missing); a recovery phrase could not be seen by the export redaction pass"
+        )
 
     bounds = _bounds()
     private_roots = _private_roots()
