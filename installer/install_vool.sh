@@ -1537,6 +1537,20 @@ start_ollama_server() {
 }
 
 
+# Seed the first-run VOOL display identity through the native authority
+# (installer/seed_identity.py -> core.onboarding). Purely VOOL-native: it never reads or
+# writes third-party OpenClaw state, and falls back to the requested name when the
+# runtime is not yet usable.
+seed_agent_identity() {
+  local runtime_home="$1"
+  local agent_name="$2"
+  local resolved_name=""
+  resolved_name="$(VOOL_HOME="${runtime_home}" \
+    "${VENV_DIR}/bin/python" "${SCRIPT_DIR}/seed_identity.py" --agent-name "${agent_name}" 2>/dev/null || printf '%s' "${agent_name}")"
+  printf '%s' "${resolved_name:-$agent_name}"
+}
+
+
 pull_models() {
   local ollama_exe="$1"
   local install_profile="$2"
