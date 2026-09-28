@@ -13,7 +13,6 @@ if [ -z "${VOOL_HOME_DEFAULT:-}" ]; then
     VOOL_HOME_DEFAULT="$HOME/.vool_runtime"
   fi
 fi
-OPENCLAW_AGENT_DEFAULT="${OPENCLAW_AGENT_DEFAULT:-$HOME/.openclaw/agents/main/agent/vool}"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=10
 AUTO_YES=0
@@ -21,10 +20,6 @@ AUTO_START=0
 RUNTIME_HOME_OVERRIDE=""
 INSTALL_PROFILE_OVERRIDE="${VOOL_INSTALL_PROFILE:-}"
 AGENT_NAME_OVERRIDE="${VOOL_AGENT_NAME:-}"
-OPENCLAW_MODE="default" # prompt|skip|default|path
-OPENCLAW_PATH_OVERRIDE=""
-OPENCLAW_GATEWAY_BIND="${VOOL_OPENCLAW_GATEWAY_BIND:-}"
-OPENCLAW_GATEWAY_CUSTOM_HOST="${VOOL_OPENCLAW_GATEWAY_CUSTOM_HOST:-}"
 DESKTOP_SHORTCUT_PATH=""
 LAUNCH_AGENT_PATH=""
 RUNTIME_REQUIREMENTS_FILE="${PROJECT_ROOT}/requirements-runtime.txt"
@@ -73,10 +68,10 @@ Options:
   --start                      Launch VOOL immediately after install
   --runtime-home <path>        Override VOOL_HOME path
   --install-profile <profile>  auto-recommended | local-only (alias: ollama-only) | local-max (alias: ollama-max)
-  --agent-name <name>          Visible agent name for OpenClaw and chat
-  --openclaw <mode-or-path>    skip | default | prompt | <custom-path>
-  --gateway-bind <mode>        OpenClaw gateway bind: loopback | lan | custom
-  --gateway-custom-host <ip>   Custom host/IP when --gateway-bind custom
+  --agent-name <name>          Visible agent name for chat
+  --openclaw <mode-or-path>    DEPRECATED no-op: OpenClaw integration is retired; VOOL installs natively
+  --gateway-bind <mode>        DEPRECATED no-op: OpenClaw gateway setup is retired
+  --gateway-custom-host <ip>   DEPRECATED no-op: OpenClaw gateway setup is retired
   --help, -h                   Show this help
 EOF
 }
@@ -121,21 +116,7 @@ parse_args() {
           say "ERROR: --openclaw requires a value."
           exit 2
         fi
-        case "$1" in
-          skip|none|no)
-            OPENCLAW_MODE="skip"
-            ;;
-          default|yes)
-            OPENCLAW_MODE="default"
-            ;;
-          prompt)
-            OPENCLAW_MODE="prompt"
-            ;;
-          *)
-            OPENCLAW_MODE="path"
-            OPENCLAW_PATH_OVERRIDE="$1"
-            ;;
-        esac
+        say "NOTE: --openclaw is a deprecated no-op: OpenClaw integration is retired and VOOL installs natively."
         ;;
       --gateway-bind)
         shift
@@ -143,7 +124,7 @@ parse_args() {
           say "ERROR: --gateway-bind requires a value."
           exit 2
         fi
-        OPENCLAW_GATEWAY_BIND="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+        say "NOTE: --gateway-bind is a deprecated no-op: OpenClaw gateway setup is retired."
         ;;
       --gateway-custom-host)
         shift
@@ -151,7 +132,7 @@ parse_args() {
           say "ERROR: --gateway-custom-host requires a value."
           exit 2
         fi
-        OPENCLAW_GATEWAY_CUSTOM_HOST="$1"
+        say "NOTE: --gateway-custom-host is a deprecated no-op: OpenClaw gateway setup is retired."
         ;;
       --help|-h)
         usage
@@ -216,18 +197,6 @@ validate_install_profile() {
 
 
 validate_args() {
-  case "${OPENCLAW_GATEWAY_BIND}" in
-    ""|loopback|lan|custom)
-      ;;
-    *)
-      say "ERROR: --gateway-bind must be loopback, lan, or custom."
-      exit 2
-      ;;
-  esac
-  if [[ "${OPENCLAW_GATEWAY_BIND}" == "custom" && -z "${OPENCLAW_GATEWAY_CUSTOM_HOST}" ]]; then
-    say "ERROR: --gateway-custom-host is required when --gateway-bind custom is used."
-    exit 2
-  fi
   validate_install_profile "${INSTALL_PROFILE_OVERRIDE}"
   INSTALL_PROFILE_OVERRIDE="$(canonical_install_profile "${INSTALL_PROFILE_OVERRIDE}")"
 }
@@ -633,7 +602,7 @@ EOF
 
 optional_localmax_followup_command() {
   local runtime_home="$1"
-  printf '%s' "bash \"${PROJECT_ROOT}/installer/install_vool.sh\" --runtime-home \"${runtime_home}\" --install-profile ollama-max --openclaw default"
+  printf '%s' "bash \"${PROJECT_ROOT}/installer/install_vool.sh\" --runtime-home \"${runtime_home}\" --install-profile ollama-max"
 }
 
 
@@ -849,7 +818,7 @@ bootstrap_xsearch() {
 web_runtime_exports() {
   cat <<EOF
 export VOOL_REGISTER_INSTALLED_OLLAMA_MODELS="\${VOOL_REGISTER_INSTALLED_OLLAMA_MODELS:-1}"
-# Local Ollama is keyless, but the daemon/OpenClaw gateway inherit this like the Windows global setx.
+# Local Ollama is keyless, but the daemon inherits this like the Windows global setx.
 export OLLAMA_API_KEY="\${OLLAMA_API_KEY:-ollama-local}"
 # Context Capsule 2.0 boosters ON by default (opt-out with 0), for every launcher + the daemon.
 export VOOL_ADAPTIVE_CONTEXT="\${VOOL_ADAPTIVE_CONTEXT:-1}"
@@ -1114,7 +1083,7 @@ done
 ensure_ollama_server
 ensure_llamacpp_server
 echo "Starting VOOL (API + mesh daemon)..."
-echo "OpenClaw connects to \${VOOL_OPENCLAW_API_URL:-http://127.0.0.1:11435}"
+echo "VOOL API serves \${VOOL_OPENCLAW_API_URL:-http://127.0.0.1:11435}"
 # The interactive start honors the exported port exactly as the supervised loop does: without
 # this, VOOL_OPENCLAW_API_PORT was read at the top of the script and then silently dropped
 # here, so any wrapper/acceptance launch that dedicated a port (native bundle supervisor,
@@ -1158,171 +1127,32 @@ EOF
 }
 
 
-write_openclaw_launcher() {
+# The OpenClaw integration is retired: VOOL installs, starts and chats natively. Existing
+# installs may still have shortcuts pointing at OpenClaw_VOOL.sh, so the file remains as an
+# honest, side-effect-free stub: it explains the retirement, points at the native launchers
+# and the separate skills repository, refuses to start or configure OpenClaw, and NEVER
+# touches an existing OpenClaw installation.
+write_retired_openclaw_stub() {
   local target_path="$1"
-  local runtime_home="$2"
-  local model_tag="$3"
-  local openclaw_home="$4"
-  local install_profile="${5:-local-only}"
-  cat >"${target_path}" <<'LAUNCHER_HEAD'
+  cat >"${target_path}" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="${SCRIPT_DIR}"
-export PATH="${SCRIPT_DIR}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
-VENV_RESOLVER="${PROJECT_ROOT}/scripts/ensure_workspace_runtime.sh"
-VENV_PY="$(bash "${VENV_RESOLVER}")"
-cd "${PROJECT_ROOT}"
-LAUNCHER_HEAD
-  cat >>"${target_path}" <<EOF
-MODEL_TAG="${model_tag}"
-export VOOL_HOME="\${VOOL_HOME:-${runtime_home}}"
-# VOOL_WORKSPACE_ROOT is deliberately NOT defaulted here: pinning it made every packaged
-# run resolve the unbound chat workspace to the hidden internal directory, silently
-# overriding the Desktop default (core/web/api/runtime.default_workspace_root). An
-# operator who wants the old pin exports it explicitly before starting.
-PROVIDER_ENV_FILE="\${VOOL_HOME}/config/provider-env.sh"
-if [[ -f "\${PROVIDER_ENV_FILE}" ]]; then
-  # shellcheck disable=SC1090
-  . "\${PROVIDER_ENV_FILE}"
-fi
-export VOOL_OLLAMA_MODEL="\${VOOL_OLLAMA_MODEL:-\${MODEL_TAG}}"
-export VOOL_OPENCLAW_API_PORT="\${VOOL_OPENCLAW_API_PORT:-11435}"
-export VOOL_OPENCLAW_API_URL="\${VOOL_OPENCLAW_API_URL:-http://127.0.0.1:\${VOOL_OPENCLAW_API_PORT}}"
-export VOOL_OPENCLAW_GATEWAY_PORT="\${VOOL_OPENCLAW_GATEWAY_PORT:-18789}"
-$(web_runtime_exports)
-EOF
-  if [[ -n "${openclaw_home}" ]]; then
-    cat >>"${target_path}" <<EOF
-export OPENCLAW_HOME="${openclaw_home}"
-export OPENCLAW_STATE_DIR="\${OPENCLAW_STATE_DIR:-${openclaw_home}}"
-EOF
-  fi
-cat >>"${target_path}" <<EOF
+cat >&2 <<'NOTICE'
+OpenClaw integration is retired from VOOL.
 
-wait_for_http_ready() {
-  local url="\$1"
-  local max_attempts="\$2"
-  local pid="\${3:-}"
-  local consecutive_target="\${4:-2}"
-  local consecutive=0
-  for _ in \$(seq 1 "\${max_attempts}"); do
-    if [[ -n "\${pid}" ]] && ! kill -0 "\${pid}" >/dev/null 2>&1; then
-      return 1
-    fi
-    if curl -sf --max-time 2 "\${url}" >/dev/null 2>&1; then
-      consecutive=\$((consecutive + 1))
-      if [[ "\${consecutive}" -ge "\${consecutive_target}" ]]; then
-        return 0
-      fi
-    else
-      consecutive=0
-    fi
-    sleep 1
-  done
-  return 1
-}
+This launcher no longer starts, registers, or configures OpenClaw, and it never
+modifies an existing OpenClaw installation.
 
-port_listening() {
-  local host="\$1"
-  local port="\$2"
-  "\${VENV_PY}" - "\${host}" "\${port}" <<'PY'
-import socket
-import sys
+Start VOOL natively instead:
+  Start_VOOL.sh    start the VOOL API + mesh daemon
+  Talk_To_VOOL.sh  terminal chat
+  Open_Web0.sh     open the local web UI in your browser
 
-host = sys.argv[1]
-port = int(sys.argv[2])
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-    sock.settimeout(0.5)
-    raise SystemExit(0 if sock.connect_ex((host, port)) == 0 else 1)
-PY
-}
-
-spawn_detached() {
-  local log_path="\$1"
-  shift
-  "\${VENV_PY}" - "\${log_path}" "\$@" <<'PY'
-import subprocess
-import sys
-
-log_path = sys.argv[1]
-command = sys.argv[2:]
-with open(log_path, "ab", buffering=0) as log_stream:
-    child = subprocess.Popen(
-        command,
-        stdin=subprocess.DEVNULL,
-        stdout=log_stream,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-        close_fds=True,
-    )
-print(child.pid)
-PY
-}
-
-# Undo a prior Stop: clear the stopped marker and re-arm the keep-alive supervisor (launchd on
-# macOS, systemd --user on Linux) so auto-restart resumes -- mirroring OpenClaw_VOOL.bat re-enabling
-# the VOOL_Daemon task. Best-effort/guarded.
-rm -f "\${PROJECT_ROOT}/.vool_stopped" >/dev/null 2>&1 || true
-if [[ "\$(uname)" == "Darwin" ]]; then
-  launchctl bootstrap "gui/\$(id -u)" "\${HOME}/Library/LaunchAgents/ai.vool.runtime.plist" >/dev/null 2>&1 || true
-elif command -v systemctl >/dev/null 2>&1; then
-  systemctl --user enable --now vool-runtime.service >/dev/null 2>&1 || true
-fi
-
-# Re-apply the OpenClaw UI patches (Web0 nav pill + session-retry) so they survive npm upgrades,
-# mirroring OpenClaw_VOOL.bat. Best-effort; each skips cleanly if the OpenClaw dist isn't present.
-"\${VENV_PY}" "\${PROJECT_ROOT}/installer/inject_openclaw_web0_pill.py" >/tmp/vool_openclaw_pill.log 2>&1 || true
-"\${VENV_PY}" "\${PROJECT_ROOT}/installer/patch_openclaw_session_retry.py" >/tmp/vool_openclaw_retry.log 2>&1 || true
-
-if ! wait_for_http_ready "\${VOOL_OPENCLAW_API_URL}/healthz" 2 ""; then
-  if port_listening "127.0.0.1" "\${VOOL_OPENCLAW_API_PORT}"; then
-    wait_for_http_ready "\${VOOL_OPENCLAW_API_URL}/healthz" 30 "" 3
-  else
-    api_pid="\$(spawn_detached /tmp/vool_api_server.log "\${PROJECT_ROOT}/Start_VOOL.sh")"
-    wait_for_http_ready "\${VOOL_OPENCLAW_API_URL}/healthz" 30 "\${api_pid}" 3
-  fi
-fi
-
-if ! curl -sf --max-time 2 "http://127.0.0.1:\${VOOL_OPENCLAW_GATEWAY_PORT}" >/dev/null 2>&1; then
-  if port_listening "127.0.0.1" "\${VOOL_OPENCLAW_GATEWAY_PORT}"; then
-    wait_for_http_ready "http://127.0.0.1:\${VOOL_OPENCLAW_GATEWAY_PORT}" 30 "" 2
-  else
-    if command -v openclaw >/dev/null 2>&1; then
-      openclaw_pid="\$(spawn_detached /tmp/vool_openclaw.log openclaw gateway run --force)"
-    elif command -v ollama >/dev/null 2>&1; then
-      openclaw_pid="\$(spawn_detached /tmp/vool_openclaw.log ollama launch openclaw --yes --model "\${MODEL_TAG}")"
-    fi
-    wait_for_http_ready "http://127.0.0.1:\${VOOL_OPENCLAW_GATEWAY_PORT}" 30 "\${openclaw_pid:-}" 2
-  fi
-fi
-
-if ! curl -sf --max-time 2 "http://127.0.0.1:\${VOOL_OPENCLAW_GATEWAY_PORT}" >/dev/null 2>&1 && command -v openclaw >/dev/null 2>&1; then
-  openclaw_pid="\$(spawn_detached /tmp/vool_openclaw.log openclaw gateway run --force)"
-  wait_for_http_ready "http://127.0.0.1:\${VOOL_OPENCLAW_GATEWAY_PORT}" 30 "\${openclaw_pid}" 2
-fi
-
-wait_for_http_ready "\${VOOL_OPENCLAW_API_URL}/healthz" 3 "" 2
-wait_for_http_ready "http://127.0.0.1:\${VOOL_OPENCLAW_GATEWAY_PORT}" 3 "" 2
-
-GW_TOKEN="\$("\${VENV_PY}" -c "import os, sys; sys.path.insert(0, '\${PROJECT_ROOT}'); from core.openclaw_locator import discover_openclaw_paths, load_gateway_token; paths = discover_openclaw_paths(explicit_home=os.environ.get('OPENCLAW_HOME') or os.environ.get('OPENCLAW_STATE_DIR'), create_default=True); print(load_gateway_token(paths))" 2>/dev/null || true)"
-OPENCLAW_URL="http://127.0.0.1:\${VOOL_OPENCLAW_GATEWAY_PORT}"
-TRACE_URL="\${VOOL_OPENCLAW_API_URL}/trace"
-if [[ -n "\${GW_TOKEN}" ]]; then
-  OPENCLAW_URL="\${OPENCLAW_URL}/#token=\${GW_TOKEN}"
-fi
-
-if command -v open >/dev/null 2>&1; then
-  open "\${OPENCLAW_URL}" >/dev/null 2>&1 || true
-  open "\${TRACE_URL}" >/dev/null 2>&1 || true
-elif command -v xdg-open >/dev/null 2>&1; then
-  xdg-open "\${OPENCLAW_URL}" >/dev/null 2>&1 || true
-  xdg-open "\${TRACE_URL}" >/dev/null 2>&1 || true
-fi
-
-echo "VOOL running. OpenClaw URL: \${OPENCLAW_URL}"
-echo "VOOL trace rail: \${TRACE_URL}"
-EOF
+OpenClaw-specific skills are maintained separately:
+  https://github.com/Parad0x-Labs/openclaw-skills
+NOTICE
+exit 1
+STUB
   chmod +x "${target_path}"
 }
 
@@ -1452,10 +1282,16 @@ create_desktop_shortcut() {
   if [[ "${os_name}" == "Darwin" ]]; then
     local mac_desktop="${HOME}/Desktop"
     [[ -d "${mac_desktop}" ]] || return 0
-    if [[ -f "${PROJECT_ROOT}/OpenClaw_VOOL.sh" ]]; then
-      make_mac_app_bundle "${mac_desktop}/OpenClaw + VOOL.app" "${PROJECT_ROOT}/OpenClaw_VOOL.sh" \
-        "OpenClaw + VOOL" "ai.vool.launcher.openclaw" "${assets_dir}/vool.icns"
-      DESKTOP_SHORTCUT_PATH="${mac_desktop}/OpenClaw + VOOL.app"
+    # A previous install may have left the retired "OpenClaw + VOOL" app on the Desktop;
+    # it is our own generated shortcut (now a stub), so remove it in favor of the native one.
+    if [[ -d "${mac_desktop}/OpenClaw + VOOL.app" ]]; then
+      rm -rf "${mac_desktop}/OpenClaw + VOOL.app"
+      say "Removed retired desktop shortcut: ${mac_desktop}/OpenClaw + VOOL.app"
+    fi
+    if [[ -f "${PROJECT_ROOT}/Open_Web0.sh" ]]; then
+      make_mac_app_bundle "${mac_desktop}/VOOL.app" "${PROJECT_ROOT}/Open_Web0.sh" \
+        "VOOL" "ai.vool.launcher.vool" "${assets_dir}/vool.icns"
+      DESKTOP_SHORTCUT_PATH="${mac_desktop}/VOOL.app"
     fi
     if [[ -f "${PROJECT_ROOT}/Stop_VOOL.sh" ]]; then
       make_mac_app_bundle "${mac_desktop}/Stop VOOL.app" "${PROJECT_ROOT}/Stop_VOOL.sh" \
@@ -1476,13 +1312,19 @@ create_desktop_shortcut() {
     return 0
   fi
 
-  local desktop_file="${desktop_dir}/OpenClaw_VOOL.desktop"
+  # A previous install may have left the retired OpenClaw desktop entry; it is our own
+  # generated shortcut (now a stub), so replace it with the native VOOL entry.
+  if [[ -f "${desktop_dir}/OpenClaw_VOOL.desktop" ]]; then
+    rm -f "${desktop_dir}/OpenClaw_VOOL.desktop"
+    say "Removed retired desktop shortcut: ${desktop_dir}/OpenClaw_VOOL.desktop"
+  fi
+  local desktop_file="${desktop_dir}/VOOL.desktop"
   cat >"${desktop_file}" <<EOF
 [Desktop Entry]
 Type=Application
-Name=OpenClaw + VOOL
-Comment=Start VOOL and open OpenClaw
-Exec=/usr/bin/env bash "${PROJECT_ROOT}/OpenClaw_VOOL.sh"
+Name=VOOL
+Comment=Start VOOL and open the local web UI
+Exec=/usr/bin/env bash "${PROJECT_ROOT}/Open_Web0.sh"
 Icon=${assets_dir}/vool.png
 Path=${PROJECT_ROOT}
 Terminal=false
@@ -1624,107 +1466,6 @@ EOF
 }
 
 
-resolve_openclaw_agent_dir() {
-  local resolved=""
-  case "${OPENCLAW_MODE}" in
-    skip)
-      resolved=""
-      ;;
-    default)
-      resolved=""
-      ;;
-    path)
-      resolved="${OPENCLAW_PATH_OVERRIDE}"
-      ;;
-    prompt)
-      if [[ "${AUTO_YES}" -eq 1 ]]; then
-        resolved=""
-      elif prompt_yn "Create OpenClaw bridge launcher?" "Y"; then
-        resolved="$(prompt "OpenClaw agent folder" "${OPENCLAW_AGENT_DEFAULT}")"
-      else
-        resolved=""
-      fi
-      ;;
-    *)
-      resolved=""
-      ;;
-  esac
-  printf '%s' "${resolved}"
-}
-
-
-resolve_openclaw_home_override() {
-  case "${OPENCLAW_MODE}" in
-    default)
-      printf '%s' "${HOME}/.openclaw-default"
-      ;;
-    *)
-      printf '%s' ""
-      ;;
-  esac
-}
-
-
-resolve_openclaw_config_path() {
-  local openclaw_home=""
-  openclaw_home="$(resolve_openclaw_home_override)"
-  if [[ -n "${openclaw_home}" ]]; then
-    OPENCLAW_HOME="${openclaw_home}" OPENCLAW_STATE_DIR="${openclaw_home}" \
-      "${VENV_DIR}/bin/python" -c "import sys; sys.path.insert(0, '${PROJECT_ROOT}'); from core.openclaw_locator import discover_openclaw_paths; print(discover_openclaw_paths(create_default=True).config_path)" 2>/dev/null || true
-    return
-  fi
-  "${VENV_DIR}/bin/python" -c "import sys; sys.path.insert(0, '${PROJECT_ROOT}'); from core.openclaw_locator import discover_openclaw_paths; print(discover_openclaw_paths(create_default=True).config_path)" 2>/dev/null || true
-}
-
-
-resolve_openclaw_compat_dir() {
-  local openclaw_home=""
-  openclaw_home="$(resolve_openclaw_home_override)"
-  if [[ -n "${openclaw_home}" ]]; then
-    OPENCLAW_HOME="${openclaw_home}" OPENCLAW_STATE_DIR="${openclaw_home}" \
-      "${VENV_DIR}/bin/python" -c "import sys; sys.path.insert(0, '${PROJECT_ROOT}'); from core.openclaw_locator import discover_openclaw_paths; print(discover_openclaw_paths(create_default=True).compat_bridge_dir)" 2>/dev/null || true
-    return
-  fi
-  "${VENV_DIR}/bin/python" -c "import sys; sys.path.insert(0, '${PROJECT_ROOT}'); from core.openclaw_locator import discover_openclaw_paths; print(discover_openclaw_paths(create_default=True).compat_bridge_dir)" 2>/dev/null || true
-}
-
-
-setup_openclaw_bridge() {
-  local agent_dir="$1"
-  local runtime_home="$2"
-  local agent_name="$3"
-  say "Step 11/14: Creating OpenClaw bridge at ${agent_dir}"
-  mkdir -p "${agent_dir}"
-  write_launcher "${agent_dir}/Start_VOOL.sh" "${runtime_home}"
-  write_chat_launcher "${agent_dir}/Talk_To_VOOL.sh" "${runtime_home}"
-  cat >"${agent_dir}/openclaw.agent.json" <<EOF
-{
-  "id": "vool",
-  "name": "${agent_name}",
-  "type": "external_bridge",
-  "entrypoints": {
-    "start": "Start_VOOL.sh",
-    "chat": "Talk_To_VOOL.sh"
-  },
-  "runtime_home": "${runtime_home}",
-  "project_root": "${PROJECT_ROOT}",
-  "api_url": "http://127.0.0.1:11435"
-}
-EOF
-  cat >"${agent_dir}/README_VOOL_BRIDGE.txt" <<EOF
-VOOL OpenClaw Bridge
-
-Files:
-- Start_VOOL.sh      (boot runtime)
-- Talk_To_VOOL.sh    (interactive chat)
-- openclaw.agent.json (metadata for agent discovery)
-
-If OpenClaw supports external agent discovery in this folder, VOOL should appear in the side menu.
-If not, run Talk_To_VOOL.sh directly.
-EOF
-}
-
-
 ensure_ollama_api_key() {
   local shell_rc="${HOME}/.bashrc"
   [[ -f "${HOME}/.zshrc" ]] && shell_rc="${HOME}/.zshrc"
@@ -1796,99 +1537,6 @@ start_ollama_server() {
 }
 
 
-configure_openclaw_with_ollama() {
-  local ollama_exe="$1"
-  local model_tag="$2"
-  local openclaw_enabled="$3"
-  local openclaw_home="$4"
-
-  if [[ "${openclaw_enabled}" != "1" ]]; then
-    say "Step 10/14: OpenClaw integration skipped."
-    return
-  fi
-  if [[ -z "${ollama_exe}" ]]; then
-    say "Step 10/14: OpenClaw integration deferred because Ollama is unavailable."
-    return
-  fi
-
-  if [[ -n "${openclaw_home}" ]]; then
-    say "Step 10/14: Skipping Ollama OpenClaw auto-config for isolated home ${openclaw_home}."
-    return
-  fi
-
-  say "Step 10/14: Configuring OpenClaw through Ollama..."
-  if ! "${ollama_exe}" launch openclaw --yes --config --model "${model_tag}" >/tmp/vool_openclaw_config.log 2>&1; then
-    say "WARNING: OpenClaw auto-config via Ollama failed. Continuing with direct config patch."
-  fi
-}
-
-
-# Apply the two OpenClaw dist patches Windows applies (install_vool.bat:557,561): the native Web0
-# nav pill + the session-retry fix. Both auto-detect the OpenClaw install and are best-effort --
-# they exit non-zero and skip cleanly when the OpenClaw dist isn't present. OpenClaw_VOOL.sh
-# re-applies them on every launch so they survive npm upgrades.
-apply_openclaw_ui_patches() {
-  local openclaw_home="${1:-}"
-  local py="${VENV_DIR}/bin/python"
-  local pill="${SCRIPT_DIR}/inject_openclaw_web0_pill.py"
-  local retry="${SCRIPT_DIR}/patch_openclaw_session_retry.py"
-  if [[ -n "${openclaw_home}" ]]; then
-    OPENCLAW_HOME="${openclaw_home}" OPENCLAW_STATE_DIR="${openclaw_home}" "${py}" "${pill}" >/tmp/vool_openclaw_pill.log 2>&1 || true
-    OPENCLAW_HOME="${openclaw_home}" OPENCLAW_STATE_DIR="${openclaw_home}" "${py}" "${retry}" >/tmp/vool_openclaw_retry.log 2>&1 || true
-  else
-    "${py}" "${pill}" >/tmp/vool_openclaw_pill.log 2>&1 || true
-    "${py}" "${retry}" >/tmp/vool_openclaw_retry.log 2>&1 || true
-  fi
-}
-
-
-register_openclaw() {
-  local runtime_home="$1"
-  local model_tag="$2"
-  local openclaw_agent_dir="$3"
-  local openclaw_enabled="$4"
-  local openclaw_home="$5"
-  local agent_name="$6"
-
-  if [[ "${openclaw_enabled}" != "1" ]]; then
-    say "Step 11/14: OpenClaw registration skipped."
-    return
-  fi
-
-  if [[ -n "${openclaw_agent_dir}" ]]; then
-    setup_openclaw_bridge "${openclaw_agent_dir}" "${runtime_home}" "${agent_name}"
-  fi
-
-  say "Step 11/14: Registering VOOL in OpenClaw..."
-  if [[ -n "${openclaw_home}" ]]; then
-    if ! OPENCLAW_HOME="${openclaw_home}" OPENCLAW_STATE_DIR="${openclaw_home}" \
-      VOOL_OPENCLAW_GATEWAY_BIND="${OPENCLAW_GATEWAY_BIND}" \
-      VOOL_OPENCLAW_GATEWAY_CUSTOM_HOST="${OPENCLAW_GATEWAY_CUSTOM_HOST}" \
-      "${VENV_DIR}/bin/python" "${SCRIPT_DIR}/register_openclaw_agent.py" "${PROJECT_ROOT}" "${runtime_home}" "${model_tag}" "${agent_name}"; then
-      say "WARNING: Could not register VOOL in OpenClaw config. You can register manually later."
-    fi
-    apply_openclaw_ui_patches "${openclaw_home}"
-    return
-  fi
-  if ! VOOL_OPENCLAW_GATEWAY_BIND="${OPENCLAW_GATEWAY_BIND}" \
-    VOOL_OPENCLAW_GATEWAY_CUSTOM_HOST="${OPENCLAW_GATEWAY_CUSTOM_HOST}" \
-    "${VENV_DIR}/bin/python" "${SCRIPT_DIR}/register_openclaw_agent.py" "${PROJECT_ROOT}" "${runtime_home}" "${model_tag}" "${agent_name}"; then
-    say "WARNING: Could not register VOOL in OpenClaw config. You can register manually later."
-  fi
-  apply_openclaw_ui_patches ""
-}
-
-
-seed_agent_identity() {
-  local runtime_home="$1"
-  local agent_name="$2"
-  local resolved_name=""
-  resolved_name="$(VOOL_HOME="${runtime_home}" \
-    "${VENV_DIR}/bin/python" "${SCRIPT_DIR}/seed_identity.py" --agent-name "${agent_name}" 2>/dev/null || printf '%s' "${agent_name}")"
-  printf '%s' "${resolved_name:-$agent_name}"
-}
-
-
 pull_models() {
   local ollama_exe="$1"
   local install_profile="$2"
@@ -1944,17 +1592,11 @@ write_install_receipt() {
   local openclaw_agent_dir="$5"
   local launch_agent_path="$6"
   local agent_wallet_pubkey="${7:-}"
+  # OpenClaw registration is retired; the receipt/doctor record it as disabled with no
+  # third-party config or agent dir.
   local openclaw_config_path=""
   local actual_agent_dir=""
   local receipt_path=""
-
-  if [[ "${openclaw_enabled}" == "1" ]]; then
-    openclaw_config_path="$(resolve_openclaw_config_path)"
-    actual_agent_dir="$(resolve_openclaw_compat_dir)"
-    if [[ -n "${openclaw_agent_dir}" ]]; then
-      actual_agent_dir="${openclaw_agent_dir}"
-    fi
-  fi
 
   say "Step 14/14: Writing install receipt..."
   receipt_path="$("${VENV_DIR}/bin/python" "${SCRIPT_DIR}/write_install_receipt.py" \
@@ -1982,17 +1624,11 @@ run_install_doctor() {
   local ollama_exe="$4"
   local openclaw_agent_dir="$5"
   local launch_agent_path="$6"
+  # OpenClaw registration is retired; the receipt/doctor record it as disabled with no
+  # third-party config or agent dir.
   local openclaw_config_path=""
   local actual_agent_dir=""
   local report_path=""
-
-  if [[ "${openclaw_enabled}" == "1" ]]; then
-    openclaw_config_path="$(resolve_openclaw_config_path)"
-    actual_agent_dir="$(resolve_openclaw_compat_dir)"
-    if [[ -n "${openclaw_agent_dir}" ]]; then
-      actual_agent_dir="${openclaw_agent_dir}"
-    fi
-  fi
 
   say "Post-install: Running VOOL doctor..."
   report_path="$("${VENV_DIR}/bin/python" "${SCRIPT_DIR}/doctor.py" \
@@ -2101,7 +1737,6 @@ main() {
   local install_profile
   local install_profile_display
   local install_profile_summary
-  local openclaw_home_override
   hardware_summary="$(detect_hardware_summary)"
   model_tag="$(detect_model_tag)"
   eval "$(detect_install_recommendation_exports "${runtime_home}" "${model_tag}")"
@@ -2135,7 +1770,6 @@ main() {
     provision_optional_llamacpp_lane "${runtime_home}"
   fi
   install_profile_summary="$(detect_install_profile_summary "${runtime_home}" "${model_tag}" "${requested_install_profile}")"
-  openclaw_home_override="$(resolve_openclaw_home_override)"
   say "Step 6/14: Hardware probe complete."
   say "Detected: ${hardware_summary}"
   say "Capacity bucket: ${capacity_bucket}"
@@ -2160,7 +1794,7 @@ main() {
   say "Step 7/14: Creating launchers..."
   write_launcher "${PROJECT_ROOT}/Start_VOOL.sh" "${runtime_home}" "${install_profile}"
   write_chat_launcher "${PROJECT_ROOT}/Talk_To_VOOL.sh" "${runtime_home}" "${install_profile}"
-  write_openclaw_launcher "${PROJECT_ROOT}/OpenClaw_VOOL.sh" "${runtime_home}" "${model_tag}" "${openclaw_home_override}" "${install_profile}"
+  write_retired_openclaw_stub "${PROJECT_ROOT}/OpenClaw_VOOL.sh"
   write_stop_launcher "${PROJECT_ROOT}/Stop_VOOL.sh"
   write_web0_launcher "${PROJECT_ROOT}/Open_Web0.sh"
   write_mac_wrapper "${PROJECT_ROOT}/Start_VOOL.command" "${PROJECT_ROOT}/Start_VOOL.sh"
@@ -2179,22 +1813,16 @@ main() {
     say "Desktop shortcut created: ${DESKTOP_SHORTCUT_PATH}"
   fi
 
+  # OpenClaw registration is retired: VOOL installs natively and never reads or writes
+  # third-party OpenClaw state. The receipt/doctor records it as disabled.
   local openclaw_agent_dir=""
-  local openclaw_enabled="1"
-  if [[ "${OPENCLAW_MODE}" == "skip" ]]; then
-    openclaw_enabled="0"
-  elif [[ "${OPENCLAW_MODE}" == "prompt" && "${AUTO_YES}" -eq 1 ]]; then
-    openclaw_enabled="0"
-  fi
-  openclaw_agent_dir="$(resolve_openclaw_agent_dir)"
+  local openclaw_enabled="0"
 
   ensure_ollama_api_key
   local ollama_exe
   ollama_exe="$(ensure_ollama_installed)"
   start_ollama_server "${ollama_exe}"
   heal_ollama_gpu_library
-  configure_openclaw_with_ollama "${ollama_exe}" "${model_tag}" "${openclaw_enabled}" "${openclaw_home_override}"
-  register_openclaw "${runtime_home}" "${model_tag}" "${openclaw_agent_dir}" "${openclaw_enabled}" "${openclaw_home_override}" "${agent_name}"
   pull_models "${ollama_exe}" "${install_profile}" "${model_tag}" "${runtime_home}" "${openclaw_enabled}"
   configure_liquefy
   install_macos_launch_agent "${runtime_home}"
@@ -2222,14 +1850,15 @@ main() {
 
   say
   say "==============================================="
-  say "VOOL is installed. It IS your OpenClaw now."
+  say "VOOL is installed."
   say "==============================================="
   say
   say "Visible agent name: ${agent_name}"
   say "Selected model: ${model_tag}"
   say "Selected bundle: ${recommended_bundle_id:-unknown} -> ${recommended_bundle_models}"
   say "Profile: ${install_profile_display}"
-  say "Start:   ${PROJECT_ROOT}/OpenClaw_VOOL.sh"
+  say "Start:   ${PROJECT_ROOT}/Start_VOOL.sh"
+  say "Web UI:  ${PROJECT_ROOT}/Open_Web0.sh"
   if [[ -n "${DESKTOP_SHORTCUT_PATH}" ]]; then
     say "Desktop: ${DESKTOP_SHORTCUT_PATH}"
   fi
@@ -2243,7 +1872,7 @@ main() {
   say "Ollama only: cd '${PROJECT_ROOT}' && ${VENV_DIR}/bin/python -m apps.vool_cli install-profile --set ollama-only"
   say "Ollama max:  cd '${PROJECT_ROOT}' && ${VENV_DIR}/bin/python -m apps.vool_cli install-profile --set ollama-max"
   say
-  say "VOOL is now wired for OpenClaw-friendly launch,"
+  say "VOOL is now installed for native launch,"
   say "with Ollama checked, hardware-tier model selection applied,"
   say "starter credits seeded through the work-based credit model,"
   say "Playwright browser rendering enabled through install launchers,"
@@ -2277,7 +1906,7 @@ main() {
       say "ERROR: launchd installed VOOL, but the API did not stay healthy long enough to verify /v1/models within 240 seconds."
       exit 1
     fi
-    exec "${PROJECT_ROOT}/OpenClaw_VOOL.sh"
+    exec "${PROJECT_ROOT}/Start_VOOL.sh"
   fi
 }
 

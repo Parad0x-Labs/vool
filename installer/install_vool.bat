@@ -12,9 +12,6 @@ if "%VOOL_AUTO_START%"=="1" set "AUTO_START=1"
 set "VOOL_HOME_OVERRIDE=%VOOL_HOME%"
 set "INSTALL_PROFILE_OVERRIDE=%VOOL_INSTALL_PROFILE%"
 set "AGENT_NAME_OVERRIDE=%VOOL_AGENT_NAME%"
-set "OPENCLAW_MODE=default"
-set "OPENCLAW_PATH_OVERRIDE="
-set "OPENCLAW_AGENT_DEFAULT=%USERPROFILE%\.openclaw\agents\main\agent\vool"
 set "DESKTOP_SHORTCUT="
 set "RUNTIME_REQUIREMENTS=%PROJECT_ROOT%\requirements-runtime.txt"
 set "WHEELHOUSE_DIR=%PROJECT_ROOT%\vendor\wheelhouse"
@@ -50,7 +47,7 @@ if /i "%~1"=="/INSTALLPROFILE" (
   goto parse_args
 )
 if /i "%~1"=="/NOOPENCLAW" (
-  set "OPENCLAW_MODE=skip"
+  echo NOTE: /NOOPENCLAW is a deprecated no-op: OpenClaw integration is retired and VOOL installs natively.
   shift
   goto parse_args
 )
@@ -60,14 +57,7 @@ if /i "%~1"=="/OPENCLAW" (
     echo ERROR: /OPENCLAW requires a value.
     goto usage
   )
-  set "OPENCLAW_RAW=%~1"
-  if /i "%OPENCLAW_RAW%"=="skip" set "OPENCLAW_MODE=skip"
-  if /i "%OPENCLAW_RAW%"=="default" set "OPENCLAW_MODE=default"
-  if /i "%OPENCLAW_RAW%"=="prompt" set "OPENCLAW_MODE=prompt"
-  if /i not "%OPENCLAW_RAW%"=="skip" if /i not "%OPENCLAW_RAW%"=="default" if /i not "%OPENCLAW_RAW%"=="prompt" (
-    set "OPENCLAW_MODE=path"
-    set "OPENCLAW_PATH_OVERRIDE=%OPENCLAW_RAW%"
-  )
+  echo NOTE: /OPENCLAW is a deprecated no-op: OpenClaw integration is retired and VOOL installs natively.
   shift
   goto parse_args
 )
@@ -90,14 +80,7 @@ if /i "!ARG:~0,16!"=="/INSTALLPROFILE=" (
   goto parse_args
 )
 if /i "!ARG:~0,10!"=="/OPENCLAW=" (
-  set "OPENCLAW_RAW=!ARG:~10!"
-  if /i "!OPENCLAW_RAW!"=="skip" set "OPENCLAW_MODE=skip"
-  if /i "!OPENCLAW_RAW!"=="default" set "OPENCLAW_MODE=default"
-  if /i "!OPENCLAW_RAW!"=="prompt" set "OPENCLAW_MODE=prompt"
-  if /i not "!OPENCLAW_RAW!"=="skip" if /i not "!OPENCLAW_RAW!"=="default" if /i not "!OPENCLAW_RAW!"=="prompt" (
-    set "OPENCLAW_MODE=path"
-    set "OPENCLAW_PATH_OVERRIDE=!OPENCLAW_RAW!"
-  )
+  echo NOTE: /OPENCLAW is a deprecated no-op: OpenClaw integration is retired and VOOL installs natively.
   shift
   goto parse_args
 )
@@ -105,7 +88,7 @@ echo ERROR: Unknown option %~1
 goto usage
 
 :usage
-echo Usage: install_vool.bat [/Y] [/START] [/NOOPENCLAW] [/NULLAHOME=PATH] [/INSTALLPROFILE=ID] [/AGENTNAME=NAME] [/OPENCLAW=skip^|default^|prompt^|PATH]
+echo Usage: install_vool.bat [/Y] [/START] [/NULLAHOME=PATH] [/INSTALLPROFILE=ID] [/AGENTNAME=NAME]
 exit /b 2
 
 :args_done
@@ -389,7 +372,10 @@ REM create_desktop_shortcut.ps1 resolves the REAL (possibly OneDrive/Dropbox-red
 REM and prints where the shortcut actually landed. Capture that so the log is accurate, instead of
 REM assuming %USERPROFILE%\Desktop — which is invisible to users whose Desktop is redirected.
 set "DESKTOP_SHORTCUT="
-for /f "usebackq delims=" %%D in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%create_desktop_shortcut.ps1" -TargetPath "%PROJECT_ROOT%\OpenClaw_VOOL.bat" -WorkingDirectory "%PROJECT_ROOT%" -LinkPath "%USERPROFILE%\Desktop\OpenClaw + VOOL.lnk" -IconPath "%SCRIPT_DIR%assets\vool.ico" 2^>nul`) do set "DESKTOP_SHORTCUT=%%D"
+REM A previous install may have left the retired "OpenClaw + VOOL" shortcut; it is our own
+REM generated shortcut (now a stub), so remove it in favor of the native one.
+if exist "%USERPROFILE%\Desktop\OpenClaw + VOOL.lnk" del /f /q "%USERPROFILE%\Desktop\OpenClaw + VOOL.lnk" >nul 2>&1
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%create_desktop_shortcut.ps1" -TargetPath "%PROJECT_ROOT%\Open_Web0.bat" -WorkingDirectory "%PROJECT_ROOT%" -LinkPath "%USERPROFILE%\Desktop\VOOL.lnk" -IconPath "%SCRIPT_DIR%assets\vool.ico" 2^>nul`) do set "DESKTOP_SHORTCUT=%%D"
 if defined DESKTOP_SHORTCUT echo Desktop shortcut created: !DESKTOP_SHORTCUT!
 if not defined DESKTOP_SHORTCUT echo WARNING: Could not create Desktop shortcut automatically.
 
@@ -399,37 +385,13 @@ set "STOP_SHORTCUT="
 for /f "usebackq delims=" %%D in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%create_desktop_shortcut.ps1" -TargetPath "%PROJECT_ROOT%\Stop_VOOL.bat" -WorkingDirectory "%PROJECT_ROOT%" -LinkPath "%USERPROFILE%\Desktop\Stop VOOL.lnk" -IconPath "%SCRIPT_DIR%assets\vool_stop.ico" 2^>nul`) do set "STOP_SHORTCUT=%%D"
 if defined STOP_SHORTCUT echo Stop shortcut created: !STOP_SHORTCUT!
 
-set "OPENCLAW_ENABLED=1"
-if /i "%OPENCLAW_MODE%"=="skip" set "OPENCLAW_ENABLED=0"
-if "%AUTO_YES%"=="1" if /i "%OPENCLAW_MODE%"=="prompt" set "OPENCLAW_ENABLED=0"
-if "%OPENCLAW_ENABLED%"=="0" goto skip_openclaw
-
-if /i "%OPENCLAW_MODE%"=="prompt" (
-  set /p "CREATE_OPENCLAW=Register VOOL in OpenClaw Agent tab? [Y/n]: "
-  if /i "!CREATE_OPENCLAW!"=="n" set "OPENCLAW_ENABLED=0"
-  if /i "!CREATE_OPENCLAW!"=="no" set "OPENCLAW_ENABLED=0"
-)
-if "%OPENCLAW_ENABLED%"=="0" goto skip_openclaw
-
+REM OpenClaw registration is retired: VOOL installs natively and never reads, writes, or
+REM installs third-party OpenClaw software. The receipt/doctor record it as disabled.
+set "OPENCLAW_ENABLED=0"
 set "OPENCLAW_AGENT_DIR="
-if /i "%OPENCLAW_MODE%"=="path" set "OPENCLAW_AGENT_DIR=%OPENCLAW_PATH_OVERRIDE%"
-if not "%OPENCLAW_AGENT_DIR%"=="" (
-  mkdir "%OPENCLAW_AGENT_DIR%" >nul 2>&1
-  copy /Y "%PROJECT_ROOT%\Start_VOOL.bat" "%OPENCLAW_AGENT_DIR%\Start_VOOL.bat" >nul 2>&1
-  copy /Y "%PROJECT_ROOT%\Talk_To_VOOL.bat" "%OPENCLAW_AGENT_DIR%\Talk_To_VOOL.bat" >nul 2>&1
-)
-
-echo Step 8/14: Registering VOOL in OpenClaw...
-"%VENV_DIR%\Scripts\python.exe" "%SCRIPT_DIR%register_openclaw_agent.py" "%PROJECT_ROOT%" "%VOOL_HOME%" "%MODEL_TAG%" "%AGENT_NAME%"
-if !errorlevel! neq 0 (
-  echo WARNING: Could not register VOOL in OpenClaw config. You can register manually later.
-)
-goto done_openclaw
-
-:skip_openclaw
-echo Step 8/14: OpenClaw registration skipped.
-
-:done_openclaw
+set "OPENCLAW_CONFIG_PATH_RESOLVED="
+set "OPENCLAW_AGENT_DIR_RESOLVED="
+echo Step 8/14: OpenClaw registration retired -- VOOL runs natively.
 echo Step 9/14: Setting up Ollama (local AI runtime)...
 
 REM Resolve drive letter from installer location for model storage
@@ -478,11 +440,6 @@ setx VOOL_ADAPTIVE_CONTEXT "1" >nul 2>&1
 set "VOOL_ADAPTIVE_CONTEXT=1"
 setx VOOL_CONTEXT_CAPSULE_V2 "1" >nul 2>&1
 set "VOOL_CONTEXT_CAPSULE_V2=1"
-REM Hide the OpenClaw gateway daemon window: openclaw registers its Windows task with a hidden .vbs
-REM launcher (instead of a console .cmd) when this is set, so no gateway console shows in the taskbar.
-echo Hiding the background gateway window...
-setx OPENCLAW_WINDOWS_TASK_HIDDEN_LAUNCHER "1" >nul 2>&1
-set "OPENCLAW_WINDOWS_TASK_HIDDEN_LAUNCHER=1"
 echo Persisting selected model/profile runtime config...
 "%VENV_DIR%\Scripts\python.exe" "%SCRIPT_DIR%persist_windows_runtime_config.py" "%VOOL_HOME%" "%INSTALL_PROFILE%" "%MODEL_TAG%" "%RECOMMENDED_BUNDLE_MODELS%" "%OLLAMA_MODELS_DIR%" >nul 2>&1
 if !errorlevel! neq 0 echo WARNING: Could not persist Windows runtime profile/env config.
@@ -528,39 +485,6 @@ if !errorlevel! neq 0 (
   powershell -NoProfile -Command "Start-Sleep -Seconds 5" >nul 2>&1
 )
 
-if "%OPENCLAW_ENABLED%"=="1" (
-  echo Step 11/14: Configuring OpenClaw for VOOL...
-  where openclaw >nul 2>&1
-  REM Delayed expansion is required inside parenthesized blocks: a percent-expanded
-  REM errorlevel here would use the PARSE-time value (from before `where openclaw` ran),
-  REM and a stale 0 silently skipped the whole OpenClaw install on a machine that lacked it.
-  if !errorlevel! neq 0 (
-    echo OpenClaw CLI not found on PATH. Installing OpenClaw...
-    where npm >nul 2>&1
-    if !errorlevel! neq 0 (
-      echo WARNING: npm not found on PATH. Cannot install OpenClaw automatically. VOOL registration will still be written locally.
-    ) else (
-      REM `ollama launch openclaw --config` cannot run headless (it demands an interactive
-      REM terminal for model selection even with --yes --model set), and without --config it
-      REM launches an attached interactive TUI that would hang this installer. Installing the
-      REM npm package directly is synchronous, headless-safe, and gives the same CLI binary;
-      REM register_openclaw_agent.py (below) writes all the VOOL-specific config regardless.
-      call npm install -g openclaw >nul 2>&1
-      if !errorlevel! neq 0 (
-        echo WARNING: OpenClaw auto-install via npm failed. VOOL registration will still be written locally.
-      )
-    )
-  )
-  "%VENV_DIR%\Scripts\python.exe" "%SCRIPT_DIR%register_openclaw_agent.py" "%PROJECT_ROOT%" "%VOOL_HOME%" "%MODEL_TAG%" "%AGENT_NAME%" >nul 2>&1
-  REM Inject the native Web0 pill into OpenClaw's Control UI (idempotent; re-applied on
-  REM every launch by OpenClaw_VOOL.bat so it survives OpenClaw npm upgrades).
-  "%VENV_DIR%\Scripts\python.exe" "%SCRIPT_DIR%inject_openclaw_web0_pill.py" >nul 2>&1
-  if not errorlevel 1 echo Web0 pill added to OpenClaw UI.
-  REM Patch OpenClaw's dashboard reply path to retry a conflicted session commit with
-  REM backoff, so overlapping turns stop throwing "reply session initialization conflicted".
-  "%VENV_DIR%\Scripts\python.exe" "%SCRIPT_DIR%patch_openclaw_session_retry.py" >nul 2>&1
-)
-
 echo Step 12/14: Pulling AI model (this may take a while)...
 
 set "MODELS_TO_PULL=%RECOMMENDED_BUNDLE_MODELS%"
@@ -581,22 +505,6 @@ for %%M in (%MODELS_TO_PULL_LIST%) do (
     ) else (
       echo Model !PULL_MODEL! already available.
     )
-  )
-)
-
-if "%OPENCLAW_ENABLED%"=="1" (
-  set "OPENCLAW_MEMORY_MODEL=nomic-embed-text"
-  "%OLLAMA_EXE%" list 2>nul | findstr /i "!OPENCLAW_MEMORY_MODEL!" >nul 2>&1
-  if !errorlevel! neq 0 (
-    echo Downloading OpenClaw memory embedding model !OPENCLAW_MEMORY_MODEL! to %OLLAMA_MODELS_DIR%...
-    "%OLLAMA_EXE%" pull !OPENCLAW_MEMORY_MODEL!
-    if !errorlevel! neq 0 (
-      echo WARNING: OpenClaw memory embedding model pull failed. You can run this manually later:
-      echo   set OLLAMA_MODELS=%OLLAMA_MODELS_DIR%
-      echo   "%OLLAMA_EXE%" pull !OPENCLAW_MEMORY_MODEL!
-    )
-  ) else (
-    echo OpenClaw memory embedding model !OPENCLAW_MEMORY_MODEL! already available.
   )
 )
 
@@ -628,22 +536,6 @@ if !errorlevel! neq 0 echo WARNING: Could not configure Liquefy.
 echo Writing install receipt...
 set "OPENCLAW_CONFIG_PATH_RESOLVED="
 set "OPENCLAW_AGENT_DIR_RESOLVED="
-if "%OPENCLAW_ENABLED%"=="1" (
-  REM `for /f ... in ('command with nested quotes') do ...` silently breaks when the
-  REM command's own path (here %VENV_DIR%) contains a space (common on Windows), so
-  REM route stdout through a temp file instead of an inline for/f command clause.
-  set "OC_PATH_TAG=%RANDOM%_%RANDOM%"
-  set "OC_CONFIG_PATH_FILE=%TEMP%\vool_oc_config_path_!OC_PATH_TAG!.txt"
-  set "OC_AGENT_DIR_FILE=%TEMP%\vool_oc_agent_dir_!OC_PATH_TAG!.txt"
-  "%VENV_DIR%\Scripts\python.exe" "%SCRIPT_DIR%print_openclaw_path.py" config_path 1>"!OC_CONFIG_PATH_FILE!" 2>nul
-  for /f "tokens=*" %%A in ('type "!OC_CONFIG_PATH_FILE!" 2^>nul') do set "OPENCLAW_CONFIG_PATH_RESOLVED=%%A"
-  "%VENV_DIR%\Scripts\python.exe" "%SCRIPT_DIR%print_openclaw_path.py" compat_bridge_dir 1>"!OC_AGENT_DIR_FILE!" 2>nul
-  for /f "tokens=*" %%A in ('type "!OC_AGENT_DIR_FILE!" 2^>nul') do set "OPENCLAW_AGENT_DIR_RESOLVED=%%A"
-  del /f /q "!OC_CONFIG_PATH_FILE!" "!OC_AGENT_DIR_FILE!" >nul 2>&1
-  if not "!OPENCLAW_AGENT_DIR!"=="" set "OPENCLAW_AGENT_DIR_RESOLVED=!OPENCLAW_AGENT_DIR!"
-)
-if "%OPENCLAW_ENABLED%"=="1" if "!OPENCLAW_CONFIG_PATH_RESOLVED!"=="" set "OPENCLAW_CONFIG_PATH_RESOLVED=%USERPROFILE%\.openclaw\openclaw.json"
-if "%OPENCLAW_ENABLED%"=="1" if "!OPENCLAW_AGENT_DIR_RESOLVED!"=="" set "OPENCLAW_AGENT_DIR_RESOLVED=%USERPROFILE%\.openclaw\agents\main\agent\vool"
 "%VENV_DIR%\Scripts\python.exe" "%SCRIPT_DIR%write_install_receipt.py" "%PROJECT_ROOT%" "%VOOL_HOME%" "%MODEL_TAG%" "%OPENCLAW_ENABLED%" "!OPENCLAW_CONFIG_PATH_RESOLVED!" "!OPENCLAW_AGENT_DIR_RESOLVED!" "%OLLAMA_EXE%" "%BACKGROUND_CMD_PATH%" "%AGENT_WALLET_PUBKEY%" >nul 2>&1
 if !errorlevel! neq 0 echo WARNING: Could not write install receipt.
 echo Running VOOL doctor...
@@ -658,14 +550,15 @@ echo.
 echo Install complete.
 echo.
 echo ===============================================
-echo VOOL is installed. It IS your OpenClaw now.
+echo VOOL is installed.
 echo ===============================================
 echo.
 echo VOOL starts automatically at login. No manual steps.
 echo.
 echo Visible agent name: %AGENT_NAME%
 echo Selected model: %MODEL_TAG%
-echo To open now:  %PROJECT_ROOT%\OpenClaw_VOOL.bat
+echo To open now:  %PROJECT_ROOT%\Open_Web0.bat
+echo To start headless:  %PROJECT_ROOT%\Start_VOOL.bat
 if defined DESKTOP_SHORTCUT echo Desktop:      %DESKTOP_SHORTCUT%
 echo.
 echo VOOL is the default agent, memory is automatic,
@@ -679,7 +572,7 @@ if "%AUTO_START%"=="1" (
   echo Launching VOOL now...
   echo   First launch warms the AI model and registers VOOL with Windows startup/env.
   echo   This can take up to ~2 minutes and the window may look idle -- it is not frozen.
-  call "%PROJECT_ROOT%\OpenClaw_VOOL.bat"
+  call "%PROJECT_ROOT%\Start_VOOL.bat"
 )
 
 exit /b 0

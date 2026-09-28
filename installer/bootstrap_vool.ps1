@@ -186,11 +186,11 @@ function Run-Installer {
     }
     if ($NoStart) {
         if (Test-Path -LiteralPath $guided) {
-            & $guided /Y "/OPENCLAW=default" @profileArgs
+            & $guided /Y @profileArgs
             return
         }
         if (Test-Path -LiteralPath $canonical) {
-            & $canonical /Y "/OPENCLAW=default" @profileArgs
+            & $canonical /Y @profileArgs
             return
         }
     }
@@ -200,7 +200,7 @@ function Run-Installer {
             return
         }
         if (Test-Path -LiteralPath $canonical) {
-            & $canonical /Y /START "/OPENCLAW=default" @profileArgs
+            & $canonical /Y /START @profileArgs
             return
         }
     }
@@ -215,7 +215,7 @@ function Run-Installer {
         & $launcher @profileArgs
     }
     elseif (Test-Path -LiteralPath $canonical) {
-        & $canonical /Y /START "/OPENCLAW=default" @profileArgs
+        & $canonical /Y /START @profileArgs
     }
     else {
         throw "Bootstrap download succeeded, but no auto-start installer entrypoint was found."

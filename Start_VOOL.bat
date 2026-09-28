@@ -9,7 +9,7 @@ set "VOOL_PROJECT_ROOT=%SCRIPT_ROOT%"
 
 if not exist "%PYTHON_EXE%" (
   echo VOOL is not installed yet. Bootstrapping...
-  call "%SCRIPT_ROOT%\installer\install_vool.bat" /Y "/OPENCLAW=default"
+  call "%SCRIPT_ROOT%\installer\install_vool.bat" /Y
   if errorlevel 1 exit /b 1
 )
 
@@ -63,7 +63,7 @@ where docker >nul 2>&1
 if %errorlevel% equ 0 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_ROOT%\scripts\xsearch_up.ps1" >nul 2>&1
 
 echo Starting VOOL (API + mesh daemon)...
-echo OpenClaw connects to http://127.0.0.1:11435
+echo VOOL API serves http://127.0.0.1:11435
 echo.
 REM Run the API server windowless. The watchdog launches this detached (no inherited console),
 REM so python.exe would ALLOCATE a fresh visible console window in the taskbar. pythonw.exe is the

@@ -316,14 +316,14 @@ launch_installer() {
       exec_with_profile_args "${launcher}"
     fi
     if [[ -f "${canonical}" ]]; then
-      exec_with_profile_args "${canonical}" --yes --start --openclaw default
+      exec_with_profile_args "${canonical}" --yes --start
     fi
   fi
   if [[ -f "${guided}" ]]; then
-    exec_with_profile_args "${guided}" --yes --openclaw default
+    exec_with_profile_args "${guided}" --yes
   fi
   if [[ -f "${canonical}" ]]; then
-    exec_with_profile_args "${canonical}" --yes --openclaw default
+    exec_with_profile_args "${canonical}" --yes
   fi
   say "ERROR: Bootstrap download succeeded, but no usable installer entrypoint was found."
   exit 1
