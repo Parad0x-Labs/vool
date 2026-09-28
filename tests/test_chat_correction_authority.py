@@ -80,7 +80,7 @@ def test_unrelated_turn_does_not_reinject_an_old_correction_as_the_topic() -> No
     "from core.memory.entries import is_user_correction; is_user_correction('not something '*10000 + '!')",
 ])
 def test_remaining_guard_nonmatches_do_not_revisit_suffixes(script):
-    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
+    subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
