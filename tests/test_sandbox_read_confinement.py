@@ -46,12 +46,30 @@ def test_private_read_roots_include_mounted_volumes():
 
 
 def test_profile_denies_external_volume_reads_and_restores_named_workspaces():
-    """The layer-1 deny names /Volumes, and a workspace the policy NAMES on an external volume
-    is re-allowed AFTER the deny — Seatbelt is last-match-wins, so supported external
-    workspaces keep working while every sibling volume stays unreadable."""
-    prof = _macos_confined_profile((Path("/tmp/ws"),), read_roots=(Path("/Volumes/MyExternalWS"),))
+    """The layer-1 deny names the host's private trees, and a workspace the policy NAMES inside
+    a denied tree is re-allowed AFTER the deny — Seatbelt is last-match-wins, so supported
+    named workspaces keep working while every sibling stays unreadable.
+
+    The deny-precedes-re-allow order is asserted with the temp tree — a private root on every
+    host — so Linux CI runners prove the ordering too; the /Volumes membership is asserted only
+    where the mount point exists (`_private_read_roots` deliberately carries only trees present
+    on the host, exactly as its root-membership sibling test skips).
+    """
+    tmp_root = Path(tempfile.gettempdir()).resolve()
+    assert tmp_root in _private_read_roots()
+    named_ws = tmp_root / "named-ws"
+    prof = _macos_confined_profile((Path("/tmp/ws"),), read_roots=(named_ws,))
+    tmp_deny = _seatbelt_subpath_literal(tmp_root)
+    named_allow = _seatbelt_subpath_literal(named_ws)
+    assert tmp_deny in prof, "the profile must deny reads of the private tmp tree"
+    assert named_allow in prof, "a named workspace must be re-allowed"
+    assert prof.find(tmp_deny) < prof.find(named_allow), \
+        "the allow must follow the deny (Seatbelt is last-match-wins)"
+    if not Path("/Volumes").is_dir():
+        pytest.skip("/Volumes deny asserted only where the mount point exists")
     volumes_deny = _seatbelt_subpath_literal(Path("/Volumes"))
     external_ws_allow = _seatbelt_subpath_literal(Path("/Volumes/MyExternalWS"))
+    prof = _macos_confined_profile((Path("/tmp/ws"),), read_roots=(Path("/Volumes/MyExternalWS"),))
     assert volumes_deny in prof, "the profile must deny reads of mounted volumes"
     assert external_ws_allow in prof, "a named external workspace must be re-allowed"
     assert prof.find(volumes_deny) < prof.find(external_ws_allow), \
