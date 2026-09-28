@@ -110,10 +110,11 @@ bash Install_And_Run_VOOL.sh
 2. probes hardware and selects an Ollama model tier
 3. installs Ollama if it is missing
 4. pulls the selected local model
-5. installs the OpenClaw bridge and registration path
-6. starts the VOOL API server on `127.0.0.1:11435`
-7. installs the `Probe_VOOL_Stack` command into the install root so the machine can be re-checked later without guesswork
-8. on macOS, hands off the final launch to `OpenClaw_VOOL.command` so the running services are owned by Terminal.app instead of the short-lived installer shell
+5. starts the VOOL API server on `127.0.0.1:11435`
+6. installs the `Probe_VOOL_Stack` command into the install root so the machine can be re-checked later without guesswork
+7. on macOS, hands off the final launch to `Start_VOOL.command` so the running services are owned by Terminal.app instead of the short-lived installer shell
+
+The OpenClaw integration is retired: the installer no longer registers an agent in, writes config for, or installs third-party OpenClaw software. An existing OpenClaw installation on the machine is left untouched.
 
 If you want the shortest user path, this is it.
 
@@ -194,36 +195,28 @@ Related env vars if you want to wire this once and keep the command shorter:
 - `VOOL_PUBLIC_HIVE_REMOTE_CONFIG`
 - `VOOL_PUBLIC_HIVE_SSH_KEY_PATH`
 
-## OpenClaw
+## Launchers
 
-The installer registers VOOL as an OpenClaw agent automatically. After install, the expected local VOOL API port is `11435`.
+After install, the expected local VOOL API port is `11435`.
 
-The convenience launchers (on macOS every `*.sh` launcher also gets a double-clickable `*.command` twin, and the installer drops branded **OpenClaw + VOOL** and **Stop VOOL** app icons on the Desktop):
+The convenience launchers (on macOS every `*.sh` launcher also gets a double-clickable `*.command` twin, and the installer drops branded **VOOL** and **Stop VOOL** app icons on the Desktop):
 
-- Start VOOL + open OpenClaw — macOS / Linux: `OpenClaw_VOOL.sh` · Windows: `OpenClaw_VOOL.bat`
+- Start the VOOL API + mesh daemon — macOS / Linux: `Start_VOOL.sh` · Windows: `Start_VOOL.bat`
 - Open the `.null` (web0) browser — macOS / Linux: `Open_Web0.sh` · Windows: `Open_Web0.bat`
+- Terminal chat — macOS / Linux: `Talk_To_VOOL.sh` · Windows: `Talk_To_VOOL.bat`
 - Stop every VOOL process + disable auto-restart — macOS / Linux: `Stop_VOOL.sh` · Windows: `Stop_VOOL.bat`
 - Machine/provider probe — macOS / Linux: `Probe_VOOL_Stack.sh` · Windows: `Probe_VOOL_Stack.bat`
 
-The launcher resolves the gateway token from the strongest available state source in this order:
-
-1. `OPENCLAW_CONFIG_PATH`
-2. `OPENCLAW_HOME`
-3. `OPENCLAW_STATE_DIR`
-4. the macOS launchd gateway state dir when that service is installed
-5. local home fallbacks like `.openclaw` and `.openclaw-default`
+The retired `OpenClaw_VOOL` launchers remain as side-effect-free stubs: they print where native startup lives, point OpenClaw-specific skills at the separate [openclaw-skills repository](https://github.com/Parad0x-Labs/openclaw-skills), and exit nonzero without starting or configuring OpenClaw. If you deliberately run VOOL from a custom runtime home, set `VOOL_HOME` before opening the launcher so the runtime points at the home you actually want.
 
 ## Stopping VOOL
 
-VOOL installs a keep-alive supervisor (a launchd `KeepAlive` agent on macOS, a logon task on Windows), so closing a window does not stop it. To hard-stop every VOOL process — API, OpenClaw gateway, agent workers — and disable auto-restart:
+VOOL installs a keep-alive supervisor (a launchd `KeepAlive` agent on macOS, a logon task on Windows), so closing a window does not stop it. To hard-stop every VOOL process — API, agent workers, any leftover gateway — and disable auto-restart:
 
 - macOS / Linux: run `bash Stop_VOOL.sh`, double-click `Stop_VOOL.command`, or click the red **Stop VOOL** icon on the Desktop. Equivalent one-liner: `.venv/bin/python -m installer.vool_stop --project-root "$(pwd)"`.
 - Windows: run `Stop_VOOL.bat` or double-click the red **Stop VOOL** shortcut.
 
-On macOS the Stop control boots out the launchd keep-alive agent and frees ports `11435` (API) and `18789` (gateway); relaunching from the OpenClaw launcher or the Desktop icon starts it again. Ollama, the shared local model server on `11434`, is left running on purpose.
-
-If you deliberately run OpenClaw from a custom home, set `OPENCLAW_STATE_DIR` or `OPENCLAW_HOME` before opening VOOL so the launcher does not guess the wrong gateway token.
-If you deliberately run VOOL from a custom runtime home, set `VOOL_HOME` before opening the launcher so the OpenClaw bridge points at the runtime you actually want to test.
+On macOS the Stop control boots out the launchd keep-alive agent and frees port `11435` (API); relaunching from the Desktop icon or `Start_VOOL` starts it again. Ollama, the shared local model server on `11434`, is left running on purpose.
 
 ## Web Access (opt-in)
 
