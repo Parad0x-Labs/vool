@@ -224,3 +224,116 @@ def test_a_word_run_without_the_bip39_checksum_is_not_mangled():
         ["abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse", "access", "accident"]
     )
     assert redact_secrets(f"the list starts {run} and continues") == f"the list starts {run} and continues"
+
+
+def test_bip39_redaction_matches_the_wallets_own_accepted_normalization():
+    """The wallet validator accepts `_nfkd(phrase).lower().split()`; the redactor must see
+    every phrase that validator would accept, in the casing the user typed it."""
+    from core.secret_redaction import contains_secret, redact_secrets
+
+    vector = " ".join(["abandon"] * 11 + ["about"])  # BIP-39 zero-entropy test vector
+    assert redact_secrets(f"note: {vector} ok") == "note: [redacted-mnemonic] ok"
+    upper = vector.upper()
+    masked = redact_secrets(f"note: {upper} ok")
+    assert upper not in masked and "[redacted-mnemonic]" in masked
+    mixed = " ".join(w.capitalize() for w in vector.split())
+    masked = redact_secrets(f"note: {mixed} ok")
+    assert "Abandon" not in masked and "[redacted-mnemonic]" in masked
+    # NFKD-foldable spelling the wallet would accept (fullwidth letters in some words)
+    fullwidth = " ".join("ａｂａｎｄｏｎ" if i % 3 == 0 else w for i, w in enumerate(vector.split()))
+    masked = redact_secrets(f"x {fullwidth} y")
+    assert "[redacted-mnemonic]" in masked and "abandon" not in masked
+    assert contains_secret(vector) and contains_secret(upper) and contains_secret(mixed)
+
+
+def test_a_labelled_uppercase_phrase_masks_every_word():
+    from core.secret_redaction import redact_secrets
+
+    vector = " ".join(["abandon"] * 11 + ["about"])
+    out = redact_secrets(f"mnemonic: {vector.upper()}")
+    # the label rule may re-mask the marker ([redacted-mnemonic] -> [redacted]); no PHRASE
+    # word may survive — the pre-fix behavior left ten of twelve words readable
+    assert "ABANDON" not in out and "ABOUT" not in out
+
+
+def test_every_valid_word_count_is_redacted():
+    from core.secret_redaction import redact_secrets
+    from core.wallet.mnemonic import generate_mnemonic
+
+    for bits in (128, 160, 192, 224, 256):
+        phrase = generate_mnemonic(strength_bits=bits)
+        out = redact_secrets(f"kept: {phrase} end")
+        assert phrase not in out and "[redacted-mnemonic]" in out, bits
+
+
+def test_overlapping_valid_phrases_leave_no_recoverable_residue():
+    """Two checksum-valid windows overlapping by one word: masking the first must not leave
+    eleven consecutive words of the second — that residue is brute-forceable through the
+    checksum. At most EIGHT consecutive wordlist words may survive (four unknown words)."""
+    from core.secret_redaction import redact_secrets
+    from core.wallet.mnemonic import WORDS, generate_mnemonic, validate_mnemonic
+
+    phrase_a = generate_mnemonic(strength_bits=128).split()
+    overlap = None
+    for word in WORDS:  # ~1/16 of candidates validate; bounded scan
+        candidate = [phrase_a[11], "zone", "yellow", "wolf", "video", "vintage", "turtle", "tunnel", "tiger", "thunder", "trade", word]
+        if validate_mnemonic(" ".join(candidate)):
+            overlap = candidate
+            break
+    assert overlap is not None
+    text = " ".join(phrase_a + overlap[1:])
+    assert validate_mnemonic(" ".join(text.split()[11:23]))  # the second window is a REAL phrase
+    out = redact_secrets(f"backup {text} end")
+    run = best = 0
+    for token in out.split():
+        run = run + 1 if token.strip(".,:!?") in WORDS else 0
+        best = max(best, run)
+    assert best <= 8, best
+
+
+def test_wordlist_heavy_prose_without_a_valid_checksum_is_untouched():
+    from core.secret_redaction import redact_secrets
+    from core.wallet.mnemonic import WORDS
+
+    glue = next(w for w in ("ok", "um", "said") if w not in WORDS)  # membership-verified absent
+    listed = list(WORDS[:40])
+    prose_words = [w if i % 5 else glue for i, w in enumerate(listed)]
+    run = 0
+    for w in [*prose_words, glue]:  # membership-based guard: no 12-word wordlist run can exist
+        run = run + 1 if w in WORDS else 0
+        assert run < 12
+    prose = " ".join(prose_words)
+    assert redact_secrets(f"reading notes: {prose} -- filed") == f"reading notes: {prose} -- filed"
+
+
+def test_unavailable_wordlist_is_visible_and_never_silently_off():
+    import pytest
+
+    import core.secret_redaction as sr
+
+    def broken_read():
+        raise OSError("wordlist absent (broken install)")
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(sr, "_read_bip39_wordlist", broken_read)
+        mp.setattr(sr, "_BIP39_INDEX", None)
+        assert sr.mnemonic_redaction_available() is False
+        vector = " ".join(["abandon"] * 11 + ["about"])
+        # the redactor keeps its never-raise law — which is exactly why the availability
+        # flag exists: callers that PERSIST text must refuse rather than store plaintext
+        assert sr.redact_secrets(f"note: {vector} ok") == f"note: {vector} ok"
+        mp.setattr(sr, "_BIP39_INDEX", None)  # drop any cache before the real loader returns
+    assert sr.mnemonic_redaction_available() is True  # failures are not cached: it recovers
+
+
+def test_a_malformed_wordlist_is_unavailable_not_silently_partial():
+    import pytest
+
+    import core.secret_redaction as sr
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(sr, "_read_bip39_wordlist", lambda: ["abandon"] * 10)  # wrong shape
+        mp.setattr(sr, "_BIP39_INDEX", None)
+        assert sr.mnemonic_redaction_available() is False
+        mp.setattr(sr, "_BIP39_INDEX", None)
+    assert sr.mnemonic_redaction_available() is True

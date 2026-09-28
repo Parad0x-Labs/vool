@@ -35,8 +35,14 @@ def decisions_path() -> Path:
 
 def _clean_message(text: str) -> str:
     try:
-        from core.secret_redaction import redact_secrets
+        from core.secret_redaction import mnemonic_redaction_available, redact_secrets
 
+        # Recovery-phrase detection needs the canonical BIP-39 wordlist. When it is not
+        # available (a broken install is the known case: the wordlist must ship as package
+        # data), "redacted" would be a plaintext success for a phrase this log cannot see.
+        # Telemetry fails closed here; the turn itself and the transcript are unaffected.
+        if not mnemonic_redaction_available():
+            return "[message unavailable: secret-shape protection unavailable]"
         # Redact the intact input before formatting/truncation can split a secret.
         return " ".join(redact_secrets(str(text or "")).split())[:_MESSAGE_MAX]
     except Exception:

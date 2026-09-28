@@ -134,6 +134,11 @@ vool = "core.command_registry.cli:main"
 
 [tool.setuptools.package-data]
 "core.command_registry" = ["census_snapshot.json"]
+# The canonical BIP-39 English wordlist is runtime data (core.wallet.mnemonic reads it at
+# import; core.secret_redaction arms recovery-phrase redaction from it). Without this entry
+# the built wheel omits it: an installed copy cannot import core.wallet.mnemonic at all, and
+# secret redaction cannot see a recovery phrase.
+"core.wallet" = ["bip39_english.txt"]
 
 [tool.setuptools.packages.find]
 include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*"]

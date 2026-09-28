@@ -159,40 +159,59 @@ _SPECIFIC = ( _JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _BEARER_RE, _PATH_T
 # no label at all. The labelled rule below masks only the FIRST whitespace token of its value,
 # so even ``mnemonic: <12 words>`` kept eleven of twelve words readable — and under the BIP-39
 # checksum the missing word is recoverable from the 2048-word list. A run of 12/15/18/21/24
-# wordlist words that ALSO passes the BIP-39 checksum is a recovery phrase with effectively no
-# false-positive risk (natural language clears the wordlist far less often than the checksum
-# fails), which is the precision bar this module holds. The wordlist is the wallet product's
-# own canonical file, read as DATA here: this module never imports wallet code, never gains a
-# dependency, and never raises — a missing/unreadable file disables the rule and changes
-# nothing else.
+# wordlist words that ALSO passes the BIP-39 checksum is a recovery phrase; a four-bit checksum
+# means a random wordlist-heavy 12-word run can still validate (~1/16), so a rare prose masking
+# is possible — the safe direction for a redactor, and the precision bar this module keeps
+# (it misses/mangles nothing that is not a word-perfect, checksum-valid run). Tokens are matched
+# under the SAME normalization the wallet's canonical mnemonic module accepts for real phrases
+# (`_nfkd(phrase).lower().split()`, core/wallet/mnemonic.py): mixed case, UPPERCASE and
+# NFKD-foldable spellings of a valid phrase are phrases the wallet itself would accept, so they
+# must mask here too. The wordlist is the wallet product's own canonical file, read as DATA:
+# this module never imports wallet code and never raises. If the file is absent or malformed
+# the rule is UNAVAILABLE — never silently off: `mnemonic_redaction_available()` reports it so
+# a sensitive-persistence caller can fail closed instead of storing plaintext (load failures are
+# not cached; the next call retries the read).
 _BIP39_VALID_COUNTS = (24, 21, 18, 15, 12)  # longest first: a sub-run of a longer phrase must not win
 _BIP39_EDGE = ".,;:!?\"'`()[]{}<>–—"
-_BIP39_INDEX: dict[str, int] | None = None
+_BIP39_INDEX: dict[str, int] | None = None  # cached ONLY on a successful, well-formed load
+
+
+def _read_bip39_wordlist() -> list[str]:
+    """Read the canonical wordlist next to the wallet module (the packaging seam). Raises on
+    an absent/unreadable file; the CALLER verifies the canonical shape before trusting it."""
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parent / "wallet" / "bip39_english.txt").read_text(encoding="utf-8").split()
 
 
 def _bip39_index() -> dict[str, int]:
     global _BIP39_INDEX
     if _BIP39_INDEX is None:
         try:
-            from pathlib import Path
-
-            words = (Path(__file__).resolve().parent / "wallet" / "bip39_english.txt").read_text(encoding="utf-8").split()
-            _BIP39_INDEX = {w: i for i, w in enumerate(words)} if len(words) == 2048 else {}
+            words = _read_bip39_wordlist()
+            if len(words) != 2048 or len(set(words)) != 2048:
+                raise ValueError("wordlist is not the canonical 2048-word BIP-39 list")
+            _BIP39_INDEX = {w: i for i, w in enumerate(words)}
         except Exception:
-            _BIP39_INDEX = {}
+            return {}  # unavailable: not cached, so a repaired install recovers on the next call
     return _BIP39_INDEX
 
 
-def _is_bip39_phrase(tokens: list[str]) -> bool:
+def mnemonic_redaction_available() -> bool:
+    """Whether recovery-phrase detection is armed (canonical wordlist present and well-formed).
+
+    A sensitive-persistence caller that would store message text should refuse to persist when
+    this is False — the rule cannot see a phrase, so 'redacted' would be a plaintext success."""
+    return bool(_bip39_index())
+
+
+def _bip39_checksum_ok(words: list[str]) -> bool:
+    """The BIP-39 checksum over ALREADY-normalized wordlist words (11 bits per word)."""
     import hashlib
 
     index = _bip39_index()
-    if not index or len(tokens) not in {12, 15, 18, 21, 24}:
-        return False
-    if any(t not in index for t in tokens):
-        return False
-    bits = "".join(bin(index[t])[2:].zfill(11) for t in tokens)
-    checksum_bits = len(tokens) * 11 // 33
+    bits = "".join(bin(index[w])[2:].zfill(11) for w in words)
+    checksum_bits = len(words) * 11 // 33
     entropy_bits = bits[:-checksum_bits]
     entropy = int(entropy_bits, 2).to_bytes(len(entropy_bits) // 8, "big")
     expected = bin(hashlib.sha256(entropy).digest()[0])[2:].zfill(8)[:checksum_bits]
@@ -202,31 +221,84 @@ def _is_bip39_phrase(tokens: list[str]) -> bool:
 def _redact_bip39_phrases(value: str) -> str:
     """Mask complete BIP-39 recovery phrases typed as plain word runs (checksum-verified).
 
-    Longest run wins, edge punctuation is tolerated on the run's outer words, and the masked
-    span covers the raw tokens — so ``… somewhere: used term aspect … idea -- is that safe``
-    keeps its prose and loses exactly the phrase."""
-    if not value or not _bip39_index():
+    Longest run wins, edge punctuation is tolerated on the run's outer words, matching is
+    NFKD+lowercase like the wallet's own validator, and the masked span covers the RAW tokens —
+    so ``… somewhere: USED TERM … IDEA -- is that safe`` keeps its prose and loses exactly the
+    phrase as typed. Tokens are normalized and membership-checked ONCE; the checksum runs only
+    inside maximal all-wordlist runs, so ordinary prose pays one normalization per word.
+
+    Fragment rule: OVERLAPPING checksum-valid windows can leave the tail of one phrase
+    unmasked (eleven consecutive words of a 12-word phrase are brute-forceable through the
+    checksum), so inside a run that produced a mask, any surviving consecutive wordlist span
+    of nine or more words is masked too. Eight surviving words leave four unknown — 40+ bits —
+    which is not recoverable. Runs with no checksum-valid window (wordlist-heavy prose) are
+    left completely untouched; the rule never fires outside a run already proven to contain
+    a phrase."""
+    import unicodedata
+
+    index = _bip39_index()
+    if not value or not index:
         return value
     tokens = list(re.finditer(r"\S+", value))
-    pieces: list[str] = []
-    out_end = 0
+    normalized: list[str] = []
+    is_word: list[bool] = []
+    seen: dict[str, str] = {}
+    for match in tokens:
+        raw = match.group(0).strip(_BIP39_EDGE)
+        word = seen.get(raw)
+        if word is None:
+            word = unicodedata.normalize("NFKD", raw).lower()
+            seen[raw] = word
+        normalized.append(word)
+        is_word.append(word in index)
+    spans: list[tuple[int, int]] = []  # [start, end) token indexes to mask
     i = 0
     while i < len(tokens):
-        replaced = False
-        for count in _BIP39_VALID_COUNTS:
-            window = tokens[i : i + count]
-            if len(window) < count:
-                continue
-            words = [t.group(0).strip(_BIP39_EDGE) for t in window]
-            if _is_bip39_phrase(words):
-                pieces.append(value[out_end : window[0].start()])
-                pieces.append("[redacted-mnemonic]")
-                out_end = window[-1].end()
-                i += count
-                replaced = True
-                break
-        if not replaced:
+        if not is_word[i]:
             i += 1
+            continue
+        run_end = i
+        while run_end < len(tokens) and is_word[run_end]:
+            run_end += 1
+        start = i
+        run_masked = False
+        while start < run_end:
+            replaced = False
+            for count in _BIP39_VALID_COUNTS:
+                if start + count <= run_end and _bip39_checksum_ok(normalized[start : start + count]):
+                    spans.append((start, start + count))
+                    start += count
+                    replaced = True
+                    run_masked = True
+                    break
+            if not replaced:
+                start += 1
+        if run_masked:
+            masked = [False] * (run_end - i)
+            for s, e in spans:
+                if s >= i:
+                    for k in range(s - i, e - i):
+                        masked[k] = True
+            free = 0
+            for k in range(run_end - i - 1, -1, -1):
+                if masked[k]:
+                    free = 0
+                else:
+                    free += 1
+                    if free >= 9:
+                        spans.append((i + k, i + k + 1))
+        i = run_end
+    if not spans:
+        return value
+    spans.sort()
+    pieces: list[str] = []
+    out_end = 0
+    for s, e in spans:
+        if tokens[s].start() < out_end:
+            continue  # overlapped an already-masked span
+        pieces.append(value[out_end : tokens[s].start()])
+        pieces.append("[redacted-mnemonic]")
+        out_end = tokens[e - 1].end()
     pieces.append(value[out_end:])
     return "".join(pieces)
 
@@ -288,6 +360,7 @@ def contains_secret(text: str) -> bool:
 __all__ = [
     "clear_exact_secrets_for_tests",
     "contains_secret",
+    "mnemonic_redaction_available",
     "redact_secrets",
     "redact_url_path_tokens",
     "register_exact_secret",
