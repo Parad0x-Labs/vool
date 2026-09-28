@@ -338,6 +338,10 @@ def _run_installer_main(
     real_python: str | None,
     agent_name: str,
     runtime_home: Path,
+    auto_start: bool = False,
+    launch_agent_path: str = "",
+    path_prepend: str = "",
+    override_functions: str = "",
 ) -> subprocess.CompletedProcess[str]:
     import os
     import subprocess
@@ -358,12 +362,13 @@ def _run_installer_main(
                 'SCRIPT_DIR="${HARNESS_SCRIPT_DIR}"',
                 'VENV_DIR="${PROJECT_ROOT}/.venv"',
                 "AUTO_YES=1",
-                "AUTO_START=0",
+                f"AUTO_START={1 if auto_start else 0}",
                 'RUNTIME_HOME_OVERRIDE="${HARNESS_RUNTIME_HOME}"',
                 'AGENT_NAME_OVERRIDE="${HARNESS_AGENT_NAME}"',
                 'VOOL_HOME="${HARNESS_RUNTIME_HOME}"',
-                'LAUNCH_AGENT_PATH=""',
+                f'LAUNCH_AGENT_PATH="{launch_agent_path}"',
                 'DESKTOP_SHORTCUT_PATH=""',
+                override_functions,
                 "main",
                 'rc=$?',
                 'printf "\\nHARNESS_MAIN_RC=%s\\n" "${rc}"',
@@ -397,6 +402,8 @@ def _run_installer_main(
         "HARNESS_AGENT_NAME": agent_name,
         "PYTHONDONTWRITEBYTECODE": "1",
     }
+    if path_prepend:
+        env["PATH"] = f"{path_prepend}:{env.get('PATH', '')}"
     if real_python:
         env["HARNESS_REAL_PYTHON"] = real_python
     return subprocess.run(
@@ -474,6 +481,167 @@ def test_installer_main_flow_falls_back_to_requested_name_when_runtime_python_is
     assert "HARNESS_MAIN_RC=0" in result.stdout, combined[-2000:]
     assert "Visible agent name: FallbackName" in result.stdout
     assert not (runtime_home / "data" / "owner_identity.json").exists()
+
+
+def _healthy_curl_stub(tmp_path: Path) -> tuple[Path, Path]:
+    """A curl that records every URL and answers healthy, standing in for an
+    already-running VOOL API on the canonical port. The boundary under test is main()'s
+    --start SEQUENCE (verify the supervised runtime vs exec a second server), not curl."""
+    stub_dir = tmp_path / "stubbin"
+    stub_dir.mkdir(parents=True, exist_ok=True)
+    record = tmp_path / "curl-urls.txt"
+    curl = stub_dir / "curl"
+    curl.write_text(
+        "#!/usr/bin/env bash\n"
+        f'printf "%s\\n" "$*" >> "{record}"\n'
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    curl.chmod(0o755)
+    return stub_dir, record
+
+
+def test_installer_start_flag_verifies_supervised_runtime_instead_of_second_bind(
+    tmp_path: Path,
+) -> None:
+    """--start after an install that owns a supervisor VERIFIES health; it never execs a
+    second server against the port the supervisor already bound.
+
+    On macOS the installer always installs and bootstraps the launchd keep-alive agent
+    BEFORE the --start step (install_macos_launch_agent sets LAUNCH_AGENT_PATH during the
+    install steps), so the supported sequence is: supervisor starts the API during the
+    install, then --start polls /healthz + /v1/models for stable health and exits 0/1.
+    An already-healthy instance on the canonical port is reused by that poll -- no second
+    bind, no exit 3 (the API server's own bind-failure code, reached only on the direct
+    Start_VOOL.sh path when no supervisor was installed).
+    """
+    import sys
+
+    stub_dir, record = _healthy_curl_stub(tmp_path)
+    # A canary launcher: if main() took the direct-start branch it would exec this and
+    # leave the marker behind (and exit 42); the verified branch must never touch it.
+    # The harness derives PROJECT_ROOT as <run-dir>/project, so the canary lives there.
+    project_root = tmp_path / "run1" / "project"
+    marker = tmp_path / "direct-start-ran.txt"
+    start_script = project_root / "Start_VOOL.sh"
+    start_script.parent.mkdir(parents=True, exist_ok=True)
+    start_script.write_text(
+        f'#!/usr/bin/env bash\ntouch "{marker}"\nexit 42\n',
+        encoding="utf-8",
+    )
+    start_script.chmod(0o755)
+
+    runtime_home = tmp_path / "runtime"
+    result = _run_installer_main(
+        tmp_path / "run1",
+        real_python=sys.executable,
+        agent_name="StartVerify",
+        runtime_home=runtime_home,
+        auto_start=True,
+        launch_agent_path="/tmp/ai.vool.runtime.plist",
+        path_prepend=str(stub_dir),
+        # Keep the canary launcher in place: the real write_launcher would overwrite it,
+        # and launcher generation is pinned by its own suite, not by this sequence test.
+        override_functions="write_launcher() { :; }",
+    )
+
+    combined = result.stdout + result.stderr
+    assert "command not found" not in combined, combined[-2000:]
+    # The verified branch exits 0 from inside main(), so the harness's own rc line is absent.
+    assert result.returncode == 0, combined[-2000:]
+    assert "Launchd runtime verified" in result.stdout
+    assert not marker.exists(), "the --start verify branch must not exec the direct launcher"
+    polled = record.read_text(encoding="utf-8").splitlines()
+    assert any(line.endswith("http://127.0.0.1:11435/healthz") for line in polled)
+    assert any(line.endswith("http://127.0.0.1:11435/v1/models") for line in polled)
+
+
+def test_installer_start_flag_without_supervisor_runs_direct_launcher(tmp_path: Path) -> None:
+    """Without a supervisor (no launch agent installed), --start execs Start_VOOL.sh.
+
+    That direct path is where a busy canonical port surfaces the API server's own
+    bind-failure exit (3, reproduced live against a healthy running instance): install
+    succeeded, the start reports the bind failure without disturbing the running server.
+    """
+    import sys
+
+    # The harness derives PROJECT_ROOT as <run-dir>/project; the canary launcher lives there.
+    project_root = tmp_path / "run1" / "project"
+    marker = tmp_path / "direct-start-ran.txt"
+    start_script = project_root / "Start_VOOL.sh"
+    start_script.parent.mkdir(parents=True, exist_ok=True)
+    start_script.write_text(
+        f'#!/usr/bin/env bash\ntouch "{marker}"\nexit 42\n',
+        encoding="utf-8",
+    )
+    start_script.chmod(0o755)
+
+    runtime_home = tmp_path / "runtime"
+    result = _run_installer_main(
+        tmp_path / "run1",
+        real_python=sys.executable,
+        agent_name="StartDirect",
+        runtime_home=runtime_home,
+        auto_start=True,
+        launch_agent_path="",
+        override_functions="write_launcher() { :; }",
+    )
+
+    # main() exec's the launcher, so the harness's own rc line is gone; the launcher's
+    # distinctive exit code and marker are the proof the direct branch ran.
+    assert result.returncode == 42, (result.stdout + result.stderr)[-2000:]
+    assert marker.exists()
+
+
+def test_pull_models_skips_cleanly_when_ollama_unavailable(tmp_path: Path) -> None:
+    """Missing/offline model backend at install time: the pull step skips with a warning
+    instead of failing the install or silently pretending models were provisioned."""
+    import subprocess
+    import sys
+
+    from tests.platform_helpers import bash_script_args
+
+    installer_script = (PROJECT_ROOT / "installer" / "install_vool.sh").read_text(encoding="utf-8")
+    prefix, marker_line, _ = installer_script.partition('\nparse_args "$@"\n')
+    assert marker_line
+
+    record = tmp_path / "recorded.txt"
+    venv_bin = tmp_path / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    (venv_bin / "python").write_text(
+        "#!/usr/bin/env bash\nexec " + sys.executable + ' "$@"\n',
+        encoding="utf-8",
+    )
+    (venv_bin / "python").chmod(0o755)
+
+    runtime_home = tmp_path / "runtime"
+    runtime_home.mkdir()
+    harness = tmp_path / "run_pull.sh"
+    harness.write_text(
+        prefix
+        + "\n"
+        + "\n".join(
+            [
+                f'PROJECT_ROOT="{PROJECT_ROOT}"',
+                f'SCRIPT_DIR="{PROJECT_ROOT}/installer"',
+                f'VENV_DIR="{tmp_path}/.venv"',
+                # Empty ollama executable: the "backend unavailable" boundary.
+                f'pull_models "" "local-only" "qwen3:8b" "{runtime_home}"',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        bash_script_args(harness),
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Model pull skipped because Ollama is unavailable" in result.stdout
+    assert not record.exists(), "no model operation may run without a backend"
 
 
 def test_pull_models_provisions_native_embedding_lane_with_recording_ollama(tmp_path: Path) -> None:
