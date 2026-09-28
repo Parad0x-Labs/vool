@@ -1727,6 +1727,26 @@ warn_macos_tcc_project_root() {
 }
 
 
+# The supervised-runtime verification must not bless whatever happens to answer on the port:
+# an unrelated service returning HTTP 200 at both paths is not this runtime (reproduced: the
+# old status-only poll declared "Launchd runtime verified" against a foreign 200 service).
+# The served /healthz payload IS the runtime's own identity contract (core/web/api/service.py):
+# ok=true plus a non-empty runtime.app_version in every build, source or packaged. Parsed with
+# the install's venv python; no second authority is invented and no source hash is required --
+# packaged builds stamp app_version but may not carry a git commit.
+supervised_health_is_vool() {
+  curl -sf --max-time 2 "http://127.0.0.1:11435/healthz" 2>/dev/null | "${VENV_DIR}/bin/python" -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+runtime = payload.get("runtime") if isinstance(payload, dict) else None
+ok = payload.get("ok") is True and isinstance(runtime, dict) and bool(str(runtime.get("app_version") or "").strip())
+raise SystemExit(0 if ok else 1)
+'
+}
+
 main() {
   say "==============================================="
   say "VOOL Installer (Linux/macOS)"
@@ -1950,7 +1970,7 @@ main() {
       local launchd_runtime_ready=0
       local launchd_runtime_consecutive=0
       for _ in $(seq 1 240); do
-        if curl -sf --max-time 2 "http://127.0.0.1:11435/healthz" >/dev/null 2>&1 && \
+        if supervised_health_is_vool && \
           curl -sf --max-time 2 "http://127.0.0.1:11435/v1/models" >/dev/null 2>&1; then
           launchd_runtime_consecutive=$((launchd_runtime_consecutive + 1))
           if [[ "${launchd_runtime_consecutive}" -ge 5 ]]; then
@@ -1966,7 +1986,7 @@ main() {
         say "Launchd runtime verified at http://127.0.0.1:11435 (stable health + /v1/models)"
         exit 0
       fi
-      say "ERROR: launchd installed VOOL, but the API did not stay healthy long enough to verify /v1/models within 240 seconds."
+      say "ERROR: launchd installed VOOL, but the API did not stay verifiably healthy (VOOL /healthz identity + /v1/models) within 240 seconds."
       exit 1
     fi
     exec "${PROJECT_ROOT}/Start_VOOL.sh"
