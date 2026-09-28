@@ -37,9 +37,10 @@ themselves carry; with neither, currency is recorded as unverified rather than g
 
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -84,6 +85,68 @@ _ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 #: The lookahead permits a sentence-final period ("$64,000.") while refusing to split a decimal
 #: ("64.5") or bind digits glued to letters ("24h").
 _NUMBER_RE = re.compile(r"(?<![\w.])\$?\d[\d,]*(?:\.\d+)*%?(?!\w|\.\d)")
+
+
+def _token_end_ok(text: str, pos: int) -> bool:
+    r"""The pinned pattern's trailing lookahead ``(?!\w|\.\d)`` at ``pos``."""
+    if pos >= len(text):
+        return True
+    char = text[pos]
+    if char == "_" or char.isalnum():
+        return False
+    return not (char == "." and pos + 1 < len(text) and text[pos + 1].isdecimal())
+
+
+def _iter_number_tokens(text: str) -> Iterator[str]:
+    """Yield exactly ``_NUMBER_RE``'s finditer tokens, in order, in one linear pass.
+
+    The pinned pattern stays compiled above as the differential spec. Its engine path is already
+    effectively linear through the leading lookbehind (starts inside a digit run never retry),
+    but the walk makes the bound structural — CodeQL 101 — and carries one deliberate repair:
+    its consumer used to overflow on digit runs past float range (see ``_extract_numerics``).
+    Semantics, including the greedy decimal/percent consumption, the percent giveback, and the
+    giveback to the last comma of a blocked run, mirror the engine's backtracking exactly.
+    """
+    n = len(text)
+    i = 0
+    while i < n:
+        char = text[i]
+        prev = text[i - 1] if i else ""
+        if not char.isdecimal() or (prev and (prev == "_" or prev.isalnum() or prev == ".")):
+            i += 1
+            continue
+        j = i
+        while j < n and (text[j].isdecimal() or text[j] == ","):
+            j += 1
+        k = j
+        while k < n and text[k] == "." and k + 1 < n and text[k + 1].isdecimal():
+            k += 1
+            while k < n and text[k].isdecimal():
+                k += 1
+        end = k + 1 if k < n and text[k] == "%" else k
+        token_start = i
+        if i > 0 and text[i - 1] == "$" and (
+            i == 1 or not (text[i - 2] == "_" or text[i - 2].isalnum() or text[i - 2] == ".")
+        ):
+            token_start = i - 1
+        if _token_end_ok(text, end):
+            yield text[token_start:end]
+            i = end
+            continue
+        if end > k and _token_end_ok(text, k):
+            yield text[token_start:k]
+            i = k
+            continue
+        comma = text.rfind(",", i, j)
+        if comma != -1 and _token_end_ok(text, comma):
+            yield text[token_start:comma]
+            i = comma
+            continue
+        # A blocked run with no comma can match nowhere: interior starts fail the lookbehind
+        # (every preceding character is a digit), so the whole run is skipped.
+        i = j
+
+
 _URL_RE = re.compile(r"\(?\bhttps?://\S+\)?")
 _QUOTE_RE = re.compile(r"[\"“]([^\"“”]{2,}?)[\"”]")
 _WORD_RE = re.compile(r"[^\W\d_][\w'&.-]*", re.UNICODE)
@@ -271,13 +334,19 @@ def _extract_numerics(text: str) -> set[str]:
 
     stripped = _ISO_DATE_RE.sub(" ", text)
     numerics: set[str] = set()
-    for match in _NUMBER_RE.finditer(stripped):
-        token = match.group(0).strip("$%").replace(",", "").replace("$", "")
+    for raw_token in _iter_number_tokens(stripped):
+        token = raw_token.strip("$%").replace(",", "").replace("$", "")
         if not token:
             continue
         try:
             value = float(token)
         except ValueError:
+            numerics.add(token)
+            continue
+        if not math.isfinite(value):
+            # A pasted digit run beyond float range (309+ digits) used to reach int(inf) and
+            # raise OverflowError, crashing the whole claim-support pass on the request that
+            # carried it. The literal still compares exactly as a string, so keep it.
             numerics.add(token)
             continue
         if value == int(value) and abs(value) < 1e15:
