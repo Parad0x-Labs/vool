@@ -7,6 +7,7 @@ echo OpenClaw integration is retired from VOOL.
 echo.
 echo Start VOOL natively instead:
 echo   Start_VOOL.bat    start the VOOL API + mesh daemon
+echo   Open_Chat.bat     open the VOOL chat page (primary surface)
 echo   Talk_To_VOOL.bat  terminal chat
 echo   Open_Web0.bat     open the local web UI in your browser
 echo.

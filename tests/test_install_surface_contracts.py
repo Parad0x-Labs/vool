@@ -249,6 +249,7 @@ def test_windows_retired_openclaw_launcher_is_a_side_effect_free_stub() -> None:
     # The stub refuses honestly and points at native startup + the separate skills repo.
     assert "retired from VOOL" in launcher
     assert "Start_VOOL.bat" in launcher
+    assert "Open_Chat.bat" in launcher
     assert "Talk_To_VOOL.bat" in launcher
     assert "Open_Web0.bat" in launcher
     assert "https://github.com/Parad0x-Labs/openclaw-skills" in launcher

@@ -199,8 +199,9 @@ Related env vars if you want to wire this once and keep the command shorter:
 
 After install, the expected local VOOL API port is `11435`.
 
-The convenience launchers (on macOS every `*.sh` launcher also gets a double-clickable `*.command` twin, and the installer drops branded **VOOL** and **Stop VOOL** app icons on the Desktop):
+The convenience launchers (on macOS every `*.sh` launcher also gets a double-clickable `*.command` twin, and the installer drops branded **VOOL** (opens the chat page) and **Stop VOOL** app icons on the Desktop):
 
+- Chat with VOOL (the primary surface, VOOL's own chat page at `/chat`) — macOS / Linux: `Open_Chat.sh` · Windows: `Open_Chat.bat`
 - Start the VOOL API + mesh daemon — macOS / Linux: `Start_VOOL.sh` · Windows: `Start_VOOL.bat`
 - Open the `.null` (web0) browser — macOS / Linux: `Open_Web0.sh` · Windows: `Open_Web0.bat`
 - Terminal chat — macOS / Linux: `Talk_To_VOOL.sh` · Windows: `Talk_To_VOOL.bat`
