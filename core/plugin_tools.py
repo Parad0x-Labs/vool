@@ -103,6 +103,25 @@ class PluginManifestError(ValueError):
     """A manifest could not be loaded. The message is written for the plugin's author."""
 
 
+def confined_plugin_id(plugin_id: str) -> str:
+    """A plugin id names ONE pack directory: a single path component, or "".
+
+    Pack ids arrive from third-party manifests (the ``name`` a pack declares about itself) and
+    from the operator console's lifecycle requests, and both flow into Path joins -- the pack
+    root under ``plugins/``, and the scratch root the executor mkdirs and grants the plugin's
+    child as its writable directory. A component carrying a separator, a parent step, a NUL,
+    an absolute prefix or a drive-qualified prefix names a path OUTSIDE those roots (on Windows
+    ``C:`` or ``C:pack`` redirects the join to that drive), so every id-to-path owner refuses
+    such ids through here before any join. Legitimate single-component ids -- dotted,
+    underscored, Unicode, long -- pass unchanged.
+    """
+
+    clean = str(plugin_id or "").strip()
+    if not clean or clean in {".", ".."} or "/" in clean or "\\" in clean or ":" in clean or "\x00" in clean:
+        return ""
+    return clean
+
+
 @dataclass(frozen=True)
 class LoadedPlugin:
     plugin_id: str
@@ -297,6 +316,15 @@ def load_manifest(path: Path) -> LoadedPlugin:
 
     plugin_id = str(raw.get("name") or "").strip()
     _require(bool(plugin_id), f"{path}: manifest must declare a `name`")
+    # The declared name IS the plugin id, and the id is a path component downstream: the pack's
+    # registry key and the scratch root the executor grants its child. A pack declaring a
+    # traversal-shaped name about itself is refusing one directory, not choosing one anywhere.
+    _require(
+        bool(confined_plugin_id(plugin_id)),
+        f"{plugin_id!r}: a manifest `name` is a plugin id -- one path component (no separators, "
+        "parent steps, drive prefixes or NUL); it names the pack's own directory, its registry "
+        "key and its scratch root",
+    )
     version = str(raw.get("version") or "0.0.0").strip()
     root = Path(path).resolve().parent.parent
 
@@ -535,6 +563,7 @@ __all__ = [
     "CONTRACT_VERSION",
     "LoadedPlugin",
     "PluginManifestError",
+    "confined_plugin_id",
     "confinement_mode",
     "contract_from_tool",
     "disabled_reason",

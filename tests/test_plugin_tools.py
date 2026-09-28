@@ -203,6 +203,52 @@ def test_unreadable_json_reports_the_file(tmp_path: Path) -> None:
         plugin_tools.load_manifest(path)
 
 
+# --------------------------------------------------------------------------------------
+# The declared name is a plugin id, and an id is one path component
+# --------------------------------------------------------------------------------------
+
+
+def _pack_manifest(tmp_path: Path, *, name: str) -> Path:
+    """A manifest whose DECLARED name is independent of its (ordinary) directory name."""
+
+    directory = tmp_path / "plugins" / "pack-x" / ".codex-plugin"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "plugin.json"
+    path.write_text(json.dumps({"name": name, "version": "1.0.0"}), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "../../escaped-scratch", "..", ".", "a/b", "a\\b", "/abs", "//abs", "a/../b",
+        "a\x00b", "C:", "C:pack", "c:\\pack", "server:share", "\\\\server\\share",
+    ],
+)
+def test_a_name_that_is_not_one_path_component_is_refused_at_load(tmp_path: Path, name: str) -> None:
+    """The declared name becomes the pack's registry key AND the scratch root the executor
+    mkdirs and hands the plugin's child as its writable directory -- a traversal-shaped name
+    about itself selects a directory outside those roots, so it never loads."""
+    with pytest.raises(plugin_tools.PluginManifestError, match="one path component"):
+        plugin_tools.load_manifest(_pack_manifest(tmp_path, name=name))
+
+
+@pytest.mark.parametrize("name", ["vool-jira", "wallet.tools", "漢字-pack", "a" * 128, "p_9"])
+def test_every_legitimate_single_component_name_still_loads(tmp_path: Path, name: str) -> None:
+    plugin = plugin_tools.load_manifest(_pack_manifest(tmp_path, name=name))
+    assert plugin.plugin_id == name and plugin.contracts == ()
+
+
+def test_a_loaded_plugins_scratch_dir_stays_inside_the_scratch_root(tmp_path: Path, monkeypatch) -> None:
+    """The confinement above is what keeps the executor's mkdir+grant inside the scratch root:
+    a loadable plugin's id, by construction, cannot redirect it."""
+    monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
+    plugin = plugin_tools.load_manifest(_pack_manifest(tmp_path, name="vool-jira"))
+    scratch = plugin_tools.plugin_scratch_dir(plugin.plugin_id)
+    assert scratch == tmp_path / "scratch" / "vool-jira"
+    assert str(scratch.resolve()).startswith(str((tmp_path / "scratch").resolve()) + "/")
+
+
 def test_a_pack_registers_atomically(tmp_path: Path) -> None:
     """A half-installed pack offers the model part of a plugin and denies the rest."""
 

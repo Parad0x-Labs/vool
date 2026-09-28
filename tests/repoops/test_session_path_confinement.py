@@ -88,3 +88,79 @@ def test_persistence_never_follows_a_journal_artifact_symlink(tmp_path, monkeypa
     monkeypatch.setenv("VOOL_REPOOPS_DIR", str(root))
     assert plane.RepoOpsRuntime()._persist(_session("rs-normal-1")) is False
     assert outside.read_text() == "preserved"
+
+
+# --- a lifecycle plugin_id is one path component under plugins/ -------------------------------
+# The operator console's lifecycle door and its re-registration read one pack directory named
+# by the request's plugin_id (or by a manifest-declared id the discovery row fed back). A pid
+# with a separator, a parent step, an absolute prefix or a drive-qualified prefix would name a
+# path outside the pack root; both pid-to-path owners must refuse it before any Path join, and
+# every legitimate single-component id must keep working.
+
+
+@pytest.mark.parametrize("pid", [
+    "../escape", "..", ".", "a/b", "a\\b", "/abs", "//abs", "plugins/../../x",
+    "a/../b", "..\\..\\x", "a\x00b", "C:", "C:pack", "c:\\pack", "server:share", "\\\\server\\share",
+])
+def test_plugin_lifecycle_refuses_path_syntax_before_any_join(pid, monkeypatch):
+    import core.plugin_catalog as catalog
+
+    monkeypatch.setattr(catalog, "plugins_root", lambda: pytest.fail("a traversal-shaped pid reached path construction"))
+    result = repoops_api.plugin_lifecycle_action(action="install", plugin_id=pid)
+    assert result["ok"] is False
+    assert "plugins/" in result["error"]
+
+
+@pytest.mark.parametrize("pid", ["", "   "])
+def test_plugin_lifecycle_blank_ids_still_hit_the_required_check(pid, monkeypatch):
+    import core.plugin_catalog as catalog
+
+    monkeypatch.setattr(catalog, "plugins_root", lambda: pytest.fail("reached path construction"))
+    result = repoops_api.plugin_lifecycle_action(action="install", plugin_id=pid)
+    assert result["ok"] is False
+    assert result["error"] == "plugin_id is required"
+
+
+def test_plugin_lifecycle_reregistration_refuses_path_syntax():
+    ok, error = repoops_api._reregister_pack("../escape", "/tmp/nowhere")
+    assert ok is False
+    assert "plugins/" in error
+
+
+@pytest.mark.parametrize("pid", ["vool-database", "wallet.tools", "漢字-pack", "a" * 128, "p_9"])
+def test_plugin_lifecycle_single_component_ids_reach_the_owner(monkeypatch, tmp_path, pid):
+    """Legitimate ids are one path component: they must pass confinement unchanged."""
+    import core.plugin_catalog as catalog
+    import core.plugin_lifecycle as lifecycle
+
+    calls = []
+    base = tmp_path / "packs"
+
+    def fake_install(plugin_id, *, root, source):
+        calls.append((plugin_id, None if root is None else str(root)))
+        raise lifecycle.LifecycleError("stop-here-after-confinement")
+
+    monkeypatch.setattr(catalog, "plugins_root", lambda: base)
+    monkeypatch.setattr(lifecycle, "install", fake_install)
+    result = repoops_api.plugin_lifecycle_action(action="install", plugin_id=pid)
+    assert result["ok"] is False  # the stub raised after the id passed confinement
+    assert len(calls) == 1
+    assert calls[0][0] == pid
+    assert calls[0][1] == str(base / "plugins" / pid)
+
+
+def test_plugin_lifecycle_unknown_action_answered_before_confinement():
+    result = repoops_api.plugin_lifecycle_action(action="explode", plugin_id="../x")
+    assert result["ok"] is False
+    assert "unknown action" in result["error"]
+
+
+def test_plugin_lifecycle_refusals_write_nothing_outside(tmp_path, monkeypatch):
+    """A refused id must not leave artifacts: the refusal happens before any directory is made."""
+    import core.plugin_catalog as catalog
+
+    monkeypatch.setattr(catalog, "plugins_root", lambda: tmp_path)
+    for pid in ["../escape", "a/b", "/abs", "C:pack"]:
+        repoops_api.plugin_lifecycle_action(action="install", plugin_id=pid)
+        repoops_api._reregister_pack(pid, tmp_path)
+    assert list(tmp_path.rglob("*")) == []
