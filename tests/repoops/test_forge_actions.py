@@ -1220,11 +1220,16 @@ def test_a_host_that_embeds_a_provider_name_names_itself() -> None:
         "git@github.com.evil.com:acme/api.git",
         "git@mygitlab.com:g/p.git",
         "github.com.evil.com/acme/api.git",
+        # path TEXT never selects a provider: the /gitlab marker is not an authority
+        "https://unrelated.example/gitlab-mirror/a/b",
+        "https://evil.com/gitlab/g/p.git",
+        "gitlab.com.evil.attacker.test/g/p.git",
     ):
         assert provider_for_remote(remote) == "", remote
-    # a /gitlab PATH on another host is the path-hosted GitLab shape, not a host embedding:
-    # it classifies (the supported lane) and the transport stays pinned to gitlab.com itself
-    assert provider_for_remote("https://evil.com/gitlab/g/p.git") == "gitlab"
+    # malformed input is the API's deliberate refusal (""), never an uncaught exception
+    # (repo.session.open and the reconciliation path call this on unfiltered remote text)
+    for malformed in ("https://[invalid/a/b", "https://[::1", "://", "http://", "git@"):
+        assert provider_for_remote(malformed) == "", malformed
 
 
 def test_every_legitimate_remote_shape_still_classifies() -> None:
@@ -1247,8 +1252,6 @@ def test_every_legitimate_remote_shape_still_classifies() -> None:
         "git@gitlab.com:g/p.git",
         "ssh://git@gitlab.com/g/p.git",
         "gitlab.com/g/p",
-        # path-hosted GitLab behind the owner's base-URL override
-        "https://forge.example.com/gitlab/g/p.git",
     )
     for remote in gitlab:
         assert provider_for_remote(remote) == "gitlab", remote
@@ -1257,14 +1260,41 @@ def test_every_legitimate_remote_shape_still_classifies() -> None:
 
 
 def test_the_owners_self_hosted_override_host_classifies(monkeypatch) -> None:
-    from core.repoops.forge import provider_for_remote
+    from core.kas.registry import _allowed_hosts
+    from core.repoops.forge import namespace_for_remote, open_forge, provider_for_remote
+    from tests.repoops._forge_fixture import RecordedForge
 
     monkeypatch.setenv("VOOL_FORGE_BASE_URL_GITLAB", "https://mygitlab.example")
     assert provider_for_remote("https://mygitlab.example/g/p.git") == "gitlab"
     assert provider_for_remote("git@mygitlab.example:g/p.git") == "gitlab"
+    # a PATH-HOSTED instance on the configured host keeps working through the same authority
+    assert provider_for_remote("https://mygitlab.example/gitlab/g/p.git") == "gitlab"
     # the override widens nothing beyond its own host
     assert provider_for_remote("https://mygitlab.example.evil.com/g/p.git") == ""
     assert provider_for_remote("https://github.com.evil.com/acme/api.git") == ""
+    # PROOF of where an authorized action actually goes: the adapter built for this remote is
+    # pinned to exactly gitlab.com plus the configured instance host, and its namespace is
+    # the remote's path — an unrelated host cannot appear in either
+    # forge_adapter resolves the owner's override as the adapter base; the transport is then
+    # pinned to DEFAULT_HOSTS plus exactly that base's host
+    hosts = _allowed_hosts("gitlab", "https://mygitlab.example")
+    assert hosts == ("gitlab.com", "mygitlab.example"), hosts
+    # PROOF of where an authorized action actually goes: drive the REAL adapter for this
+    # remote through the recorded transport and read the URL it built
+    import core.repoops.forge as forge_bridge
+
+    forge = RecordedForge()
+    forge.route("GET /repository/commits/main", {"id": "a" * 40, "short_id": "aaaa"})
+    forge_bridge.install_transport_factory(forge.factory)
+    try:
+        remote = "https://mygitlab.example/gitlab/g/p.git"
+        adapter = open_forge(provider=provider_for_remote(remote), namespace=namespace_for_remote(remote))
+        assert adapter.resolve_ref("main") == "a" * 40
+        wire_url = forge.calls[0]["url"]
+        assert wire_url.startswith("https://mygitlab.example/"), wire_url  # the CONFIGURED instance
+        assert "gitlab%2Fg%2Fp" in wire_url, wire_url  # the remote's namespace, path-encoded
+    finally:
+        forge_bridge.install_transport_factory(None)
 
 
 def test_a_substring_host_cannot_pick_a_provider_the_transport_would_then_pin() -> None:
