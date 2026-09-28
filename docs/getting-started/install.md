@@ -4,12 +4,14 @@ description: How to install the VOOL AI assistant from source on macOS, Windows 
 
 # Install
 
-VOOL has **no public installer release** yet. The supported install route is from source
-with the bootstrap script; packaged downloads will appear on the
-[releases page](https://github.com/Parad0x-Labs/vool/releases) when published. This page
-keeps the verification steps you will need when a packaged build is published — see
-[Release status](../trust/release-status.md) for the authoritative state of artifacts,
-signing and updates.
+The release supported by this repository is **from source** with the bootstrap script;
+nothing is published on the [releases page](https://github.com/Parad0x-Labs/vool/releases)
+beyond a private owner-review draft. A macOS disk image is separately downloadable from
+the project website, `vool.dev` — that channel is not built or verified from this
+repository's release records, so if you use it, verify its sidecar checksum first (see
+[Verify a download](#verify-a-download)) and treat its provenance as unverified beyond
+that checksum. See [Release status](../trust/release-status.md) for the authoritative
+state of artifacts, signing and updates on every channel.
 
 ## Requirements
 
@@ -43,16 +45,18 @@ model, and launches the local services. Allow time and disk space for the initia
 download. Local model inference works offline after setup; web tools and cloud models need
 a connection.
 
-## Packaged builds (not yet published)
+## Packaged builds
 
-There is nothing to download yet. When a packaged build is published:
+No GitHub release is published (only a private owner-review draft), and no Windows or
+Linux artifact exists on any verified channel. If you download the macOS DMG from
+`vool.dev`:
 
-* Verify its checksum against the checksums published beside it on the release — a
-  mismatch means a corrupted or tampered download: delete the file and download it again.
-* Beta builds are ad-hoc signed and not notarized. macOS Gatekeeper will refuse a first
+* Verify its checksum against the `.sha256` file published beside it — a mismatch means
+  a corrupted or tampered download: delete the file and download it again.
+* The beta build is ad-hoc signed and not notarized. macOS Gatekeeper will refuse a first
   launch: **System Settings → Privacy & Security → Open Anyway** after verifying the
-  checksum. Windows SmartScreen behaves the same way (**More info → Run anyway**).
-* Do not expect automatic updates: an update feed is not configured for beta artifacts.
+  checksum.
+* Do not expect automatic updates: no update feed is configured for beta artifacts.
 
 ## Verify a download
 
