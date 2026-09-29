@@ -124,13 +124,17 @@ _B58_SECRET_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{64,88}\b")
 # Bitcoin WIF private key: 51-52 base58 chars starting 5/K/L. Distinguishable from a Solana
 # public address (32-44 chars) by length + prefix, so this does not mask ordinary addresses.
 _WIF_RE = re.compile(r"\b[5KL][1-9A-HJ-NP-Za-km-z]{50,51}\b")
-# 0x + 64 hex — an EVM private key (the wallet's BACKUP_FORMAT_EVM). The SAME shape is a public
+# 0x/0X + 64 hex — an EVM private key (the wallet's BACKUP_FORMAT_EVM). The SAME shape is a public
 # EVM transaction hash and spelling alone cannot tell them apart, so this follows the base58 law
 # above: every unregistered run is masked, and the wallet registers each hash it actually mints
 # or renders (publish_identifier at the settlement/journal/view seams) so its own stay readable.
-# An EVM ADDRESS (0x + 40 hex) and a bare digest (64 hex without the 0x) are different shapes and
-# stay untouched — the runtime's own diagnostics are full of bare sha256 hex.
-_EVM_HEX64_RE = re.compile(r"\b0x[0-9a-fA-F]{64}\b")
+# Both PREFIX spellings are the wallet's own accepted form — pilot_custody decodes a backup by
+# ``text[:2].lower() == "0x"``, so ``0X…`` is the same key and is masked identically. An EVM
+# ADDRESS (0x + 40 hex) is a different, public shape and stays untouched. A BARE 64-hex digest
+# (no 0x prefix) is deliberately NOT this rule's business: the runtime's own diagnostics are
+# full of bare sha256 hex, so that ambiguity stays explicit (see the base58 rule above) instead
+# of silently masking every diagnostic digest.
+_EVM_HEX64_RE = re.compile(r"\b0[xX][0-9a-fA-F]{64}\b")
 # "Bearer <token>" with a SPACE (Authorization headers, OAuth) — the labelled rule below only
 # catches label:value / label=value, so a space-separated bearer token would otherwise persist.
 _BEARER_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{12,}", re.IGNORECASE)
