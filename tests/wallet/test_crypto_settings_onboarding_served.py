@@ -415,7 +415,15 @@ def test_settings_created_wallet_pays_through_chat_with_decide_later_and_a_fresh
         result = card.locator(".vw-result")
         assert result.locator(".vw-transfer-label").text_content() == "Transfer Confirmed on Solana Devnet"
         assert result.locator('[data-field="purpose"] .vw-purpose-headline').text_content() == f"Send 0.0004 SOL to {to}"
-        fee_line = result.locator(".vw-transfer-detail", has_text="Fee ").text_content()
+        # has_text with a string is case-insensitive, so the DNA fee-collection
+        # companion line ("DNA fee collection with this payment: ...") also matched
+        # and the locator failed strict mode (PR86 gate, job 109177733263) — the
+        # same class fixed in test_crypto_pilot_review_served. The anchored
+        # case-sensitive regex selects only the genuine fee line; the exact-fee
+        # assertions below are unchanged.
+        fee_line = result.locator(
+            ".vw-transfer-detail", has_text=re.compile(r"^Fee ")
+        ).text_content()
         assert fee_line.startswith("Fee 0.000005 SOL") and "exactly 0.000005 SOL" in fee_line, fee_line  # the exact charged fee
         assert result.locator("a.vw-explorer").text_content() == "View on Solscan"
         assert decisions == ["approve"]
