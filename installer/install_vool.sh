@@ -1734,6 +1734,13 @@ warn_macos_tcc_project_root() {
 # ok=true plus a non-empty runtime.app_version in every build, source or packaged. Parsed with
 # the install's venv python; no second authority is invented and no source hash is required --
 # packaged builds stamp app_version but may not carry a git commit.
+# BOUNDED CLAIM: this is a payload-shape check, not authentication and not proof of WHICH
+# installation's home serves the port. Any healthy VOOL runtime on the canonical port is
+# reused, whichever home started it; the per-home record of a serving API is the runtime's
+# own pidfile (apps/vool_api_server writes data/vool_api.pid into the SERVING home's data
+# dir; doctor/stop read it there). --start never consults that file, so it cannot and does
+# not decide home ownership. Non-object payloads (lists, strings, numbers, booleans, null)
+# and undecodable bodies refuse cleanly here -- no traceback reliance.
 supervised_health_is_vool() {
   curl -sf --max-time 2 "http://127.0.0.1:11435/healthz" 2>/dev/null | "${VENV_DIR}/bin/python" -c '
 import json, sys
