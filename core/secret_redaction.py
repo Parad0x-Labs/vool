@@ -124,6 +124,13 @@ _B58_SECRET_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{64,88}\b")
 # Bitcoin WIF private key: 51-52 base58 chars starting 5/K/L. Distinguishable from a Solana
 # public address (32-44 chars) by length + prefix, so this does not mask ordinary addresses.
 _WIF_RE = re.compile(r"\b[5KL][1-9A-HJ-NP-Za-km-z]{50,51}\b")
+# 0x + 64 hex — an EVM private key (the wallet's BACKUP_FORMAT_EVM). The SAME shape is a public
+# EVM transaction hash and spelling alone cannot tell them apart, so this follows the base58 law
+# above: every unregistered run is masked, and the wallet registers each hash it actually mints
+# or renders (publish_identifier at the settlement/journal/view seams) so its own stay readable.
+# An EVM ADDRESS (0x + 40 hex) and a bare digest (64 hex without the 0x) are different shapes and
+# stay untouched — the runtime's own diagnostics are full of bare sha256 hex.
+_EVM_HEX64_RE = re.compile(r"\b0x[0-9a-fA-F]{64}\b")
 # "Bearer <token>" with a SPACE (Authorization headers, OAuth) — the labelled rule below only
 # catches label:value / label=value, so a space-separated bearer token would otherwise persist.
 _BEARER_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{12,}", re.IGNORECASE)
@@ -153,7 +160,7 @@ _LABELED_RE = re.compile(
     r"\s*[:=]\s*[\"']?([^\s\"']{4,})[\"']?"
 )
 
-_SPECIFIC = ( _JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _BEARER_RE, _PATH_TOKEN_RE)
+_SPECIFIC = (_JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE, _BEARER_RE, _PATH_TOKEN_RE)
 
 # A BIP-39 recovery phrase typed as plain words ("i wrote this down: used term aspect …") with
 # no label at all. The labelled rule below masks only the FIRST whitespace token of its value,
@@ -338,6 +345,7 @@ def redact_secrets(text: str) -> str:
     value = _API_KEY_RE.sub("[redacted-api-key]", value)
     value = _B58_SECRET_RE.sub(_mask_key_shaped, value)
     value = _WIF_RE.sub(_mask_key_shaped, value)
+    value = _EVM_HEX64_RE.sub(_mask_key_shaped, value)
     value = _BEARER_RE.sub("Bearer [redacted]", value)
     # Run labelled last so "api_key: sk-..." collapses cleanly even after the value was masked above.
     value = _LABELED_RE.sub(lambda m: f"{m.group(1)}: [redacted]", value)
@@ -363,7 +371,7 @@ def contains_secret(text: str) -> bool:
         return True
     for pattern in _SPECIFIC:
         for match in pattern.finditer(value):
-            if pattern in (_B58_SECRET_RE, _WIF_RE) and _is_public_identifier(match.group(0)):
+            if pattern in (_B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE) and _is_public_identifier(match.group(0)):
                 continue
             return True
     return bool(_LABELED_RE.search(value))
