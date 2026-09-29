@@ -16,9 +16,15 @@ whenever secret-shape protection is unavailable or redaction faults. The redacti
 is that narrow: shapes the shared redactor masks (recovery phrases among them, when the
 canonical wordlist is armed) are masked; no detector makes arbitrary text secret-free. The
 row's other fields — timestamp, session id (capped at 80 chars), family/claims/arbiter
-labels — are identifiers, NOT passed through the message redactor; they are written as the
-callers provide them (session ids follow the canonical folded-handle contract; family and
-arbiter strings are code-built). The shadow sqlite record stores a SHA-256 digest of the
+labels — are identifiers, NOT passed through the message redactor. The session id is FOLDED
+here, at this owner, through the one shared identity authority
+(``core.chat_session_identity.canonical_chat_session_id``): a canonical ``openclaw:`` id
+passes through unchanged (the served path is byte-identical), and ANY other handle —
+including a secret-bearing one a client chose to name its chat by — persists only as its
+``openclaw:<digest>`` folding in BOTH the JSONL row and the shadow record, never as the
+raw text a caller happened to provide. Family and arbiter strings are code-built
+vocabularies (family constants, arbiter menu options, lane names, failure reasons), not
+message-derived text. The shadow sqlite record stores a SHA-256 digest of the
 already-redacted message plus the same identifier metadata — not only a digest. There is no
 served reader: ``recent_decisions``/``decision_stats`` serve owner-local diagnostics and
 gauntlet mining only. Rows are diagnostics, not conversation: chat deletion's promise covers
@@ -67,6 +73,23 @@ def _clean_message(text: str) -> str:
         return "[message unavailable: redaction failed]"
 
 
+def _fold_session_ref(session_id: str) -> str:
+    """The identifier this log persists for a session: the ONE folded-handle identity.
+
+    The chat doors fold a caller's handle through ``core.chat_session_identity`` before a turn
+    runs, but this owner persisted whatever a caller passed — so a secret-bearing handle (a
+    client that names its chat by content) reached BOTH durable sinks as raw text, unreduced by
+    the message redactor that never sees identifiers. Folding here makes the identifier law the
+    owner's own instead of every caller's memory: canonical ``openclaw:`` ids pass through
+    unchanged (the served path is byte-identical), every other handle persists only as its
+    digest, and doors that disagree about a handle's shape still land on the same identity —
+    which is the correlation operators grep by.
+    """
+    from core.chat_session_identity import canonical_chat_session_id
+
+    return canonical_chat_session_id(str(session_id or ""))
+
+
 def record_decision(
     *,
     session_id: str,
@@ -83,9 +106,10 @@ def record_decision(
     ``arbiter`` records an arbitration outcome ("picked:<family>", "timeout", "disabled", ...).
     """
     try:
+        folded_session_ref = _fold_session_ref(session_id)
         row = {
             "ts": utcnow(),
-            "session_id": str(session_id or "")[:80],
+            "session_id": folded_session_ref[:80],
             "message": _clean_message(user_input),
             "family": str(family or "")[:80],
             "handled": bool(handled),
@@ -138,7 +162,7 @@ def record_decision(
 
         record = RoutingDecisionShadowV2(
             recorded_at_unix_ms=_unix_ms_now(row["ts"]),
-            session_ref=str(session_id or ""),
+            session_ref=folded_session_ref,
             family=str(family or ""),
             handled=bool(handled),
             message_redacted_digest=hashlib.sha256(
