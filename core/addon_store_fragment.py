@@ -57,7 +57,16 @@ function button(text,fn,cls){const b=node('button',text,cls||'');b.type='button'
 async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error)throw new Error((j.message||tr('request_failed','The request could not finish.'))+' ['+(j.error||r.status)+']');return j;}
 async function read(){const r=await fetch('/api/addons');if(!r.ok)throw new Error(tr('catalog_failed','Could not read the add-on catalogue.'));return r.json();}
 function refresh(){if(typeof renderPluginPanel==='function')renderPluginPanel(_pluginCatalog||{},document.getElementById('pluginsSearch')?.value||'');}
-async function load(){const epoch=++generation;try{const j=await read();if(epoch!==generation)return;data=j;}catch(e){if(epoch!==generation)return;error=e.message;}refresh();}
+async function load(){
+ const epoch=++generation;data=null;refresh();
+ try{
+  // One hydration owns the store and installed-library snapshots. A late legacy
+  // catalogue response must never rebuild a review the owner already opened.
+  const [j,plugins]=await Promise.all([read(),fetch('/api/plugins').then(r=>{if(!r.ok)throw new Error(tr('catalog_failed','Could not read the add-on catalogue.'));return r.json();})]);
+  if(epoch!==generation)return;data=j;_pluginCatalog=plugins;
+ }catch(e){if(epoch!==generation)return;error=e.message;}
+ refresh();
+}
 function link(label,url){const a=node('a',label);a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;}
 function icon(e){return node('span',e.category==='Design'?'Aa':e.category==='Security'?'◇':'</>', 'addon-icon '+(e.category==='Design'?'design':e.category==='Security'?'security':''));}
 function brand(label,tag,source){const n=node(tag||'span',label,'addon-brand');const id=String(source||label||'').toLowerCase();if(['anthropic','hermes','openclaw','superpowers','vercel'].includes(id))n.classList.add(id);return n;}
@@ -96,8 +105,8 @@ function render(query){
  const host=document.getElementById('pluginsBody');if(!host)return false;host.replaceChildren();nav();host.classList.remove('addon-library-grid');
  if(tab==='security'){security(host);return true;}
  if(error){const p=node('p',error,'addon-error');p.setAttribute('role','alert');host.append(p);}
- if(tab==='installed'){renderLibrary(host,query);return true;}
  if(!data){host.append(error?button(tr('retry','Try again'),()=>{error='';load();}):node('p',tr('loading','Loading…')));return true;}
+ if(tab==='installed'){renderLibrary(host,query);return true;}
  if(review){renderReview(host);return true;}if(selected){renderDetail(host,selected);return true;}if(remote){renderRemote(host);return true;}
  hero(host,tr('discover_title','Discover add-ons'),tr('browse_ready_intro','These skills work as instructions in VOOL. Review the Eyebrow scan before enabling one. Included skills need no GitHub account; some need other apps or accounts.'),tr('curated','THE ADD-ON STORE'));
  const collections=node('div',undefined,'addon-collections');[...new Set(data.entries.map(e=>e.ecosystem||e.publisher))].forEach(source=>{const b=button('',()=>{ecosystem=ecosystem===source?'':source;category='';limit=24;refresh();});b.append(brand(source,'strong'),node('small',data.entries.filter(e=>(e.ecosystem||e.publisher)===source&&!e.discovery_only&&e.import_ready!==false).length+' '+tr('ready_count','compatible with VOOL')));b.setAttribute('aria-pressed',String(ecosystem===source));collections.append(b);});host.append(collections);
@@ -234,6 +243,6 @@ function renderReview(host){
 function installDecision(risks){
  const id=review.review_id;return action(async()=>{await post({action:'install',review_id:id,accepted:true,...(risks?{risk_override:true,risk_acknowledged:true}:{})});review=null;localCheck=null;data=await read();_pluginCatalog=await (await fetch('/api/plugins')).json();});
 }
-window.VoolAddons={open:()=>{nav();load();},render,mountSecurity:security};
+window.VoolAddons={open:()=>{nav();return load();},render,mountSecurity:security};
 })();</script>
 '''
