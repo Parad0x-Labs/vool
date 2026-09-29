@@ -434,6 +434,35 @@ def _open_enforced(
 
     url = str(getattr(request, "full_url", "") or "")
     ledger = current_effect_ledger()
+    # THE DOOR IS AN HTTP DOOR. urllib installs handlers for every scheme it knows — file:,
+    # ftp:, data: — so "opening a URL" through here could read local disk or any other
+    # scheme-addressable source while being recorded as a network fetch (media ingestion's
+    # evidence fetch demonstrated a file: reference returning its target's bytes with
+    # status ok). The door's own contract is outbound HTTP; it enforces that contract here,
+    # where every caller converges, before any handler can run. The receipt names the host
+    # and nothing else from the request.
+    _scheme = _url_scheme(url)
+    if _scheme not in ("http", "https"):
+        _scheme_reason = (
+            f"the fetch door only opens http/https URLs (got scheme {_scheme!r}); "
+            "a non-web reference is not a page fetch"
+        )
+        ledger.open_effect(
+            EffectReceipt(
+                effect_class=EFFECT_NETWORK_FETCH,
+                decision=DECISION_DENIED,
+                lifecycle=LIFECYCLE_DENIED,
+                reason=_scheme_reason,
+                host=_host_of(url),
+                provider_id=str(provider_id or ""),
+                keyed_or_keyless=str(keyed_or_keyless or ""),
+                mode=_active_mode_label(),
+                decided_by="remote_fetch_policy.http_scheme",
+                recorded_at=_utcnow_iso(),
+            ),
+            retry_of=retry_of,
+        )
+        raise RemoteFetchRefusedError(_scheme_reason)
     # M5 SLICE 1 — the door consults the ONE gateway and emits a typed receipt
     # for BOTH outcomes. The legacy veto stays (it is the explicit per-turn
     # `allow_remote_fetch: false` signal); the gateway adds the mode-matrix
@@ -787,6 +816,19 @@ def _host_of(url: str) -> str:
         from urllib.parse import urlsplit
 
         return str(urlsplit(text).hostname or "")
+    except Exception:
+        return ""
+
+
+def _url_scheme(url: str) -> str:
+    """The URL's scheme, normalized; '' when the reference names none (a bare path)."""
+    text = str(url or "").strip()
+    if not text:
+        return ""
+    try:
+        from urllib.parse import urlsplit
+
+        return str(urlsplit(text).scheme or "").strip().lower()
     except Exception:
         return ""
 
