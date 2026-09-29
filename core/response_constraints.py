@@ -93,10 +93,19 @@ _SPELLED_WORD_COUNTS = {
     "nineteen": 19,
     "twenty": 20,
 }
+# Every shape pattern below gives each whitespace run exactly ONE greedy owner per
+# branch: `\s+word\s*|\s+` (the optional word is a whole alternation arm, not a `?`
+# sandwiched between two whitespace quantifiers) and `(?:[^\S\n]*\n)+` at newline
+# boundaries. A `?` between `\s+` and `\s*` let the engine re-split one newline run
+# O(k) ways, re-extending the trailing quantifier each time -- a turn of "answer"
+# plus k newlines plus a non-count word spent O(k^2) in `_parse_response_constraint`
+# before this (input preprocessing collapses horizontal runs, so the runs that
+# reached these patterns were newline runs). Match language is unchanged; see
+# tests/test_response_constraint_scan_bounds.py for the pinned-spec differential.
 _SHORT_WORD_SHAPE_RE = re.compile(
     r"(?:"
     r"\b(?:answer|respond|reply|say|return|give|use|write|end)"
-    r"(?:\s+\w+){0,5}?\s+(?:in|with|using)?\s*"
+    r"(?:\s+\w+){0,5}?(?:\s+(?:in|with|using)\s*|\s+)"
     r"(?:exactly\s+)?(?P<verb_count>one|two|three|four|1|2|3|4|a single|single)"
     r"[ -]?words?\b"
     r"|"
@@ -179,9 +188,9 @@ _SHORT_SENTENCE_SHAPE_RE = re.compile(
     # Identifiers such as ``MARIGOLD-8342`` are ordinary user text between the
     # verb and the shape request. Treat them as one token so they cannot make a
     # sentence constraint disappear before the router validates the response.
-    r"(?:\s+[\w-]+){0,7}?\s+(?:in|with|using)?\s*"
+    r"(?:\s+[\w-]+){0,7}?(?:\s+(?:in|with|using)\s*|\s+)"
     r"(?:exactly\s+)?(?P<count>one|two|three|four|1|2|3|4|a single|single)"
-    r"(?:\s+short)?\s+sentences?\b",
+    r"(?:\s+short\s+|\s+)sentences?\b",
     re.IGNORECASE,
 )
 
@@ -190,18 +199,18 @@ _SHORT_SENTENCE_SHAPE_RE = re.compile(
 # page. "as a numbered list", "one per line", "each item on its own line", "in bullet points".
 _LAYOUT_SHAPE_RE = re.compile(
     r"\b(?:numbered|bulleted|bullet[- ]point(?:ed)?)\s+(?:list|items?|points?)\b"
-    r"|\bas\s+(?:a\s+)?(?:numbered|bulleted|bullet(?:ed)?)?\s*list\b"
+    r"|\bas(?:\s+a\s+|\s+)(?:numbered|bulleted|bullet(?:ed)?)?\s*list\b"
     r"|\bin\s+bullet\s+points?\b"
-    r"|\b(?:one|each)\s+(?:item|entry|point|line|colour|color|word|thing)?\s*"
-    r"(?:per|on\s+(?:its|a|their)\s+own|on\s+(?:a\s+)?separate)\s+line\b"
+    r"|\b(?:one|each)(?:\s+(?:item|entry|point|line|colour|color|word|thing)\s*|\s+)"
+    r"(?:per|on\s+(?:its|a|their)\s+own|on(?:\s+a\s+|\s+)separate)\s+line\b"
     r"|\bone\s+per\s+line\b"
     r"|\beach\s+on\s+(?:its|a)\s+own\s+line\b",
     re.IGNORECASE,
 )
 # The layout forms that specifically demand one item per line, as opposed to a list in any shape.
 _ONE_PER_LINE_RE = re.compile(
-    r"\b(?:one|each)\s+(?:item|entry|point|colour|color|word|thing)?\s*"
-    r"(?:per|on\s+(?:its|a|their)\s+own|on\s+(?:a\s+)?separate)\s+line\b"
+    r"\b(?:one|each)(?:\s+(?:item|entry|point|colour|color|word|thing)\s*|\s+)"
+    r"(?:per|on\s+(?:its|a|their)\s+own|on(?:\s+a\s+|\s+)separate)\s+line\b"
     r"|\bone\s+per\s+line\b"
     r"|\beach\s+on\s+(?:its|a)\s+own\s+line\b",
     re.IGNORECASE,
@@ -289,8 +298,20 @@ _PRESENTATION_SHAPE_RES: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 # Structural acceptance for a delivered answer, per format. Lenient by design:
 # these detect the requested SHAPE, never its quality, and never mutate text.
+# Whitespace runs are owned by exactly ONE greedy token per branch: the newline
+# boundaries are `(?:[^\S\n]*\n)+` (one newline per iteration, so a blank-line run
+# cannot be re-split O(k) ways) and the leading indent stops at the table's own
+# line. The old `\s*\n\s*` / `^\s*` forms re-extended the same whitespace run
+# once per decomposition, which a delivered answer of header row + k blank lines
+# + one unclosed pipe row turned into O(k^2) match work (alerts 121-127 family).
+# The only behavior change is the match START when a table follows blank lines:
+# it now starts at the table's first pipe line instead of the earlier blank line
+# (``^`` still supplies the line anchor; the one consumer reads only the boolean
+# from .search, so the found-table answer never differs).
 _MARKDOWN_TABLE_RE = re.compile(
-    r"^\s*\|[^\n]+\|\s*\n\s*\|[\s:|-]+\|(?:\s*\n\s*\|[^\n]+\|)*", re.MULTILINE
+    r"^[^\S\n]*\|[^\n]+\|(?:[^\S\n]*\n)+[^\S\n]*\|[\s:|-]+\|"
+    r"(?:(?:[^\S\n]*\n)+[^\S\n]*\|[^\n]+\|)*",
+    re.MULTILINE,
 )
 _DATE_LINE_RE = re.compile(
     r"^\s*(?:[-*•]|\d+[.)])?\s*(?:\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}|\d{3,4}s?|"
