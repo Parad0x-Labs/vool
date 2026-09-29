@@ -7,6 +7,10 @@ scope's close rolls back authorized-but-never-executed effects.
 """
 from __future__ import annotations
 
+import threading
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
 import pytest
 
 from core import effect_budget as eb
@@ -23,6 +27,62 @@ from core.effect_gateway import (
     open_effect_receipt_scope,
 )
 from tests.effect_budget.conftest import *  # noqa: F403 — fixtures
+
+
+class _ControlledPageTransport:
+    """A real loopback HTTP server: the web this suite controls.
+
+    The budget acceptance contract below used to be "exercised" with ``data:``
+    URLs — a scheme the door now refuses, correctly, before any handler — so
+    the old fixture stopped proving anything about a real fetch. This server is
+    the honest replacement: the door's ordinary policy/ledger path runs
+    unchanged, and its transport really connects — to this server, on loopback,
+    serving fixed bytes. The handler's own record of what it served is the
+    wire-level proof of which requests did and did not reach a socket.
+    """
+
+    def __init__(self) -> None:
+        self.served: list[str] = []
+        self._lock = threading.Lock()
+        outer = self
+
+        class _Pages(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:  # the http.server API name (N802 ignored for tests/)
+                with outer._lock:
+                    outer.served.append(self.path)
+                body = {"/one": b"one", "/two": b"two"}.get(self.path)
+                if body is None:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format: str, *args: object) -> None:
+                pass  # this suite's own record is the evidence; keep runner logs clean
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), _Pages)
+        self.base_url = f"http://127.0.0.1:{self._server.server_address[1]}"
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+
+    def __enter__(self) -> _ControlledPageTransport:
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)
+
+
+def _must_not_open_transport(*args: object, **kwargs: object) -> None:
+    """Stand-in for `urllib.request.urlopen`: reaching it for a non-web scheme
+    means a handler already ran (a file read, a socket) — the exact thing the
+    door's scheme law forbids."""
+    raise AssertionError("the door reached a transport for a non-web scheme")
 
 
 def _authorized_receipt(effect_class: str = EFFECT_NETWORK_FETCH) -> EffectReceipt:
@@ -168,28 +228,126 @@ def test_begin_attempt_fails_closed_without_a_reservation(set_budget, monkeypatc
 
 
 def test_network_fetch_door_surfaces_the_typed_refusal(set_budget):
-    """End-to-end through the real transport door: the budget refusal is the
-    door's typed refusal, and the turn's ledger holds the denial receipt."""
+    """End-to-end through the real transport door over a controlled HTTP
+    server: the FIRST fetch actually runs and consumes exactly one budget
+    unit; the SECOND is refused with the budget's typed code before any
+    second transport attempt; the ledger holds both the consumed effect's
+    final state and the denial receipt."""
     from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote
 
     set_budget(("network_fetch", eb.SCOPE_TURN, 1))
     ledger = open_effect_receipt_scope(_turn_context(turn_id="door-turn"))
     try:
-        import urllib.request
+        with _ControlledPageTransport() as web:
+            # 1 — one real HTTP fetch: it runs the ordinary policy path, opens
+            # a real socket to the controlled server, and returns its bytes.
+            first = open_remote(urllib.request.Request(f"{web.base_url}/one"), timeout=5)
+            try:
+                assert first.status == 200
+                assert first.read() == b"one"
+            finally:
+                first.close()
+            assert web.served == ["/one"]
+            # exactly one unit consumed, under this turn's identity, bound to
+            # the effect that ran
+            rows = eb.reservation_rows()
+            assert len(rows) == 1
+            assert rows[0]["state"] == eb.RESERVATION_CONSUMED
+            assert rows[0]["turn_id"] == "door-turn"
+            consumed_effect_id = rows[0]["effect_id"]
 
-        first = open_remote(urllib.request.Request("data:text/plain,one"), timeout=5)
-        first.close()
-        from core.effect_budget import EffectBudgetRefusedError
+            # 2 — the second fetch is refused by the BUDGET (the scheme law is
+            # not what stops it: both URLs are ordinary http), with the typed
+            # code surfacing through the door's refusal.
+            from core.effect_budget import EffectBudgetRefusedError
 
-        with pytest.raises((RemoteFetchRefusedError, EffectBudgetRefusedError)) as refusal:
-            open_remote(urllib.request.Request("data:text/plain,two"), timeout=5)
-        message = str(refusal.value)
-        assert "EFFECT_BUDGET_EXCEEDED" in message, (
-            f"the typed code must surface through the door: {message}"
+            with pytest.raises((RemoteFetchRefusedError, EffectBudgetRefusedError)) as refusal:
+                open_remote(urllib.request.Request(f"{web.base_url}/two"), timeout=5)
+            message = str(refusal.value)
+            assert "EFFECT_BUDGET_EXCEEDED" in message, (
+                f"the typed code must surface through the door: {message}"
+            )
+            assert "effect budget" in message, (
+                f"the refusal is the budget's, not a re-classification: {message}"
+            )
+            # refused BEFORE another transport attempt: the controlled server
+            # — the only endpoint either URL names — still saw exactly the one
+            # request the first fetch made
+            assert web.served == ["/one"], (
+                f"a second transport attempt reached the wire: {web.served}"
+            )
+            # no second unit exists to be spent
+            assert len(eb.reservation_rows()) == 1
+
+        # 3 — the ledger records the right source and final state: the one
+        # effect that ran is SUCCEEDED with the server as its host, and the
+        # denial is a first-class fact decided by the budget
+        outcome = next(
+            o for o in ledger.effect_outcomes() if o["effect_id"] == consumed_effect_id
         )
-        assert any(
-            entry.get("decided_by") == "core.effect_budget" for entry in ledger.entries()
-        )
+        assert outcome["effect_class"] == EFFECT_NETWORK_FETCH
+        assert outcome["host"] == "127.0.0.1"
+        assert outcome["lifecycle"] == LIFECYCLE_SUCCEEDED
+        assert outcome["transport_ran"] is True and outcome["attempts"] == 1
+        denials = [
+            entry
+            for entry in ledger.entries()
+            if entry.get("decision") == DECISION_DENIED
+            and entry.get("decided_by") == "core.effect_budget"
+        ]
+        assert len(denials) == 1
+        assert denials[0]["reason"].startswith("EFFECT_BUDGET_EXCEEDED")
+        status = eb.budget_status("network_fetch", turn_id="door-turn", session_id="sess-1")
+        assert status[0].used == 1 and status[0].remaining == 0
+        assert "refused" in eb.budget_events("refused")[0]["event_kind"]
+    finally:
+        close_effect_receipt_scope()
+
+
+def test_disallowed_scheme_neither_fetches_nor_spends(set_budget, tmp_path):
+    """Control for the door's HTTP-only law inside the budget's own lane: a
+    non-web reference is refused before any transport — no file read, no
+    network call — and reserves NOTHING, so the turn's whole budget remains
+    available to a real web fetch afterwards."""
+    from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote
+
+    set_budget(("network_fetch", eb.SCOPE_TURN, 1))
+    sentinel = tmp_path / "never-read.txt"
+    sentinel.write_text("local bytes that must never leave through the door", encoding="utf-8")
+    ledger = open_effect_receipt_scope(_turn_context(turn_id="scheme-turn"))
+    try:
+        # if urllib's opener is ever reached for either shape, local bytes have
+        # already left the door's custody — the transport itself must not open
+        with pytest.MonkeyPatch.context() as guard:
+            guard.setattr(urllib.request, "urlopen", _must_not_open_transport)
+            for url in (f"file://{sentinel}", "data:text/plain,no"):
+                with pytest.raises(RemoteFetchRefusedError) as refusal:
+                    open_remote(urllib.request.Request(url), timeout=5)
+                assert "http/https" in str(refusal.value), str(refusal.value)
+        # the scheme denials are first-class facts decided by the door's scheme
+        # law — not budget refusals — and the budget store shows nothing
+        scheme_denials = [
+            entry
+            for entry in ledger.entries()
+            if entry.get("decided_by") == "remote_fetch_policy.http_scheme"
+        ]
+        assert len(scheme_denials) == 2
+        assert eb.reservation_rows() == []
+        assert eb.budget_events("refused") == []
+
+        # the single unit is INTACT: one real web fetch through the same door
+        # still succeeds and consumes it — disallowed schemes spent nothing
+        with _ControlledPageTransport() as web:
+            allowed = open_remote(urllib.request.Request(f"{web.base_url}/one"), timeout=5)
+            try:
+                assert allowed.read() == b"one"
+            finally:
+                allowed.close()
+            assert web.served == ["/one"]
+        rows = eb.reservation_rows()
+        assert len(rows) == 1 and rows[0]["state"] == eb.RESERVATION_CONSUMED
+        status = eb.budget_status("network_fetch", turn_id="scheme-turn", session_id="sess-1")
+        assert status[0].used == 1 and status[0].remaining == 0
     finally:
         close_effect_receipt_scope()
 
