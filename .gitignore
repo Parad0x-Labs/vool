@@ -263,3 +263,5 @@ installer/bundle/lab_drag.py
 installer/bundle/desktop_blocks.py
 rh-migrated-targets/
 floor-tape-bank/
+core/web_assets/floor-*
+tests/test_floor_chat_bridge.py
