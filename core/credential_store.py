@@ -521,6 +521,14 @@ def get_credential(name: str) -> str | None:
     return _vault_get(name)
 
 
+def credential_is_indexed(name: str) -> bool:
+    """Disk-index presence only; no secret reads, migration, or Keychain prompts.
+
+    This is UI inventory evidence, not authentication. Explicit actions use strict reads.
+    """
+    return name in _meta_load() or name in _load_raw()
+
+
 def has_credential(name: str) -> bool:
     """True if a credential is stored under `name` (presence check, no value read)."""
     name = str(name or "").strip()

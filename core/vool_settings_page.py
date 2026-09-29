@@ -374,6 +374,11 @@ def _settings_groups() -> list[dict]:
             "blurb": "Keys you bring. Stored sealed on this machine, never shown again.",
             "rows": [
                 _row(
+                    id="addon_security", label="Security integrations", kind="custom", widget="addon_security",
+                    help="Optional Eyebrow checks for external add-ons. Scanning never grants execution permissions.",
+                    keywords="eyebrow security addons skills plugins scan",
+                ),
+                _row(
                     id="cloud_keys",
                     label="Your keys",
                     kind="custom",
@@ -1482,6 +1487,7 @@ function renderWidget(row, host) {
   const w = row.widget;
   if (w === 'build') return widgetBuild(stack);
   if (w === 'usage') return widgetUsage(stack);
+  if (w === 'addon_security') { if (window.VoolAddons) return window.VoolAddons.mountSecurity(stack); return; }
   if (w === 'cloud_keys') return widgetKeys(stack);
   if (w === 'models_overview') return widgetModelsOverview(stack);
   if (w === 'model_pin') return widgetModel(stack);
@@ -4540,6 +4546,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
     that already own each value."""
     model = json.dumps(_localized_settings_groups(ui_locale), separators=(",", ":"), ensure_ascii=False)
     catalog = json.dumps(language_catalog(), separators=(",", ":"), ensure_ascii=False)
+    from core.addon_store_fragment import render_addon_store_fragment
     from core.calendar_settings_fragment import render_calendar_settings_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
     from core.settings_extras_fragment import render_settings_extras_fragment
@@ -4548,7 +4555,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
     page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace(
-        "</body>", render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
+        "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
         + "\n" + render_notification_settings_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)

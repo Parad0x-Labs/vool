@@ -786,6 +786,9 @@ def read_plugin_catalog() -> dict[str, Any]:
             if entry is None:
                 continue
             entry["enabled"] = plugin_id not in disabled
+            from core.addon_store import available, is_managed
+            if is_managed(plugin_id):
+                entry["enabled"] = entry["enabled"] and available(plugin_id, plugin_dir)
             entry["origin"] = "bundled" if (bundled_root is not None and plugin_dir.parent == bundled_root) else "installed"
             entry["root"] = str(plugin_dir.parent.parent)
             plugins.append(entry)
