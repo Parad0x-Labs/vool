@@ -279,7 +279,17 @@ def test_the_sheet_shows_exactly_the_quote_and_refuses_replaced_or_expired_previ
         with page.expect_response(lambda r: r.url == daemon.base_url + "/api/wallet/reject") as rejected:
             page.locator("#vwSheetCancel").click()
         assert rejected.value.status == 200
-        assert page.locator(f'.vw-card[data-proposal="{first}"] .vw-result').text_content() == "Cancelled. Nothing was signed or sent."
+        # The card's result label refreshes asynchronously AFTER the reject response,
+        # so a synchronous read can catch the pre-refresh frame (PR86 gate, job
+        # 109177733260; the same class as the 36268704787 fix in the pilot review
+        # test). Wait bounded for the settled label, then assert it.
+        cancel_selector = f'.vw-card[data-proposal="{first}"] .vw-result'
+        page.wait_for_function(
+            "sel => document.querySelector(sel)?.textContent === 'Cancelled. Nothing was signed or sent.'",
+            arg=cancel_selector,
+            timeout=30_000,
+        )
+        assert page.locator(cancel_selector).text_content() == "Cancelled. Nothing was signed or sent."
         assert first not in {row["proposal_id"] for row in _status(daemon)["pending"]}
         assert chain.send_count() == 0 and "sendTransaction" not in [call.get("method") for call in chain.calls]
         assert hold.failures == [] and errors == [], (hold.failures, errors)
