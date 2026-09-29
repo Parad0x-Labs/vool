@@ -100,7 +100,12 @@ _SPELLED_WORD_COUNTS = {
 # O(k) ways, re-extending the trailing quantifier each time -- a turn of "answer"
 # plus k newlines plus a non-count word spent O(k^2) in `_parse_response_constraint`
 # before this (input preprocessing collapses horizontal runs, so the runs that
-# reached these patterns were newline runs). Match language is unchanged; see
+# reached these patterns were newline runs). The same law governs an optional
+# QUALIFIER and an optional LEAD MARKER: `as(?:\s+a\s+|\s+)qual?\s*list` and
+# `^\s*marker?\s*` still put two whitespace quantifiers over one run when the
+# optional group stays empty, so the qualifier became whole alternation arms
+# (`\s+qual\s*`, `\s+a\s+qual\s*`, `\s+a\s+`, `\s+`) and the date-line marker
+# became `\s*marker\s*|\s*`. Match language is unchanged; see
 # tests/test_response_constraint_scan_bounds.py for the pinned-spec differential.
 _SHORT_WORD_SHAPE_RE = re.compile(
     r"(?:"
@@ -199,7 +204,7 @@ _SHORT_SENTENCE_SHAPE_RE = re.compile(
 # page. "as a numbered list", "one per line", "each item on its own line", "in bullet points".
 _LAYOUT_SHAPE_RE = re.compile(
     r"\b(?:numbered|bulleted|bullet[- ]point(?:ed)?)\s+(?:list|items?|points?)\b"
-    r"|\bas(?:\s+a\s+|\s+)(?:numbered|bulleted|bullet(?:ed)?)?\s*list\b"
+    r"|\bas(?:\s+a\s+(?:numbered|bulleted|bullet(?:ed)?)\s*|\s+(?:numbered|bulleted|bullet(?:ed)?)\s*|\s+a\s+|\s+)list\b"
     r"|\bin\s+bullet\s+points?\b"
     r"|\b(?:one|each)(?:\s+(?:item|entry|point|line|colour|color|word|thing)\s*|\s+)"
     r"(?:per|on\s+(?:its|a|their)\s+own|on(?:\s+a\s+|\s+)separate)\s+line\b"
@@ -314,7 +319,7 @@ _MARKDOWN_TABLE_RE = re.compile(
     re.MULTILINE,
 )
 _DATE_LINE_RE = re.compile(
-    r"^\s*(?:[-*•]|\d+[.)])?\s*(?:\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}|\d{3,4}s?|"
+    r"^(?:\s*(?:[-*•]|\d+[.)])\s*|\s*)(?:\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}|\d{3,4}s?|"
     r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2})",
     re.IGNORECASE,
 )
