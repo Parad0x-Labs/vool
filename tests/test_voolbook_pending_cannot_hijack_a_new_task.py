@@ -31,20 +31,28 @@ def agent(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_HOME", str(tmp_path))
     from core import runtime_paths
 
+    # Restore the exact override that was active before (the root conftest pins the
+    # pytest session's own home): a pin left behind strands this fixture's tmp home
+    # in active_vool_home() for every later test in the process. finally-shaped so a
+    # failure below cannot strand the pin either.
+    previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
     runtime_paths.configure_runtime_home(tmp_path)
-    from storage.db import configure_default_db_path
+    try:
+        from storage.db import configure_default_db_path
 
-    configure_default_db_path(str(tmp_path / "db.sqlite"))
-    from storage.migrations import run_migrations
+        configure_default_db_path(str(tmp_path / "db.sqlite"))
+        from storage.migrations import run_migrations
 
-    run_migrations()
-    from apps.vool_agent import VoolAgent
+        run_migrations()
+        from apps.vool_agent import VoolAgent
 
-    agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
-    agent._voolbook_pending.clear()
-    yield agent
-    agent._voolbook_pending.clear()
-    configure_default_db_path(None)
+        agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
+        agent._voolbook_pending.clear()
+        yield agent
+        agent._voolbook_pending.clear()
+        configure_default_db_path(None)
+    finally:
+        runtime_paths.configure_runtime_home(previous_home_override)
 
 
 def _fast(agent, text):

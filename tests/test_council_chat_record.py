@@ -24,11 +24,22 @@ CHAT = "openclaw:c3c3c3c3c3c3c3c3c3c3"
 
 @pytest.fixture(autouse=True)
 def isolated_home(tmp_path):
-    configure_runtime_home(tmp_path / "runtime-home")
-    from core.memory.files import conversation_log_path
+    from core import runtime_paths
 
-    conversation_log_path().parent.mkdir(parents=True, exist_ok=True)
-    yield tmp_path
+    # Restore the exact override that was active before (the root conftest pins the
+    # pytest session's own home): a pin left behind strands this test's tmp home in
+    # active_vool_home() for every later test in the process, disagreeing with
+    # VOOL_HOME and every import-frozen path. finally-shaped so a failure below
+    # cannot strand the pin either.
+    previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
+    configure_runtime_home(tmp_path / "runtime-home")
+    try:
+        from core.memory.files import conversation_log_path
+
+        conversation_log_path().parent.mkdir(parents=True, exist_ok=True)
+        yield tmp_path
+    finally:
+        configure_runtime_home(previous_home_override)
 
 
 @pytest.fixture()
