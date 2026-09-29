@@ -141,6 +141,76 @@ class MediaIngestionTests(unittest.TestCase):
             conn.close()
         self.assertGreaterEqual(count, 1)
 
+    def test_substring_classification_cannot_steer_domain_policy(self) -> None:
+        """A URL whose PATH carries a platform token ("x.com/", "youtube.com/") or whose host is
+        a lookalike ("x.com.evil.com") is LABELLED social/video by substring inference -- but the
+        policy columns must follow the parsed HOST, never the label: domain, credibility,
+        social_policy and blocked are computed from the real host, so a spoofed label can neither
+        borrow a platform's trust nor dodge a blocked host's refusal."""
+        import core.media_ingestion as mi
 
+        spoofed = [
+            # (url, the host the URL actually names -- the only thing policy may read)
+            ("https://evil-actor.example/x.com/status/1", "evil-actor.example"),
+            ("https://x.com.evil-actor.example/status/1", "x.com.evil-actor.example"),
+            ("https://evil-actor.example/youtube.com/watch?v=1", "evil-actor.example"),
+            ("https://evil-actor.example/story.png", "evil-actor.example"),
+        ]
+        for url, real_host in spoofed:
+            with self.subTest(url=url):
+                evidence = mi._normalize_item({"url": url, "text": "body"})
+                self.assertIsNotNone(evidence)
+                self.assertEqual(evidence.source_domain, real_host, url)
+                # the label may say social/video; the trust rows must be the real host's
+                self.assertEqual(
+                    evidence.credibility, mi.evaluate_source_domain(real_host).to_dict(), url
+                )
+                self.assertEqual(
+                    evidence.social_policy, mi.evaluate_social_source(real_host).to_dict(), url
+                )
+                self.assertFalse(evidence.blocked, "a neutral host is not blocked by its label")
+
+    def test_blocked_evidence_reaches_no_model_surface(self) -> None:
+        import core.media_ingestion as mi
+
+        blocked_item = {
+            "blocked": True, "source_domain": "blocked.example",
+            "credibility": {"score": 0.0}, "social_policy": {}, "media_kind": "text",
+            "text": "secret payload", "caption": "", "transcript": "",
+            "reference": "https://blocked.example/x",
+        }
+        self.assertEqual(mi.build_media_context_snippets([blocked_item]), [])
+        self.assertEqual(mi.build_multimodal_attachments([blocked_item]), [])
+
+    def test_non_web_reference_is_not_a_page_fetch(self) -> None:
+        """A reference without an http(s) scheme classifies as plain text and MUST NOT be handed
+        to a page transport: the reproducer for the door's scheme gap (a file: URL whose target
+        bytes came back as evidence text) is pinned here at the ingestion owner."""
+        import core.media_ingestion as mi
+
+        calls: list[str] = []
+
+        def _no_fetch(url, **kwargs):
+            calls.append(f"http:{url}")
+            return {"status": "ok", "text": "SHOULD NEVER APPEAR", "html": "", "final_url": url}
+
+        def _no_render(url, **kwargs):
+            calls.append(f"browser:{url}")
+            return {"status": "disabled_by_policy", "final_url": url}
+
+        with mock.patch.object(mi, "http_fetch_text", _no_fetch), mock.patch.object(
+            mi, "browser_render", _no_render
+        ):
+            out = mi._fetch_reference_text("file:///etc/hosts")
+        self.assertEqual(out["status"], "not_a_web_reference")
+        self.assertEqual(out["text"], "")
+        self.assertFalse(out["used_browser"])
+        self.assertEqual(calls, [])
+
+        evidence = mi._normalize_item({"url": "file:///etc/hosts"}, fetch_text_reference=True)
+        self.assertIsNotNone(evidence)
+        self.assertEqual(evidence.text, "")
+        self.assertEqual(evidence.metadata.get("fetch_status"), "not_a_web_reference")
+        self.assertNotIn("SHOULD NEVER APPEAR", repr(evidence.to_dict()))
 if __name__ == "__main__":
     unittest.main()
