@@ -391,6 +391,11 @@ def _run_installer_main(
         _MAIN_HARNESS
         + "\n".join(
             [
+                # Git Bash runs this as a LOGIN shell, whose profile may reset HOME after
+                # the environment carried it in: re-bind the isolated home here so the
+                # installer's supervisor entry always lands inside the test boundary.
+                'HOME="${HARNESS_ISOLATED_HOME}"',
+                "export HOME",
                 'PROJECT_ROOT="${HARNESS_PROJECT_ROOT}"',
                 'SCRIPT_DIR="${HARNESS_SCRIPT_DIR}"',
                 'VENV_DIR="${PROJECT_ROOT}/.venv"',
@@ -416,7 +421,7 @@ def _run_installer_main(
     home = tmp_path / "isolated-home"
     home.mkdir(parents=True, exist_ok=True)
 
-    from tests.platform_helpers import bash_script_args
+    from tests.platform_helpers import bash_path, bash_script_args
 
     user_site = ""
     if real_python:
@@ -425,19 +430,25 @@ def _run_installer_main(
         candidate = site.getusersitepackages()
         if Path(candidate).is_dir():
             user_site = str(candidate)
+    # Every HOST path embedded into the bash environment crosses the boundary in
+    # bash form (tests/platform_helpers.bash_path): identity on POSIX hosts, /c/-style
+    # under Git Bash, so variables like PROJECT_ROOT are real paths in the child shell
+    # instead of native C:\... strings that only accidentally survive cygwin's Win32
+    # path tolerance. PYTHONPATH stays native: the venv python parses it, not bash.
     env = {
         **os.environ,
-        "HOME": str(home),
+        "HOME": bash_path(home),
         "PYTHONPATH": user_site,
-        "HARNESS_FUNCTIONS": str(functions_path),
-        "HARNESS_PROJECT_ROOT": str(project_root),
-        "HARNESS_SCRIPT_DIR": str(PROJECT_ROOT / "installer"),
-        "HARNESS_RUNTIME_HOME": str(runtime_home),
+        "HARNESS_ISOLATED_HOME": bash_path(home),
+        "HARNESS_FUNCTIONS": bash_path(functions_path),
+        "HARNESS_PROJECT_ROOT": bash_path(project_root),
+        "HARNESS_SCRIPT_DIR": bash_path(PROJECT_ROOT / "installer"),
+        "HARNESS_RUNTIME_HOME": bash_path(runtime_home),
         "HARNESS_AGENT_NAME": agent_name,
         "PYTHONDONTWRITEBYTECODE": "1",
     }
     if real_python:
-        env["HARNESS_REAL_PYTHON"] = real_python
+        env["HARNESS_REAL_PYTHON"] = bash_path(real_python)
     return subprocess.run(
         bash_script_args(harness_path),
         capture_output=True,
@@ -611,16 +622,26 @@ class _VerifyFixtureServer:
 
 
 def _supervisor_boundary_doubles(tmp_path: Path) -> str:
-    """Function doubles for the OWNING supervisor setup boundary: the REAL
-    install_macos_launch_agent runs, but launchctl is recorded (and reports through the
-    fixture's /bootstrap-marker so bootstrap-before-verification ordering is provable in one
-    linear request log). No real service manager, scheduled task or owner state is touched."""
-    record = tmp_path / "launchctl-calls.txt"
+    """Function doubles for the OWNING supervisor setup boundary, per platform: the REAL
+    install_macos_launch_agent runs and its launchctl is recorded on Darwin; on every
+    other host it chains into the REAL Linux keepalive installer, whose systemctl probe
+    is doubled to report "no user bus" (return 1) so it lands on the XDG autostart
+    fallback hermetically -- no real service manager, scheduled task or owner state is
+    touched on any platform. Both doubles report through the fixture's /bootstrap-marker
+    so bootstrap-before-verification ordering stays provable in one linear request log
+    whichever platform's boundary ran."""
+    launchctl_record = tmp_path / "launchctl-calls.txt"
+    systemctl_record = tmp_path / "systemctl-calls.txt"
     return (
         "launchctl() {\n"
-        f"  printf '%s\\n' \"$*\" >> {_sh(record)}\n"
+        f"  printf '%s\\n' \"$*\" >> {_sh(launchctl_record)}\n"
         "  curl -sf --max-time 2 http://127.0.0.1:11435/bootstrap-marker >/dev/null 2>&1 || true\n"
         "  return 0\n"
+        "}\n"
+        "systemctl() {\n"
+        f"  printf '%s\\n' \"$*\" >> {_sh(systemctl_record)}\n"
+        "  curl -sf --max-time 2 http://127.0.0.1:11435/bootstrap-marker >/dev/null 2>&1 || true\n"
+        "  return 1\n"
         "}\n"
     )
 
@@ -634,6 +655,55 @@ def _canary_direct_launcher(tmp_path: Path) -> Path:
     start_script.write_text(f"#!/usr/bin/env bash\ntouch {_sh(marker)}\nexit 42\n", encoding="utf-8")
     start_script.chmod(0o755)
     return marker
+
+
+def _supervisor_keep_functions() -> tuple[str, ...]:
+    """The REAL supervisor-setup functions each platform's --start path must run.
+
+    install_macos_launch_agent is the owner everywhere, but on a non-Darwin host it
+    immediately chains into install_linux_keepalive_service (whose no-bus fallback is
+    install_linux_xdg_autostart). Leaving those stubbed — as the CI failures showed —
+    means LAUNCH_AGENT_PATH stays empty, so --start never takes the supervised verify
+    branch and falls through to exec'ing the direct launcher the harness never writes
+    (exit 42 against the canary / exit 127 "Start_VOOL.sh: No such file or directory").
+    Keeping them real makes every platform exercise its own intended installer logic;
+    _supervisor_boundary_doubles keeps the service-manager probe hermetic per platform.
+    """
+    import platform
+
+    keep = ("install_macos_launch_agent",)
+    if platform.system() != "Darwin":
+        keep = (*keep, "install_linux_keepalive_service", "install_linux_xdg_autostart")
+    return keep
+
+
+def _assert_platform_supervisor_entry(run_dir: Path, runtime_home: Path) -> None:
+    """The platform's own supervisor entry was really installed inside the isolated home:
+    the launch-agent plist on Darwin, the XDG autostart entry (via the doubled no-bus
+    systemctl probe) everywhere else — the boundary that makes --start verify the served
+    runtime instead of exec'ing a launcher."""
+    from tests.platform_helpers import bash_path
+
+    if _platform_system() == "Darwin":
+        assert (run_dir / "launchctl-calls.txt").exists(), "the launchd boundary must run"
+        plist = run_dir / "isolated-home" / "Library" / "LaunchAgents" / "ai.vool.runtime.plist"
+        assert plist.is_file(), "the launch agent plist must be written by the owning boundary"
+        body = plist.read_text(encoding="utf-8")
+        assert "<key>VOOL_LAUNCHD_SUPERVISOR</key>" in body
+        assert bash_path(runtime_home) in body
+    else:
+        assert (run_dir / "systemctl-calls.txt").exists(), "the systemd probe boundary must run"
+        entry = run_dir / "isolated-home" / ".config" / "autostart" / "vool-runtime.desktop"
+        assert entry.is_file(), "the XDG autostart fallback must be written by the owning boundary"
+        body = entry.read_text(encoding="utf-8")
+        assert "VOOL_LAUNCHD_SUPERVISOR=1" in body
+        assert bash_path(runtime_home) in body
+
+
+def _platform_system() -> str:
+    import platform
+
+    return platform.system()
 
 
 def test_installer_start_verify_accepts_real_vool_health_and_rejects_foreign_services(
@@ -662,7 +732,7 @@ def test_installer_start_verify_accepts_real_vool_health_and_rejects_foreign_ser
             runtime_home=runtime_home,
             auto_start=True,
             launch_agent_path="",  # the OWNing setup boundary sets this (or not) below
-            keep_functions=("install_macos_launch_agent",),
+            keep_functions=_supervisor_keep_functions(),
             override_functions=_supervisor_boundary_doubles(tmp_path / "run1")
             + "write_launcher() { :; }\n",
         )
@@ -671,6 +741,7 @@ def test_installer_start_verify_accepts_real_vool_health_and_rejects_foreign_ser
         assert result.returncode == 0, combined[-2000:]
         assert "Launchd runtime verified" in result.stdout
         assert not marker.exists(), "the verify branch must not exec the direct launcher"
+        _assert_platform_supervisor_entry(tmp_path / "run1", runtime_home)
         paths = fixture.paths()
         assert "/bootstrap-marker" in paths, "the supervisor setup boundary must run"
         assert "/healthz" in paths and "/v1/models" in paths
@@ -690,7 +761,7 @@ def test_installer_start_verify_accepts_real_vool_health_and_rejects_foreign_ser
             runtime_home=tmp_path / "runtime2",
             auto_start=True,
             launch_agent_path="",
-            keep_functions=("install_macos_launch_agent",),
+            keep_functions=_supervisor_keep_functions(),
             sleep_fast=True,
             override_functions=_supervisor_boundary_doubles(tmp_path / "run2")
             + "write_launcher() { :; }\n",
@@ -713,7 +784,7 @@ def test_installer_start_verify_accepts_real_vool_health_and_rejects_foreign_ser
             runtime_home=tmp_path / "runtime3",
             auto_start=True,
             launch_agent_path="",
-            keep_functions=("install_macos_launch_agent",),
+            keep_functions=_supervisor_keep_functions(),
             sleep_fast=True,
             override_functions=_supervisor_boundary_doubles(tmp_path / "run3")
             + "write_launcher() { :; }\n",
@@ -822,7 +893,7 @@ def test_installer_start_verify_reuse_and_home_identity_boundary(tmp_path: Path)
             runtime_home=installed_home,
             auto_start=True,
             launch_agent_path="",
-            keep_functions=("install_macos_launch_agent",),
+            keep_functions=_supervisor_keep_functions(),
             sleep_fast=True,
             override_functions=_supervisor_boundary_doubles(tmp_path / "run1")
             + "write_launcher() { :; }\n",
@@ -830,6 +901,7 @@ def test_installer_start_verify_reuse_and_home_identity_boundary(tmp_path: Path)
         combined = result.stdout + result.stderr
         assert result.returncode == 0, combined[-2000:]
         assert "Launchd runtime verified" in result.stdout
+        _assert_platform_supervisor_entry(tmp_path / "run1", installed_home)
 
         # PLANTED per-home pidfile rows (fixture data, not written by any runtime): the
         # boundary signal a user can check by hand -- the serving home's data dir names a
