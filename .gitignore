@@ -247,3 +247,19 @@ test_data/*.bin
 # First-run pact (2026-09-05): the sabotage harness and served journeys —
 # loopback-only, no IPs/secrets, must stay visible next to the keychain harness.
 docs-build/
+
+# VOOL Floor is a local-only paid-skill candidate. Keep its source, fixtures,
+# research tapes and detached card experiments out of the public repository.
+premium/wallet-lab/
+wallet-lab/
+wallet_lab/
+core/wallet_lab.py
+core/wallet_lab/
+core/wallet_lab_*.py
+docs/guides/wallet-lab*
+tests/test_wallet_lab*.py
+tests/wallet_lab_*.py
+installer/bundle/lab_drag.py
+installer/bundle/desktop_blocks.py
+rh-migrated-targets/
+floor-tape-bank/
