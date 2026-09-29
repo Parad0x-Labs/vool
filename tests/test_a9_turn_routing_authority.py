@@ -63,16 +63,30 @@ class _RulesHomeTestCase(unittest.TestCase):
     """A private VOOL_HOME so temporary-rule persistence tests never touch real state."""
 
     def setUp(self) -> None:
+        from core import runtime_paths
+
         self._tmp = tempfile.TemporaryDirectory()
         self.home = Path(self._tmp.name)
         import os
 
         self._old_home = os.environ.get("VOOL_HOME")
         os.environ["VOOL_HOME"] = str(self.home)
+        # The runtime-home override (the root conftest pins one for the whole pytest
+        # session) wins over the environment in active_vool_home(), so setting the env
+        # alone never steered the rules store: the class passed only when an earlier
+        # test in the same process had cleared the override without restoring it, and
+        # any shard-composition change re-rolled that luck (CI runs 36558451752/36559643746
+        # shard 6). Pin the override to this test's home and restore exactly what was
+        # there before, so the class is hermetic in any order.
+        self._old_runtime_override = runtime_paths._VOOL_HOME_OVERRIDE
+        runtime_paths.configure_runtime_home(self.home)
 
     def tearDown(self) -> None:
         import os
 
+        from core import runtime_paths
+
+        runtime_paths.configure_runtime_home(self._old_runtime_override)
         if self._old_home is None:
             os.environ.pop("VOOL_HOME", None)
         else:
