@@ -383,78 +383,86 @@ def test_b3_export_keeps_the_shaped_answer_byte_exact(tmp_path, monkeypatch) -> 
     from storage.db import configure_default_db_path, reset_default_connection
 
     monkeypatch.setenv("VOOL_HOME", str(tmp_path))
+    # Restore the exact override that was active before (the root conftest pins the
+    # pytest session's own home): a pin left behind strands this test's tmp home in
+    # active_vool_home() for every later test in the process. The outer finally also
+    # covers failures between the pin and the server's own finally below.
+    previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
     runtime_paths.configure_runtime_home(tmp_path)
-    configure_default_db_path(tmp_path / "data" / "test.db")
-    reset_default_connection()
-    from storage.migrations import run_migrations
-
-    run_migrations()
-
-    import uvicorn
-
-    from apps.vool_api_server import create_app
-    from core.web.api.runtime import RuntimeServices, stream_agent_with_events
-    from core.web.api.service import dispatch_post
-
-    session = "browser-export"
-
-    def stub(runtime, text, *, session_id=None, source_context=None, **_):
-        from core.persistent_memory import append_conversation_event
-        from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
-
-        append_conversation_event(
-            session_id=str(session_id), user_input=text, assistant_output=TABLE_ANSWER,
-            source_context=source_context,
-        )
-        reset_admission()
-        return admit_semantic_result(
-            {"response": TABLE_ANSWER, "success": True, "confidence": 0.9, "route_reason": "model_lane", "mode": "advice_only"}
-        )
-
-    app = create_app(RuntimeServices(display_name="VOOL"))
-    app.state.post_dispatcher = functools.partial(
-        dispatch_post,
-        run_agent_provider=stub,
-        stream_agent_with_events_provider=functools.partial(stream_agent_with_events, run_agent_provider=stub),
-    )
-    port = _free_port()
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, access_log=False, log_level="warning"))
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    base = f"http://127.0.0.1:{port}"
     try:
-        deadline = time.time() + 10
-        while time.time() < deadline:
-            try:
-                with urllib.request.urlopen(f"{base}/healthz", timeout=0.5) as response:
-                    if response.status == 200:
-                        break
-            except Exception:
-                time.sleep(0.05)
-        # One real turn through the door: the shaped answer is what persists.
-        request = urllib.request.Request(
-            f"{base}/api/chat",
-            data=json.dumps({
-                "model": "vool",
-                "messages": [{"role": "user", "content": "walk me through both plans in detail"}],
-                "stream": False,
-                "session_id": session,
-                "turn_id": "turn-export-1",
-            }).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            assert response.status == 200
-            served = json.loads(response.read().decode("utf-8"))
-        served_session = str(served.get("vool_session_id") or session)
-        for fmt in ("md", "txt"):
-            with urllib.request.urlopen(f"{base}/api/chat/export?format={fmt}&session={served_session}", timeout=30) as response:
-                document = response.read().decode("utf-8")
-            assert "| A | €10 | basic |" in document, f"{fmt} export lost a table row"
-            assert "| B | €25 | full |" in document, f"{fmt} export lost a table row"
-            assert "presentation_selection" not in document, (
-                "the selection record is provenance beside the answer, never export content"
+        configure_default_db_path(tmp_path / "data" / "test.db")
+        reset_default_connection()
+        from storage.migrations import run_migrations
+
+        run_migrations()
+
+        import uvicorn
+
+        from apps.vool_api_server import create_app
+        from core.web.api.runtime import RuntimeServices, stream_agent_with_events
+        from core.web.api.service import dispatch_post
+
+        session = "browser-export"
+
+        def stub(runtime, text, *, session_id=None, source_context=None, **_):
+            from core.persistent_memory import append_conversation_event
+            from core.semantic.semantic_result_seam import admit_semantic_result, reset_admission
+
+            append_conversation_event(
+                session_id=str(session_id), user_input=text, assistant_output=TABLE_ANSWER,
+                source_context=source_context,
             )
+            reset_admission()
+            return admit_semantic_result(
+                {"response": TABLE_ANSWER, "success": True, "confidence": 0.9, "route_reason": "model_lane", "mode": "advice_only"}
+            )
+
+        app = create_app(RuntimeServices(display_name="VOOL"))
+        app.state.post_dispatcher = functools.partial(
+            dispatch_post,
+            run_agent_provider=stub,
+            stream_agent_with_events_provider=functools.partial(stream_agent_with_events, run_agent_provider=stub),
+        )
+        port = _free_port()
+        server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, access_log=False, log_level="warning"))
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{port}"
+        try:
+            deadline = time.time() + 10
+            while time.time() < deadline:
+                try:
+                    with urllib.request.urlopen(f"{base}/healthz", timeout=0.5) as response:
+                        if response.status == 200:
+                            break
+                except Exception:
+                    time.sleep(0.05)
+            # One real turn through the door: the shaped answer is what persists.
+            request = urllib.request.Request(
+                f"{base}/api/chat",
+                data=json.dumps({
+                    "model": "vool",
+                    "messages": [{"role": "user", "content": "walk me through both plans in detail"}],
+                    "stream": False,
+                    "session_id": session,
+                    "turn_id": "turn-export-1",
+                }).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(request, timeout=30) as response:
+                assert response.status == 200
+                served = json.loads(response.read().decode("utf-8"))
+            served_session = str(served.get("vool_session_id") or session)
+            for fmt in ("md", "txt"):
+                with urllib.request.urlopen(f"{base}/api/chat/export?format={fmt}&session={served_session}", timeout=30) as response:
+                    document = response.read().decode("utf-8")
+                assert "| A | €10 | basic |" in document, f"{fmt} export lost a table row"
+                assert "| B | €25 | full |" in document, f"{fmt} export lost a table row"
+                assert "presentation_selection" not in document, (
+                    "the selection record is provenance beside the answer, never export content"
+                )
+        finally:
+            server.should_exit = True
+            thread.join(timeout=5)
     finally:
-        server.should_exit = True
-        thread.join(timeout=5)
+        runtime_paths.configure_runtime_home(previous_home_override)
