@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import PurePosixPath
 
-
 PRIVATE_DIRECTORIES = {"wallet-lab", "wallet_lab", "rh-migrated-targets", "floor-tape-bank"}
 PRIVATE_FILES = (
     "core/wallet_lab.py",
@@ -17,6 +16,8 @@ PRIVATE_FILES = (
     "tests/wallet_lab_*.py",
     "installer/bundle/lab_drag.py",
     "installer/bundle/desktop_blocks.py",
+    "core/web_assets/floor-*",
+    "tests/test_floor_chat_bridge.py",
 )
 
 
