@@ -346,11 +346,19 @@ def test_open_chat_bat_opens_through_the_powershell_boundary() -> None:
     The browser open rides the same powershell boundary the health checks already use, so
     the executed Windows cases below can isolate and record every external effect. On a
     real machine Start-Process with a URL opens the default browser exactly like the old
-    `start ""` did.
+    `start ""` did. The open RESULT IS CHECKED: a failed browser open must report failure
+    honestly, never the old unconditional 'Chat opened'.
     """
     launcher = (REPO_ROOT / "Open_Chat.bat").read_text(encoding="utf-8")
     assert 'powershell -NoProfile -Command "Start-Process \'%CHAT_URL%\'"' in launcher
     assert 'start "" "%CHAT_URL%"' not in launcher
+    # The open failure is owned: exit non-zero with the honest error, no success echo.
+    assert "if %errorlevel% neq 0 (" in launcher
+    assert "echo ERROR: Could not open the chat page at %CHAT_URL%." in launcher
+    open_line = launcher.index('powershell -NoProfile -Command "Start-Process')
+    assert launcher.index("if %errorlevel% neq 0 (", open_line) > open_line, (
+        "the errorlevel check must follow the browser-open invocation"
+    )
     # The health/startup contract is unchanged.
     assert "schtasks /query /tn \"VOOL_Daemon\"" in launcher
     assert "vool_background.vbs" in launcher
@@ -650,4 +658,28 @@ def test_open_chat_bat_executed_startup_failure_reports_bounded_error(tmp_path: 
     sleeps = [e for e in ps if e.get("sleep")]
     assert len(sleeps) == 120
     assert not any("opened_url" in e for e in ps)
+    assert config.read_text(encoding="utf-8") == '{"model": "unrelated", "reserveTokensFloor": 99000}'
+
+
+def test_open_chat_bat_executed_browser_open_failure_reports_honestly(tmp_path: Path) -> None:
+    """EXECUTED on Windows: the runtime is healthy and reused, but the browser open itself
+    FAILS -> the launcher reports the failure honestly (exit 1, the error line, no success
+    echo) instead of the old unconditional 'Chat opened', with zero startup activity and
+    the unrelated third-party config byte-for-byte intact. This is the open-failure twin of
+    the healthy arm: reuse still happens first, only the open result changed."""
+    _win32_or_skip()
+    run_dir, doubles, config, env = _open_chat_bat_fixture(tmp_path)
+    (doubles / "health-mode.txt").write_text("healthy", encoding="utf-8")
+    (doubles / "open-mode.txt").write_text("fail", encoding="utf-8")
+
+    result = _run_open_chat_bat(run_dir, env)
+    combined = result.stdout + result.stderr
+    assert result.returncode == 1, combined
+    assert "ERROR: Could not open the chat page at http://127.0.0.1:11435/chat." in combined
+    assert "Chat opened at" not in combined
+    ps = _calls(doubles, "powershell")
+    assert ps and ps[0].get("health") is True, "a healthy runtime is still reused first"
+    assert any(e.get("open_failed") for e in ps), "the open attempt must be recorded"
+    assert not any("opened_url" in e for e in ps)
+    assert _calls(doubles, "schtasks") == [], "an open failure must not start anything"
     assert config.read_text(encoding="utf-8") == '{"model": "unrelated", "reserveTokensFloor": 99000}'

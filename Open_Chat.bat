@@ -47,5 +47,9 @@ REM the launcher's whole external-command surface stays one isolable contract (a
 REM invocation is shaped the same on a real machine: Start-Process with a URL opens the
 REM default browser exactly like `start ""` did).
 powershell -NoProfile -Command "Start-Process '%CHAT_URL%'" >nul 2>&1
+if %errorlevel% neq 0 (
+  echo ERROR: Could not open the chat page at %CHAT_URL%.
+  exit /b 1
+)
 echo Chat opened at %CHAT_URL%
 endlocal
