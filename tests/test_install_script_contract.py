@@ -788,14 +788,22 @@ def test_supervised_health_parser_refuses_non_object_payloads_cleanly() -> None:
 
 
 def test_installer_start_verify_reuse_and_home_identity_boundary(tmp_path: Path) -> None:
-    """What supervised reuse proves — and what it deliberately does not.
+    """What supervised reuse proves — and what it does NOT.
 
-    A healthy VOOL runtime already serving the canonical port is REUSED by --start (service
-    identity verified through the served health payload; exit 0, no second bind). WHICH
-    home owns that runtime is a different question, answered by the API's own per-home
-    pidfile record (data/vool_api.pid — the authority doctor/stop read): the serving home
-    carries a live pid; the newly installed home does not. --start verifies a VOOL-served
-    runtime, not this home's runtime, and that boundary is what this test records.
+    A healthy VOOL runtime already serving the canonical port is REUSED by --start (exit 0;
+    the served health payload passes the identity shape check; no second bind). WHICH home
+    owns that runtime is NOT answered by --start: the healthz payload shape is not
+    authentication and not home proof, and the installer never consults the pidfile.
+
+    The pidfile rows below are PLANTED FIXTURE DATA, not runtime output — the fixture
+    server is not the real API server, so nothing here exercises the runtime's own pidfile
+    writer (apps/vool_api_server._write_pidfile records the serving process into the
+    SERVING home's data/vool_api.pid, the file doctor/stop read). What they demonstrate is
+    the boundary signal a user can check by hand: the home whose data dir carries a
+    live-server pidfile is the serving home; a freshly installed home carries none because
+    --start reused the running server instead of starting one of its own. Cross-home reuse
+    (any healthy VOOL runtime on the canonical port is reused, whichever home started it)
+    is the accepted product behavior recorded here, not something this test authenticates.
     """
     import os
     import sys
@@ -823,12 +831,16 @@ def test_installer_start_verify_reuse_and_home_identity_boundary(tmp_path: Path)
         assert result.returncode == 0, combined[-2000:]
         assert "Launchd runtime verified" in result.stdout
 
-        # The per-home pidfile contract distinguishes the serving runtime's home.
+        # PLANTED per-home pidfile rows (fixture data, not written by any runtime): the
+        # boundary signal a user can check by hand -- the serving home's data dir names a
+        # live process; the newly installed home's does not, because --start reused the
+        # already-serving runtime rather than starting one of its own. --start itself
+        # never reads these files.
         serving_pid = int((serving_home / "data" / "vool_api.pid").read_text(encoding="utf-8").strip())
-        assert serving_pid == os.getpid()  # a live process — exactly what doctor/stop check
+        assert serving_pid == os.getpid()  # the planted value names a live process
         assert not (installed_home / "data" / "vool_api.pid").exists(), (
-            "the newly installed home owns no running API; --start verified the served runtime's"
-            " identity, and the per-home pidfile is the recorded boundary between homes"
+            "the newly installed home started no API of its own; --start verified and reused"
+            " the served runtime and does not consult the pidfile to decide ownership"
         )
     finally:
         fixture.stop()
