@@ -1742,7 +1742,7 @@ try:
 except Exception:
     raise SystemExit(1)
 runtime = payload.get("runtime") if isinstance(payload, dict) else None
-ok = payload.get("ok") is True and isinstance(runtime, dict) and bool(str(runtime.get("app_version") or "").strip())
+ok = isinstance(payload, dict) and payload.get("ok") is True and isinstance(runtime, dict) and bool(str(runtime.get("app_version") or "").strip())
 raise SystemExit(0 if ok else 1)
 '
 }

@@ -727,6 +727,66 @@ def test_installer_start_verify_accepts_real_vool_health_and_rejects_foreign_ser
         fixture.stop()
 
 
+def test_supervised_health_parser_refuses_non_object_payloads_cleanly() -> None:
+    """The bounded parser cases for the --start identity check, executed directly.
+
+    The poll's payload contract is ok=true plus a non-empty runtime.app_version. Valid
+    source-style and packaged-style payloads pass; every invalid input -- ok=false,
+    missing or empty version, non-VOOL objects, NON-OBJECT JSON bodies (lists, strings,
+    numbers, booleans, null) and undecodable bytes -- must refuse with exit 1 and NO
+    traceback: the parse outcome is a decision, not an exception. The non-object cases
+    pin the repair for the old unguarded ``payload.get("ok")`` that crashed instead of
+    refusing.
+    """
+    import re as _re
+    import subprocess
+    import sys
+
+    script = (PROJECT_ROOT / "installer" / "install_vool.sh").read_text(encoding="utf-8")
+    match = _re.search(r"supervised_health_is_vool\(\) \{.*?-c '(.*?)'\n\}", script, _re.S)
+    assert match is not None, "the supervised_health_is_vool python payload check is missing"
+    parser = match.group(1)
+
+    def check(body: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-c", parser],
+            input=body,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    accepting = [
+        '{"ok": true, "agent": "a", "runtime": {"app_version": "0.6.0", "protocol_version": 1}}',
+        '{"ok": true, "runtime": {"app_version": "0.6.0-dev+packaged"}}',
+    ]
+    for body in accepting:
+        result = check(body)
+        assert result.returncode == 0, (body, result.stderr)
+        assert "Traceback" not in result.stderr
+
+    refusing = [
+        '{"ok": false, "runtime": {"app_version": "0.6.0"}}',
+        '{"runtime": {"app_version": "0.6.0"}}',
+        '{"ok": true, "runtime": {}}',
+        '{"ok": true, "runtime": {"app_version": "   "}}',
+        '{"ok": true, "runtime": {"app_version": ""}}',
+        '{"ok": true, "runtime": "not-a-dict"}',
+        '{"ok": true, "app_version": "0.6.0"}',
+        '{"status": "ok", "service": "unrelated-demo-app"}',
+        '["ok", {"app_version": "0.6.0"}]',
+        '"healthy"',
+        "42",
+        "true",
+        "null",
+        "not json at all",
+    ]
+    for body in refusing:
+        result = check(body)
+        assert result.returncode == 1, (body, result.stdout, result.stderr)
+        assert "Traceback" not in result.stderr, (body, result.stderr)
+
+
 def test_installer_start_verify_reuse_and_home_identity_boundary(tmp_path: Path) -> None:
     """What supervised reuse proves — and what it deliberately does not.
 
