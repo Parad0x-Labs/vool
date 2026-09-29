@@ -10277,7 +10277,6 @@ function closePlugins() { if (pluginsOverlay) pluginsOverlay.hidden = true; }
 async function _openPanel(mode) {
   if (!pluginsOverlay) return;
   _pluginMode = mode;
-  if (window.VoolAddons) window.VoolAddons.open();
   pluginsOverlay.hidden = false;
   const title = document.getElementById('pluginsTitle');
   const body = document.getElementById('pluginsBody');
@@ -10285,7 +10284,11 @@ async function _openPanel(mode) {
   if (title) title.textContent = window.VoolAddons ? (window.VOOLT ? window.VOOLT('addons.store_title') : 'Skills & Plugins') : ((mode === 'skills') ? 'Skills' : 'Plugins');
   if (search) { search.value = ''; search.placeholder = (mode === 'skills') ? 'Search skills…' : 'Search plugins…'; }
   if (body) body.textContent = 'Loading…';
-  try { _pluginCatalog = await (await fetch('/api/plugins')).json(); renderPluginPanel(_pluginCatalog, ''); if (search) search.focus(); }
+  try {
+    if (window.VoolAddons) { await window.VoolAddons.open(); }
+    else { _pluginCatalog = await (await fetch('/api/plugins')).json(); renderPluginPanel(_pluginCatalog, ''); }
+    if (search) search.focus();
+  }
   catch (e) { if (body) body.textContent = 'Could not read the catalog.'; }
 }
 function openPlugins() { return _openPanel('plugins'); }

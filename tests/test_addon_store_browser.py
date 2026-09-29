@@ -14,7 +14,7 @@ from tests.test_addon_discovery import source
 from tests.test_addon_store import rig
 
 
-@pytest.mark.parametrize('risk', [False, True, 'bundled'])
+@pytest.mark.parametrize('risk', [False, True, 'bundled', 'delayed-risk'])
 def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypatch, tmp_path, risk):
     from core import addon_store, credential_store
     from core.vool_chat_page import render_vool_chat_html
@@ -25,7 +25,9 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
 
     monkeypatch.setattr(credential_store, "credential_is_indexed", lambda name: True)
     bundled = risk == 'bundled'
-    risk = risk is True
+    delayed_catalog = risk == 'delayed-risk'
+    risk = risk is True or delayed_catalog
+    release_catalog = threading.Event()
     if bundled:
         from core import addon_catalog, eyebrow_client
         from tests.test_addon_store import report
@@ -73,6 +75,8 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
                 return self.send(200, render_vool_settings_html().encode(), "text/html")
             if path in {"/api/addons", "/api/plugins", "/api/intake/providers"}:
                 result = dispatch_get(path=path, query={}, runtime=runtime, model_name="fixture", client_host="127.0.0.1")
+                if delayed_catalog and path == '/api/plugins':
+                    assert release_catalog.wait(15), 'browser never released the held catalogue'
                 return self.send(result.status, result.body)
             return self.send(200, b'{}')
         def do_POST(self):
@@ -90,12 +94,32 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
     manager, browser = launch_chromium()
     try:
         page = browser.new_page(viewport={"width": 1280, "height": 960})
+        if delayed_catalog:
+            # Mark the browser frame after the add-on JSON is consumed, while the
+            # installed-plugin response remains held by the served handler.
+            page.add_init_script('''
+                const actualFetch=window.fetch;
+                window.fetch=async (...args)=>{
+                    const response=await actualFetch(...args);
+                    if(args[0]==='/api/addons' && (!args[1] || !args[1].method)){
+                        const read=response.json.bind(response);
+                        response.json=async ()=>{const value=await read();requestAnimationFrame(()=>{window.catalogConsumed=true;});return value;};
+                    }
+                    return response;
+                };
+            ''')
         page.goto(f"http://127.0.0.1:{server.server_port}/chat", wait_until="domcontentloaded")
         page.locator('#input').fill('Keep this unsent draft')
         page.locator('#homeToggle').click()
         assert page.locator('#homeOptions').get_by_role('button', name='Skills & Plugins', exact=True).count() == 1
         assert page.locator('#skillsBtn').count() == 0
         page.get_by_role('button', name='Skills & Plugins', exact=True).click()
+        if delayed_catalog:
+            page.wait_for_function('window.catalogConsumed === true')
+            assert page.get_by_role('button', name='View add-on', exact=True).count() == 0
+            assert page.locator('#pluginsBody').inner_text() == 'Loading…'
+            assert not calls, 'partial hydration must not expose a review or installation decision'
+            release_catalog.set()
         assert page.locator('#pluginsTitle').inner_text() == 'Skills & Plugins'
         page.locator('#addonNav').get_by_role('button', name='Browse', exact=True).click()
         page.get_by_role('button', name='View add-on').wait_for()
@@ -220,6 +244,7 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         assert page.get_by_label('Eyebrow API key', exact=True).count() == 0
         page.screenshot(path=str(tmp_path / 'security-settings.png'))
     finally:
+        release_catalog.set()
         browser.close()
         manager.stop()
         server.shutdown()
