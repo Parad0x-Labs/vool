@@ -83,6 +83,11 @@ def parse_skill(path: Path, *, plugin_id: str = "") -> Skill | None:
         text = Path(path).read_text(encoding="utf-8")
     except OSError:
         return None
+    return parse_skill_content(text, path=path, plugin_id=plugin_id)
+
+
+def parse_skill_content(text: str, *, path: Path, plugin_id: str = "") -> Skill | None:
+    """Parse an already captured instruction snapshot without re-opening its source."""
     match = _FRONTMATTER_RE.match(text)
     if not match:
         return None

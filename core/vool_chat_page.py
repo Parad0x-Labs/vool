@@ -1015,8 +1015,7 @@ body:not(.panel-open) #xpanel { display:none; }
     <details id="homeMenu" class="home-menu">
       <summary id="homeToggle" aria-controls="homeOptions" title="Home — tools and settings" data-i18n-title="sidebar.home_title"><span aria-hidden="true">&#8962;</span> <span data-i18n="sidebar.home">Home</span> <span class="home-caret" aria-hidden="true">&#8963;</span></summary>
       <div id="homeOptions" class="home-options" role="group" aria-label="Home" data-i18n-aria-label="sidebar.home">
-        <button id="pluginsBtn" type="button" class="side-foot-btn" title="Plugins &mdash; powers VOOL can use" data-i18n="sidebar.plugins" data-i18n-title="sidebar.plugins_title">&#9638; Plugins</button>
-        <button id="skillsBtn" type="button" class="side-foot-btn" title="Skills &mdash; how VOOL uses those powers" data-i18n="sidebar.skills" data-i18n-title="sidebar.skills_title">&#9635; Skills</button>
+        <button id="pluginsBtn" type="button" class="side-foot-btn" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
         <button id="filesBtn" type="button" class="side-foot-btn" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">&#128193; Files</button>
         <button id="contactsBtn" type="button" class="side-foot-btn" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">&#128100; Contacts</button>
         <button id="settingsBtn" type="button" class="side-foot-btn" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">&#9881; Settings</button>
@@ -1179,11 +1178,11 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="pluginsOverlay" class="modal-overlay" hidden>
   <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="pluginsTitle">
     <div class="modal-head">
-      <span id="pluginsTitle">Plugins &amp; Skills</span>
+      <span id="pluginsTitle">Skills &amp; Plugins</span>
       <button type="button" id="pluginsClose" class="modal-x" title="Close" aria-label="Close plugins">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="set-help">Plugins give VOOL new powers; skills teach it how to use them. This is what&rsquo;s installed on this machine.</p>
+      <p class="set-help">Plugins give VOOL new powers; skills teach it how to use them. Manage installed add-ons or discover external skills.</p>
       <input type="search" id="pluginsSearch" class="plugins-search" placeholder="Search plugins and skills&hellip;" autocomplete="off" spellcheck="false" aria-label="Search plugins and skills">
       <div id="pluginsBody">Loading&hellip;</div>
     </div>
@@ -10278,11 +10277,12 @@ function closePlugins() { if (pluginsOverlay) pluginsOverlay.hidden = true; }
 async function _openPanel(mode) {
   if (!pluginsOverlay) return;
   _pluginMode = mode;
+  if (window.VoolAddons) window.VoolAddons.open();
   pluginsOverlay.hidden = false;
   const title = document.getElementById('pluginsTitle');
   const body = document.getElementById('pluginsBody');
   const search = document.getElementById('pluginsSearch');
-  if (title) title.textContent = (mode === 'skills') ? 'Skills' : 'Plugins';
+  if (title) title.textContent = window.VoolAddons ? (window.VOOLT ? window.VOOLT('addons.store_title') : 'Skills & Plugins') : ((mode === 'skills') ? 'Skills' : 'Plugins');
   if (search) { search.value = ''; search.placeholder = (mode === 'skills') ? 'Search skills…' : 'Search plugins…'; }
   if (body) body.textContent = 'Loading…';
   try { _pluginCatalog = await (await fetch('/api/plugins')).json(); renderPluginPanel(_pluginCatalog, ''); if (search) search.focus(); }
@@ -10290,7 +10290,7 @@ async function _openPanel(mode) {
 }
 function openPlugins() { return _openPanel('plugins'); }
 function openSkills() { return _openPanel('skills'); }
-function renderPluginPanel(d, query) { if (_pluginMode === 'skills') { renderSkills(d, query); } else { renderPlugins(d, query); } }
+function renderPluginPanel(d, query) { if (window.VoolAddons && window.VoolAddons.render(query)) return; if (_pluginMode === 'skills') { renderSkills(d, query); } else { renderPlugins(d, query); } }
 
 function _firstPartyBadge() {
   const fp = document.createElement('span'); fp.className = 'p-firstparty'; fp.title = 'Built by Parad0x Labs';
@@ -10706,7 +10706,6 @@ async function removeCloudKey() {
 
 if (pluginsOverlay) {
   const pBtn = document.getElementById('pluginsBtn'); if (pBtn) pBtn.addEventListener('click', openPlugins);
-  const sBtn = document.getElementById('skillsBtn'); if (sBtn) sBtn.addEventListener('click', openSkills);
   const pClose = document.getElementById('pluginsClose'); if (pClose) pClose.addEventListener('click', closePlugins);
   const pSearch = document.getElementById('pluginsSearch'); if (pSearch) pSearch.addEventListener('input', () => renderPluginPanel(_pluginCatalog, pSearch.value));
   pluginsOverlay.addEventListener('click', (e) => { if (e.target === pluginsOverlay) closePlugins(); });
@@ -11586,6 +11585,7 @@ def _page_fragments() -> tuple[str, ...]:
     dependencies and load first so every later fragment (and the page's own renderers) can call
     `VoolChips.html`; the companion stays last, exactly where it always evaluated.
     """
+    from core.addon_store_fragment import render_addon_store_fragment
     from core.chat_visuals_fragment import render_chat_visuals_fragment
     from core.command_palette_fragment import render_palette_fragment
     from core.companion_drawer_fragment import render_companion_drawer_fragment
@@ -11603,6 +11603,7 @@ def _page_fragments() -> tuple[str, ...]:
 
     return (
         render_chip_fragment(),
+        render_addon_store_fragment(),
         render_chat_visuals_fragment(),
         render_palette_fragment(),
         render_composer_extras_fragment(),

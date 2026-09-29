@@ -375,6 +375,12 @@ def verify(plugin_id: str, *, root: Path | None = None, expected_digest: str = "
         record.note("verify_failed", reason="digest mismatch", expected=expected_digest, actual=digest)
         _save(record)
         raise LifecycleError(f"{plugin_id}: digest mismatch — expected {expected_digest[:16]}, found {digest[:16]}")
+    from core.addon_store import assert_reviewed, is_managed
+    if is_managed(plugin_id):
+        try:
+            assert_reviewed(plugin_id, pack)
+        except Exception:
+            raise LifecycleError(f"{plugin_id}: a valid security review of these exact files is required") from None
     record.verified_digest = digest
     record.verified_at = _utcnow()
     record.stage = STAGE_VERIFIED
@@ -506,6 +512,12 @@ def is_available(plugin_id: str, *, root: Path | None = None) -> bool:
         return False
     if not record.verified_digest:
         return False
+    from core.addon_store import assert_reviewed, is_managed
+    if is_managed(plugin_id):
+        try:
+            assert_reviewed(plugin_id, Path(root or record.root))
+        except Exception:
+            return False
     digest = manifest_digest(Path(root or record.root))
     return bool(digest) and digest == record.verified_digest
 

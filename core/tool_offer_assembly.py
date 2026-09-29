@@ -139,7 +139,9 @@ def _plugin_dirs() -> tuple[tuple[str, Path], ...]:
         from core.plugin_catalog import _disabled_ids, discovered_plugin_sources
 
         disabled = _disabled_ids()
-        return tuple((pid, path) for pid, path in discovered_plugin_sources() if pid not in disabled)
+        from core.addon_store import available, is_managed
+        return tuple((pid, path) for pid, path in discovered_plugin_sources()
+                     if pid not in disabled and (not is_managed(pid) or available(pid, path)))
     except Exception:
         return ()
 
@@ -150,6 +152,12 @@ def loaded_skills() -> tuple[Any, ...]:
 
     skills: list[Any] = []
     for plugin_id, plugin_dir in _plugin_dirs():
+        from core.addon_store import is_managed, reviewed_skill
+        if is_managed(plugin_id):
+            skill = reviewed_skill(plugin_id, plugin_dir)
+            if skill is not None:
+                skills.append(skill)
+            continue
         skills_dir = plugin_dir / "skills"
         if not skills_dir.is_dir():
             continue
@@ -329,7 +337,17 @@ def skill_guidance_for(
                 for skill in ranked:
                     if remaining < _MIN_SKILL_CHARS:
                         break
-                    block, used = _render_block(skill, remaining)
+                    from core.addon_store import is_managed
+                    if is_managed(str(skill.plugin_id or "")):
+                        block = render_complete_block(skill, remaining)
+                        if block is None:
+                            provenance.append({"name": skill.name, "plugin_id": skill.plugin_id,
+                                               "origin": "plugin", "complete": False, "chars": 0,
+                                               "reason": "instruction_budget_exceeded"})
+                            continue
+                        used = len(block)
+                    else:
+                        block, used = _render_block(skill, remaining)
                     if not block:
                         continue
                     blocks.append(block)

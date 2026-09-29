@@ -1752,6 +1752,10 @@ def dispatch_get(
 
         return apply_runtime_headers(json_response(200, {"providers": discovery_snapshot()}), runtime)
 
+    if normalized_path == "/api/addons":
+        from core.addon_store import catalog
+        return apply_runtime_headers(json_response(200, catalog()), runtime)
+
     if normalized_path == "/api/plugins/lifecycle":
         # The nine lifecycle acts as state, not as presence on disk. Read-only: what is installed,
         # what is verified, what is enabled, what is REVOKED, and which packs are actually
@@ -2842,6 +2846,11 @@ def dispatch_post(
         # Every POST handler below reads body.get(...); a non-object JSON body (e.g. [], "x", 5)
         # would otherwise raise AttributeError -> 500. Fail cleanly instead.
         return apply_runtime_headers(json_response(400, {"error": "body must be a JSON object"}), runtime)
+
+    if normalized_path == "/api/addons":
+        from core.web.api.addon_api import handle_addon_post
+        status, payload = handle_addon_post(body, headers, client_host)
+        return apply_runtime_headers(json_response(status, payload), runtime)
 
     # ---- Command registry projection (owner command centre): the one dispatch ----
     if normalized_path == "/api/commands/dispatch":

@@ -322,6 +322,19 @@ def is_timeout_error(exc: BaseException) -> bool:
     return "timed out" in str(reason if reason is not None else exc).lower()
 
 
+def is_gateway_denial(status: int, body: bytes) -> bool:
+    """Recognise an explicit edge denial without inferring key validity from HTTP 403."""
+    if status != 403:
+        return False
+    try:
+        payload = json.loads(body)
+    except (ValueError, TypeError, UnicodeError):
+        return False
+    return (isinstance(payload, dict) and payload.get("cloudflare_error") is True
+            and payload.get("error_code") == 1010
+            and payload.get("error_name") == "browser_signature_banned")
+
+
 def classify_verification_response(descriptor: ProviderDescriptor, *, status: int, body: bytes,
                                    headers: object = None, host: str = "") -> VerificationOutcome:
     """What one provider answer means for one key. Shared with the stored-key Test probe so the
