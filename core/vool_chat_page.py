@@ -1947,6 +1947,10 @@ function newChatState(chatId) {
     run: null,
     // Reserved by pumpQueue across its claim await, before a run object exists. See isChatBusy().
     pumpHold: false,
+    // Count of enqueues THIS page has stored for the chat. A pump whose empty claim is answered
+    // while an enqueue was still on the wire re-reads it and claims again (see pumpQueue), so a
+    // message sent inside the claim window is never left without a wakeup.
+    queueArrivals: 0,
     mode: 'manual',
     projectId: '',
     pins: [],
@@ -6974,16 +6978,27 @@ async function pumpQueue(forChatId) {
   const owner = chatState(chatId);
   if (isChatBusy(chatId)) return;
   owner.pumpHold = true;  // hold THIS chat's slot across the await so a concurrent send() queues
-  const res = await queueOp('claim', chatId, {});
-  const claimed = res && res.item ? res.item : null;
-  if (!claimed) { owner.pumpHold = false; refreshQueue(); reflectComposer(); return; }
-  refreshQueue();
-  // The attachments the queued item owns, by the ids the server stored; names come from this
-  // chat's own bucket (recorded when the item was queued) or fall back to a plain label.
-  const queuedIds = (claimed.payload && Array.isArray(claimed.payload.attachments)) ? claimed.payload.attachments : [];
-  const queuedMeta = queuedIds.map((id) => owner.queuedAttachmentMeta[id] || { id: id, name: 'attachment', kind: '', size_bytes: 0, previewUrl: '' });
-  queuedIds.forEach((id) => { delete owner.queuedAttachmentMeta[id]; });
-  await runTurn((claimed.payload && claimed.payload.text) || '', claimed.queue_item_id, { chatId: chatId, attachments: queuedMeta, queuedModel: claimed.payload.price_wait ? 'usepod:' + claimed.payload.price_wait.model_id : '', priceWait: !!claimed.payload.price_wait });
+  for (;;) {
+    const arrivals = owner.queueArrivals;
+    const res = await queueOp('claim', chatId, {});
+    const claimed = res && res.item ? res.item : null;
+    if (!claimed) {
+      // A send() can enqueue while this empty claim was on the wire, and its own pumpQueue() call
+      // returns early against this hold -- so THIS pump is that item's only wakeup. Claim once
+      // more when one arrived; the server's claim is a compare-and-swap, so the extra round
+      // either takes the item or comes back empty again with nothing left to run.
+      if (owner.queueArrivals !== arrivals) continue;
+      owner.pumpHold = false; refreshQueue(); reflectComposer(); return;
+    }
+    refreshQueue();
+    // The attachments the queued item owns, by the ids the server stored; names come from this
+    // chat's own bucket (recorded when the item was queued) or fall back to a plain label.
+    const queuedIds = (claimed.payload && Array.isArray(claimed.payload.attachments)) ? claimed.payload.attachments : [];
+    const queuedMeta = queuedIds.map((id) => owner.queuedAttachmentMeta[id] || { id: id, name: 'attachment', kind: '', size_bytes: 0, previewUrl: '' });
+    queuedIds.forEach((id) => { delete owner.queuedAttachmentMeta[id]; });
+    await runTurn((claimed.payload && claimed.payload.text) || '', claimed.queue_item_id, { chatId: chatId, attachments: queuedMeta, queuedModel: claimed.payload.price_wait ? 'usepod:' + claimed.payload.price_wait.model_id : '', priceWait: !!claimed.payload.price_wait });
+    return;
+  }
 }
 
 async function fetchJsonWithin(url, parentSignal, timeoutMs) {
@@ -7364,6 +7379,9 @@ async function send() {
     if (target && target.enabled) {
       const queued = await queueOp('enqueue', chatId, {text, attachments:attachments.map(a=>a.id), price_wait_model:String(selected).slice(7), idempotency_key:'price-' + Date.now()});
       if (!queued || !queued.item) { toast('Could not save this task to the price queue. Your draft is unchanged.'); return; }
+      // Same wakeup contract as the busy branch below: the arrival must survive an empty claim
+      // that was already on the wire when this item landed.
+      chatState(chatId).queueArrivals++;
       inputEl.value = ''; if (window.VoolComposerExtras) window.VoolComposerExtras.draftConsumed(chatId);
       const owner = chatState(chatId); attachments.forEach(a=>{owner.queuedAttachmentMeta[a.id]=a;});owner.attachments=[];renderAttachStrip();
       await refreshQueue(); toast(target.ready ? 'Price is available. Starting within your UsePod budget.' : 'Task saved. Waiting for your price; keep VOOL open.');
@@ -7382,7 +7400,13 @@ async function send() {
     const extra = { text: text, idempotency_key: idem };
     if (attachments.length) { extra.attachments = attachments.map((a) => a.id); attachments.forEach((a) => { owner.queuedAttachmentMeta[a.id] = a; }); }
     const res = await queueOp('enqueue', chatId, extra);
-    if (res && res.item) { if (attachments.length) { owner.attachments = []; if (isDisplayed(chatId)) renderAttachStrip(); } refreshQueue(); }
+    if (res && res.item) {
+      // Wake the pump for this arrival: if a pump's empty claim is still in flight it re-claims
+      // on its return (queueArrivals); if it already exited, this call starts a fresh one.
+      owner.queueArrivals++;
+      if (attachments.length) { owner.attachments = []; if (isDisplayed(chatId)) renderAttachStrip(); }
+      refreshQueue(); pumpQueue(chatId);
+    }
     else {
       if (window.VoolComposerExtras) window.VoolComposerExtras.restoreDraft(chatId, draftText);
       toast('The message could not be queued. Its text was restored to this chat’s draft.'

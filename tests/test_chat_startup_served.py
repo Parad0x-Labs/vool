@@ -178,3 +178,99 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
         finally:
             daemon.stop()
         assert daemon.process is None or daemon.process.poll() is not None
+
+
+def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeypatch):
+    """A message sent while the post-turn queue pump holds the chat's slot across its claim
+    round-trip is enqueued server-side, and that pump -- whose claim was already answered
+    empty -- is the item's only wakeup. This is the CI race that stranded the provider turn on
+    green content (PR96 run 36570530721 and main run 36603722599 attempt 1: one assistant
+    message, zero provider calls, 15s wait_for_function timeout, three different greeting
+    variants). The first claim is held until the enqueue has been stored, then answered empty,
+    reproducing that window deterministically; the recovery claim goes to the real queue door.
+    """
+    artifact = os.environ.get("VOOL_STARTUP_APP_ROOT")
+    if artifact:
+        app = Path(artifact).resolve()
+        monkeypatch.setattr(rig, "REPO_ROOT", app)
+        monkeypatch.setattr(rig.sys, "executable", str(app.parent / "python/bin/python3"))
+    with rig.CapturingProvider(default="Hello! How can I help you today?") as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
+                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+        try:
+            daemon.start(timeout=60)
+            certification = daemon.certify(timeout=30)
+            assert certification.get("state") == "verified", certification
+            manager, browser = served_browser.launch_chromium()
+            try:
+                page = browser.new_page()
+                errors = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(daemon.base_url)
+                           else route.abort())
+                page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+                page.wait_for_selector("#input", timeout=5000)
+                # Instrument the queue door at its seam: claim #1 (the greeting turn's
+                # post-release pump) is answered empty only AFTER the next enqueue has been
+                # stored server-side -- exactly the interleaving the CI runners hit.
+                page.evaluate("""() => {
+                    const original = queueOp;
+                    const trace = [];
+                    window.__queueTrace = trace;
+                    let releaseFirstClaim = null;
+                    queueOp = async function(op, chatId, extra) {
+                        if (op === 'claim' && !trace.includes('claim')) {
+                            trace.push('claim');
+                            await new Promise((resolve) => { releaseFirstClaim = resolve; });
+                            return { item: null };
+                        }
+                        const res = await original(op, chatId, extra);
+                        trace.push(op);
+                        if (op === 'enqueue' && releaseFirstClaim) releaseFirstClaim();
+                        return res;
+                    };
+                }""")
+                provider.reset()
+                page.locator("#input").fill("Hi")
+                page.locator("#send").click()
+                page.wait_for_function("view.run && view.run.released && view.run.status === 'completed'",
+                                       timeout=15000)
+                # The greeting turn released; its pump's claim is now held open. A send in this
+                # window must be ENQUEUED (the slot is busy), never dropped or run twice.
+                page.wait_for_function("window.__queueTrace.includes('claim')", timeout=5000)
+                page.locator("#input").fill("Write one friendly sentence about a harbor lantern.")
+                page.locator("#send").click()
+                page.wait_for_function("window.__queueTrace.includes('enqueue')", timeout=5000)
+                # The held claim resolves empty with the item already stored. Someone must
+                # re-claim it and run the provider turn.
+                try:
+                    page.wait_for_function(
+                        "[...document.querySelectorAll('.msg.assistant .msg-text')].at(-1).textContent.includes('Hello!')",
+                        timeout=15000)
+                except Exception:
+                    print("CLAIM_WINDOW_DIAGNOSTIC",
+                          page.evaluate("window.__queueTrace"),
+                          page.locator(".msg.assistant .msg-text").all_text_contents(),
+                          "PROVIDER_CALLS", len(provider.calls), "ERRORS", errors, flush=True)
+                    raise
+                assert len(provider.calls) == 1, "the queued turn must run exactly once"
+                trace = page.evaluate("window.__queueTrace")
+                assert trace.count("claim") >= 2, f"the stranded item was never re-claimed: {trace}"
+                # The complete op is fire-and-forget at run release, so the drained-queue read
+                # follows the release and then polls the server's own active-item state.
+                page.wait_for_function("view.run && view.run.released", timeout=5000)
+                session_id = page.evaluate("displayedChat")
+                deadline = time.monotonic() + 5
+                while True:
+                    with urlopen(daemon.base_url + "/api/chat/queue?session=" + session_id, timeout=3) as response:
+                        queue_state = json.load(response)
+                    if not queue_state.get("queue") or time.monotonic() >= deadline:
+                        break
+                    time.sleep(0.1)
+                assert queue_state.get("queue") == [], queue_state
+                assert not errors, errors
+            finally:
+                browser.close()
+                manager.stop()
+        finally:
+            daemon.stop()
