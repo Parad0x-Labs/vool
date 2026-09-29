@@ -197,27 +197,35 @@ def test_s5_grounding_refused_turn_ships_the_post_gate_re_stamp(tmp_path, monkey
     from storage.db import configure_default_db_path, reset_default_connection
 
     monkeypatch.setenv("VOOL_HOME", str(tmp_path))
+    # Restore the exact override that was active before (the root conftest pins the
+    # pytest session's own home): a pin left behind strands this test's tmp home in
+    # active_vool_home() for every later test in the process. finally-shaped so a
+    # failure below cannot strand the pin either.
+    previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
     runtime_paths.configure_runtime_home(tmp_path)
-    configure_default_db_path(tmp_path / "data" / "test.db")
-    reset_default_connection()
-    from storage.migrations import run_migrations
+    try:
+        configure_default_db_path(tmp_path / "data" / "test.db")
+        reset_default_connection()
+        from storage.migrations import run_migrations
 
-    run_migrations()
+        run_migrations()
 
-    from tests.test_unsupported_current_claims_cannot_publish_m3 import (
-        RUST_FABRICATION,
-        build_turn,
-        publish,
-    )
+        from tests.test_unsupported_current_claims_cannot_publish_m3 import (
+            RUST_FABRICATION,
+            build_turn,
+            publish,
+        )
 
-    context = build_turn()
-    commit = publish(context, RUST_FABRICATION)
-    publication = dict((commit.get("grounding_lifecycle") or {}).get("publication") or {})
-    assert publication.get("state") == "refused"
-    record = dict((commit.get("display_metadata") or {}).get("presentation_selection") or {})
-    assert record["disabled_by"] == "grounding_gate"
-    assert record["elected"] is None
-    assert record["origin"] == "automatic"
+        context = build_turn()
+        commit = publish(context, RUST_FABRICATION)
+        publication = dict((commit.get("grounding_lifecycle") or {}).get("publication") or {})
+        assert publication.get("state") == "refused"
+        record = dict((commit.get("display_metadata") or {}).get("presentation_selection") or {})
+        assert record["disabled_by"] == "grounding_gate"
+        assert record["elected"] is None
+        assert record["origin"] == "automatic"
+    finally:
+        runtime_paths.configure_runtime_home(previous_home_override)
 
 
 def test_s6_automatic_guidance_honesty(selection_rig) -> None:

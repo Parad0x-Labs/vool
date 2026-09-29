@@ -93,15 +93,23 @@ def test_claim_is_reachable_after_a_restart_because_evidence_is_durable(pact_rig
     # Simulate a restart: rebuild runtime services over the SAME home (fresh caches).
     import storage.db as sdb
     from apps.vool_api_server import _bootstrap
+    from core import runtime_paths
     from core.runtime_paths import configure_runtime_home
 
+    # Restore the exact override that was active before: the pin below must not
+    # outlive this test, or every later test in the process resolves its runtime
+    # home to this rig's directory while VOOL_HOME still names the session home.
+    previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
     configure_runtime_home(pact_rig.home)
-    sdb.configure_default_db_path(pact_rig.home / "data" / "vool_web0_v2.db")
-    pact_rig.runtime = _bootstrap(run_prewarm=False)
+    try:
+        sdb.configure_default_db_path(pact_rig.home / "data" / "vool_web0_v2.db")
+        pact_rig.runtime = _bootstrap(run_prewarm=False)
 
-    status, payload = _claim(pact_rig, request_id)
-    assert status == 200, payload
-    assert payload["receipt"]["chain_verified"] is True
+        status, payload = _claim(pact_rig, request_id)
+        assert status == 200, payload
+        assert payload["receipt"]["chain_verified"] is True
+    finally:
+        configure_runtime_home(previous_home_override)
 
 
 def test_a_broken_chain_is_refused_even_when_the_last_receipt_verifies_alone(pact_rig):
