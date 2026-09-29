@@ -158,27 +158,37 @@ def arch_home(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_LIQUEFY_LOGS", "0")  # projection optional: off by default here
     monkeypatch.setenv("VOOL_KEY_STORAGE_MODE", "file")
     monkeypatch.setenv("VOOL_KEY_PASSPHRASE", "arch-lane-test-only")
+    import core.runtime_paths as runtime_paths
     from core.blackbox.store import reset_default_store
-    from core.runtime_paths import configure_runtime_home
     from storage.db import (
         configure_default_db_path,
         reset_default_connection,
     )
     from storage.migrations import run_migrations
 
-    configure_runtime_home(home)
-    reset_default_store()
-    # Per-test SQLite home: the lane needs its own a7_finalizations rows, so it
-    # cannot share the session-wide runtime DB (no cross-test UNIQUE clashes).
-    db_path = home / "arch.db"
-    configure_default_db_path(db_path)
-    reset_default_connection()
-    from core.runtime_continuity import configure_runtime_continuity_db_path
+    # The runtime-home override (the root conftest pins the pytest session's own)
+    # must return to exactly what was active before this test: leaving it pointed
+    # at this per-test home leaks a dead directory into every later test in the
+    # process — active_vool_home() then disagrees with VOOL_HOME and with every
+    # import-frozen path for the rest of the session. Restore in finally so a
+    # failure anywhere below cannot strand the pin either.
+    previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
+    runtime_paths.configure_runtime_home(home)
+    try:
+        reset_default_store()
+        # Per-test SQLite home: the lane needs its own a7_finalizations rows, so it
+        # cannot share the session-wide runtime DB (no cross-test UNIQUE clashes).
+        db_path = home / "arch.db"
+        configure_default_db_path(db_path)
+        reset_default_connection()
+        from core.runtime_continuity import configure_runtime_continuity_db_path
 
-    configure_runtime_continuity_db_path(str(db_path))
-    run_migrations()
-    yield {"home": home, "blackbox_root": blackbox_root, "tmp": tmp_path}
-    reset_default_store()
+        configure_runtime_continuity_db_path(str(db_path))
+        run_migrations()
+        yield {"home": home, "blackbox_root": blackbox_root, "tmp": tmp_path}
+    finally:
+        runtime_paths.configure_runtime_home(previous_home_override)
+        reset_default_store()
 
 
 @pytest.fixture()

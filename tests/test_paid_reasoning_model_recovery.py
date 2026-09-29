@@ -48,13 +48,21 @@ def paid_home(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_HOME", str(home))
     from core import runtime_paths
 
+    # Restore the exact override that was active before (the root conftest pins the
+    # pytest session's own home): a pin left behind strands this fixture's home in
+    # active_vool_home() for every later test in the process. finally-shaped so a
+    # failure below cannot strand the pin either.
+    previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
     runtime_paths.configure_runtime_home(home)
-    from storage.migrations import run_migrations
+    try:
+        from storage.migrations import run_migrations
 
-    run_migrations()
-    yield home
-    effect_budget.reset_effect_budget_process_state()
-    configure_default_db_path(None)
+        run_migrations()
+        yield home
+        effect_budget.reset_effect_budget_process_state()
+        configure_default_db_path(None)
+    finally:
+        runtime_paths.configure_runtime_home(previous_home_override)
 
 
 PAID_MODEL = "synth/reasoning-mandatory-model"

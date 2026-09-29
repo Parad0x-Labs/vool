@@ -57,13 +57,23 @@ DESKTOP_HOST = "127.0.0.1"
 
 @pytest.fixture(autouse=True)
 def _mobile_home(tmp_path, monkeypatch):
+    from core import runtime_paths
+
     monkeypatch.setenv("VOOL_HOME", str(tmp_path))
+    # Restore the exact override that was active before (the root conftest pins the
+    # pytest session's own home): leaving this test's tmp home pinned past teardown
+    # strands a dead directory in active_vool_home() for every later test in the
+    # process. finally-shaped so a failure below cannot strand the pin either.
+    previous_home_override = runtime_paths._VOOL_HOME_OVERRIDE
     configure_runtime_home(tmp_path)
-    reset_mobile_companion_service()
-    reset_mode_permission_state()
-    yield
-    reset_mode_permission_state()
-    reset_mobile_companion_service()
+    try:
+        reset_mobile_companion_service()
+        reset_mode_permission_state()
+        yield
+        reset_mode_permission_state()
+        reset_mobile_companion_service()
+    finally:
+        configure_runtime_home(previous_home_override)
 
 
 class _StubAgent:
