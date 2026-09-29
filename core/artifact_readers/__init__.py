@@ -199,7 +199,7 @@ REGISTRY: tuple[ReaderSpec, ...] = (
         extensions=(".xls",),
         sniff=documents.sniff_xls,
         read=documents.read_xls,
-        requires=("the pinned xlrd decoder (xlrd==2.0.1)",),
+        requires=("the pinned xlrd decoder (xlrd==2.0.2)",),
         availability=_xls_available,
         unit_kind=UNIT_SHEET,
         notes="Read in process by the pinned pure-Python xlrd. Formulas marked with their cached values; macros reported, never run.",

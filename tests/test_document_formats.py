@@ -600,7 +600,7 @@ def test_xls_without_its_decoder_is_blocked_typed_never_read_as_empty(monkeypatc
     with pytest.raises(readers.ReaderUnavailable) as caught:
         readers.read(legacy_xls_workbook(), name="q3.xls", extension=".xls")
     assert caught.value.code == "xls_decoder_unavailable"
-    assert "xlrd==2.0.1" in caught.value.remediation
+    assert "xlrd==2.0.2" in caught.value.remediation
 
 
 def test_xls_ole_bytes_are_not_claimed_by_the_doc_reader(tmp_path, monkeypatch: pytest.MonkeyPatch):
@@ -682,6 +682,6 @@ def test_xls_without_the_pinned_decoder_refuses_typed_and_never_reads_empty(monk
 
     refusal = caught.value
     assert refusal.code == "xls_decoder_unavailable", refusal.code
-    assert "xlrd==2.0.1" in str(refusal), str(refusal)
+    assert "xlrd==2.0.2" in str(refusal), str(refusal)
     # The point of the law: an unreadable format is BLOCKED, not silently empty.
     assert "not read" in str(refusal).lower()
