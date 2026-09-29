@@ -1,0 +1,14 @@
+name: Keep Floor local
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  reject-floor-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject tracked Floor source and tapes
+        run: python3 tools/check_public_floor_boundary.py
