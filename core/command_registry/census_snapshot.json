@@ -176,6 +176,62 @@
       "registry_command_id": "blackbox.verify",
       "surface": "cli-module"
     },
+    "cli-script:vool": {
+      "classification": "REGISTRY_OWNED",
+      "name": "core.command_registry.cli:main",
+      "note": "the registry CLI",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-agent": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.vool_agent:main",
+      "note": "runtime daemon entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-api": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.vool_api_server:main",
+      "note": "API server entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-benchmark": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "ops.benchmark_vool:main",
+      "note": "developer benchmark tool",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-daemon": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.vool_daemon:main",
+      "note": "runtime daemon entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-meet": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.meet_and_greet_server:main",
+      "note": "meet satellite entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-watch": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "apps.brain_hive_watch_server:main",
+      "note": "watch satellite entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-vool:<command dispatch>": {
+      "classification": "REGISTRY_OWNED",
+      "name": "vool <command dispatch>",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
     "cli-vool:adapt-autopilot": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "adapt-autopilot",
@@ -337,6 +393,20 @@
       "registry_command_id": "",
       "surface": "cli-vool"
     },
+    "cli-vool:commands --check": {
+      "classification": "REGISTRY_OWNED",
+      "name": "vool commands --check",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-vool:commands --json": {
+      "classification": "REGISTRY_OWNED",
+      "name": "vool commands --json",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
     "cli-vool:control-sync": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "control-sync",
@@ -357,6 +427,13 @@
       "note": "web0 peer lane",
       "registry_command_id": "",
       "surface": "cli-vool"
+    },
+    "cli-vool:help": {
+      "classification": "REGISTRY_OWNED",
+      "name": "vool help",
+      "note": "registry CLI/route projection",
+      "registry_command_id": "",
+      "surface": "cli-script"
     },
     "cli-vool:identities": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
@@ -595,83 +672,6 @@
       "note": "wallet lane (goal exclusion: wallet)",
       "registry_command_id": "",
       "surface": "cli-vool"
-    },
-    "cli-script:vool-agent": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "apps.vool_agent:main",
-      "note": "runtime daemon entry point",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-script:vool-api": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "apps.vool_api_server:main",
-      "note": "API server entry point",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-script:vool-benchmark": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "ops.benchmark_vool:main",
-      "note": "developer benchmark tool",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-script:vool-daemon": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "apps.vool_daemon:main",
-      "note": "runtime daemon entry point",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-script:vool-meet": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "apps.meet_and_greet_server:main",
-      "note": "meet satellite entry point",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-script:vool-watch": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "apps.brain_hive_watch_server:main",
-      "note": "watch satellite entry point",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-script:vool": {
-      "classification": "REGISTRY_OWNED",
-      "name": "core.command_registry.cli:main",
-      "note": "the registry CLI",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-vool:<command dispatch>": {
-      "classification": "REGISTRY_OWNED",
-      "name": "vool <command dispatch>",
-      "note": "registry CLI/route projection",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-vool:commands --check": {
-      "classification": "REGISTRY_OWNED",
-      "name": "vool commands --check",
-      "note": "registry CLI/route projection",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-vool:commands --json": {
-      "classification": "REGISTRY_OWNED",
-      "name": "vool commands --json",
-      "note": "registry CLI/route projection",
-      "registry_command_id": "",
-      "surface": "cli-script"
-    },
-    "cli-vool:help": {
-      "classification": "REGISTRY_OWNED",
-      "name": "vool help",
-      "note": "registry CLI/route projection",
-      "registry_command_id": "",
-      "surface": "cli-script"
     },
     "http:GET:/": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
@@ -2773,6 +2773,13 @@
       "registry_command_id": "",
       "surface": "launcher"
     },
+    "launcher:Open_Chat.bat": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "Open_Chat.bat",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
     "launcher:Open_Web0.bat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "Open_Web0.bat",
@@ -2864,20 +2871,6 @@
       "registry_command_id": "",
       "surface": "launcher"
     },
-    "launcher:vool_background.cmd": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "vool_background.cmd",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
-    "launcher:vool_background.vbs": {
-      "classification": "EXTERNAL_TRANSPORT_ONLY",
-      "name": "vool_background.vbs",
-      "note": "OS launcher/installer transport",
-      "registry_command_id": "",
-      "surface": "launcher"
-    },
     "launcher:run.bat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "run.bat",
@@ -2891,11 +2884,25 @@
       "note": "OS launcher/installer transport",
       "registry_command_id": "",
       "surface": "launcher"
+    },
+    "launcher:vool_background.cmd": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "vool_background.cmd",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
+    },
+    "launcher:vool_background.vbs": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "vool_background.vbs",
+      "note": "OS launcher/installer transport",
+      "registry_command_id": "",
+      "surface": "launcher"
     }
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 280,
+    "EXTERNAL_TRANSPORT_ONLY": 281,
     "GENERATED_ADAPTER": 124,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
