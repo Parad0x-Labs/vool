@@ -427,6 +427,15 @@ raise SystemExit(code)
 # with the in-box .NET Framework compiler that forwards the raw command line to the
 # recorded helper and propagates its exit code -- executable-equivalent child return/exit
 # semantics with no production command changed to accommodate the double.
+#
+# The FIXED prefix arguments (helper path, kind, doubles directory) are Windows
+# command-line QUOTED (QuoteArgument, the MSVCRT parsing rule). They routinely contain
+# spaces (pytest tmp dirs, "doubles with spaces"), and psi.Arguments is a raw command
+# line: bare concatenation let the child's parser split them at every space, so python
+# opened a nonexistent script path and EVERY arm degraded to "VOOL is not installed" --
+# healthy, startup and open-failure alike -- with the missing-install arm recording no
+# schtasks query at all (gauntlet job 109373985068). Escaping for the C# COMPILER
+# (_cs_string_literal) is a different layer and never quotes anything at runtime.
 _CS_TRAMPOLINE_TEMPLATE = r'''
 using System;
 using System.Diagnostics;
@@ -455,12 +464,60 @@ static class DoubleShim {
         return commandLine.Substring(i);
     }
 
+    // Windows command-line argument quoting (the rule the child's MSVCRT argv parser
+    // applies): wrap in double quotes when the value has whitespace or a quote, double
+    // backslashes that precede a quote, and double a trailing run of backslashes so it
+    // cannot escape the closing quote. Plain values pass through unquoted.
+    static string QuoteArgument(string value) {
+        if (value.Length == 0) {
+            return "\"\"";
+        }
+        bool plain = true;
+        for (int i = 0; i < value.Length; i++) {
+            char c = value[i];
+            if (c == ' ' || c == '\t' || c == '"') {
+                plain = false;
+                break;
+            }
+        }
+        if (plain) {
+            return value;
+        }
+        System.Text.StringBuilder quoted = new System.Text.StringBuilder();
+        quoted.Append('"');
+        int backslashes = 0;
+        for (int i = 0; i < value.Length; i++) {
+            char c = value[i];
+            if (c == '\\') {
+                backslashes += 1;
+                continue;
+            }
+            if (c == '"') {
+                for (int b = 0; b < backslashes * 2 + 1; b++) {
+                    quoted.Append('\\');
+                }
+                backslashes = 0;
+                continue;
+            }
+            for (int b = 0; b < backslashes; b++) {
+                quoted.Append('\\');
+            }
+            backslashes = 0;
+            quoted.Append(c);
+        }
+        for (int b = 0; b < backslashes * 2; b++) {
+            quoted.Append('\\');
+        }
+        quoted.Append('"');
+        return quoted.ToString();
+    }
+
     static int Main() {
         string commandLine = Marshal.PtrToStringUni(GetCommandLineW());
         string tail = commandLine == null ? "" : TailAfterExecutable(commandLine);
         ProcessStartInfo psi = new ProcessStartInfo();
         psi.FileName = __PYTHON__;
-        psi.Arguments = __DOUBLE_PY__ + " " + __KIND__ + " " + __DOUBLES__ + " " + tail;
+        psi.Arguments = QuoteArgument(__DOUBLE_PY__) + " " + QuoteArgument(__KIND__) + " " + QuoteArgument(__DOUBLES__) + " " + tail;
         psi.UseShellExecute = false;
         psi.CreateNoWindow = true;
         using (Process child = Process.Start(psi)) {
@@ -538,6 +595,82 @@ def _write_executable_doubles(doubles: Path) -> None:
             )
 
 
+def _smoke_executable_doubles(doubles: Path, *, clear_records: bool = True) -> None:
+    """DIRECT .exe invocation proof, run BEFORE any batch arm: compiler success is not
+    executable success. Each compiled double must launch the recorded helper across the
+    spaces-carrying fixed arguments (Windows command-line quoting at the psi.Arguments
+    boundary), record exactly the forwarded command with the doubles directory NOT leaked
+    into it, and PROPAGATE the helper's exit code in both directions. A failure here
+    names the trampoline, never the launcher under test.
+
+    With clear_records=True (the pre-arm prologue) the smoke's own rows are then removed
+    so every arm's evidence starts from its own batch traffic; the assertions above are
+    the retained proof that the smoke ran."""
+    import subprocess
+
+    def invoke(exe: str, *tail: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [str(doubles / exe), *tail],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    health_tail = (
+        "-NoProfile",
+        "-Command",
+        "try { $null = Invoke-WebRequest -Uri 'http://127.0.0.1:11435/healthz'"
+        " -UseBasicParsing -TimeoutSec 2; exit 0 } catch { exit 1 }",
+    )
+
+    # powershell double: helper invoked, argv recorded, healthy exit 0 propagated.
+    result = invoke("powershell.exe", *health_tail)
+    assert result.returncode == 0, (
+        f"the compiled powershell double failed to invoke the helper across the "
+        f"spaces-carrying paths (unquoted-psi.Arguments regression): {result.stderr}"
+    )
+    entries = _calls(doubles, "powershell")
+    assert entries, "the powershell double must reach the recorded helper"
+    smoke_entry = entries[-1]
+    assert smoke_entry.get("health") is True
+    assert smoke_entry["args"].startswith("-NoProfile -Command"), smoke_entry["args"]
+    assert "doubles with spaces" not in smoke_entry["args"], (
+        "the doubles directory leaked into the recorded command arguments"
+    )
+
+    # ... and the failure direction: unhealthy health -> helper exit 1 propagated.
+    (doubles / "health-mode.txt").write_text("unhealthy", encoding="utf-8")
+    result = invoke("powershell.exe", *health_tail)
+    assert result.returncode == 1, (
+        f"the compiled powershell double did not propagate the helper's failure exit: "
+        f"{result.stdout} {result.stderr}"
+    )
+    assert _calls(doubles, "powershell")[-1].get("health") is False
+
+    # schtasks double: query recorded with the forwarded subcommand, exit 0; mode
+    # failure -> exit 1 propagated.
+    result = invoke("schtasks.exe", "/query", "/tn", "VOOL_Daemon")
+    assert result.returncode == 0, (
+        f"the compiled schtasks double failed to invoke the helper: {result.stderr}"
+    )
+    assert _calls(doubles, "schtasks")[-1].get("subcommand") == "/query"
+    (doubles / "schtasks-mode.txt").write_text("fail", encoding="utf-8")
+    result = invoke("schtasks.exe", "/query", "/tn", "VOOL_Daemon")
+    assert result.returncode == 1, (
+        f"the compiled schtasks double did not propagate the failure exit: {result.stderr}"
+    )
+
+    # Restore the fixture's neutral modes; optionally clear the smoke's rows so the
+    # batch arms' recorded evidence is exactly their own traffic.
+    (doubles / "health-mode.txt").write_text("healthy", encoding="utf-8")
+    (doubles / "schtasks-mode.txt").write_text("ok", encoding="utf-8")
+    if clear_records:
+        for kind in ("powershell", "schtasks"):
+            record = doubles / f"calls-{kind}.jsonl"
+            if record.exists():
+                record.unlink()
+
+
 def _open_chat_bat_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     """Isolated cmd.exe execution rig for the REAL Open_Chat.bat: a project directory with
     spaces, an isolated USERPROFILE with a planted unrelated config, and recorded
@@ -561,6 +694,10 @@ def _open_chat_bat_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     double_py.write_text(_WINDOWS_DOUBLE_PY, encoding="utf-8")
     if sys.platform == "win32":
         _write_executable_doubles(doubles)
+        # Direct .exe smoke BEFORE any batch arm: prove each compiled double actually
+        # invokes the helper (quoting across spaces), records correct argv, and
+        # propagates exits -- so no arm ever runs on top of a compiled-but-broken double.
+        _smoke_executable_doubles(doubles)
 
     fake_home = tmp_path / "isolated-home"
     openclaw_dir = fake_home / ".openclaw"
@@ -696,7 +833,10 @@ def test_windows_double_helper_records_and_exits_by_invocation_convention(tmp_pa
     assert invoke("wscript", "x.vbs").returncode == 2
 
     # The compiled Windows trampoline forwards the SAME convention: helper path, kind,
-    # doubles directory, then the forwarded raw command tail.
+    # doubles directory, then the forwarded raw command tail -- with every FIXED argument
+    # passing through Windows command-line quoting (the unquoted concatenation let the
+    # child's parser split the spaces-carrying helper path apart and every executed arm
+    # degraded to "VOOL is not installed"; gauntlet job 109373985068).
     source = _executable_double_source(sys.executable, double_py, "powershell", doubles)
     assert "__PYTHON__" not in source and "__KIND__" not in source
     arguments_line = next(line for line in source.splitlines() if "psi.Arguments" in line)
@@ -709,6 +849,27 @@ def test_windows_double_helper_records_and_exits_by_invocation_convention(tmp_pa
         < arguments_line.index(doubles_literal)
         < arguments_line.rindex("tail")
     ), "the trampoline must forward <double_py> <kind> <doubles> <tail> in that order"
+    assert arguments_line.count("QuoteArgument(") == 3, (
+        "every fixed argument must cross the psi.Arguments boundary through Windows "
+        "command-line quoting, not bare concatenation"
+    )
+
+
+def test_windows_double_exes_invoke_the_helper_and_propagate_exits(tmp_path: Path) -> None:
+    """DIRECT .exe smoke, EXECUTED on Windows BEFORE any batch arm: compiler success is
+    not executable success. Each compiled trampoline must launch the recorded helper
+    across spaces-carrying fixed arguments (Windows quoting at the psi.Arguments
+    boundary), record the forwarded command with the doubles directory not leaked into
+    it, and propagate the helper's exit code in BOTH directions. This is the gate the
+    gauntlet's five Open_Chat.bat arms now also run internally before every batch."""
+    _win32_or_skip()
+    doubles = tmp_path / "doubles with spaces"
+    doubles.mkdir(parents=True)
+    (doubles / "health-mode.txt").write_text("healthy", encoding="utf-8")
+    (doubles / "schtasks-mode.txt").write_text("ok", encoding="utf-8")
+    (doubles / "cmd_double.py").write_text(_WINDOWS_DOUBLE_PY, encoding="utf-8")
+    _write_executable_doubles(doubles)
+    _smoke_executable_doubles(doubles, clear_records=False)
 
 
 def test_open_chat_bat_executed_healthy_opens_chat_without_starting_anything(tmp_path: Path) -> None:
