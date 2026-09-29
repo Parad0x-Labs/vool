@@ -420,11 +420,131 @@ raise SystemExit(code)
 '''
 
 
+# The powershell/schtasks doubles must be REAL EXECUTABLES on Windows: Open_Chat.bat
+# invokes them directly (no CALL), and cmd.exe batch-to-batch invocation TRANSFERS control
+# (the parent never resumes), so a .cmd shim could never exercise the launcher's
+# errorlevel checks and subsequent branches. Each double is a tiny .exe trampoline compiled
+# with the in-box .NET Framework compiler that forwards the raw command line to the
+# recorded helper and propagates its exit code -- executable-equivalent child return/exit
+# semantics with no production command changed to accommodate the double.
+_CS_TRAMPOLINE_TEMPLATE = r'''
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+static class DoubleShim {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    static extern IntPtr GetCommandLineW();
+
+    static string TailAfterExecutable(string commandLine) {
+        int i = 0;
+        if (commandLine.Length > 0 && commandLine[0] == '"') {
+            i = commandLine.IndexOf('"', 1);
+            if (i < 0) {
+                return "";
+            }
+            i += 1;
+        } else {
+            while (i < commandLine.Length && commandLine[i] != ' ') {
+                i += 1;
+            }
+        }
+        while (i < commandLine.Length && commandLine[i] == ' ') {
+            i += 1;
+        }
+        return commandLine.Substring(i);
+    }
+
+    static int Main() {
+        string commandLine = Marshal.PtrToStringUni(GetCommandLineW());
+        string tail = commandLine == null ? "" : TailAfterExecutable(commandLine);
+        ProcessStartInfo psi = new ProcessStartInfo();
+        psi.FileName = __PYTHON__;
+        psi.Arguments = __DOUBLE_PY__ + " " + __KIND__ + " " + __DOUBLES__ + " " + tail;
+        psi.UseShellExecute = false;
+        psi.CreateNoWindow = true;
+        using (Process child = Process.Start(psi)) {
+            child.WaitForExit();
+            return child.ExitCode;
+        }
+    }
+}
+'''
+
+
+def _cs_string_literal(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _executable_double_source(python_exe: str, double_py: Path, kind: str, doubles: Path) -> str:
+    """The trampoline source: forwards the raw command tail after argv[0] to the recorded
+    helper under the documented convention
+    ``<python> <cmd_double.py> <kind> <doubles-directory> <command arguments...>``."""
+    return (
+        _CS_TRAMPOLINE_TEMPLATE.replace("__PYTHON__", _cs_string_literal(python_exe))
+        .replace("__DOUBLE_PY__", _cs_string_literal(str(double_py)))
+        .replace("__KIND__", _cs_string_literal(kind))
+        .replace("__DOUBLES__", _cs_string_literal(str(doubles)))
+    )
+
+
+def _csc_candidates() -> list:
+    import os
+    from pathlib import Path as _Path
+
+    windir = os.environ.get("SystemRoot", r"C:\Windows")
+    return [
+        _Path(windir) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe",
+        _Path(windir) / "Microsoft.NET" / "Framework" / "v4.0.30319" / "csc.exe",
+    ]
+
+
+def _write_executable_doubles(doubles: Path) -> None:
+    """Compile powershell.exe/schtasks.exe trampolines into the isolated doubles directory
+    with the in-box .NET Framework compiler. Fails EXPLICITLY when no compiler exists --
+    never silently degrades to .cmd chaining or a vacuous pass."""
+    import shutil
+    import subprocess
+    import sys
+
+    import pytest
+
+    csc = next((c for c in _csc_candidates() if c.exists()), None)
+    if csc is None:
+        csc = shutil.which("csc.exe")
+    if csc is None:
+        pytest.fail(
+            "building the executable powershell/schtasks doubles requires the in-box .NET "
+            "Framework compiler (csc.exe under Microsoft.NET/Framework[64]/v4.0.30319 or on "
+            "PATH); none was found -- the Open_Chat.bat executed arms cannot run honestly"
+        )
+    double_py = doubles / "cmd_double.py"
+    for kind in ("powershell", "schtasks"):
+        source = doubles / f"shim-{kind}.cs"
+        source.write_text(
+            _executable_double_source(sys.executable, double_py, kind, doubles), encoding="utf-8"
+        )
+        exe = doubles / f"{kind}.exe"
+        compiled = subprocess.run(
+            [str(csc), "/nologo", "/target:exe", f"/out:{exe}", str(source)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if compiled.returncode != 0 or not exe.exists():
+            pytest.fail(
+                f"csc could not build the {kind} double "
+                f"(rc={compiled.returncode}): {compiled.stdout} {compiled.stderr}"
+            )
+
+
 def _open_chat_bat_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     """Isolated cmd.exe execution rig for the REAL Open_Chat.bat: a project directory with
     spaces, an isolated USERPROFILE with a planted unrelated config, and recorded
-    powershell/schtasks doubles (.cmd shims resolved ahead of the real executables through
-    PATH). No real scheduled task, powershell, script host or browser is ever invoked."""
+    powershell/schtasks doubles resolved ahead of the real executables through PATH. The
+    doubles are compiled .exe trampolines (executable-equivalent child return/exit
+    semantics; a .cmd shim would chain control away from the parent batch). No real
+    scheduled task, powershell, script host or browser is ever invoked."""
     import os
     import shutil
     import sys
@@ -433,18 +553,14 @@ def _open_chat_bat_fixture(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     run_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(REPO_ROOT / "Open_Chat.bat", run_dir / "Open_Chat.bat")
 
-    doubles = tmp_path / "doubles"
+    doubles = tmp_path / "doubles with spaces"
     doubles.mkdir(parents=True, exist_ok=True)
     (doubles / "health-mode.txt").write_text("healthy", encoding="utf-8")
     (doubles / "schtasks-mode.txt").write_text("ok", encoding="utf-8")
     double_py = doubles / "cmd_double.py"
     double_py.write_text(_WINDOWS_DOUBLE_PY, encoding="utf-8")
-    for name in ("powershell", "schtasks"):
-        shim = doubles / (name + ".cmd")
-        shim.write_text(
-            f'@"{sys.executable}" "{double_py}" {name} "{doubles}" %*\n',
-            encoding="utf-8",
-        )
+    if sys.platform == "win32":
+        _write_executable_doubles(doubles)
 
     fake_home = tmp_path / "isolated-home"
     openclaw_dir = fake_home / ".openclaw"
@@ -578,6 +694,21 @@ def test_windows_double_helper_records_and_exits_by_invocation_convention(tmp_pa
 
     # an unknown kind must fail explicitly (exit 2), never silently succeed.
     assert invoke("wscript", "x.vbs").returncode == 2
+
+    # The compiled Windows trampoline forwards the SAME convention: helper path, kind,
+    # doubles directory, then the forwarded raw command tail.
+    source = _executable_double_source(sys.executable, double_py, "powershell", doubles)
+    assert "__PYTHON__" not in source and "__KIND__" not in source
+    arguments_line = next(line for line in source.splitlines() if "psi.Arguments" in line)
+    helper_literal = _cs_string_literal(str(double_py))
+    kind_literal = _cs_string_literal("powershell")
+    doubles_literal = _cs_string_literal(str(doubles))
+    assert (
+        arguments_line.index(helper_literal)
+        < arguments_line.index(kind_literal)
+        < arguments_line.index(doubles_literal)
+        < arguments_line.rindex("tail")
+    ), "the trampoline must forward <double_py> <kind> <doubles> <tail> in that order"
 
 
 def test_open_chat_bat_executed_healthy_opens_chat_without_starting_anything(tmp_path: Path) -> None:
