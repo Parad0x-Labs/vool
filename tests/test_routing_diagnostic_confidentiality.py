@@ -157,24 +157,31 @@ def test_an_evm_private_key_typed_in_chat_never_reaches_either_sink(tmp_path, mo
     """Alert 155's EVM residual: the wallet's BACKUP_FORMAT_EVM (0x + 64 hex) shares its shape
     with a public tx hash, so no earlier rule masked it — the key persisted verbatim to
     routing_decisions.jsonl (the shadow already stored only a digest). The redactor now masks
-    unregistered runs of that shape; the surrounding prose the diagnostic exists for survives."""
+    unregistered runs of that shape in BOTH prefix spellings the wallet owner accepts
+    (pilot_custody decodes a backup by text[:2].lower(), so 0X… is the same key); the
+    surrounding prose the diagnostic exists for survives."""
     import json as _json
     import sqlite3 as _sqlite
 
+    # Restore the exact override that was active before: the pin below must not discard an
+    # override another test armed (the PR97 law) — including on an assertion failure.
+    prior_override = runtime_paths._VOOL_HOME_OVERRIDE
     runtime_paths.configure_runtime_home(tmp_path / "home")
-    monkeypatch.setattr(rdl, "_SHADOW_STORE", None)
     try:
-        key = "0x" + "4c0883a694529ec3b3d6d5f0a2e7d9b41c2f8a6d3e5c7b9a1f4d2e8c6b0a3d5f"
-        rdl.record_decision(
-            session_id="s",
-            user_input=f"is this my evm key {key} or did i copy the tx hash",
-            family="fixture",
-            handled=True,
-        )
+        monkeypatch.setattr(rdl, "_SHADOW_STORE", None)
+        body = "4c0883a694529ec3b3d6d5f0a2e7d9b41c2f8a6d3e5c7b9a1f4d2e8c6b0a3d5f"
+        keys = ("0x" + body, "0X" + body, "0X" + body.upper())
+        for key in keys:
+            rdl.record_decision(
+                session_id="s",
+                user_input=f"is this my evm key {key} or did i copy the tx hash",
+                family="fixture",
+                handled=True,
+            )
         rows = rdl.recent_decisions()
         stored = rdl.decisions_path().read_text()
-        assert key not in stored
-        assert key.upper() not in stored
+        for key in keys:
+            assert key not in stored, key[:6]  # each typed spelling, as typed
         assert "[redacted-key]" in str(rows[-1]["message"])
         assert "is this my evm key" in str(rows[-1]["message"])  # the diagnostic keeps its prose
         conn = _sqlite.connect(str(rdl.data_path("routing_authority_v2_shadow.sqlite")))
@@ -188,9 +195,38 @@ def test_an_evm_private_key_typed_in_chat_never_reaches_either_sink(tmp_path, mo
             ]
         finally:
             conn.close()
-        assert key not in _json.dumps(shadow)
+        assert all(key not in _json.dumps(shadow) for key in keys)
     finally:
-        runtime_paths.configure_runtime_home(None)
+        runtime_paths.configure_runtime_home(prior_override)
+
+
+def test_the_evm_sink_test_restores_a_preexisting_home_override(tmp_path, monkeypatch):
+    """The override law above, proven the PR97 way: driving the REAL sink test — through its
+    normal path and through a mid-body failure — must leave an override another test armed
+    exactly as it found it."""
+    from core import runtime_paths as rp
+
+    armed = tmp_path / "armed-home"
+    armed.mkdir()
+    prior = rp._VOOL_HOME_OVERRIDE
+    rp.configure_runtime_home(armed)
+    try:
+        test_an_evm_private_key_typed_in_chat_never_reaches_either_sink(tmp_path, monkeypatch)
+        assert armed == rp._VOOL_HOME_OVERRIDE  # survives normal completion
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("synthetic mid-test failure")
+
+        monkeypatch.setattr(rdl, "recent_decisions", boom)
+        try:
+            test_an_evm_private_key_typed_in_chat_never_reaches_either_sink(tmp_path, monkeypatch)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("the raising seam never fired")
+        assert armed == rp._VOOL_HOME_OVERRIDE  # survives the failure path too
+    finally:
+        rp.configure_runtime_home(prior)
 
 
 def test_routing_rows_for_one_chat_stay_correlated_across_handle_shapes(tmp_path, monkeypatch):

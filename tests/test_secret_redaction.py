@@ -1,7 +1,31 @@
 """Secret-only redaction: masks high-confidence secrets, leaves ordinary prose untouched."""
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 from core.secret_redaction import contains_secret, redact_secrets
+
+
+@contextmanager
+def _scoped_redaction_registry():
+    """Snapshot both bounded registries and restore exactly them on exit.
+
+    ``clear_exact_secrets_for_tests`` wipes whatever other tests in this process registered;
+    these tests instead scope their own registrations, so a failure cannot leave a value
+    registered either — the snapshot is restored, not just emptied."""
+    from core import secret_redaction as _sr
+
+    secrets_before = dict(_sr._exact_secrets)
+    public_before = dict(_sr._public_identifiers)
+    try:
+        yield
+    finally:
+        with _sr._exact_lock:
+            _sr._exact_secrets.clear()
+            _sr._exact_secrets.update(secrets_before)
+            _sr._public_identifiers.clear()
+            _sr._public_identifiers.update(public_before)
+
 
 # --- recall: real secrets get masked ---------------------------------------
 
@@ -195,40 +219,63 @@ def test_bitcoin_wif_private_key_is_redacted_but_addresses_survive():
 def test_evm_private_key_shape_is_redacted_but_addresses_and_bare_digests_survive():
     from core.secret_redaction import contains_secret, redact_secrets
 
-    # The wallet's BACKUP_FORMAT_EVM is exactly 0x + 64 hex — the same shape as a public tx hash.
-    key = "0x" + "4c0883a694529ec3b3d6d5f0a2e7d9b41c2f8a6d3e5c7b9a1f4d2e8c6b0a3d5f"
-    assert len(key) == 66
-    out = redact_secrets(f"is this my key {key} or a hash")
-    assert key not in out and "[redacted-key]" in out
-    assert contains_secret(key) is True
-    upper = "0x" + key[2:].upper()  # checksum-style casing is the same shape
-    assert upper not in redact_secrets(f"check {upper}")
+    # The wallet's BACKUP_FORMAT_EVM is 0x + 64 hex — the same shape as a public tx hash. The
+    # wallet owner accepts BOTH prefix spellings (pilot_custody decodes by text[:2].lower()),
+    # so every prefix/body casing is the same key to this rule.
+    body = "4c0883a694529ec3b3d6d5f0a2e7d9b41c2f8a6d3e5c7b9a1f4d2e8c6b0a3d5f"
+    assert len(body) == 64
+    for key in ("0x" + body, "0X" + body, "0x" + body.upper(), "0X" + body.upper()):
+        out = redact_secrets(f"is this my key {key} or a hash")
+        assert key not in out and "[redacted-key]" in out, key[:6]
+        assert contains_secret(key) is True, key[:6]
     # An EVM address (0x + 40 hex) is a different, public shape and stays readable.
     address = "0x036cbd53842c5426634e7929541ec2318f3dcf7e"
     assert redact_secrets(f"pay {address}") == f"pay {address}"
-    # A bare sha256 digest (64 hex, no 0x) is the runtime's own diagnostic currency. One that
-    # contains a '0' splits the base58 run and survives; a no-zero digest was already inside
-    # the pre-existing base58 secret class before this rule (the x402 digest-vouch seam covers
-    # the digests the wallet itself mints).
+    # A bare sha256 digest (64 hex, NO 0x prefix) is the runtime's own diagnostic currency and
+    # is deliberately outside this rule: the ambiguity with an unprefixed key body stays
+    # explicit (the wallet accepts a bare 64-hex backup too) rather than masking every
+    # diagnostic digest. A digest containing a '0' splits the base58 run and survives; a
+    # no-zero digest was already inside the pre-existing base58 secret class before this rule
+    # (the x402 digest-vouch seam covers the digests the wallet itself mints).
     digest = "a0" * 32
     assert redact_secrets(f"digest {digest}") == f"digest {digest}"
 
 
 def test_a_registered_evm_tx_hash_stays_readable_and_an_unregistered_one_is_masked():
+    from core.secret_redaction import contains_secret, redact_secrets
+
+    with _scoped_redaction_registry():
+        mine = "0x" + "1" * 64    # a tx hash the wallet itself rendered and registered
+        pasted = "0X" + "2" * 64  # the same shape with no provenance: a private key or a third-party hash
+        from core.secret_redaction import register_public_identifier
+
+        register_public_identifier(mine)
+        out = redact_secrets(f"settled {mine} not {pasted}")
+        assert mine in out and pasted not in out and out.count("[redacted-key]") == 1
+        assert contains_secret(mine) is False and contains_secret(pasted) is True
+        register_public_identifier("short")  # below the key-shape floor: ignored, never a bypass
+        assert redact_secrets("short") == "short"
+    # the scoped restore removed this test's registration without touching anyone else's
+    assert redact_secrets(f"settled {mine}") == "settled [redacted-key]"
+
+
+def test_a_registered_exact_secret_beats_the_public_identifier_exemption_for_the_same_value():
+    """The precedence law the digest-vouch seam depends on: if a value is BOTH a registered
+    exact secret and a registered public identifier, it is a SECRET — exact-value scrubbing
+    runs first, so an exemption can never resurrect material the intake boundary flagged."""
     from core.secret_redaction import (
-        clear_exact_secrets_for_tests,
+        contains_secret,
         redact_secrets,
+        register_exact_secret,
         register_public_identifier,
     )
 
-    clear_exact_secrets_for_tests()
-    mine = "0x" + "1" * 64    # a tx hash the wallet itself rendered and registered
-    pasted = "0x" + "2" * 64  # the same shape with no provenance: a private key or a third-party hash
-    register_public_identifier(mine)
-    out = redact_secrets(f"settled {mine} not {pasted}")
-    assert mine in out and pasted not in out and out.count("[redacted-key]") == 1
-    clear_exact_secrets_for_tests()
-    assert mine not in redact_secrets(f"settled {mine}")  # the registry is not permanent state
+    with _scoped_redaction_registry():
+        value = "0x" + "3" * 64
+        register_public_identifier(value)
+        register_exact_secret(value)
+        assert value not in redact_secrets(f"check {value}")
+        assert contains_secret(value) is True
 
 
 def test_bip39_recovery_phrase_is_redacted_even_unlabelled():
