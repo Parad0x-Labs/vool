@@ -140,13 +140,18 @@ def _served(text, workspace):
         harness.close()
     rows = []
     path = decisions_path()
+    # Routing rows key the session by its FOLDED identity (core.chat_session_identity), the
+    # same law every chat door resolves through — so a reader greps by the fold of its handle.
+    from core.chat_session_identity import canonical_chat_session_id
+
+    folded_session = canonical_chat_session_id(harness.session_id)
     if path.exists():
         for line in path.read_text(encoding="utf-8").splitlines():
             try:
                 row = json.loads(line)
             except ValueError:
                 continue
-            if row.get("session_id") == harness.session_id:
+            if row.get("session_id") == folded_session:
                 rows.append(row)
     return SimpleNamespace(
         route=str(result.get("route") or ""), answer=str(result.get("response") or ""), events=events, decisions=rows

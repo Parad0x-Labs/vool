@@ -101,3 +101,90 @@ def test_a_broken_install_fails_the_row_closed_instead_of_storing_a_phrase(tmp_p
     finally:
         runtime_paths.configure_runtime_home(None)
         monkeypatch.setattr(sr, "_BIP39_INDEX", None)
+
+
+def test_a_secret_bearing_session_handle_persists_only_as_its_folded_identity(tmp_path, monkeypatch):
+    """Alert 155's identifier residual: the message column was redacted, but the session id
+    was persisted exactly as the caller provided it — so a client that names its chat by
+    secret-bearing content (here: a synthetic checksum-valid recovery phrase as the handle)
+    wrote that text into BOTH durable sinks: routing_decisions.jsonl and the append-only
+    routing_authority_v2_shadow.sqlite canonical bytes. The owner now folds every handle
+    through the one identity authority, so a secret-bearing handle persists nowhere as
+    plaintext while a canonical id still passes through byte-identical."""
+    import json as _json
+    import sqlite3 as _sqlite
+
+    from core.chat_session_identity import canonical_chat_session_id
+    from core.wallet.mnemonic import generate_mnemonic
+
+    runtime_paths.configure_runtime_home(tmp_path / "home")
+    # the shadow store is a path-cached singleton: rebind it to THIS test's home
+    monkeypatch.setattr(rdl, "_SHADOW_STORE", None)
+    try:
+        phrase = generate_mnemonic(strength_bits=128)
+        canonical = "openclaw:0123456789abcdef0123"
+        rdl.record_decision(session_id=phrase, user_input="what time is it", family="model_lane", handled=False)
+        rdl.record_decision(session_id=canonical, user_input="third turn", family="model_lane", handled=False)
+
+        rows = rdl.recent_decisions()
+        stored = rdl.decisions_path().read_text()
+        folded = canonical_chat_session_id(phrase)
+
+        # neither durable sink carries the plaintext handle, and both carry the folded identity
+        assert phrase not in stored
+        assert rows[0]["session_id"] == folded and folded.startswith("openclaw:")
+        conn = _sqlite.connect(str(rdl.data_path("routing_authority_v2_shadow.sqlite")))
+        try:
+            shadow = [
+                _json.loads(bytes(r[0]))
+                for r in conn.execute(
+                    "SELECT canonical_bytes FROM routing_authority_v2_shadow_records"
+                    " WHERE record_type = 'RoutingDecisionShadowV2'"
+                )
+            ]
+        finally:
+            conn.close()
+        assert phrase not in _json.dumps(shadow)
+        assert shadow and shadow[0]["session_ref"] == folded
+        # the served path is unchanged: a canonical id is its own identity, not re-hashed
+        assert rows[1]["session_id"] == canonical
+        assert shadow[1]["session_ref"] == canonical
+    finally:
+        runtime_paths.configure_runtime_home(None)
+
+
+def test_routing_rows_for_one_chat_stay_correlated_across_handle_shapes(tmp_path, monkeypatch):
+    """The fold must not cost the operator the correlation the log exists for: a raw handle
+    and its canonical form are ONE identity in both sinks, so rows written by a door that
+    folded and a door that had not still land on the same greppable session id."""
+    import json as _json
+    import sqlite3 as _sqlite
+
+    from core.chat_session_identity import canonical_chat_session_id
+
+    runtime_paths.configure_runtime_home(tmp_path / "home")
+    monkeypatch.setattr(rdl, "_SHADOW_STORE", None)
+    try:
+        raw = "my-project-chat"
+        folded = canonical_chat_session_id(raw)
+        rdl.record_decision(session_id=raw, user_input="first turn", family="model_lane", handled=False)
+        rdl.record_decision(session_id=folded, user_input="second turn", family="model_lane", handled=False)
+
+        rows = rdl.recent_decisions()
+        assert rows[0]["session_id"] == folded
+        assert rows[1]["session_id"] == folded
+        conn = _sqlite.connect(str(rdl.data_path("routing_authority_v2_shadow.sqlite")))
+        try:
+            refs = [
+                str(_json.loads(bytes(r[0])).get("session_ref") or "")
+                for r in conn.execute(
+                    "SELECT canonical_bytes FROM routing_authority_v2_shadow_records"
+                    " WHERE record_type = 'RoutingDecisionShadowV2'"
+                )
+            ]
+        finally:
+            conn.close()
+        assert refs == [folded, folded]
+        assert rdl.decision_stats()["total"] == 2  # ordinary diagnostics see both rows
+    finally:
+        runtime_paths.configure_runtime_home(None)
