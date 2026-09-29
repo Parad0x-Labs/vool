@@ -291,6 +291,20 @@ def _fetch_reference_text(reference: str) -> dict[str, Any]:
     # passes — this entry point owns those by name.
     from core.effect_gateway import named_background_effect_scope
 
+    # A page fetch is for WEB references. A reference without an http(s) scheme — a file: URL,
+    # a bare path — classifies as plain text upstream, and handing it to a page transport made
+    # the transport the judge of what it may open (the fetch door now refuses non-http schemes
+    # too; this guard keeps the ingestion owner honest on its own, so a future transport cannot
+    # reopen the question). Nothing is fetched, no browser fallback runs, no text is produced.
+    scheme = (urlparse(str(reference or "")).scheme or "").strip().lower()
+    if scheme not in ("http", "https"):
+        return {
+            "status": "not_a_web_reference",
+            "text": "",
+            "used_browser": False,
+            "final_url": reference,
+        }
+
     try:
         with named_background_effect_scope("media.ingest.fetch"):
             fetched = http_fetch_text(reference)
