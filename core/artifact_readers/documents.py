@@ -1510,7 +1510,7 @@ def read_epub(data: bytes, *, name: str = "book.epub") -> ReaderResult:
 
 # --- legacy XLS (BIFF through the pinned xlrd decoder) ----------------------------------------------
 #
-# The 1997 binary format has no standard-library reader. The decoder used here is ``xlrd==2.0.1``
+# The 1997 binary format has no standard-library reader. The decoder used here is ``xlrd==2.0.2``
 # -- pure Python, no native code, pinned, and resolved from the lane-local dependency directory
 # the same way the PDF fallback's ``pypdf`` is. It parses IN PROCESS, so the external-decoder
 # sandbox does not apply; what bounds it instead is the cell/row/sheet budget below plus xlrd's
@@ -1595,9 +1595,9 @@ def read_xls(data: bytes, *, name: str = "workbook.xls") -> ReaderResult:
     if xlrd is None:
         raise ReaderUnavailable(
             f"{name} is a legacy Excel (.xls) file, and this machine is missing the pinned "
-            f"decoder for that format (xlrd==2.0.1), so it was not read.",
+            f"decoder for that format (xlrd==2.0.2), so it was not read.",
             code="xls_decoder_unavailable",
-            remediation="Install the pinned lane dependency xlrd==2.0.1, or save the file as .xlsx and attach it again.",
+            remediation="Install the pinned lane dependency xlrd==2.0.2, or save the file as .xlsx and attach it again.",
             fmt="xls",
         )
     if not sniff_xls(data):
@@ -1669,7 +1669,7 @@ def read_xls(data: bytes, *, name: str = "workbook.xls") -> ReaderResult:
             "formulas": sum(int(unit.meta.get("formulas") or 0) for unit in units),
             "has_macros": has_macros,
             "date_system": "1904" if book.datemode == 1 else "1900",
-            "decoder": "xlrd==2.0.1",
+            "decoder": "xlrd==2.0.2",
         },
     )
 

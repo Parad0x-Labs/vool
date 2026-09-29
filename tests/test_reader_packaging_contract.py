@@ -7,7 +7,7 @@ built from that surface silently degrade a format to typed-unavailable — safe,
 to be described as support. Pinned today:
 
 * ``pypdf==6.19.0`` — confined PDF text fallback.
-* ``xlrd==2.0.1``   — legacy XLS reader (pure Python, no native parts).
+* ``xlrd==2.0.2``   — legacy XLS reader (pure Python, no native parts).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 #: The full census: pin -> the registry format that dies without it.
 CANONICAL_DECODERS = {
     "pypdf==6.19.0": "pdf",
-    "xlrd==2.0.1": "xls",
+    "xlrd==2.0.2": "xls",
 }
 
 
