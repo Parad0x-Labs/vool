@@ -361,9 +361,16 @@ _WINDOWS_DOUBLE_PY = r'''
 import json, re, sys
 from pathlib import Path
 
+# Invocation contract -- used identically by the compiled Windows .exe doubles and every
+# direct (platform-independent) test caller:
+#   python cmd_double.py <kind> <doubles-directory> [command arguments...]
+# sys.argv[1] is the double kind, sys.argv[2] the doubles directory, sys.argv[3:] the
+# recorded command. (This helper previously read the directory from sys.argv[3] -- the
+# first command FLAG -- and joined sys.argv[2:], so every recorded call crashed
+# FileNotFoundError and the doubles directory leaked into the recorded args.)
 kind = sys.argv[1]
-args = " ".join(sys.argv[2:])
-base = Path(sys.argv[3])
+base = Path(sys.argv[2])
+args = " ".join(sys.argv[3:])
 entry = {"kind": kind, "args": args}
 code = 0
 if kind == "powershell":
@@ -382,7 +389,15 @@ if kind == "powershell":
         entry["sleep"] = True
     elif "Start-Process" in args:
         match = re.search(r"Start-Process '([^']+)'", args)
-        entry["opened_url"] = match.group(1) if match else ""
+        url = match.group(1) if match else ""
+        open_mode_file = base / "open-mode.txt"
+        open_mode = open_mode_file.read_text(encoding="utf-8").strip() if open_mode_file.exists() else "ok"
+        if open_mode == "fail":
+            entry["open_failed"] = True
+            entry["attempted_url"] = url
+            code = 1
+        else:
+            entry["opened_url"] = url
     else:
         code = 2
 elif kind == "schtasks":
@@ -465,6 +480,96 @@ def _calls(doubles: Path, kind: str) -> list[dict]:
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def test_windows_double_helper_records_and_exits_by_invocation_convention(tmp_path: Path) -> None:
+    """The recorded-double invocation contract, executed PLATFORM-INDEPENDENTLY.
+
+    The Windows executed arms resolve powershell/schtasks to compiled .exe doubles that
+    forward the raw command tail as
+    ``<python> <cmd_double.py> <kind> <doubles-directory> <command arguments...>`` --
+    the same convention every direct caller here uses. Both halves are provable on any
+    host: the helper's recording/exit behavior per mode, and the trampoline's forwarding
+    ORDER (helper path, kind, doubles directory, then the command tail). The argv-indexing
+    defect class -- the helper once read the doubles DIRECTORY from the first command
+    flag's slot and crashed FileNotFoundError before recording anything -- is therefore
+    caught locally, before any Windows run. Paths deliberately contain spaces.
+    """
+    import subprocess
+    import sys
+
+    doubles = tmp_path / "doubles with spaces"
+    doubles.mkdir()
+    (doubles / "health-mode.txt").write_text("healthy", encoding="utf-8")
+    (doubles / "schtasks-mode.txt").write_text("ok", encoding="utf-8")
+    double_py = doubles / "cmd_double.py"
+    double_py.write_text(_WINDOWS_DOUBLE_PY, encoding="utf-8")
+
+    def invoke(kind: str, *command: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(double_py), kind, str(doubles), *command],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    health_cmd = (
+        "-NoProfile",
+        "-Command",
+        "try { $null = Invoke-WebRequest -Uri 'http://127.0.0.1:11435/healthz'"
+        " -UseBasicParsing -TimeoutSec 2; exit 0 } catch { exit 1 }",
+    )
+
+    # health: healthy -> exit 0, recorded with ONLY the command arguments.
+    result = invoke("powershell", *health_cmd)
+    assert result.returncode == 0, result.stderr
+    [entry] = _calls(doubles, "powershell")
+    assert entry["health"] is True
+    assert entry["args"].startswith("-NoProfile -Command"), entry["args"]
+    assert "doubles with spaces" not in entry["args"], (
+        "the doubles directory must not leak into the recorded command arguments"
+    )
+
+    # health: unhealthy -> exit 1, health False.
+    (doubles / "health-mode.txt").write_text("unhealthy", encoding="utf-8")
+    result = invoke("powershell", *health_cmd)
+    assert result.returncode == 1, result.stderr
+    assert _calls(doubles, "powershell")[-1]["health"] is False
+
+    # health: flaky:2 -> first two calls fail, the third succeeds (counter across calls).
+    (doubles / "health-mode.txt").write_text("flaky:2", encoding="utf-8")
+    assert invoke("powershell", *health_cmd).returncode == 1
+    assert invoke("powershell", *health_cmd).returncode == 1
+    assert invoke("powershell", *health_cmd).returncode == 0
+    assert [e["health"] for e in _calls(doubles, "powershell")[-3:]] == [False, False, True]
+
+    # sleep -> recorded, exit 0.
+    result = invoke("powershell", "-NoProfile", "-Command", "Start-Sleep -Seconds 1")
+    assert result.returncode == 0, result.stderr
+    assert _calls(doubles, "powershell")[-1].get("sleep") is True
+
+    # browser open: success records the URL, exit 0.
+    result = invoke("powershell", "-NoProfile", "-Command", "Start-Process 'http://127.0.0.1:11435/chat'")
+    assert result.returncode == 0, result.stderr
+    assert _calls(doubles, "powershell")[-1].get("opened_url") == "http://127.0.0.1:11435/chat"
+
+    # browser open: failure mode refuses (exit 1) and never records an opened URL.
+    (doubles / "open-mode.txt").write_text("fail", encoding="utf-8")
+    result = invoke("powershell", "-NoProfile", "-Command", "Start-Process 'http://127.0.0.1:11435/chat'")
+    assert result.returncode == 1, result.stderr
+    failed = _calls(doubles, "powershell")[-1]
+    assert failed.get("open_failed") is True
+    assert "opened_url" not in failed
+
+    # schtasks: query and run recorded with per-mode exit codes.
+    assert invoke("schtasks", "/query", "/tn", "VOOL_Daemon").returncode == 0
+    assert invoke("schtasks", "/run", "/tn", "VOOL_Daemon").returncode == 0
+    assert [e["subcommand"] for e in _calls(doubles, "schtasks")] == ["/query", "/run"]
+    (doubles / "schtasks-mode.txt").write_text("fail", encoding="utf-8")
+    assert invoke("schtasks", "/query", "/tn", "VOOL_Daemon").returncode == 1
+
+    # an unknown kind must fail explicitly (exit 2), never silently succeed.
+    assert invoke("wscript", "x.vbs").returncode == 2
 
 
 def test_open_chat_bat_executed_healthy_opens_chat_without_starting_anything(tmp_path: Path) -> None:
