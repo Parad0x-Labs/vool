@@ -153,6 +153,46 @@ def test_a_secret_bearing_session_handle_persists_only_as_its_folded_identity(tm
         runtime_paths.configure_runtime_home(None)
 
 
+def test_an_evm_private_key_typed_in_chat_never_reaches_either_sink(tmp_path, monkeypatch):
+    """Alert 155's EVM residual: the wallet's BACKUP_FORMAT_EVM (0x + 64 hex) shares its shape
+    with a public tx hash, so no earlier rule masked it — the key persisted verbatim to
+    routing_decisions.jsonl (the shadow already stored only a digest). The redactor now masks
+    unregistered runs of that shape; the surrounding prose the diagnostic exists for survives."""
+    import json as _json
+    import sqlite3 as _sqlite
+
+    runtime_paths.configure_runtime_home(tmp_path / "home")
+    monkeypatch.setattr(rdl, "_SHADOW_STORE", None)
+    try:
+        key = "0x" + "4c0883a694529ec3b3d6d5f0a2e7d9b41c2f8a6d3e5c7b9a1f4d2e8c6b0a3d5f"
+        rdl.record_decision(
+            session_id="s",
+            user_input=f"is this my evm key {key} or did i copy the tx hash",
+            family="fixture",
+            handled=True,
+        )
+        rows = rdl.recent_decisions()
+        stored = rdl.decisions_path().read_text()
+        assert key not in stored
+        assert key.upper() not in stored
+        assert "[redacted-key]" in str(rows[-1]["message"])
+        assert "is this my evm key" in str(rows[-1]["message"])  # the diagnostic keeps its prose
+        conn = _sqlite.connect(str(rdl.data_path("routing_authority_v2_shadow.sqlite")))
+        try:
+            shadow = [
+                _json.loads(bytes(r[0]))
+                for r in conn.execute(
+                    "SELECT canonical_bytes FROM routing_authority_v2_shadow_records"
+                    " WHERE record_type = 'RoutingDecisionShadowV2'"
+                )
+            ]
+        finally:
+            conn.close()
+        assert key not in _json.dumps(shadow)
+    finally:
+        runtime_paths.configure_runtime_home(None)
+
+
 def test_routing_rows_for_one_chat_stay_correlated_across_handle_shapes(tmp_path, monkeypatch):
     """The fold must not cost the operator the correlation the log exists for: a raw handle
     and its canonical form are ONE identity in both sinks, so rows written by a door that
