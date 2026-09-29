@@ -168,8 +168,16 @@ class CountingProvider:
             )
 
     def prompts_for(self, model: str) -> list[str]:
+        """Prompts of the GENERATION calls only. Metadata probes (/api/show, /api/tags, /api/ps)
+        carry no messages and land asynchronously around a turn -- a catalog refresh racing the
+        assertion made "the last thing the model was asked" read the probe's empty string
+        instead of the turn's real prompt (main 52b64b4c, run 36586569285: the retry's
+        generation was followed by a trailing /api/show and prompts[-1] came back '')."""
         with self._lock:
-            return [call["prompt"] for call in self.calls if call["model"] == model]
+            return [
+                call["prompt"] for call in self.calls
+                if call["model"] == model and call["path"].startswith(("/api/chat", "/v1/"))
+            ]
 
     def __enter__(self) -> CountingProvider:
         self._thread.start()
