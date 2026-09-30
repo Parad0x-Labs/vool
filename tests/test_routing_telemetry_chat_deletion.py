@@ -376,6 +376,92 @@ def test_store_deletion_is_restricted_to_one_record_type_and_keeps_survivors_who
     assert store.persist_shadow_record(record) == store.persist_shadow_record(record)
 
 
+def test_shadow_storage_type_violations_are_counted_preserved_and_warned():
+    """SQLite accepts TEXT into the BLOB ``canonical_bytes`` column. Those rows are not
+    silently skipped by the deletion census: they are counted as unattributable,
+    preserved (attribution from bytes a digest cannot vouch for is not sound), and the
+    served delete door reports incomplete verification while they survive."""
+    db = runtime_paths.data_path("routing_authority_v2_shadow.sqlite")
+    _seed_chat(_A)
+    _seed_chat(_B)
+    rdl.record_decision(session_id=_A, user_input="a turn", family="f", handled=True)
+    rdl.record_decision(session_id=_B, user_input="b turn", family="f", handled=True)
+    # rewrite ONLY the deleted chat's row as TEXT — exactly what SQLite permits
+    with sqlite3.connect(str(db)) as conn:
+        conn.execute(
+            "UPDATE routing_authority_v2_shadow_records SET canonical_bytes=?"
+            " WHERE record_type='RoutingDecisionShadowV2'"
+            " AND canonical_bytes LIKE ?",
+            (json.dumps({"session_ref": _A}), f"%{_A}%"),
+        )
+
+    result = rdl.purge_session_routing_telemetry(_A)
+    assert result.shadow_rows_unattributable == 1  # counted, not skipped
+    assert result.shadow_rows_removed == 0         # never deleted from rewritten bytes
+    assert result.jsonl_rows_removed == 1          # the healthy sink still completed
+
+    with sqlite3.connect(str(db)) as conn:
+        payloads = [
+            r[0].decode("utf-8", "replace") if isinstance(r[0], (bytes, bytearray)) else str(r[0])
+            for r in conn.execute(
+                "SELECT canonical_bytes FROM routing_authority_v2_shadow_records"
+                " WHERE record_type='RoutingDecisionShadowV2'"
+            )
+        ]
+    assert json.dumps({"session_ref": _A}) in payloads  # preserved, TEXT survives
+    assert any(_B in p for p in payloads)               # B's row untouched and valid
+
+    # the served door says verification was incomplete for the same state
+    res = _post("/api/chat/session", {"session_id": _A, "delete": True})
+    assert res.status == 200
+    body = _j(res)
+    assert body["deleted"] is True
+    assert "shadow store" in body.get("warning", "")
+
+
+def test_corrupted_jsonl_lines_naming_the_chat_are_counted_and_preserved_byte_identical():
+    """A malformed JSONL line that NAMES the deleted chat cannot be parsed, so it is not
+    removed — but it is counted as unattributable and preserved BYTE-identical: the
+    rewrite works on raw bytes split only on ``\\n``, so invalid UTF-8 and Unicode line
+    separators inside the corrupted line survive exactly as stored."""
+    _seed_chat(_A)
+    rdl.record_decision(session_id=_A, user_input="a turn", family="f", handled=True)
+    path = rdl.decisions_path()
+    truncated = json.dumps({"session_id": _A, "message": "legacy-secret-text"})[:-1]
+    # invalid UTF-8 (0xC3 tail) AND a U+2028 line separator (0xE2 0x80 0xA8) inside one
+    # malformed line: a str.splitlines()/errors="replace" rewrite would alter both
+    weird = b'{"session_id": "' + _A.encode() + b'", "x": "a\xe2\x80\xa8b\xc3'
+    with path.open("ab") as log:
+        log.write(truncated.encode("utf-8") + b"\n" + weird + b"\n")
+
+    result = rdl.purge_session_routing_telemetry(_A)
+    assert result.jsonl_rows_removed == 1
+    assert result.jsonl_rows_unattributable == 2
+
+    after = path.read_bytes()
+    assert truncated.encode("utf-8") in after and weird in after  # byte-identical
+
+
+def test_served_delete_warns_when_corrupted_jsonl_names_the_chat():
+    _seed_chat(_A)
+    _seed_chat(_B)
+    rdl.record_decision(session_id=_A, user_input="a turn", family="f", handled=True)
+    rdl.record_decision(session_id=_B, user_input="b turn", family="f", handled=True)
+    truncated = json.dumps({"session_id": _A, "message": "legacy-secret-text"})[:-1]
+    with rdl.decisions_path().open("a") as log:
+        log.write(truncated + "\n")
+
+    res = _post("/api/chat/session", {"session_id": _A, "delete": True})
+    body = _j(res)
+    assert res.status == 200
+    assert body["deleted"] is True
+    assert "routing log" in body.get("warning", "")
+    # the corrupted line naming the deleted chat survives (byte-identical), reported —
+    # and the LIVE chat's rows are untouched by the anomaly
+    assert truncated in rdl.decisions_path().read_text()
+    assert _B in _jsonl_refs()
+
+
 def _post(path, body, host="127.0.0.1"):
     return dispatch_post(path=path, body=body, headers={"content-type": "application/json"},
                          runtime=RuntimeServices(display_name="VOOL"), model_name="vool",
