@@ -176,3 +176,73 @@ def test_project_reassignment_revokes_prior_project_import(
         grant.scope == "project"
         for grant in list_context_imports(chat_id)
     )
+
+
+def test_schema_upgrade_adds_canonical_identity_to_a_pre_existing_table(
+    context_home,
+) -> None:
+    """An install whose context_namespaces predates the canonical_id column upgrades in
+    place: the schema ensure must not crash on the index-before-ALTER ordering, must add
+    and backfill the column for every existing row (including one already deleted), and
+    identity resolution must then see that deleted chat through its folded handle."""
+    from core.chat_session_identity import canonical_chat_session_id
+    from core.context_namespace import (
+        chat_namespace_deleted_for_identity,
+        ensure_context_namespace_schema,
+    )
+    from storage.db import active_default_db_path, get_connection
+
+    raw_handle = "legacy-native-handle"
+    conn = get_connection()
+    try:
+        conn.executescript(
+            """
+            DROP TABLE IF EXISTS context_namespaces;
+            DROP TABLE IF EXISTS context_namespace_schema_meta;
+            CREATE TABLE context_namespaces (
+                chat_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL DEFAULT '',
+                lifecycle_state TEXT NOT NULL DEFAULT 'active',
+                parent_chat_id TEXT NOT NULL DEFAULT '',
+                branch_turn INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CHECK (lifecycle_state IN ('active', 'archived', 'deleted'))
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO context_namespaces (chat_id, lifecycle_state, created_at, updated_at)"
+            " VALUES (?, 'deleted', '2026-01-01T00:00:00+00:00', '2026-01-02T00:00:00+00:00')",
+            (raw_handle,),
+        )
+        conn.execute(
+            "INSERT INTO context_namespaces (chat_id, lifecycle_state, created_at, updated_at)"
+            " VALUES (?, 'active', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')",
+            ("chat:legacy-live",),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    ensure_context_namespace_schema()  # the pre-existing table: ALTER, then index
+
+    conn = get_connection()
+    try:
+        rows = {
+            str(row["chat_id"]): str(row["canonical_id"] or "")
+            for row in conn.execute("SELECT chat_id, canonical_id FROM context_namespaces")
+        }
+    finally:
+        conn.close()
+    assert rows[raw_handle] == canonical_chat_session_id(raw_handle)
+    assert rows["chat:legacy-live"] == canonical_chat_session_id("chat:legacy-live")
+
+    # the deleted legacy chat is visible as deleted through its FOLDED spelling, and the
+    # live one is not deleted through any spelling
+    assert chat_namespace_deleted_for_identity(
+        canonical_chat_session_id(raw_handle)
+    )
+    assert chat_namespace_deleted_for_identity(raw_handle)
+    assert not chat_namespace_deleted_for_identity("chat:legacy-live")
+    assert str(active_default_db_path())

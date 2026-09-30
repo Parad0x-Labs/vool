@@ -77,9 +77,6 @@ def ensure_context_namespace_schema() -> None:
             CREATE INDEX IF NOT EXISTS idx_context_namespaces_project_state
                 ON context_namespaces(project_id, lifecycle_state);
 
-            CREATE INDEX IF NOT EXISTS idx_context_namespaces_canonical
-                ON context_namespaces(canonical_id, lifecycle_state);
-
             CREATE TABLE IF NOT EXISTS context_import_grants (
                 grant_id TEXT PRIMARY KEY,
                 chat_id TEXT NOT NULL,
@@ -116,6 +113,14 @@ def ensure_context_namespace_schema() -> None:
                 "ALTER TABLE context_namespaces"
                 " ADD COLUMN canonical_id TEXT NOT NULL DEFAULT ''"
             )
+        # only after the column is guaranteed — on a pre-existing table the CREATE INDEX
+        # would run before any ALTER if it lived in the script above, and crash
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_context_namespaces_canonical
+                ON context_namespaces(canonical_id, lifecycle_state);
+            """
+        )
         backfilled = conn.execute(
             "SELECT value FROM context_namespace_schema_meta"
             " WHERE key = 'canonical_id_backfill'"
