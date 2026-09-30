@@ -74,7 +74,31 @@ _ROTATE_KEEP = 1000         # ... keeping the newest N rows
 #: Schema 2: structured metadata only. Schema 1 (no marker) rows carried a redacted
 #: ``message`` prefix; :func:`migrate_legacy_decision_log` strips it on upgrade.
 _ROW_SCHEMA_VERSION = 2
-_LEGACY_MIGRATION_ATTEMPTED = False
+#: Which runtime logs this process has already ATTEMPTED to migrate. Scoped to the log's
+#: resolved path — a process-global boolean skipped the second configured runtime home,
+#: leaving its legacy plaintext in place. ``True``/``False`` keep their legacy meanings
+#: (everything attempted / nothing attempted) for compatibility with code that resets the
+#: flag between homes: a failed attempt is still an attempt (never retried per-call; the
+#: next process, or the explicit operator entrypoint, is the retry).
+_LEGACY_MIGRATION_ATTEMPTED: set[str] | bool = set()
+
+
+def _migration_attempted(path: Path) -> bool:
+    state = _LEGACY_MIGRATION_ATTEMPTED
+    if state is True:
+        return True
+    if not state:
+        return False
+    return str(path) in state
+
+
+def _mark_migration_attempted(path: Path) -> None:
+    global _LEGACY_MIGRATION_ATTEMPTED
+    if _LEGACY_MIGRATION_ATTEMPTED is True:
+        return
+    if isinstance(_LEGACY_MIGRATION_ATTEMPTED, bool):
+        _LEGACY_MIGRATION_ATTEMPTED = set()
+    _LEGACY_MIGRATION_ATTEMPTED.add(str(path))
 
 
 def decisions_path() -> Path:
@@ -205,25 +229,40 @@ class TelemetryPurgeResult:
 def migrate_legacy_decision_log(path: Path | None = None) -> MigrationResult:
     """Strip the plaintext ``message`` column from legacy JSONL rows (schema 1 → 2).
 
-    Bounded and reviewable: one pass over the file, an atomic replace, no backup or debug
-    copy of the plaintext (the old bytes are gone the moment the replace lands). Every
-    non-content field of a migrated row is preserved; malformed lines are preserved
-    byte-identical and counted — a corrupt line is never silently dropped or "fixed".
+    Serialized with the append path under ``_LOG_LOCK`` (the lazy in-turn attempt runs
+    inside that lock already; this public entrypoint takes it too, so an explicit
+    operator migration cannot overwrite a concurrent append that landed mid-rewrite —
+    a waiting writer re-runs after the replace and its complete row survives alongside
+    the sanitized legacy metadata). Bounded and reviewable: one pass over the file, an
+    atomic replace, no backup or debug copy of the plaintext (the old bytes are gone the
+    moment the replace lands). Every non-content field of a migrated row is preserved;
+    malformed lines are preserved BYTE-identical — the rewrite splits raw bytes on
+    ``\\n`` only — and counted, never silently dropped or "fixed". A PARTIAL migration is
+    reported as what it is: ``rows_malformed_preserved`` lines survive untouched and may
+    still contain old message text, so a nonzero count means the durable log is not yet
+    plaintext-free even though every migrated row omits ``message``.
+
     Idempotent: a file with no legacy ``message`` columns is not rewritten at all. Raises
     on storage errors (operators call this explicitly); the in-turn lazy attempt catches
     its own faults so a migration failure never costs the append.
     """
     target = Path(path) if path is not None else decisions_path()
+    with _LOG_LOCK:
+        return _migrate_locked(target)
+
+
+def _migrate_locked(target: Path) -> MigrationResult:
+    """The migration body. Caller holds ``_LOG_LOCK`` (never take it again here)."""
     if not target.exists():
         return MigrationResult(0, 0, 0, 0, False)
-    lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
-    out_lines: list[str] = []
+    lines, had_trailing_newline = _split_jsonl_bytes(target.read_bytes())
+    out_lines: list[bytes] = []
     migrated = 0
     current = 0
     malformed = 0
     for line in lines:
         try:
-            row = json.loads(line)
+            row = json.loads(line.decode("utf-8", "replace"))
         except ValueError:
             out_lines.append(line)
             malformed += 1
@@ -235,36 +274,38 @@ def migrate_legacy_decision_log(path: Path | None = None) -> MigrationResult:
         if "message" in row:
             row.pop("message")
             row["record_schema"] = _ROW_SCHEMA_VERSION
-            out_lines.append(json.dumps(row, ensure_ascii=False))
+            out_lines.append(json.dumps(row, ensure_ascii=False).encode("utf-8"))
             migrated += 1
         elif row.get("record_schema") == _ROW_SCHEMA_VERSION:
             out_lines.append(line)
             current += 1
         else:
             row["record_schema"] = _ROW_SCHEMA_VERSION
-            out_lines.append(json.dumps(row, ensure_ascii=False))
+            out_lines.append(json.dumps(row, ensure_ascii=False).encode("utf-8"))
             migrated += 1
     if not migrated:
         return MigrationResult(len(lines), 0, current, malformed, False)
     tmp = target.with_name(target.name + ".migrate.tmp")
-    tmp.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    out = b"\n".join(out_lines) + (b"\n" if (had_trailing_newline and out_lines) else b"")
+    tmp.write_bytes(out)
     os.replace(tmp, target)
     return MigrationResult(len(lines), migrated, current, malformed, True)
 
 
 def _attempt_lazy_migration_locked(path: Path) -> None:
-    """One migration attempt per process, inside the append lock, never costing the append.
+    """One migration attempt per runtime log, inside the append lock, never costing the append.
 
-    A failed attempt is not retried within the process (that would be per-call filesystem
-    work); the next process retries, and the explicit operator entrypoint raises instead of
-    failing quietly. No plaintext is created either way — the upgrade only ever removes it.
+    The attempted-marker is scoped to the log's resolved path, so a process that serves a
+    SECOND configured runtime home still migrates that home's legacy file; a failed
+    attempt is not retried within the process (that would be per-call filesystem work),
+    and the explicit operator entrypoint remains the retry that raises instead of failing
+    quietly. No plaintext is created either way — the upgrade only ever removes it.
     """
-    global _LEGACY_MIGRATION_ATTEMPTED
-    if _LEGACY_MIGRATION_ATTEMPTED:
+    if _migration_attempted(path):
         return
-    _LEGACY_MIGRATION_ATTEMPTED = True
+    _mark_migration_attempted(path)
     with contextlib.suppress(Exception):
-        migrate_legacy_decision_log(path)
+        _migrate_locked(path)
 
 
 def record_decision(
