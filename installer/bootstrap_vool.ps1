@@ -42,7 +42,7 @@ function Resolve-DefaultInstallDir {
 }
 
 if ([string]::IsNullOrWhiteSpace($RepoOwner)) { $RepoOwner = "Parad0x-Labs" }
-if ([string]::IsNullOrWhiteSpace($RepoName)) { $RepoName = "vool-local" }
+if ([string]::IsNullOrWhiteSpace($RepoName)) { $RepoName = "vool" }
 if ([string]::IsNullOrWhiteSpace($Ref)) { $Ref = "main" }
 if ([string]::IsNullOrWhiteSpace($InstallDir)) { $InstallDir = Resolve-DefaultInstallDir }
 if ([string]::IsNullOrWhiteSpace($ArchiveUrl)) { $ArchiveUrl = "https://github.com/$RepoOwner/$RepoName/archive/refs/heads/$Ref.zip" }

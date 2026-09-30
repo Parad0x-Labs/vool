@@ -5,8 +5,8 @@ its own title and taskbar/Dock entry, no browser tab strip, no address bar -- so
 desktop app rather than a browser tab. On Windows, when the WebView2 runtime is absent (WebView2 is
 not guaranteed on Windows 10), it falls back to the Edge --app opener BEFORE trying pywebview,
 because a missing runtime does not always raise from webview.start(); this keeps a launch from
-dead-ending on a blank window. On macOS/Linux there is no such runtime gate (WKWebView/WebKitGTK are
-part of the OS), so pywebview is tried directly; if no native window can be shown there, a packaged
+dead-ending on a blank window. macOS provides WKWebView; Linux needs separately installed
+GTK/WebKitGTK or Qt libraries. pywebview is tried directly; if no native window can be shown there, a packaged
 launch FAILS CLOSED (exit 1) rather than silently opening a browser and calling it success -- an
 app-mode browser window is used only when VOOL_ALLOW_BROWSER_FALLBACK=1 opts in explicitly.
 A single-instance guard stops repeated launches from stacking windows: a named mutex on Windows,
@@ -1342,8 +1342,8 @@ def main() -> int:
             f"ownership={'native-host' if supervisor.owns_runtime else 'matching-existing'}"
         )
 
-        # The WebView2 runtime gate is Windows-only; macOS (WKWebView) and Linux (WebKitGTK) ship a
-        # web view with the OS, so pywebview is tried directly there.
+        # The WebView2 gate is Windows-only. macOS supplies WKWebView; Linux
+        # operators must provision GTK/WebKitGTK or Qt before this native lane.
         if sys.platform == "win32" and not _has_webview2():
             _log("WebView2 runtime not found; using Edge fallback")
             _fallback_to_edge()

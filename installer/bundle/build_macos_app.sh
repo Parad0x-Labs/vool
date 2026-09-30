@@ -689,6 +689,41 @@ mkdir -p "${SUPPORT}"
 exec >>"${SUPPORT}/app.log" 2>&1
 echo "--- VOOL.app (self-contained) launch $(date) ---"
 
+# A shell main executable has no CPU slice for LaunchServices to validate. Refuse
+# a wrong download before executing embedded Python, with an actionable dialog.
+launch_refusal() {
+  local message="$1"
+  echo "VOOL cannot start: ${message}" >&2
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e 'on run argv' -e 'display alert "VOOL cannot start" message (item 1 of argv) as critical' -e 'end run' "${message}" || true
+  fi
+  exit 1
+}
+PLIST="${RES}/../Info.plist"
+TARGET_ARCH="$(/usr/libexec/PlistBuddy -c 'Print :LSArchitecturePriority:0' "${PLIST}" 2>/dev/null)"
+MIN_MACOS="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "${PLIST}" 2>/dev/null)"
+HOST_ARCH="$(uname -m)"
+case "${TARGET_ARCH}" in
+  arm64|x86_64) ;;
+  *) launch_refusal "This download has missing platform metadata. Download a verified VOOL build again." ;;
+esac
+if [[ "${HOST_ARCH}" != "${TARGET_ARCH}" ]]; then
+  case "${HOST_ARCH}" in
+    x86_64) launch_refusal "This is the Apple Silicon build. This Mac needs the Intel (x86_64) download." ;;
+    arm64) launch_refusal "This is the Intel build. This Mac needs the Apple Silicon (arm64) download." ;;
+    *) launch_refusal "Unsupported processor: ${HOST_ARCH}." ;;
+  esac
+fi
+HOST_MACOS="$(sw_vers -productVersion)"
+[[ "${MIN_MACOS}" =~ ^[0-9]+(\.[0-9]+){0,2}$ && "${HOST_MACOS}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || \
+  launch_refusal "Cannot verify the macOS version required by this download."
+IFS=. read -r host_major host_minor host_patch <<<"${HOST_MACOS}"
+IFS=. read -r min_major min_minor min_patch <<<"${MIN_MACOS}"
+host_version=$((10#${host_major} * 1000000 + 10#${host_minor:-0} * 1000 + 10#${host_patch:-0}))
+min_version=$((10#${min_major} * 1000000 + 10#${min_minor:-0} * 1000 + 10#${min_patch:-0}))
+[[ "${host_version}" -ge "${min_version}" ]] || \
+  launch_refusal "This VOOL build requires macOS ${MIN_MACOS} or newer; this Mac runs ${HOST_MACOS}."
+
 PY="${RES}/python/bin/python3"
 export PYTHONPATH="${RES}/app"
 # Respect a caller-provided VOOL_HOME. The runtime's own contract (core/runtime_paths.py)

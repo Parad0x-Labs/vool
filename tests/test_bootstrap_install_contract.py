@@ -46,7 +46,7 @@ def test_xsearch_up_reports_searxng_state_honestly() -> None:
 def test_shell_bootstrap_falls_back_to_canonical_installer() -> None:
     script = (PROJECT_ROOT / "installer" / "bootstrap_vool.sh").read_text(encoding="utf-8")
 
-    assert 'REPO="${VOOL_GITHUB_REPO:-vool-local}"' in script
+    assert 'REPO="${VOOL_GITHUB_REPO:-vool}"' in script
     assert 'INSTALL_DIR="$(__vool_pick_install_dir)"' in script
     assert 'printf \'%s\' "$VOOL_INSTALL_DIR"' in script
     assert 'printf \'%s\' "$HOME/nulla-local"' in script
@@ -132,7 +132,7 @@ def test_shell_bootstrap_handles_flat_git_archive_without_stripping_root_files(t
 def test_powershell_bootstrap_falls_back_to_canonical_installer() -> None:
     script = (PROJECT_ROOT / "installer" / "bootstrap_vool.ps1").read_text(encoding="utf-8")
 
-    assert 'if ([string]::IsNullOrWhiteSpace($RepoName)) { $RepoName = "vool-local" }' in script
+    assert 'if ([string]::IsNullOrWhiteSpace($RepoName)) { $RepoName = "vool" }' in script
     assert "function Resolve-DefaultInstallDir" in script
     assert '[System.IO.DriveInfo]::GetDrives()' in script
     assert 'Join-Path $bestDrive.RootDirectory.FullName "VOOL\\vool-local"' in script
