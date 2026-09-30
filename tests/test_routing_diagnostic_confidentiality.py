@@ -45,7 +45,9 @@ def test_shadow_disagreement_retains_counts_not_request_content(monkeypatch, cap
 
 def test_a_recovery_phrase_typed_in_chat_never_reaches_the_decision_log(tmp_path):
     """Alert 155's actual secret-bearing flow: an UNLABELLED BIP-39 phrase in a dispatched
-    message must not persist, in whole or in part, to routing_decisions.jsonl."""
+    message must not persist, in whole or in part, to routing_decisions.jsonl. Under the
+    metadata projection there is no message column at all: no phrase, no fragment, and no
+    "redacted" placeholder either — the row's values carry nothing message-derived."""
     from core.wallet.mnemonic import generate_mnemonic
 
     runtime_paths.configure_runtime_home(tmp_path / "home")
@@ -63,12 +65,13 @@ def test_a_recovery_phrase_typed_in_chat_never_reaches_the_decision_log(tmp_path
         rows = rdl.recent_decisions()
         assert rows and rows[-1]["family"] == "fixture"
         assert phrase not in stored
-        # check the row's message VALUE, not the raw JSON line: keys like "message" and
-        # "family" are themselves BIP-39 words and must not be mistaken for phrase content
-        message_value = str(rows[-1]["message"])
-        assert "[redacted-mnemonic]" in message_value
-        for word in phrase.split():
-            assert not _re.search(rf"\b{_re.escape(word)}\b", message_value), word
+        assert all("message" not in row for row in rows)
+        # no phrase WORD survives in any row VALUE (keys like "family"/"handled" are
+        # themselves BIP-39 words and are not message-derived content)
+        for row in rows:
+            for value in row.values():
+                for word in phrase.split():
+                    assert not _re.search(rf"\b{_re.escape(word)}\b", str(value)), word
     finally:
         runtime_paths.configure_runtime_home(None)
 
@@ -76,7 +79,12 @@ def test_a_recovery_phrase_typed_in_chat_never_reaches_the_decision_log(tmp_path
 def test_a_broken_install_fails_the_row_closed_instead_of_storing_a_phrase(tmp_path, monkeypatch):
     """The wordlist ships as package data; if an install is broken and detection cannot arm,
     the routing row must refuse to persist message text at all — 'redacted' must never be a
-    plaintext success for a shape the log cannot see."""
+    plaintext success for a shape the log cannot see. Under the metadata projection the row
+    stores NO message column even in the healthy case, so the refusal now means the shadow
+    digest covers the refusal sentinel, never unscreened text."""
+    import hashlib
+    import json as _json
+
     import core.secret_redaction as sr
     from core.wallet.mnemonic import generate_mnemonic
 
@@ -85,19 +93,33 @@ def test_a_broken_install_fails_the_row_closed_instead_of_storing_a_phrase(tmp_p
 
     monkeypatch.setattr(sr, "_read_bip39_wordlist", broken_read)
     monkeypatch.setattr(sr, "_BIP39_INDEX", None)
+    monkeypatch.setattr(rdl, "_SHADOW_STORE", None)  # rebind the singleton to THIS home
     runtime_paths.configure_runtime_home(tmp_path / "home")
     assert sr.mnemonic_redaction_available() is False  # the outage is active for this row
     try:
         phrase = generate_mnemonic(strength_bits=128)
         rdl.record_decision(session_id="s", user_input=f"i saved this: {phrase} ok", family="fixture", handled=True)
-        import json as _json
 
         stored = rdl.decisions_path().read_text()
-        # the row's message VALUE is the refusal (checked on the parsed row: JSON keys like
-        # "message" are themselves BIP-39 words and must not be mistaken for phrase content)
         row = _json.loads(stored.strip().splitlines()[-1])
-        assert row["message"] == "[message unavailable: secret-shape protection unavailable]"
+        assert "message" not in row  # no message column exists to persist text into
         assert phrase not in stored  # and the phrase, as a whole, is nowhere in the file
+        # the shadow digest is of the refusal sentinel, never of unscreened text
+        import sqlite3 as _sqlite
+
+        with _sqlite.connect(str(rdl.data_path("routing_authority_v2_shadow.sqlite"))) as conn:
+            shadow = [
+                _json.loads(bytes(r[0]))
+                for r in conn.execute(
+                    "SELECT canonical_bytes FROM routing_authority_v2_shadow_records"
+                    " WHERE record_type = 'RoutingDecisionShadowV2'"
+                )
+            ]
+        sentinel = "[message unavailable: secret-shape protection unavailable]"
+        assert shadow and shadow[0]["message_redacted_digest"] == hashlib.sha256(
+            sentinel.encode("utf-8")
+        ).hexdigest()
+        assert phrase not in _json.dumps(shadow)
     finally:
         runtime_paths.configure_runtime_home(None)
         monkeypatch.setattr(sr, "_BIP39_INDEX", None)
@@ -158,8 +180,11 @@ def test_an_evm_private_key_typed_in_chat_never_reaches_either_sink(tmp_path, mo
     with a public tx hash, so no earlier rule masked it — the key persisted verbatim to
     routing_decisions.jsonl (the shadow already stored only a digest). The redactor now masks
     unregistered runs of that shape in BOTH prefix spellings the wallet owner accepts
-    (pilot_custody decodes a backup by text[:2].lower(), so 0X… is the same key); the
-    surrounding prose the diagnostic exists for survives."""
+    (pilot_custody decodes a backup by text[:2].lower(), so 0X… is the same key). Under the
+    metadata projection the whole message is gone from the JSONL — the surrounding prose too —
+    and the redaction law lives on exactly where it must: the shadow record's digest is of the
+    REDACTED text, so a key-bearing message never feeds an unscreened digest."""
+    import hashlib
     import json as _json
     import sqlite3 as _sqlite
 
@@ -182,8 +207,8 @@ def test_an_evm_private_key_typed_in_chat_never_reaches_either_sink(tmp_path, mo
         stored = rdl.decisions_path().read_text()
         for key in keys:
             assert key not in stored, key[:6]  # each typed spelling, as typed
-        assert "[redacted-key]" in str(rows[-1]["message"])
-        assert "is this my evm key" in str(rows[-1]["message"])  # the diagnostic keeps its prose
+        assert all("message" not in row for row in rows)  # no message column at all
+        assert "is this my evm key" not in stored  # and no prose prefix either
         conn = _sqlite.connect(str(rdl.data_path("routing_authority_v2_shadow.sqlite")))
         try:
             shadow = [
@@ -196,6 +221,18 @@ def test_an_evm_private_key_typed_in_chat_never_reaches_either_sink(tmp_path, mo
         finally:
             conn.close()
         assert all(key not in _json.dumps(shadow) for key in keys)
+        # redaction-before-digest, proven on the exact inputs above: each shadow digest is
+        # sha256 of _clean_message(the message as typed) — a masked key, never the key
+        assert shadow and all(
+            row["message_redacted_digest"]
+            == hashlib.sha256(
+                rdl._clean_message(
+                    f"is this my evm key {key} or did i copy the tx hash"
+                ).encode("utf-8")
+            ).hexdigest()
+            for row, key in zip(shadow, keys, strict=True)
+        )
+        assert all("[redacted-key]" in rdl._clean_message(f"key {key} here") for key in keys)
     finally:
         runtime_paths.configure_runtime_home(prior_override)
 

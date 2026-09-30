@@ -5,39 +5,59 @@ message (its ``reason``), or ``model_lane`` when everything fell through to the 
 the measurement layer for routing accuracy: mis-routes stop being anecdotes ("not what I asked")
 and become rows you can grep, count, and turn into gauntlet cases.
 
-Strictly local: one JSONL file under the runtime data dir, never transmitted anywhere. The
-message is truncated + secret-redacted before it is written. Appends are lock-guarded and
-fail-soft — telemetry must never break a turn. The file self-rotates (keeps the newest tail)
-so it cannot grow without bound.
+Strictly local: one JSONL file under the runtime data dir, never transmitted anywhere. Appends
+are lock-guarded and fail-soft — telemetry must never break a turn. The file self-rotates
+(keeps the newest tail) so it cannot grow without bound.
 
-Data minimization and retention, exactly: of the MESSAGE, only a redacted-then-truncated
-(160 chars) prefix is written, and that write fails closed — the row refuses the message
-whenever secret-shape protection is unavailable or redaction faults. The redaction guarantee
-is that narrow: shapes the shared redactor masks (recovery phrases among them, when the
-canonical wordlist is armed) are masked; no detector makes arbitrary text secret-free. The
-row's other fields — timestamp, session id (capped at 80 chars), family/claims/arbiter
-labels — are identifiers, NOT passed through the message redactor. The session id is FOLDED
-here, at this owner, through the one shared identity authority
+**Data minimization (schema 2, alert 155's real class closed): the row stores structured
+diagnostic metadata, never message text.** No request prefix, truncation fragment, message
+digest or message length is written — none of the row's fields is derived from the dispatched
+message. A row carries: the timestamp, the folded session id, the code-built family/claims/
+arbiter labels, and ``handled``. Recognizable request text used to persist here as a
+redacted-then-truncated ``message`` prefix; pattern redaction is not a guarantee that arbitrary
+text is non-sensitive (a custom password sentence matched no shape), so the column is gone, not
+better-redacted. Rows are versioned (``record_schema``); the one-time
+:func:`migrate_legacy_decision_log` strips the plaintext ``message`` column from legacy rows
+without touching their other fields. What remains user-input-derived in this owner's durable
+state is exactly one value, stated exactly: the shadow record's ``message_redacted_digest`` —
+a plain SHA-256 of the already-redacted, already-truncated text. It is not plaintext and not
+recoverable, but an observer holding the store can CONFIRM A GUESS of a low-entropy message
+("yes"/"no"-class turns, dictionary-grade requests) by hashing candidates; high-entropy content
+is not exposed. Redaction before that digest fails closed: when secret-shape protection is
+unavailable or faults, the digest covers a refusal sentinel, never the raw text.
+
+The row's other fields are identifiers and code vocabularies, NOT message-derived text. The
+session id is FOLDED here, at this owner, through the one shared identity authority
 (``core.chat_session_identity.canonical_chat_session_id``): a canonical ``openclaw:`` id
 passes through unchanged (the served path is byte-identical), and ANY other handle —
 including a secret-bearing one a client chose to name its chat by — persists only as its
 ``openclaw:<digest>`` folding in BOTH the JSONL row and the shadow record, never as the
-raw text a caller happened to provide. Family and arbiter strings are code-built
-vocabularies (family constants, arbiter menu options, lane names, failure reasons), not
-message-derived text. The shadow sqlite record stores a SHA-256 digest of the
-already-redacted message plus the same identifier metadata — not only a digest. There is no
-served reader: ``recent_decisions``/``decision_stats`` serve owner-local diagnostics and
-gauntlet mining only. Rows are diagnostics, not conversation: chat deletion's promise covers
-the transcript, learned memory, meta, namespace and DB dialogue rows — routing rows persist
-as telemetry until the ~512KB rotation trigger fires, which then keeps the newest 1000 rows
-(a file under the threshold keeps everything; the shadow store has no rotation policy of its
-own).
+raw text a caller happened to provide. Family and arbiter strings are code-built vocabularies
+(family constants, arbiter menu options, lane names, failure reasons), not free text from
+callers; ``claims`` carries would-claim probe family names, also code-built.
+
+**Deletion (chat erasure now includes routing telemetry):** deleting a chat removes its
+routing rows from BOTH sinks — the JSONL and the shadow sqlite — through
+:func:`purge_session_routing_telemetry`, called by ``delete_conversation_session`` and the
+served delete routes. Only the deleted chat's folded identity is removed; other sessions'
+rows and other record types are untouched, and surviving shadow rows keep their canonical
+bytes, digests and type validation (deletion removes whole rows, it never rewrites survivors).
+The shadow store's rows are append-only diagnostics with chat deletion as their ONE removal
+authority — no rotation, pruning or silent trimming exists there. A turn that outlives its
+chat's deletion must not resurrect telemetry: the namespace lifecycle authority (durable,
+irreversible, flipped by the delete doors BEFORE erasure) suppresses new writes for a deleted
+session, and a post-write recheck re-purges if a delete landed mid-write. There is no served
+reader of message-shaped data: ``recent_decisions``/``decision_stats`` serve owner-local
+diagnostics and gauntlet mining only, over the metadata columns. Correlating a row with its
+turn means joining on ``session_id`` + ``ts`` against the authorized conversation view.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -47,9 +67,14 @@ from core.runtime_paths import data_path
 
 _LOG_FILE = "routing_decisions.jsonl"
 _LOG_LOCK = threading.Lock()
-_MESSAGE_MAX = 160          # enough to recognize the request, small enough to stay cheap
+_MESSAGE_MAX = 160          # the shadow digest's input is redacted-then-truncated to this
 _ROTATE_BYTES = 512 * 1024  # rotate at ~512KB ...
 _ROTATE_KEEP = 1000         # ... keeping the newest N rows
+
+#: Schema 2: structured metadata only. Schema 1 (no marker) rows carried a redacted
+#: ``message`` prefix; :func:`migrate_legacy_decision_log` strips it on upgrade.
+_ROW_SCHEMA_VERSION = 2
+_LEGACY_MIGRATION_ATTEMPTED = False
 
 
 def decisions_path() -> Path:
@@ -57,6 +82,12 @@ def decisions_path() -> Path:
 
 
 def _clean_message(text: str) -> str:
+    """The redacted message — ONLY an intermediate value for the shadow digest, never stored.
+
+    Fails closed: without secret-shape protection the result is a refusal sentinel, so the
+    digest can never be of raw text this owner was unable to screen. Byte-identical to the
+    schema-1 computation so digests stay comparable across the schema change.
+    """
     try:
         from core.secret_redaction import mnemonic_redaction_available, redact_secrets
 
@@ -83,11 +114,145 @@ def _fold_session_ref(session_id: str) -> str:
     owner's own instead of every caller's memory: canonical ``openclaw:`` ids pass through
     unchanged (the served path is byte-identical), every other handle persists only as its
     digest, and doors that disagree about a handle's shape still land on the same identity —
-    which is the correlation operators grep by.
+    which is the correlation operators grep by. It is also the key deletion matches on.
     """
     from core.chat_session_identity import canonical_chat_session_id
 
     return canonical_chat_session_id(str(session_id or ""))
+
+
+def _session_telemetry_suppressed(folded_ref: str, raw_handle: str) -> bool:
+    """True when this chat is deleted and must not grow or keep routing telemetry.
+
+    The ONE erasure authority for chat existence is the namespace lifecycle: both served
+    delete doors flip it to ``deleted`` BEFORE erasing the transcript, the state is durable
+    and irreversible, and ``delete_conversation_session`` flips it too. That authority —
+    not a new tombstone manager — is what a late or in-flight write is checked against. An
+    unreadable namespace store must not change turn telemetry: the answer is "not deleted"
+    and the deletion path reports its own faults honestly elsewhere.
+    """
+    try:
+        from core.context_namespace import load_chat_namespace
+
+        for handle in dict.fromkeys((folded_ref, str(raw_handle or "").strip())):
+            if not handle:
+                continue
+            namespace = load_chat_namespace(handle)
+            if namespace is not None and namespace.lifecycle_state == "deleted":
+                return True
+    except Exception:
+        return False
+    return False
+
+
+@dataclass(frozen=True)
+class MigrationResult:
+    """Typed outcome of the one-time legacy ``message``-column strip (schema 1 → 2)."""
+
+    rows_total: int
+    rows_migrated: int
+    rows_already_current: int
+    rows_malformed_preserved: int
+    rewritten: bool
+    errors: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+
+@dataclass(frozen=True)
+class TelemetryPurgeResult:
+    """Typed outcome of removing ONE chat's routing telemetry from both durable sinks."""
+
+    session_ref: str
+    jsonl_rows_removed: int
+    shadow_rows_removed: int
+    shadow_rows_unattributable: int
+    errors: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    def summary(self) -> str:
+        parts = [
+            f"jsonl rows removed: {self.jsonl_rows_removed}",
+            f"shadow rows removed: {self.shadow_rows_removed}",
+        ]
+        if self.shadow_rows_unattributable:
+            parts.append(
+                f"shadow rows preserved (corrupted, session unidentifiable): "
+                f"{self.shadow_rows_unattributable}"
+            )
+        if self.errors:
+            parts.append("errors: " + "; ".join(self.errors))
+        return ", ".join(parts)
+
+
+def migrate_legacy_decision_log(path: Path | None = None) -> MigrationResult:
+    """Strip the plaintext ``message`` column from legacy JSONL rows (schema 1 → 2).
+
+    Bounded and reviewable: one pass over the file, an atomic replace, no backup or debug
+    copy of the plaintext (the old bytes are gone the moment the replace lands). Every
+    non-content field of a migrated row is preserved; malformed lines are preserved
+    byte-identical and counted — a corrupt line is never silently dropped or "fixed".
+    Idempotent: a file with no legacy ``message`` columns is not rewritten at all. Raises
+    on storage errors (operators call this explicitly); the in-turn lazy attempt catches
+    its own faults so a migration failure never costs the append.
+    """
+    target = Path(path) if path is not None else decisions_path()
+    if not target.exists():
+        return MigrationResult(0, 0, 0, 0, False)
+    lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+    out_lines: list[str] = []
+    migrated = 0
+    current = 0
+    malformed = 0
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            out_lines.append(line)
+            malformed += 1
+            continue
+        if not isinstance(row, dict):
+            out_lines.append(line)
+            malformed += 1
+            continue
+        if "message" in row:
+            row.pop("message")
+            row["record_schema"] = _ROW_SCHEMA_VERSION
+            out_lines.append(json.dumps(row, ensure_ascii=False))
+            migrated += 1
+        elif row.get("record_schema") == _ROW_SCHEMA_VERSION:
+            out_lines.append(line)
+            current += 1
+        else:
+            row["record_schema"] = _ROW_SCHEMA_VERSION
+            out_lines.append(json.dumps(row, ensure_ascii=False))
+            migrated += 1
+    if not migrated:
+        return MigrationResult(len(lines), 0, current, malformed, False)
+    tmp = target.with_name(target.name + ".migrate.tmp")
+    tmp.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    os.replace(tmp, target)
+    return MigrationResult(len(lines), migrated, current, malformed, True)
+
+
+def _attempt_lazy_migration_locked(path: Path) -> None:
+    """One migration attempt per process, inside the append lock, never costing the append.
+
+    A failed attempt is not retried within the process (that would be per-call filesystem
+    work); the next process retries, and the explicit operator entrypoint raises instead of
+    failing quietly. No plaintext is created either way — the upgrade only ever removes it.
+    """
+    global _LEGACY_MIGRATION_ATTEMPTED
+    if _LEGACY_MIGRATION_ATTEMPTED:
+        return
+    _LEGACY_MIGRATION_ATTEMPTED = True
+    with contextlib.suppress(Exception):
+        migrate_legacy_decision_log(path)
 
 
 def record_decision(
@@ -104,13 +269,19 @@ def record_decision(
     ``family`` is the fast-path reason that answered (or ``model_lane``); ``claims`` is the
     would-claim probe result when it was computed (which families matched the message);
     ``arbiter`` records an arbitration outcome ("picked:<family>", "timeout", "disabled", ...).
+    The dispatched message is NOT persisted in any form: the JSONL row is metadata-only
+    (schema 2); the shadow record keeps its existing digest of the redacted text.
     """
+    redacted_message = ""
     try:
         folded_session_ref = _fold_session_ref(session_id)
+        if _session_telemetry_suppressed(folded_session_ref, session_id):
+            return
+        redacted_message = _clean_message(user_input)
         row = {
+            "record_schema": _ROW_SCHEMA_VERSION,
             "ts": utcnow(),
             "session_id": folded_session_ref[:80],
-            "message": _clean_message(user_input),
             "family": str(family or "")[:80],
             "handled": bool(handled),
         }
@@ -122,6 +293,7 @@ def record_decision(
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(row, ensure_ascii=False) + "\n"
         with _LOG_LOCK:
+            _attempt_lazy_migration_locked(path)
             with path.open("a", encoding="utf-8") as handle:
                 handle.write(payload)
             _maybe_rotate(path)
@@ -130,8 +302,8 @@ def record_decision(
     # Feed the same decision to the per-turn REACH record, so every family that already reports
     # here is covered without instrumenting each of its call sites separately -- the front door's
     # fast paths, the intent arbiter, the stepped audit and the permission policy all reach this
-    # function today. Its own try block: a fault here must not cost the JSONL write above, which is
-    # why this is not folded into it.
+    # function today. Its own try block: a fault here must not cost the JSONL write above, which
+    # is why this is not folded into it.
     #
     # Recorded as TELEMETRY, never as a claim. `handled=True` here means "this family produced the
     # answer it was asked for" -- it is not the same fact as "this gate preempted the model", and
@@ -166,7 +338,7 @@ def record_decision(
             family=str(family or ""),
             handled=bool(handled),
             message_redacted_digest=hashlib.sha256(
-                str(row.get("message") or "").encode("utf-8")
+                redacted_message.encode("utf-8")
             ).hexdigest(),
             claims=tuple(str(c)[:40] for c in (claims or [])[:8]),
             arbiter=str(arbiter or ""),
@@ -175,6 +347,124 @@ def record_decision(
             _shadow_store().persist_shadow_record(record)
     except Exception:
         pass
+    # Race closure: a delete can land between the guard above and these writes. Re-check
+    # the same authority and remove this session's rows if its chat stopped existing while
+    # the turn was being recorded — an idempotent self-purge, never a second tombstone.
+    try:
+        if _session_telemetry_suppressed(folded_session_ref, session_id):
+            purge_session_routing_telemetry(session_id)
+    except Exception:
+        pass
+
+
+def purge_session_routing_telemetry(session_id: str) -> TelemetryPurgeResult:
+    """Remove ONE chat's routing telemetry from BOTH durable sinks. Typed, idempotent.
+
+    Called by ``delete_conversation_session`` and re-run (as verification, not as a
+    duplicate authority) by the served delete routes. Only rows whose folded session
+    identity matches are removed: other sessions' diagnostic rows survive in both sinks,
+    and the shadow deletion is restricted to ``RoutingDecisionShadowV2`` rows — no other
+    record type is ever considered. Surviving shadow rows are untouched whole rows, so
+    their canonical bytes, digests and type validation remain exactly what they were.
+
+    Failure behavior is typed, bounded and reported — never a raised exception into the
+    caller's erasure flow, never a swallowed success: ``errors`` names each sink fault and
+    ``ok`` is False while any remains. A corrupted shadow row whose session cannot be
+    identified is preserved (never silently discarded with the whole log) and counted in
+    ``shadow_rows_unattributable``.
+    """
+    match_ref = _fold_session_ref(session_id)
+    if not match_ref:
+        return TelemetryPurgeResult("", 0, 0, 0, ("empty session id"))
+    errors: list[str] = []
+    jsonl_removed = 0
+    shadow_removed = 0
+    shadow_unattributable = 0
+    try:
+        jsonl_removed = _remove_jsonl_rows_for_session(match_ref)
+    except Exception as exc:
+        errors.append(f"jsonl: {exc}")
+    try:
+        shadow_removed, shadow_unattributable = _remove_shadow_rows_for_session(match_ref)
+    except Exception as exc:
+        errors.append(f"shadow: {exc}")
+    return TelemetryPurgeResult(
+        session_ref=match_ref,
+        jsonl_rows_removed=jsonl_removed,
+        shadow_rows_removed=shadow_removed,
+        shadow_rows_unattributable=shadow_unattributable,
+        errors=tuple(errors),
+    )
+
+
+def _remove_jsonl_rows_for_session(match_ref: str) -> int:
+    """Drop the matching session's rows from the JSONL; preserve everything else verbatim.
+
+    Atomic rewrite under the append lock (same single-process locking law as rotation):
+    malformed lines and other sessions' rows are copied byte-identical, so a delete never
+    rewrites or "repairs" rows it has no authority over.
+    """
+    path = decisions_path()
+    if not path.exists():
+        return 0
+    with _LOG_LOCK:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        kept: list[str] = []
+        removed = 0
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                kept.append(line)
+                continue
+            if isinstance(row, dict) and str(row.get("session_id") or "") == match_ref:
+                removed += 1
+            else:
+                kept.append(line)
+        if not removed:
+            return 0
+        tmp = path.with_name(path.name + ".purge.tmp")
+        tmp.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+        return removed
+
+
+def _remove_shadow_rows_for_session(match_ref: str) -> tuple[int, int]:
+    """Delete the matching session's ``RoutingDecisionShadowV2`` rows; count the unattributable.
+
+    Enumeration is deliberately unvalidated: a row that fails strict validation is still
+    enumerable so its attribution can be decided. A row whose payload cannot be parsed has
+    no identifiable session — it is preserved and counted, because deleting an
+    unattributable row could discard another chat's (or another type's) record, and
+    keeping it leaves evidence a corrupted store exists. Deletion itself is by digest,
+    restricted to the one record type, in one transaction.
+    """
+    import json as _json
+
+    store = _shadow_store()
+    digests: list[str] = []
+    unattributable = 0
+    for digest, payload in store.list_shadow_payloads(
+        record_type="RoutingDecisionShadowV2"
+    ):
+        try:
+            row = _json.loads(payload.decode("utf-8", "replace"))
+        except ValueError:
+            unattributable += 1
+            continue
+        # a valid RoutingDecisionShadowV2 payload always carries session_ref; without it
+        # the row's session is unidentifiable — preserve and count it, never delete blind
+        if not isinstance(row, dict) or "session_ref" not in row:
+            unattributable += 1
+            continue
+        if str(row.get("session_ref") or "") == match_ref:
+            digests.append(digest)
+    removed = 0
+    if digests:
+        removed = store.delete_shadow_records(
+            record_type="RoutingDecisionShadowV2", record_digests=tuple(digests)
+        )
+    return removed, unattributable
 
 
 def _unix_ms_now(ts: Any) -> int:
@@ -250,4 +540,13 @@ def decision_stats(limit: int = 1000) -> dict[str, Any]:
     return {"total": len(rows), "families": families, "ambiguous": ambiguous}
 
 
-__all__ = ["decision_stats", "decisions_path", "recent_decisions", "record_decision"]
+__all__ = [
+    "MigrationResult",
+    "TelemetryPurgeResult",
+    "decision_stats",
+    "decisions_path",
+    "migrate_legacy_decision_log",
+    "purge_session_routing_telemetry",
+    "recent_decisions",
+    "record_decision",
+]
