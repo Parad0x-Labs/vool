@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+# The job only reads the repository to inspect tracked paths; give it that and nothing else.
+permissions:
+  contents: read
+
 jobs:
   reject-floor-source:
     runs-on: ubuntu-latest
