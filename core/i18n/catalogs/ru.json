@@ -1228,7 +1228,7 @@
     "settings.row.social_commons.help": "Разрешить VOOL присоединяться к сообществу агентов для совместного поиска идей.",
     "settings.row.social_commons.effect": "Применяется сразу."
   },
-  "source_catalog_sha256": "3d3d67c0b96e32c7f69d380db79cb44b120b0c01f0b4344b51d730b69cef09cb",
+  "source_catalog_sha256": "31cce1163a21b9e23ff6c75548a33e03e7a673dbb7a7e6318b9f458cd6bbf4e8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
