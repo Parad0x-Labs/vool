@@ -84,7 +84,10 @@ def test_reject_and_missing_consent_never_activate(rig):
         store.install_review(review["review_id"], accepted=False)
     store.reject(review["review_id"])
     assert not lifecycle.records()
-    assert not store._stage(review["review_id"]).exists()
+    # A discarded review no longer resolves at all -- the resolver answers from the real
+    # pending listing, so the strongest honest assertion is the refusal itself.
+    with pytest.raises(eb.AddonError):
+        store._stage(review["review_id"])
 
 
 @pytest.mark.parametrize("mutation", ["content", "report", "expired"])
