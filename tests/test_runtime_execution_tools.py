@@ -17,6 +17,7 @@ from core.runtime_execution_tools import (
     extract_observation_followup_hints,
 )
 from core.tool_intent_executor import execute_tool_intent
+from core.tool_memo import invalidate_tool
 
 _UNSHARE_AVAILABLE = os.system("unshare -r true >/dev/null 2>&1") == 0
 
@@ -370,6 +371,46 @@ class RuntimeExecutionToolsTests(unittest.TestCase):
             self.assertIn("safe local directories", result.response_text.lower())
 
     def test_machine_inspect_specs_returns_grounded_machine_summary(self) -> None:
+        # machine.inspect_specs is a pure tool memoized for 60s in the store the whole
+        # pytest session shares, and this test FABRICATES the machine's observable facts.
+        # An observation of a different machine made moments earlier through the same real
+        # door would still be live in that memo and answer in place of the fabrication --
+        # exactly how CI run 36759227592 shard 5 failed: the grounded summary described the
+        # runner's real Linux host instead of the machine mocked here. So this test drops
+        # every memoized observation of this one tool through the memo's own authority
+        # BEFORE fabricating anything, then fabricates a deliberately different prior
+        # machine, observes it through the real door, and drops it again before observing
+        # the machine below -- pinning the law that a caller which changes the machine's
+        # observable facts never gets an answer memoized under the old ones. Product
+        # memoization is untouched: a caller that does NOT change the facts keeps every
+        # cache hit it earned.
+        invalidate_tool("machine.inspect_specs")
+        with mock.patch(
+            "core.runtime_execution_tools.probe_machine",
+            return_value=SimpleNamespace(cpu_cores=2, ram_gb=4.0, gpu_name="none", vram_gb=0.0, accelerator="cpu"),
+        ), mock.patch(
+            "core.runtime_execution_tools.install_recommendation_machine_summary",
+            return_value={
+                "ollama_model": "prior:1b",
+                "selected_tier": "capacity-A",
+                "capacity_bucket": "A",
+                "recommended_bundle_models": ["prior:1b"],
+            },
+        ), mock.patch(
+            "core.runtime_execution_tools._machine_os_details",
+            return_value=("PriorOS", "1.0"),
+        ), mock.patch(
+            "core.runtime_execution_tools._machine_chip_name",
+            return_value="Prior Machine",
+        ), mock.patch(
+            "core.runtime_execution_tools._machine_display_details",
+            return_value={"name": "PriorDisplay"},
+        ):
+            prior = execute_runtime_tool("machine.inspect_specs", {}, source_context={})
+            assert prior is not None
+            self.assertTrue(prior.ok)
+            self.assertIn("Prior Machine", prior.response_text)
+        invalidate_tool("machine.inspect_specs")
         with mock.patch(
             "core.runtime_execution_tools.probe_machine",
             return_value=SimpleNamespace(
