@@ -142,7 +142,7 @@ def test_a_deleted_chat_stops_logging_but_an_archived_chat_still_logs():
     assert _B in _jsonl_refs() and _B in _shadow_refs()
 
 
-def test_a_delete_landing_mid_write_is_caught_by_the_post_write_recheck(monkeypatch):
+def test_a_delete_landing_mid_write_is_caught_by_the_post_write_recheck():
     """The race the guard alone cannot close: the namespace flips to deleted AFTER the
     pre-write guard passed but BEFORE the sinks finished. The post-write recheck consults
     the same authority again and purges the session's rows — an idempotent self-purge, not
@@ -161,9 +161,14 @@ def test_a_delete_landing_mid_write_is_caught_by_the_post_write_recheck(monkeypa
             return namespace if namespace is not None else None
         return SimpleNamespace(lifecycle_state="deleted")
 
-    monkeypatch.setattr(cn, "load_chat_namespace", flips_mid_write)
+    # a SCOPED patch, undone scoped: the test-level monkeypatch instance is the SAME
+    # object the autouse fixture used for its _SHADOW_STORE pin, so a bare
+    # monkeypatch.undo() here would also revert that pin and rebind the shadow store to
+    # whatever singleton an earlier test leaked
+    scoped = pytest.MonkeyPatch()
+    scoped.setattr(cn, "load_chat_namespace", flips_mid_write)
     rdl.record_decision(session_id=_A, user_input="written during the delete", family="f", handled=True)
-    monkeypatch.undo()
+    scoped.undo()
     assert _A not in _jsonl_refs()
     assert _A not in _shadow_refs()
     assert "written during the delete" not in rdl.decisions_path().read_text()
@@ -219,7 +224,7 @@ def test_deleted_chat_cannot_be_resurrected_by_either_handle_spelling():
     assert folded2 not in _jsonl_refs() and folded2 not in _shadow_refs()
 
 
-def test_namespace_store_unreadable_fails_closed_for_telemetry(monkeypatch):
+def test_namespace_store_unreadable_fails_closed_for_telemetry():
     """An unreadable erasure authority must not re-enable optional diagnostic persistence.
 
     The chat below is genuinely deleted; the namespace read then faults. Telemetry is
@@ -234,11 +239,12 @@ def test_namespace_store_unreadable_fails_closed_for_telemetry(monkeypatch):
     def unavailable(_chat_id):
         raise OSError("synthetic namespace read failure")
 
-    monkeypatch.setattr(cn, "load_chat_namespace", unavailable)
+    scoped = pytest.MonkeyPatch()  # scoped: undo() must not revert the fixture's pins
+    scoped.setattr(cn, "load_chat_namespace", unavailable)
     rdl.record_decision(session_id=_A, user_input="no rows for the dead", family="f", handled=True)
     rdl.record_decision(session_id=_B, user_input="no rows while the authority is down",
                         family="f", handled=True)
-    monkeypatch.undo()
+    scoped.undo()
     # the deleted chat gained nothing; the live chat also recorded nothing while the
     # authority was unreadable — fail-closed, never fail-open
     assert _A not in _jsonl_refs() and _A not in _shadow_refs()
@@ -572,15 +578,17 @@ def test_served_delete_of_one_of_two_chats_removes_only_its_telemetry():
     assert all(row != _A for row in _jsonl_refs())
 
 
-def test_served_delete_warns_when_telemetry_removal_fails(monkeypatch):
+def test_served_delete_warns_when_telemetry_removal_fails():
     _seed_chat(_A)
     rdl.record_decision(session_id=_A, user_input="one", family="fixture", handled=True)
-    # fault BOTH the internal purge and the route's verification pass for the JSONL sink
-    monkeypatch.setattr(
+    # fault BOTH the internal purge and the route's verification pass for the JSONL sink;
+    # scoped so un-faulting cannot revert the autouse fixture's _SHADOW_STORE pin
+    scoped = pytest.MonkeyPatch()
+    scoped.setattr(
         rdl, "decisions_path", lambda: (_ for _ in ()).throw(OSError("disk gone"))
     )
     res = _post("/api/chat/session", {"session_id": _A, "delete": True})
-    monkeypatch.undo()
+    scoped.undo()
     assert res.status == 200  # the delete itself still succeeds
     body = _j(res)
     assert body["deleted"] is True
