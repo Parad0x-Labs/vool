@@ -31,6 +31,15 @@ ODD_KEY = "zk9-test-intelligence-key-0123456789abcdef"
 #: Headers that can carry a credential; the fake records a DIGEST of each one that arrives.
 _CREDENTIAL_HEADERS = ("authorization", "x-subscription-token", "x-api-key")
 
+#: The listening socket's accept budget, matching serve_forever's own poll cadence. A selector
+#: readiness that vanishes before accept() runs (Linux discards an aborted pending connection;
+#: spurious wakeups are permitted) must fall through to the next loop iteration, never park the
+#: serve thread inside one unbounded accept() that shutdown() then waits on forever -- CI run
+#: 36759227592 shard 2 lost its whole job to exactly that (watchdog exit 124 inside
+#: FakeProviderServer teardown; the serve thread sat in get_request->accept while the main
+#: thread waited in shutdown()).
+_SERVE_ACCEPT_TIMEOUT_S = 0.5
+
 
 class FakeProviderServer:
     """One scripted provider endpoint on loopback. Start it, point a descriptor at ``url``,
@@ -109,6 +118,12 @@ class FakeProviderServer:
 
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self._server.daemon_threads = True
+        # serve_forever's loop calls accept() only when the selector reported readiness; in
+        # timeout mode that one accept is bounded (socketserver treats the raised timeout as
+        # OSError and moves on to the next iteration), and CPython's socket.accept forces every
+        # ACCEPTED socket back to blocking (Issue #7995), so the real HTTP handlers above keep
+        # their streaming semantics untouched.
+        self._server.socket.settimeout(_SERVE_ACCEPT_TIMEOUT_S)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
 
     @property
