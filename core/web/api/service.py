@@ -295,7 +295,7 @@ def _routing_telemetry_delete_warning(session_id: str) -> str:
         )
     if result.shadow_rows_unattributable:
         return (
-            "chat deleted and its routing telemetry removed, but the shadow store holds "
+            "chat deleted, but complete removal of its routing telemetry could not be verified: the shadow store holds "
             f"{result.shadow_rows_unattributable} corrupted or integrity-failing record(s) "
             "whose session could not be verified; they were preserved, not deleted"
         )
