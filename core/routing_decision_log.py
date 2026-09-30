@@ -526,14 +526,14 @@ def _remove_jsonl_rows_for_session(match_ref: str) -> tuple[int, int]:
 def _remove_shadow_rows_for_session(match_ref: str) -> tuple[int, int]:
     """Delete the matching session's ``RoutingDecisionShadowV2`` rows; count the unattributable.
 
-    Attribution reads the store's CENSUS, not the well-formed-only listing: every row of
-    the type is accounted for. A row whose payload cannot be parsed has no identifiable
-    session — it is preserved and counted, because deleting an unattributable row could
-    discard another chat's (or another type's) record, and keeping it leaves evidence a
-    corrupted store exists. Rows whose digest or storage shapes violate the declared
-    contract are counted the same way: their bytes are not what their digest vouches for,
-    so a session_ref parsed out of them would be trusting rewritten bytes. Deletion is by
-    digest, restricted to the one record type, in one transaction.
+    Attribution reads the store's CENSUS, whose payloads passed the store's own strict
+    integrity validation — canonical bytes that parse, re-serialize to the stored bytes,
+    and carry the digest that vouches for them. A ``session_ref`` is therefore trusted
+    only when the row's digest proves those exact bytes; a row whose bytes disagree with
+    its digest (rewritten, old digest kept) is counted unattributable exactly like an
+    unparseable or storage-shape-violating row: preserved, never deleted blind, and
+    surfaced by the served doors as incomplete verification. Deletion is by digest,
+    restricted to the one record type, in one transaction.
     """
     import json as _json
 
@@ -547,8 +547,8 @@ def _remove_shadow_rows_for_session(match_ref: str) -> tuple[int, int]:
         except ValueError:
             unattributable += 1
             continue
-        # a valid RoutingDecisionShadowV2 payload always carries session_ref; without it
-        # the row's session is unidentifiable — preserve and count it, never delete blind
+        # a validated RoutingDecisionShadowV2 payload always carries session_ref; the
+        # decode-replace fallback keeps a validated-but-undecodable row unattributable
         if not isinstance(row, dict) or "session_ref" not in row:
             unattributable += 1
             continue

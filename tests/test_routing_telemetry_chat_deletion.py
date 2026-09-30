@@ -526,6 +526,67 @@ def test_isolated_home_fixture_restores_exact_prior_state(module, tmp_path, monk
         runtime_paths.configure_runtime_home(prior_home)
 
 
+def test_digest_mismatched_row_is_never_attributed_to_another_chat():
+    """A rewritten ``session_ref`` with the old digest kept is rejected by the store's own
+    integrity authority, so the deletion owner must not attribute from those bytes either:
+    the tampered row is preserved byte-identical and counted unattributable, while the
+    genuinely-matching valid row still deletes and the served door warns."""
+    _C = "openclaw:" + "c" * 20
+    _seed_chat(_A)
+    _seed_chat(_B)
+    _seed_chat(_C)
+    rdl.record_decision(session_id=_A, user_input="a turn", family="f", handled=True)
+    rdl.record_decision(session_id=_B, user_input="b turn", family="f", handled=True)
+    rdl.record_decision(session_id=_C, user_input="c turn", family="f", handled=True)
+
+    store = rdl._shadow_store()
+    census = store.shadow_payload_census(record_type="RoutingDecisionShadowV2")
+    assert census.anomalous_rows == 0 and len(census.payloads) == 3
+    victim_digest, victim_payload = next(
+        (d, p) for d, p in census.payloads if _A.encode() in p
+    )
+    # rewrite ONLY the session identity bytes, keeping the row's old valid-format digest
+    tampered = victim_payload.replace(_A.encode(), _B.encode())
+    assert tampered != victim_payload
+    with sqlite3.connect(str(runtime_paths.data_path("routing_authority_v2_shadow.sqlite"))) as conn:
+        conn.execute(
+            "UPDATE routing_authority_v2_shadow_records SET canonical_bytes=?"
+            " WHERE record_digest=?",
+            (tampered, victim_digest),
+        )
+    # the store's own integrity authority rejects the mismatched bytes...
+    with pytest.raises(ShadowStoreIntegrityError):
+        store.read_shadow_record(victim_digest)
+    # ...so the census counts the row instead of attributing a chat identity from it
+    census = store.shadow_payload_census(record_type="RoutingDecisionShadowV2")
+    assert census.anomalous_rows == 1 and len(census.payloads) == 2
+
+    result = rdl.purge_session_routing_telemetry(_B)
+    # B's OWN verified row still deletes; the tampered row is preserved and counted
+    assert result.shadow_rows_removed == 1
+    assert result.shadow_rows_unattributable == 1
+
+    with sqlite3.connect(str(runtime_paths.data_path("routing_authority_v2_shadow.sqlite"))) as conn:
+        survivors = [
+            r[0] if isinstance(r[0], bytes) else str(r[0]).encode()
+            for r in conn.execute(
+                "SELECT canonical_bytes FROM routing_authority_v2_shadow_records"
+                " WHERE record_type='RoutingDecisionShadowV2'"
+            )
+        ]
+    # the tampered bytes survive EXACTLY as stored; C's verified row survives untouched
+    assert tampered in survivors
+    assert len(survivors) == 2  # tampered row + C's row; B's verified row is gone
+    fresh_census = store.shadow_payload_census(record_type="RoutingDecisionShadowV2")
+    assert fresh_census.anomalous_rows == 1
+
+    # the served delete door reports incomplete verification for the same state
+    res = _post("/api/chat/session", {"session_id": _B, "delete": True})
+    body = _j(res)
+    assert res.status == 200 and body["deleted"] is True
+    assert "shadow store" in body.get("warning", "")
+
+
 def _post(path, body, host="127.0.0.1"):
     return dispatch_post(path=path, body=body, headers={"content-type": "application/json"},
                          runtime=RuntimeServices(display_name="VOOL"), model_name="vool",

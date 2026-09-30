@@ -70,15 +70,18 @@ class ShadowStoreIntegrityError(RuntimeError):
 
 @dataclass(frozen=True)
 class ShadowPayloadCensus:
-    """One approved type's rows split by whether their storage shapes are well-formed.
+    """One approved type's rows split by whether the store's integrity authority accepts them.
 
-    ``payloads`` are the ``(record_digest, canonical_bytes)`` pairs whose digest and
-    payload columns match the declared shapes; ``anomalous_rows`` counts everything else
-    of that type — a TEXT ``canonical_bytes`` (legal to SQLite despite the BLOB
-    affinity) or an invalid digest spelling. Anomalous rows are never attributed from
-    and never deleted by the chat-deletion seam: their bytes are not what their digest
-    vouches for, so their session cannot be established soundly — they are preserved
-    and reported so the deletion door can say verification was incomplete.
+    ``payloads`` are the ``(record_digest, canonical_bytes)`` pairs that pass the SAME
+    strict validation :meth:`read_shadow_record` applies: canonical bytes parse into the
+    row's declared closed-schema type, re-serialize to the stored bytes, and the record's
+    digest equals the stored digest. ``anomalous_rows`` counts everything else of that
+    type — a rewritten payload whose stored digest vouches for different bytes, a TEXT
+    ``canonical_bytes`` (legal to SQLite despite the BLOB affinity), an invalid digest
+    spelling, an unapproved type or a violated Phase-0 gate. Anomalous rows are never
+    attributed from and never deleted by the chat-deletion seam: their bytes are not what
+    their digest vouches for, so their session cannot be established soundly — they are
+    preserved and reported so the deletion door can say verification was incomplete.
     """
 
     payloads: tuple[tuple[str, bytes], ...] = ()
@@ -325,22 +328,27 @@ class RoutingAuthorityV2ShadowStore:
         )
 
     def shadow_payload_census(self, *, record_type: str) -> ShadowPayloadCensus:
-        """Well-formed payloads of ONE approved type, plus the count of anomalous rows.
+        """Integrity-verified payloads of ONE approved type, plus the count of rejected rows.
 
-        The deletion-time attribution read: unlike :meth:`list_shadow_record_digests`
-        this does NOT strictly validate each row, because a store holding a corrupted
-        row must still let its owner enumerate the rest and decide attribution — the
-        strict readers keep their integrity law unchanged. Rows whose digest or payload
-        columns violate their declared shapes are NOT silently dropped: they are counted
-        as ``anomalous_rows`` (see :class:`ShadowPayloadCensus`) so the deletion owner
-        reports incomplete verification instead of claiming the whole sink was removed.
+        The deletion-time attribution read: every row of the type is accounted for and
+        validated through the ONE existing authority — the same strict
+        :func:`_validate_stored_shadow_row` that :meth:`read_shadow_record` applies,
+        which checks canonical bytes, closed type, Phase-0 gates AND the digest against
+        the stored bytes. A row failing any of that (a rewritten ``session_ref`` whose
+        stored digest vouches for different bytes, a TEXT ``canonical_bytes``, an
+        invalid digest spelling) is counted as ``anomalous_rows`` — preserved, never
+        attributed from and never deleted by the chat-deletion seam — while the census
+        CONTINUES over the remaining rows instead of failing whole. The strict
+        enumeration readers keep their fail-closed law unchanged; there is no second,
+        inconsistent validator here.
         """
         if record_type not in _ALLOWED_RECORD_NAMES:
             raise ContractValidationError("unknown Phase-0 shadow record type")
         with self._connect() as connection:
             rows = connection.execute(
                 f"""
-                SELECT record_digest, canonical_bytes
+                SELECT record_digest, record_type, schema_version, canonical_bytes,
+                       authority_phase, authority_state, execution_authority
                 FROM {_SHADOW_TABLE}
                 WHERE record_type = ?
                 ORDER BY record_digest
@@ -349,25 +357,25 @@ class RoutingAuthorityV2ShadowStore:
             ).fetchall()
         payloads: list[tuple[str, bytes]] = []
         anomalous = 0
-        for digest, payload in rows:
-            if isinstance(digest, str) and _DIGEST_RE.fullmatch(digest) and isinstance(
-                payload, (bytes, bytearray, memoryview)
-            ):
-                payloads.append((digest, bytes(payload)))
-            else:
+        for row in rows:
+            try:
+                _validate_stored_shadow_row(row)
+            except ShadowStoreIntegrityError:
                 anomalous += 1
+                continue
+            payloads.append((str(row[0]), bytes(row[3])))
         return ShadowPayloadCensus(
             payloads=tuple(payloads), anomalous_rows=anomalous
         )
 
     def list_shadow_payloads(self, *, record_type: str) -> tuple[tuple[str, bytes], ...]:
-        """``(record_digest, canonical_bytes)`` for every WELL-FORMED row of ONE type.
+        """``(record_digest, canonical_bytes)`` for every INTEGRITY-VERIFIED row of ONE type.
 
         Convenience view over :meth:`shadow_payload_census` for callers that only need
-        the parseable payloads. A store also holding anomalous rows (storage types or
-        digest shapes that violate the declared contract) is invisible to this listing —
-        deletion-time attribution must use the census so those rows are counted, not
-        silently skipped as if the sink were fully verified.
+        attributable payloads. A store also holding rejected rows (bytes their stored
+        digest cannot vouch for, storage-shape or digest violations) is invisible to this
+        listing — deletion-time attribution must use the census so those rows are counted,
+        not silently skipped as if the sink were fully verified.
         """
         return self.shadow_payload_census(record_type=record_type).payloads
 
