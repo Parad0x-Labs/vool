@@ -2051,6 +2051,21 @@ def delete_conversation_session(session_id: str) -> bool:
     if namespace is not None and namespace.lifecycle_state != "deleted":
         set_chat_namespace_state(sid, "deleted")
         removed = True
+    # Routing telemetry is part of the chat's durable record: the same folded identity the
+    # routing owner keys on is removed from BOTH of its sinks (JSONL + shadow sqlite). The
+    # namespace flip above arms the record-time guard, so an in-flight or later write for this
+    # chat cannot resurrect what this purge removes. Best-effort HERE by design — a telemetry
+    # fault must not undo the transcript erasure above — with the typed result carrying the
+    # failure: the served routes re-run this purge as verification and surface a warning when
+    # it did not complete, so the failure is reported, never swallowed as success.
+    try:
+        from core.routing_decision_log import purge_session_routing_telemetry
+
+        purge = purge_session_routing_telemetry(sid)
+        if purge.jsonl_rows_removed or purge.shadow_rows_removed:
+            removed = True
+    except Exception:
+        pass
     return removed
 
 
