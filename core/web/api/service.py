@@ -267,6 +267,39 @@ def apply_runtime_headers(response: ApiResponse, runtime: RuntimeServices) -> Ap
     return response
 
 
+def _routing_telemetry_delete_warning(session_id: str) -> str:
+    """Verify a deleted chat's routing telemetry is gone from both sinks; "" when it is.
+
+    The deletion owner already purged the JSONL + shadow rows; this idempotent re-run is
+    the route's verification (and a retry when the first pass hit a transient fault). A
+    non-empty string means the delete response must NOT claim complete erasure: sink
+    faults, or corrupted shadow rows whose session could not be identified and were
+    therefore preserved rather than discarded with the whole log.
+    """
+    try:
+        from core.routing_decision_log import purge_session_routing_telemetry
+
+        result = purge_session_routing_telemetry(session_id)
+    except Exception as exc:
+        return (
+            "chat deleted, but its routing telemetry could not be verified "
+            f"({exc}); retry the delete once storage is fixed"
+        )
+    if not result.ok:
+        return (
+            "chat deleted, but its routing telemetry could not be fully removed "
+            f"({'; '.join(result.errors) or 'unknown fault'}); "
+            "retry the delete once storage is fixed"
+        )
+    if result.shadow_rows_unattributable:
+        return (
+            "chat deleted and its routing telemetry removed, but the shadow store holds "
+            f"{result.shadow_rows_unattributable} corrupted record(s) whose session could not "
+            "be identified; they were preserved, not deleted"
+        )
+    return ""
+
+
 def _qint(query: dict[str, list[str]], key: str, default: int) -> int:
     """A query int parsed fail-soft: a non-numeric ?limit=abc yields the default instead of an
     unhandled 500. Callers that need to reject bad input can validate the result separately."""
@@ -6473,6 +6506,12 @@ def _dispatch_post_inner(
                             "chat deleted, but its bypass revocation could not be recorded durably "
                             f"({exc}); if the app restarts before storage is fixed, revoke bypass again"
                         )
+                    # Routing telemetry is part of erasure now: verify it actually went
+                    # (idempotent retry of the purge the deletion owner already ran) and say
+                    # so when it did not — the response must not claim complete erasure with
+                    # routing rows still on disk.
+                    telemetry_warning = _routing_telemetry_delete_warning(session_id)
+                    warnings = [w for w in (authority_warning, telemetry_warning) if w]
                     return apply_runtime_headers(
                         json_response(
                             200,
@@ -6482,7 +6521,7 @@ def _dispatch_post_inner(
                                 "lifecycle_state": (
                                     updated_namespace.lifecycle_state
                                 ),
-                                **({"warning": authority_warning} if authority_warning else {}),
+                                **({"warning": "; ".join(warnings)} if warnings else {}),
                             },
                         ),
                         runtime,
@@ -6606,6 +6645,10 @@ def _dispatch_post_inner(
                     "chat deleted, but its bypass revocation could not be recorded durably "
                     f"({exc}); if the app restarts before storage is fixed, revoke bypass again"
                 )
+            # Same law as the lifecycle route: the deletion response must not claim complete
+            # erasure while the chat's routing telemetry is still on disk.
+            telemetry_warning = _routing_telemetry_delete_warning(session_id)
+            warnings = [w for w in (authority_warning, telemetry_warning) if w]
             return apply_runtime_headers(
                 json_response(
                     200,
@@ -6615,6 +6658,7 @@ def _dispatch_post_inner(
                         "lifecycle_state": (
                             "deleted" if namespace is not None else "missing"
                         ),
+                        **({"warning": "; ".join(warnings)} if warnings else {}),
                     },
                 ),
                 runtime,

@@ -400,4 +400,9 @@ def test_every_prompt_allow_deny_and_resume_lands_in_the_routing_ledger(tmp_path
     assert "approval_project_grant" in _approval_families()
 
     rows = [row for row in routing_decision_log.recent_decisions(200) if str(row.get("family") or "").startswith("approval")]
-    assert rows and all(row.get("ts") and "session_id" in row and "message" in row and "handled" in row for row in rows)
+    # Schema 2: the ledger row is structured metadata — ts/session correlation and the
+    # diagnostic labels, no message column (alert 155's projection).
+    assert rows and all(
+        row.get("ts") and "session_id" in row and "handled" in row and "message" not in row
+        for row in rows
+    )
