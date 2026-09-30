@@ -176,6 +176,110 @@ def test_noncanonical_handle_correlates_to_the_same_folded_identity():
     assert folded not in _jsonl_refs() and folded not in _shadow_refs()
 
 
+def test_deleted_chat_cannot_be_resurrected_by_either_handle_spelling():
+    """The erasure authority owns the chat's identity, not one spelling of it.
+
+    A namespace ensured under a raw native handle is deleted through that handle; a later
+    diagnostic write that arrives already-folded (or under any other spelling of the same
+    chat) must be suppressed exactly like the raw one — the folded form must not step
+    around a tombstone stored under the raw handle, and vice versa."""
+    from core.chat_session_identity import canonical_chat_session_id
+
+    raw = "review-alias"
+    folded = canonical_chat_session_id(raw)
+    ensure_chat_namespace(raw, grant_current_receipts=False)
+    rdl.record_decision(session_id=raw, user_input="turn", family="f", handled=True)
+    assert delete_conversation_session(raw) is True
+
+    # folded -> raw: the tombstone lives under the raw handle
+    rdl.record_decision(session_id=folded, user_input="late folded", family="f", handled=True)
+    assert _jsonl_refs() == [] and _shadow_refs() == []
+    assert "late folded" not in rdl.decisions_path().read_text()
+
+    # raw -> folded: a chat whose identity has namespace rows under BOTH spellings
+    # (desktop canonical id + the native handle that folds to it) is deleted through
+    # the folded one; a late raw-spelling write is suppressed by the same identity.
+    # Limit, stated: deleting through a spelling that has NO namespace row flips no
+    # lifecycle state at all — that chat-existence semantic is the deletion owner's,
+    # unchanged here; telemetry follows the identity once any spelling is deleted.
+    raw2 = "another-native-handle"
+    folded2 = canonical_chat_session_id(raw2)
+    ensure_chat_namespace(raw2, grant_current_receipts=False)
+    ensure_chat_namespace(folded2, grant_current_receipts=False)
+    rdl.record_decision(session_id=raw2, user_input="turn two", family="f", handled=True)
+    assert delete_conversation_session(folded2) is True
+    rdl.record_decision(session_id=raw2, user_input="late raw", family="f", handled=True)
+    assert folded2 not in _jsonl_refs() and folded2 not in _shadow_refs()
+
+
+def test_namespace_store_unreadable_fails_closed_for_telemetry(monkeypatch):
+    """An unreadable erasure authority must not re-enable optional diagnostic persistence.
+
+    The chat below is genuinely deleted; the namespace read then faults. Telemetry is
+    optional, so it declines to record — the turn itself is unaffected (record_decision
+    never raises). A LIVE chat's namespace row is never consulted as a fallback."""
+    import core.context_namespace as cn
+
+    _seed_chat(_A)
+    _seed_chat(_B)
+    assert delete_conversation_session(_A) is True
+
+    def unavailable(_chat_id):
+        raise OSError("synthetic namespace read failure")
+
+    monkeypatch.setattr(cn, "load_chat_namespace", unavailable)
+    rdl.record_decision(session_id=_A, user_input="no rows for the dead", family="f", handled=True)
+    rdl.record_decision(session_id=_B, user_input="no rows while the authority is down",
+                        family="f", handled=True)
+    monkeypatch.undo()
+    # the deleted chat gained nothing; the live chat also recorded nothing while the
+    # authority was unreadable — fail-closed, never fail-open
+    assert _A not in _jsonl_refs() and _A not in _shadow_refs()
+    assert _B not in _jsonl_refs() and _B not in _shadow_refs()
+    # the authority recovering restores normal recording for the LIVE chat
+    rdl.record_decision(session_id=_B, user_input="authority back", family="f", handled=True)
+    assert _B in _jsonl_refs() and _B in _shadow_refs()
+
+
+def test_identity_resolution_covers_namespaces_created_before_the_canonical_column():
+    """A namespace row from before the canonical_id column still resolves by identity.
+
+    Simulates the upgrade path exactly: a legacy row stored with an empty canonical_id in
+    a database whose one-time backfill marker does not exist yet (as an older build left
+    it). The first schema ensure after the upgrade backfills it, so a folded-spelling
+    late write for the deleted chat is suppressed."""
+    import sqlite3
+
+    from core.chat_session_identity import canonical_chat_session_id
+    from storage.db import active_default_db_path
+
+    raw = "pre-upgrade-handle"
+    folded = canonical_chat_session_id(raw)
+    ensure_chat_namespace(raw, grant_current_receipts=False)
+    # age the database: empty canonical_id and no backfill marker, as a pre-upgrade
+    # build stored both
+    with sqlite3.connect(active_default_db_path()) as conn:
+        conn.execute(
+            "UPDATE context_namespaces SET canonical_id = '' WHERE chat_id = ?", (raw,)
+        )
+        conn.execute(
+            "DELETE FROM context_namespace_schema_meta WHERE key = 'canonical_id_backfill'"
+        )
+    # the first post-upgrade schema ensure runs the one-time backfill
+    import core.context_namespace as cn
+
+    cn.ensure_context_namespace_schema()
+    with sqlite3.connect(active_default_db_path()) as conn:
+        stored = conn.execute(
+            "SELECT canonical_id FROM context_namespaces WHERE chat_id = ?", (raw,)
+        ).fetchone()[0]
+    assert stored == folded
+
+    assert delete_conversation_session(raw) is True
+    rdl.record_decision(session_id=folded, user_input="late after upgrade", family="f", handled=True)
+    assert _jsonl_refs() == [] and _shadow_refs() == []
+
+
 def test_corrupted_legacy_shadow_row_is_preserved_counted_and_never_discards_the_log():
     _seed_chat(_A)
     _seed_chat(_B)

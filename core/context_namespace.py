@@ -64,6 +64,7 @@ def ensure_context_namespace_schema() -> None:
             """
             CREATE TABLE IF NOT EXISTS context_namespaces (
                 chat_id TEXT PRIMARY KEY,
+                canonical_id TEXT NOT NULL DEFAULT '',
                 project_id TEXT NOT NULL DEFAULT '',
                 lifecycle_state TEXT NOT NULL DEFAULT 'active',
                 parent_chat_id TEXT NOT NULL DEFAULT '',
@@ -75,6 +76,9 @@ def ensure_context_namespace_schema() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_context_namespaces_project_state
                 ON context_namespaces(project_id, lifecycle_state);
+
+            CREATE INDEX IF NOT EXISTS idx_context_namespaces_canonical
+                ON context_namespaces(canonical_id, lifecycle_state);
 
             CREATE TABLE IF NOT EXISTS context_import_grants (
                 grant_id TEXT PRIMARY KEY,
@@ -91,8 +95,49 @@ def ensure_context_namespace_schema() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_context_import_grants_chat_active
                 ON context_import_grants(chat_id, revoked_at);
+
+            CREATE TABLE IF NOT EXISTS context_namespace_schema_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             """
         )
+        # The canonical identity each chat_id folds to (core.chat_session_identity). New
+        # tables get the column in-column; an existing install gets a guarded ALTER plus
+        # a ONE-TIME marker-gated backfill, so erasure decisions can resolve a chat by
+        # ANY handle spelling without scanning the table. After the first ensure the only
+        # recurring cost is one indexed meta read.
+        columns = {
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(context_namespaces)")
+        }
+        if "canonical_id" not in columns:
+            conn.execute(
+                "ALTER TABLE context_namespaces"
+                " ADD COLUMN canonical_id TEXT NOT NULL DEFAULT ''"
+            )
+        backfilled = conn.execute(
+            "SELECT value FROM context_namespace_schema_meta"
+            " WHERE key = 'canonical_id_backfill'"
+        ).fetchone()
+        if backfilled is None:
+            from core.chat_session_identity import canonical_chat_session_id
+
+            stale = conn.execute(
+                "SELECT chat_id FROM context_namespaces WHERE canonical_id = ''"
+            ).fetchall()
+            for row in stale:
+                conn.execute(
+                    "UPDATE context_namespaces SET canonical_id = ? WHERE chat_id = ?",
+                    (
+                        canonical_chat_session_id(str(row["chat_id"])),
+                        str(row["chat_id"]),
+                    ),
+                )
+            conn.execute(
+                "INSERT OR REPLACE INTO context_namespace_schema_meta(key, value)"
+                " VALUES ('canonical_id_backfill', '1')"
+            )
         conn.commit()
     finally:
         conn.close()
@@ -108,6 +153,8 @@ def ensure_chat_namespace(
     grant_current_receipts: bool = True,
 ) -> ContextNamespace:
     """Create a namespace once, without silently replacing its identity."""
+    from core.chat_session_identity import canonical_chat_session_id
+
     clean_chat = _clean_id(chat_id, field="chat_id")
     clean_project = str(project_id or "").strip()
     clean_parent = str(parent_chat_id or "").strip()
@@ -118,11 +165,23 @@ def ensure_chat_namespace(
         conn.execute(
             """
             INSERT OR IGNORE INTO context_namespaces (
-                chat_id, project_id, lifecycle_state, parent_chat_id,
+                chat_id, canonical_id, project_id, lifecycle_state, parent_chat_id,
                 branch_turn, created_at, updated_at
-            ) VALUES (?, ?, 'active', ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?)
             """,
-            (clean_chat, clean_project, clean_parent, branch_turn, now, now),
+            (clean_chat, canonical_chat_session_id(clean_chat),
+             clean_project, clean_parent, branch_turn, now, now),
+        )
+        # A row created by an older build carries no canonical_id yet; the one-time
+        # backfill in the schema ensure covers the whole table, and this single-row
+        # heal covers a row that a mixed-version process re-ensures as ''.
+        conn.execute(
+            """
+            UPDATE context_namespaces
+            SET canonical_id = ?
+            WHERE chat_id = ? AND canonical_id = ''
+            """,
+            (canonical_chat_session_id(clean_chat), clean_chat),
         )
         if clean_project:
             conn.execute(
@@ -189,6 +248,53 @@ def load_chat_namespace(chat_id: str) -> ContextNamespace | None:
         created_at=str(payload.get("created_at") or ""),
         updated_at=str(payload.get("updated_at") or ""),
     )
+
+
+def chat_namespace_ids_for_identity(chat_id: str) -> list[str]:
+    """Every namespace ``chat_id`` key that names the SAME chat as ``chat_id``.
+
+    The identity authority (``core.chat_session_identity``) folds any handle into one
+    canonical id, so one chat is addressable by more than one spelling: the native handle
+    a door ensured it under, and the canonical id that handle folds to. This resolves the
+    concrete keys under which that chat's namespace row(s) are stored — the exact handle
+    plus every row whose recorded ``canonical_id`` matches — through one indexed query, so
+    a caller can consult the chat's lifecycle by ANY spelling without scanning the table.
+    """
+    handle = str(chat_id or "").strip()
+    if not handle:
+        return []
+    from core.chat_session_identity import canonical_chat_session_id
+
+    canonical = canonical_chat_session_id(handle)
+    ensure_context_namespace_schema()
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT chat_id FROM context_namespaces
+            WHERE chat_id = ? OR (canonical_id = ? AND canonical_id != '')
+            ORDER BY chat_id
+            """,
+            (handle, canonical),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [str(row["chat_id"]) for row in rows]
+
+
+def chat_namespace_deleted_for_identity(chat_id: str) -> bool:
+    """True when a namespace naming THIS chat identity is lifecycle-``deleted``.
+
+    Every candidate spelling resolves through :func:`load_chat_namespace`, so the durable
+    lifecycle state — never a parallel cache — is what answers. Storage faults are NOT
+    absorbed here: "the erasure authority cannot be read" is the caller's fail-closed
+    decision to make, not a silent ``False`` ("not deleted") from this owner.
+    """
+    for candidate in chat_namespace_ids_for_identity(chat_id):
+        namespace = load_chat_namespace(candidate)
+        if namespace is not None and namespace.lifecycle_state == "deleted":
+            return True
+    return False
 
 
 def authoritative_chat_workspace(chat_id: str) -> tuple[str, str]:

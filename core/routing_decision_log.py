@@ -127,21 +127,27 @@ def _session_telemetry_suppressed(folded_ref: str, raw_handle: str) -> bool:
     The ONE erasure authority for chat existence is the namespace lifecycle: both served
     delete doors flip it to ``deleted`` BEFORE erasing the transcript, the state is durable
     and irreversible, and ``delete_conversation_session`` flips it too. That authority —
-    not a new tombstone manager — is what a late or in-flight write is checked against. An
-    unreadable namespace store must not change turn telemetry: the answer is "not deleted"
-    and the deletion path reports its own faults honestly elsewhere.
+    not a new tombstone manager — is what a late or in-flight write is checked against.
+
+    Identity is resolved by CHAT, not by spelling: a native handle and the canonical id it
+    folds to are one chat, and the guard consults the namespace owner's identity
+    resolution, so a write under either spelling of a deleted chat is suppressed — a
+    folded-handle late write can no longer step around a tombstone stored under the raw
+    handle. FAIL-CLOSED: when the erasure authority cannot answer — an unreadable or
+    faulting namespace store — the answer is "suppressed". Optional diagnostic persistence
+    must not be re-enabled by a fault; the model turn itself is unaffected (this owner
+    never raises into it).
     """
     try:
-        from core.context_namespace import load_chat_namespace
+        from core.context_namespace import chat_namespace_deleted_for_identity
 
         for handle in dict.fromkeys((folded_ref, str(raw_handle or "").strip())):
             if not handle:
                 continue
-            namespace = load_chat_namespace(handle)
-            if namespace is not None and namespace.lifecycle_state == "deleted":
+            if chat_namespace_deleted_for_identity(handle):
                 return True
     except Exception:
-        return False
+        return True
     return False
 
 
