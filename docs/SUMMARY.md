@@ -22,6 +22,7 @@
 * [Connect OpenRouter](guides/openrouter.md)
 * [Code with VOOL](guides/coding.md)
 * [Skills and plugins](guides/skills-and-plugins.md)
+* [Add-on security](guides/addon-security.md)
 * [Spending limits and price guards](guides/spending-limits.md)
 * [Wallet](guides/wallet.md)
 * [Contacts](guides/contacts.md)
