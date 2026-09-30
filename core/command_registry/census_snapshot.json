@@ -715,6 +715,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/addons": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/addons",
+      "note": "add-on lane read feed (bundled and installed catalogue)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/bug-report/candidates": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/bug-report/candidates",
@@ -1699,6 +1706,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/adaptation/loop/tick",
       "note": "adaptation lane (gated internally)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/addons": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/addons",
+      "note": "add-on lane operator surface family (review/install/risk acceptance, Eyebrow key and scan consent; its own loopback and approval gates)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2902,7 +2916,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 281,
+    "EXTERNAL_TRANSPORT_ONLY": 283,
     "GENERATED_ADAPTER": 124,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
