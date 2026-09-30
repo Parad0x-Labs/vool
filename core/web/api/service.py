@@ -273,8 +273,10 @@ def _routing_telemetry_delete_warning(session_id: str) -> str:
     The deletion owner already purged the JSONL + shadow rows; this idempotent re-run is
     the route's verification (and a retry when the first pass hit a transient fault). A
     non-empty string means the delete response must NOT claim complete erasure: sink
-    faults, or corrupted shadow rows whose session could not be identified and were
-    therefore preserved rather than discarded with the whole log.
+    faults, corrupted shadow rows whose session could not be identified (preserved, not
+    discarded with the whole log), or corrupted JSONL lines naming this chat that could
+    not be parsed (preserved byte-identical — they may still carry this chat's old
+    message text).
     """
     try:
         from core.routing_decision_log import purge_session_routing_telemetry
@@ -296,6 +298,13 @@ def _routing_telemetry_delete_warning(session_id: str) -> str:
             "chat deleted and its routing telemetry removed, but the shadow store holds "
             f"{result.shadow_rows_unattributable} corrupted record(s) whose session could not "
             "be identified; they were preserved, not deleted"
+        )
+    if result.jsonl_rows_unattributable:
+        return (
+            "chat deleted, but the routing log still holds "
+            f"{result.jsonl_rows_unattributable} corrupted line(s) naming this chat that "
+            "could not be parsed; they were preserved byte-identical, not deleted — they "
+            "may still contain this chat's old message text"
         )
     return ""
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
@@ -65,6 +66,23 @@ _SCHEMA_DISCRIMINATOR_CHECK = " OR ".join(
 
 class ShadowStoreIntegrityError(RuntimeError):
     """Persisted shadow bytes disagree with their typed canonical identity."""
+
+
+@dataclass(frozen=True)
+class ShadowPayloadCensus:
+    """One approved type's rows split by whether their storage shapes are well-formed.
+
+    ``payloads`` are the ``(record_digest, canonical_bytes)`` pairs whose digest and
+    payload columns match the declared shapes; ``anomalous_rows`` counts everything else
+    of that type — a TEXT ``canonical_bytes`` (legal to SQLite despite the BLOB
+    affinity) or an invalid digest spelling. Anomalous rows are never attributed from
+    and never deleted by the chat-deletion seam: their bytes are not what their digest
+    vouches for, so their session cannot be established soundly — they are preserved
+    and reported so the deletion door can say verification was incomplete.
+    """
+
+    payloads: tuple[tuple[str, bytes], ...] = ()
+    anomalous_rows: int = 0
 
 
 def _closed_phase0_record_payload(record: AuthorityRecord) -> tuple[bytes, str, int]:
@@ -306,15 +324,16 @@ class RoutingAuthorityV2ShadowStore:
             if record_type is None or record_type == record.RECORD_TYPE
         )
 
-    def list_shadow_payloads(self, *, record_type: str) -> tuple[tuple[str, bytes], ...]:
-        """``(record_digest, canonical_bytes)`` for every row of ONE approved type, unvalidated.
+    def shadow_payload_census(self, *, record_type: str) -> ShadowPayloadCensus:
+        """Well-formed payloads of ONE approved type, plus the count of anomalous rows.
 
         The deletion-time attribution read: unlike :meth:`list_shadow_record_digests`
         this does NOT strictly validate each row, because a store holding a corrupted
         row must still let its owner enumerate the rest and decide attribution — the
         strict readers keep their integrity law unchanged. Rows whose digest or payload
-        columns are not well-formed are skipped by this listing and surface to the
-        deletion caller as unattributable counts, never as a whole-store failure.
+        columns violate their declared shapes are NOT silently dropped: they are counted
+        as ``anomalous_rows`` (see :class:`ShadowPayloadCensus`) so the deletion owner
+        reports incomplete verification instead of claiming the whole sink was removed.
         """
         if record_type not in _ALLOWED_RECORD_NAMES:
             raise ContractValidationError("unknown Phase-0 shadow record type")
@@ -329,12 +348,28 @@ class RoutingAuthorityV2ShadowStore:
                 (record_type,),
             ).fetchall()
         payloads: list[tuple[str, bytes]] = []
+        anomalous = 0
         for digest, payload in rows:
             if isinstance(digest, str) and _DIGEST_RE.fullmatch(digest) and isinstance(
                 payload, (bytes, bytearray, memoryview)
             ):
                 payloads.append((digest, bytes(payload)))
-        return tuple(payloads)
+            else:
+                anomalous += 1
+        return ShadowPayloadCensus(
+            payloads=tuple(payloads), anomalous_rows=anomalous
+        )
+
+    def list_shadow_payloads(self, *, record_type: str) -> tuple[tuple[str, bytes], ...]:
+        """``(record_digest, canonical_bytes)`` for every WELL-FORMED row of ONE type.
+
+        Convenience view over :meth:`shadow_payload_census` for callers that only need
+        the parseable payloads. A store also holding anomalous rows (storage types or
+        digest shapes that violate the declared contract) is invisible to this listing —
+        deletion-time attribution must use the census so those rows are counted, not
+        silently skipped as if the sink were fully verified.
+        """
+        return self.shadow_payload_census(record_type=record_type).payloads
 
     def delete_shadow_records(self, *, record_type: str, record_digests: tuple[str, ...]) -> int:
         """Delete WHOLE rows by digest, restricted to ONE approved record type.

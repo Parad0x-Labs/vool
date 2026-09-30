@@ -175,6 +175,7 @@ class TelemetryPurgeResult:
     jsonl_rows_removed: int
     shadow_rows_removed: int
     shadow_rows_unattributable: int
+    jsonl_rows_unattributable: int = 0
     errors: tuple[str, ...] = ()
 
     @property
@@ -186,6 +187,11 @@ class TelemetryPurgeResult:
             f"jsonl rows removed: {self.jsonl_rows_removed}",
             f"shadow rows removed: {self.shadow_rows_removed}",
         ]
+        if self.jsonl_rows_unattributable:
+            parts.append(
+                f"jsonl lines preserved (corrupted, naming this chat): "
+                f"{self.jsonl_rows_unattributable}"
+            )
         if self.shadow_rows_unattributable:
             parts.append(
                 f"shadow rows preserved (corrupted, session unidentifiable): "
@@ -375,19 +381,25 @@ def purge_session_routing_telemetry(session_id: str) -> TelemetryPurgeResult:
 
     Failure behavior is typed, bounded and reported — never a raised exception into the
     caller's erasure flow, never a swallowed success: ``errors`` names each sink fault and
-    ``ok`` is False while any remains. A corrupted shadow row whose session cannot be
-    identified is preserved (never silently discarded with the whole log) and counted in
-    ``shadow_rows_unattributable``.
+    ``ok`` is False while any remains. Corruption is accounted, not papered over: a
+    corrupted shadow row whose session cannot be identified — including rows whose
+    storage shapes violate the store's declared contract, whose bytes their digest cannot
+    vouch for — is preserved (never silently discarded with the whole log) and counted in
+    ``shadow_rows_unattributable``; a malformed JSONL line that NAMES this chat but cannot
+    be parsed is preserved byte-identical and counted in ``jsonl_rows_unattributable``.
+    Either count means the served delete door must report incomplete verification: the
+    sinks still hold a record this purge could not soundly remove.
     """
     match_ref = _fold_session_ref(session_id)
     if not match_ref:
-        return TelemetryPurgeResult("", 0, 0, 0, ("empty session id"))
+        return TelemetryPurgeResult("", 0, 0, 0)
     errors: list[str] = []
     jsonl_removed = 0
+    jsonl_unattributable = 0
     shadow_removed = 0
     shadow_unattributable = 0
     try:
-        jsonl_removed = _remove_jsonl_rows_for_session(match_ref)
+        jsonl_removed, jsonl_unattributable = _remove_jsonl_rows_for_session(match_ref)
     except Exception as exc:
         errors.append(f"jsonl: {exc}")
     try:
@@ -399,28 +411,52 @@ def purge_session_routing_telemetry(session_id: str) -> TelemetryPurgeResult:
         jsonl_rows_removed=jsonl_removed,
         shadow_rows_removed=shadow_removed,
         shadow_rows_unattributable=shadow_unattributable,
+        jsonl_rows_unattributable=jsonl_unattributable,
         errors=tuple(errors),
     )
 
 
-def _remove_jsonl_rows_for_session(match_ref: str) -> int:
+def _split_jsonl_bytes(raw: bytes) -> tuple[list[bytes], bool]:
+    """Split raw log bytes into lines on ``\\n`` only, remembering the trailing newline.
+
+    Binary on purpose: a ``str.splitlines()`` view would also cut on ``\\r``, ``\\x85`` and
+    the Unicode line separators, and an ``errors="replace"`` decode would rewrite invalid
+    UTF-8 — both would silently change the bytes of lines this owner promises to preserve
+    verbatim. Only ``\\n`` is a row separator here (this owner writes ``\\n``-terminated
+    UTF-8), so every other byte survives exactly as stored.
+    """
+    segments = raw.split(b"\n")
+    had_trailing_newline = segments[-1] == b""
+    lines = segments[:-1] if had_trailing_newline else segments
+    return lines, had_trailing_newline
+
+
+def _remove_jsonl_rows_for_session(match_ref: str) -> tuple[int, int]:
     """Drop the matching session's rows from the JSONL; preserve everything else verbatim.
 
-    Atomic rewrite under the append lock (same single-process locking law as rotation):
-    malformed lines and other sessions' rows are copied byte-identical, so a delete never
-    rewrites or "repairs" rows it has no authority over.
+    Atomic rewrite under the append lock (same single-process locking law as rotation).
+    Malformed lines and other sessions' rows are copied BYTE-identical — the rewrite
+    works on raw bytes and splits only on ``\\n`` — so a delete never rewrites or
+    "repairs" rows it has no authority over, whatever their encoding damage. A malformed
+    line that NAMES this chat (the folded id appears in its bytes) is preserved too, but
+    counted as unattributable: it may carry this chat's old plaintext, and reporting it
+    beats either silently keeping it or deleting half-understood bytes.
     """
     path = decisions_path()
     if not path.exists():
-        return 0
+        return 0, 0
+    match_bytes = match_ref.encode("utf-8")
     with _LOG_LOCK:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        kept: list[str] = []
+        lines, had_trailing_newline = _split_jsonl_bytes(path.read_bytes())
+        kept: list[bytes] = []
         removed = 0
+        unattributable = 0
         for line in lines:
             try:
-                row = json.loads(line)
+                row = json.loads(line.decode("utf-8", "replace"))
             except ValueError:
+                if match_bytes in line:
+                    unattributable += 1
                 kept.append(line)
                 continue
             if isinstance(row, dict) and str(row.get("session_id") or "") == match_ref:
@@ -428,31 +464,33 @@ def _remove_jsonl_rows_for_session(match_ref: str) -> int:
             else:
                 kept.append(line)
         if not removed:
-            return 0
+            return removed, unattributable
+        out = b"\n".join(kept) + (b"\n" if (had_trailing_newline and kept) else b"")
         tmp = path.with_name(path.name + ".purge.tmp")
-        tmp.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        tmp.write_bytes(out)
         os.replace(tmp, path)
-        return removed
+        return removed, unattributable
 
 
 def _remove_shadow_rows_for_session(match_ref: str) -> tuple[int, int]:
     """Delete the matching session's ``RoutingDecisionShadowV2`` rows; count the unattributable.
 
-    Enumeration is deliberately unvalidated: a row that fails strict validation is still
-    enumerable so its attribution can be decided. A row whose payload cannot be parsed has
-    no identifiable session — it is preserved and counted, because deleting an
-    unattributable row could discard another chat's (or another type's) record, and
-    keeping it leaves evidence a corrupted store exists. Deletion itself is by digest,
-    restricted to the one record type, in one transaction.
+    Attribution reads the store's CENSUS, not the well-formed-only listing: every row of
+    the type is accounted for. A row whose payload cannot be parsed has no identifiable
+    session — it is preserved and counted, because deleting an unattributable row could
+    discard another chat's (or another type's) record, and keeping it leaves evidence a
+    corrupted store exists. Rows whose digest or storage shapes violate the declared
+    contract are counted the same way: their bytes are not what their digest vouches for,
+    so a session_ref parsed out of them would be trusting rewritten bytes. Deletion is by
+    digest, restricted to the one record type, in one transaction.
     """
     import json as _json
 
     store = _shadow_store()
+    census = store.shadow_payload_census(record_type="RoutingDecisionShadowV2")
     digests: list[str] = []
-    unattributable = 0
-    for digest, payload in store.list_shadow_payloads(
-        record_type="RoutingDecisionShadowV2"
-    ):
+    unattributable = census.anomalous_rows
+    for digest, payload in census.payloads:
         try:
             row = _json.loads(payload.decode("utf-8", "replace"))
         except ValueError:
