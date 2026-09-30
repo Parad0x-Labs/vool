@@ -399,14 +399,26 @@ def test_shadow_storage_type_violations_are_counted_preserved_and_warned():
     _seed_chat(_B)
     rdl.record_decision(session_id=_A, user_input="a turn", family="f", handled=True)
     rdl.record_decision(session_id=_B, user_input="b turn", family="f", handled=True)
-    # rewrite ONLY the deleted chat's row as TEXT — exactly what SQLite permits
+    # rewrite ONLY the deleted chat's row as TEXT — exactly what SQLite permits. The
+    # victim is addressed by its digest (the table's PRIMARY KEY), never by byte
+    # content: LIKE never matches a BLOB on SQLite builds compiled with
+    # SQLITE_LIKE_DOESNT_MATCH_BLOBS (Debian/Ubuntu), so a content-keyed UPDATE
+    # silently rewrites nothing there and the corruption never happens.
+    store = RoutingAuthorityV2ShadowStore(db)
+    victim_digests = [
+        digest
+        for digest, payload in store.list_shadow_payloads(record_type="RoutingDecisionShadowV2")
+        if _A.encode("utf-8") in payload
+    ]
+    assert len(victim_digests) == 1
     with sqlite3.connect(str(db)) as conn:
-        conn.execute(
+        cursor = conn.execute(
             "UPDATE routing_authority_v2_shadow_records SET canonical_bytes=?"
             " WHERE record_type='RoutingDecisionShadowV2'"
-            " AND canonical_bytes LIKE ?",
-            (json.dumps({"session_ref": _A}), f"%{_A}%"),
+            " AND record_digest=?",
+            (json.dumps({"session_ref": _A}), victim_digests[0]),
         )
+    assert cursor.rowcount == 1  # the intended mutation executed exactly once
 
     result = rdl.purge_session_routing_telemetry(_A)
     assert result.shadow_rows_unattributable == 1  # counted, not skipped
