@@ -22,6 +22,20 @@ from core.eyebrow_client import KEY_NAME, AddonError, fetch_bytes, request_api, 
 _LOCK = threading.RLock()
 PREFIX = "discover-"
 _LOCAL_REPORT_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,99}\Z")
+# Every path component this lane builds from a request- or receipt-supplied string goes through
+# _safe_component: basename first (a separator or '..' can never survive it), then a strict
+# allow-list fullmatch. The saved receipts are additionally MAC-verified on read, so a forged
+# entry cannot smuggle a component past this barrier either.
+_COMPONENT_ID = r"[a-z0-9][a-z0-9-]{0,63}"
+
+
+def _safe_component(value: object, pattern: str, code: str, message: str, status: int | None = None) -> str:
+    name = os.path.basename(str(value))
+    if not re.fullmatch(pattern, name):
+        if status is None:
+            raise AddonError(code, message)
+        raise AddonError(code, message, status)
+    return name
 
 
 def _root() -> Path:
@@ -67,6 +81,8 @@ def _read(path: Path) -> dict:
 
 
 def _entry(identifier: str) -> dict:
+    identifier = _safe_component(identifier, r"github-[a-f0-9]{24}|" + _COMPONENT_ID,
+                                 "addon_unknown", "This add-on is not in the curated catalogue.",)
     if re.fullmatch(r"github-[a-f0-9]{24}", identifier):
         path = _root() / "discovered" / (identifier + ".json")
         if path.exists():
@@ -98,8 +114,8 @@ def is_managed(plugin_id: str) -> bool:
 
 
 def _installed_receipt(plugin_id: str) -> Path:
-    if not re.fullmatch(r"discover-[a-z0-9-]+", plugin_id):
-        raise AddonError("addon_unknown", "Invalid add-on identity.")
+    plugin_id = _safe_component(plugin_id, r"discover-[a-z0-9][a-z0-9-]{0,99}",
+                                "addon_unknown", "Invalid add-on identity.")
     return _root() / "installed" / (plugin_id + ".json")
 
 
@@ -145,23 +161,27 @@ def reviewed_skill(plugin_id: str, pack: Path):
     """Load the exact scanned snapshot, including when a file changes during a read."""
     from core.plugin_skills import parse_skill_content
     try:
+        plugin_id = _safe_component(plugin_id, r"discover-[a-z0-9][a-z0-9-]{0,99}",
+                                    "addon_unknown", "Invalid add-on identity.")
         if not available(plugin_id, pack):
             return None
         receipt = _read(_installed_receipt(plugin_id))
-        path = pack / "skills" / receipt["entry"]["skill_name"] / "SKILL.md"
+        skill_name = _safe_component(receipt["entry"]["skill_name"], _COMPONENT_ID,
+                                     "review_untrusted", "The saved review is missing or changed. Scan the add-on again.")
+        path = pack / "skills" / skill_name / "SKILL.md"
         content = path.read_bytes()
         if hashlib.sha256(content).hexdigest() != receipt["entry"]["sha256"]:
             return None
         # Provenance sent to a model identifies the add-on, not the user's home directory.
-        shown = Path("addons") / plugin_id / receipt["entry"]["skill_name"] / "SKILL.md"
+        shown = Path("addons") / plugin_id / skill_name / "SKILL.md"
         return parse_skill_content(content.decode("utf-8"), path=shown, plugin_id=plugin_id)
     except Exception:
         return None
 
 
 def _local_report_path(identifier: str) -> Path:
-    if not _LOCAL_REPORT_ID.fullmatch(identifier):
-        raise AddonError("addon_unknown", "This add-on is not in the curated catalogue.", 404)
+    identifier = _safe_component(identifier, _LOCAL_REPORT_ID.pattern,
+                                 "addon_unknown", "This add-on is not in the curated catalogue.", 404)
     return _root() / "local-reports" / (identifier + ".json")
 
 
@@ -327,8 +347,7 @@ def prepare(identifier: str, *, approved: bool) -> dict:
 
 
 def _stage(review_id: str) -> Path:
-    if not re.fullmatch(r"[a-f0-9]{32}", review_id):
-        raise AddonError("invalid_review", "Invalid review identity.")
+    review_id = _safe_component(review_id, r"[a-f0-9]{32}", "invalid_review", "Invalid review identity.")
     stage = _root() / "pending" / review_id
     if stage.is_symlink():
         raise AddonError("invalid_review", "Invalid review location.")
@@ -419,13 +438,19 @@ def install_review(review_id: str, *, accepted: bool, risk_override: bool = Fals
             'source_sha256': entry['sha256'],
             'report_sha256': hashlib.sha256(_canonical(receipt['report'])).hexdigest(),
         }
-        plugin_id = PREFIX + entry["id"]
+        # Receipt fields are MAC-verified, but the components still cross this barrier so a
+        # forged-or-corrupt receipt cannot steer a path even if its MAC somehow matched.
+        safe_entry_id = _safe_component(entry["id"], r"github-[a-f0-9]{24}|" + _COMPONENT_ID,
+                                        "addon_changed", "The reviewed add-on identity is not usable.")
+        safe_skill_name = _safe_component(entry["skill_name"], _COMPONENT_ID,
+                                          "addon_changed", "The reviewed skill name is not usable.")
+        plugin_id = PREFIX + safe_entry_id
         target = configured_plugins_root() / "plugins" / plugin_id
         if target.exists():
             raise AddonError("addon_already_installed", "This add-on is already present. Existing files were preserved.")
         # Assemble without executing anything; the reserved namespace is unavailable until
         # the lifecycle and authenticated review both permit it, including partial failures.
-        skill = target / "skills" / entry["skill_name"] / "SKILL.md"
+        skill = target / "skills" / safe_skill_name / "SKILL.md"
         try:
             skill.parent.mkdir(parents=True)
             skill.write_bytes(content)
@@ -436,7 +461,7 @@ def install_review(review_id: str, *, accepted: bool, risk_override: bool = Fals
             (target / ".codex-plugin" / "plugin.json").write_text(json.dumps(manifest, sort_keys=True))
             receipt.update(plugin_id=plugin_id, pack_digest=lifecycle.manifest_digest(target))
             _write(_installed_receipt(plugin_id), receipt)
-            lifecycle.install(plugin_id, root=target, source="eyebrow-catalog:" + entry["id"])
+            lifecycle.install(plugin_id, root=target, source="eyebrow-catalog:" + safe_entry_id)
             lifecycle.verify(plugin_id, root=target, expected_digest=receipt["pack_digest"])
             lifecycle.enable(plugin_id)
             invalidate_storage_listing()
