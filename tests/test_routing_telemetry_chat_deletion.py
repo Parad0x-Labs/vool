@@ -45,10 +45,17 @@ _B = "openclaw:" + "b" * 20
 
 @pytest.fixture(autouse=True)
 def _isolated_home(tmp_path, monkeypatch):
+    # restore the EXACT prior override — not None — so a caller that pinned its own home
+    # (a nested fixture drive, another lane's setup) gets it back on every exit path
+    prior_home = runtime_paths._VOOL_HOME_OVERRIDE
+    prior_migration_state = rdl._LEGACY_MIGRATION_ATTEMPTED
     monkeypatch.setattr(rdl, "_SHADOW_STORE", None)
-    runtime_paths.configure_runtime_home(tmp_path / "home")
-    yield
-    runtime_paths.configure_runtime_home(None)
+    try:
+        runtime_paths.configure_runtime_home(tmp_path / "home")
+        yield
+    finally:
+        rdl._LEGACY_MIGRATION_ATTEMPTED = prior_migration_state
+        runtime_paths.configure_runtime_home(prior_home)
 
 
 def _jsonl_refs() -> list[str]:
@@ -460,6 +467,57 @@ def test_served_delete_warns_when_corrupted_jsonl_names_the_chat():
     # and the LIVE chat's rows are untouched by the anomaly
     assert truncated in rdl.decisions_path().read_text()
     assert _B in _jsonl_refs()
+
+
+@pytest.mark.parametrize("module", [
+    "tests.test_routing_telemetry_chat_deletion",
+    "tests.test_routing_telemetry_privacy_projection",
+])
+def test_isolated_home_fixture_restores_exact_prior_state(module, tmp_path, monkeypatch):
+    """Drive the REAL fixture generators, the way pytest does, against a pinned prior
+    home: every exit path — normal completion, a failing body, a failing setup — must
+    restore the exact prior override and the exact prior migration state."""
+    import importlib
+
+    m = importlib.import_module(module)
+    prior_home = runtime_paths._VOOL_HOME_OVERRIDE
+    prior_migration = rdl._LEGACY_MIGRATION_ATTEMPTED
+    pinned = tmp_path / "pinned-home"
+    runtime_paths.configure_runtime_home(pinned)
+    rdl._LEGACY_MIGRATION_ATTEMPTED = {"sentinel"}
+    try:
+        # normal completion: the generator runs to StopIteration
+        generator = m._isolated_home._fixture_function(tmp_path, monkeypatch)
+        next(generator)
+        with pytest.raises(StopIteration):
+            next(generator)
+        assert pinned == runtime_paths._VOOL_HOME_OVERRIDE
+        assert {"sentinel"} == rdl._LEGACY_MIGRATION_ATTEMPTED
+
+        # a failing body: the exception propagates AND the state is restored
+        generator = m._isolated_home._fixture_function(tmp_path, monkeypatch)
+        next(generator)
+        with pytest.raises(RuntimeError, match="body failure"):
+            generator.throw(RuntimeError("body failure"))
+        assert pinned == runtime_paths._VOOL_HOME_OVERRIDE
+        assert {"sentinel"} == rdl._LEGACY_MIGRATION_ATTEMPTED
+
+        # a failing setup (the home pin itself faults): nothing stays half-configured
+        real_configure = runtime_paths.configure_runtime_home
+        monkeypatch.setattr(
+            runtime_paths,
+            "configure_runtime_home",
+            lambda _path: (_ for _ in ()).throw(OSError("setup failure")),
+        )
+        generator = m._isolated_home._fixture_function(tmp_path, monkeypatch)
+        with pytest.raises(OSError, match="setup failure"):
+            next(generator)
+        monkeypatch.setattr(runtime_paths, "configure_runtime_home", real_configure)
+        assert pinned == runtime_paths._VOOL_HOME_OVERRIDE
+        assert {"sentinel"} == rdl._LEGACY_MIGRATION_ATTEMPTED
+    finally:
+        rdl._LEGACY_MIGRATION_ATTEMPTED = prior_migration
+        runtime_paths.configure_runtime_home(prior_home)
 
 
 def _post(path, body, host="127.0.0.1"):
