@@ -38,6 +38,20 @@ def _safe_component(value: object, pattern: str, code: str, message: str, status
     return name
 
 
+def _lookup(folder: str, name: str) -> Path | None:
+    """Resolve an identifier to a stored file by enumerating the folder and matching its
+    OWN entry names. The caller's string is only ever COMPARED -- it is never joined into
+    a path -- so no request-supplied spelling can steer where the path points."""
+    directory = _root() / folder
+    if not directory.is_dir():
+        return None
+    target = name + ".json"
+    for path in directory.iterdir():
+        if path.name == target:
+            return path
+    return None
+
+
 def _root() -> Path:
     from core.runtime_paths import data_path
     return Path(data_path("addon-reviews"))
@@ -82,10 +96,10 @@ def _read(path: Path) -> dict:
 
 def _entry(identifier: str) -> dict:
     identifier = _safe_component(identifier, r"github-[a-f0-9]{24}|" + _COMPONENT_ID,
-                                 "addon_unknown", "This add-on is not in the curated catalogue.",)
+                                 "addon_unknown", "This add-on is not in the curated catalogue.", 404)
     if re.fullmatch(r"github-[a-f0-9]{24}", identifier):
-        path = _root() / "discovered" / (identifier + ".json")
-        if path.exists():
+        path = _lookup("discovered", identifier)
+        if path is not None:
             value = _read(path)
             if value.get("id") != identifier:
                 raise AddonError("review_untrusted", "The saved source identity changed. Inspect it again.")
@@ -113,9 +127,14 @@ def is_managed(plugin_id: str) -> bool:
     return plugin_id.startswith(PREFIX)
 
 
-def _installed_receipt(plugin_id: str) -> Path:
+def _installed_receipt(plugin_id: str, *, create: bool = False) -> Path:
     plugin_id = _safe_component(plugin_id, r"discover-[a-z0-9][a-z0-9-]{0,99}",
                                 "addon_unknown", "Invalid add-on identity.")
+    found = _lookup("installed", plugin_id)
+    if found is not None:
+        return found
+    if not create:
+        raise AddonError("review_untrusted", "The saved review is missing or changed. Scan the add-on again.")
     return _root() / "installed" / (plugin_id + ".json")
 
 
@@ -179,9 +198,14 @@ def reviewed_skill(plugin_id: str, pack: Path):
         return None
 
 
-def _local_report_path(identifier: str) -> Path:
+def _local_report_path(identifier: str, *, create: bool = False) -> Path:
     identifier = _safe_component(identifier, _LOCAL_REPORT_ID.pattern,
                                  "addon_unknown", "This add-on is not in the curated catalogue.", 404)
+    found = _lookup("local-reports", identifier)
+    if found is not None:
+        return found
+    if not create:
+        raise AddonError("addon_unknown", "No local check was saved for this add-on.", 404)
     return _root() / "local-reports" / (identifier + ".json")
 
 
@@ -201,7 +225,7 @@ def local_check(identifier: str) -> dict:
     report = scan_bytes(entry["skill_name"], content)
     record = {"id": entry["id"], "source_sha256": entry["sha256"], "checked_at": time.time(), "report": report}
     with _LOCK:
-        _write(_local_report_path(entry["id"]), record)
+        _write(_local_report_path(entry["id"], create=True), record)
     return {"ok": True, "state": "current", "local_check": {"checked_at": record["checked_at"], **report}}
 
 
@@ -348,10 +372,14 @@ def prepare(identifier: str, *, approved: bool) -> dict:
 
 def _stage(review_id: str) -> Path:
     review_id = _safe_component(review_id, r"[a-f0-9]{32}", "invalid_review", "Invalid review identity.")
-    stage = _root() / "pending" / review_id
-    if stage.is_symlink():
-        raise AddonError("invalid_review", "Invalid review location.")
-    return stage
+    pending = _root() / "pending"
+    if pending.is_dir():
+        for path in pending.iterdir():
+            if path.name == review_id:   # compare only; the path itself comes from the listing
+                if path.is_symlink():
+                    raise AddonError("invalid_review", "Invalid review location.")
+                return path
+    raise AddonError("invalid_review", "Invalid review identity.")
 
 
 def reject(review_id: str) -> dict:
@@ -460,7 +488,7 @@ def install_review(review_id: str, *, accepted: bool, risk_override: bool = Fals
             (target / ".codex-plugin").mkdir()
             (target / ".codex-plugin" / "plugin.json").write_text(json.dumps(manifest, sort_keys=True))
             receipt.update(plugin_id=plugin_id, pack_digest=lifecycle.manifest_digest(target))
-            _write(_installed_receipt(plugin_id), receipt)
+            _write(_installed_receipt(plugin_id, create=True), receipt)
             lifecycle.install(plugin_id, root=target, source="eyebrow-catalog:" + safe_entry_id)
             lifecycle.verify(plugin_id, root=target, expected_digest=receipt["pack_digest"])
             lifecycle.enable(plugin_id)
