@@ -2,14 +2,17 @@
 
 CI run 36759227592 (PR104, shard 2) lost the whole job inside the discovery rig's teardown:
 the main thread waited in ``socketserver.shutdown()`` while the fake's serve thread sat in
-``get_request -> accept()`` that could never return — watchdog exit 124 after 600s. On Linux a
-selector readiness can vanish before ``accept()`` runs (the kernel silently discards an aborted
-pending connection; spurious wakeups are permitted), and on a BLOCKING listening socket that one
-accept waits forever; ``shutdown()`` waits with it. macOS hands aborted pending connections to
-``accept()`` instead, which is why the same bytes pass locally.
+``get_request -> accept()`` that could not return — watchdog exit 124 after 600s. The proven
+mechanism, established by direct measurement on this repository's bytes with no client
+involved at all: on a BLOCKING listening socket that single accept is unbounded, so once the
+loop is inside it with nothing left to accept — through a selector readiness that vanished
+before the accept ran — ``shutdown()`` waits forever. WHICH kernel event produced the CI
+readiness was not captured (an aborted pending connection and a spurious wakeup are both
+plausible) and stays a hypothesis; this file pins the mechanism and the bounded lifecycle,
+not the historical trigger.
 
-The frozen contract here is kernel-independent: the serve loop's accept step falls through
-when there is nothing to accept, an aborted or reset client never holds the teardown hostage,
+The frozen contract is kernel-independent: the serve loop's accept step falls through when
+there is nothing to accept, an aborted or reset client never holds the teardown hostage,
 teardown actually releases the owned serve thread, and the digest-only request evidence keeps
 flowing through the real sockets the whole time.
 """
@@ -34,14 +37,21 @@ _DEADLINE_S = 5.0
 def _run_bounded(label: str, target) -> float:
     """Run ``target()`` under a hard deadline and return the elapsed seconds.
 
-    The helper thread is a daemon on purpose: on UNCORRECTED bytes the call never returns, and
-    the failure must be the assert below (fast, classified) — not a second wedge waiting for it.
+    An exception inside the bounded worker propagates to the caller, chained under its label —
+    it must surface as the failure it is, never be mislabeled as the deadline overrun. The
+    helper thread is a daemon on purpose: on UNCORRECTED bytes the call never returns, and the
+    failure must be the assert below (fast, classified) — not a second wedge waiting for it.
     """
     done = threading.Event()
+    failure: list[BaseException] = []
 
     def _run() -> None:
-        target()
-        done.set()
+        try:
+            target()
+        except BaseException as exc:  # re-raised in the caller below, never swallowed
+            failure.append(exc)
+        finally:
+            done.set()
 
     started = time.monotonic()
     threading.Thread(target=_run, daemon=True).start()
@@ -49,6 +59,8 @@ def _run_bounded(label: str, target) -> float:
         f"{label} did not return within {_DEADLINE_S}s — the CI-stall shape: "
         "teardown waiting on a serve step that cannot come back"
     )
+    if failure:
+        raise AssertionError(f"{label} failed inside the bounded worker") from failure[0]
     return time.monotonic() - started
 
 
@@ -66,9 +78,10 @@ def test_an_accept_with_nothing_to_accept_falls_through(isolated_home):
     frame the faulthandler captured — must return on its own when the queue is empty, instead of
     parking the serve thread inside an unbounded accept() that shutdown() waits on forever."""
     with FakeProviderServer([(200, {"data": []})]) as server:
-        # The loop's own step, driven directly so the trapped state is induced deterministically
-        # on every kernel (on macOS no client can make readiness vanish — the kernel hands
-        # aborted pending connections to accept() — so the race itself is unreproducible here).
+        # The loop's own step, driven directly so the blocked-accept state is induced
+        # deterministically on every kernel, without depending on any race. (An aborted pending
+        # connection was OBSERVED on this macOS host to be handed to accept() — a single-host
+        # observation that says nothing about the CI runners' kernels.)
         elapsed = _run_bounded(
             "the serve loop's accept step with nothing to accept",
             lambda: server._server._handle_request_noblock(),
@@ -98,12 +111,13 @@ def test_an_aborted_pending_connection_never_holds_teardown(isolated_home):
 
 
 def test_a_client_that_aborts_after_its_request_is_served_still_records_and_tears_down(isolated_home):
-    """A client that sends its request and then aborts before reading the answer (RST with the
-    response unread) is an error lifecycle the fake must survive: the request evidence stands,
-    and nothing about the dead client holds the teardown."""
+    """A client whose request the handler has ALREADY read and recorded, and which then aborts
+    before reading the answer (RST with the response unread), is a distinct post-request error
+    lifecycle the fake must survive: the request evidence stands, and nothing about the dead
+    client holds the teardown."""
     server = FakeProviderServer([(200, {"ok": True})]).__enter__()
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.settimeout(5.0)
         client.connect((server.host, server.port))
         request = (
@@ -111,13 +125,16 @@ def test_a_client_that_aborts_after_its_request_is_served_still_records_and_tear
             f"Authorization: Bearer {ODD_KEY}\r\nContent-Length: 0\r\n\r\n"
         ).encode()
         client.sendall(request)
-        client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
-        client.close()  # abort with the response on its way: the reset client, not a clean FIN
-
+        # sendall only queued the bytes — it is not server acceptance. The abort below is
+        # genuinely POST-request only once the handler has observed and recorded the request.
         deadline = time.monotonic() + _DEADLINE_S
         while server.request_count < 1 and time.monotonic() < deadline:
             time.sleep(0.05)
-        assert server.saw_bearer(ODD_KEY), "the aborted client's request evidence is missing"
+        assert server.request_count == 1, "the handler never recorded the request before the abort"
+        assert server.saw_bearer(ODD_KEY), "the recorded request is missing its digest evidence"
+        client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        client.close()  # RST with the response on its way: the reset client, not a clean FIN
     finally:
+        client.close()
         _run_bounded("FakeProviderServer teardown after a client aborted post-request", server.__exit__)
     assert not server._thread.is_alive(), "teardown must release the owned serve thread"

@@ -32,12 +32,15 @@ ODD_KEY = "zk9-test-intelligence-key-0123456789abcdef"
 _CREDENTIAL_HEADERS = ("authorization", "x-subscription-token", "x-api-key")
 
 #: The listening socket's accept budget, matching serve_forever's own poll cadence. A selector
-#: readiness that vanishes before accept() runs (Linux discards an aborted pending connection;
-#: spurious wakeups are permitted) must fall through to the next loop iteration, never park the
-#: serve thread inside one unbounded accept() that shutdown() then waits on forever -- CI run
-#: 36759227592 shard 2 lost its whole job to exactly that (watchdog exit 124 inside
-#: FakeProviderServer teardown; the serve thread sat in get_request->accept while the main
-#: thread waited in shutdown()).
+#: readiness that vanishes before accept() runs (an aborted pending connection is one plausible
+#: way; spurious wakeups are also permitted) must fall through to the next loop iteration,
+#: never park the serve thread inside one unbounded accept() that shutdown() then waits on
+#: forever -- CI run 36759227592 shard 2 lost its whole job to exactly that captured shape
+#: (watchdog exit 124 inside FakeProviderServer teardown; the serve thread sat in
+#: get_request->accept while the main thread waited in shutdown()). Proven by direct
+#: measurement on this repository's bytes: the serve step on a BLOCKING listener is unbounded
+#: and, with this budget, is not. The exact kernel event behind the CI stall was not captured
+#: and remains a hypothesis.
 _SERVE_ACCEPT_TIMEOUT_S = 0.5
 
 
@@ -197,13 +200,21 @@ class HangingKeyring:
 @pytest.fixture
 def isolated_home(tmp_path, monkeypatch):
     """VOOL_HOME isolation for the credential boundary: no real vault, index, journal, or
-    escalation-policy file is ever touched. Yields the home path."""
+    escalation-policy file is ever touched. Yields the home path.
+
+    The EXACT prior override is restored on every exit path — normal completion, a failing
+    test body, or the fixture generator being closed at the yield. Discarding it to ``None``
+    would silently drop a pin an enclosing scope still depends on, and restoration that only
+    runs after a resumed ``yield`` never runs at all when the generator is closed."""
+    prior = runtime_paths._VOOL_HOME_OVERRIDE
     home = tmp_path / "vool-home"
     home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("VOOL_HOME", str(home))
     runtime_paths.configure_runtime_home(home)
-    yield home
-    runtime_paths.configure_runtime_home(None)
+    try:
+        yield home
+    finally:
+        runtime_paths.configure_runtime_home(prior)
 
 
 @pytest.fixture
