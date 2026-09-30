@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextvars
 import hashlib
 import threading
+from contextlib import ExitStack
 
 import pytest
 
@@ -47,23 +48,26 @@ def fresh_store(tmp_path):
     prior_default_override = sdb._DEFAULT_DB_PATH_OVERRIDE
     prior_continuity_override = runtime_continuity._DB_PATH_OVERRIDE
     prior_binding = obligation_ledger.active_set()
-    sdb.configure_default_db_path(tmp_path / "a7p2cc.db")
-    run_migrations()
-    configure_runtime_continuity_db_path(active_default_db_path())
-    # These laws assume no foreign turn scope: a stale OPEN set bound by an
-    # earlier suite fail-closes every finalization against a row this fresh DB
-    # does not have (measured: PR104 CI shard 9, run 36734219964). Neutralize
-    # the leaked scope for this test, then restore the exact prior binding.
-    obligation_ledger.clear_active_set()
-    clear_execution_context()
-    yield
-    clear_execution_context()
-    if prior_binding is None:
+    # Register restoration before setup mutates any authority. ExitStack also
+    # runs every restore if setup fails, the generator closes, or an earlier
+    # cleanup callback raises.
+    with ExitStack() as cleanup:
+        cleanup.callback(sdb.configure_default_db_path, prior_default_override)
+        cleanup.callback(configure_runtime_continuity_db_path, prior_continuity_override)
+        if prior_binding is None:
+            cleanup.callback(obligation_ledger.clear_active_set)
+        else:
+            cleanup.callback(obligation_ledger.bind_active_set, *prior_binding)
+        cleanup.callback(clear_execution_context)
+        sdb.configure_default_db_path(tmp_path / "a7p2cc.db")
+        run_migrations()
+        configure_runtime_continuity_db_path(active_default_db_path())
+        # These laws assume no foreign turn scope: a stale OPEN set bound by an
+        # earlier suite fail-closes every finalization against a row this fresh
+        # DB does not have. Neutralize that scope only for this test.
         obligation_ledger.clear_active_set()
-    else:
-        obligation_ledger.bind_active_set(*prior_binding)
-    configure_runtime_continuity_db_path(prior_continuity_override)
-    sdb.configure_default_db_path(prior_default_override)
+        clear_execution_context()
+        yield
 
 
 def _admit_and_finalize(text: str) -> dict:
