@@ -208,10 +208,10 @@ def isolated_home(tmp_path, monkeypatch):
     runs after a resumed ``yield`` never runs at all when the generator is closed."""
     prior = runtime_paths._VOOL_HOME_OVERRIDE
     home = tmp_path / "vool-home"
-    home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("VOOL_HOME", str(home))
-    runtime_paths.configure_runtime_home(home)
     try:
+        home.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("VOOL_HOME", str(home))
+        runtime_paths.configure_runtime_home(home)
         yield home
     finally:
         runtime_paths.configure_runtime_home(prior)

@@ -371,6 +371,9 @@ class RuntimeExecutionToolsTests(unittest.TestCase):
             self.assertIn("safe local directories", result.response_text.lower())
 
     def test_machine_inspect_specs_returns_grounded_machine_summary(self) -> None:
+        # Do not leave either fabricated observation available to later tests, including
+        # when a producer or assertion raises before this method finishes.
+        self.addCleanup(invalidate_tool, "machine.inspect_specs")
         # machine.inspect_specs is a pure tool memoized for 60s in the store the whole
         # pytest session shares, and this test FABRICATES the machine's observable facts.
         # An observation of a different machine made moments earlier through the same real
