@@ -1,4 +1,11 @@
-"""SQLite persistence for non-authorizing routing authority V2 shadow records."""
+"""SQLite persistence for non-authorizing routing authority V2 shadow records.
+
+Retention law: rows are append-only diagnostics. Chat deletion is the ONE removal
+authority — ``RoutingDecisionShadowV2`` rows of the deleted chat's folded session
+identity are removed whole via :meth:`delete_shadow_records`; there is no rotation,
+pruning or silent trimming. Deletion never rewrites a surviving row, so every
+survivor's canonical bytes, digest and type validation remain exactly what they were.
+"""
 
 from __future__ import annotations
 
@@ -298,6 +305,67 @@ class RoutingAuthorityV2ShadowStore:
             for record, row in validated_rows
             if record_type is None or record_type == record.RECORD_TYPE
         )
+
+    def list_shadow_payloads(self, *, record_type: str) -> tuple[tuple[str, bytes], ...]:
+        """``(record_digest, canonical_bytes)`` for every row of ONE approved type, unvalidated.
+
+        The deletion-time attribution read: unlike :meth:`list_shadow_record_digests`
+        this does NOT strictly validate each row, because a store holding a corrupted
+        row must still let its owner enumerate the rest and decide attribution — the
+        strict readers keep their integrity law unchanged. Rows whose digest or payload
+        columns are not well-formed are skipped by this listing and surface to the
+        deletion caller as unattributable counts, never as a whole-store failure.
+        """
+        if record_type not in _ALLOWED_RECORD_NAMES:
+            raise ContractValidationError("unknown Phase-0 shadow record type")
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT record_digest, canonical_bytes
+                FROM {_SHADOW_TABLE}
+                WHERE record_type = ?
+                ORDER BY record_digest
+                """,
+                (record_type,),
+            ).fetchall()
+        payloads: list[tuple[str, bytes]] = []
+        for digest, payload in rows:
+            if isinstance(digest, str) and _DIGEST_RE.fullmatch(digest) and isinstance(
+                payload, (bytes, bytearray, memoryview)
+            ):
+                payloads.append((digest, bytes(payload)))
+        return tuple(payloads)
+
+    def delete_shadow_records(self, *, record_type: str, record_digests: tuple[str, ...]) -> int:
+        """Delete WHOLE rows by digest, restricted to ONE approved record type.
+
+        The chat-deletion seam. Only rows whose record type AND digest both match are
+        removed, in a single transaction; survivors are never rewritten, so their
+        canonical identity, idempotent replay and type validation are untouched.
+        Re-insertion law: ``persist_shadow_record`` of identical canonical bytes after a
+        deletion inserts the same digest again — resurrection is prevented by the
+        routing owner's deleted-session guard at record time, not by this store.
+        """
+        if record_type not in _ALLOWED_RECORD_NAMES:
+            raise ContractValidationError("unknown Phase-0 shadow record type")
+        digests = tuple(dict.fromkeys(str(digest) for digest in record_digests))
+        for digest in digests:
+            if not _DIGEST_RE.fullmatch(digest):
+                raise ContractValidationError("shadow record digest must use lowercase hex")
+        removed = 0
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            for digest in digests:
+                cursor = connection.execute(
+                    f"""
+                    DELETE FROM {_SHADOW_TABLE}
+                    WHERE record_digest = ? AND record_type = ?
+                    """,
+                    (digest, record_type),
+                )
+                if cursor.rowcount and cursor.rowcount > 0:
+                    removed += cursor.rowcount
+        return removed
 
 
 __all__ = ["RoutingAuthorityV2ShadowStore", "ShadowStoreIntegrityError"]
