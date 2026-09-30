@@ -392,6 +392,7 @@ class ReferentialRetryIdentityTests(_RunOnceHarness):
         """Open the canonical door exactly as `run_once` does BEFORE referential
         resolution runs — minting + claiming THIS turn's own attempt first."""
         from apps.vool_agent import _r3_open_turn_execution
+        from core.conductor import obligation_ledger
         from core.invocation.ledger import accept_invocation
         from core.semantic.semantic_admissions import (
             _CURRENT_REQUEST_ID,
@@ -411,6 +412,11 @@ class ReferentialRetryIdentityTests(_RunOnceHarness):
             "_canonical_user_turn_id": f"dlg-{_sha_hex(text)[:10]}",
         }
         token = set_request_context(accepted["request_id"])
+        # The door binds THIS turn's obligation set on this context (run_once's
+        # turn-scope finally normally releases it; these tests open the door
+        # directly). Restore the EXACT prior binding — clear-to-None would
+        # clobber an outer suite's binding just the same.
+        prior_binding = obligation_ledger.active_set()
         try:
             # R1b: the door opens execution identity FROM the canonical request the
             # ingress minted — one request/turn/session for the whole turn.
@@ -426,6 +432,10 @@ class ReferentialRetryIdentityTests(_RunOnceHarness):
             )
         finally:
             _CURRENT_REQUEST_ID.reset(token)
+            if prior_binding is None:
+                obligation_ledger.clear_active_set()
+            else:
+                obligation_ledger.bind_active_set(*prior_binding)
         return ctx
 
     def test_G_retry_resolves_prior_execution_not_own_new_attempt(self) -> None:

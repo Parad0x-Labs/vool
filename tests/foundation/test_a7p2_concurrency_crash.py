@@ -36,16 +36,34 @@ from core.semantic.semantic_result_seam import (
 
 @pytest.fixture()
 def fresh_store(tmp_path):
+    from core import runtime_continuity
+    from core.conductor import obligation_ledger
     from core.runtime_continuity import configure_runtime_continuity_db_path
     from storage.db import active_default_db_path
     from storage.migrations import run_migrations
 
+    # restore the EXACT prior overrides — not None — so a caller that pinned its
+    # own authorities gets them back on every exit path
+    prior_default_override = sdb._DEFAULT_DB_PATH_OVERRIDE
+    prior_continuity_override = runtime_continuity._DB_PATH_OVERRIDE
+    prior_binding = obligation_ledger.active_set()
     sdb.configure_default_db_path(tmp_path / "a7p2cc.db")
     run_migrations()
     configure_runtime_continuity_db_path(active_default_db_path())
+    # These laws assume no foreign turn scope: a stale OPEN set bound by an
+    # earlier suite fail-closes every finalization against a row this fresh DB
+    # does not have (measured: PR104 CI shard 9, run 36734219964). Neutralize
+    # the leaked scope for this test, then restore the exact prior binding.
+    obligation_ledger.clear_active_set()
+    clear_execution_context()
     yield
     clear_execution_context()
-    sdb.configure_default_db_path(None)
+    if prior_binding is None:
+        obligation_ledger.clear_active_set()
+    else:
+        obligation_ledger.bind_active_set(*prior_binding)
+    configure_runtime_continuity_db_path(prior_continuity_override)
+    sdb.configure_default_db_path(prior_default_override)
 
 
 def _admit_and_finalize(text: str) -> dict:
