@@ -16,15 +16,19 @@ message. A row carries: the timestamp, the folded session id, the code-built fam
 arbiter labels, and ``handled``. Recognizable request text used to persist here as a
 redacted-then-truncated ``message`` prefix; pattern redaction is not a guarantee that arbitrary
 text is non-sensitive (a custom password sentence matched no shape), so the column is gone, not
-better-redacted. Rows are versioned (``record_schema``); the one-time
-:func:`migrate_legacy_decision_log` strips the plaintext ``message`` column from legacy rows
-without touching their other fields. What remains user-input-derived in this owner's durable
-state is exactly one value, stated exactly: the shadow record's ``message_redacted_digest`` —
-a plain SHA-256 of the already-redacted, already-truncated text. It is not plaintext and not
-recoverable, but an observer holding the store can CONFIRM A GUESS of a low-entropy message
-("yes"/"no"-class turns, dictionary-grade requests) by hashing candidates; high-entropy content
-is not exposed. Redaction before that digest fails closed: when secret-shape protection is
-unavailable or faults, the digest covers a refusal sentinel, never the raw text.
+better-redacted. Rows are versioned (``record_schema``); :func:`migrate_legacy_decision_log`
+strips the plaintext ``message`` column from legacy rows without touching their other fields —
+attempted once per process for EACH configured runtime home, serialized with appends. A
+PARTIAL migration stays partial: malformed lines are preserved byte-identical and may still
+carry old message text (the result and the owner docstring say so; they are never silently
+dropped, "fixed", or called plaintext-free). What remains user-input-derived in this owner's
+durable state is exactly one value, stated exactly: the shadow record's
+``message_redacted_digest`` — a plain SHA-256 of the already-redacted, already-truncated text.
+It is not plaintext and not recoverable, but an observer holding the store can CONFIRM A GUESS
+of a low-entropy message ("yes"/"no"-class turns, dictionary-grade requests) by hashing
+candidates; high-entropy content is not exposed. Redaction before that digest fails closed:
+when secret-shape protection is unavailable or faults, the digest covers a refusal sentinel,
+never the raw text.
 
 The row's other fields are identifiers and code vocabularies, NOT message-derived text. The
 session id is FOLDED here, at this owner, through the one shared identity authority
@@ -39,17 +43,23 @@ callers; ``claims`` carries would-claim probe family names, also code-built.
 **Deletion (chat erasure now includes routing telemetry):** deleting a chat removes its
 routing rows from BOTH sinks — the JSONL and the shadow sqlite — through
 :func:`purge_session_routing_telemetry`, called by ``delete_conversation_session`` and the
-served delete routes. Only the deleted chat's folded identity is removed; other sessions'
-rows and other record types are untouched, and surviving shadow rows keep their canonical
-bytes, digests and type validation (deletion removes whole rows, it never rewrites survivors).
+served delete routes. Identity, not spelling, decides what is "this chat": the namespace
+erasure authority records each row's canonical identity, so a late write under ANY handle
+spelling of a deleted chat is suppressed, and an unreadable namespace store suppresses
+telemetry too (fail-closed — optional diagnostics never return because a fault hid the
+tombstone). A delete that lands mid-write is caught by a post-write recheck against the
+same authority: an idempotent self-purge, never a second tombstone manager. Only the deleted chat's folded identity is removed; other sessions' rows and
+other record types are untouched, and surviving shadow rows keep their canonical bytes,
+digests and type validation (deletion removes whole rows, it never rewrites survivors).
 The shadow store's rows are append-only diagnostics with chat deletion as their ONE removal
-authority — no rotation, pruning or silent trimming exists there. A turn that outlives its
-chat's deletion must not resurrect telemetry: the namespace lifecycle authority (durable,
-irreversible, flipped by the delete doors BEFORE erasure) suppresses new writes for a deleted
-session, and a post-write recheck re-purges if a delete landed mid-write. There is no served
-reader of message-shaped data: ``recent_decisions``/``decision_stats`` serve owner-local
-diagnostics and gauntlet mining only, over the metadata columns. Correlating a row with its
-turn means joining on ``session_id`` + ``ts`` against the authorized conversation view.
+authority — no rotation, pruning or silent trimming exists there. Corruption is accounted,
+not papered over: corrupted rows or lines whose session cannot be soundly established —
+including storage shapes the store's contract does not vouch for — are preserved and
+COUNTED as unattributable, and the served delete doors report incomplete verification
+instead of claiming complete erasure while such bytes survive. There is no served reader of
+message-shaped data: ``recent_decisions``/``decision_stats`` serve owner-local diagnostics
+and gauntlet mining only, over the metadata columns. Correlating a row with its turn means
+joining on ``session_id`` + ``ts`` against the authorized conversation view.
 """
 from __future__ import annotations
 

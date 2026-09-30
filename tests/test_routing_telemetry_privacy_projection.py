@@ -18,10 +18,17 @@ from core import runtime_paths
 
 @pytest.fixture(autouse=True)
 def _isolated_home(tmp_path, monkeypatch):
+    # restore the EXACT prior override — not None — so a caller that pinned its own home
+    # (a nested fixture drive, another lane's setup) gets it back on every exit path
+    prior_home = runtime_paths._VOOL_HOME_OVERRIDE
+    prior_migration_state = rdl._LEGACY_MIGRATION_ATTEMPTED
     monkeypatch.setattr(rdl, "_SHADOW_STORE", None)
-    runtime_paths.configure_runtime_home(tmp_path / "home")
-    yield
-    runtime_paths.configure_runtime_home(None)
+    try:
+        runtime_paths.configure_runtime_home(tmp_path / "home")
+        yield
+    finally:
+        rdl._LEGACY_MIGRATION_ATTEMPTED = prior_migration_state
+        runtime_paths.configure_runtime_home(prior_home)
 
 
 CUSTOM = "my router admin password is Tr0ub4dor&3 never share it"
