@@ -1,0 +1,58 @@
+name: Linux desktop acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'installer/**'
+      - 'core/**'
+      - 'apps/**'
+      - 'storage/**'
+      - 'retrieval/**'
+      - 'config/**'
+      - 'ops/linux_desktop_smoke.py'
+      - 'tests/test_release_platform_launch.py'
+      - 'pyproject.toml'
+      - '.github/workflows/linux-desktop.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Provision real GTK and WebKitGTK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-gi python3-gi-cairo gir1.2-webkit2-4.1 xvfb xdotool libglib2.0-bin desktop-file-utils
+          python3 -m venv --system-site-packages "$RUNNER_TEMP/desktop-venv"
+          "$RUNNER_TEMP/desktop-venv/bin/python" -m pip install -e '.[dev]' 'pywebview>=6.1,<7'
+      - name: Installer and ownership regression
+        env:
+          VOOL_HOME: ${{ runner.temp }}/regression-profile
+        run: |
+          "$RUNNER_TEMP/desktop-venv/bin/python" -m pytest -q tests/test_release_platform_launch.py tests/test_bootstrap_install_contract.py tests/test_install_script_contract.py tests/test_native_runtime_supervisor.py --basetemp "$RUNNER_TEMP/regression"
+      - name: Open real native chat and prove shutdown
+        run: |
+          xvfb-run -a "$RUNNER_TEMP/desktop-venv/bin/python" ops/linux_desktop_smoke.py --profile "$RUNNER_TEMP/native-profile" --output "$RUNNER_TEMP/evidence/native.json" --expected-commit "$(git rev-parse HEAD)"
+      - name: Preserve acceptance evidence and environment
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/evidence"
+          uname -a > "$RUNNER_TEMP/evidence/kernel.txt"
+          "$RUNNER_TEMP/desktop-venv/bin/python" -m pip freeze > "$RUNNER_TEMP/evidence/dependencies.txt"
+          cp -R "$RUNNER_TEMP/native-profile/logs" "$RUNNER_TEMP/evidence/logs" 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: linux-desktop-${{ matrix.os }}
+          path: ${{ runner.temp }}/evidence/

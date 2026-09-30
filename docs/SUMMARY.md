@@ -44,6 +44,7 @@
 * [Data handling](trust/data-handling.md)
 * [Bug reporting and privacy](trust/bug-reporting.md)
 * [Release status](trust/release-status.md)
+* [Preparing 0.7](releases/0.7-readiness.md)
 
 ## Help
 
