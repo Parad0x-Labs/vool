@@ -884,11 +884,11 @@ function vnPaintNow(now) {
   }
   // aria-live: announce STATE changes only, once per change.
   if (vnSr && pres.phraseText) {
-    const line = "Companion " + pres.state + (pres.phraseText ? " — " + pres.phraseText : "");
+    const line = vnLabel("companion.label", "Companion") + " " + vnStateWord(nextState) + (pres.phraseText ? " — " + pres.phraseText : "");
     if (line !== vnPaint.announced) { vnPaint.announced = line; vnSr.textContent = line; }
   }
   if (vnSprite) {
-    vnSprite.setAttribute("aria-label", "Companion: " + pres.state + (pres.phraseText ? " · " + pres.phraseText : ""));
+    vnSprite.setAttribute("aria-label", vnLabel("companion.label", "Companion") + ": " + vnStateWord(nextState) + (pres.phraseText ? " · " + pres.phraseText : ""));
   }
   vnPaint.lastPaint = now;
   vnPaint.dirty = false;
