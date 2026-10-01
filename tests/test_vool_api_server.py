@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -2824,6 +2825,44 @@ def test_chat_session_endpoint_validation(tmp_path) -> None:
         configure_runtime_home(None)
 
 
+# Self-contained-page boundary helpers: the contract bans EXECUTABLE external assets, not
+# documentation text. A resource element (script/link/img/...) whose loading attribute points
+# at an absolute or protocol-relative URL, or a scripted call site (fetch/WebSocket/...) that
+# references one, breaks the offline packaged bundle; a URL cited inside prose or inside the
+# embedded i18n data payload does not.
+_EXTERNAL_ASSET_TAG_RE = re.compile(
+    r"<(?:script|link|img|iframe|source|video|audio|object|embed|track|input|form)\b[^>]*>",
+    re.IGNORECASE,
+)
+_RESOURCE_ATTR_RE = re.compile(
+    r"""\b(?:src|href|poster|data|action|srcset)\s*=\s*["']([^"']*)["']""",
+    re.IGNORECASE,
+)
+_SCRIPTED_URL_RE = re.compile(
+    r"""\b(?:fetch|open|WebSocket|EventSource|Worker|importScripts|sendBeacon)\s*\(\s*["'](?:[a-z][a-z0-9+.-]*:)?//[^"']*["']""",
+    re.IGNORECASE,
+)
+
+
+def _external_asset_references(page_code: str) -> list[str]:
+    """Absolute/protocol-relative external references in EXECUTABLE positions.
+
+    ``srcset`` values are comma-separated URL lists, so each candidate is split out before
+    the scheme test; a data: or relative reference never matches. Any ``scheme://`` form
+    counts (http, https, ws, wss, ...), as does a protocol-relative ``//`` URL, because the
+    contract is "no absolute URL", not a blocklist of schemes.
+    """
+    refs: list[str] = []
+    for tag in _EXTERNAL_ASSET_TAG_RE.findall(page_code):
+        for value in _RESOURCE_ATTR_RE.findall(tag):
+            for candidate in value.split(","):
+                candidate = candidate.strip().split(" ")[0]
+                if re.match(r"(?i)(?:[a-z][a-z0-9+.-]*:)?//", candidate):
+                    refs.append(tag[:160])
+    refs.extend(match.group(0)[:160] for match in _SCRIPTED_URL_RE.finditer(page_code))
+    return refs
+
+
 def test_vool_chat_page_is_self_contained_and_wired() -> None:
     from core.vool_chat_page import render_vool_chat_html
 
@@ -2881,15 +2920,38 @@ def test_vool_chat_page_is_self_contained_and_wired() -> None:
     assert "prefers-reduced-motion" in html
     assert "sr-only" in html
     # Self-contained: it must work inside an offline packaged bundle with no CDN/network. A
-    # documentation example may contain a literal https:// URL; only executable external assets
-    # would violate this contract.
-    assert "http://" not in html
-    assert '<script src="http' not in html and '<link rel="stylesheet" href="http' not in html
+    # documentation example may cite a literal https:// URL -- and the localized provider
+    # help legitimately documents VOOL's own rule of accepting plain http only to a loopback
+    # endpoint -- so the embedded i18n data payload is stripped before the scan, exactly like
+    # the PNG bytes below. The boundary itself is unchanged and stricter than a raw substring
+    # ban: no resource element and no scripted call site may reference an absolute external
+    # URL, of either scheme, including protocol-relative ones.
+    from core.i18n.catalog import catalog_for
+    from core.i18n.page_bundle import i18n_client_bundle_for
+
+    payload = json.dumps(
+        i18n_client_bundle_for(catalog_for("en")), ensure_ascii=False, separators=(",", ":")
+    ).replace("</", "<\\/")
+    i18n_blob = f"var B = {payload};"
+    # Anchor the strip to the real embedded payload: if the embedding changes serialization,
+    # this fails loudly instead of silently scanning the wrong bytes.
+    assert i18n_blob in html
+    page_code = html.replace(i18n_blob, "")
+    page_code = re.sub(r"data:image/png;base64,[A-Za-z0-9+/=]+", "", page_code)
+    assert "http://" not in page_code
+    external = _external_asset_references(page_code)
+    assert not external, f"chat page must not reference external assets: {external}"
     # Embedded PNG bytes are opaque: their base64 alphabet can contain "cdn".
     # Keep checking page code/URLs for external dependencies.
-    import re
-    page_code = re.sub(r"data:image/png;base64,[A-Za-z0-9+/=]+", "", html)
     assert "cdn" not in page_code.lower()
+    # Prove the observer still catches a genuine external dependency rather than having been
+    # loosened into vacuity: both an executable element attribute and a scripted absolute-URL
+    # call site must be flagged (https as well as http, and protocol-relative).
+    assert _external_asset_references('<script src="https://cdn.example.com/evil.js"></script>')
+    assert _external_asset_references('<link rel="stylesheet" href="//cdn.example.com/e.css">')
+    assert _external_asset_references('<img src="http://tracker.example/p.gif">')
+    assert _external_asset_references('fetch("//evil.example/exfil")')
+    assert _external_asset_references('new WebSocket("wss://evil.example/ws")')
 
 
 class OllamaModelPullTests(unittest.TestCase):
