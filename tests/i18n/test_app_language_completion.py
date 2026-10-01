@@ -177,6 +177,7 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "notif.row.source",
         "notif.snooze_15",
         "notif.tab.updates",
+        "palette.hint_palette",
         "radar.ctx_k",
         "radar.images",
         "radar.lane.cloud",
