@@ -351,14 +351,85 @@ def test_notification_fragment_is_truthful_and_mounted() -> None:
     assert "vfBell" in page and "SCENE LAB" not in page
     # Exactly one lifecycle call site, reporting truth; the fragment decides visibility.
     assert _VOOL_CHAT_HTML.count("window.VoolNotify.runFinished({") == 1
-    # Displayed-chat completions never notify (the operator watched the card end).
-    assert "if (info.displayed) return;" in fragment
-    # Market items come only from the typed server feed with a cursor; empties are stated.
-    assert "/api/cloud/market-events?after=" in fragment
-    assert "No notifications yet" in fragment
+    # Market items reach the browser only through the canonical typed centre feed
+    # (the hub projects the typed market events server-side); the fragment never
+    # polls the market-events feed itself, so the client holds no second read owner.
+    assert "/api/notifications?after=0&limit=" in fragment
+    assert "/api/cloud/market-events" not in fragment
+    # The empty state is stated, not an endless spinner.
+    assert "Nothing here yet." in fragment
     # No invented rows: none of the prototype's hardcoded market items ship.
     for banned in ("Gemini Flash", "Ling 2 Mini", "Ling 3"):
         assert banned not in fragment
+
+
+def test_displayed_completion_marks_exactly_that_chat_and_turn_read() -> None:
+    """The law that replaced the prototype's client-side early-return: completion
+    facts are recorded by the runtime, and the fragment — polling the canonical
+    centre — marks read only the item matching the displayed chat AND turn. The
+    same chat's other turns and other chats stay unread interruptions."""
+    from tests.test_notification_inbox_laws import TICK, run_fragment
+
+    prelude = (
+        "__items.push("
+        "{notification_id:'run-match',source_kind:'background_run',session_id:'chat-1',payload:{turn_id:'turn-1'},read_at:null},"
+        "{notification_id:'run-other-turn',source_kind:'background_run',session_id:'chat-1',payload:{turn_id:'turn-2'},read_at:null},"
+        "{notification_id:'run-other-chat',source_kind:'background_run',session_id:'chat-2',payload:{turn_id:'turn-1'},read_at:null});"
+    )
+    out = run_fragment(
+        TICK
+        + r"""
+for(let i=0;i<10;i++) await tick();
+await window.VoolNotify.runFinished({chatId:'chat-1',turnId:'turn-1',status:'completed',displayed:true});
+for(let i=0;i<10;i++) await tick();
+out({reads:__reads,unread:window.VoolNotify.unread()});
+""",
+        [],
+        prelude=prelude,
+    )
+    assert not out["errors"], out["errors"]
+    assert out["reads"] == ["run-match"], out
+    assert out["unread"] == 2, out
+
+
+def test_undisplayed_completion_leaves_the_recorded_item_unread() -> None:
+    """An undisplayed completion is a real persisted item the operator has not
+    seen; runFinished must not read anything on its own."""
+    from tests.test_notification_inbox_laws import TICK, run_fragment
+
+    prelude = (
+        "__items.push("
+        "{notification_id:'run-match',source_kind:'background_run',session_id:'chat-1',payload:{turn_id:'turn-1'},read_at:null});"
+    )
+    out = run_fragment(
+        TICK
+        + r"""
+for(let i=0;i<10;i++) await tick();
+await window.VoolNotify.runFinished({chatId:'chat-1',turnId:'turn-1',status:'completed',displayed:false});
+for(let i=0;i<10;i++) await tick();
+out({reads:__reads,unread:window.VoolNotify.unread(),pending:window.VoolNotify.pending()});
+""",
+        [],
+        prelude=prelude,
+    )
+    assert not out["errors"], out["errors"]
+    assert out["reads"] == [] and out["unread"] == 1 and out["pending"] == 1, out
+
+
+def test_empty_centre_states_the_empty_truth() -> None:
+    from tests.test_notification_inbox_laws import TICK, run_fragment
+
+    out = run_fragment(
+        TICK
+        + r"""
+for(let i=0;i<10;i++) await tick();
+vfBell().__on.click({});
+out({html:vfPop().innerHTML,unread:window.VoolNotify.unread()});
+""",
+        [],
+    )
+    assert not out["errors"], out["errors"]
+    assert "Nothing here yet." in out["html"] and out["unread"] == 0, out
 
 
 def test_scene_lab_is_dev_labelled_and_not_mounted_in_beta() -> None:
