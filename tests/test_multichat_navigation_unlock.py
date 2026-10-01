@@ -88,6 +88,12 @@ globalThis.fetch = async (url, opts) => {
     if (o.signal) o.signal.__onabort = () => { __aborted.push(body.session_id); ctl.abort(); };
     return { ok: true, status: 200, body: { getReader: () => ctl.reader } };
   }
+  // A read of existing chat authority is not an activation. The generic response below
+  // contains an activation token for older tests; it must not fabricate a saved grant.
+  if (u === '/api/mode' && JSON.parse(o.body || '{}').op === 'bypass_options') {
+    return { ok: true, status: 200, json: async () => ({ grant: null,
+      until_off_available: false, workspace_reason: 'unbound', workspace_root: '' }) };
+  }
   if (u === '/api/chat/cancel' && String(o.method).toUpperCase() === 'POST') __cancelPosts.push(JSON.parse(o.body));
   return { ok: true, status: 200, headers: { get: () => null },
            json: async () => ({ ...API_RESP }), text: async () => '{}', blob: async () => ({}) };

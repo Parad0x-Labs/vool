@@ -541,12 +541,14 @@ body.answer-pending footer { position: relative; z-index: 35; }
    backstop for a label that is still too wide for the room the row actually has. */
 .ctrl-btn { max-width:100%; min-width:0; }
 .cb-lbl { display:inline-block; max-width:30ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
-.ctrl-btn.bypass { color:#ffd7d9; border-color:var(--bad); background:color-mix(in srgb,var(--bad) 13%,var(--bg)); }
+.ctrl-btn.bypass { color:var(--ink); border-color:#aa8545; background:var(--field); }
 .mode-info { width:26px; height:26px; padding:0; justify-content:center; border-radius:999px; color:var(--muted); }
 .mode-help { min-width:300px; max-width:min(380px,88vw); padding:11px 12px; color:var(--ink); font-size:12px; line-height:1.5; }
 .mode-help b { display:block; margin-bottom:3px; }
 .mode-tooltip { position:fixed; z-index:80; max-width:300px; padding:7px 9px; border:1px solid var(--border); border-radius:8px; background:#070a0f; color:var(--ink); box-shadow:0 8px 24px #000b; font-size:11px; line-height:1.4; pointer-events:none; }
-.bypass-banner { display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--bad); border-radius:9px; background:color-mix(in srgb,var(--bad) 12%,var(--field)); color:#ffd7d9; font-size:12px; }
+.bypass-banner { display:inline-flex; flex:0 1 auto; min-width:24px; align-items:center; gap:4px; color:var(--muted); font-size:11px; white-space:nowrap; }
+.bypass-banner span { overflow:hidden; text-overflow:ellipsis; max-width:100px; }
+@container composer (max-width:470px) { .bypass-banner span { display:none; } }
 /* ---- Attachments: the draft strip above the composer row, and the chips inside a sent bubble ----
    One draft per chat, uploaded at pick time. The strip sits between the control row and the
    textarea so it can wrap freely at narrow widths without moving the model anchor; chips
@@ -597,7 +599,8 @@ footer.att-drop { outline:2px dashed var(--accent); outline-offset:-6px; }
   #attachBtn { min-width:0; padding:5px 8px; }
 }
 .bypass-banner[hidden] { display:none; }
-.bypass-banner button { margin-left:auto; background:transparent; color:#ffd7d9; border:1px solid var(--bad); border-radius:7px; padding:3px 8px; cursor:pointer; }
+.bypass-banner button { flex:0 0 auto; width:24px; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0; cursor:pointer; }
+.bypass-banner button:hover { color:var(--ink); border-color:var(--accent); }
 /* The popover grows UPWARD from a control sitting at the bottom of the window, so a long list ran
    off the top of the app and the top of the list (VOOL Auto included) could only be reached by
    maximising the window. It is now a single scroll container whose height is clamped to the space
@@ -1095,7 +1098,6 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" id="permDeny" class="perm-btn ghost" data-i18n="permissions.deny">Deny</button>
     </span>
   </div>
-  <div id="bypassBanner" class="bypass-banner" role="status" hidden><span>&#9888;</span><span id="bypassBannerText" data-i18n="bypass.banner_active">Bypass permissions is active.</span><button type="button" id="bypassRevoke" data-i18n="bypass.revoke">Revoke</button></div>
   <div class="control-bar">
     <div class="ctrl" id="modeCtrl">
       <button type="button" class="ctrl-btn" id="modeBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modePop" title="How VOOL may act" data-i18n-title="mode.button_title"><span class="cb-lbl" id="modeLbl">Manual</span> <span class="caret">&#9662;</span></button>
@@ -1105,11 +1107,12 @@ body:not(.panel-open) #xpanel { display:none; }
         <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-mode="review_edits" data-description="VOOL may inspect and prepare edit diffs. Each clearly identified edit batch must be approved before it is applied."><span class="pi-check"></span><span class="pi-icon">&#9998;</span><span class="pi-body" data-i18n="mode.review_edits">Review edits</span></button>
         <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-mode="plan" data-description="Strictly read-only. VOOL can inspect permitted project context and propose a plan; the controller blocks every mutation and side-effecting action."><span class="pi-check"></span><span class="pi-icon">&#8801;</span><span class="pi-body" data-i18n="mode.plan">Plan</span></button>
         <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-mode="auto" data-description="Ordinary project reads, edits, tests, and corrections may run autonomously. Destructive, external, publishing, money, credential, and security actions remain protected."><span class="pi-check"></span><span class="pi-icon">&#9655;</span><span class="pi-body" data-i18n="mode.auto">Auto</span></button>
-        <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-mode="bypass_permissions" data-description="Highest risk. Requires explicit confirmation, a limited chat or project scope, automatic expiry, and keeps receipts and hard security boundaries active."><span class="pi-check"></span><span class="pi-icon">&#9888;</span><span class="pi-body" data-i18n="mode.bypass_permissions">Bypass permissions</span></button>
+        <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-mode="bypass_permissions" data-description="Run available tools without individual prompts in the scope you approve. Choose a duration or keep it on for a folder-linked chat until you turn it off. Hard security and payment protections stay on."><span class="pi-check"></span><span class="pi-icon">&#9888;</span><span class="pi-body" data-i18n="mode.bypass_permissions">Bypass permissions</span></button>
       </div>
       <button type="button" class="ctrl-btn mode-info" id="modeInfo" aria-haspopup="dialog" aria-expanded="false" aria-controls="modeHelpPop" aria-label="Explain the selected mode" data-i18n-aria-label="mode.info_aria">i</button>
       <div class="popover mode-help" id="modeHelpPop" role="dialog" aria-label="Selected mode permissions" data-i18n-aria-label="mode.help_aria"><b id="modeHelpTitle">Manual</b><span id="modeHelpText"></span></div>
     </div>
+    <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
       <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
       <input type="file" id="attachInput" multiple hidden tabindex="-1" aria-hidden="true">
@@ -1145,12 +1148,15 @@ body:not(.panel-open) #xpanel { display:none; }
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="bypassTitle" aria-describedby="bypassWarning">
     <div class="modal-head"><span id="bypassTitle">Bypass permissions</span><button type="button" id="bypassClose" class="modal-x" aria-label="Cancel bypass">&times;</button></div>
     <div class="modal-body">
-      <p id="bypassWarning" class="set-help"><b>Highest-risk mode.</b> Available tools may run without individual prompts inside the selected scope. Workspace confinement, secret redaction, operating-system security, receipts, and money consent stay enforced.</p>
+      <p id="bypassWarning" class="set-help"><b>Run without individual prompts.</b> Applies only to the scope you choose. Workspace, secrets and payment protections stay on.</p>
       <div class="set-field"><label for="bypassScope">Scope</label><select id="bypassScope" class="set-input"><option value="task">Current task only</option><option value="session">This chat session</option><option value="project">This project</option></select></div>
-      <div class="set-field"><label for="bypassDuration">Automatic expiry</label><select id="bypassDuration" class="set-input"><option value="900">15 minutes</option><option value="1800">30 minutes</option><option value="3600">1 hour</option><option value="7200">2 hours</option><option value="14400">4 hours</option><option value="28800">8 hours</option><option value="custom">Custom…</option><option value="until_off">Until I turn it off — this chat only</option></select></div>
+      <div class="set-field"><label for="bypassDuration">Duration</label><select id="bypassDuration" class="set-input"><option value="900">15 minutes</option><option value="1800">30 minutes</option><option value="3600">1 hour</option><option value="7200">2 hours</option><option value="14400">4 hours</option><option value="28800">8 hours</option><option value="custom">Custom…</option><option value="until_off" disabled>Until I turn it off — this chat only</option></select></div>
+      <p id="bypassReadiness" class="set-help" role="status">Checking this chat’s folder…</p>
+      <div id="bypassWorkspaceSetup" hidden><label for="bypassProject">Link this chat to a project folder</label><select id="bypassProject" class="set-input"></select><button type="button" id="bypassLink" class="set-btn">Link folder</button><p class="set-help">This moves the chat into the selected project. It does not enable bypass.</p></div>
+      <p id="bypassError" class="set-help" role="alert" hidden></p>
       <div class="set-field" id="bypassCustomField" hidden><label for="bypassCustomMinutes">Custom duration (minutes, 15–1440)</label><input id="bypassCustomMinutes" class="set-input" type="number" min="15" max="1440" step="1" value="90" inputmode="numeric"></div>
       <p class="set-help">Bypass never grants access outside this workspace and cannot let a model expand its own permissions.</p>
-      <div class="set-actions"><button type="button" id="bypassCancel" class="set-btn">Cancel</button><button type="button" id="bypassConfirm" class="set-btn primary">Confirm limited bypass</button></div>
+      <div class="set-actions"><button type="button" id="bypassCancel" class="set-btn">Cancel</button><button type="button" id="bypassConfirm" class="set-btn primary">Enable bypass</button></div>
     </div>
   </div>
 </div>
@@ -1992,6 +1998,7 @@ let displayedChat = '';
 let view = chatState('');
 function setDisplayedChat(chatId) {
   const previousChat = displayedChat;
+  if (previousChat && previousChat !== String(chatId || '') && typeof closeBypassModal === 'function') closeBypassModal();
   displayedChat = String(chatId || '');
   view = chatState(displayedChat);
   // Named fragment call site: per-chat composer state (drafts, accent) follows the ONE place the
@@ -2665,6 +2672,7 @@ async function assignSession(sid, pid) {
   // Fail closed: surface a bind failure instead of silently continuing as if the move succeeded.
   if (!ok) toast('Could not move this chat — it was not changed. Try again.');
   await loadSessions();
+  return ok;
 }
 function closeProjectMenu() { const m = document.getElementById('projMenu'); if (m) m.remove(); }
 function openProjectMenu(sid, anchor) {
@@ -3277,6 +3285,7 @@ async function loadSessions() {
     const data = await r.json();
     _sessionCounts = (data && typeof data.counts === 'object') ? data.counts : null;
     renderSessions(data.sessions || []);
+    await restoreChatBypass(displayedChat);
   } catch (e) {}
 }
 
@@ -3339,7 +3348,7 @@ async function openSession(id) {
   setDisplayedChat(id);
   localStorage.setItem('vool.sessionId', displayedChat);
   markChatSeen(id);   // opening a chat is looking at it -- any completion it carried is acknowledged
-  view.mode = loadModeForSession(displayedChat);
+  view.mode = view.bypassGrant ? 'bypass_permissions' : loadModeForSession(displayedChat);
   reflectMode();
   // Opening a chat restores a browser preference only.  The mode travels in the next turn body;
   // passive navigation must not manufacture a mode receipt or a runtime task/session.
@@ -8154,6 +8163,7 @@ function reflectControl(popId, lblId, value, labels, prefix) {
   });
 }
 let bypassExpiryTimer = null;
+let bypassDialogContext = null;
 function modeDescription(mode) {
   // The catalog carries the reviewed translation; the data-description attribute stays
   // the English authority a missing key falls back to (never a blank explanation).
@@ -8177,10 +8187,15 @@ function reflectMode() {
   if (banner) { banner.hidden = view.mode !== 'bypass_permissions'; syncAnswerPendingSurfaces(); }
   if (bannerText && view.bypassGrant) {
     if (view.bypassGrant.until_off) {
-      bannerText.textContent = pageT('bypass.chat_only_until_off', 'Bypass permissions · this chat only · active until you turn it off (Revoke stays available)');
+      bannerText.textContent = 'Until off';
+      banner.title = 'Bypass permissions · this chat only · until you turn it off';
+      banner.setAttribute('aria-label', banner.title);
     } else {
       const expires = new Date(Number(view.bypassGrant.expires_at || 0) * 1000);
-      bannerText.textContent = pageTF('bypass.timed', 'Bypass permissions · {scope} scope · expires {time}', { scope: String(view.bypassGrant.scope || 'task'), time: expires.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+      const time = expires.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      bannerText.textContent = 'Until ' + time;
+      banner.title = 'Bypass permissions · ' + String(view.bypassGrant.scope || 'task') + ' scope · expires ' + time;
+      banner.setAttribute('aria-label', banner.title);
     }
   }
   if (bypassExpiryTimer) { clearTimeout(bypassExpiryTimer); bypassExpiryTimer = null; }
@@ -8198,15 +8213,22 @@ function reflectMode() {
     bypassExpiryTimer = setTimeout(() => { grantOwner.bypassGrant = null; grantOwner.mode = 'manual'; saveModeForSession(grantChat, grantOwner.mode); if (isDisplayed(grantChat)) { reflectMode(); syncModeController(); } toast('Bypass expired. Manual mode is active.'); }, Math.min(delay + 50, 2147483647));
   }
 }
-async function postMode(payload) {
-  const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ session_id: displayedChat, project_id: view.projectId || '', turn_id: view.run && !view.run.ended ? view.run.turnId : '' }, payload || {})) });
+function modeContext(chatId) {
+  const owner = chatState(chatId);
+  return { session_id: chatId, project_id: owner.projectId || '', turn_id: owner.run && !owner.run.ended ? owner.run.turnId : '' };
+}
+async function postMode(payload, context) {
+  const owner = context || modeContext(displayedChat);
+  const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ session_id: owner.session_id, project_id: owner.project_id, turn_id: owner.turn_id }, payload || {})) });
   let data = {}; try { data = await r.json(); } catch (e) {}
   if (!r.ok) { const err = new Error((data && data.error) || ('HTTP ' + r.status)); err.body = data; throw err; }
   return data;
 }
-async function setModeController(mode, bypassToken) {
-  const chatId = displayedChat, owner = chatState(chatId);   // bound before the await
-  const data = await postMode({ op: 'set', mode: mode, bypass_token: bypassToken || '' });
+async function setModeController(mode, bypassToken, context) {
+  context = context || modeContext(displayedChat);
+  const chatId = context.session_id, owner = chatState(chatId);
+  owner.permissionRevision = (owner.permissionRevision || 0) + 1;
+  const data = await postMode({ op: 'set', mode: mode, bypass_token: bypassToken || '' }, context);
   const applied = data && data.state && data.state.mode ? data.state.mode : mode;
   owner.mode = applied;
   if (applied !== 'bypass_permissions') { owner.bypassGrant = null; saveModeForSession(chatId, applied); }
@@ -8222,24 +8244,91 @@ async function syncModeController() {
     toast('Could not activate ' + (MODE_LABELS[owner.mode] || owner.mode) + ': ' + e.message);
   }
 }
+async function restoreChatBypass(chatId) {
+  const owner = chatState(chatId), originalGrant = owner.bypassGrant, originalMode = owner.mode, revision = owner.permissionRevision || 0;
+  if (originalGrant && originalGrant.scope !== 'session') return;
+  try {
+    const data = await postMode({ op: 'bypass_options' }, modeContext(chatId));
+    // A late read must not overwrite an explicit mode change or a new activation.
+    if (owner.bypassGrant !== originalGrant || owner.mode !== originalMode || (owner.permissionRevision || 0) !== revision) return;
+    owner.bypassGrant = data.grant || null;
+    if (data.grant) owner.mode = 'bypass_permissions';
+    else if (owner.mode === 'bypass_permissions') owner.mode = loadModeForSession(chatId);
+    if (isDisplayed(chatId)) reflectMode();
+  } catch (e) { /* A failed read grants nothing; dispatch still validates any existing token. */ }
+}
+async function refreshBypassReadiness(context) {
+  const hint = document.getElementById('bypassReadiness'), confirm = document.getElementById('bypassConfirm');
+  const duration = document.getElementById('bypassDuration'), setup = document.getElementById('bypassWorkspaceSetup');
+  context.ready = false; if (confirm) confirm.disabled = true;
+  const option = duration.querySelector('option[value="until_off"]'); option.disabled = true;
+  hint.textContent = 'Checking this chat’s folder…'; setup.hidden = true;
+  try {
+    const data = await postMode({ op: 'bypass_options' }, context);
+    if (bypassDialogContext !== context) return;
+    context.ready = true; context.untilOffAvailable = data.until_off_available;
+    context.workspace_root = String(data.workspace_root || '');
+    option.disabled = !data.until_off_available;
+    if (duration.value === 'until_off' && !data.until_off_available) duration.value = '900';
+    hint.textContent = data.message + (data.workspace_root ? ' Folder: ' + data.workspace_root : '');
+    setup.hidden = !['unbound', 'project_missing', 'protected_workspace'].includes(data.workspace_reason);
+    confirm.disabled = ['deleted_chat', 'missing_chat', 'unreadable'].includes(data.workspace_reason);
+    await refreshProjects();
+    if (bypassDialogContext !== context) return;
+    const projects = document.getElementById('bypassProject'); projects.replaceChildren();
+    const add = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; projects.appendChild(o); };
+    add('', 'Choose a project folder…');
+    Object.keys(_serverProjects).forEach((id) => add(id, _serverProjects[id].name || 'Project'));
+    add('__new', 'Choose a new folder…');
+  } catch (e) {
+    if (bypassDialogContext === context) hint.textContent = 'Could not check permissions: ' + e.message + ' Close and reopen to retry.';
+  }
+}
 function openBypassModal() {
   const overlay = document.getElementById('bypassOverlay'), scope = document.getElementById('bypassScope');
   if (!overlay) return;
+  const context = modeContext(displayedChat); bypassDialogContext = context;
   if (scope) {
     const taskOption = scope.querySelector('option[value="task"]');
     const projectOption = scope.querySelector('option[value="project"]');
-    if (taskOption) taskOption.disabled = !view.run || view.run.ended;
-    if (projectOption) projectOption.disabled = !view.projectId;
-    if ((scope.value === 'project' && !view.projectId) || (scope.value === 'task' && (!view.run || view.run.ended))) scope.value = view.run && !view.run.ended ? 'task' : 'session';
+    if (taskOption) taskOption.disabled = !context.turn_id;
+    if (projectOption) projectOption.disabled = !context.project_id;
+    scope.disabled = false;
+    scope.value = context.turn_id ? 'task' : 'session';
   }
+  document.getElementById('bypassDuration').value = '900';
+  document.getElementById('bypassCustomField').hidden = true;
+  document.getElementById('bypassError').hidden = true;
   overlay.hidden = false;
-  const confirm = document.getElementById('bypassConfirm'); if (confirm) confirm.focus();
+  refreshBypassReadiness(context);
 }
-function closeBypassModal() { const overlay = document.getElementById('bypassOverlay'); if (overlay) overlay.hidden = true; }
+function closeBypassModal() {
+  const overlay = document.getElementById('bypassOverlay'); if (overlay) overlay.hidden = true;
+  bypassDialogContext = null;
+}
+async function linkBypassWorkspace() {
+  const context = bypassDialogContext; if (!context || !isDisplayed(context.session_id)) return;
+  const select = document.getElementById('bypassProject'), button = document.getElementById('bypassLink');
+  if (!select.value) { document.getElementById('bypassReadiness').textContent = 'Choose a project folder first.'; return; }
+  button.disabled = true;
+  try {
+    if (select.value === '__new') await createProjectFlow(context.session_id);
+    else await assignSession(context.session_id, select.value);
+    if (bypassDialogContext === context) {
+      context.project_id = chatState(context.session_id).projectId || '';
+      const projectOption = document.querySelector('#bypassScope option[value="project"]');
+      projectOption.disabled = !context.project_id;
+      await refreshBypassReadiness(context);
+    }
+  } finally { button.disabled = false; }
+}
 async function confirmBypass() {
+  const context = bypassDialogContext;
+  if (!context || !context.ready || !isDisplayed(context.session_id)) return;
   const scope = document.getElementById('bypassScope'), duration = document.getElementById('bypassDuration'), btn = document.getElementById('bypassConfirm');
   const customField = document.getElementById('bypassCustomField'), customMinutes = document.getElementById('bypassCustomMinutes');
   const untilOff = !!(duration && duration.value === 'until_off');
+  if (untilOff && !context.untilOffAvailable) return;
   if (untilOff && scope && scope.value !== 'session') { toast('“Until I turn it off” applies to this chat only — choose the This chat session scope.'); return; }
   if (scope && scope.value === 'task' && (!view.run || view.run.ended)) { toast('Start a task before choosing task-only bypass, or select this chat session.'); return; }
   let seconds = Number(duration && duration.value || 900);
@@ -8250,39 +8339,43 @@ async function confirmBypass() {
   }
   if (btn) btn.disabled = true;
   try {
-    const chatId = displayedChat, owner = chatState(chatId);   // bound before the await
+    const chatId = context.session_id, owner = chatState(chatId);
+    const requestedScope = scope ? scope.value : 'task';
     // Two-step activation: mint a single-use, 60-second confirmation bound to THIS
     // exact action, then activate with it. A caller-asserted boolean let any local
     // process confirm on the user's behalf; the nonce is consumed once and only for
     // these exact bindings.
     const minted = await postMode({
       op: 'request_bypass_confirmation',
-      scope: scope ? scope.value : 'task',
+      scope: requestedScope,
       duration_seconds: untilOff ? 0 : seconds,
       until_off: untilOff,
-      workspace_root: untilOff ? String(owner.workspaceRoot || '') : ''
-    });
+      workspace_root: untilOff ? context.workspace_root : '',
+    }, context);
     const data = await postMode({
       op: 'activate_bypass',
-      scope: scope ? scope.value : 'task',
+      scope: requestedScope,
       duration_seconds: untilOff ? 0 : seconds,
       until_off: untilOff,
-      workspace_root: untilOff ? String(owner.workspaceRoot || '') : '',
+      workspace_root: untilOff ? context.workspace_root : '',
       confirmation_id: minted.confirmation_id
-    });
+    }, context);
     owner.bypassGrant = data.grant;
-    await setModeController('bypass_permissions', owner.bypassGrant.token);
-    closeBypassModal();
+    await setModeController('bypass_permissions', owner.bypassGrant.token, context);
+    if (bypassDialogContext === context) closeBypassModal();
     toast(untilOff ? 'Bypass is active for this chat until you turn it off. Revoke stays one click away.' : 'Limited bypass is active and will expire automatically.');
-  } catch (e) { toast('Bypass was not activated: ' + e.message); }
-  finally { if (btn) btn.disabled = false; }
+  } catch (e) {
+    if (bypassDialogContext === context) { const error = document.getElementById('bypassError'); error.textContent = 'Bypass was not activated: ' + e.message; error.hidden = false; }
+    else toast('Bypass was not activated for its original chat: ' + e.message);
+  }
+  finally { if (btn && bypassDialogContext === context) btn.disabled = false; }
 }
 async function revokeBypass() {
-  const chatId = displayedChat, owner = chatState(chatId);   // bound before the await
+  const context = modeContext(displayedChat), chatId = context.session_id, owner = chatState(chatId);
   const token = owner.bypassGrant && owner.bypassGrant.token;
-  try { await postMode({ op: 'revoke_bypass', token: token || '' }); } catch (e) {}
+  try { await postMode({ op: 'revoke_bypass', token: token || '' }, context); } catch (e) {}
   owner.bypassGrant = null; owner.mode = 'manual'; saveModeForSession(chatId, owner.mode); if (isDisplayed(chatId)) reflectMode();
-  try { await setModeController('manual'); } catch (e) { toast('Bypass ended locally; controller sync failed: ' + e.message); }
+  try { await setModeController('manual', '', context); } catch (e) { toast('Bypass ended locally; controller sync failed: ' + e.message); }
 }
 // The composer shows a short label; the exact name lives on the tooltip and, unchanged, in
 // Activity, About and receipts. "NVIDIA: Nemotron 3 Ultra 550B A55B (free)" is 41 characters and
@@ -8442,13 +8535,17 @@ function initComposerControls() {
   if (info && help) info.addEventListener('click', (e) => { e.stopPropagation(); const wasOpen = help.classList.contains('open'); closePops('modeHelpPop'); help.classList.toggle('open', !wasOpen); info.setAttribute('aria-expanded', wasOpen ? 'false' : 'true'); });
   const bypassClose = document.getElementById('bypassClose'), bypassCancel = document.getElementById('bypassCancel'), bypassConfirm = document.getElementById('bypassConfirm'), bypassRevoke = document.getElementById('bypassRevoke');
   if (bypassClose) bypassClose.addEventListener('click', closeBypassModal); if (bypassCancel) bypassCancel.addEventListener('click', closeBypassModal);
+  const bypassLink = document.getElementById('bypassLink'); if (bypassLink) bypassLink.addEventListener('click', linkBypassWorkspace);
   if (bypassConfirm) bypassConfirm.addEventListener('click', confirmBypass); if (bypassRevoke) bypassRevoke.addEventListener('click', revokeBypass);
   const bypassDurationSel = document.getElementById('bypassDuration'), bypassScopeSel = document.getElementById('bypassScope');
   if (bypassDurationSel) bypassDurationSel.addEventListener('change', () => {
     const custom = document.getElementById('bypassCustomField'); if (custom) custom.hidden = bypassDurationSel.value !== 'custom';
     // The no-timer choice is chat-only by construction; switching to it pins the scope so the
     // label the user reads ("this chat only") always matches the authority actually granted.
-    if (bypassDurationSel.value === 'until_off' && bypassScopeSel) bypassScopeSel.value = 'session';
+    if (bypassScopeSel) {
+      bypassScopeSel.disabled = bypassDurationSel.value === 'until_off';
+      if (bypassScopeSel.disabled) bypassScopeSel.value = 'session';
+    }
   });
   const bypassOverlay = document.getElementById('bypassOverlay'); if (bypassOverlay) bypassOverlay.addEventListener('click', (e) => { if (e.target === bypassOverlay) closeBypassModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bypassOverlay && !bypassOverlay.hidden) closeBypassModal(); });

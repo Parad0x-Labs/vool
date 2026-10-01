@@ -85,6 +85,28 @@ def json_response(status: int, payload: Any, *, headers: dict[str, str] | None =
     )
 
 
+def _bypass_setup_options(session_id: str) -> dict[str, Any]:
+    from core.context_namespace import authoritative_chat_workspace
+    from core.mode_permission_policy import _workspace_root_confined, current_chat_bypass_grant
+
+    root, reason = authoritative_chat_workspace(session_id)
+    if reason == "project" and _workspace_root_confined(root):
+        reason = "protected_workspace"
+    messages = {
+        "project": "This chat is linked to a folder. Bypass can stay on until you turn it off.",
+        "unbound": "Link this chat to a project folder to use Until I turn it off. Timed bypass is available without one.",
+        "protected_workspace": "Choose a project folder outside your home folder and VOOL profile to use Until I turn it off.",
+        "project_missing": "This chat's project folder is unavailable. Link an available folder to use Until I turn it off.",
+        "unreadable": "Could not check this chat's folder. Retry before enabling persistent bypass.",
+        "deleted_chat": "This chat was deleted. Open an active chat instead.",
+        "missing_chat": "Open an active chat before setting permissions.",
+    }
+    return {"until_off_available": reason == "project", "workspace_reason": reason,
+            "workspace_root": root if reason == "project" else "",
+            "message": messages.get(reason, "This chat's folder is unavailable."),
+            "grant": current_chat_bypass_grant(session_id)}
+
+
 def text_response(status: int, text: str, *, headers: dict[str, str] | None = None) -> ApiResponse:
     return ApiResponse(
         status=status,
@@ -4276,6 +4298,8 @@ def _dispatch_post_inner(
             "session_id": mode_session,
             "cancel_turn_id": client_turn_id,
         }
+        if op == "bypass_options":
+            return apply_runtime_headers(json_response(200, _bypass_setup_options(mode_session)), runtime)
         if op == "request_bypass_confirmation":
             # Step 1 of the two-step activation: mint a single-use, 60-second
             # confirmation bound to THIS exact activation. Minting grants nothing;
@@ -4287,6 +4311,12 @@ def _dispatch_post_inner(
             body_until_off_mint = body.get("until_off") is True
             _mint_root = ""
             if body_until_off_mint:
+                options = _bypass_setup_options(mode_session)
+                if not options["until_off_available"]:
+                    return apply_runtime_headers(json_response(409, {
+                        "error": options["message"], "reason": "bypass_workspace_required",
+                        "workspace_reason": options["workspace_reason"],
+                    }), runtime)
                 from core.context_namespace import authoritative_chat_workspace as _acw
 
                 _mint_root, _mint_root_reason = _acw(mode_session)
