@@ -18,8 +18,8 @@ import json
 import re
 
 from core.i18n.catalog import catalog_for, clear_catalog_cache
-from core.notification_fragment import render_notification_fragment
 from core.model_radar_fragment import render_model_radar_fragment
+from core.notification_fragment import render_notification_fragment
 from core.provider_key_guide import provider_key_guide
 from core.vool_chat_page import render_vool_chat_html
 from core.vool_settings_page import render_vool_settings_html
@@ -71,7 +71,7 @@ def test_bypass_dialog_localizes_in_every_shipped_catalog_locale() -> None:
         title = catalog.text("bypass.modal_title")
         # The dialog markup carries data-i18n; the swap happens client-side, so the
         # localized title must ride the bootstrap bundle the page ships.
-        assert f'data-i18n="bypass.modal_title"' in html
+        assert 'data-i18n="bypass.modal_title"' in html
         assert json.dumps(title, ensure_ascii=False)[1:-1] in html, f"{tag}: bundle lacks {title!r}"
         # the readiness vocabulary must be present in the bundle for the same reason
         readiness = catalog.text("bypass.readiness.unbound")
@@ -137,7 +137,7 @@ def test_setup_projection_resolves_presentation_per_locale() -> None:
 
     snap_en = setup_progress.snapshot()
     snap_lt = setup_progress.snapshot(locale="lt")
-    for a, b in zip(snap_en["steps"], snap_lt["steps"]):
+    for a, b in zip(snap_en["steps"], snap_lt["steps"], strict=True):
         assert a["id"] == b["id"]  # the projection itself never depends on locale
         assert a["done"] == b["done"]
     assert "setup.step.thinking.title" in ENGLISH.keys
@@ -160,15 +160,15 @@ def test_chrome_and_widget_states_resolve_through_catalog() -> None:
 
 def test_chat_greetings_and_toasts_ride_keys() -> None:
     html = render_vool_chat_html(build_commit="t")
-    for key, literal in (
-        ("first_run.greet_afternoon", "Good afternoon"),
-        ("first_run.opener_1", "What are we working on today?"),
-        ("chats.project_note", "Chats inside a project work in that folder"),
-        ("chat.toast_move_failed", "Could not move this chat"),
-        ("chat.toast_project_failed", "Could not put this chat in the project"),
-        ("chat.toast_try_once_grant", "for one turn"),
-        ("chat.toast_copy_empty", "Nothing to copy in"),
-        ("chat.setup_line_progress", "Finish setting up VOOL"),
+    for key in (
+        "first_run.greet_afternoon",
+        "first_run.opener_1",
+        "chats.project_note",
+        "chat.toast_move_failed",
+        "chat.toast_project_failed",
+        "chat.toast_try_once_grant",
+        "chat.toast_copy_empty",
+        "chat.setup_line_progress",
     ):
         assert key in ENGLISH.keys, key
     assert "emptyT('first_run.greet_afternoon'" in html or "period[0], period[1]" in html
