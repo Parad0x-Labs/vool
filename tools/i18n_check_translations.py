@@ -3,9 +3,9 @@
 
 Usage (from the repository root):
 
-    python tools/i18n/check_translations.py            # check everything, print report
-    python tools/i18n/check_translations.py --check    # exit 1 on any STALE/invariant failure (CI)
-    python tools/i18n/check_translations.py --write-index  # regenerate docs/i18n/README.md
+    python tools/i18n_check_translations.py            # check everything, print report
+    python tools/i18n_check_translations.py --check    # exit 1 on any STALE/invariant failure (CI)
+    python tools/i18n_check_translations.py --write-index  # regenerate docs/i18n/README.md
 
 Laws (docs/i18n/TRANSLATOR_RULES.md):
 - a translation records the SHA-256 of the canonical English source it was made
@@ -13,6 +13,10 @@ Laws (docs/i18n/TRANSLATOR_RULES.md):
 - fenced code blocks, URL/command/code-token sets, heading counts, table shapes
   and warning blockquotes are structural invariants — any drift is STALE;
 - statuses are MACHINE_DRAFT or HUMAN_VERIFIED (never set without a reviewer).
+
+A zero-document scan (no canonical sources under docs/i18n/sources/) is itself a
+FAILURE, never a pass: this tool must examine the repository it lives in, so a
+misresolved repository root cannot quietly turn "nothing found" into "all clear".
 """
 from __future__ import annotations
 
@@ -24,7 +28,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+# This file lives directly in tools/, so the repository root is one level up.
+# (The historical original sat at tools/i18n/check_translations.py where parents[2]
+# was correct; the flattened public location needs parents[1] — pinned by test.)
+REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 SOURCES_DIR = REPO / "docs" / "i18n" / "sources"
 DOCS_I18N_DIR = REPO / "docs" / "i18n"
@@ -278,6 +285,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write-index", action="store_true", help="regenerate docs/i18n/README.md")
     parser.add_argument("--locale", help="restrict to one locale directory")
     args = parser.parse_args(argv)
+
+    if not SOURCES_DIR.is_dir() or not canonical_docs():
+        # A scan that finds no canonical sources examined nothing: that is a failure
+        # of the tool's own resolution, never a clean pass. (The historical bug had
+        # REPO one directory too high, so every scan was zero-document and still
+        # printed "check complete".)
+        print(
+            "CHECK FAILED: no canonical sources under docs/i18n/sources/ — "
+            "the scan examined no documents (is the repository root resolved correctly?)"
+        )
+        return 1
 
     results = check_all()
     if args.locale:
