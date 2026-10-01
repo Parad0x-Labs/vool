@@ -17,7 +17,15 @@ import uuid
 from pathlib import Path
 
 from core.addon_catalog import CATALOG
-from core.eyebrow_client import KEY_NAME, AddonError, fetch_bytes, request_api, scan_skill, validate_report
+from core.eyebrow_client import (
+    KEY_NAME,
+    AddonError,
+    fetch_bytes,
+    request_api,
+    scan_skill,
+    valid_version_report,
+    validate_report,
+)
 
 _LOCK = threading.RLock()
 PREFIX = "discover-"
@@ -304,7 +312,7 @@ def security_action(action: str, value: str = "") -> dict:
         return {"ok": True, "message": "Eyebrow key removed."}
     if action == "test_key":
         report, quota = request_api("/v1/version")
-        if not isinstance(report.get("engine"), dict) or not isinstance(report.get("service"), str):
+        if not valid_version_report(report):
             raise AddonError("eyebrow_invalid_report", "Eyebrow did not return version information.")
         return {"ok": True, "message": "Eyebrow accepted the key.", "engine": str(report["engine"].get("version", ""))[:80], "quota_remaining": quota}
     raise AddonError("unsupported_action", "Unknown security action.")

@@ -118,7 +118,8 @@ def test_served_guide_choose_save_restart_test_and_remove(vault_home, monkeypatc
             browser.close(); manager.stop(); server.shutdown(); server.server_close()
 
 
-@pytest.mark.parametrize('response', [(401, {'error':'unauthorized'}), (200, {'service':'eyebrow'})])
+@pytest.mark.parametrize('response', [(401, {'error':'unauthorized'}), (200, {'service':'eyebrow'}),
+    (200, {'engine':{}}), (200, {'engine':{'version':'fixture'}, 'service':17})])
 def test_security_key_refusal_stores_nothing(vault_home, monkeypatch, response):
     from core import credential_store, eyebrow_client
     from core.credential_intelligence.intake import CredentialIntake

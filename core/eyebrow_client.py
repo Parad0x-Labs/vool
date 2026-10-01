@@ -11,6 +11,12 @@ CLIENT_USER_AGENT = "VOOL/0.6 (+https://vool.dev)"
 MAX_RESPONSE = 2 * 1024 * 1024
 
 
+def valid_version_report(payload: object) -> bool:
+    """The version response accepted by both key intake and explicit key tests."""
+    return (isinstance(payload, dict) and isinstance(payload.get("engine"), dict)
+            and isinstance(payload.get("service"), str))
+
+
 class AddonError(Exception):
     def __init__(self, code: str, message: str, status: int = 400):
         super().__init__(message)
