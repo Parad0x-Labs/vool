@@ -128,3 +128,58 @@ def test_changed_english_source_keys_have_fresh_transations_everywhere() -> None
         catalog = catalog_for(tag)
         for key, old_prefix in old_texts.items():
             assert not catalog.text(key).startswith(old_prefix), (tag, key)
+
+
+def test_setup_projection_resolves_presentation_per_locale() -> None:
+    """The checklist snapshot keeps its authority fields locale-free while the
+    step presentation resolves through the catalog at the projection owner."""
+    from core import setup_progress
+
+    snap_en = setup_progress.snapshot()
+    snap_lt = setup_progress.snapshot(locale="lt")
+    for a, b in zip(snap_en["steps"], snap_lt["steps"]):
+        assert a["id"] == b["id"]  # the projection itself never depends on locale
+        assert a["done"] == b["done"]
+    assert "setup.step.thinking.title" in ENGLISH.keys
+    lt = catalog_for("lt")
+    if not lt.diagnostic.stale_source and "setup.step.thinking.title" in lt.locale_keys:
+        assert snap_lt["steps"][0]["title"] == lt.text("setup.step.thinking.title")
+
+
+def test_chrome_and_widget_states_resolve_through_catalog() -> None:
+    html = render_vool_settings_html(build_commit="t")
+    assert 'data-i18n="settings.nav.back"' in html
+    assert 'data-i18n-placeholder="settings.nav.search"' in html
+    assert "T('settings.nav.head', 'Settings')" in html
+    assert "T('setup.checklist.continue', 'Continue setup')" in html
+    assert "tfmt('setup.checklist.later_prefix'" in html
+    # the transient widget states ride the generic keys, not raw literals
+    assert "'Unavailable — ' + err" not in html
+    assert "tfmt('settings.widget.unavailable'" in html
+
+
+def test_chat_greetings_and_toasts_ride_keys() -> None:
+    html = render_vool_chat_html(build_commit="t")
+    for key, literal in (
+        ("first_run.greet_afternoon", "Good afternoon"),
+        ("first_run.opener_1", "What are we working on today?"),
+        ("chats.project_note", "Chats inside a project work in that folder"),
+        ("chat.toast_move_failed", "Could not move this chat"),
+        ("chat.toast_project_failed", "Could not put this chat in the project"),
+        ("chat.toast_try_once_grant", "for one turn"),
+        ("chat.toast_copy_empty", "Nothing to copy in"),
+        ("chat.setup_line_progress", "Finish setting up VOOL"),
+    ):
+        assert key in ENGLISH.keys, key
+    assert "emptyT('first_run.greet_afternoon'" in html or "period[0], period[1]" in html
+    assert "emptyT('chat.toast_move_failed'" in html
+    assert "chats.project_note" in html
+    assert "chat.setup_line_progress" in html
+
+
+def test_shortcut_hint_resolves_through_the_bundle() -> None:
+    from core.command_palette_fragment import render_palette_fragment
+
+    rendered = render_palette_fragment()
+    assert "vpHintT('palette.hint_palette', 'palette')" in rendered
+    assert "vpHintT('palette.hint_esc_stop', 'stop')" in rendered

@@ -1766,8 +1766,8 @@ function removeSetupGroup() {
 function widgetSetupProgress(stack) {
   const src = state.sources[SETUP_STATE_URL];
   const err = state.sourceErr[SETUP_STATE_URL];
-  if (err) { stack.appendChild(el('div', 'empty', 'Unavailable — ' + err)); return; }
-  if (!src) { stack.appendChild(el('div', 'empty', 'Loading…')); return; }
+  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const head = el('div', 'row-label');
   head.id = 'setupCount';
   head.textContent = src.done_count + ' of ' + src.total + ' done';
@@ -1821,8 +1821,8 @@ function widgetSetupProgress(stack) {
 function widgetScamSchool(stack) {
   const src = state.sources['/api/wallet/safety'];
   const err = state.sourceErr['/api/wallet/safety'];
-  if (err) { stack.appendChild(el('div', 'empty', 'Unavailable — ' + err)); return; }
-  if (!src) { stack.appendChild(el('div', 'empty', 'Loading…')); return; }
+  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const rule = el('div', 'scam-rule'); rule.setAttribute('role', 'note'); rule.textContent = src.golden_rule || '';
   stack.appendChild(rule);
   const grid = el('div', 'scam-grid');
@@ -1939,8 +1939,8 @@ function widgetCompanionPet(stack) {
 function widgetBuild(stack) {
   const src = state.sources['/api/runtime/version'];
   const err = state.sourceErr['/api/runtime/version'];
-  if (err) { stack.appendChild(el('div', 'empty', 'Unavailable — ' + err)); return; }
-  if (!src) { stack.appendChild(el('div', 'empty', 'Loading…')); return; }
+  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const dl = el('dl', 'kv');
   const keys = Object.keys(src).filter(k => typeof src[k] !== 'object');
   keys.forEach(k => {
@@ -2043,7 +2043,7 @@ function widgetKeys(stack) {
   const src = state.sources['/api/settings/credentials'];
   const err = state.sourceErr['/api/settings/credentials'];
   const list = el('div', 'stack');
-  if (err) list.appendChild(el('div', 'empty', 'Unavailable — ' + err));
+  if (err) list.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err })));
   else if (!src) list.appendChild(el('div', 'empty', 'Loading…'));
   else {
     const creds = src.credentials || src.items || [];
@@ -3953,8 +3953,8 @@ function usepodModelRow(m, d, say, draw) {
 function widgetAnswerLanguage(stack) {
   const src = state.sources['/api/profile'];
   const err = state.sourceErr['/api/profile'];
-  if (err) { stack.appendChild(el('div', 'empty', 'Unavailable — ' + err)); return; }
-  if (!src) { stack.appendChild(el('div', 'empty', 'Loading…')); return; }
+  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
 
   const items = (src.items || []).filter(i => i.category === 'language' && i.status !== 'deleted');
   /* resolve()'s precedence is chat > project > context > global. Settings has no chat, so it
@@ -4063,7 +4063,7 @@ function widgetEmailAccounts(stack) {
   const status = el('div', 'state idle'); status.id = 'emailAccountsStatus'; status.setAttribute('role', 'status');
   stack.appendChild(body);
   stack.appendChild(status);
-  if (err) { body.appendChild(el('div', 'empty', 'Unavailable — ' + err)); return; }
+  if (err) { body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
   if (!src) { body.appendChild(el('div', 'empty', 'Loading…')); return; }
   const say = (msg, bad) => { status.className = 'state ' + (bad ? 'failed' : 'saved'); status.textContent = msg; };
   const refresh = async () => { await readSource('/api/email/accounts'); renderPane(); };
@@ -4153,7 +4153,7 @@ function widgetEmailRecovery(stack) {
   const status = el('div', 'state idle'); status.id = 'emailRecoveryStatus'; status.setAttribute('role', 'status');
   stack.appendChild(body);
   stack.appendChild(status);
-  if (err) { body.appendChild(el('div', 'empty', 'Unavailable — ' + err)); return; }
+  if (err) { body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
   if (!src) { body.appendChild(el('div', 'empty', 'Loading…')); return; }
   const say = (msg, bad) => { status.className = 'state ' + (bad ? 'failed' : 'saved'); status.textContent = msg; };
   const refresh = async () => { await readSource('/api/email/recovery'); renderPane(); };
