@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Karakter",
     "settings.row.character_mode.placeholder": "boş — VOOL kendisi olarak",
     "settings.row.cloud_keys.effect": "Hemen geçerli.",
-    "settings.row.cloud_keys.help": "Anahtarlar kendi başına bir şeydir, model ayarı değil: tek bir depo model sağlayıcılarını VE web arama anahtarlarını tutar.",
+    "settings.row.cloud_keys.help": "Sağlayıcı anahtarlarını ekleyin, test edin veya kaldırın. Kaydetme seçilen tek bir hizmeti doğrular; arama testleri kredi kullanabilir.",
     "settings.row.cloud_keys.label": "Anahtarlarınız",
     "settings.row.communication_style.effect": "Bir sonraki iletinizden itibaren geçerli. Süren tur eski değeri korur.",
     "settings.row.communication_style.help": "VOOL'un yazdığı üslup. Sözleri değiştirir, VOOL'un ne yapmaya razı olduğunu değil.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "Bir sonraki iletinizden itibaren geçerli. Süren tur eski değeri korur.",
     "settings.row.profile_items.help": "Her madde değerini, kapsamını, kökenini ve son kullanımını gösterir. Düzenle, Unut, Kapsamı taşı ve Öncekini geri yükle tek seferde tek maddeye etki eder; Duraklat, sürdürene dek VOOL'un yeni bir şey öğrenmesini durdurur; Dışa aktar, etkin her maddeyi tek belge olarak verir. Burada hatırlanan hiçbir şey VOOL'a okuma, gönderme, yayınlama veya harcama yetkisi vermez.",
     "settings.row.profile_items.label": "VOOL'un hatırladıkları",
+    "settings.row.provider_guide.help": "Bir kategori seçin, sağlayıcının resmî sitesini açın ve anahtarınızı aşağıya ekleyin.",
+    "settings.row.provider_guide.label": "Sağlayıcı bul",
     "settings.row.ram_reserve_pct.effect": "Hemen geçerli.",
     "settings.row.ram_reserve_pct.help": "Kaynak yöneticisi tarafından canlı uygulanır: ağır bir yerel görev belleğin bu payını almaz. Daha büyük ayırma, VOOL'un daha az kullanması demektir. Bu katı bir sınırdır, öğüt değil.",
     "settings.row.ram_reserve_pct.label": "Size ayrılan RAM",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "testnet fonları, gerçek para değil",
     "wallet.watch_only_hint": "yalnızca izleme: bu teklif dış bir cüzdanda onaylanabilir, burada imzalanamaz"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

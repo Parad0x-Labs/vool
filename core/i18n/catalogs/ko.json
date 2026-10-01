@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "캐릭터",
     "settings.row.character_mode.placeholder": "비어 있음 — VOOL 본래의 모습",
     "settings.row.cloud_keys.effect": "즉시 적용됩니다.",
-    "settings.row.cloud_keys.help": "키는 그 자체로 따로 있는 것이지 모델 설정이 아닙니다: 하나의 저장소가 모델 공급자 그리고 웹 검색 키를 함께 보관합니다.",
+    "settings.row.cloud_keys.help": "제공업체 키를 추가, 테스트하거나 삭제합니다. 저장 시 선택한 서비스 하나를 확인하며 검색 테스트는 크레딧을 사용할 수 있습니다.",
     "settings.row.cloud_keys.label": "당신의 키",
     "settings.row.communication_style.effect": "다음 메시지부터 적용됩니다. 진행 중인 턴은 이전 값을 유지합니다.",
     "settings.row.communication_style.help": "VOOL이 쓰는 문체입니다. 말투가 바뀌는 것이지, VOOL이 하려는 일이 바뀌는 것이 아닙니다.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "다음 메시지부터 적용됩니다. 진행 중인 턴은 이전 값을 유지합니다.",
     "settings.row.profile_items.help": "각 항목은 값, 범위, 출처, 마지막 사용을 보여 줍니다. 편집, 잊기, 범위 옮기기, 이전 복원은 한 번에 한 항목에 작용합니다; 일시정지는 다시 시작할 때까지 새로 배우는 것을 멈춥니다; 내보내기는 활성 항목 전체를 문서 하나로 줍니다. 여기 기억된 그 무엇도 VOOL에게 읽기, 보내기, 게시, 지출의 권한을 주지 않습니다.",
     "settings.row.profile_items.label": "VOOL이 기억하는 것",
+    "settings.row.provider_guide.help": "카테고리를 선택하고 제공업체의 공식 사이트를 연 다음 아래에 키를 추가하세요.",
+    "settings.row.provider_guide.label": "제공업체 찾기",
     "settings.row.ram_reserve_pct.effect": "즉시 적용됩니다.",
     "settings.row.ram_reserve_pct.help": "자원 관리자가 실시간으로 강제합니다: 무거운 로컬 작업은 이 메모리 몫을 가져가지 못합니다. 예약이 크면 VOOL이 덜 씁니다. 충고가 아니라 단단한 한도입니다.",
     "settings.row.ram_reserve_pct.label": "당신을 위해 비워둔 RAM",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "테스트넷 자금, 실제 돈이 아님",
     "wallet.watch_only_hint": "보기 전용: 이 제안은 외부 지갑에서 승인할 수 있고 여기서는 서명할 수 없습니다"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

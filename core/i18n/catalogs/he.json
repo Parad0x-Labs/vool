@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "דמות",
     "settings.row.character_mode.placeholder": "ריק — VOOL כעצמו",
     "settings.row.cloud_keys.effect": "חל מיד.",
-    "settings.row.cloud_keys.help": "מפתחות הם דבר בפני עצמו, לא הגדרת דגם: מחסן אחד מחזיק את ספקי הדגמים וגם את מפתחות חיפוש הרשת.",
+    "settings.row.cloud_keys.help": "הוסיפו, בדקו או הסירו מפתחות ספקים. השמירה מאמתת שירות אחד שנבחר; בדיקות חיפוש עשויות לצרוך קרדיטים.",
     "settings.row.cloud_keys.label": "המפתחות שלכם",
     "settings.row.communication_style.effect": "חל מההודעה הבאה שלכם. התור שבעיצומו שומר את הערך הישן.",
     "settings.row.communication_style.help": "המסגרת שבה VOOL כותב. זה משנה ניסוח, לא את מה ש-VOOL מוכן לעשות.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "חל מההודעה הבאה שלכם. התור שבעיצומו שומר את הערך הישן.",
     "settings.row.profile_items.help": "כל פריט מציג את ערכו, היקפו, מקורו ושימושו האחרון. עריכה, שכחה, העברת היקף ושחזור הקודם פועלים על פריט אחד בכל פעם; השהיה עוצרת את למידת החדש עד שתמשיכו; ייצוא נותן לכם כל פריט פעיל כמסמך אחד. שום דבר שנזכר כאן אינו מעניק ל-VOOL רשות לקרוא, לשלוח, לפרסם או להוציא.",
     "settings.row.profile_items.label": "מה VOOL זוכר",
+    "settings.row.provider_guide.help": "בחרו קטגוריה, פתחו את האתר הרשמי של הספק והוסיפו את המפתח למטה.",
+    "settings.row.provider_guide.label": "מציאת ספק",
     "settings.row.ram_reserve_pct.effect": "חל מיד.",
     "settings.row.ram_reserve_pct.help": "נאכף חי על ידי מושל המשאבים: משימה מקומית כבדה לא תיקח את חלק הזיכרון הזה. שמורה גדולה יותר פירושה ש-VOOL משתמש בפחות. זו מגבלה קשיחה, לא עצה.",
     "settings.row.ram_reserve_pct.label": "RAM שמור לכם",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "כספי רשת בדיקה, לא כסף אמיתי",
     "wallet.watch_only_hint": "צפייה בלבד: הצעה זו ניתנת לאישור בארנק חיצוני, לא לחתימה כאן"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

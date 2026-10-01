@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "الشخصية",
     "settings.row.character_mode.placeholder": "فارغ — VOOL كما هو",
     "settings.row.cloud_keys.effect": "يسري فورًا.",
-    "settings.row.cloud_keys.help": "المفاتيح شيء قائم بذاته، لا إعداد نموذج: مخزن واحد يحفظ مزودي النماذج ومفاتيح بحث الويب معًا.",
+    "settings.row.cloud_keys.help": "أضف مفاتيح المزودين أو اختبرها أو أزلها. يتحقق الحفظ من خدمة واحدة مختارة؛ وقد تستهلك اختبارات البحث رصيدًا.",
     "settings.row.cloud_keys.label": "مفاتيحك",
     "settings.row.communication_style.effect": "يسري من رسالتك التالية. يحتفظ الدور الجاري بالقيمة القديمة.",
     "settings.row.communication_style.help": "السجل الذي يكتب به VOOL. يغيّر الصياغة، لا ما يرضى VOOL بفعله.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "يسري من رسالتك التالية. يحتفظ الدور الجاري بالقيمة القديمة.",
     "settings.row.profile_items.help": "يعرض كل عنصر قيمته ونطاقه وأصله وآخر استخدام. تعديل ونسيان ونقل النطاق واستعادة السابق تعمل على عنصر واحد في كل مرة؛ الإيقاف المؤقت يمنع VOOL من تعلم الجديد حتى تستأنف؛ التصدير يعطيك كل عنصر نشط في مستند واحد. لا شيء مما يُتذكر هنا يمنح VOOL إذن قراءة أو إرسال أو نشر أو إنفاق.",
     "settings.row.profile_items.label": "ما يتذكره VOOL",
+    "settings.row.provider_guide.help": "اختر فئة وافتح الموقع الرسمي للمزود، ثم أضف مفتاحك أدناه.",
+    "settings.row.provider_guide.label": "ابحث عن مزود",
     "settings.row.ram_reserve_pct.effect": "يسري فورًا.",
     "settings.row.ram_reserve_pct.help": "تُفرض حيًا من حاكم الموارد: مهمة محلية ثقيلة لن تأخذ هذه الحصة من الذاكرة. احتياط أكبر يعني استخدام VOOL أقل. هذا حد صلب، لا نصيحة.",
     "settings.row.ram_reserve_pct.label": "ذاكرة RAM محفوظة لك",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "أموال شبكة اختبار، ليست مالًا حقيقيًا",
     "wallet.watch_only_hint": "للمشاهدة فقط: يمكن الموافقة على هذا المقترح في محفظة خارجية، لا التوقيع عليه هنا"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

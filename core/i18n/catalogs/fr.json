@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Personnage",
     "settings.row.character_mode.placeholder": "vide — VOOL lui-même",
     "settings.row.cloud_keys.effect": "S'applique immédiatement.",
-    "settings.row.cloud_keys.help": "Les clés sont une chose à part, pas un réglage de modèle : un seul magasin tient les fournisseurs de modèles ET les clés de recherche web.",
+    "settings.row.cloud_keys.help": "Ajoutez, testez ou supprimez vos clés. L’enregistrement vérifie un seul service choisi ; les tests de recherche peuvent consommer des crédits.",
     "settings.row.cloud_keys.label": "Vos clés",
     "settings.row.communication_style.effect": "S'applique dès votre prochain message. Le tour en cours garde l'ancienne valeur.",
     "settings.row.communication_style.help": "Le registre dans lequel VOOL écrit. Cela change les mots, pas ce que VOOL accepte de faire.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "S'applique dès votre prochain message. Le tour en cours garde l'ancienne valeur.",
     "settings.row.profile_items.help": "Chaque élément montre sa valeur, sa portée, son origine et sa dernière utilisation. Modifier, Oublier, Déplacer la portée et Restaurer le précédent agissent sur un élément à la fois ; Pause empêche VOOL d'apprendre quoi que ce soit de nouveau jusqu'à reprise ; Exporter vous rend chaque élément actif en un document. Rien de retenu ici ne donne à VOOL la permission de lire, envoyer, publier ou dépenser.",
     "settings.row.profile_items.label": "Ce que VOOL retient",
+    "settings.row.provider_guide.help": "Choisissez une catégorie, ouvrez le site officiel du fournisseur, puis ajoutez votre clé ci-dessous.",
+    "settings.row.provider_guide.label": "Trouver un fournisseur",
     "settings.row.ram_reserve_pct.effect": "S'applique immédiatement.",
     "settings.row.ram_reserve_pct.help": "Imposé en direct par le gouverneur de ressources : une tâche locale lourde ne prendra pas cette part de mémoire. Une réserve plus grande signifie que VOOL utilise moins. C'est une limite dure, pas un conseil.",
     "settings.row.ram_reserve_pct.label": "RAM gardée libre pour vous",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "fonds de testnet, pas d'argent réel",
     "wallet.watch_only_hint": "lecture seule : cette proposition peut être approuvée dans un portefeuille externe, pas signée ici"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

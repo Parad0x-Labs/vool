@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Персонаж",
     "settings.row.character_mode.placeholder": "пусто — VOOL как он есть",
     "settings.row.cloud_keys.effect": "Применяется сразу.",
-    "settings.row.cloud_keys.help": "Ключи — отдельная вещь, а не настройка модели: одно хранилище держит провайдеров моделей И ключи веб-поиска.",
+    "settings.row.cloud_keys.help": "Добавляйте, проверяйте или удаляйте ключи. При сохранении проверяется один выбранный сервис; проверки поиска могут расходовать кредиты.",
     "settings.row.cloud_keys.label": "Ваши ключи",
     "settings.row.communication_style.effect": "Применится с вашего следующего сообщения. Текущий ход сохраняет старое значение.",
     "settings.row.communication_style.help": "Регистр, в котором пишет VOOL. Меняются слова, а не то, что VOOL готов делать.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "Применится с вашего следующего сообщения. Текущий ход сохраняет старое значение.",
     "settings.row.profile_items.help": "Каждый элемент показывает значение, охват, происхождение и последнее использование. Редактировать, Забыть, Перенести охват и Вернуть прежнее действуют на один элемент за раз; Пауза останавливает запоминание нового, пока не продолжите; Экспорт выдаёт все активные элементы одним документом. Ничто из запомненного здесь не даёт VOOL права читать, отправлять, публиковать или тратить.",
     "settings.row.profile_items.label": "Что VOOL помнит",
+    "settings.row.provider_guide.help": "Выберите категорию, откройте официальный сайт провайдера и добавьте ключ ниже.",
+    "settings.row.provider_guide.label": "Найти провайдера",
     "settings.row.ram_reserve_pct.effect": "Применяется сразу.",
     "settings.row.ram_reserve_pct.help": "Принуждается вживую регулятором ресурсов: тяжёлая локальная задача не возьмёт эту долю памяти. Большая доля означает, что VOOL использует меньше. Это жёсткий лимит, не совет.",
     "settings.row.ram_reserve_pct.label": "RAM, оставленная вам",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "средства тестовой сети, не реальные деньги",
     "wallet.watch_only_hint": "только просмотр: это предложение можно подтвердить во внешнем кошельке, но не подписать здесь"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

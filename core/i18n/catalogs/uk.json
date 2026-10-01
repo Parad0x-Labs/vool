@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Персонаж",
     "settings.row.character_mode.placeholder": "порожньо — VOOL як він є",
     "settings.row.cloud_keys.effect": "Діє негайно.",
-    "settings.row.cloud_keys.help": "Ключі — окрема річ, а не налаштування моделі: одне сховище тримає провайдерів моделей І ключі веб-пошуку.",
+    "settings.row.cloud_keys.help": "Додавайте, перевіряйте або видаляйте ключі. Збереження перевіряє одну вибрану службу; перевірки пошуку можуть витрачати кредити.",
     "settings.row.cloud_keys.label": "Ваші ключі",
     "settings.row.communication_style.effect": "Діє з вашого наступного повідомлення. Поточний хід зберігає старе значення.",
     "settings.row.communication_style.help": "Регістр, яким пише VOOL. Змінюються слова, а не те, що VOOL готовий робити.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "Діє з вашого наступного повідомлення. Поточний хід зберігає старе значення.",
     "settings.row.profile_items.help": "Кожен елемент показує значення, охоплення, походження і останнє використання. Редагувати, Забути, Перенести охоплення і Повернути попереднє діють на один елемент за раз; Пауза зупиняє запам'ятовування нового, доки не продовжите; Експорт віддає кожен активний елемент одним документом. Нічого запам'ятованого тут не дає VOOL права читати, надсилати, публікувати чи витрачати.",
     "settings.row.profile_items.label": "Що VOOL пам'ятає",
+    "settings.row.provider_guide.help": "Виберіть категорію, відкрийте офіційний сайт постачальника й додайте ключ нижче.",
+    "settings.row.provider_guide.label": "Знайти постачальника",
     "settings.row.ram_reserve_pct.effect": "Діє негайно.",
     "settings.row.ram_reserve_pct.help": "Справдується наживо регулятором ресурсів: важке локальне завдання не візьме цю частку пам'яті. Більший резерв означає, що VOOL використовує менше. Це тверда межа, не порада.",
     "settings.row.ram_reserve_pct.label": "RAM, лишена вам",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "кошти тестової мережі, не справжні гроші",
     "wallet.watch_only_hint": "лише перегляд: цю пропозицію можна підтвердити у зовнішньому гаманці, але не підписати тут"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

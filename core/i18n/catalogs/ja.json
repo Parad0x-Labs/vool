@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "キャラクター",
     "settings.row.character_mode.placeholder": "空欄 — VOOL本来の姿",
     "settings.row.cloud_keys.effect": "即時に適用されます。",
-    "settings.row.cloud_keys.help": "キーは独立した存在で、モデル設定ではありません：1つの保存場所がモデルプロバイダとウェブ検索キーの両方を保持します。",
+    "settings.row.cloud_keys.help": "プロバイダーのキーを追加、テスト、削除できます。保存時は選択した一つのサービスを検証します。検索テストはクレジットを消費する場合があります。",
     "settings.row.cloud_keys.label": "あなたのキー",
     "settings.row.communication_style.effect": "次のメッセージから適用。進行中のターンは古い値を保持します。",
     "settings.row.communication_style.help": "VOOLが書くときの文体です。変わるのは言葉遣いで、VOOLが行う内容ではありません。",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "次のメッセージから適用。進行中のターンは古い値を保持します。",
     "settings.row.profile_items.help": "各項目は値・範囲・由来・最終使用を表示します。編集・忘れる・範囲移動・以前の値に戻すは一度に1項目に作用します。一時停止は再開するまで新しい学習を止め、書き出しは有効な全項目を1つの文書として渡します。ここで覚えられたものは、読み取り・送信・投稿・支出の権限をVOOLに与えません。",
     "settings.row.profile_items.label": "VOOLが覚えること",
+    "settings.row.provider_guide.help": "カテゴリを選び、プロバイダーの公式サイトを開いてから、下でキーを追加してください。",
+    "settings.row.provider_guide.label": "プロバイダーを探す",
     "settings.row.ram_reserve_pct.effect": "即時に適用されます。",
     "settings.row.ram_reserve_pct.help": "リソースガバナーがライブで強制します：重いローカルタスクはこのメモリ配分を取れません。確保が大きいほどVOOLの使用は減ります。これは助言ではなく硬い上限です。",
     "settings.row.ram_reserve_pct.label": "あなたのために確保するRAM",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "テストネット資金。実際のお金ではありません",
     "wallet.watch_only_hint": "閲覧専用：この提案は外部ウォレットで承認できます。ここでは署名できません"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
