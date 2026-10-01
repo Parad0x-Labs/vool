@@ -301,6 +301,8 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/notifications/preferences": "notifications lane read feed (preferences)",
     "http:GET:/api/notifications/native/status": "notifications lane read feed (native helper status)",
     "http:POST:/api/notifications/action": "notifications lane operator action (inbox row action)",
+    "http:POST:/api/notifications/read": "notifications lane operator action (inbox mark-read)",
+    "http:POST:/api/notifications/migrate": "notifications lane operator action (legacy state import)",
     "http:POST:/api/notifications/preferences": "notifications lane operator action (preferences)",
     "http:POST:/api/notifications/native/outbox": "notifications lane operator action (native outbox drain)",
     "http:POST:/api/notifications/native/report": "notifications lane operator action (native delivery report)",
