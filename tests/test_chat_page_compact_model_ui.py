@@ -200,7 +200,7 @@ def test_the_row_does_not_spread_apart_on_a_large_window() -> None:
     footer = HTML[HTML.index("<footer>"):HTML.index("</footer>")]
     assert header.count('id="modelCtrl"') == 1
     assert 'id="modelCtrl"' not in footer
-    assert '<span class="model-lane auto" id="modelLane">AUTO</span>' in header
+    assert '<span class="model-lane auto" id="modelLane" data-i18n="header.lane_auto">AUTO</span>' in header
 
 
 def test_every_control_in_the_row_has_a_floor_it_cannot_shrink_through() -> None:
