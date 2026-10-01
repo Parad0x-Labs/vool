@@ -2227,6 +2227,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/notifications/migrate": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/migrate",
+      "note": "notifications lane operator action (legacy state import)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/notifications/native/authorize": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/notifications/native/authorize",
@@ -2259,6 +2266,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/notifications/preferences",
       "note": "notifications lane operator action (preferences)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/notifications/read": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/read",
+      "note": "notifications lane operator action (inbox mark-read)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2916,7 +2930,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 283,
+    "EXTERNAL_TRANSPORT_ONLY": 285,
     "GENERATED_ADAPTER": 124,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
