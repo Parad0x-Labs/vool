@@ -161,6 +161,27 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "bypass.expiry_15",
         "bypass.expiry_30",
         "bypass.expiry_60",
+        # localization-completion additions (2026-10-01), each in the documented
+        # classes above: a placeholder-only fragment (" ({detail})"), the macOS
+        # brand, the "15 min" unit (same class as bypass.expiry_*), the "{n}k ctx"
+        # technical chip, and single-word homographs that are the correct term in
+        # the locales that keep them (fr Notifications/Note/source/images, de
+        # Updates, es/fr/pt local/cloud, pl/tr model, pl Alert).
+        "keys.test.refused_detail",
+        "notif.images",
+        "notif.pop_title",
+        "notif.row.alert",
+        "notif.row.macos",
+        "notif.row.model",
+        "notif.row.note",
+        "notif.row.source",
+        "notif.snooze_15",
+        "notif.tab.updates",
+        "radar.ctx_k",
+        "radar.images",
+        "radar.lane.cloud",
+        "radar.lane.local",
+        "radar.source",
         "chat.log_aria",
         "contacts.protection",
         "contacts.title",
