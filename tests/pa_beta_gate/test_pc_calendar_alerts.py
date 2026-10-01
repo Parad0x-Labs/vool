@@ -367,7 +367,7 @@ def test_bell_keeps_its_existing_sources_and_reads_the_notification_centre():
     from core.notification_fragment import render_notification_fragment
 
     fragment = render_notification_fragment()
-    for existing in ("/api/cloud/market-events", "runFinished", "No notifications yet"):
+    for existing in ("market_event", "runFinished", "Nothing here yet"):
         assert existing in fragment, existing
     for added in ("/api/notifications?after=", "/api/notifications/action", "'snooze'", "'dismiss'", "vfEventCard"):
         assert added in fragment, added

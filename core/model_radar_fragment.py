@@ -2,8 +2,8 @@
 
 Fragment law: one self-contained <style>+<script> IIFE, namespace
 ``window.VoolModelRadar``, prefix ``mr-``, appended before </body> so it evaluates
-after the page script it calls into. The chip shows a spark/price-tag glyph and an
-unread count; the popover renders one card per QUALIFIED finding the server
+after the page script it calls into. Discover models lives in the model selector;
+the popover renders one card per QUALIFIED finding the server
 already judged (this fragment never decides what qualifies — it renders
 ``/api/model-radar/feed`` rows or nothing).
 
@@ -12,22 +12,14 @@ cached — never blended), the offer kind (permanent / promotion / free quota /
 subsidy) with expiry when temporary, context, tool/image support, data terms (or
 "not stated" — the honest value), the evidence timestamp and source URL, and the
 WHY sentence from the authority. Actions: Try once (one turn, server-receipted),
-Set as default (the page's own A11-gated model switch — never a bypass), Dismiss
-(permanent, server-side). Preferences cover providers, lane, required
+Set as default (the page's own A11-gated model switch — never a bypass), Hide offer
+(permanent, server-side; separate from dismissing an inbox notification). Preferences cover providers, lane, required
 capabilities and notification frequency.
 """
 
 from __future__ import annotations
 
 _MR_CSS = """
-#mrChip{position:relative;background:transparent;color:var(--muted,#9aa1af);
-  border:1px solid var(--border,#262b35);border-radius:8px;padding:6px 10px;font:inherit;
-  font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-#mrChip:hover{color:var(--ink,#e8eaf0);border-color:var(--accent,#5eead4)}
-#mrChip .mr-glyph{font-size:13px;line-height:1}
-#mrBadge{min-width:15px;height:15px;border-radius:8px;background:var(--accent,#5eead4);
-  color:#04231d;font-size:10px;font-weight:800;display:grid;place-items:center;padding:0 4px}
-#mrBadge[hidden]{display:none}
 #mrPop{position:fixed;z-index:1150;width:min(420px,94vw);max-height:min(560px,80vh);overflow:auto;
   background:var(--panel,#16191f);border:1px solid var(--border,#262b35);border-radius:12px;
   box-shadow:0 10px 40px rgba(0,0,0,.5)}
@@ -97,6 +89,7 @@ function esc(text){
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function money(v){
+  if (v === null || v === undefined || v === '') return '\\u2014';
   var n = Number(v);
   if (!isFinite(n)) return '\\u2014';
   return '$' + (n >= 1 ? n.toFixed(2) : n.toFixed(4));
@@ -115,7 +108,7 @@ function when(iso){
 // ---- data --------------------------------------------------------------------------------
 
 function refresh(){
-  fetch('/api/model-radar/feed')
+  return fetch('/api/model-radar/feed')
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (!j || !j.ok) return;
@@ -130,28 +123,15 @@ function post(path, body){
     .then(function(r){ return r.json().then(function(j){ return {status: r.status, j: j}; }); });
 }
 
-// ---- the chip ----------------------------------------------------------------------------
-
-var chip = document.createElement('button');
-chip.id = 'mrChip';
-chip.type = 'button';
-chip.title = 'Model Radar \\u2014 honest free and 50%+ price-drop news, with evidence. Quiet by design: nothing below the bar ever appears here.';
-chip.setAttribute('aria-label', chip.title);
-chip.innerHTML = '<span class="mr-glyph">\\u2726</span><span class="mr-lbl">Radar</span><span id="mrBadge" hidden></span>';
+// Discovery is always reachable from the model selector, with no second badge.
+var chip = document.getElementById('discoverModelsBtn');
 pop = document.createElement('div');
 pop.id = 'mrPop';
 pop.hidden = true;
 pop.setAttribute('role', 'dialog');
-pop.setAttribute('aria-label', 'Model Radar');
+pop.setAttribute('aria-label', 'Discover models');
 document.body.appendChild(pop);
-var badge = chip.querySelector('#mrBadge');
-
-function paintChip(){
-  var unread = Number(feed.unread || 0);
-  if (unread > 0) { badge.hidden = false; badge.textContent = unread > 9 ? '9+' : String(unread); }
-  else badge.hidden = true;
-  chip.style.display = (feed.findings && feed.findings.length) || unread ? '' : 'none';
-}
+function paintChip(){}
 
 // ---- cards ---------------------------------------------------------------------------------
 
@@ -199,7 +179,7 @@ function cardHtml(f, index){
     '<div class="mr-actions">' +
     '<button type="button" class="mr-btn mr-primary" data-mr-act="try">Try once</button>' +
     '<button type="button" class="mr-btn" data-mr-act="pin">Set as default</button>' +
-    '<button type="button" class="mr-btn mr-ghost" data-mr-act="dismiss">Dismiss</button>' +
+    '<button type="button" class="mr-btn mr-ghost" data-mr-act="dismiss">Hide offer</button>' +
     '</div><div class="mr-status" data-mr-status hidden></div></div>';
 }
 
@@ -232,7 +212,7 @@ function prefsHtml(){
 function paintList(){
   var rows = (feed.findings || []).map(function(f, i){ return cardHtml(f, i); }).join('');
   var conflicts = Number(feed.open_conflicts || 0);
-  pop.innerHTML = '<div class="mr-head">Model Radar \\u00b7 honest price news' +
+  pop.innerHTML = '<div class="mr-head">Discover models \\u00b7 prices and evidence' +
     '<button type="button" class="mr-prefs-btn" id="mrPrefsBtn">Preferences</button></div>' +
     (rows || '<div class="mr-empty">Nothing qualified yet. The radar only speaks when a model becomes genuinely free under stated limits, or the same provider cuts a recorded price by half or more \\u2014 with fresh evidence. Quiet is the design, not an outage.</div>') +
     prefsHtml() +
@@ -315,19 +295,20 @@ function act(f, action, card){
 
 // ---- surface -------------------------------------------------------------------------------------
 
-function openPop(){
+function openPop(fingerprint){
   paintList();
   pop.hidden = false;
   paintChip();
-  var fingerprints = (feed.findings || []).map(function(f){ return String(f.fingerprint || ''); }).filter(Boolean);
+  var fingerprints = (feed.findings || []).filter(function(f){ return !fingerprint || f.fingerprint === fingerprint; }).map(function(f){ return String(f.fingerprint || ''); }).filter(Boolean);
   if (fingerprints.length) {
     post('/api/model-radar/viewed', {fingerprints: fingerprints.slice(0, 100)}).then(function(){ refresh(); }).catch(function(){});
   }
-  var r = chip.getBoundingClientRect();
+  var anchor = document.getElementById('modelBtn') || chip;
+  var r = anchor.getBoundingClientRect();
   pop.style.top = (r.bottom + 6) + 'px';
   pop.style.left = Math.max(8, Math.min(r.right - 420, window.innerWidth - 428)) + 'px';
 }
-chip.addEventListener('click', function(){ pop.hidden ? openPop() : (pop.hidden = true); });
+if (chip) chip.addEventListener('click', function(ev){ ev.stopPropagation(); var menu = document.getElementById('modelPop'); if (menu) menu.classList.remove('open'); var modelBtn = document.getElementById('modelBtn'); if (modelBtn) modelBtn.setAttribute('aria-expanded', 'false'); refresh().then(function(){ openPop(); }); });
 pop.addEventListener('click', function(ev){
   var btn = ev.target.closest('[data-mr-act]');
   if (!btn) return;
@@ -336,17 +317,12 @@ pop.addEventListener('click', function(ev){
   if (f) act(f, btn.getAttribute('data-mr-act'), card);
 });
 document.addEventListener('mousedown', function(ev){
-  if (!pop.hidden && !pop.contains(ev.target) && ev.target !== chip && !chip.contains(ev.target)) pop.hidden = true;
+  if (!pop.hidden && !pop.contains(ev.target) && ev.target !== chip && !(chip && chip.contains(ev.target))) pop.hidden = true;
 });
 
+document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') pop.hidden = true; });
+
 function mount(){
-  // Top-right cluster: sit beside the notification bell (which itself mounts
-  // before #panelBtn). Bell present -> chip goes just before it; otherwise the
-  // same anchor the bell uses.
-  var anchor = document.getElementById('vfBell') || document.getElementById('panelBtn');
-  if (anchor && anchor.parentNode && !document.getElementById('mrChip')) {
-    anchor.parentNode.insertBefore(chip, anchor);
-  }
   refresh();
   setInterval(refresh, 60000);
 }
@@ -354,6 +330,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 else mount();
 
 window.VoolModelRadar = Object.freeze({
+  open: function(fingerprint){ return refresh().then(function(){ openPop(fingerprint); }); },
   refresh: refresh,
   unread: function(){ return Number(feed.unread || 0); },
   pending: function(){ return (feed.findings || []).length; },
@@ -363,7 +340,7 @@ window.VoolModelRadar = Object.freeze({
 
 
 def render_model_radar_fragment() -> str:
-    """The Model Radar chip + cards + preferences as an appended fragment."""
+    """The model discovery cards and preferences as an appended fragment."""
     return "<style>" + _MR_CSS + "</style><script>" + _MR_JS + "</script>"
 
 

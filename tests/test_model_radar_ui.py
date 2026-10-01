@@ -26,17 +26,14 @@ def fragment() -> str:
 
 
 def test_fragment_is_registered_and_mounted(page_html, fragment) -> None:
-    assert "mrChip" in page_html and "VoolModelRadar" in page_html, "the radar must ship in the real chat shell"
+    assert "discoverModelsBtn" in page_html and "VoolModelRadar" in page_html, "the radar must ship in the real chat shell"
     assert fragment in page_html, "rendered via _page_fragments, not duplicated"
 
 
-def test_chip_sits_in_the_top_right_cluster(fragment) -> None:
-    # The bell mounts before #panelBtn; the radar mounts beside it (before the bell when
-    # present, else the same anchor) -- the top-right notification cluster.
-    assert "document.getElementById('vfBell') || document.getElementById('panelBtn')" in fragment
-    assert "insertBefore(chip, anchor)" in fragment
-    # Quiet by design: the badge uses the accent colour, never the warning colour.
-    assert "var(--accent" in fragment.split("#mrBadge")[1].split("}")[0]
+def test_discovery_is_in_model_selector_without_second_header_badge(fragment) -> None:
+    assert "document.getElementById('discoverModelsBtn')" in fragment
+    assert "mrChip" not in fragment and "mrBadge" not in fragment
+    assert "insertBefore(chip, anchor)" not in fragment
 
 
 def test_card_carries_the_full_contract(fragment) -> None:
@@ -48,7 +45,7 @@ def test_card_carries_the_full_contract(fragment) -> None:
         "data terms not stated by the provider",                           # privacy honesty
         "evidence ", "source",                                             # evidence timestamp + URL
         "f.why",                                                           # why it qualified
-        "Try once", "Set as default", "Dismiss",                           # actions
+        "Try once", "Set as default", "Hide offer",                           # actions
         "Providers to watch", "Lane", "tool support", "image support",     # preferences
         "as it happens", "at most daily per model", "at most weekly per model",
     ):
@@ -99,6 +96,30 @@ def test_served_chat_document_contains_the_radar() -> None:
     )
     assert res.status == 200
     body = res.body.decode("utf-8")
-    assert "mrChip" in body and "VoolModelRadar" in body and "Model Radar" in body
+    assert "discoverModelsBtn" in body and "VoolModelRadar" in body and "Discover models" in body
     # sanity: the response is the real page, not an error document
     assert json.dumps("VOOL") .strip('"') in body
+
+
+def test_discovery_is_not_bound_to_static_model_pin_handler() -> None:
+    from tests.chat_page_js_harness import DOM, run_node, script
+
+    drive = r"""
+const discover = document.getElementById('discoverModelsBtn');
+const auto = document.createElement('button'); auto.setAttribute('data-model','vool');
+document.querySelectorAll = function(selector){
+  if(selector.startsWith('#modelPop .pop-item')) return selector.includes('[data-model]') ? [auto] : [auto,discover];
+  return [];
+};
+initComposerControls();
+modelValue = 'vool-local-only';
+if(discover.__on && discover.__on.click) discover.__on.click({stopPropagation(){}});
+out({discoveryHasPinHandler:!!(discover.__on && discover.__on.click),model:modelValue,autoHasPinHandler:!!auto.__on.click});
+"""
+    control = run_node(DOM + script().replace(".pop-item[data-model]:not(.cloud-dyn)", ".pop-item:not(.cloud-dyn)") + drive)
+    assert not control["errors"], control
+    assert control["discoveryHasPinHandler"] and control["model"] != "vool-local-only"
+    result = run_node(DOM + script() + drive)
+    assert not result["errors"], result
+    assert result["autoHasPinHandler"]
+    assert not result["discoveryHasPinHandler"] and result["model"] == "vool-local-only"

@@ -1,20 +1,7 @@
-"""The notification inbox laws: identification, snapshot, persistence, distinct purposes.
+"""Canonical inbox rendering: source snapshots, section-scoped reads and deep links.
 
-NEW regressions for product/desktop-usability-20260917, driving the REAL notification
-fragment under the node DOM stub with the market-events fetch faked at the seam. The
-distinct failure paths (none covered by the existing radar/market suites):
-
-* a `new_free_model` alert must IDENTIFY the model: human name AND id, provider, observed
-  prices, free qualification basis, context, observed time and source — with "unavailable"
-  for genuinely unknown fields (the baseline rendered "\\u2728 N new free models", naming
-  nothing);
-* the alert renders from ITS OWN event snapshot: a second, different catalog observation
-  never relabels the first alert;
-* observed-zero is stated as an observation with its basis, never certified as "free";
-* the FIRST load baselines existing events as read mail (no unread replay of history);
-* new events arrive unread; opening the inbox reads them; dismissal persists across a
-  reload; lifecycle (non-model) items stay reachable in the same inbox;
-* the inbox states its distinct purpose from Model Radar (discovery), without replacing it.
+The Node DOM seam uses labelled server items. Persistence, migration, duplicate
+observations and completion recording are tested against real stores separately.
 """
 
 from __future__ import annotations
@@ -48,29 +35,25 @@ globalThis.vfPop = () => byId(document.body, 'vfPop');
 
 
 def run_fragment(driver: str, events: list[dict], *, prelude: str = "") -> dict:
-    """Boot the fragment under node with /api/cloud/market-events faked at the fetch seam."""
-    payload = json.dumps({"ok": True, "events": events}, ensure_ascii=False)
-    program = (
-        DOM
-        + "\nglobalThis.__marketEvents = " + payload + ";\n"
-        + "globalThis.__polls = 0;\n"
-        + "globalThis.__inspects = 0;\n"
-        + "globalThis.fetch = async (url) => {"
-        + "  if (String(url).indexOf('/api/cloud/market-events') !== -1) {"
-        + "    globalThis.__polls += 1;"
-        + "    return { ok: true, status: 200, json: async () => globalThis.__marketEvents };"
-        + "  }"
-        + "  return { ok: true, status: 200, json: async () => ({}) };"
-        + "};\n"
-        + "window.VoolPageActions = { openModelMenu: () => { globalThis.__inspects += 1; } };\n"
-        + "document.getElementById('panelBtn').parentNode = document.body;  // the mount anchor needs a parent\n"
-        + DRIVER_HELPERS
-        + prelude
-        + "\n;(async function(){\n"
-        + FRAGMENT.split("<script>")[1].split("</script>")[0]
-        + "\n" + driver
-        + "\n})();\n"
-    )
+    """Render real inbox code with labelled canonical notification fixtures."""
+    items = [{"notification_id": f"ntf-{ev['seq']}", "source_kind": "model_market",
+              "title": ev.get("display_name", ""), "body": "", "read_at": "fixture-read",
+              "payload": {"section": "offers", "market_event": ev}} for ev in reversed(events)]
+    program = (DOM + "\nglobalThis.__items = " + json.dumps(items) + ";\n"
+        + "globalThis.__inspects = 0; globalThis.__reads = []; globalThis.__dismissed = [];\n"
+        + r"""
+globalThis.fetch = async (url, opts) => {
+  let j = {ok:true};
+  if (url.indexOf('/api/notifications?') === 0) j = {ok:true, items:__items.filter(x=>!x.dismissed_at), unread:__items.filter(x=>!x.read_at&&!x.dismissed_at).length};
+  if (url === '/api/notifications/read') { const ids=JSON.parse(opts.body).notification_ids; __reads.push(...ids); __items.forEach(x=>{if(ids.includes(x.notification_id))x.read_at='saved';}); }
+  if (url === '/api/notifications/action') { const b=JSON.parse(opts.body); __items.forEach(x=>{if(x.notification_id===b.notification_id){x.read_at='saved';if(b.action==='dismiss')x.dismissed_at='saved';}}); }
+  return {ok:true,status:200,json:async()=>j};
+};
+window.VoolPageActions={openModelMenu:()=>{__inspects++;}};
+document.getElementById('panelBtn').parentNode=document.body;
+""" + DRIVER_HELPERS + prelude + "\n;(async function(){\n"
+        + FRAGMENT.split("<script>")[1].split("</script>")[0].replace("(function(){", "(async function(){", 1).rsplit("})();", 1)[0]
+        + "\nsection='offers';\n" + driver + "\n})();\n})();\n")
     return run_node(program, timeout=90)
 
 
@@ -91,22 +74,13 @@ def _free_event(seq: int, **over) -> dict:
     return event
 
 
-def test_first_load_baselines_history_as_read_not_unread_replay() -> None:
-    out = run_fragment(r"""
-const res = { errors: [] };
-try {
-""" + TICK + r"""
-  for (let i = 0; i < 10; i++) await tick();
-  res.unreadAfterFirstPoll = window.VoolNotify.unread();
-  res.items = window.VoolNotify.pending();
-  res.state = window.VoolNotify._state();
-} catch (e) { res.errors.push(String(e && e.stack || e)); }
-out(res);
+def test_saved_read_state_is_used_in_the_browser() -> None:
+    out = run_fragment(TICK + r"""
+for(let i=0;i<10;i++) await tick();
+out({pending:window.VoolNotify.pending(),unread:window.VoolNotify.unread()});
 """, [_free_event(1), _free_event(2)])
-    assert not out["errors"], out["errors"]
-    assert out["items"] == 2, "existing events are LISTED (reachable)"
-    assert out["unreadAfterFirstPoll"] == 0, "history must not replay as unread mail"
-    assert out["state"]["seenSeq"] == 2 and out["state"]["readSeq"] == 2
+    assert not out["errors"]
+    assert out["pending"] == 2 and out["unread"] == 0
 
 
 def test_new_event_identifies_the_model_completely() -> None:
@@ -124,7 +98,7 @@ out(res);
 """, [_free_event(1), _free_event(2), _free_event(3)],
     prelude="localStorage.setItem('vool_notify_state_v1', JSON.stringify({ seenSeq: 2, readSeq: 2, dismissed: {} }));")
     assert not out["errors"], out["errors"]
-    assert out["unread"] == 1, "a NEW event arrives unread"
+    assert out["unread"] == 0, "the canonical fixture is already read"
     html = out["html"]
     # THE baseline defect: "N new free models" named nothing. The alert must identify:
     assert "Example One" in html, "human name"
@@ -191,7 +165,7 @@ out(res);
     assert out["hasBoth"], "two observations are two alerts"
     # Newest-first: the RENAMED alert is row 0; the ORIGINAL alert is row 1 and must still
     # carry ITS OWN observation (name + $0 prices), not the later catalog's values.
-    rows = out["snapshotFirst"].split('data-vf="')
+    rows = out["snapshotFirst"].split('data-vmarket="')
     assert len(rows) >= 3, f"expected two item rows: {len(rows) - 1}"
     original_alert = rows[2]
     assert "Observed free: Example One (" in original_alert, original_alert[:400]
@@ -199,113 +173,47 @@ out(res);
     assert "Example One RENAMED" not in original_alert
 
 
-def test_opening_reads_and_dismissal_persists_across_reload() -> None:
-    events = [_free_event(1), _free_event(2), _free_event(3)]
-    first = run_fragment(r"""
-const res = { errors: [] };
-try {
-""" + TICK + r"""
-  for (let i = 0; i < 10; i++) await tick();
-  res.unreadBefore = window.VoolNotify.unread();
-  vfBell().__on.click({});     // open: reads the mail
-  res.unreadAfterOpen = window.VoolNotify.unread();
-  // dismiss seq 2 through the popover's own button
-  const popEl = vfPop();
-  const rows = popEl.children.length;                   // head + items + foot
-  const btns = [];
-  popEl.querySelectorAll = () => btns;
-  res.rows = rows;
-  res.savedState = JSON.parse(localStorage.getItem('vool_notify_state_v1'));
-} catch (e) { res.errors.push(String(e && e.stack || e)); }
-out(res);
-""", events, prelude="localStorage.setItem('vool_notify_state_v1', JSON.stringify({ seenSeq: 1, readSeq: 1, dismissed: {} }));")
-    assert not first["errors"], first["errors"]
-    assert first["unreadBefore"] == 2, "two new events after the stored cursor"
-    assert first["unreadAfterOpen"] == 0, "opening the inbox reads everything visible"
-
-    # A "reload" boots the fragment again with the same localStorage, now carrying the
-    # operator's persisted dismissal of seq 2 (recorded by the first session's Dismiss):
-    persisted = dict(first["savedState"])
-    persisted["dismissed"] = {"s2": 1}
-    reloaded = run_fragment(
-        r"""
-const res = { errors: [] };
-try {
-""" + TICK + r"""
-  for (let i = 0; i < 10; i++) await tick();
-  vfBell().__on.click({});
-  res.html = vfPop().innerHTML;
-  res.unread = window.VoolNotify.unread();
-} catch (e) { res.errors.push(String(e && e.stack || e)); }
-out(res);
-""",
-        events,
-        prelude=(
-            "localStorage.setItem('vool_notify_state_v1', JSON.stringify("
-            + json.dumps(persisted) + "));"
-        ),
-    )
-    assert not reloaded["errors"], reloaded["errors"]
-    assert "Observed free: Example One (" in reloaded["html"], "non-dismissed items stay reachable"
-    assert reloaded["unread"] == 0
-    # Dismissed seq 2 is gone while seq 1 and 3 remain listed (each has the same name here;
-    # count the alerts by their distinct data-vf rows instead).
-    listed = re.findall(r'data-vf="(\d+)"', reloaded["html"])
-    assert len(listed) == 2, f"exactly the two non-dismissed market items: {len(listed)}"
+def test_read_visible_section_only_not_other_unread_sections() -> None:
+    prelude = "__items.forEach(x=>x.read_at=null); __items.push({notification_id:'reminder',source_kind:'reminder',title:'Meet',payload:{},read_at:null});"
+    out = run_fragment(TICK + r"""
+for(let i=0;i<10;i++) await tick();
+vfBell().__on.click({});
+for(let i=0;i<10;i++) await tick();
+out({reads:__reads,unread:window.VoolNotify.unread(),html:vfPop().innerHTML});
+""", [_free_event(1)], prelude=prelude)
+    assert out["reads"] == ["ntf-1"] and out["unread"] == 1
+    assert "Needs you" in out["html"] and "Updates" in out["html"] and "Model offers" in out["html"]
 
 
-def test_lifecycle_items_stay_reachable_in_the_same_inbox() -> None:
-    out = run_fragment(r"""
-const res = { errors: [] };
-try {
-""" + TICK + r"""
-  for (let i = 0; i < 10; i++) await tick();
-  window.VoolNotify.runFinished({ chatId: 'chat-9', status: 'done', displayed: false, summary: 'report written' });
-  res.unread = window.VoolNotify.unread();
-  vfBell().__on.click({});
-  res.html = vfPop().innerHTML;
-  res.items = window.VoolNotify._items();
-} catch (e) { res.errors.push(String(e && e.stack || e)); }
-out(res);
-""", [_free_event(1)])
-    assert not out["errors"], out["errors"]
-    assert out["unread"] == 1, "the lifecycle completion is unread"
-    assert "background chat completed" in out["html"]
-    assert "Opens its chat" in out["html"]
-    assert out["items"]["lifecycle"][0]["chatId"] == "chat-9"
-
-
-def test_inbox_states_its_purpose_and_points_at_radar() -> None:
-    out = run_fragment(r"""
-const res = { errors: [] };
-try {
-""" + TICK + r"""
-  for (let i = 0; i < 10; i++) await tick();
-  vfBell().__on.click({});
-  res.html = vfPop().innerHTML;
-} catch (e) { res.errors.push(String(e && e.stack || e)); }
-out(res);
+def test_background_run_never_fabricates_an_item_in_the_browser() -> None:
+    out = run_fragment(TICK + r"""
+for(let i=0;i<10;i++) await tick();
+await window.VoolNotify.runFinished({chatId:'chat',turnId:'turn',status:'completed',displayed:false});
+out({pending:window.VoolNotify.pending()});
 """, [])
-    assert not out["errors"], out["errors"]
-    assert "Model Radar" in out["html"], "the inbox cross-links the discovery surface"
-    assert "inbox" in out["html"]
-    assert "No notifications yet" in out["html"], "an empty feed says so honestly"
+    assert out["pending"] == 0  # real runtime recording is proven in test_notification_hub
+
+
+def test_discovery_and_inbox_dismissal_have_distinct_scope() -> None:
+    assert "Discover models" in FRAGMENT
+    assert "your alerts and model choice stay unchanged" in FRAGMENT
+    assert "/api/model-radar/dismiss" not in FRAGMENT
+    assert "vool_notify_state_v1" in FRAGMENT  # migration only, no second read owner
+    assert "localStorage.setItem" not in FRAGMENT
 
 
 def test_inspect_action_opens_the_model_menu() -> None:
-    out = run_fragment(r"""
-const res = { errors: [] };
-try {
-""" + TICK + r"""
-  for (let i = 0; i < 10; i++) await tick();
-  vfBell().__on.click({});
-  const popEl = vfPop();
-  const inspect = popEl.children.length;   // structural reachability only here; the click
-  res.inspects = globalThis.__inspects;     // path itself is exercised in the served lane
-  res.popVisible = !popEl.hidden;
-} catch (e) { res.errors.push(String(e && e.stack || e)); }
-out(res);
+    out = run_fragment(TICK + r"""
+for(let i=0;i<10;i++) await tick();
+openCard(centre[0]);
+out({inspects:__inspects});
 """, [_free_event(1)])
-    assert not out["errors"], out["errors"]
-    assert out["popVisible"] is True
-    assert "Inspect in Models" in render_notification_fragment()
+    assert out["inspects"] == 1
+
+
+def test_inbox_boots_when_browser_storage_is_unavailable() -> None:
+    out = run_fragment(TICK + r"""
+for(let i=0;i<10;i++) await tick();
+out({pending:window.VoolNotify.pending()});
+""", [_free_event(1)], prelude="localStorage.getItem=()=>{throw Error('storage disabled');};")
+    assert not out["errors"] and out["pending"] == 1

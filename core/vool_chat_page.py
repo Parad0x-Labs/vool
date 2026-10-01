@@ -1034,6 +1034,7 @@ body:not(.panel-open) #xpanel { display:none; }
     <button type="button" class="ctrl-btn" id="modelBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modelPop" title="Which model answers" data-i18n-title="header.model_button_title"><span class="model-lane auto" id="modelLane">AUTO</span><span class="cb-lbl" id="modelLbl">VOOL Auto</span><span class="caret">&#9662;</span></button>
     <div class="popover below" id="modelPop" role="menu" aria-label="Model" data-i18n-aria-label="header.model_popover_title">
       <div class="pop-title" data-i18n="header.model_popover_title">Model</div>
+      <button type="button" id="discoverModelsBtn" class="pop-item" role="menuitem">Discover models <span class="pi-hint">offers, prices and evidence</span></button>
       <div class="pop-prov" id="modelProv" hidden></div>
       <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-model="vool"><span class="pi-check"></span><span class="pi-body"><span data-i18n="header.model_auto_option">VOOL Auto</span> <span class="pi-hint" data-i18n="header.model_auto_hint">local-first &middot; free</span></span></button>
       <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-model="vool-local-only"><span class="pi-check"></span><span class="pi-body"><span data-i18n="header.model_local_only_option">VOOL Auto Local Only</span> <span class="pi-hint" data-i18n="header.model_local_only_hint">this machine only &middot; cloud blocked</span></span></button>
@@ -4660,7 +4661,7 @@ function finishRun(run, kind, summaryText, tsIso) {
   if (window.VoolNotify && window.VoolNotify.runFinished) {
     try {
       window.VoolNotify.runFinished({
-        chatId: run.chatId, status: kind, displayed: isDisplayed(run.chatId),
+        chatId: run.chatId, turnId: run.turnId, status: kind, displayed: isDisplayed(run.chatId),
         summary: String(summaryText || ''),
       });
     } catch (e) {}
@@ -8451,7 +8452,7 @@ function initComposerControls() {
   });
   const bypassOverlay = document.getElementById('bypassOverlay'); if (bypassOverlay) bypassOverlay.addEventListener('click', (e) => { if (e.target === bypassOverlay) closeBypassModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bypassOverlay && !bypassOverlay.hidden) closeBypassModal(); });
-  document.querySelectorAll('#modelPop .pop-item:not(.cloud-dyn)').forEach((it) => {
+  document.querySelectorAll('#modelPop .pop-item[data-model]:not(.cloud-dyn)').forEach((it) => {
     it.addEventListener('click', (e) => {
       e.stopPropagation();
       // Paid/OpenRouter tiers are disabled until a key is wired -- never select a dead tier.
