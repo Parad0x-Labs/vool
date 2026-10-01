@@ -1112,7 +1112,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" class="ctrl-btn mode-info" id="modeInfo" aria-haspopup="dialog" aria-expanded="false" aria-controls="modeHelpPop" aria-label="Explain the selected mode" data-i18n-aria-label="mode.info_aria">i</button>
       <div class="popover mode-help" id="modeHelpPop" role="dialog" aria-label="Selected mode permissions" data-i18n-aria-label="mode.help_aria"><b id="modeHelpTitle">Manual</b><span id="modeHelpText"></span></div>
     </div>
-    <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions">&times;</button></div>
+    <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText" data-i18n="bypass.banner.active">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions" data-i18n-aria-label="bypass.revoke_aria" data-i18n-title="bypass.revoke_aria">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
       <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
       <input type="file" id="attachInput" multiple hidden tabindex="-1" aria-hidden="true">
@@ -1146,17 +1146,17 @@ body:not(.panel-open) #xpanel { display:none; }
 </div>
 <div id="bypassOverlay" class="modal-overlay" hidden>
   <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="bypassTitle" aria-describedby="bypassWarning">
-    <div class="modal-head"><span id="bypassTitle">Bypass permissions</span><button type="button" id="bypassClose" class="modal-x" aria-label="Cancel bypass">&times;</button></div>
+    <div class="modal-head"><span id="bypassTitle" data-i18n="bypass.modal_title">Bypass permissions</span><button type="button" id="bypassClose" class="modal-x" aria-label="Cancel bypass" data-i18n-aria-label="bypass.close_aria">&times;</button></div>
     <div class="modal-body">
-      <p id="bypassWarning" class="set-help"><b>Run without individual prompts.</b> Applies only to the scope you choose. Workspace, secrets and payment protections stay on.</p>
-      <div class="set-field"><label for="bypassScope">Scope</label><select id="bypassScope" class="set-input"><option value="task">Current task only</option><option value="session">This chat session</option><option value="project">This project</option></select></div>
-      <div class="set-field"><label for="bypassDuration">Duration</label><select id="bypassDuration" class="set-input"><option value="900">15 minutes</option><option value="1800">30 minutes</option><option value="3600">1 hour</option><option value="7200">2 hours</option><option value="14400">4 hours</option><option value="28800">8 hours</option><option value="custom">Custom…</option><option value="until_off" disabled>Until I turn it off — this chat only</option></select></div>
+      <p id="bypassWarning" class="set-help" data-i18n-html="bypass.modal_warning"><b>Run without individual prompts.</b> Applies only to the scope you choose. Workspace, secrets and payment protections stay on.</p>
+      <div class="set-field"><label for="bypassScope" data-i18n="bypass.scope_label">Scope</label><select id="bypassScope" class="set-input"><option value="task" data-i18n="bypass.scope_task">Current task only</option><option value="session" data-i18n="bypass.scope_session">This chat session</option><option value="project" data-i18n="bypass.scope_project">This project</option></select></div>
+      <div class="set-field"><label for="bypassDuration" data-i18n="bypass.duration_label">Duration</label><select id="bypassDuration" class="set-input"><option value="900" data-i18n="bypass.expiry_15">15 minutes</option><option value="1800" data-i18n="bypass.expiry_30">30 minutes</option><option value="3600" data-i18n="bypass.duration.1h">1 hour</option><option value="7200" data-i18n="bypass.duration.2h">2 hours</option><option value="14400" data-i18n="bypass.duration.4h">4 hours</option><option value="28800" data-i18n="bypass.duration.8h">8 hours</option><option value="custom" data-i18n="bypass.duration.custom">Custom…</option><option value="until_off" disabled data-i18n="bypass.duration.until_off">Until I turn it off — this chat only</option></select></div>
       <p id="bypassReadiness" class="set-help" role="status">Checking this chat’s folder…</p>
-      <div id="bypassWorkspaceSetup" hidden><label for="bypassProject">Link this chat to a project folder</label><select id="bypassProject" class="set-input"></select><button type="button" id="bypassLink" class="set-btn">Link folder</button><p class="set-help">This moves the chat into the selected project. It does not enable bypass.</p></div>
+      <div id="bypassWorkspaceSetup" hidden><label for="bypassProject" data-i18n="bypass.setup.label">Link this chat to a project folder</label><select id="bypassProject" class="set-input"></select><button type="button" id="bypassLink" class="set-btn" data-i18n="bypass.setup.link">Link folder</button><p class="set-help" data-i18n="bypass.setup.help">This moves the chat into the selected project. It does not enable bypass.</p></div>
       <p id="bypassError" class="set-help" role="alert" hidden></p>
-      <div class="set-field" id="bypassCustomField" hidden><label for="bypassCustomMinutes">Custom duration (minutes, 15–1440)</label><input id="bypassCustomMinutes" class="set-input" type="number" min="15" max="1440" step="1" value="90" inputmode="numeric"></div>
-      <p class="set-help">Bypass never grants access outside this workspace and cannot let a model expand its own permissions.</p>
-      <div class="set-actions"><button type="button" id="bypassCancel" class="set-btn">Cancel</button><button type="button" id="bypassConfirm" class="set-btn primary">Enable bypass</button></div>
+      <div class="set-field" id="bypassCustomField" hidden><label for="bypassCustomMinutes" data-i18n="bypass.custom_label">Custom duration (minutes, 15–1440)</label><input id="bypassCustomMinutes" class="set-input" type="number" min="15" max="1440" step="1" value="90" inputmode="numeric"></div>
+      <p class="set-help" data-i18n="bypass.modal_limits">Bypass never grants access outside this workspace and cannot let a model expand its own permissions.</p>
+      <div class="set-actions"><button type="button" id="bypassCancel" class="set-btn" data-i18n="bypass.cancel">Cancel</button><button type="button" id="bypassConfirm" class="set-btn primary" data-i18n="bypass.confirm">Enable bypass</button></div>
     </div>
   </div>
 </div>
@@ -8185,16 +8185,16 @@ function reflectMode() {
   if (text) text.textContent = modeDescription(view.mode);
   const banner = document.getElementById('bypassBanner'), bannerText = document.getElementById('bypassBannerText');
   if (banner) { banner.hidden = view.mode !== 'bypass_permissions'; syncAnswerPendingSurfaces(); }
-  if (bannerText && view.bypassGrant) {
+    if (bannerText && view.bypassGrant) {
     if (view.bypassGrant.until_off) {
-      bannerText.textContent = 'Until off';
-      banner.title = 'Bypass permissions · this chat only · until you turn it off';
+      bannerText.textContent = pageT('bypass.banner.until_off', 'Until off');
+      banner.title = pageT('bypass.banner.until_off_title', 'Bypass permissions · this chat only · until you turn it off');
       banner.setAttribute('aria-label', banner.title);
     } else {
       const expires = new Date(Number(view.bypassGrant.expires_at || 0) * 1000);
       const time = expires.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      bannerText.textContent = 'Until ' + time;
-      banner.title = 'Bypass permissions · ' + String(view.bypassGrant.scope || 'task') + ' scope · expires ' + time;
+      bannerText.textContent = pageTF('bypass.banner.until_time', 'Until {time}', { time: time });
+      banner.title = pageTF('bypass.timed', 'Bypass permissions · {scope} scope · expires {time}', { scope: String(view.bypassGrant.scope || 'task'), time: time });
       banner.setAttribute('aria-label', banner.title);
     }
   }
@@ -8210,7 +8210,7 @@ function reflectMode() {
     // The expiry belongs to the chat whose grant it is, captured now -- not to whichever chat is
     // on screen when the timer eventually fires.
     const grantChat = displayedChat, grantOwner = view;
-    bypassExpiryTimer = setTimeout(() => { grantOwner.bypassGrant = null; grantOwner.mode = 'manual'; saveModeForSession(grantChat, grantOwner.mode); if (isDisplayed(grantChat)) { reflectMode(); syncModeController(); } toast('Bypass expired. Manual mode is active.'); }, Math.min(delay + 50, 2147483647));
+    bypassExpiryTimer = setTimeout(() => { grantOwner.bypassGrant = null; grantOwner.mode = 'manual'; saveModeForSession(grantChat, grantOwner.mode); if (isDisplayed(grantChat)) { reflectMode(); syncModeController(); } toast(pageT('bypass.expired_toast', 'Bypass expired. Manual mode is active.')); }, Math.min(delay + 50, 2147483647));
   }
 }
 function modeContext(chatId) {
@@ -8233,7 +8233,7 @@ async function setModeController(mode, bypassToken, context) {
   owner.mode = applied;
   if (applied !== 'bypass_permissions') { owner.bypassGrant = null; saveModeForSession(chatId, applied); }
   if (isDisplayed(chatId)) reflectMode();
-  if (owner.run && !owner.run.ended) applyTaskEvent(owner.run, { type: 'mode.changed', stage: 'Permissions', summary: 'Mode changed to ' + (MODE_LABELS[applied] || applied) + '.', active_mode: applied });
+  if (owner.run && !owner.run.ended) applyTaskEvent(owner.run, { type: 'mode.changed', stage: 'Permissions', summary: pageTF('mode.changed_event', 'Mode changed to {label}.', { label: (MODE_LABELS[applied] || applied) }), active_mode: applied });
   return data;
 }
 async function syncModeController() {
@@ -8241,7 +8241,7 @@ async function syncModeController() {
   try { await setModeController(owner.mode, owner.bypassGrant && owner.bypassGrant.token); }
   catch (e) {
     if (owner.mode === 'bypass_permissions') { owner.bypassGrant = null; owner.mode = 'manual'; saveModeForSession(chatId, owner.mode); if (isDisplayed(chatId)) reflectMode(); }
-    toast('Could not activate ' + (MODE_LABELS[owner.mode] || owner.mode) + ': ' + e.message);
+    toast(pageTF('mode.activate_failed', 'Could not activate {label}: {error}', { label: (MODE_LABELS[owner.mode] || owner.mode), error: e.message }));
   }
 }
 async function restoreChatBypass(chatId) {
@@ -8262,7 +8262,7 @@ async function refreshBypassReadiness(context) {
   const duration = document.getElementById('bypassDuration'), setup = document.getElementById('bypassWorkspaceSetup');
   context.ready = false; if (confirm) confirm.disabled = true;
   const option = duration.querySelector('option[value="until_off"]'); option.disabled = true;
-  hint.textContent = 'Checking this chat’s folder…'; setup.hidden = true;
+  hint.textContent = pageT('bypass.readiness.checking', 'Checking this chat’s folder…'); setup.hidden = true;
   try {
     const data = await postMode({ op: 'bypass_options' }, context);
     if (bypassDialogContext !== context) return;
@@ -8270,18 +8270,22 @@ async function refreshBypassReadiness(context) {
     context.workspace_root = String(data.workspace_root || '');
     option.disabled = !data.until_off_available;
     if (duration.value === 'until_off' && !data.until_off_available) duration.value = '900';
-    hint.textContent = data.message + (data.workspace_root ? ' Folder: ' + data.workspace_root : '');
+    // The API's workspace_reason is the language-independent authority; its English
+    // message is only the fallback. The catalog owns the presentation per reason.
+    let readiness = pageT('bypass.readiness.' + String(data.workspace_reason || ''), String(data.message || ''));
+    if (data.workspace_root) readiness = pageTF('bypass.readiness.with_folder', '{message} Folder: {folder}', { message: readiness, folder: data.workspace_root });
+    hint.textContent = readiness;
     setup.hidden = !['unbound', 'project_missing', 'protected_workspace'].includes(data.workspace_reason);
     confirm.disabled = ['deleted_chat', 'missing_chat', 'unreadable'].includes(data.workspace_reason);
     await refreshProjects();
     if (bypassDialogContext !== context) return;
     const projects = document.getElementById('bypassProject'); projects.replaceChildren();
     const add = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; projects.appendChild(o); };
-    add('', 'Choose a project folder…');
-    Object.keys(_serverProjects).forEach((id) => add(id, _serverProjects[id].name || 'Project'));
-    add('__new', 'Choose a new folder…');
+    add('', pageT('bypass.setup.choose', 'Choose a project folder…'));
+    Object.keys(_serverProjects).forEach((id) => add(id, _serverProjects[id].name || pageT('bypass.setup.project_fallback', 'Project')));
+    add('__new', pageT('bypass.setup.new', 'Choose a new folder…'));
   } catch (e) {
-    if (bypassDialogContext === context) hint.textContent = 'Could not check permissions: ' + e.message + ' Close and reopen to retry.';
+    if (bypassDialogContext === context) hint.textContent = pageTF('bypass.readiness.error', 'Could not check permissions: {error} Close and reopen to retry.', { error: e.message });
   }
 }
 function openBypassModal() {
@@ -8309,7 +8313,7 @@ function closeBypassModal() {
 async function linkBypassWorkspace() {
   const context = bypassDialogContext; if (!context || !isDisplayed(context.session_id)) return;
   const select = document.getElementById('bypassProject'), button = document.getElementById('bypassLink');
-  if (!select.value) { document.getElementById('bypassReadiness').textContent = 'Choose a project folder first.'; return; }
+  if (!select.value) { document.getElementById('bypassReadiness').textContent = pageT('bypass.setup.choose_first', 'Choose a project folder first.'); return; }
   button.disabled = true;
   try {
     if (select.value === '__new') await createProjectFlow(context.session_id);
@@ -8329,12 +8333,12 @@ async function confirmBypass() {
   const customField = document.getElementById('bypassCustomField'), customMinutes = document.getElementById('bypassCustomMinutes');
   const untilOff = !!(duration && duration.value === 'until_off');
   if (untilOff && !context.untilOffAvailable) return;
-  if (untilOff && scope && scope.value !== 'session') { toast('“Until I turn it off” applies to this chat only — choose the This chat session scope.'); return; }
-  if (scope && scope.value === 'task' && (!view.run || view.run.ended)) { toast('Start a task before choosing task-only bypass, or select this chat session.'); return; }
+  if (untilOff && scope && scope.value !== 'session') { toast(pageT('bypass.until_off_chat_only', '“Until I turn it off” applies to this chat only — choose the This chat session scope.')); return; }
+  if (scope && scope.value === 'task' && (!view.run || view.run.ended)) { toast(pageT('bypass.start_task_first', 'Start a task before choosing task-only bypass, or select this chat session.')); return; }
   let seconds = Number(duration && duration.value || 900);
   if (duration && duration.value === 'custom') {
     const minutes = Math.round(Number(customMinutes && customMinutes.value || 0));
-    if (!(minutes >= 15 && minutes <= 1440)) { toast('Custom duration must be between 15 minutes and 24 hours.'); return; }
+    if (!(minutes >= 15 && minutes <= 1440)) { toast(pageT('bypass.custom_range', 'Custom duration must be between 15 minutes and 24 hours.')); return; }
     seconds = minutes * 60;
   }
   if (btn) btn.disabled = true;
@@ -8363,10 +8367,14 @@ async function confirmBypass() {
     owner.bypassGrant = data.grant;
     await setModeController('bypass_permissions', owner.bypassGrant.token, context);
     if (bypassDialogContext === context) closeBypassModal();
-    toast(untilOff ? 'Bypass is active for this chat until you turn it off. Revoke stays one click away.' : 'Limited bypass is active and will expire automatically.');
+    toast(untilOff ? pageT('bypass.active_until_off_toast', 'Bypass is active for this chat until you turn it off. Revoke stays one click away.') : pageT('bypass.limited_active_toast', 'Limited bypass is active and will expire automatically.'));
   } catch (e) {
-    if (bypassDialogContext === context) { const error = document.getElementById('bypassError'); error.textContent = 'Bypass was not activated: ' + e.message; error.hidden = false; }
-    else toast('Bypass was not activated for its original chat: ' + e.message);
+    // A refusal arrives as (reason, workspace_reason, error) — never parse the prose:
+    // the typed reason picks the catalog presentation, the message stays the fallback.
+    const refusal = e.body && e.body.reason === 'bypass_workspace_required' && e.body.workspace_reason;
+    const detail = refusal ? pageT('bypass.readiness.' + String(refusal), String(e.message || '')) : e.message;
+    if (bypassDialogContext === context) { const error = document.getElementById('bypassError'); error.textContent = pageT('bypass.not_activated_prefix', 'Bypass was not activated: ') + detail; error.hidden = false; }
+    else toast(pageTF('bypass.not_activated_original', 'Bypass was not activated for its original chat: {error}', { error: detail }));
   }
   finally { if (btn && bypassDialogContext === context) btn.disabled = false; }
 }
@@ -8375,7 +8383,7 @@ async function revokeBypass() {
   const token = owner.bypassGrant && owner.bypassGrant.token;
   try { await postMode({ op: 'revoke_bypass', token: token || '' }, context); } catch (e) {}
   owner.bypassGrant = null; owner.mode = 'manual'; saveModeForSession(chatId, owner.mode); if (isDisplayed(chatId)) reflectMode();
-  try { await setModeController('manual', '', context); } catch (e) { toast('Bypass ended locally; controller sync failed: ' + e.message); }
+  try { await setModeController('manual', '', context); } catch (e) { toast(pageTF('bypass.sync_failed', 'Bypass ended locally; controller sync failed: {error}', { error: e.message })); }
 }
 // The composer shows a short label; the exact name lives on the tooltip and, unchanged, in
 // Activity, About and receipts. "NVIDIA: Nemotron 3 Ultra 550B A55B (free)" is 41 characters and

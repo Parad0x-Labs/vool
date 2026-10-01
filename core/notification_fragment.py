@@ -63,6 +63,15 @@ function NTF(key, fallback){
   try { if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
   return fallback;
 }
+/* The {param}-carrying twin: the bundle's own formatter resolves locale placeholders and
+   plurals; the inline English fallback formats identically without a bundle. */
+function NTFF(key, fallback, params){
+  var t = NTF(key, fallback);
+  try {
+    if (typeof VOOLFMT === 'function') return VOOLFMT(t, params || {});
+  } catch (e) {}
+  return String(t).replace(/\\{(\\w+)\\}/g, function(m, name){ return (params && params[name] != null) ? String(params[name]) : m; });
+}
 var centre = [];          // the DB-backed notification centre (calendar alerts, reminders)
 var centreUnread = 0;
 var centreBusy = false;
@@ -90,7 +99,7 @@ function esc(text){
 }
 function when(ts){
   var t = Date.parse(String(ts || ''));
-  if (!isFinite(t)) return 'time unavailable';
+  if (!isFinite(t)) return NTF('notif.time_unavailable', 'time unavailable');
   return new Date(t).toLocaleString([], {year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 function clock(at){
@@ -117,15 +126,15 @@ function money(v){
   return '$' + (n >= 1 ? n.toFixed(2) : n.toFixed(4)) + '/1M';
 }
 function freeBasisWords(basis){
-  if (basis === 'provider_free_variant') return 'observed basis: the provider\\u2019s own :free variant';
-  if (basis === 'all_published_prices_zero') return 'observed basis: every published price is an explicit $0';
-  if (basis === 'unspecified') return 'observed basis unspecified';
-  return 'observed basis: ' + String(basis || 'unspecified');
+  if (basis === 'provider_free_variant') return NTF('notif.basis.provider_free', 'observed basis: the provider\\u2019s own :free variant');
+  if (basis === 'all_published_prices_zero') return NTF('notif.basis.all_zero', 'observed basis: every published price is an explicit $0');
+  if (basis === 'unspecified') return NTF('notif.basis.unspecified', 'observed basis unspecified');
+  return NTFF('notif.basis.other', 'observed basis: {basis}', { basis: String(basis || 'unspecified') });
 }
 function ctxWords(n){
   var v = Number(n) || 0;
-  if (v <= 0) return 'context length unavailable';
-  return Math.round(v / 1000) + 'k tokens context';
+  if (v <= 0) return NTF('notif.ctx_unavailable', 'context length unavailable');
+  return NTFF('notif.ctx_tokens', '{n}k tokens context', { n: Math.round(v / 1000) });
 }
 var bell = document.createElement('button');
 bell.id = 'vfBell';
@@ -145,7 +154,7 @@ card.id = 'vfEventCard';
 card.hidden = true;
 card.setAttribute('role', 'dialog');
 card.setAttribute('aria-modal', 'true');
-card.setAttribute('aria-label', 'Notification details');
+card.setAttribute('aria-label', NTF('notif.details_aria', 'Notification details'));
 document.body.appendChild(card);
 var cardItem = null;
 
@@ -160,48 +169,52 @@ function rowHtml(label, value, isHtml){
 }
 function moneyPair(a, b){
   var left = money(a), right = money(b);
-  if (left === null && right === null) return 'prices unavailable';
-  return (left === null ? 'input unavailable' : 'input ' + left)
-    + ' \\u00b7 ' + (right === null ? 'output unavailable' : 'output ' + right);
+  if (left === null && right === null) return NTF('notif.prices_unavailable', 'prices unavailable');
+  return (left === null ? NTF('notif.input_unavailable', 'input unavailable') : NTFF('notif.input_price', 'input {price}', { price: left }))
+    + ' \\u00b7 ' + (right === null ? NTF('notif.output_unavailable', 'output unavailable') : NTFF('notif.output_price', 'output {price}', { price: right }));
 }
 function marketTitle(ev){
   var name = String(ev.display_name || '').trim();
   var id = String(ev.model || '');
-  if (ev.type === 'new_free_model')
-    return 'Observed free: ' + (name || 'name unavailable') + (id ? ' (' + id + ')' : '');
-  if (ev.type === 'free_to_paid') return 'Watched model stopped being free: ' + (id || 'unknown model');
-  if (ev.type === 'paid_to_free') return 'Watched model is now published at $0: ' + (id || 'unknown model');
-  if (ev.type === 'price_increased') return 'Watched model price rose: ' + (id || 'unknown model');
-  if (ev.type === 'price_decreased') return 'Watched model price dropped: ' + (id || 'unknown model');
-  if (ev.type === 'model_delisted') return 'Watched model delisted by the provider: ' + (id || 'unknown model');
-  return 'Market change: ' + (id || 'unknown model');
+  var model = id || NTF('notif.model_unavailable', 'unknown model');
+  if (ev.type === 'new_free_model') {
+    if (!name) name = NTF('notif.name_unavailable', 'name unavailable');
+    return id ? NTFF('notif.market.new_free_id', 'Observed free: {name} ({id})', { name: name, id: id })
+              : NTFF('notif.market.new_free', 'Observed free: {name}', { name: name });
+  }
+  if (ev.type === 'free_to_paid') return NTFF('notif.market.free_to_paid', 'Watched model stopped being free: {model}', { model: model });
+  if (ev.type === 'paid_to_free') return NTFF('notif.market.paid_to_free', 'Watched model is now published at $0: {model}', { model: model });
+  if (ev.type === 'price_increased') return NTFF('notif.market.price_increased', 'Watched model price rose: {model}', { model: model });
+  if (ev.type === 'price_decreased') return NTFF('notif.market.price_decreased', 'Watched model price dropped: {model}', { model: model });
+  if (ev.type === 'model_delisted') return NTFF('notif.market.delisted', 'Watched model delisted by the provider: {model}', { model: model });
+  return NTFF('notif.market.change', 'Market change: {model}', { model: model });
 }
 function marketDetails(ev){
   var html = '';
   if (ev.type === 'new_free_model') {
-    html += rowHtml('model', String(ev.model || 'unavailable'));
-    html += rowHtml('name', String(ev.display_name || 'unavailable'));
-    html += rowHtml('provider', String(ev.provider_id || 'unavailable'));
-    html += rowHtml('observed prices', moneyPair(ev.prices && ev.prices.input_usd_per_m, ev.prices && ev.prices.output_usd_per_m));
-    html += rowHtml('free qualification', freeBasisWords(ev.free_basis));
-    html += rowHtml('context', ctxWords(ev.context_length));
-    html += rowHtml('capabilities',
-      (ev.supports_tools === true ? 'tools \\u2713' : ev.supports_tools === false ? 'tools \\u2717' : 'tools unavailable')
-      + ' \\u00b7 ' + (ev.supports_images === true ? 'images \\u2713' : ev.supports_images === false ? 'images \\u2717' : 'images unavailable'));
+    html += rowHtml(NTF('notif.row.model', 'model'), String(ev.model || 'unavailable'));
+    html += rowHtml(NTF('notif.row.name', 'name'), String(ev.display_name || 'unavailable'));
+    html += rowHtml(NTF('notif.row.provider', 'provider'), String(ev.provider_id || 'unavailable'));
+    html += rowHtml(NTF('notif.row.prices', 'observed prices'), moneyPair(ev.prices && ev.prices.input_usd_per_m, ev.prices && ev.prices.output_usd_per_m));
+    html += rowHtml(NTF('notif.row.qualification', 'free qualification'), freeBasisWords(ev.free_basis));
+    html += rowHtml(NTF('notif.row.context', 'context'), ctxWords(ev.context_length));
+    html += rowHtml(NTF('notif.row.capabilities', 'capabilities'),
+      (ev.supports_tools === true ? NTF('notif.tools', 'tools') + ' \\u2713' : ev.supports_tools === false ? NTF('notif.tools', 'tools') + ' \\u2717' : NTF('notif.tools_unavailable', 'tools unavailable'))
+      + ' \\u00b7 ' + (ev.supports_images === true ? NTF('notif.images', 'images') + ' \\u2713' : ev.supports_images === false ? NTF('notif.images', 'images') + ' \\u2717' : NTF('notif.images_unavailable', 'images unavailable')));
   } else {
-    html += rowHtml('model', String(ev.model || 'unavailable'));
+    html += rowHtml(NTF('notif.row.model', 'model'), String(ev.model || 'unavailable'));
     var before = ev.before || {}, after = ev.after || {};
-    html += rowHtml('before', moneyPair(before.prompt_usd_per_m, before.completion_usd_per_m)
-      + (before.free === true ? ' \\u00b7 free' : before.free === false ? ' \\u00b7 paid' : ''));
-    html += rowHtml('after', moneyPair(after.prompt_usd_per_m, after.completion_usd_per_m)
-      + (after.free === true ? ' \\u00b7 free' : after.free === false ? ' \\u00b7 paid' : ''));
+    html += rowHtml(NTF('notif.row.before', 'before'), moneyPair(before.prompt_usd_per_m, before.completion_usd_per_m)
+      + (before.free === true ? ' \\u00b7 ' + NTF('notif.free', 'free') : before.free === false ? ' \\u00b7 ' + NTF('notif.paid', 'paid') : ''));
+    html += rowHtml(NTF('notif.row.after', 'after'), moneyPair(after.prompt_usd_per_m, after.completion_usd_per_m)
+      + (after.free === true ? ' \\u00b7 ' + NTF('notif.free', 'free') : after.free === false ? ' \\u00b7 ' + NTF('notif.paid', 'paid') : ''));
   }
-  html += rowHtml('observed', when(ev.observed_at || ev.ts));
-  var source = String(ev.source_feed || 'catalog refresh');
+  html += rowHtml(NTF('notif.row.observed', 'observed'), when(ev.observed_at || ev.ts));
+  var source = String(ev.source_feed || NTF('notif.catalog_refresh', 'catalog refresh'));
   var url = String(ev.evidence_url || '');
-  html += rowHtml('source', url
+  html += rowHtml(NTF('notif.row.source', 'source'), url
     ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(source) + '</a>'
-    : source + ' (no source URL recorded)', true);
+    : source + ' (' + NTF('notif.no_source_url', 'no source URL recorded') + ')', true);
   return html;
 }
 function pollCentre(){
@@ -242,14 +255,14 @@ function centreRow(item, index){
   if (p.market_event && !p.finding) {
     return '<div data-vmarket="' + index + '" class="vf-item' + (item.read_at ? '' : ' vf-unread') + '"><span class="vf-title">' + esc(marketTitle(p.market_event)) + '</span>'
       + '<div class="vf-details">' + marketDetails(p.market_event) + '</div>'
-      + '<div class="vf-actions"><button type="button" data-vc-open="' + index + '">Inspect in Models</button>'
-      + '<button type="button" data-vc-act="dismiss" data-vc="' + index + '">Dismiss</button></div>'
-      + '<small>Observed catalog values, not a certification. Selecting a paid route still follows your approvals.</small></div>';
+      + '<div class="vf-actions"><button type="button" data-vc-open="' + index + '">' + NTF('notif.inspect_models', 'Inspect in Models') + '</button>'
+      + '<button type="button" data-vc-act="dismiss" data-vc="' + index + '">' + NTF('notif.dismiss', 'Dismiss') + '</button></div>'
+      + '<small>' + NTF('notif.offer_cert', 'Observed catalog values, not a certification. Selecting a paid route still follows your approvals.') + '</small></div>';
   }
   var join = httpsLink(p.meeting_url);
   var acts = '';
   if (snoozable(item)) acts += '<button type="button" data-vc-act="snooze" data-vc="' + index + '">' + NTF('notif.snooze_10', 'Snooze 10 min') + '</button>';
-  if (join) acts += '<a href="' + esc(join) + '" target="_blank" rel="noopener noreferrer" data-vc-join="' + index + '">Join</a>';
+  if (join) acts += '<a href="' + esc(join) + '" target="_blank" rel="noopener noreferrer" data-vc-join="' + index + '">' + NTF('notif.join', 'Join') + '</a>';
   acts += '<button type="button" data-vc-act="dismiss" data-vc="' + index + '">' + NTF('notif.dismiss', 'Dismiss') + '</button>';
   var cls = 'vf-item vf-centre' + (item.source_kind === 'calendar_catch_up' ? ' vf-warn' : '') + (item.read_at ? '' : ' vf-unread');
   return '<div class="' + cls + '">' +
@@ -260,10 +273,10 @@ function centreRow(item, index){
 function centreMeta(item){
   var p = item.payload || {};
   if (item.source_kind === 'calendar_alert') {
-    return [(p.late ? 'shown late' : ''), whenText(p.start_local || p.start_utc, false), p.calendar_name, p.location]
+    return [(p.late ? NTF('notif.shown_late', 'shown late') : ''), whenText(p.start_local || p.start_utc, false), p.calendar_name, p.location]
       .filter(Boolean).join(' \\u00b7 ');
   }
-  if (item.source_kind === 'reminder') return 'Reminder' + (p.due_local ? ' \\u00b7 due ' + p.due_local : '');
+  if (item.source_kind === 'reminder') return NTF('notif.reminder', 'Reminder') + (p.due_local ? ' \\u00b7 ' + NTF('notif.due_label', 'due') + ' ' + p.due_local : '');
   return String(item.body || '');
 }
 
@@ -292,25 +305,25 @@ function itemSection(item){
 }
 function visibleItems(){ return centre.filter(function(item){ return itemSection(item) === section; }); }
 function paintList(){
-  var tabs = [['needs', 'Needs you'], ['updates', 'Updates'], ['offers', 'Model offers']];
+  var tabs = [['needs', NTF('notif.tab.needs', 'Needs you')], ['updates', NTF('notif.tab.updates', 'Updates')], ['offers', NTF('notif.tab.offers', 'Model offers')]];
   var nav = tabs.map(function(tab){
     var n = centre.filter(function(item){ return itemSection(item) === tab[0] && !item.read_at; }).length;
     return '<button type="button" role="tab" aria-selected="' + (section === tab[0]) + '" data-vf-section="' + tab[0] + '">' + tab[1] + (n ? ' (' + n + ')' : '') + '</button>';
   }).join('');
   var rows = [];
   centre.forEach(function(item, index){ if (itemSection(item) === section) rows.push(centreRow(item, index)); });
-  pop.innerHTML = '<div class="vf-head">Notifications</div><div class="vf-tabs" role="tablist" aria-label="Notification sections">' + nav + '</div>'
-    + (rows.join('') || '<div class="vf-empty">Nothing here yet.</div>')
-    + '<div class="vf-foot"><button type="button" data-vf-discover>Discover models</button> · Dismiss hides an inbox item; your alerts and model choice stay unchanged.</div>';
+  pop.innerHTML = '<div class="vf-head">' + NTF('notif.pop_title', 'Notifications') + '</div><div class="vf-tabs" role="tablist" aria-label="' + NTF('notif.sections_aria', 'Notification sections') + '">' + nav + '</div>'
+    + (rows.join('') || '<div class="vf-empty">' + NTF('notif.empty', 'Nothing here yet.') + '</div>')
+    + '<div class="vf-foot"><button type="button" data-vf-discover>' + NTF('notif.discover', 'Discover models') + '</button> \\u00b7 ' + NTF('notif.foot_note', 'Dismiss hides an inbox item; your alerts and model choice stay unchanged.') + '</div>';
 }
 function readItems(items){
   var ids = items.filter(function(item){ return !item.read_at; }).map(function(item){ return item.notification_id; });
   if (!ids.length) return Promise.resolve();
   return fetch('/api/notifications/read', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({notification_ids: ids})})
     .then(function(r){ return r.json(); }).then(function(j){
-      if (j && j.ok) return pollCentre();
-      toast('Could not save read state.');
-    }).catch(function(){ toast('Could not save read state.'); });
+    if (j && j.ok) return pollCentre();
+    toast(NTF('notif.read_fail', 'Could not save read state.'));
+    }).catch(function(){ toast(NTF('notif.read_fail', 'Could not save read state.')); });
 }
 function openPop(){
   paintList();
@@ -340,39 +353,39 @@ function openCard(item){
   var web = httpsLink(p.web_url);
   var rows = [];
   if (item.source_kind === 'calendar_alert') {
-    rows.push(['When', whenText(p.start_local || p.start_utc, true) + (p.end_local ? ' \\u2013 ' + whenText(p.end_local, false) : '')]);
-    if (p.late) rows.push(['Note', 'This alert was shown later than its lead time.']);
-    if (p.calendar_name) rows.push(['Calendar', p.calendar_name + (p.account_label ? ' \\u00b7 ' + p.account_label : '')]);
-    if (p.location) rows.push(['Where', p.location]);
-    rows.push(['Alert', p.lead_minutes ? p.lead_minutes + ' min before' : 'at the start']);
+    rows.push([NTF('notif.row.when', 'When'), whenText(p.start_local || p.start_utc, true) + (p.end_local ? ' \\u2013 ' + whenText(p.end_local, false) : '')]);
+    if (p.late) rows.push([NTF('notif.row.note', 'Note'), NTF('notif.late_note', 'This alert was shown later than its lead time.')]);
+    if (p.calendar_name) rows.push([NTF('notif.row.calendar', 'Calendar'), p.calendar_name + (p.account_label ? ' \\u00b7 ' + p.account_label : '')]);
+    if (p.location) rows.push([NTF('notif.row.where', 'Where'), p.location]);
+    rows.push([NTF('notif.row.alert', 'Alert'), p.lead_minutes ? NTFF('notif.lead_before', '{n} min before', { n: p.lead_minutes }) : NTF('notif.at_start', 'at the start')]);
   } else if (item.source_kind === 'calendar_catch_up') {
-    rows.push(['Missed', (p.titles || []).join(', ') + (p.more ? ' and ' + p.more + ' more' : '')]);
+    rows.push([NTF('notif.row.missed', 'Missed'), (p.titles || []).join(', ') + NTFF('notif.missed_more', ' and {n} more', { n: p.more })]);
   } else if (p.due_local) {
-    rows.push(['Due', p.due_local]);
+    rows.push([NTF('notif.row.due', 'Due'), p.due_local]);
   }
   var mac = (item.channels || {}).macos;
-  if (mac && mac.state) rows.push(['macOS', (MAC_STATE_TEXT[mac.state] || mac.state) + (mac.detail ? ' \\u00b7 ' + mac.detail : '')]);
+  if (mac && mac.state) rows.push([NTF('notif.row.macos', 'macOS'), (MAC_STATE_TEXT[mac.state] || mac.state) + (mac.detail ? ' \\u00b7 ' + mac.detail : '')]);
   var html = '<div class="vf-card"><div class="vf-card-head"><strong>' + esc(item.title) + '</strong>' +
-    '<button type="button" class="vf-x" data-vcard="close" aria-label="Close">\\u00d7</button></div>';
+    '<button type="button" class="vf-x" data-vcard="close" aria-label="' + NTF('notif.close', 'Close') + '">\\u00d7</button></div>';
   rows.forEach(function(row){ html += '<div class="vf-row"><span>' + esc(row[0]) + '</span><b>' + esc(row[1]) + '</b></div>'; });
   html += '<div class="vf-card-acts">';
-  if (join) html += '<a class="vf-btn vf-primary" href="' + esc(join) + '" target="_blank" rel="noopener noreferrer">Join meeting</a>';
-  if (web) html += '<a class="vf-btn" href="' + esc(web) + '" target="_blank" rel="noopener noreferrer">Open in calendar</a>';
-  if (item.session_id && typeof window.openSession === 'function') html += '<button type="button" class="vf-btn" data-vcard="chat">Open chat</button>';
+  if (join) html += '<a class="vf-btn vf-primary" href="' + esc(join) + '" target="_blank" rel="noopener noreferrer">' + NTF('notif.join_meeting', 'Join meeting') + '</a>';
+  if (web) html += '<a class="vf-btn" href="' + esc(web) + '" target="_blank" rel="noopener noreferrer">' + NTF('notif.open_calendar', 'Open in calendar') + '</a>';
+  if (item.session_id && typeof window.openSession === 'function') html += '<button type="button" class="vf-btn" data-vcard="chat">' + NTF('notif.open_chat', 'Open chat') + '</button>';
   if (snoozable(item)) {
     html += '<button type="button" class="vf-btn" data-vcard="snooze" data-min="5">' + NTF('notif.snooze_5', 'Snooze 5 min') + '</button>' +
-      '<button type="button" class="vf-btn" data-vcard="snooze" data-min="15">15 min</button>' +
-      '<button type="button" class="vf-btn" data-vcard="snooze" data-min="60">1 hour</button>';
+      '<button type="button" class="vf-btn" data-vcard="snooze" data-min="15">' + NTF('notif.snooze_15', '15 min') + '</button>' +
+      '<button type="button" class="vf-btn" data-vcard="snooze" data-min="60">' + NTF('notif.snooze_60', '1 hour') + '</button>';
   }
   if (!item.dismissed_at) html += '<button type="button" class="vf-btn" data-vcard="dismiss">' + NTF('notif.dismiss', 'Dismiss') + '</button>';
   html += '</div>';
   if (item.source_kind === 'calendar_alert' && item.event_key) {
-    html += '<form class="vf-policy" data-vcard-form="policy"><label>Remind me ' +
+    html += '<form class="vf-policy" data-vcard-form="policy"><label>' + NTF('notif.remind_prefix', 'Remind me') + ' ' +
       '<input name="minutes" inputmode="numeric" autocomplete="off" value="' + esc(p.lead_minutes == null ? '' : String(p.lead_minutes)) + '">' +
-      ' minutes before this event</label><div class="vf-card-acts">' +
-      '<button type="submit" class="vf-btn">Save</button>' +
-      '<button type="button" class="vf-btn" data-vcard="policy-off">No alerts for this event</button></div>' +
-      '<small>Separate several lead times with commas, for example 30, 5. VOOL does not change the alarms saved in your calendar.</small></form>';
+      ' ' + NTF('notif.remind_suffix', 'minutes before this event') + '</label><div class="vf-card-acts">' +
+      '<button type="submit" class="vf-btn">' + NTF('notif.save', 'Save') + '</button>' +
+      '<button type="button" class="vf-btn" data-vcard="policy-off">' + NTF('notif.no_alerts', 'No alerts for this event') + '</button></div>' +
+      '<small>' + NTF('notif.policy_help', 'Separate several lead times with commas, for example 30, 5. VOOL does not change the alarms saved in your calendar.') + '</small></form>';
   }
   html += '</div>';
   card.innerHTML = html;
@@ -430,7 +443,7 @@ card.addEventListener('submit', function(ev){
   var parts = raw.split(',').map(function(part){ return part.trim(); }).filter(Boolean);
   var values = parts.map(Number);
   if (!parts.length || values.some(function(v){ return !isFinite(v) || v < 0 || Math.floor(v) !== v; })) {
-    toast('Enter whole minutes, for example 15 or 30, 5.');
+    toast(NTF('notif.enter_whole', 'Enter whole minutes, for example 15 or 30, 5.'));
     return;
   }
   var current = cardItem;

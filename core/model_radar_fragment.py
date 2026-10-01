@@ -78,10 +78,36 @@ _MR_JS = """
 if (window.VoolModelRadar) return;
 
 var COMPONENT_WORDS = {input_usd_per_m: 'input', output_usd_per_m: 'output', cached_input_usd_per_m: 'cached'};
-var OFFER_WORDS = {permanent: 'standing price', promotion: 'temporary promotion', free_quota: 'free quota',
-                   trial: 'trial', subsidy: 'provider subsidy', unknown: 'offer kind unknown'};
 var feed = {findings: [], unread: 0, preferences: {}, open_conflicts: 0};
 var pop, prefsOpen = false;
+
+/* The page's i18n catalog owns this surface's words (the chat page's bootstrap defines
+   VOOLT/VOOLFMT before this fragment loads); the inline English fallbacks are the catalog
+   source, so without a bundle the surface renders byte-identical English. */
+function RT(key, fallback){
+  try { if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
+  return fallback;
+}
+function RTF(key, fallback, params){
+  var t = RT(key, fallback);
+  try {
+    if (typeof VOOLFMT === 'function') return VOOLFMT(t, params || {});
+  } catch (e) {}
+  return String(t).replace(/\\{(\\w+)\\}/g, function(m, name){ return (params && params[name] != null) ? String(params[name]) : m; });
+}
+var OFFER_WORDS = {
+  permanent: function(){ return RT('radar.offer.permanent', 'standing price'); },
+  promotion: function(){ return RT('radar.offer.promotion', 'temporary promotion'); },
+  free_quota: function(){ return RT('radar.offer.free_quota', 'free quota'); },
+  trial: function(){ return RT('radar.offer.trial', 'trial'); },
+  subsidy: function(){ return RT('radar.offer.subsidy', 'provider subsidy'); },
+  unknown: function(){ return RT('radar.offer.unknown', 'offer kind unknown'); },
+};
+var COMPONENT_LABELS = {
+  input_usd_per_m: function(){ return RT('radar.component.input', 'input'); },
+  output_usd_per_m: function(){ return RT('radar.component.output', 'output'); },
+  cached_input_usd_per_m: function(){ return RT('radar.component.cached', 'cached'); },
+};
 
 function pageActions(){ return window.VoolPageActions || null; }
 function esc(text){
@@ -101,7 +127,7 @@ function pct(f){
 }
 function when(iso){
   var t = Date.parse(String(iso || ''));
-  if (!isFinite(t)) return String(iso || 'unknown time');
+  if (!isFinite(t)) return String(iso || RT('radar.unknown_time', 'unknown time'));
   return new Date(t).toLocaleString([], {year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 
@@ -129,24 +155,24 @@ pop = document.createElement('div');
 pop.id = 'mrPop';
 pop.hidden = true;
 pop.setAttribute('role', 'dialog');
-pop.setAttribute('aria-label', 'Discover models');
+pop.setAttribute('aria-label', RT('radar.aria', 'Discover models'));
 document.body.appendChild(pop);
 function paintChip(){}
 
 // ---- cards ---------------------------------------------------------------------------------
 
 function priceRow(name, before, after, reduction){
-  var lab = COMPONENT_WORDS[name] || name;
+  var lab = (COMPONENT_LABELS[name] || function(){ return name; })();
   if (after === undefined || after === null){
     if (before === undefined || before === null) return '';
-    return '<div class="mr-row"><span class="mr-lab">' + esc(lab) + '</span><span class="mr-na">price no longer published</span></div>';
+    return '<div class="mr-row"><span class="mr-lab">' + esc(lab) + '</span><span class="mr-na">' + RT('radar.price_unpublished', 'price no longer published') + '</span></div>';
   }
   var right = money(before) + ' \\u2192 ' + money(after) + ' /1M';
   var p = (reduction !== undefined && reduction !== null) ? '<span class="mr-pct">' + esc(pct(reduction)) + '</span>' : '';
-  return '<div class="mr-row"><span class="mr-lab">' + esc(lab) + '</span><span>' + esc(right) + '</span>' + p + '</div>';
+  return '<div class="mr-row"><span class="mr-lab">' + esc(lab) + '</span><span>' + esc(right) + '</span>' + p + '</span></div>';
 }
 function cardHtml(f, index){
-  var kindLabel = f.kind === 'new_free' ? 'now genuinely free' : 'price cut \\u226550%';
+  var kindLabel = f.kind === 'new_free' ? RT('radar.kind.new_free', 'now genuinely free') : RT('radar.kind.price_cut', 'price cut \\u226550%');
   var kindClass = f.kind === 'new_free' ? 'mr-kind mr-free' : 'mr-kind';
   var prices = ['input_usd_per_m','output_usd_per_m','cached_input_usd_per_m'].map(function(n){
     var hasAfter = f.after && (f.after[n] !== undefined && f.after[n] !== null);
@@ -156,14 +182,15 @@ function cardHtml(f, index){
     var red = (f.reductions && f.reductions[n] !== undefined && f.reductions[n] !== null) ? f.reductions[n] : null;
     return priceRow(n, hasBefore ? f.before[n] : null, f.after[n], red);
   }).join('');
-  var ctx = f.context_length ? Math.round(f.context_length / 1000) + 'k ctx' : 'ctx unknown';
-  var tools = '<span class="' + (f.supports_tools ? 'mr-ok' : 'mr-no') + '">tools ' + (f.supports_tools ? '\\u2713' : '\\u2717') + '</span>';
-  var images = '<span class="' + (f.supports_images ? 'mr-ok' : 'mr-no') + '">images ' + (f.supports_images ? '\\u2713' : '\\u2717') + '</span>';
-  var offer = OFFER_WORDS[f.offer_kind] || f.offer_kind || 'unknown';
-  var expiry = f.expires_at ? ' \\u00b7 ends ' + esc(when(f.expires_at)) : '';
-  var privacy = f.privacy_terms ? esc(f.privacy_terms) : 'data terms not stated by the provider';
-  var limits = f.limits_stated ? '<div class="mr-meta"><span>limits: ' + esc(f.limits_stated) + '</span></div>' : '';
-  var evUrl = f.evidence_url ? '<a href="' + esc(f.evidence_url) + '" target="_blank" rel="noopener">source</a>' : 'no source URL recorded';
+  var ctx = f.context_length ? RTF('radar.ctx_k', '{n}k ctx', { n: Math.round(f.context_length / 1000) }) : RT('radar.ctx_unknown', 'ctx unknown');
+  var tools = '<span class="' + (f.supports_tools ? 'mr-ok' : 'mr-no') + '">' + RT('radar.tools', 'tools') + ' ' + (f.supports_tools ? '\\u2713' : '\\u2717') + '</span>';
+  var images = '<span class="' + (f.supports_images ? 'mr-ok' : 'mr-no') + '">' + RT('radar.images', 'images') + ' ' + (f.supports_images ? '\\u2713' : '\\u2717') + '</span>';
+  var offerFn = OFFER_WORDS[f.offer_kind];
+  var offer = offerFn ? offerFn() : (f.offer_kind || 'unknown');
+  var expiry = f.expires_at ? ' \\u00b7 ' + RTF('radar.ends', 'ends {time}', { time: when(f.expires_at) }) : '';
+  var privacy = f.privacy_terms ? esc(f.privacy_terms) : RT('radar.privacy_unstated', 'data terms not stated by the provider');
+  var limits = f.limits_stated ? '<div class="mr-meta"><span>' + RTF('radar.limits', 'limits: {limits}', { limits: f.limits_stated }) + '</span></div>' : '';
+  var evUrl = f.evidence_url ? '<a href="' + esc(f.evidence_url) + '" target="_blank" rel="noopener">' + RT('radar.source', 'source') + '</a>' : RT('radar.no_source_url', 'no source URL recorded');
   return '<div class="mr-card" data-mr="' + index + '">' +
     '<div class="mr-title"><b>' + esc(f.display_name || f.model_id) + '</b>' +
     '<span class="mr-prov">' + esc(f.provider_id) + '</span>' +
@@ -174,12 +201,12 @@ function cardHtml(f, index){
     limits +
     '<div class="mr-meta"><span>' + privacy + '</span></div>' +
     '<div class="mr-why">' + esc(f.why) + '</div>' +
-    '<div class="mr-ev">evidence ' + esc(when(f.evidence_fetched_at)) + ' \\u00b7 ' + evUrl +
-    ' \\u00b7 first seen ' + esc(when(f.created_at)) + '</div>' +
+    '<div class="mr-ev">' + RTF('radar.evidence', 'evidence {time}', { time: when(f.evidence_fetched_at) }) + ' \\u00b7 ' + evUrl +
+    ' \\u00b7 ' + RTF('radar.first_seen', 'first seen {time}', { time: when(f.created_at) }) + '</div>' +
     '<div class="mr-actions">' +
-    '<button type="button" class="mr-btn mr-primary" data-mr-act="try">Try once</button>' +
-    '<button type="button" class="mr-btn" data-mr-act="pin">Set as default</button>' +
-    '<button type="button" class="mr-btn mr-ghost" data-mr-act="dismiss">Hide offer</button>' +
+    '<button type="button" class="mr-btn mr-primary" data-mr-act="try">' + RT('radar.try_once', 'Try once') + '</button>' +
+    '<button type="button" class="mr-btn" data-mr-act="pin">' + RT('radar.set_default', 'Set as default') + '</button>' +
+    '<button type="button" class="mr-btn mr-ghost" data-mr-act="dismiss">' + RT('radar.hide_offer', 'Hide offer') + '</button>' +
     '</div><div class="mr-status" data-mr-status hidden></div></div>';
 }
 
@@ -191,33 +218,33 @@ function prefsHtml(){
   var caps = Array.isArray(p.required_capabilities) ? p.required_capabilities : [];
   var interval = Number(p.min_interval_hours || 0);
   return '<div class="mr-prefs" id="mrPrefs"' + (prefsOpen ? '' : ' hidden') + '>' +
-    '<label><input type="checkbox" id="mrPEnabled"' + (p.enabled !== false ? ' checked' : '') + '> Radar enabled</label>' +
-    '<div><label for="mrPProviders">Providers to watch</label>' +
-    '<input type="text" id="mrPProviders" placeholder="empty = every provider" value="' + esc(providers) + '">' +
-    '<div class="mr-hint">comma-separated provider ids, e.g. openrouter</div></div>' +
-    '<div><label for="mrPLane">Lane</label> <select id="mrPLane">' +
-    ['any','cloud','local'].map(function(l){ return '<option value="' + l + '"' + ((p.lane || 'any') === l ? ' selected' : '') + '>' + l + '</option>'; }).join('') +
+    '<label><input type="checkbox" id="mrPEnabled"' + (p.enabled !== false ? ' checked' : '') + '> ' + RT('radar.prefs_enabled', 'Radar enabled') + '</label>' +
+    '<div><label for="mrPProviders">' + RT('radar.prefs_providers', 'Providers to watch') + '</label>' +
+    '<input type="text" id="mrPProviders" placeholder="' + RT('radar.prefs_providers_ph', 'empty = every provider') + '" value="' + esc(providers) + '">' +
+    '<div class="mr-hint">' + RT('radar.prefs_providers_hint', 'comma-separated provider ids, e.g. openrouter') + '</div></div>' +
+    '<div><label for="mrPLane">' + RT('radar.prefs_lane', 'Lane') + '</label> <select id="mrPLane">' +
+    ['any','cloud','local'].map(function(l){ return '<option value="' + l + '"' + ((p.lane || 'any') === l ? ' selected' : '') + '>' + RT('radar.lane.' + l, l) + '</option>'; }).join('') +
     '</select></div>' +
-    '<div><label><input type="checkbox" id="mrPCapTools"' + (caps.indexOf('tools') >= 0 ? ' checked' : '') + '> only suggest models with tool support</label>' +
-    '<label><input type="checkbox" id="mrPCapImages"' + (caps.indexOf('images') >= 0 ? ' checked' : '') + '> only suggest models with image support</label></div>' +
-    '<div><label for="mrPFreq">Notify me</label> <select id="mrPFreq">' +
-    '<option value="0"' + (interval === 0 ? ' selected' : '') + '>as it happens</option>' +
-    '<option value="24"' + (interval === 24 ? ' selected' : '') + '>at most daily per model</option>' +
-    '<option value="168"' + (interval === 168 ? ' selected' : '') + '>at most weekly per model</option>' +
+    '<div><label><input type="checkbox" id="mrPCapTools"' + (caps.indexOf('tools') >= 0 ? ' checked' : '') + '> ' + RT('radar.prefs_tools_only', 'only suggest models with tool support') + '</label>' +
+    '<label><input type="checkbox" id="mrPCapImages"' + (caps.indexOf('images') >= 0 ? ' checked' : '') + '> ' + RT('radar.prefs_images', 'only suggest models with image support') + '</label></div>' +
+    '<div><label for="mrPFreq">' + RT('radar.prefs_notify', 'Notify me') + '</label> <select id="mrPFreq">' +
+    '<option value="0"' + (interval === 0 ? ' selected' : '') + '>' + RT('radar.freq.as_it_happens', 'as it happens') + '</option>' +
+    '<option value="24"' + (interval === 24 ? ' selected' : '') + '>' + RT('radar.freq.daily', 'at most daily per model') + '</option>' +
+    '<option value="168"' + (interval === 168 ? ' selected' : '') + '>' + RT('radar.freq.weekly', 'at most weekly per model') + '</option>' +
     '</select></div>' +
-    '<button type="button" class="mr-btn mr-primary" id="mrPSave">Save preferences</button>' +
+    '<button type="button" class="mr-btn mr-primary" id="mrPSave">' + RT('radar.prefs_save', 'Save preferences') + '</button>' +
     '<div class="mr-status" id="mrPStatus" hidden></div></div>';
 }
 
 function paintList(){
   var rows = (feed.findings || []).map(function(f, i){ return cardHtml(f, i); }).join('');
   var conflicts = Number(feed.open_conflicts || 0);
-  pop.innerHTML = '<div class="mr-head">Discover models \\u00b7 prices and evidence' +
-    '<button type="button" class="mr-prefs-btn" id="mrPrefsBtn">Preferences</button></div>' +
-    (rows || '<div class="mr-empty">Nothing qualified yet. The radar only speaks when a model becomes genuinely free under stated limits, or the same provider cuts a recorded price by half or more \\u2014 with fresh evidence. Quiet is the design, not an outage.</div>') +
+  pop.innerHTML = '<div class="mr-head">' + RT('radar.head', 'Discover models \\u00b7 prices and evidence') +
+    '<button type="button" class="mr-prefs-btn" id="mrPrefsBtn">' + RT('radar.preferences_btn', 'Preferences') + '</button></div>' +
+    (rows || '<div class="mr-empty">' + RT('radar.empty', 'Nothing qualified yet. The radar only speaks when a model becomes genuinely free under stated limits, or the same provider cuts a recorded price by half or more \\u2014 with fresh evidence. Quiet is the design, not an outage.') + '</div>') +
     prefsHtml() +
-    '<div class="mr-foot">No auto-switching, ever. \\u201cTry once\\u201d runs one turn; \\u201cSet as default\\u201d goes through the ordinary model gate.' +
-    (conflicts ? ' ' + conflicts + ' unresolved provider feed conflict(s) \\u2014 those models stay silent.' : '') + '</div>';
+    '<div class="mr-foot">' + RT('radar.foot', 'No auto-switching, ever. \\u201cTry once\\u201d runs one turn; \\u201cSet as default\\u201d goes through the ordinary model gate.') +
+    (conflicts ? ' ' + RTF('radar.foot_conflicts', '{n} unresolved provider feed conflict(s) \\u2014 those models stay silent.', { n: conflicts }) : '') + '</div>';
   var prefsBtn = pop.querySelector('#mrPrefsBtn');
   if (prefsBtn) prefsBtn.addEventListener('click', function(){
     prefsOpen = !prefsOpen;
@@ -242,7 +269,7 @@ function savePrefs(){
     min_interval_hours: Number((pop.querySelector('#mrPFreq') || {}).value || 0),
   }).then(function(r){
     var el = pop.querySelector('#mrPStatus');
-    if (el) { el.hidden = false; el.textContent = (r.j && r.j.ok) ? 'Saved.' : 'Could not save: ' + ((r.j && r.j.error) || r.status); }
+    if (el) { el.hidden = false; el.textContent = (r.j && r.j.ok) ? RT('radar.saved', 'Saved.') : RTF('radar.save_failed', 'Could not save: {error}', { error: ((r.j && r.j.error) || r.status) }); }
     refresh();
   }).catch(function(){});
 }
@@ -266,30 +293,30 @@ function act(f, action, card){
         paintList();
         refresh();
       }
-      else statusFor(card, 'Could not dismiss: ' + ((r.j && r.j.error) || r.status), true);
-    }).catch(function(){ statusFor(card, 'Could not reach the radar.', true); });
+      else statusFor(card, RTF('radar.dismiss_failed', 'Could not dismiss: {error}', { error: ((r.j && r.j.error) || r.status) }), true);
+    }).catch(function(){ statusFor(card, RT('radar.unreachable', 'Could not reach the radar.'), true); });
     return;
   }
   var p = pageActions();
-  if (!p) { statusFor(card, 'Page actions unavailable.', true); return; }
+  if (!p) { statusFor(card, RT('radar.actions_unavailable', 'Page actions unavailable.'), true); return; }
   if (action === 'try') {
     var chatId = p.displayedChat ? p.displayedChat() : '';
     post('/api/model-radar/try-once', {fingerprint: f.fingerprint, session_id: String(chatId || '')}).then(function(r){
-      if (!(r.j && r.j.ok)) { statusFor(card, 'Try-once refused: ' + ((r.j && r.j.error) || r.status), true); return; }
+      if (!(r.j && r.j.ok)) { statusFor(card, RTF('radar.try_refused', 'Try-once refused: {error}', { error: ((r.j && r.j.error) || r.status) }), true); return; }
       var armed = p.tryModelOnce(r.j.model_id, r.j.display_name || f.display_name);
       statusFor(card, armed
-        ? 'Armed: your next message runs \\u201c' + (r.j.display_name || f.model_id) + '\\u201d for one turn, then this chat reverts on its own.'
-        : 'Could not arm the trial in this chat.', !armed);
-    }).catch(function(){ statusFor(card, 'Could not reach the radar.', true); });
+        ? RTF('radar.armed', 'Armed: your next message runs \\u201c{model}\\u201d for one turn, then this chat reverts on its own.', { model: (r.j.display_name || f.model_id) })
+        : RT('radar.arm_failed', 'Could not arm the trial in this chat.'), !armed);
+    }).catch(function(){ statusFor(card, RT('radar.unreachable', 'Could not reach the radar.'), true); });
     return;
   }
   if (action === 'pin') {
     var id = (f.provider_id && f.provider_id !== 'openrouter') ? f.provider_id + ':' + f.model_id : f.model_id;
-    statusFor(card, 'Asking the model gate\\u2026', false);
+    statusFor(card, RT('radar.asking_gate', 'Asking the model gate\\u2026'), false);
     Promise.resolve(p.pinCloudModel(id, f.display_name || f.model_id)).then(function(ok){
-      statusFor(card, ok ? 'Default set to \\u201c' + (f.display_name || f.model_id) + '\\u201d through the ordinary model gate.'
-                         : 'The model gate refused this pin (paid confirmation or catalog check) \\u2014 nothing changed.', !ok);
-    }).catch(function(){ statusFor(card, 'Pin failed.', true); });
+      statusFor(card, ok ? RTF('radar.default_set', 'Default set to \\u201c{model}\\u201d through the ordinary model gate.', { model: (f.display_name || f.model_id) })
+                         : RT('radar.pin_refused', 'The model gate refused this pin (paid confirmation or catalog check) \\u2014 nothing changed.'), !ok);
+    }).catch(function(){ statusFor(card, RT('radar.pin_failed', 'Pin failed.'), true); });
   }
 }
 
