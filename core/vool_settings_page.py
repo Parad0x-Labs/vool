@@ -106,7 +106,12 @@ def settings_groups() -> list[dict]:
     adding an entry here, not touching three places. Every ``write`` names an endpoint that
     already carries the authority, gate and receipt for that value.
     """
-    return _edition_filtered(_settings_groups())
+    groups = _settings_groups()
+    # Research controls belong only to explicitly opted-in research invocations.
+    # The same filtered model drives navigation, search and all locale renders.
+    if not _research_networking():
+        groups = [group for group in groups if group["id"] != "network"]
+    return _edition_filtered(groups)
 
 
 def _settings_groups() -> list[dict]:
