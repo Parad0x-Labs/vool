@@ -117,6 +117,9 @@ class Facts:
         self.quote_fields: dict | None = None
         self.requests: list[str] = []
         self.proposals: list[dict] = []
+        # The op of every POST /api/mode the page sent, so the no-create boundary can tell
+        # the boot-time read-only permission probe from a state-changing mode operation.
+        self.mode_post_ops: list[str] = []
 
 
 @pytest.fixture(scope="module")
@@ -144,6 +147,8 @@ def _page(browser, facts: Facts):
         path = "/" + path.split("?")[0]
         facts.requests.append(route.request.method + " " + path)
         body = route.request.post_data_json if route.request.method == "POST" else None
+        if path == "/api/mode" and body is not None:
+            facts.mode_post_ops.append(str(body.get("op") or ""))
         if path == "/":
             route.fulfill(status=200, content_type="text/html", body=html)
         elif path == "/api/wallet/status":
@@ -185,6 +190,26 @@ def _entry(page):
     return page.locator("#vwHomeBtn")
 
 
+# The protected behavior of these flows is "nothing is created": no wallet door is touched,
+# nothing is imported or connected, and no permission state changes. The chat page now sends
+# exactly one read-only permission probe on boot -- POST /api/mode with op "bypass_options",
+# which restores server-validated per-chat bypass grants after a reload. The server owner
+# (core/web/api/service.py::_bypass_setup_options) only reads workspace eligibility and the
+# current grant; it mints nothing, pinned by tests/test_bypass_setup_flow.py, and the probe
+# fires in the boot window before any user action. So the boundary below tolerates that one
+# op while still failing on EVERY other POST -- any /api/wallet door, any other endpoint, and
+# any /api/mode operation that changes state (set, activate/revoke bypass, resolve_approval,
+# grant_chat_workspace) or omits its op (the server defaults a missing op to "set").
+MODE_READ_ONLY_OP = "bypass_options"
+
+
+def _creating_posts(facts: Facts) -> list[str]:
+    """Every POST that could create or mutate anything, with the mode op made visible."""
+    unexpected = [r for r in facts.requests if r.startswith("POST ") and r != "POST /api/mode"]
+    mutating_mode_ops = [op for op in facts.mode_post_ops if op != MODE_READ_ONLY_OP]
+    return unexpected + [f"POST /api/mode op={op!r}" for op in mutating_mode_ops]
+
+
 def _open_home_menu(page):
     if page.locator("#homeMenu").get_attribute("open") is None:
         page.click("#homeToggle")
@@ -207,6 +232,31 @@ def test_off_means_no_entry_and_no_wallet_traffic(browser):
     assert not errors
 
 
+def test_the_no_create_boundary_still_flags_real_mutations():
+    # The tolerated boot probe is exactly one read-only op: a wallet door, a state-changing
+    # mode operation, and an op-less mode POST (the server treats that as "set") must each
+    # still fail the no-create assertions above.
+    facts = Facts(_status(enabled=True, accounts=(), rows=[]))
+    facts.requests.append("POST /api/wallet/create")
+    assert _creating_posts(facts) == ["POST /api/wallet/create"]
+    facts = Facts(_status(enabled=True, accounts=(), rows=[]))
+    facts.requests.append("POST /api/mode")
+    facts.mode_post_ops.append("set")
+    assert _creating_posts(facts) == ["POST /api/mode op='set'"]
+    facts = Facts(_status(enabled=True, accounts=(), rows=[]))
+    facts.requests.append("POST /api/mode")
+    facts.mode_post_ops.append("activate_bypass")
+    assert _creating_posts(facts) == ["POST /api/mode op='activate_bypass'"]
+    facts = Facts(_status(enabled=True, accounts=(), rows=[]))
+    facts.requests.append("POST /api/mode")
+    facts.mode_post_ops.append("")
+    assert _creating_posts(facts) == ["POST /api/mode op=''"]
+    facts = Facts(_status(enabled=True, accounts=(), rows=[]))
+    facts.requests.append("POST /api/mode")
+    facts.mode_post_ops.append(MODE_READ_ONLY_OP)
+    assert _creating_posts(facts) == []
+
+
 def test_enable_adds_exactly_one_entry_and_opening_creates_nothing(browser):
     facts = Facts(_status(enabled=False, accounts=(), rows=[]))
     page, errors = _page(browser, facts)
@@ -217,12 +267,12 @@ def test_enable_adds_exactly_one_entry_and_opening_creates_nothing(browser):
     page.wait_for_selector("#vwHomeBtn", state="visible")
     assert _entry(page).count() == 1
     assert _entry(page).text_content().strip() == "👛 Wallet"
-    posts_before = [r for r in facts.requests if r.startswith("POST ")]
+    posts_before = _creating_posts(facts)
     assert not posts_before, "enabling and showing the entry must not create anything"
     _open_panel(page)
     page.wait_for_selector("#vwHomeCreate")
     assert page.locator("#vwHomeOverlay").count() == 1
-    posts = [r for r in facts.requests if r.startswith("POST ")]
+    posts = _creating_posts(facts)
     assert not posts, "opening the panel must not create, import or connect anything"
     page.locator("#vwHomeClose").click()
     assert page.locator("#vwHomeOverlay").count() == 0
@@ -262,8 +312,8 @@ def test_populated_home_switching_and_stale_answers_cannot_repaint(browser):
     assert "0 SOL" not in balance_text, "a stale answer for another account must never repaint the current selection"
     # the network switcher exists and shows both active rows; switching never creates anything
     assert page.locator("#vwHomeNetwork option").count() == 2
-    posts = [r for r in facts.requests if r.startswith("POST ")]
-    assert not posts
+    posts = _creating_posts(facts)
+    assert not posts, "switching accounts and networks must not create anything"
     assert not errors
 
 
