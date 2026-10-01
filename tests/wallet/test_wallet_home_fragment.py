@@ -147,8 +147,8 @@ def _page(browser, facts: Facts):
         path = "/" + path.split("?")[0]
         facts.requests.append(route.request.method + " " + path)
         body = route.request.post_data_json if route.request.method == "POST" else None
-        if path == "/api/mode" and body is not None:
-            facts.mode_post_ops.append(str(body.get("op") or ""))
+        if path == "/api/mode" and route.request.method == "POST":
+            facts.mode_post_ops.append(str(body.get("op") or "") if isinstance(body, dict) else "")
         if path == "/":
             route.fulfill(status=200, content_type="text/html", body=html)
         elif path == "/api/wallet/status":
@@ -206,6 +206,9 @@ MODE_READ_ONLY_OP = "bypass_options"
 def _creating_posts(facts: Facts) -> list[str]:
     """Every POST that could create or mutate anything, with the mode op made visible."""
     unexpected = [r for r in facts.requests if r.startswith("POST ") and r != "POST /api/mode"]
+    mode_posts = facts.requests.count("POST /api/mode")
+    if mode_posts != len(facts.mode_post_ops):
+        unexpected.append("POST /api/mode with unverified operation")
     mutating_mode_ops = [op for op in facts.mode_post_ops if op != MODE_READ_ONLY_OP]
     return unexpected + [f"POST /api/mode op={op!r}" for op in mutating_mode_ops]
 
@@ -255,6 +258,9 @@ def test_the_no_create_boundary_still_flags_real_mutations():
     facts.requests.append("POST /api/mode")
     facts.mode_post_ops.append(MODE_READ_ONLY_OP)
     assert _creating_posts(facts) == []
+    facts = Facts(_status(enabled=True, accounts=(), rows=[]))
+    facts.requests.append("POST /api/mode")
+    assert _creating_posts(facts) == ["POST /api/mode with unverified operation"]
 
 
 def test_enable_adds_exactly_one_entry_and_opening_creates_nothing(browser):
