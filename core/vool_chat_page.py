@@ -1034,7 +1034,7 @@ body:not(.panel-open) #xpanel { display:none; }
   <span class="brand"><img src="__VOOL_LOGO_URI__" width="34" height="34" alt="" aria-hidden="true"/>VOOL</span>
   <span class="ver" id="ver"></span>
   <div class="ctrl" id="modelCtrl">
-    <button type="button" class="ctrl-btn" id="modelBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modelPop" title="Which model answers" data-i18n-title="header.model_button_title"><span class="model-lane auto" id="modelLane">AUTO</span><span class="cb-lbl" id="modelLbl">VOOL Auto</span><span class="caret">&#9662;</span></button>
+    <button type="button" class="ctrl-btn" id="modelBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modelPop" title="Which model answers" data-i18n-title="header.model_button_title"><span class="model-lane auto" id="modelLane" data-i18n="header.lane_auto">AUTO</span><span class="cb-lbl" id="modelLbl" data-i18n="header.model_auto_option">VOOL Auto</span><span class="caret">&#9662;</span></button>
     <div class="popover below" id="modelPop" role="menu" aria-label="Model" data-i18n-aria-label="header.model_popover_title">
       <div class="pop-title" data-i18n="header.model_popover_title">Model</div>
       <button type="button" id="discoverModelsBtn" class="pop-item" role="menuitem">Discover models <span class="pi-hint">offers, prices and evidence</span></button>
@@ -1796,7 +1796,7 @@ function reapplyActivitySearch() {
 // mode preference per chat only so a chat reopens consistently; the server remains authoritative.
 // Bypass is deliberately excluded from durable browser preferences and always expires server-side.
 const MODE_LABELS = { manual: pageT('mode.js.manual', 'Manual'), review_edits: pageT('mode.js.review_edits', 'Review edits'), plan: pageT('mode.js.plan', 'Plan'), auto: pageT('mode.js.auto', 'Auto'), bypass_permissions: pageT('mode.js.bypass_permissions', 'Bypass permissions') };
-const MODEL_LABELS = { 'vool': 'VOOL Auto', 'vool-local-only': 'VOOL Auto Local Only' };
+const MODEL_LABELS = { 'vool': pageT('header.model_auto_option', 'VOOL Auto'), 'vool-local-only': pageT('header.model_local_only_option', 'VOOL Auto Local Only') };
 // The Local Only lane, by the one value the server recognises. Kept as a named constant because
 // several checks below have to agree about it exactly: the cloud list is suppressed under it, the
 // no-key revert must not treat it as a stale cloud pin, and the footer disclosure keys off it.
@@ -8417,14 +8417,14 @@ function reflectModel() {
   const btn = document.getElementById('modelBtn'); const lbl = document.getElementById('modelLbl');
   const lane = document.getElementById('modelLane');
   const laneKind = modelValue === 'vool' ? 'auto' : ((modelValue === LOCAL_ONLY_MODEL || isLocalModel(modelValue)) ? 'local' : 'cloud');
-  if (lane) { lane.textContent = laneKind.toUpperCase(); lane.className = 'model-lane ' + laneKind; }
+  if (lane) { lane.textContent = pageT('header.lane_' + laneKind, laneKind).toUpperCase(); lane.className = 'model-lane ' + laneKind; }
   if (lastConnectionSelection !== modelValue) {
     lastConnectionSelection = modelValue;
     renderConnections(lastConnectionRows || []);
     refreshCloudStatus(false);
   }
   if (modelValue === 'vool' && view.stickyModel) {
-    if (lbl) lbl.textContent = 'VOOL Auto 📌';
+    if (lbl) lbl.textContent = pageT('header.model_auto_option', 'VOOL Auto') + ' 📌';
     if (btn) btn.title = 'Auto is staying on this chat’s cloud model (' + view.stickyModel + ') for a consistent voice. Pick a model to change it, or start a new chat to reset.';
   } else {
     if (lbl) lbl.textContent = compactLabel(label);

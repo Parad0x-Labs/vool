@@ -180,9 +180,17 @@ document.addEventListener('keydown', function(ev){
 function mountFilter(){
   var sessions = document.getElementById('sessions');
   if (!sessions || document.getElementById('vxFilter')) return;
+  // The filter box's placeholder (with its ⌘F shortcut) resolves through the page's i18n
+  // catalog — VOOLT is defined by the chat page's bootstrap before fragments load; without
+  // a bundle the inline English is the honest fallback (the label never blanks).
+  function extrasT(key, fallback){
+    try { if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
+    return fallback;
+  }
+  function attr(s){ return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
   var wrap = document.createElement('div');
   wrap.id = 'vxFilterWrap';
-  wrap.innerHTML = '<input id="vxFilter" type="text" placeholder="Search chats\\u2026  \\u2318F" autocomplete="off" aria-label="Search chats">';
+  wrap.innerHTML = '<input id="vxFilter" type="text" placeholder="' + attr(extrasT('chats.filter_placeholder', 'Search chats\\u2026  \\u2318F')) + '" autocomplete="off" aria-label="' + attr(extrasT('chats.filter_aria', 'Search chats')) + '">';
   sessions.parentNode.appendChild(wrap);
   var field = wrap.querySelector('#vxFilter');
   field.addEventListener('input', function(){ filterValue = field.value; applyFilter(); });
