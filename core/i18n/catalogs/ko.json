@@ -1726,9 +1726,10 @@
     "setup.checklist.start": "설정 시작",
     "setup.checklist.todo": "할 일",
     "settings.widget.loading": "불러오는 중…",
-    "settings.widget.unavailable": "사용할 수 없음 — {error}"
+    "settings.widget.unavailable": "사용할 수 없음 — {error}",
+    "setup.checklist.count": "{m}개 중 {n}개 완료"
   },
-  "source_catalog_sha256": "e5eec3bc3db90b8f8a321a76750d58137f11961f48c4c29de2645c0489dff860",
+  "source_catalog_sha256": "116e1354aad1431df73aade37da7ca4d5fe6b3dcfb35f0ed39d7e81a5ff82c6d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
