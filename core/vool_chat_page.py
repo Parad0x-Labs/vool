@@ -511,7 +511,7 @@ body.answer-pending footer { position: relative; z-index: 35; }
 .cb-tail { flex:0 20 var(--composer-tail,0px); min-width:0; align-self:stretch; pointer-events:none; }
 #modelBtn { min-width:132px; border-radius:999px; padding:5px 12px; color:var(--muted); background:var(--field); }
 #modelBtn:hover { color:var(--ink); }
-.model-lane { flex:0 0 auto; border-radius:999px; padding:1px 7px; font-size:9px; line-height:16px; font-weight:800; letter-spacing:.08em; }
+.model-lane { flex:0 0 auto; border-radius:999px; padding:1px 7px; font-size:9px; line-height:16px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
 .model-lane.auto { color:#c4b5fd; background:#27213a; }
 .model-lane.local { color:var(--accent); background:#0e3b32; }
 .model-lane.cloud { color:#93c5fd; background:#15294d; }
@@ -8417,7 +8417,7 @@ function reflectModel() {
   const btn = document.getElementById('modelBtn'); const lbl = document.getElementById('modelLbl');
   const lane = document.getElementById('modelLane');
   const laneKind = modelValue === 'vool' ? 'auto' : ((modelValue === LOCAL_ONLY_MODEL || isLocalModel(modelValue)) ? 'local' : 'cloud');
-  if (lane) { lane.textContent = pageT('header.lane_' + laneKind, laneKind).toUpperCase(); lane.className = 'model-lane ' + laneKind; }
+  if (lane) { lane.textContent = pageT('header.lane_' + laneKind, laneKind); lane.className = 'model-lane ' + laneKind; }  // caps via CSS so the DOM i18n pass and this render agree
   if (lastConnectionSelection !== modelValue) {
     lastConnectionSelection = modelValue;
     renderConnections(lastConnectionRows || []);
