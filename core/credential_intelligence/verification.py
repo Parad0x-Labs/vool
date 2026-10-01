@@ -228,6 +228,8 @@ def _dig(payload: object, path: tuple[str, ...]) -> object:
 def _shape_ok(descriptor: ProviderDescriptor, payload: object) -> bool:
     if not isinstance(payload, (dict, list)):
         return False
+    if descriptor.response_validator is not None and not descriptor.response_validator(payload):
+        return False
     if not descriptor.response_path:
         return True
     for path in (descriptor.response_path, descriptor.fallback_response_path):

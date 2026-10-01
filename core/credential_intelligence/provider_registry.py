@@ -15,7 +15,7 @@ one source of truth for provider facts, per those tables' own law.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 
 #: The verification search: a stable, boring query that returns results on every engine and carries
@@ -58,6 +58,8 @@ class ProviderDescriptor:
     response_path: tuple[str, ...] = ()
     fallback_response_path: tuple[str, ...] = ()
     response_kind: str = ""
+    #: Optional existing provider-contract validator, applied in addition to the path shape.
+    response_validator: Callable[[object], bool] | None = None
     #: Error codes in the provider's JSON error body that name a rejected credential. Any other
     #: code stays an unidentified provider error — never "invalid".
     invalid_error_codes: tuple[str, ...] = ()
@@ -234,12 +236,12 @@ def default_registry() -> ProviderRegistry:
             invalid_error_codes=tuple(cfg.invalid_key_error_codes),
         )
 
-    from core.eyebrow_client import API_ORIGIN, KEY_NAME
+    from core.eyebrow_client import API_ORIGIN, KEY_NAME, valid_version_report
     descriptors["eyebrow"] = ProviderDescriptor(
         provider_id="eyebrow", label="Eyebrow", kind="security_scan", credential_slot=KEY_NAME,
         verify_endpoint=API_ORIGIN + "/v1/version", auth_style="bearer",
         capability_family="addon_security", paid=True,
-        response_path=("engine",), response_kind="object",
+        response_path=("engine",), response_kind="object", response_validator=valid_version_report,
     )
     return ProviderRegistry(descriptors)
 
