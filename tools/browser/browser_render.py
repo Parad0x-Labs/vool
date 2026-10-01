@@ -441,8 +441,18 @@ def browser_render(
     timeout_ms: int = 20_000,
     max_scroll: int = 2,
     screenshot_path: str | None = None,
+    network_idle_timeout_ms: int | None = None,
 ) -> dict[str, Any]:
-    """Render JS-heavy pages with Playwright when explicitly enabled."""
+    """Render JS-heavy pages with Playwright when explicitly enabled.
+
+    ``network_idle_timeout_ms`` opts a caller into a bounded settle: pages that
+    render their content from fetches are still skeletons at domcontentloaded,
+    and capturing there races the fetch. When set, the page is given up to that
+    many milliseconds to go network-idle before capture. Best effort by design —
+    a page that never goes idle (streams, long polls) is captured at the bound,
+    never failed by it. Playwright engine only; the chrome fallback has no
+    equivalent and ignores it.
+    """
 
     note_remote_fetch_attempt(url)
     if remote_fetch_forbidden():
@@ -472,6 +482,10 @@ def browser_render(
         page = browser.new_page()
         page.set_default_timeout(timeout_ms)
         page.goto(url, wait_until="domcontentloaded")
+
+        if network_idle_timeout_ms:
+            with contextlib.suppress(Exception):
+                page.wait_for_load_state("networkidle", timeout=int(network_idle_timeout_ms))
 
         for _ in range(max(0, int(max_scroll))):
             page.mouse.wheel(0, 2000)
