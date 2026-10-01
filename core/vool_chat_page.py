@@ -2296,34 +2296,36 @@ function showEmpty() {
   // A rotating fun fact — one per fresh session, quoted in an italic serif so it reads apart from
   // the greeting/opener. Two flavors, both TRUE: what VOOL genuinely does, and real how-AI-works
   // facts (including genuine "fails"). NO invented statistics — no made-up adoption % or market share.
+  // Every fact resolves through the catalog (first_run.fact_*); the inline English is the honest
+  // no-bundle fallback, byte-identical to the catalog source.
   const facts = [
     // — what VOOL does —
-    'Runs on your machine by default — your prompts never leave it unless you turn on the cloud.',
-    'Local chat is free — no per-token meter. Add a cloud key only when you want a bigger model.',
-    'No subscription and no per-message fee — it runs on hardware you already own.',
-    'Reads, searches, and edits files in your workspace, and runs tests in a sandbox.',
-    'Ask it about a folder and it reads the real files — not a guess.',
-    'Bind a chat to a project folder and its memory stays scoped to that project.',
-    'Remembers across sessions — everything stored locally on this machine.',
-    'Cloud is opt-in: off until you add a key, and you can cap the spend.',
-    'Your API keys stay sealed on this machine — encrypted at rest, never shown back.',
-    'Switch between local and your own cloud models per chat — you decide, per turn.',
-    'Works offline — the local model needs no connection.',
+    ['first_run.fact_01', 'Runs on your machine by default — your prompts never leave it unless you turn on the cloud.'],
+    ['first_run.fact_02', 'Local chat is free — no per-token meter. Add a cloud key only when you want a bigger model.'],
+    ['first_run.fact_03', 'No subscription and no per-message fee — it runs on hardware you already own.'],
+    ['first_run.fact_05', 'Reads, searches, and edits files in your workspace, and runs tests in a sandbox.'],
+    ['first_run.fact_06', 'Ask it about a folder and it reads the real files — not a guess.'],
+    ['first_run.fact_07', 'Bind a chat to a project folder and its memory stays scoped to that project.'],
+    ['first_run.fact_08', 'Remembers across sessions — everything stored locally on this machine.'],
+    ['first_run.fact_09', 'Cloud is opt-in: off until you add a key, and you can cap the spend.'],
+    ['first_run.fact_10', 'Your API keys stay sealed on this machine — encrypted at rest, never shown back.'],
+    ['first_run.fact_11', 'Switch between local and your own cloud models per chat — you decide, per turn.'],
+    ['first_run.fact_12', 'Works offline — the local model needs no connection.'],
     // — how AI actually works (and where it trips) —
-    'A language model just predicts the next word — it looks nothing up unless you hand it a tool.',
-    'Models read text as "tokens," not letters — which is why they can miscount the letters in a word.',
-    'A "hallucination" is a model stating something false with full confidence — grounding it in real files is the cure.',
-    'The "context window" is how much a model can read at once — overflow it and it forgets the start.',
-    '"Temperature" tunes randomness: low keeps answers focused, high lets them wander.',
-    'Ask a model the same thing twice and you can get two different answers — that randomness is a dial, not a bug.',
-    'The same open models behind many cloud assistants can run right here on your desk.',
-    'Bigger is not always better — a small local model answers everyday questions instantly.',
+    ['first_run.fact_13', 'A language model just predicts the next word — it looks nothing up unless you hand it a tool.'],
+    ['first_run.fact_14', 'Models read text as "tokens," not letters — which is why they can miscount the letters in a word.'],
+    ['first_run.fact_15', 'A "hallucination" is a model stating something false with full confidence — grounding it in real files is the cure.'],
+    ['first_run.fact_16', 'The "context window" is how much a model can read at once — overflow it and it forgets the start.'],
+    ['first_run.fact_17', '"Temperature" tunes randomness: low keeps answers focused, high lets them wander.'],
+    ['first_run.fact_18', 'Ask a model the same thing twice and you can get two different answers — that randomness is a dial, not a bug.'],
+    ['first_run.fact_19', 'The same open models behind many cloud assistants can run right here on your desk.'],
+    ['first_run.fact_20', 'Bigger is not always better — a small local model answers everyday questions instantly.'],
   ];
   const fact = facts[Math.floor(Math.random() * facts.length)];
   logEl.innerHTML = '<div class="empty">'
     + '<div class="empty-greet">' + esc(greet) + '</div>'
     + '<div class="empty-sub">' + esc(line) + '</div>'
-    + '<div class="empty-hint">“' + esc(fact) + '”</div>'
+    + '<div class="empty-hint">“' + esc(emptyT(fact[0], fact[1])) + '”</div>'
     + '</div>';
 }
 

@@ -172,6 +172,10 @@ def test_chat_greetings_and_toasts_ride_keys() -> None:
     ):
         assert key in ENGLISH.keys, key
     assert "emptyT('first_run.greet_afternoon'" in html or "period[0], period[1]" in html
+    # the rotating fun-fact line rides the same first_run.fact_* keys the catalogs carry
+    assert "emptyT(fact[0], fact[1])" in html
+    assert "['first_run.fact_01'," in html
+    assert "['first_run.fact_20'," in html
     assert "emptyT('chat.toast_move_failed'" in html
     assert "chats.project_note" in html
     assert "chat.setup_line_progress" in html
