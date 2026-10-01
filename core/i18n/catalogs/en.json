@@ -1726,7 +1726,8 @@
     "wallet.testnet_badge": "testnet funds, not real money",
     "wallet.watch_only_hint": "watch-only: this proposal can be approved in an external wallet, not signed here",
     "settings.widget.loading": "Loading…",
-    "settings.widget.unavailable": "Unavailable — {error}"
+    "settings.widget.unavailable": "Unavailable — {error}",
+    "setup.checklist.count": "{n} of {m} done"
   },
   "html_keys": [
     "bypass.modal_limits",

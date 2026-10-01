@@ -1770,7 +1770,7 @@ function widgetSetupProgress(stack) {
   if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
   const head = el('div', 'row-label');
   head.id = 'setupCount';
-  head.textContent = src.done_count + ' of ' + src.total + ' done';
+  head.textContent = tfmt('setup.checklist.count', '{n} of {m} done', { n: src.done_count, m: src.total });
   stack.appendChild(head);
   const list = el('div', 'stack');
   list.id = 'setupSteps';

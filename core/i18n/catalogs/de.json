@@ -1726,9 +1726,10 @@
     "setup.checklist.start": "Einrichtung starten",
     "setup.checklist.todo": "Offen",
     "settings.widget.loading": "Wird geladen…",
-    "settings.widget.unavailable": "Nicht verfügbar — {error}"
+    "settings.widget.unavailable": "Nicht verfügbar — {error}",
+    "setup.checklist.count": "{n} von {m} erledigt"
   },
-  "source_catalog_sha256": "e5eec3bc3db90b8f8a321a76750d58137f11961f48c4c29de2645c0489dff860",
+  "source_catalog_sha256": "116e1354aad1431df73aade37da7ca4d5fe6b3dcfb35f0ed39d7e81a5ff82c6d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
