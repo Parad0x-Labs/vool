@@ -1099,11 +1099,11 @@ label.inline { cursor:pointer; }
 </head>
 <body>
 <nav id="side" aria-label="Settings sections">
-  <div id="backRow"><button id="back" type="button">&larr; Back to VOOL</button></div>
+  <div id="backRow"><button id="back" type="button" data-i18n="settings.nav.back">&larr; Back to VOOL</button></div>
   <div id="searchWrap">
     <div id="searchBox">
       <span id="searchIcon" aria-hidden="true">&#9906;</span>
-      <input id="search" type="search" placeholder="Search settings" aria-label="Search settings" autocomplete="off" spellcheck="false">
+      <input id="search" type="search" placeholder="Search settings" data-i18n-placeholder="settings.nav.search" aria-label="Search settings" data-i18n-aria-label="settings.nav.search" autocomplete="off" spellcheck="false">
     </div>
   </div>
   <div id="nav" role="list"></div>
@@ -1310,7 +1310,7 @@ function renderNav() {
   nav.textContent = '';
   const q = state.query;
   let any = false;
-  const head = el('div', 'nav-sec', q ? 'Results' : 'Settings');
+  const head = el('div', 'nav-sec', q ? T('settings.nav.results', 'Results') : T('settings.nav.head', 'Settings'));
   nav.appendChild(head);
   MODEL.forEach(g => {
     const hits = hitsFor(g.id, q);
@@ -1780,22 +1780,23 @@ function widgetSetupProgress(stack) {
     line.dataset.done = s.done ? 'true' : 'false';
     const pill = el('span', 'pill ' + (s.done ? 'on' : ''));
     pill.appendChild(el('span', 'dot'));
-    pill.appendChild(el('span', null, s.done ? 'Done' : (s.skipped ? 'Skipped' : 'To do')));
+    pill.appendChild(el('span', null, s.done ? T('setup.checklist.done', 'Done')
+      : (s.skipped ? T('setup.checklist.skipped', 'Skipped') : T('setup.checklist.todo', 'To do'))));
     line.appendChild(pill);
     line.appendChild(el('span', null, s.title));
-    if (!s.done) line.appendChild(el('span', 'subtle', 'later: ' + s.later));
+    if (!s.done) line.appendChild(el('span', 'subtle', tfmt('setup.checklist.later_prefix', 'later: {later}', { later: s.later })));
     list.appendChild(line);
   });
   stack.appendChild(list);
   const bar = el('div', 'inline');
-  const go_ = el('button', 'btn primary', src.done_count ? 'Continue setup' : 'Start setup');
+  const go_ = el('button', 'btn primary', src.done_count ? T('setup.checklist.continue', 'Continue setup') : T('setup.checklist.start', 'Start setup'));
   go_.type = 'button'; go_.id = 'setupContinue';
   go_.addEventListener('click', () => openSetupPage(src.first_undone || ''));
-  const dismiss = el('button', 'btn', 'Don\u2019t remind me');
+  const dismiss = el('button', 'btn', T('setup.checklist.dismiss', 'Don\u2019t remind me'));
   dismiss.type = 'button'; dismiss.id = 'setupDismiss';
   const st = el('span', 'state idle', '');
   dismiss.addEventListener('click', async () => {
-    dismiss.disabled = true; st.className = 'state saving'; st.textContent = 'Saving…';
+    dismiss.disabled = true; st.className = 'state saving'; st.textContent = T('setup.checklist.saving', 'Saving…');
     try {
       const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_dismissed: true }) });
       const j = await r.json().catch(() => null);
@@ -1803,16 +1804,16 @@ function widgetSetupProgress(stack) {
       await readSource(SETUP_STATE_URL);
       if (state.sources[SETUP_STATE_URL] && !state.sources[SETUP_STATE_URL].show_entry) {
         removeSetupGroup();
-        live('Setup reminder hidden. Every step is still an ordinary setting.');
+        live(T('setup.checklist.reminder_hidden', 'Setup reminder hidden. Every step is still an ordinary setting.'));
         go(state.group);
         return;
       }
       renderPane();
-    } catch (e) { dismiss.disabled = false; st.className = 'state failed'; st.textContent = 'Not saved — ' + e.message; }
+    } catch (e) { dismiss.disabled = false; st.className = 'state failed'; st.textContent = tfmt('setup.checklist.not_saved', 'Not saved — {error}', { error: e.message }); }
   });
   bar.appendChild(go_); bar.appendChild(dismiss); bar.appendChild(st);
   stack.appendChild(bar);
-  stack.appendChild(el('div', 'subtle', 'This entry disappears by itself when every step is done.'));
+  stack.appendChild(el('div', 'subtle', T('setup.checklist.disappears', 'This entry disappears by itself when every step is done.')));
 }
 
 /* --- Stay safe: the scam cards from core/wallet/scam_school.py (one authority; the SVGs are the server's own

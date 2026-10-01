@@ -1177,7 +1177,12 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core import setup_progress
 
-        return apply_runtime_headers(json_response(200, setup_progress.snapshot()), runtime)
+        # The checklist presentation resolves through the requester's own UI locale
+        # (picker cookie > query), the same precedence every page render uses.
+        return apply_runtime_headers(
+            json_response(200, setup_progress.snapshot(locale=resolve_page_locale(query, headers))),
+            runtime,
+        )
 
     if normalized_path in {"/web0", "/null-browser"}:
         # The .null browser: a normal browser can't open a .null site (Arweave, behind

@@ -1865,7 +1865,7 @@ function activeTryOnce(chatId, msgText) {
 function consumeTryOnce(chatId) {
   if (tryOnceGrant && tryOnceGrant.chatId === String(chatId) && !tryOnceGrant.consumed) {
     tryOnceGrant.consumed = true;
-    try { toast('Tried \u201c' + tryOnceGrant.label + '\u201d for one turn \u2014 back to your normal model now.'); } catch (e) {}
+    try { toast(emptyT('chat.toast_try_once_grant', 'Tried \u201c' + tryOnceGrant.label + '\u201d for one turn \u2014 back to your normal model now.').replace('{label}', tryOnceGrant.label)); } catch (e) {}
     setTimeout(() => { if (tryOnceGrant && tryOnceGrant.consumed) tryOnceGrant = null; }, 2000);
     return true;
   }
@@ -2269,17 +2269,30 @@ setInterval(() => {
     .then((v) => maybeReloadForNewBuild(v.commit || '')).catch(() => {});
 }, 60000);
 
+function emptyT(key, fallback) {
+  // The greeting/opener catalog keys (first_run.*) resolve through the page's i18n
+  // bundle; the inline English is the honest fallback until a catalog resolves them.
+  try {
+    if (typeof VOOLT === 'function') { const t = VOOLT(key); if (t && t !== key) return t; }
+  } catch (e) {}
+  return fallback;
+}
+
 function showEmpty() {
   // Time-aware greeting + a rotating opener so a new chat never opens on a blank screen.
   const h = new Date().getHours();
-  const period = h < 5 ? ['Still up?', ['🌙', '🦉']] : h < 12 ? ['Good morning', ['👋', '☀️', '☕']]
-    : h < 18 ? ['Good afternoon', ['👋', '🙂']] : h < 22 ? ['Good evening', ['👋', '🌆']] : ['Working late?', ['🌙', '🦉']];
+  const period = h < 5 ? ['first_run.greet_late_night', 'Still up?', ['🌙', '🦉']] : h < 12 ? ['first_run.greet_morning', 'Good morning', ['👋', '☀️', '☕']]
+    : h < 18 ? ['first_run.greet_afternoon', 'Good afternoon', ['👋', '🙂']] : h < 22 ? ['first_run.greet_evening', 'Good evening', ['👋', '🌆']] : ['first_run.greet_working_late', 'Working late?', ['🌙', '🦉']];
   // A friendly emoji once in a while (not every open) — Codex-style "Good morning 👋".
-  let greet = period[0];
-  if (Math.random() < 0.45) greet += ' ' + period[1][Math.floor(Math.random() * period[1].length)];
-  const openers = ['What are we working on today?', "What’s the task?", 'What are you thinking about?',
-    'What should we build?', 'What can I help with?', "What’s on your mind?", 'Where do we start?'];
-  const line = openers[Math.floor(Math.random() * openers.length)];
+  let greet = emptyT(period[0], period[1]);
+  if (Math.random() < 0.45) greet += ' ' + period[2][Math.floor(Math.random() * period[2].length)];
+  const openers = [
+    ['first_run.opener_1', 'What are we working on today?'], ['first_run.opener_2', 'What’s the task?'],
+    ['first_run.opener_3', 'What are you thinking about?'], ['first_run.opener_4', 'What should we build?'],
+    ['first_run.opener_5', 'What can I help with?'], ['first_run.opener_6', 'What’s on your mind?'],
+    ['first_run.opener_7', 'Where do we start?']];
+  const pick = openers[Math.floor(Math.random() * openers.length)];
+  const line = emptyT(pick[0], pick[1]);
   // A rotating fun fact — one per fresh session, quoted in an italic serif so it reads apart from
   // the greeting/opener. Two flavors, both TRUE: what VOOL genuinely does, and real how-AI-works
   // facts (including genuine "fails"). NO invented statistics — no made-up adoption % or market share.
@@ -2670,7 +2683,7 @@ async function assignSession(sid, pid) {
     ok = r.ok;
   } catch (e) {}
   // Fail closed: surface a bind failure instead of silently continuing as if the move succeeded.
-  if (!ok) toast('Could not move this chat — it was not changed. Try again.');
+  if (!ok) toast(emptyT('chat.toast_move_failed', 'Could not move this chat — it was not changed. Try again.'));
   await loadSessions();
   return ok;
 }
@@ -3222,7 +3235,7 @@ function renderSessions(sessions) {
   if (projectIds.length) {
     const pn = document.createElement('div');
     pn.className = 'side-note';
-    pn.textContent = 'Chats inside a project work in that folder and stay isolated \u2014 files and memory \u2014 from other projects.';
+    pn.textContent = emptyT('chats.project_note', 'Chats inside a project work in that folder and stay isolated \u2014 files and memory \u2014 from other projects.');
     sessionsEl.appendChild(pn);
   }
   if (archived.length) {
@@ -3484,7 +3497,7 @@ async function newChatInProject(pid) {
       // project's memory into a chat the UI called isolated.
       view.projectId = '';
       renderContextBar();
-      toast('Could not put this chat in the project — it is NOT isolated. Try again.');
+      toast(emptyT('chat.toast_project_failed', 'Could not put this chat in the project — it is NOT isolated. Try again.'));
     } else {
       if (isDisplayed(sid)) applyProjectModel(pid);
     }
@@ -6451,7 +6464,7 @@ function panelEvidenceText() {
 }
 function copyPanelEvidence(btn, label) {
   const text = panelEvidenceText();
-  if (!text) { toast('Nothing to copy in ' + label + ' yet.'); return; }
+  if (!text) { toast(emptyT('chat.toast_copy_empty', 'Nothing to copy in {label} yet.').replace('{label}', label)); return; }
   // The copy carries its scope, so pasted evidence can never be read as covering more than it does.
   const heading = 'VOOL ' + label + ' — ' + scopeWhere();
   copyText(heading + '\n' + '='.repeat(heading.length) + '\n' + text, btn);
@@ -11654,7 +11667,14 @@ async function setupLineLoad() {
     const show = !!(d && d.show_chat_line);
     const text = document.getElementById('setupLineText');
     if (text && d && typeof d.done_count === 'number' && d.done_count > 0) {
-      text.textContent = 'Finish setting up VOOL \u2014 ' + d.done_count + ' of ' + d.total + ' done.';
+      let prog = 'Finish setting up VOOL \u2014 ' + d.done_count + ' of ' + d.total + ' done.';
+      try {
+        if (typeof VOOLT === 'function') {
+          const t = VOOLT('chat.setup_line_progress', { n: d.done_count, m: d.total });
+          if (t && t !== 'chat.setup_line_progress') prog = t;
+        }
+      } catch (e) {}
+      text.textContent = prog;
     }
     line.hidden = !show;
   } catch (e) { line.hidden = true; }
