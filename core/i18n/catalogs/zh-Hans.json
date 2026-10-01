@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "角色",
     "settings.row.character_mode.placeholder": "留空 — VOOL 以本来面目",
     "settings.row.cloud_keys.effect": "立即生效。",
-    "settings.row.cloud_keys.help": "密钥是独立的事物，不是模型设置：一个存储同时保存模型提供方和网页搜索密钥。",
+    "settings.row.cloud_keys.help": "添加、测试或移除服务商密钥。保存时只验证选定的一项服务；搜索测试可能消耗额度。",
     "settings.row.cloud_keys.label": "你的密钥",
     "settings.row.communication_style.effect": "从你的下一条消息起生效。进行中的回合保持旧值。",
     "settings.row.communication_style.help": "VOOL 写作时使用的语域。它改变的是措辞，不是 VOOL 愿意做什么。",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "从你的下一条消息起生效。进行中的回合保持旧值。",
     "settings.row.profile_items.help": "每个条目显示它的值、范围、来源和上次使用。编辑、遗忘、移动范围和恢复上一个每次作用于一个条目；暂停会阻止 VOOL 学习新内容，直到你恢复；导出会把你所有活动条目合成一份文档。这里记住的任何内容都不会授予 VOOL 读取、发送、发布或花钱的权限。",
     "settings.row.profile_items.label": "VOOL 记住的内容",
+    "settings.row.provider_guide.help": "选择类别，打开服务商官方网站，然后在下方添加密钥。",
+    "settings.row.provider_guide.label": "查找服务商",
     "settings.row.ram_reserve_pct.effect": "立即生效。",
     "settings.row.ram_reserve_pct.help": "由资源管理器实时强制执行：繁重的本地任务不会拿走这部分内存。保留得越多，VOOL 用得越少。这是硬性限制，不是建议。",
     "settings.row.ram_reserve_pct.label": "为你保留的内存",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "测试网资金，非真实货币",
     "wallet.watch_only_hint": "仅观察：此提案可在外部钱包中批准，不能在此签名"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

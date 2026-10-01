@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Personagem",
     "settings.row.character_mode.placeholder": "vazio — o VOOL como ele mesmo",
     "settings.row.cloud_keys.effect": "Vale imediatamente.",
-    "settings.row.cloud_keys.help": "Chaves são coisa à parte, não um ajuste de modelo: um armazenamento só guarda os provedores de modelos E as chaves de busca na web.",
+    "settings.row.cloud_keys.help": "Adicione, teste ou remova as suas chaves. Ao guardar, verifica-se um serviço selecionado; os testes de pesquisa podem consumir créditos.",
     "settings.row.cloud_keys.label": "Suas chaves",
     "settings.row.communication_style.effect": "Vale a partir da sua próxima mensagem. O turno em curso mantém o valor antigo.",
     "settings.row.communication_style.help": "O registro em que o VOOL escreve. Muda as palavras, não o que o VOOL topa fazer.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "Vale a partir da sua próxima mensagem. O turno em curso mantém o valor antigo.",
     "settings.row.profile_items.help": "Cada item mostra seu valor, escopo, origem e último uso. Editar, Esquecer, Mover escopo e Restaurar anterior agem num item por vez; Pausa impede o VOOL de aprender coisa nova até você retomar; Exportar entrega cada item ativo como um documento. Nada lembrado aqui dá ao VOOL permissão de ler, enviar, publicar ou gastar.",
     "settings.row.profile_items.label": "O que o VOOL lembra",
+    "settings.row.provider_guide.help": "Escolha uma categoria, abra o site oficial do fornecedor e adicione a sua chave abaixo.",
+    "settings.row.provider_guide.label": "Encontrar um fornecedor",
     "settings.row.ram_reserve_pct.effect": "Vale imediatamente.",
     "settings.row.ram_reserve_pct.help": "Imposto ao vivo pelo governador de recursos: uma tarefa local pesada não leva esta fatia de memória. Reserva maior significa que o VOOL usa menos. É limite duro, não conselho.",
     "settings.row.ram_reserve_pct.label": "RAM reservada para você",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "fundos de testnet, não é dinheiro real",
     "wallet.watch_only_hint": "somente leitura: esta proposta pode ser aprovada numa carteira externa, não assinada aqui"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

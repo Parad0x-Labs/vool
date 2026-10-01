@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "किरदार",
     "settings.row.character_mode.placeholder": "खाली — VOOL अपने आप में",
     "settings.row.cloud_keys.effect": "तुरंत लागू।",
-    "settings.row.cloud_keys.help": "कुंजियाँ अपने आप में एक चीज़ हैं, मॉडल सेटिंग नहीं: एक ही भंडार मॉडल प्रदाताओं और वेब-खोज कुंजियों को रखता है।",
+    "settings.row.cloud_keys.help": "प्रदाता की कुंजियाँ जोड़ें, जाँचें या हटाएँ। सहेजने पर एक चुनी हुई सेवा सत्यापित होती है; खोज की जाँच में क्रेडिट खर्च हो सकते हैं।",
     "settings.row.cloud_keys.label": "आपकी कुंजियाँ",
     "settings.row.communication_style.effect": "आपके अगले संदेश से लागू। चल रहा टर्न पुराना मान रखता है।",
     "settings.row.communication_style.help": "वह अंदाज़ जिसमें VOOL लिखता है। यह शब्दों को बदलता है, यह नहीं कि VOOL क्या करने को तैयार है।",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "आपके अगले संदेश से लागू। चल रहा टर्न पुराना मान रखता है।",
     "settings.row.profile_items.help": "हर बिंदु अपना मान, दायरा, उद्गम और अंतिम उपयोग दिखाता है। संपादित करें, भूलें, दायरा बदलें और पिछला पुनर्स्थापित करें — ये एक बार में एक बिंदु पर काम करते हैं; विराम VOOL को कुछ नया सीखने से तब तक रोकता है जब तक आप फिर शुरू न करें; निर्यात आपको हर सक्रिय बिंदु एक दस्तावेज़ में देता है। यहाँ याद की गई कोई भी चीज़ VOOL को पढ़ने, भेजने, प्रकाशित करने या खर्च करने की अनुमति नहीं देती।",
     "settings.row.profile_items.label": "VOOL क्या याद रखता है",
+    "settings.row.provider_guide.help": "श्रेणी चुनें, प्रदाता की आधिकारिक वेबसाइट खोलें और नीचे अपनी कुंजी जोड़ें।",
+    "settings.row.provider_guide.label": "प्रदाता खोजें",
     "settings.row.ram_reserve_pct.effect": "तुरंत लागू।",
     "settings.row.ram_reserve_pct.help": "संसाधन-रक्षक द्वारा लाइव लागू: भारी स्थानीय कार्य इस हिस्से की मेमोरी नहीं ले सकेगा। बड़ा रिज़र्व का मतलब VOOL कम उपयोग करेगा। यह कड़ी सीमा है, सलाह नहीं।",
     "settings.row.ram_reserve_pct.label": "आपके लिए रखी गई RAM",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "टेस्टनेट धन, असली पैसा नहीं",
     "wallet.watch_only_hint": "केवल-देखना: यह प्रस्ताव बाहरी वॉलेट में स्वीकारा जा सकता है, यहाँ हस्ताक्षर नहीं"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Nhân vật",
     "settings.row.character_mode.placeholder": "trống — VOOL như chính nó",
     "settings.row.cloud_keys.effect": "Áp dụng ngay.",
-    "settings.row.cloud_keys.help": "Khóa là thứ riêng, không phải cài đặt mô hình: một kho giữ cả nhà cung cấp mô hình VÀ khóa tìm kiếm web.",
+    "settings.row.cloud_keys.help": "Thêm, kiểm tra hoặc xóa khóa của nhà cung cấp. Khi lưu, một dịch vụ đã chọn được xác minh; kiểm tra tìm kiếm có thể dùng tín dụng.",
     "settings.row.cloud_keys.label": "Khóa của bạn",
     "settings.row.communication_style.effect": "Áp dụng từ tin nhắn kế tiếp của bạn. Lượt đang chạy giữ giá trị cũ.",
     "settings.row.communication_style.help": "Ngôn ngữ VOOL dùng khi viết. Nó đổi cách dùng chữ, không đổi việc VOOL sẵn sàng làm.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "Áp dụng từ tin nhắn kế tiếp của bạn. Lượt đang chạy giữ giá trị cũ.",
     "settings.row.profile_items.help": "Mỗi mục hiện giá trị, phạm vi, nguồn gốc và lần dùng cuối. Sửa, Quên, Chuyển phạm vi và Phục hồi cái trước tác động một mục mỗi lần; Tạm dừng khiến VOOL không học gì mới cho tới khi bạn tiếp tục; Xuất đưa bạn mọi mục còn hiệu lực thành một tài liệu. Không gì nhớ ở đây cho VOOL quyền đọc, gửi, đăng hay chi tiêu.",
     "settings.row.profile_items.label": "VOOL nhớ gì",
+    "settings.row.provider_guide.help": "Chọn danh mục, mở trang chính thức của nhà cung cấp rồi thêm khóa bên dưới.",
+    "settings.row.provider_guide.label": "Tìm nhà cung cấp",
     "settings.row.ram_reserve_pct.effect": "Áp dụng ngay.",
     "settings.row.ram_reserve_pct.help": "Được bộ quản trị tài nguyên áp đặt trực tiếp: một tác vụ cục bộ nặng sẽ không lấy phần bộ nhớ này. Dự trữ lớn hơn nghĩa là VOOL dùng ít hơn. Đây là giới hạn cứng, không phải lời khuyên.",
     "settings.row.ram_reserve_pct.label": "RAM dành cho bạn",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "tiền của mạng thử nghiệm, không phải tiền thật",
     "wallet.watch_only_hint": "chỉ xem: đề xuất này có thể được phê duyệt trong một ví ngoài, không ký tại đây"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

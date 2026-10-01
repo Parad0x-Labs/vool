@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Personažas",
     "settings.row.character_mode.placeholder": "tuščia — VOOL kaip save",
     "settings.row.cloud_keys.effect": "Taikoma iškart.",
-    "settings.row.cloud_keys.help": "Raktai yra atskiras dalykas, o ne modelio nustatymas: viena saugykla laiko modelių tiekėjus IR žiniatinklio paieškos raktus.",
+    "settings.row.cloud_keys.help": "Pridėkite, patikrinkite arba pašalinkite teikėjų raktus. Įrašant tikrinama viena pasirinkta paslauga; paieškos patikrinimas gali naudoti kreditus.",
     "settings.row.cloud_keys.label": "Jūsų raktai",
     "settings.row.communication_style.effect": "Taikoma nuo jūsų kitos žinutės. Vykstama eilutė laiko senąją reikšmę.",
     "settings.row.communication_style.help": "Registras, kuriuo VOOL rašo. Tai keičia žodžių derinį, o ne tai, ką VOOL sutinka daryti.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "Taikoma nuo jūsų kitos žinutės. Vykstama eilutė laiko senąją reikšmę.",
     "settings.row.profile_items.help": "Kiekvienas įrašas rodo savo reikšmę, apimtį, kilmę ir paskutinį naudojimą. Redaguoti, Užmiršti, Perkelti apimtį ir Atkurti ankstesnį veikia vienu metu tik su vienu įrašu; Pauzė stabdo VOOL mokymąsi naujo, kol pratęsite; Eksportuoti atiduoda visus aktyvius įrašus vienu dokumentu. Niekas, čia prisiminta, nesuteikia VOOL leidimo skaityti, siųsti, skelbti ar leisti išlaidų.",
     "settings.row.profile_items.label": "Ką VOOL prisimena",
+    "settings.row.provider_guide.help": "Pasirinkite kategoriją, atverkite oficialią teikėjo svetainę ir pridėkite raktą žemiau.",
+    "settings.row.provider_guide.label": "Raskite paslaugos teikėją",
     "settings.row.ram_reserve_pct.effect": "Taikoma iškart.",
     "settings.row.ram_reserve_pct.help": "Ribojama gyvai išteklių valdytojo: sunki vietinė užduotis nepaims šios atminties dalies. Didesnis rezervas reiškia, kad VOOL naudoja mažiau. Tai kieta riba, o ne patarimas.",
     "settings.row.ram_reserve_pct.label": "RAM, paliekama jums",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "testiniai pinigai, ne tikri",
     "wallet.watch_only_hint": "tik stebėjimo režimas: šį pasiūlymą galima patvirtinti išorinėje piniginėje, čia pasirašyti negalima"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

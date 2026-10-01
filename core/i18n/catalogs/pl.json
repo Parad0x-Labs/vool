@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Postać",
     "settings.row.character_mode.placeholder": "puste — VOOL jako ono samo",
     "settings.row.cloud_keys.effect": "Działa natychmiast.",
-    "settings.row.cloud_keys.help": "Klucze to osobna rzecz, nie ustawienie modelu: jeden magazyn trzyma dostawców modeli ORAZ klucze wyszukiwania w sieci.",
+    "settings.row.cloud_keys.help": "Dodaj, przetestuj lub usuń klucze dostawców. Zapis sprawdza jedną wybraną usługę; testy wyszukiwania mogą zużywać kredyty.",
     "settings.row.cloud_keys.label": "Twoje klucze",
     "settings.row.communication_style.effect": "Działa od Twojej następnej wiadomości. Trwająca tura zachowuje starą wartość.",
     "settings.row.communication_style.help": "Rejestr, w którym pisze VOOL. Zmienia dobór słów, nie to, co VOOL zgadza się robić.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "Działa od Twojej następnej wiadomości. Trwająca tura zachowuje starą wartość.",
     "settings.row.profile_items.help": "Każdy element pokazuje swoją wartość, zasięg, pochodzenie i ostatnie użycie. Edytuj, Zapomnij, Przenieś zasięg i Przywróć poprzednie działają na jednym elemencie naraz; Pauza zatrzymuje uczenie się czegokolwiek nowego, dopóki nie wznowisz; Eksport oddaje Ci każdy aktywny element jako jeden dokument. Nic zapamiętanego tutaj nie daje VOOL uprawnienia do czytania, wysyłania, publikowania ani wydawania.",
     "settings.row.profile_items.label": "Co VOOL pamięta",
+    "settings.row.provider_guide.help": "Wybierz kategorię, otwórz oficjalną stronę dostawcy i dodaj klucz poniżej.",
+    "settings.row.provider_guide.label": "Znajdź dostawcę",
     "settings.row.ram_reserve_pct.effect": "Działa natychmiast.",
     "settings.row.ram_reserve_pct.help": "Wymuszane na żywo przez namiestnika zasobów: ciężkie lokalne zadanie nie zabierze tego udziału pamięci. Większa rezerwa znaczy, że VOOL używa mniej. To twardy limit, nie rada.",
     "settings.row.ram_reserve_pct.label": "RAM zostawiony dla Ciebie",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "środki testowe, nie prawdziwe pieniądze",
     "wallet.watch_only_hint": "tylko podgląd: tę propozycję można zatwierdzić w portfelu zewnętrznym, tutaj podpisać się nie da"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

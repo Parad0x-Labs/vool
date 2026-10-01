@@ -234,6 +234,13 @@ def default_registry() -> ProviderRegistry:
             invalid_error_codes=tuple(cfg.invalid_key_error_codes),
         )
 
+    from core.eyebrow_client import API_ORIGIN, KEY_NAME
+    descriptors["eyebrow"] = ProviderDescriptor(
+        provider_id="eyebrow", label="Eyebrow", kind="security_scan", credential_slot=KEY_NAME,
+        verify_endpoint=API_ORIGIN + "/v1/version", auth_style="bearer",
+        capability_family="addon_security", paid=True,
+        response_path=("engine",), response_kind="object",
+    )
     return ProviderRegistry(descriptors)
 
 

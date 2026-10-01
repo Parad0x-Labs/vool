@@ -379,31 +379,22 @@ def _settings_groups() -> list[dict]:
             "blurb": "Keys you bring. Stored sealed on this machine, never shown again.",
             "rows": [
                 _row(
-                    id="addon_security", label="Security integrations", kind="custom", widget="addon_security",
-                    help="Optional Eyebrow checks for external add-ons. Scanning never grants execution permissions.",
-                    keywords="eyebrow security addons skills plugins scan",
+                    id="provider_guide", label="Find a provider", kind="custom", widget="provider_guide",
+                    help="Choose a category, open the official provider site, then add your key below.",
+                    keywords="api setup guide providers models web search security scans eyebrow keys official links",
                 ),
                 _row(
                     id="cloud_keys",
                     label="Your keys",
                     kind="custom",
                     widget="cloud_keys",
-                    help=(
-                        "Keys are their own thing, not a model setting: one store holds the model "
-                        "providers AND the web-search providers (core/credential_store.py), and "
-                        "some of it is neither — so they live together here rather than being split "
-                        "across the sections that happen to use them. VOOL runs local and free "
-                        "without any of them. Saving a key asks that one service once whether it accepts "
-                        "the key (model providers answer an auth check that spends nothing; search providers "
-                        "answer one small search) and stores only a verified key; a model provider's key "
-                        "becomes the active cloud provider."
-                    ),
+                    help="Add, test or remove your provider keys. Saving verifies one selected service; search checks may use credits.",
                     read={"url": CREDENTIALS},
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_IMMEDIATE,
                     keywords=(
                         "api key openai anthropic claude openrouter groq gemini deepseek kimi byok "
-                        "credential provider brave tavily exa serper firecrawl jina search token secret"
+                        "credential provider brave tavily exa serper firecrawl jina search token secret eyebrow security scans"
                     ),
                 ),
             ],
@@ -939,6 +930,10 @@ _SETTINGS_HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>VOOL Settings</title>
 <style>
+.key-guide-category{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:8px 0}
+.key-guide-category summary{cursor:pointer}.key-guide-provider{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--border)}
+.key-guide-provider p{margin:5px 0 0}.key-guide-provider .inline{flex-shrink:0}.key-guide-link{color:var(--accent);font-size:12px}
+@media(max-width:700px){.key-guide-provider{align-items:flex-start;flex-direction:column}.key-guide-provider .inline{flex-wrap:wrap}}
 /* Models & Providers redesign (overview / cards / guided / review sheet) */
 .mp-root { gap: 10px; }
 .mp-what .row-label { margin-bottom: 2px; }
@@ -1493,6 +1488,7 @@ function renderWidget(row, host) {
   if (w === 'build') return widgetBuild(stack);
   if (w === 'usage') return widgetUsage(stack);
   if (w === 'addon_security') { if (window.VoolAddons) return window.VoolAddons.mountSecurity(stack); return; }
+  if (w === 'provider_guide') return widgetProviderGuide(stack);
   if (w === 'cloud_keys') return widgetKeys(stack);
   if (w === 'models_overview') return widgetModelsOverview(stack);
   if (w === 'model_pin') return widgetModel(stack);
@@ -2007,7 +2003,8 @@ function widgetUsage(stack) {
    renders one. */
 const KEY_FAMILIES = [
   { id: 'llm.cloud.', title: 'Model providers', blurb: 'Used only when a turn actually runs on that provider.' },
-  { id: 'search.web.', title: 'Web search', blurb: 'Used for live lookups. Without one VOOL uses its built-in keyless search.' },
+  { id: 'search.web.', title: 'Web search', blurb: 'Used for live lookups. Built-in keyless search remains available.' },
+  { id: 'security.', title: 'Security scans', blurb: 'Optional add-on checks. Scans use your provider allowance.' },
 ];
 
 /* The same store also holds keys the RUNTIME minted for itself. blackbox.cas.keys is the
@@ -2025,6 +2022,7 @@ const PROVIDER_META = {};
    (core/cloud_providers.py: CUSTOM_BASE_URL_SLOT). It is an address, not a key, and the list says so. */
 const CUSTOM_BASE_URL_SLOT = 'llm.cloud.custom_base_url';
 function keyFamilyOf(name) {
+  if (String(name || '').startsWith('security.') && name !== 'security.eyebrow') return 'managed';
   const hit = KEY_FAMILIES.find(f => String(name || '').startsWith(f.id));
   return hit ? hit.id : 'managed';
 }
@@ -2081,10 +2079,12 @@ function widgetKeys(stack) {
         testBtn.addEventListener('click', async () => {
           testBtn.disabled = true; st.textContent = 'Testing — asking ' + providerLabel + ' whether it accepts this key…';
           try {
-            const url = fam === 'search.web.' ? '/api/search/test' : '/api/cloud/test';
-            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: providerId }) });
+            if (fam === 'security.' && !confirm('Check Eyebrow with one version request? No add-on is scanned.')) { testBtn.disabled = false; st.textContent = ''; return; }
+            const url = fam === 'security.' ? '/api/addons' : fam === 'search.web.' ? '/api/search/test' : '/api/cloud/test';
+            const payload = fam === 'security.' ? {action:'test_key'} : {provider:providerId};
+            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const j = await r.json().catch(() => ({}));
-            st.textContent = keyTestMessage(providerLabel, j);
+            st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : 'Check failed — ' + (j.message || j.error || r.status)) : keyTestMessage(providerLabel, j);
           } catch (e) { st.textContent = 'Test failed: ' + (e && e.message ? e.message : e); }
           testBtn.disabled = false;
         });
@@ -2093,7 +2093,7 @@ function widgetKeys(stack) {
           if (!confirm('Remove the stored key "' + (c.label || c.name) + '"?\n\nIt is deleted from this machine. Nothing is sent anywhere. VOOL falls back to running without it.')) return;
           rm.disabled = true; st.textContent = 'Removing…';
           try {
-            const r = await fetch('/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: c.name, delete: true }) });
+            const r = await fetch(fam === 'security.' ? '/api/addons' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : { name: c.name, delete: true }) });
             const j = await r.json().catch(() => null);
             if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
             await readSource('/api/settings/credentials');
@@ -2112,8 +2112,8 @@ function widgetKeys(stack) {
      BOTH server catalogues so it cannot drift from what the runtime accepts, and neither catalogue read
      leaves this machine (/api/cloud/providers is a static table; /api/search/providers is presence-only
      and documents that it makes no live call). */
-  const form = el('div', 'inline');
-  const prov = el('select', 'inp'); prov.setAttribute('aria-label', 'Provider');
+  const form = el('div', 'inline key-entry-form');
+  const prov = el('select', 'inp key-provider-picker'); prov.setAttribute('aria-label', 'Provider');
   const auto = el('option', null, 'Auto-detect from the key'); auto.value = ''; prov.appendChild(auto);
   /* The two catalogues name their id field differently -- cloud rows carry `id`
      (core/web/api/service.py), search rows carry `provider` (core/search_connection_state.py
@@ -2131,6 +2131,7 @@ function widgetKeys(stack) {
     });
     if (g.children.length) prov.appendChild(g);
   };
+  addGroup('Security scans', KEY_PROVIDER_GUIDE.find(g => g.id === 'security').providers);
   getJSON('/api/cloud/providers')
     .then(d => {
       (d.providers || d.items || []).forEach(pr => { if (pr && pr.id) { PROVIDER_META[pr.id] = pr; if (pr.label) PROVIDER_LABELS[pr.id] = pr.label; } });
@@ -2143,7 +2144,7 @@ function widgetKeys(stack) {
     .then(d => {
       const rows = d.providers || d.items || [];
       addGroup('Web search', rows);
-      renderSearchSignups(signups, rows);
+
     })
     .catch(() => {});
 
@@ -2261,7 +2262,7 @@ function widgetKeys(stack) {
       if (!done.ok) { setSt('failed', 'Not stored — ' + failText(done)); return; }
       key.value = '';                     /* the secret leaves the field the moment it is stored */
       origin.value = '';
-      const use = done.j.kind === 'search_web' ? ' VOOL uses it for live web lookups from now on.' : ' It is now the active model provider.';
+      const use = done.j.kind === 'security_scan' ? ' Ready for add-on checks; nothing has been scanned or enabled.' : done.j.kind === 'search_web' ? ' VOOL uses it for live web lookups from now on.' : ' It is now the active model provider.';
       const credit = verified.j.account_state === 'exhausted' ? ' Its credit limit is used up, so requests will fail until credit is added.' : '';
       /* A path-token binding names what the runtime now holds, never the secret: the origin the token
          is sent to and the one-way fingerprint its receipts carry. */
@@ -2367,7 +2368,7 @@ function widgetKeys(stack) {
   stack.appendChild(originHint);
   stack.appendChild(st);
   stack.appendChild(el('div', 'subtle', 'Leave the provider on Auto-detect: VOOL recognises keys with a documented prefix on this machine and asks you to choose when it cannot tell. Saving asks that one service once whether it accepts the key, and only a verified key is stored. A stored key is never displayed again.'));
-  stack.appendChild(el('div', 'subtle', 'Test asks the provider once whether it accepts the key: model providers answer an auth check that spends nothing; search providers answer one small search.'));
+  stack.appendChild(el('div', 'subtle', 'Checks use one selected provider request. Search checks may use credits; Eyebrow checks its version without scanning an add-on.'));
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
      deletes it. Nothing here can touch a verified binding. */
@@ -2416,42 +2417,62 @@ function widgetKeys(stack) {
     });
   };
   drawQuarantine();
-  const signups = el('div', 'stack');
-  stack.appendChild(signups);
+
 }
 
-/* Where to get a web-search key, and what each one costs. Both strings come from the provider
-   table itself (core/search_providers.py: signup_url, free_tier), so nothing here is a claim this
-   page invented and a changed free tier changes here too. Providers with no free tier are still
-   listed, with what they actually require -- an offer that is not free should not read as one. */
-function renderSearchSignups(host, rows) {
-  host.textContent = '';
-  const withSignup = (rows || []).filter(r => r.signup_url);
-  if (!withSignup.length) return;
-  host.appendChild(el('div', 'row-label', 'Getting a web-search key'));
-  host.appendChild(el('div', 'subtle',
-    'VOOL searches without any of these using its built-in keyless lookup; a key makes live ' +
-    'answers more reliable. Terms below are the providers\u2019 own and change without notice.'));
-  const list = el('div', 'stack');
-  withSignup.forEach(r => {
-    const line = el('div', 'inline');
-    const a = document.createElement('a');
-    a.href = r.signup_url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.textContent = r.label || r.provider;
-    a.style.color = 'var(--accent)';
-    line.appendChild(a);
-    if (r.free_tier) line.appendChild(el('span', 'subtle', r.free_tier));
-    if (r.connected) {
-      const pill = el('span', 'pill on');
-      pill.appendChild(el('span', 'dot'));
-      pill.appendChild(el('span', null, 'key stored'));
-      line.appendChild(pill);
-    }
-    list.appendChild(line);
-  });
-  host.appendChild(list);
+/* Public setup links are local metadata, not verification destinations. */
+const KEY_PROVIDER_GUIDE = __KEY_PROVIDER_GUIDE__;
+function widgetProviderGuide(host) {
+  const input = el('input', 'inp'); input.type = 'search';
+  input.placeholder = 'Find a provider…'; input.setAttribute('aria-label', 'Find a provider');
+  const results = el('div', 'key-guide');
+  const note = el('div', 'subtle'); note.setAttribute('role', 'status');
+  host.appendChild(input); host.appendChild(results); host.appendChild(note);
+  const draw = () => {
+    results.replaceChildren();
+    const q = input.value.trim().toLocaleLowerCase();
+    let count = 0;
+    const stored = new Set((state.sources['/api/settings/credentials']?.credentials || []).map(c => c.name));
+    KEY_PROVIDER_GUIDE.forEach(group => {
+      const rows = group.providers.filter(r => [r.label, r.description, group.title].join(' ').toLocaleLowerCase().includes(q));
+      if (!rows.length) return;
+      count += rows.length;
+      const section = el('details', 'key-guide-category'); section.dataset.category = group.id; section.open = !!q;
+      section.appendChild(el('summary', 'row-label', group.title + ' · ' + rows.length));
+      section.appendChild(el('p', 'subtle', group.description));
+      rows.forEach(r => {
+        const card = el('div', 'key-guide-provider');
+        const info = el('div'); info.appendChild(el('strong', null, r.label));
+        info.appendChild(el('p', 'subtle', r.description));
+        const actions = el('div', 'inline');
+        if (r.url) {
+          const link = el('a', 'key-guide-link', 'Official site ↗'); link.href = r.url;
+          link.target = '_blank'; link.rel = 'noopener noreferrer'; link.setAttribute('aria-label', r.label + ' official site');
+          actions.appendChild(link);
+        }
+        const add = el('button', 'btn', stored.has(r.slot) ? 'Manage key' : 'Add key'); add.type = 'button';
+        add.setAttribute('aria-label', (stored.has(r.slot) ? 'Manage ' : 'Add ') + r.label + ' key');
+        add.addEventListener('click', () => {
+          const picker = document.querySelector('.key-provider-picker');
+          if (!picker || !Array.from(picker.options).some(o => o.value === r.provider)) {
+            note.textContent = 'Provider list is still loading. Try again shortly.'; return;
+          }
+          picker.value = r.provider; picker.dispatchEvent(new Event('change', {bubbles:true}));
+          const form = document.querySelector('.key-entry-form');
+          form?.scrollIntoView({block:'center', behavior:'smooth'});
+          const field = form?.querySelector('input[type="password"], input.key-value');
+          (field || picker).focus(); note.textContent = 'Selected ' + r.label + '. Paste its API key below.';
+        });
+        actions.appendChild(add);
+        if (stored.has(r.slot)) actions.appendChild(el('span', 'pill on', 'Key saved'));
+        card.appendChild(info); card.appendChild(actions); section.appendChild(card);
+      });
+      results.appendChild(section);
+    });
+    if (!count) results.appendChild(el('div', 'empty', 'No matching provider.'));
+  };
+  input.addEventListener('input', draw); draw();
+  host.appendChild(el('p', 'subtle', 'Plans, prices and quotas are set by each provider. Check its official site before adding credit.'));
 }
 
 /* --- Local models: the Ollama inventory on THIS machine, its registration state here, and the
@@ -4554,6 +4575,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
     from core.addon_store_fragment import render_addon_store_fragment
     from core.calendar_settings_fragment import render_calendar_settings_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
+    from core.provider_key_guide import provider_key_guide
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.wallet_fragment import render_wallet_fragment
 
@@ -4567,6 +4589,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
     return (
         page.replace("__SETTINGS_MODEL__", model)
         .replace("__LANGUAGE_CATALOG__", catalog)
+        .replace("__KEY_PROVIDER_GUIDE__", json.dumps(provider_key_guide(), ensure_ascii=False).replace("<", "\\u003c"))
         .replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         # The i18n bootstrap must run before the page's own script: it defines VOOLT.
         .replace(

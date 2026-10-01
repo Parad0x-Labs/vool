@@ -987,7 +987,7 @@
     "settings.row.character_mode.label": "Rolle",
     "settings.row.character_mode.placeholder": "leer — VOOL als es selbst",
     "settings.row.cloud_keys.effect": "Wirkt sofort.",
-    "settings.row.cloud_keys.help": "Schlüssel sind eine eigene Sache, keine Modelleinstellung: ein Speicher hält die Modellanbieter UND die Websuch-Schlüssel.",
+    "settings.row.cloud_keys.help": "Anbieterschlüssel hinzufügen, testen oder entfernen. Beim Speichern wird ein ausgewählter Dienst geprüft; Suchtests können Guthaben verbrauchen.",
     "settings.row.cloud_keys.label": "Deine Schlüssel",
     "settings.row.communication_style.effect": "Wirkt ab deiner nächsten Nachricht. Der laufende Zug behält den alten Wert.",
     "settings.row.communication_style.help": "Das Register, in dem VOOL schreibt. Es ändert die Wortwahl, nicht das, was VOOL bereit ist zu tun.",
@@ -1047,6 +1047,8 @@
     "settings.row.profile_items.effect": "Wirkt ab deiner nächsten Nachricht. Der laufende Zug behält den alten Wert.",
     "settings.row.profile_items.help": "Jeder Eintrag zeigt seinen Wert, Geltungsbereich, Ursprung und die letzte Nutzung. Bearbeiten, Vergessen, Bereich verschieben und Vorheriges wiederherstellen wirken auf je einen Eintrag; Pause stoppt jedes neue Lernen, bis du fortsetzt; Export gibt dir jede aktive Eintragung als ein Dokument. Nichts, was hier erinnert wird, berechtigt VOOL zu Lesen, Senden, Veröffentlichen oder Ausgeben.",
     "settings.row.profile_items.label": "Was VOOL sich merkt",
+    "settings.row.provider_guide.help": "Wählen Sie eine Kategorie, öffnen Sie die offizielle Anbieterwebsite und fügen Sie unten Ihren Schlüssel hinzu.",
+    "settings.row.provider_guide.label": "Anbieter finden",
     "settings.row.ram_reserve_pct.effect": "Wirkt sofort.",
     "settings.row.ram_reserve_pct.help": "Live erzwungen durch den Ressourcenwächter: eine schwere lokale Aufgabe bekommt diesen Speicheranteil nicht. Eine größere Reserve heißt, VOOL nutzt weniger. Das ist eine harte Grenze, kein Rat.",
     "settings.row.ram_reserve_pct.label": "Für dich freigehaltener RAM",
@@ -1392,7 +1394,7 @@
     "wallet.testnet_badge": "Testnetz-Guthaben, kein echtes Geld",
     "wallet.watch_only_hint": "Nur-Ansicht: dieser Vorschlag kann in einem externen Wallet freigegeben werden, hier nicht signiert werden"
   },
-  "source_catalog_sha256": "2a9be0445fbcb1f337fe583c16e982af02c4fad88bd18e5aa9212410e87b064a",
+  "source_catalog_sha256": "509334668aeae0ec927759944e8c6eb6dec3240fb0aaaa98bbeb9f1d9dc6b6cf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
