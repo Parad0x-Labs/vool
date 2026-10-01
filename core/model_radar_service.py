@@ -306,17 +306,28 @@ def _cadence_blocks(identity: tuple[str, str], prefs: RadarPreferences, now: str
 
 
 def unread_findings(limit: int = 50) -> list[RadarFinding]:
-    return radar_store.unread_findings(limit=limit)
+    from core.operator.notification_hub import _by_key, finding_key, sync_model_news
+
+    sync_model_news()
+    return [f for f in radar_store.list_findings(limit=limit)
+            if (item := _by_key(finding_key(f))) and not item["read_at"] and not item["dismissed_at"]]
 
 
 def list_findings(*, include_read: bool = True, include_dismissed: bool = False, limit: int = 50) -> list[RadarFinding]:
+    if not include_read and not include_dismissed:
+        return unread_findings(limit=limit)
     return radar_store.list_findings(
-        include_read=include_read, include_dismissed=include_dismissed, limit=limit
+        include_read=True, include_dismissed=include_dismissed, limit=limit
     )
 
 
 def mark_viewed(fingerprints: Iterable[str]) -> int:
-    return radar_store.mark_viewed(fingerprints)
+    from core.operator.notification_hub import viewed_offers
+
+    fingerprints = tuple(fingerprints)
+    count = viewed_offers(fingerprints)
+    radar_store.mark_viewed(fingerprints)  # legacy clients; inbox state remains authoritative
+    return count
 
 
 def dismiss(fingerprint: str, *, now: str | None = None, origin: str = "ui") -> DismissResult:

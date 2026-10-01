@@ -25,7 +25,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-SOURCE_KINDS = frozenset({"calendar_alert", "calendar_catch_up", "reminder", "test"})
+SOURCE_KINDS = frozenset({"calendar_alert", "calendar_catch_up", "reminder", "test", "model_offer", "model_market", "background_run"})
 CHANNELS = frozenset({"in_app", "session_log", "macos"})
 DELIVERY_STATES = frozenset({
     "recorded", "queued", "submitted", "listed", "acknowledged", "suppressed", "failed", "uncertain",
@@ -514,3 +514,25 @@ __all__ = [
     "list_items", "load_item", "load_preferences", "record_catch_up", "record_delivery", "record_item", "save_preferences",
     "supersede_earlier_items", "supersede_items_for_schedules", "unread_count",
 ]
+
+
+def mark_read(notification_ids: list[str]) -> dict[str, Any]:
+    """Read exactly the items the person saw; never acknowledge a later arrival."""
+    if (not isinstance(notification_ids, list) or len(notification_ids) > LIST_CAP
+            or any(not isinstance(x, str) or not x or len(x) > 100 for x in notification_ids)):
+        return {"ok": False, "reason": "invalid_notification_ids"}
+    ids = list(dict.fromkeys(notification_ids))
+    if not ids:
+        return {"ok": True, "read": 0}
+    marks = ",".join("?" for _ in ids)
+    conn = _default_connection()
+    try:
+        now = _utcnow()
+        cursor = conn.execute(
+            f"UPDATE notification_items SET read_at = ?, last_action = 'read', last_action_at = ? WHERE notification_id IN ({marks}) AND read_at IS NULL",
+            (now, now, *ids),
+        )
+        conn.commit()
+        return {"ok": True, "read": cursor.rowcount}
+    finally:
+        conn.close()

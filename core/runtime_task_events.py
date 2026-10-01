@@ -102,6 +102,10 @@ def emit_runtime_event(
                 session_id=session_id,
                 details={key: value for key, value in payload.items() if key not in {"event_type", "message"}},
             )
+        with contextlib.suppress(Exception):
+            from core.operator.notification_hub import record_runtime_event
+
+            record_runtime_event(session_id, payload)
     if stream_id:
         with _LOCK:
             sink = _SINKS.get(stream_id)

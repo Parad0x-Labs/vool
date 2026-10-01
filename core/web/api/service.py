@@ -919,6 +919,13 @@ def dispatch_get(
 
         include_dismissed = str((query.get("include_dismissed") or ["0"])[0]).strip().lower() in {"1", "true", "yes"}
         try:
+            from core.operator.notification_hub import sync_model_news
+
+            sync_model_news()
+            notification_id = str((query.get("notification_id") or [""])[0])
+            if notification_id:
+                item = notification_center.load_item(notification_id)
+                return apply_runtime_headers(json_response(200 if item else 404, {"ok": bool(item), "items": [item] if item else []}), runtime)
             listing = notification_center.list_items(
                 after_seq=_qint(query, "after", 0), limit=_qint(query, "limit", 50), include_dismissed=include_dismissed,
             )
@@ -2918,7 +2925,7 @@ def dispatch_post(
     # calendar alert policy. Each changes this runtime's own schedule and history only; the one route that reaches
     # a provider is the explicit sync, which runs the same bounded account sync the background worker runs.
     if normalized_path in {
-        "/api/notifications/action", "/api/notifications/preferences", "/api/calendar/alerts/policy", "/api/calendar/sync",
+        "/api/notifications/read", "/api/notifications/migrate", "/api/notifications/action", "/api/notifications/preferences", "/api/calendar/alerts/policy", "/api/calendar/sync",
         "/api/notifications/native/outbox", "/api/notifications/native/report", "/api/notifications/native/test",
         "/api/notifications/native/authorize", "/api/calendar/accounts/add", "/api/calendar/accounts/discover",
         "/api/calendar/accounts/select", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/disconnect",
@@ -2974,6 +2981,14 @@ def dispatch_post(
                 return apply_runtime_headers(json_response(409, result), runtime)
             view = {**calendar_accounts.presented(result), "ok": True}
             return apply_runtime_headers(json_response(200, view), runtime)
+        if normalized_path == "/api/notifications/read":
+            result = notification_center.mark_read(body.get("notification_ids"))
+            return apply_runtime_headers(json_response(200 if result.get("ok") else 400, result), runtime)
+        if normalized_path == "/api/notifications/migrate":
+            from core.operator.notification_hub import migrate_market_state
+
+            result = migrate_market_state(body.get("read_seq", 0), body.get("dismissed", []))
+            return apply_runtime_headers(json_response(200 if result.get("ok") else 400, result), runtime)
         if normalized_path == "/api/notifications/action":
             result = notification_center.apply_action(
                 str(body.get("notification_id") or ""), action=str(body.get("action") or ""), minutes=body.get("minutes"),

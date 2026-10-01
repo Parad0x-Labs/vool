@@ -111,6 +111,8 @@ IMMUTABLE_RUNTIME_TABLES = (
 )
 
 RUNTIME_TABLES = (
+    "model_radar_observations", "model_radar_findings", "model_radar_dismissals",
+    "model_radar_prefs", "model_radar_conflicts", "model_radar_try_once",
     "context_import_grants",
     "context_namespaces",
     "adaptive_lexicon",

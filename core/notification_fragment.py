@@ -1,34 +1,13 @@
-"""The notification bell + inbox — the ux-pass1 alarms bound to real sources.
+"""One durable inbox for approvals, reminders, background work and model offers.
 
-Three truthful sources, nothing else:
-
-- LIFECYCLE — a run finishing in a chat the operator was NOT looking at (fed by the one named
-  `finishRun` call site; the fragment drops completions of the displayed chat because the card
-  in front of the operator already says it). Session-scoped: listed while this page lives.
-- MODEL MARKET — typed catalog-diff events from `/api/cloud/market-events` (price rises/drops,
-  FREE→PAID, delistings, and one FULLY-IDENTIFIED `new_free_model` event per model: human name,
-  id, provider, observed prices, free basis, context, capabilities, evidence time and source).
-  A fresh install polls, receives nothing, and the popover says "No notifications yet".
-
-This is the INBOX (what changed while you were elsewhere). Model Radar (✦, a separate chip)
-is the DISCOVERY surface: qualified findings with evidence cards, Try once and Set as default.
-The popover says so; neither entry point replaces the other.
-
-Every market alert renders from ITS OWN EVENT SNAPSHOT — the fields the catalog observation
-carried — so a later catalog refresh can never relabel an old alert. Unknown fields say
-"unavailable"; an observed zero price is stated as an observation with its basis, never as a
-certification that a route is free. Read/unread and dismissal state persist in
-`vool_notify_state_v1`; the first-ever load baselines existing events as seen (listed, not
-unread) instead of replaying the whole log as new mail.
-
-Deep links are real actions: a lifecycle item opens its chat; a market item's Inspect opens
-the model menu (and the price-gate variants fire on the next pin attempt through the server's
-own 409s). Unread count is presentation state only. Namespace `window.VoolNotify`; prefix `vf-`.
+All read and dismissal state belongs to notification_center. Model discovery and
+selection stay behind their existing evidence and approval authorities.
 """
 
 from __future__ import annotations
 
 _NOTIFY_CSS = """
+.vf-tabs{display:flex;gap:4px;padding:8px}.vf-tabs button{font:inherit;font-size:12px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer}.vf-tabs button[aria-selected="true"]{color:var(--ink);background:var(--field)}
 #vfBell{position:relative;background:transparent;color:var(--muted,#9aa1af);
   border:1px solid var(--border,#262b35);border-radius:8px;padding:6px 10px;font:inherit;
   font-size:13px;cursor:pointer}
@@ -49,6 +28,7 @@ _NOTIFY_CSS = """
 .vf-item.vf-clickable:hover{background:var(--field,#1d2129)}
 .vf-item:last-of-type{border-bottom:none}
 .vf-item small{color:var(--muted,#9aa1af)}
+.vf-main{font:inherit;text-align:left;color:inherit;background:transparent;border:0;padding:0;cursor:pointer;display:grid;gap:4px}
 .vf-item .vf-line{display:flex;gap:8px;align-items:baseline}
 .vf-item .vf-time{margin-left:auto;white-space:nowrap;color:var(--muted,#9aa1af);font-size:11px}
 .vf-item.vf-warn{border-left:2px solid var(--warn,#f0b429)}
@@ -77,12 +57,8 @@ _NOTIFY_JS = """
 'use strict';
 if (window.VoolNotify) return;
 
-var ITEM_CAP = 30;
 var STATE_KEY = 'vool_notify_state_v1';
-var lifecycle = [];        // session-scoped: background completions this page session
-var unreadLifecycle = 0;
-var market = [];           // rendered from the SERVER's events, re-read every poll
-var marketSeqs = [];       // seqs currently listed (ordered newest-first)
+var section = 'needs';
 function NTF(key, fallback){
   try { if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
   return fallback;
@@ -90,8 +66,9 @@ function NTF(key, fallback){
 var centre = [];          // the DB-backed notification centre (calendar alerts, reminders)
 var centreUnread = 0;
 var centreBusy = false;
+var centreFlight = null;
 var CENTRE_POLL_MS = 30000;
-var state = loadState();   // {seenSeq, readSeq, dismissed:{}} — persists across reloads
+var state = loadState();   // one-time migration of the previous browser inbox
 
 function loadState(){
   var s = { seenSeq: 0, readSeq: 0, dismissed: {} };
@@ -105,10 +82,6 @@ function loadState(){
   } catch (e) {}
   return s;
 }
-function saveState(){
-  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch (e) {}
-}
-
 function pageActions(){ return window.VoolPageActions || null; }
 function toast(text){ var p = pageActions(); if (p && typeof p.toast === 'function') p.toast(String(text || '')); }
 function esc(text){
@@ -124,31 +97,21 @@ function clock(at){
   return new Date(at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 }
 
-// ---- source 1: lifecycle (fed by the finishRun call site) ---------------------------------
+// Completion facts were already recorded by the runtime, not authored in the browser.
 function runFinished(info){
-  info = info || {};
-  if (info.displayed) return;   // the operator watched it end; the card already says so
-  var status = String(info.status || '');
-  var wording = status === 'done' ? 'completed' :
-    status === 'failed' ? 'failed' :
-    status === 'cancelled' ? 'was stopped' :
-    status === 'awaiting_approval' ? 'needs your approval' : ('ended: ' + status);
-  lifecycle.unshift({
-    kind: 'lifecycle',
-    cls: status === 'failed' ? 'vf-bad' : (status === 'awaiting_approval' ? 'vf-warn' : ''),
-    text: 'A background chat ' + wording + (info.summary ? ' \\u2014 ' + String(info.summary).slice(0, 80) : ''),
-    chatId: String(info.chatId || ''),
-    at: Date.now(),
-    unread: true,
+  return pollCentre().then(pollCentre).then(function(){
+    if (info && info.displayed && info.turnId) {
+      return readItems(centre.filter(function(item){
+        return item.source_kind === 'background_run' && item.session_id === info.chatId
+          && (item.payload || {}).turn_id === info.turnId;
+      }));
+    }
   });
-  if (lifecycle.length > ITEM_CAP) lifecycle.length = ITEM_CAP;
-  unreadLifecycle += 1;
-  paintBadge();
-  if (!pop.hidden) paintList();
 }
 
 // ---- source 2: model market (typed server events, each its own snapshot) ------------------
 function money(v){
+  if (v === null || v === undefined || v === '') return null;
   var n = Number(v);
   if (!isFinite(n)) return null;
   return '$' + (n >= 1 ? n.toFixed(2) : n.toFixed(4)) + '/1M';
@@ -164,41 +127,6 @@ function ctxWords(n){
   if (v <= 0) return 'context length unavailable';
   return Math.round(v / 1000) + 'k tokens context';
 }
-function pollMarket(){
-  fetch('/api/cloud/market-events?after=' + (state.seenSeq - 20 > 0 ? state.seenSeq - 20 : 0))
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      var events = (j && j.events ? j.events : []);
-      var firstEver = state.seenSeq === 0;
-      var maxSeq = state.seenSeq;
-      events.forEach(function(ev){
-        var seq = Number(ev.seq) || 0;
-        if (seq > maxSeq) maxSeq = seq;
-      });
-      if (firstEver) {
-        // BASELINE: the very first poll on this browser lists what already happened as READ
-        // mail. It never replays the whole log as unread notifications.
-        state.seenSeq = maxSeq;
-        state.readSeq = maxSeq;
-      } else if (maxSeq > state.seenSeq) {
-        state.seenSeq = maxSeq;   // new arrivals become unread below (seq > readSeq)
-      }
-      saveState();
-      marketSeqs = [];
-      market = [];
-      events.slice(-ITEM_CAP).reverse().forEach(function(ev){
-        var seq = Number(ev.seq) || 0;
-        if (state.dismissed['s' + seq]) return;
-        marketSeqs.push(seq);
-        market.push(ev);
-      });
-      paintBadge();
-      if (!pop.hidden) paintList();
-    })
-    .catch(function(){});
-}
-
-// ---- rendering -------------------------------------------------------------------------------
 var bell = document.createElement('button');
 bell.id = 'vfBell';
 bell.type = 'button';
@@ -221,11 +149,7 @@ card.setAttribute('aria-label', 'Notification details');
 document.body.appendChild(card);
 var cardItem = null;
 
-function unreadCount(){
-  var marketUnread = 0;
-  for (var i = 0; i < marketSeqs.length; i++) if (marketSeqs[i] > state.readSeq) marketUnread += 1;
-  return marketUnread + unreadLifecycle;
-}
+function unreadCount(){ return centreUnread; }
 function paintBadge(){
   var n = unreadCount();
   if (n > 0) { badge.hidden = false; badge.textContent = n > 9 ? '9+' : String(n); }
@@ -281,9 +205,9 @@ function marketDetails(ev){
   return html;
 }
 function pollCentre(){
-  if (centreBusy) return;
+  if (centreBusy) return centreFlight;
   centreBusy = true;
-  fetch('/api/notifications?after=0&limit=50')
+  centreFlight = fetch('/api/notifications?after=0&limit=200')
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (!j || !j.ok) return;
@@ -294,6 +218,7 @@ function pollCentre(){
     })
     .catch(function(){})
     .then(function(){ centreBusy = false; });
+  return centreFlight;
 }
 
 function centreAction(item, action, minutes){
@@ -314,14 +239,21 @@ function centreAction(item, action, minutes){
 
 function centreRow(item, index){
   var p = item.payload || {};
+  if (p.market_event && !p.finding) {
+    return '<div data-vmarket="' + index + '" class="vf-item' + (item.read_at ? '' : ' vf-unread') + '"><span class="vf-title">' + esc(marketTitle(p.market_event)) + '</span>'
+      + '<div class="vf-details">' + marketDetails(p.market_event) + '</div>'
+      + '<div class="vf-actions"><button type="button" data-vc-open="' + index + '">Inspect in Models</button>'
+      + '<button type="button" data-vc-act="dismiss" data-vc="' + index + '">Dismiss</button></div>'
+      + '<small>Observed catalog values, not a certification. Selecting a paid route still follows your approvals.</small></div>';
+  }
   var join = httpsLink(p.meeting_url);
   var acts = '';
   if (snoozable(item)) acts += '<button type="button" data-vc-act="snooze" data-vc="' + index + '">' + NTF('notif.snooze_10', 'Snooze 10 min') + '</button>';
   if (join) acts += '<a href="' + esc(join) + '" target="_blank" rel="noopener noreferrer" data-vc-join="' + index + '">Join</a>';
   acts += '<button type="button" data-vc-act="dismiss" data-vc="' + index + '">' + NTF('notif.dismiss', 'Dismiss') + '</button>';
   var cls = 'vf-item vf-centre' + (item.source_kind === 'calendar_catch_up' ? ' vf-warn' : '') + (item.read_at ? '' : ' vf-unread');
-  return '<div class="' + cls + '" data-vc-open="' + index + '">' +
-    '<div class="vf-main"><span>' + esc(item.title) + '</span><small>' + esc(centreMeta(item)) + '</small></div>' +
+  return '<div class="' + cls + '">' +
+    '<button type="button" class="vf-main" data-vc-open="' + index + '"><span class="vf-title">' + esc(item.title) + '</span><small>' + esc(centreMeta(item)) + '</small></button>' +
     '<div class="vf-acts">' + acts + '</div></div>';
 }
 
@@ -353,55 +285,55 @@ function httpsLink(url){
   return s;
 }
 
-function itemHtml(item, index){
-  if (item.kind === 'lifecycle') {
-    return '<div class="vf-item vf-clickable ' + (item.cls || '') + (item.unread ? ' vf-unread' : '') + '" data-vf="' + index + '">'
-      + '<div class="vf-line"><span class="vf-title">' + esc(item.text) + '</span>'
-      + '<small class="vf-time">' + clock(item.at) + '</small></div>'
-      + '<div class="vf-sub">' + NTF('notif.opens_chat', 'Opens its chat') + '</div></div>';
-  }
-  var ev = item.ev;
-  var unread = item.seq > state.readSeq;
-  return '<div class="vf-item ' + (ev.type === 'price_increased' || ev.type === 'free_to_paid' ? 'vf-warn ' : '')
-    + (ev.type === 'model_delisted' ? 'vf-bad ' : '') + (unread ? 'vf-unread' : '') + '" data-vf="' + index + '">'
-    + '<div class="vf-line"><span class="vf-title">' + esc(marketTitle(ev)) + '</span>'
-    + '<small class="vf-time">' + when(ev.observed_at || ev.ts) + '</small></div>'
-    + '<div class="vf-details" data-vf-details="' + index + '" hidden>' + marketDetails(ev) + '</div>'
-    + '<div class="vf-actions">'
-    + '<button type="button" class="vf-btn" data-vf-act="details">Details</button>'
-    + '<button type="button" class="vf-btn" data-vf-act="inspect">Inspect in Models</button>'
-    + '<button type="button" class="vf-btn vf-ghost" data-vf-act="dismiss">Dismiss</button>'
-    + '</div>'
-    + '<div class="vf-cert">Observed catalog values, snapshotted at alert time \\u2014 not a certification. '
-    + 'Selecting a paid route still follows your approvals.</div>'
-    + '</div>';
+function itemSection(item){
+  var p = item.payload || {};
+  if (p.section) return p.section;
+  return ['calendar_alert', 'calendar_catch_up', 'reminder'].indexOf(item.source_kind) >= 0 ? 'needs' : 'updates';
 }
+function visibleItems(){ return centre.filter(function(item){ return itemSection(item) === section; }); }
 function paintList(){
+  var tabs = [['needs', 'Needs you'], ['updates', 'Updates'], ['offers', 'Model offers']];
+  var nav = tabs.map(function(tab){
+    var n = centre.filter(function(item){ return itemSection(item) === tab[0] && !item.read_at; }).length;
+    return '<button type="button" role="tab" aria-selected="' + (section === tab[0]) + '" data-vf-section="' + tab[0] + '">' + tab[1] + (n ? ' (' + n + ')' : '') + '</button>';
+  }).join('');
   var rows = [];
-  var i;
-  var centreRows = centre.map(centreRow).join('');
-  for (i = 0; i < market.length; i++) rows.push(itemHtml({ kind: 'market', ev: market[i], seq: marketSeqs[i] }, rows.length));
-  for (i = 0; i < lifecycle.length; i++) rows.push(itemHtml(lifecycle[i], rows.length));
-  pop.innerHTML = '<div class="vf-head">' + NTF('notif.head', 'Notifications \u00b7 background chats \u00b7 model market') + '</div>'
-    + (centreRows + rows.join('') ? centreRows + rows.join('') : '<div class="vf-empty">' + NTF('notif.empty', 'No notifications yet \u2014 background completions and real catalog changes will land here.') + '</div>')
-    + '<div class="vf-foot">This is the inbox: what changed while you were elsewhere. '
-    + 'Model Radar (\\u2726) is where qualified free models and \\u226550% price cuts live, with Try once and Set as default.</div>';
+  centre.forEach(function(item, index){ if (itemSection(item) === section) rows.push(centreRow(item, index)); });
+  pop.innerHTML = '<div class="vf-head">Notifications</div><div class="vf-tabs" role="tablist" aria-label="Notification sections">' + nav + '</div>'
+    + (rows.join('') || '<div class="vf-empty">Nothing here yet.</div>')
+    + '<div class="vf-foot"><button type="button" data-vf-discover>Discover models</button> · Dismiss hides an inbox item; your alerts and model choice stay unchanged.</div>';
+}
+function readItems(items){
+  var ids = items.filter(function(item){ return !item.read_at; }).map(function(item){ return item.notification_id; });
+  if (!ids.length) return Promise.resolve();
+  return fetch('/api/notifications/read', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({notification_ids: ids})})
+    .then(function(r){ return r.json(); }).then(function(j){
+      if (j && j.ok) return pollCentre();
+      toast('Could not save read state.');
+    }).catch(function(){ toast('Could not save read state.'); });
 }
 function openPop(){
   paintList();
   pop.hidden = false;
-  // Opening the inbox marks everything visible as read — unread is a "you have not looked"
-  // signal, not a permanent state. Dismissal is separate and explicit.
-  state.readSeq = Math.max(state.readSeq, state.seenSeq);
-  unreadLifecycle = 0;
-  lifecycle.forEach(function(item){ item.unread = false; });
-  saveState();
-  paintBadge();
+  readItems(visibleItems());
   var r = bell.getBoundingClientRect();
   pop.style.top = (r.bottom + 6) + 'px';
   pop.style.left = Math.max(8, Math.min(r.right - 380, window.innerWidth - 388)) + 'px';
 }
 function openCard(item){
+  centreAction(item, 'open');
+  var payload = item.payload || {};
+  if (payload.finding) {
+    pop.hidden = true;
+    if (window.VoolModelRadar) window.VoolModelRadar.open(payload.finding.fingerprint);
+    return;
+  }
+  if (payload.market_event) {
+    pop.hidden = true;
+    var actions = pageActions();
+    if (actions) actions.openModelMenu();
+    return;
+  }
   cardItem = item;
   var p = item.payload || {};
   var join = httpsLink(p.meeting_url);
@@ -445,7 +377,6 @@ function openCard(item){
   html += '</div>';
   card.innerHTML = html;
   card.hidden = false;
-  if (!item.read_at) centreAction(item, 'open');
 }
 function closeCard(){ card.hidden = true; cardItem = null; }
 // What the macOS channel proved about an item, in words. There is no 'shown' state: macOS does not report one.
@@ -460,7 +391,7 @@ function openItem(notificationId){
   if (!id) return false;
   var found = centre.filter(function(entry){ return entry.notification_id === id; })[0];
   if (found) { openCard(found); return true; }
-  fetch('/api/notifications?after=0&limit=50&include_dismissed=1')
+  fetch('/api/notifications?notification_id=' + encodeURIComponent(id))
     .then(function(r){ return r.json(); })
     .then(function(j){
       var match = ((j && Array.isArray(j.items)) ? j.items : []).filter(function(entry){ return entry.notification_id === id; })[0];
@@ -496,66 +427,20 @@ card.addEventListener('submit', function(ev){
   closeCard();
   savePolicy(current, values);
 });
-document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape' && !card.hidden) closeCard(); });
+document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') { pop.hidden = true; if (!card.hidden) closeCard(); } });
 
 bell.addEventListener('click', function(){ pop.hidden ? openPop() : (pop.hidden = true); });
 pop.addEventListener('click', function(ev){
-  var btn = ev.target.closest('[data-vf-act]');
-  if (btn) {
-    ev.stopPropagation();
-    var item = itemAt(btn);
-    if (!item) return;
-    if (btn.getAttribute('data-vf-act') === 'details') {
-      var box = pop.querySelector('[data-vf-details="' + btn.closest('[data-vf]').getAttribute('data-vf') + '"]');
-      if (box) box.hidden = !box.hidden;
-      return;
-    }
-    if (btn.getAttribute('data-vf-act') === 'dismiss') {
-      if (item.kind === 'market') {
-        state.dismissed['s' + item.seq] = 1;
-        saveState();
-        pollMarket();
-      } else {
-        lifecycle.splice(lifecycle.indexOf(item), 1);
-        paintList();
-      }
-      return;
-    }
-    if (btn.getAttribute('data-vf-act') === 'inspect') {
-      pop.hidden = true;
-      var p = pageActions();
-      if (p) p.openModelMenu();
-      return;
-    }
-    return;
-  }
-  var row = ev.target.closest('[data-vf]');
-  if (!row) return;
-  var item2 = itemAt(row);
-  pop.hidden = true;
-  if (!item2) return;
-  if (item2.kind === 'lifecycle' && item2.chatId && typeof window.openSession === 'function') {
-    window.openSession(item2.chatId);
-  } else if (item2.kind === 'market') {
-    var p2 = pageActions();
-    if (p2) p2.openModelMenu();
-  }
+  var tab = ev.target.closest('[data-vf-section]');
+  if (tab) { section = tab.getAttribute('data-vf-section'); paintList(); readItems(visibleItems()); return; }
+  if (ev.target.closest('[data-vf-discover]')) { pop.hidden = true; if (window.VoolModelRadar) window.VoolModelRadar.open(); return; }
+  var join = ev.target.closest('[data-vc-join]');
+  if (join) { var joined = centre[Number(join.getAttribute('data-vc-join'))]; if (joined) centreAction(joined, 'open'); return; }
+  var act = ev.target.closest('[data-vc-act]');
+  if (act) { ev.stopPropagation(); var item = centre[Number(act.getAttribute('data-vc'))]; if (item) centreAction(item, act.getAttribute('data-vc-act'), 10); return; }
+  var row = ev.target.closest('[data-vc-open]');
+  if (row) { var found = centre[Number(row.getAttribute('data-vc-open'))]; if (found) openCard(found); }
 });
-function itemAt(node){
-  var row = node.closest ? node.closest('[data-vf]') : null;
-  if (!row) return null;
-  var index = Number(row.getAttribute('data-vf'));
-  var before = 0, i;
-  for (i = 0; i < market.length; i++) {
-    if (before === index) return { kind: 'market', ev: market[i], seq: marketSeqs[i] };
-    before += 1;
-  }
-  for (i = 0; i < lifecycle.length; i++) {
-    if (before === index) return lifecycle[i];
-    before += 1;
-  }
-  return null;
-}
 document.addEventListener('mousedown', function(ev){
   if (!pop.hidden && !pop.contains(ev.target) && ev.target !== bell && !bell.contains(ev.target)) pop.hidden = true;
 });
@@ -565,9 +450,13 @@ function mount(){
   if (anchor && anchor.parentNode && !document.getElementById('vfBell')) {
     anchor.parentNode.insertBefore(bell, anchor);
   }
-  pollMarket();
-  setInterval(pollMarket, 60000);
-  pollCentre();
+  var previous = null;
+  try { previous = localStorage.getItem(STATE_KEY); } catch (e) {}
+  if (previous) {
+    fetch('/api/notifications/migrate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({read_seq:state.readSeq, dismissed:Object.keys(state.dismissed).filter(function(k){ return /^s[0-9]+$/.test(k); }).map(function(k){ return Number(k.slice(1)); }).slice(0,200)})})
+      .then(function(r){ return r.json(); }).then(function(j){ if (j && j.ok) { try { localStorage.removeItem(STATE_KEY); } catch (e) {} } return pollCentre(); }).catch(pollCentre);
+  } else pollCentre();
   setInterval(pollCentre, CENTRE_POLL_MS);
   window.addEventListener('focus', pollCentre);
 }
@@ -576,10 +465,12 @@ else mount();
 
 window.VoolNotify = Object.freeze({
   runFinished: runFinished,
-  pending: function(){ return market.length + lifecycle.length; },
+  openItem: openItem,
+  refresh: pollCentre,
+  pending: function(){ return centre.length; },
   unread: function(){ return unreadCount(); },
-  _state: function(){ return JSON.parse(JSON.stringify(state)); },
-  _items: function(){ return { market: market.slice(), lifecycle: lifecycle.slice() }; },
+  _state: function(){ return {unread: centreUnread, section: section}; },
+  _items: function(){ return centre.slice(); },
 });
 })();
 """
