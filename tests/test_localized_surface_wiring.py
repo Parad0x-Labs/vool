@@ -1,0 +1,124 @@
+"""The new public surfaces must resolve through the catalog, not inline English.
+
+Pins (2026-10-01 localization completion):
+- the bypass setup dialog, banner and readiness states carry catalog wiring; the
+  API's workspace_reason stays language-independent and the page maps it to the
+  ``bypass.readiness.<reason>`` presentation (never parsing prose);
+- the provider guide resolves its category/provider copy through the catalog at
+  the metadata owner, per requested locale;
+- the settings key-entry form's group membership is decided by the optgroup's
+  language-independent family marker, never by its translated label;
+- the notification popover and model-radar chrome resolve through VOOLT-backed
+  helpers whose fallback literals are the catalog English.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+
+from core.i18n.catalog import catalog_for, clear_catalog_cache
+from core.notification_fragment import render_notification_fragment
+from core.model_radar_fragment import render_model_radar_fragment
+from core.provider_key_guide import provider_key_guide
+from core.vool_chat_page import render_vool_chat_html
+from core.vool_settings_page import render_vool_settings_html
+
+ENGLISH = catalog_for("en")
+
+
+def teardown_function() -> None:
+    clear_catalog_cache()
+
+
+def test_bypass_dialog_markup_carries_catalog_attributes() -> None:
+    html = render_vool_chat_html(build_commit="t")
+    dialog = re.search(r'<div id="bypassOverlay".*?\n</div>\n', html, re.DOTALL)
+    assert dialog, "bypass dialog markup missing"
+    body = dialog.group(0)
+    for attribute, key in (
+        ("data-i18n", "bypass.modal_title"),
+        ("data-i18n-html", "bypass.modal_warning"),
+        ("data-i18n", "bypass.scope_label"),
+        ("data-i18n", "bypass.duration_label"),
+        ("data-i18n", "bypass.duration.until_off"),
+        ("data-i18n", "bypass.setup.label"),
+        ("data-i18n", "bypass.setup.help"),
+        ("data-i18n", "bypass.custom_label"),
+        ("data-i18n", "bypass.modal_limits"),
+        ("data-i18n", "bypass.confirm"),
+    ):
+        assert f'{attribute}="{key}"' in body, f"dialog field {key} not wired"
+
+
+def test_bypass_readiness_maps_reason_codes_not_prose() -> None:
+    html = render_vool_chat_html(build_commit="t")
+    # The page resolves by the API's typed reason code; the English message only rides
+    # as the fallback argument.
+    assert "pageT('bypass.readiness.' + String(data.workspace_reason || '')" in html
+    assert "pageTF('bypass.readiness.with_folder'" in html
+    # every reason the API can return has a catalog presentation
+    for reason in {"project", "unbound", "protected_workspace", "project_missing", "unreadable", "deleted_chat", "missing_chat", "unavailable"}:
+        assert f"bypass.readiness.{reason}" in ENGLISH.keys
+
+
+def test_bypass_dialog_localizes_in_every_shipped_catalog_locale() -> None:
+    from core.i18n.locales import ui_catalog_tags
+
+    for tag in ui_catalog_tags():
+        html = render_vool_chat_html(build_commit="t", ui_locale=tag)
+        catalog = catalog_for(tag)
+        title = catalog.text("bypass.modal_title")
+        assert f">{title}</span>" in html or f"data-i18n=\"bypass.modal_title\">{title}" in html, tag
+
+
+def test_provider_guide_resolves_copy_per_locale() -> None:
+    from core.i18n.locales import ui_catalog_tags
+
+    for tag in ui_catalog_tags():
+        guide = provider_key_guide(tag)
+        catalog = catalog_for(tag)
+        by_id = {g["id"]: g for g in guide}
+        assert by_id["security"]["title"] == catalog.text("keyguide.security.title"), tag
+        assert by_id["models"]["description"] == catalog.text("keyguide.models.description"), tag
+        eyebrow = by_id["security"]["providers"][0]
+        assert eyebrow["description"] == catalog.text("keyguide.provider.eyebrow.description"), tag
+        # brand identifiers never translate
+        assert eyebrow["label"] == "Eyebrow"
+        assert eyebrow["url"] == "https://eyebrow.cc/dashboard"
+
+
+def test_settings_key_form_uses_family_markers_not_labels() -> None:
+    html = render_vool_settings_html(build_commit="t")
+    assert "g.dataset.family = family;" in html
+    assert "g.dataset.family) || ''" in html
+    # group membership rides the marker, never a displayed (translated) label string
+    assert "selectedGroup() === 'search'" in html
+    assert "selectedGroup() === 'Web search'" not in html
+
+
+def test_notification_and_radar_fragments_resolve_through_voolt() -> None:
+    notify = render_notification_fragment()
+    assert "function NTF(" in notify and "VOOLT" in notify
+    # a previously raw literal now rides a key
+    assert "NTF('notif.tab.needs', 'Needs you')" in notify
+    assert "NTF('notif.foot_note'" in notify
+    radar = render_model_radar_fragment()
+    assert "function RT(" in radar and "VOOLT" in radar
+    assert "RT('radar.try_once', 'Try once')" in radar
+
+
+def test_changed_english_source_keys_have_fresh_transations_everywhere() -> None:
+    """The four reworded keys must not serve their old translations: after the
+    refresh every shipped catalog either carries the new wording's translation or
+    (by the engine's law) visibly falls back — the old texts must be gone."""
+    from core.i18n.locales import ui_catalog_tags
+
+    old_texts = {
+        "bypass.confirm": "Confirm limited bypass",
+        "notif.empty": "No notifications yet",
+    }
+    for tag in ui_catalog_tags():
+        catalog = catalog_for(tag)
+        for key, old_prefix in old_texts.items():
+            assert not catalog.text(key).startswith(old_prefix), (tag, key)

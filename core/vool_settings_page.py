@@ -2302,7 +2302,7 @@ function widgetKeys(stack) {
       if (!classified.ok) throw new Error(failText(classified));
       const candidates = classified.j.candidates || [];
       const picked = prov.value.trim();
-      const providerId = picked ? (selectedGroup() === 'Web search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
+      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
         setSt('failed', (classified.j.reason || T('keys.cannot_tell', 'VOOL cannot tell which service this key is for.'))
