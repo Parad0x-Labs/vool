@@ -278,6 +278,15 @@ overlay.addEventListener('keydown', function(ev){
 function isEditable(el){
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
+function vpHintT(key, fallback){
+  // The shortcut labels resolve through the page's i18n bundle; the inline English
+  // is the honest fallback until a catalog resolves them. The <kbd> key caps and the
+  // separators are structure, never translated words.
+  try {
+    if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; }
+  } catch (e) {}
+  return fallback;
+}
 function vpMountHint(){
   var input = document.getElementById('input');
   if (!input || document.getElementById('vpHint')) return;
@@ -285,7 +294,13 @@ function vpMountHint(){
   if (!host) return;
   var hint = document.createElement('div');
   hint.id = 'vpHint';
-  hint.innerHTML = '<kbd>⌘K</kbd> palette \u00b7 <kbd>⌘N</kbd> new chat \u00b7 <kbd>⌘J</kbd> activity \u00b7 <kbd>⌘/</kbd> pet appearance \u00b7 <kbd>⌘F</kbd> search chats \u00b7 <kbd>⌘,</kbd> settings \u00b7 <kbd>Esc</kbd> stop';
+  hint.innerHTML = '<kbd>⌘K</kbd> ' + vpHintT('palette.hint_palette', 'palette')
+    + ' \u00b7 <kbd>⌘N</kbd> ' + vpHintT('palette.hint_new_chat', 'new chat')
+    + ' \u00b7 <kbd>⌘J</kbd> ' + vpHintT('palette.hint_activity', 'activity')
+    + ' \u00b7 <kbd>⌘/</kbd> ' + vpHintT('palette.hint_pet', 'pet appearance')
+    + ' \u00b7 <kbd>⌘F</kbd> ' + vpHintT('palette.hint_search_chats', 'search chats')
+    + ' \u00b7 <kbd>⌘,</kbd> ' + vpHintT('palette.hint_settings', 'settings')
+    + ' \u00b7 <kbd>Esc</kbd> ' + vpHintT('palette.hint_esc_stop', 'stop');
   host.appendChild(hint);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', vpMountHint);

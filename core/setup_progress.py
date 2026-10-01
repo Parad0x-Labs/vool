@@ -159,9 +159,23 @@ def fresh_profile() -> bool:
 
 # --- the projection ---------------------------------------------------------------------------
 
-def snapshot() -> dict[str, Any]:
-    """Everything the setup window, the Settings entry and the chat line need, read fresh."""
+def snapshot(locale: str = "en") -> dict[str, Any]:
+    """Everything the setup window, the Settings entry and the chat line need, read fresh.
+
+    ``locale`` resolves the step presentation through the deterministic catalog
+    (``setup.step.<id>.<field>``); the StepSpec English stays the authority and a
+    missing key falls back to it visibly (the engine's own law). The projection
+    itself — done/skipped/failed — never depends on the locale.
+    """
+    from core.i18n.catalog import catalog_for
     from core.user_preferences import load_preferences
+
+    catalog = catalog_for(locale) if locale and locale != "en" else None
+
+    def present(spec_id: str, field: str, english: str) -> str:
+        if not english or catalog is None:
+            return english
+        return catalog.text(f"setup.step.{spec_id}.{field}")
 
     autonomy_mode = ""
     try:
@@ -182,9 +196,9 @@ def snapshot() -> dict[str, Any]:
             failed = type(exc).__name__
         entry: dict[str, Any] = {
             "id": spec.id,
-            "title": spec.title,
-            "sentence": spec.sentence,
-            "later": spec.later,
+            "title": present(spec.id, "title", spec.title),
+            "sentence": present(spec.id, "sentence", spec.sentence),
+            "later": present(spec.id, "later", spec.later),
             "done": done,
             "skipped": (spec.id in skipped) and not done,
         }
