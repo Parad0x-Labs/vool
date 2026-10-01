@@ -143,27 +143,14 @@ def migrate_market_state(read_seq, dismissed):
         return {"ok": False, "reason": "invalid_dismissals"}
     with _LOCK:
         sync_model_news()
-        conn = centre._default_connection()
-        try:
-            if conn.execute("SELECT 1 FROM notification_preferences WHERE pref_key = 'legacy_model_inbox_imported'").fetchone():
-                return {"ok": True, "already_imported": True}
-            for ev in read_events(after=0):
-                seq = int(ev.get("seq") or 0)
-                item = _by_key(market_key(ev))
-                if not item:
-                    continue
-                if seq <= read_seq or seq in dismissed:
-                    centre.apply_action(item["notification_id"], action="dismiss" if seq in dismissed else "read")
-                else:
-                    # Undo only our initial-history baseline, never a person's read.
-                    conn.execute("UPDATE notification_items SET read_at = NULL, last_action = '' WHERE notification_id = ? AND last_action = 'baseline'",
-                                 (item["notification_id"],))
-            conn.execute("INSERT INTO notification_preferences (pref_key, value_json, updated_at) VALUES ('legacy_model_inbox_imported', 'true', ?)",
-                         (centre._utcnow(),))
-            conn.commit()
-        finally:
-            conn.close()
-    return {"ok": True}
+        states = []
+        for ev in read_events(after=0):
+            seq = int(ev.get("seq") or 0)
+            item = _by_key(market_key(ev))
+            if item:
+                action = "dismiss" if seq in dismissed else "read" if seq <= read_seq else "unread"
+                states.append((item["notification_id"], action))
+        return centre.import_model_read_state(states)
 
 
 def record_runtime_event(session_id, event):

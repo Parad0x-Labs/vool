@@ -242,3 +242,22 @@ out({errors,calls});
         {"event_key":"event-fixture", "lead_minutes":[30,5], "apply_now":True},
         {"event_key":"event-fixture", "lead_minutes":[], "apply_now":True},
     ]
+
+
+def test_calendar_policy_refusal_preserves_open_form():
+    out = run_fragment(TICK + r"""
+for(let i=0;i<10;i++) await tick();
+const originalFetch=fetch; let attempted=0;
+globalThis.fetch=async(url,opts)=>{
+ if(url==='/api/calendar/alerts/policy') {attempted++;return {ok:false,status:404,json:async()=>({ok:false,reason:'unknown_target'})};}
+ return originalFetch(url,opts);
+};
+const item={notification_id:'ntf-calendar',source_kind:'calendar_alert',title:'Meeting',event_key:'event-gone',payload:{lead_minutes:15}};
+openCard(item);
+const form={elements:{minutes:{value:'10'}}};
+card.__on.submit({target:{closest:()=>form},preventDefault(){}});
+for(let i=0;i<10;i++) await tick();
+out({attempted,open:!card.hidden,sameItem:cardItem===item});
+""", [])
+    assert not out["errors"], out
+    assert out["attempted"] == 1 and out["open"] and out["sameItem"]

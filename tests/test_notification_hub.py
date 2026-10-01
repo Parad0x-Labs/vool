@@ -177,3 +177,42 @@ def test_hide_offer_removes_discovery_and_its_alert_but_not_other_alerts(home):
     assert [x["notification_id"] for x in inbox()["items"]] == [reminder["notification_id"]]
     from core.model_radar_service import list_findings
     assert list_findings() == []
+
+
+def test_legacy_unread_between_read_and_dismissed(home, monkeypatch):
+    events = [{"seq": i, "type": "model_delisted", "model": f"vendor/model-{i}"} for i in (1, 2, 3)]
+    monkeypatch.setattr("core.model_market_feed.read_events", lambda **kw: events)
+    assert inbox()["unread"] == 0
+    status, result = api_post("/api/notifications/migrate", {"read_seq": 1, "dismissed": [3]})
+    assert status == 200 and result["ok"], result
+    items = inbox()["items"]
+    assert {x["payload"]["market_event"]["seq"] for x in items} == {1, 2}
+    assert [x["payload"]["market_event"]["seq"] for x in items if not x["read_at"]] == [2]
+    assert api_post("/api/notifications/migrate", {"read_seq": 3, "dismissed": []})[1]["already_imported"]
+    assert inbox()["unread"] == 1
+
+
+
+
+def test_legacy_import_rolls_back_items_and_marker_on_write_failure(home, monkeypatch):
+    from core.operator import notification_center as centre
+    events = [{"seq": i, "type": "model_delisted", "model": f"vendor/rollback-{i}"} for i in (1, 2, 3)]
+    monkeypatch.setattr("core.model_market_feed.read_events", lambda **kw: events)
+    before = inbox()["items"]
+    original = centre._write_read_action
+    def fail_dismiss(conn, notification_id, action, now):
+        original(conn, notification_id, action, now)
+        if action == "dismiss":
+            raise RuntimeError("injected failed migration write")
+    with monkeypatch.context() as patch:
+        patch.setattr(centre, "_write_read_action", fail_dismiss)
+        with pytest.raises(RuntimeError, match="injected failed migration write"):
+            api_post("/api/notifications/migrate", {"read_seq": 1, "dismissed": [3]})
+    assert inbox()["items"] == before
+    conn = centre._default_connection()
+    try:
+        assert not conn.execute("SELECT 1 FROM notification_preferences WHERE pref_key = 'legacy_model_inbox_imported'").fetchone()
+    finally:
+        conn.close()
+    assert api_post("/api/notifications/migrate", {"read_seq": 1, "dismissed": [3]})[1]["ok"]
+    assert inbox()["unread"] == 1

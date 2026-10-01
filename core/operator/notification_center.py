@@ -274,6 +274,24 @@ def load_item(notification_id: str, *, get_connection_fn: Callable[[], Any] = _d
     return _item(row) if row is not None else None
 
 
+def _write_read_action(conn, notification_id: str, action: str, now: str) -> None:
+    """Write a read/open/dismiss inside the caller's transaction."""
+    if action == "dismiss":
+        conn.execute(
+            """
+            UPDATE notification_items
+            SET read_at = COALESCE(read_at, ?), dismissed_at = COALESCE(dismissed_at, ?), last_action = 'dismiss', last_action_at = ?
+            WHERE notification_id = ?
+            """,
+            (now, now, now, notification_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE notification_items SET read_at = COALESCE(read_at, ?), last_action = ?, last_action_at = ? WHERE notification_id = ?",
+            (now, action, now, notification_id),
+        )
+
+
 def apply_action(
     notification_id: str,
     *,
@@ -293,20 +311,7 @@ def apply_action(
         return _snooze(item, minutes=minutes, now=now, now_fn=now_fn, get_connection_fn=get_connection_fn)
     conn = get_connection_fn()
     try:
-        if action == "dismiss":
-            conn.execute(
-                """
-                UPDATE notification_items
-                SET read_at = COALESCE(read_at, ?), dismissed_at = COALESCE(dismissed_at, ?), last_action = 'dismiss', last_action_at = ?
-                WHERE notification_id = ?
-                """,
-                (now, now, now, item["notification_id"]),
-            )
-        else:
-            conn.execute(
-                "UPDATE notification_items SET read_at = COALESCE(read_at, ?), last_action = ?, last_action_at = ? WHERE notification_id = ?",
-                (now, action, now, item["notification_id"]),
-            )
+        _write_read_action(conn, item["notification_id"], action, now)
         conn.commit()
     finally:
         conn.close()
@@ -536,3 +541,34 @@ def mark_read(notification_ids: list[str]) -> dict[str, Any]:
         return {"ok": True, "read": cursor.rowcount}
     finally:
         conn.close()
+
+
+def import_model_read_state(states: list[tuple[str, str]]) -> dict[str, Any]:
+    """Import legacy model inbox state once, atomically with its completion marker.
+
+    The hub resolves server-authored event identities before entering this writer.
+    Unread restoration only removes our history baseline, never an explicit read.
+    """
+    conn = _default_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("SELECT 1 FROM notification_preferences WHERE pref_key = 'legacy_model_inbox_imported'").fetchone():
+            conn.rollback()
+            return {"ok": True, "already_imported": True}
+        now = _utcnow()
+        for notification_id, action in states:
+            if action == "unread":
+                conn.execute("UPDATE notification_items SET read_at = NULL, last_action = '' WHERE notification_id = ? AND last_action = 'baseline'",
+                             (notification_id,))
+            elif action in {"read", "dismiss"}:
+                _write_read_action(conn, notification_id, action, now)
+            else:
+                raise ValueError("invalid legacy notification action")
+        conn.execute("INSERT INTO notification_preferences (pref_key, value_json, updated_at) VALUES ('legacy_model_inbox_imported', 'true', ?)", (now,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {"ok": True}
