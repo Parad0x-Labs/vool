@@ -12,10 +12,11 @@ The `grants` half is observed as MINT EVENTS at the existing authority
 (`core.semantic.types._issue_grant`), never as the live population of `_ISSUED_GRANTS`. That
 registry is weak ON PURPOSE -- "a grant that goes out of scope stops counting" -- so its live
 population also counts other tests' dead-but-uncollected grants and depends on when the
-generational collector runs. CI run 36777822749 (job 110100929400) reded exactly that way: an
-earlier shard test's grant was collected inside this test's preview window and the live-count
-observer reported a 1 -> 0 drop the preview never caused. Mint events are the deterministic
-proof of the actual law: a preview mints nothing, a real admission mints exactly one grant bound
+generational collector runs. CI run 36777822749 (job 110100929400) recorded a 1 -> 0 drop.
+Controlled reproductions on the original head and baseline produce that exact delta through
+collection without a preview mutation; the original CI run did not capture the expired grant's
+origin. Mint events are the deterministic proof of the actual law: a preview mints nothing,
+a real admission mints exactly one grant bound
 to the exact operation and arguments. Grant lifetime behavior itself stays untouched.
 """
 from __future__ import annotations
