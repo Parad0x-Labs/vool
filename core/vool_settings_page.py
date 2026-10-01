@@ -1127,6 +1127,16 @@ function T(key, fallback) {
   try { if (typeof VOOLT === 'function') { const t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
   return fallback;
 }
+/* The {param}-carrying twin: the bundle's own formatter resolves locale placeholders and
+   plural branches identically to the server; the inline English fallback formats the same
+   way when no bundle ships. */
+function tfmt(key, fallback, params) {
+  const t = T(key, fallback);
+  try {
+    if (typeof VOOLFMT === 'function') return VOOLFMT(t, params || {});
+  } catch (e) {}
+  return String(t).replace(/\{(\w+)\}/g, (m, name) => (params && params[name] != null) ? String(params[name]) : m);
+}
 </script>
 """
 
@@ -2077,28 +2087,28 @@ function widgetKeys(stack) {
         const testBtn = el('button', 'btn key-test', 'Test'); testBtn.type = 'button'; testBtn.dataset.provider = providerId;
         const st = el('span', 'subtle key-test-state', ''); st.dataset.provider = providerId;
         testBtn.addEventListener('click', async () => {
-          testBtn.disabled = true; st.textContent = 'Testing — asking ' + providerLabel + ' whether it accepts this key…';
+          testBtn.disabled = true; st.textContent = tfmt('keys.asking_test', 'Testing — asking {label} whether it accepts this key…', { label: providerLabel });
           try {
-            if (fam === 'security.' && !confirm('Check Eyebrow with one version request? No add-on is scanned.')) { testBtn.disabled = false; st.textContent = ''; return; }
+            if (fam === 'security.' && !confirm(T('keys.eyebrow_confirm', 'Check Eyebrow with one version request? No add-on is scanned.'))) { testBtn.disabled = false; st.textContent = ''; return; }
             const url = fam === 'security.' ? '/api/addons' : fam === 'search.web.' ? '/api/search/test' : '/api/cloud/test';
             const payload = fam === 'security.' ? {action:'test_key'} : {provider:providerId};
             const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const j = await r.json().catch(() => ({}));
-            st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : 'Check failed — ' + (j.message || j.error || r.status)) : keyTestMessage(providerLabel, j);
-          } catch (e) { st.textContent = 'Test failed: ' + (e && e.message ? e.message : e); }
+            st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : tfmt('keys.check_failed', 'Check failed — {message}', { message: (j.message || j.error || r.status) })) : keyTestMessage(providerLabel, j);
+          } catch (e) { st.textContent = tfmt('keys.test_failed', 'Test failed: {error}', { error: (e && e.message ? e.message : e) }); }
           testBtn.disabled = false;
         });
-        const rm = el('button', 'btn danger', 'Remove'); rm.type = 'button';
+        const rm = el('button', 'btn danger', T('keys.remove', 'Remove')); rm.type = 'button';
         rm.addEventListener('click', async () => {
-          if (!confirm('Remove the stored key "' + (c.label || c.name) + '"?\n\nIt is deleted from this machine. Nothing is sent anywhere. VOOL falls back to running without it.')) return;
-          rm.disabled = true; st.textContent = 'Removing…';
+          if (!confirm(tfmt('keys.remove_confirm', 'Remove the stored key “{name}”?\n\nIt is deleted from this machine. Nothing is sent anywhere. VOOL falls back to running without it.', { name: (c.label || c.name) }))) return;
+          rm.disabled = true; st.textContent = T('keys.removing', 'Removing…');
           try {
             const r = await fetch(fam === 'security.' ? '/api/addons' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : { name: c.name, delete: true }) });
             const j = await r.json().catch(() => null);
             if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
             await readSource('/api/settings/credentials');
             renderPane();
-          } catch (e) { rm.disabled = false; st.textContent = 'Not removed — ' + e.message; }
+          } catch (e) { rm.disabled = false; st.textContent = tfmt('keys.not_removed', 'Not removed — {error}', { error: e.message }); }
         });
         rowEl.appendChild(testBtn); rowEl.appendChild(rm); rowEl.appendChild(st);
         list.appendChild(rowEl);
@@ -2113,15 +2123,16 @@ function widgetKeys(stack) {
      leaves this machine (/api/cloud/providers is a static table; /api/search/providers is presence-only
      and documents that it makes no live call). */
   const form = el('div', 'inline key-entry-form');
-  const prov = el('select', 'inp key-provider-picker'); prov.setAttribute('aria-label', 'Provider');
-  const auto = el('option', null, 'Auto-detect from the key'); auto.value = ''; prov.appendChild(auto);
+  const prov = el('select', 'inp key-provider-picker'); prov.setAttribute('aria-label', T('keys.provider_aria', 'Provider'));
+  const auto = el('option', null, T('keys.auto_detect', 'Auto-detect from the key')); auto.value = ''; prov.appendChild(auto);
   /* The two catalogues name their id field differently -- cloud rows carry `id`
      (core/web/api/service.py), search rows carry `provider` (core/search_connection_state.py
      connection_rows). Reading only one of them drops that whole half of the list silently, with
-     no error to notice. */
-  const addGroup = (label, items) => {
+     no error to notice. The optgroup carries a language-independent family marker: the logic
+     below matches on that marker, never on the displayed (translated) label. */
+  const addGroup = (family, labelKey, labelFallback, items) => {
     if (!items || !items.length) return;
-    const g = document.createElement('optgroup'); g.label = label;
+    const g = document.createElement('optgroup'); g.label = T(labelKey, labelFallback); g.dataset.family = family;
     items.forEach(pr => {
       const value = pr.id || pr.provider || '';
       if (!value) return;
@@ -2131,11 +2142,11 @@ function widgetKeys(stack) {
     });
     if (g.children.length) prov.appendChild(g);
   };
-  addGroup('Security scans', KEY_PROVIDER_GUIDE.find(g => g.id === 'security').providers);
+  addGroup('security', 'keys.group_security', 'Security scans', KEY_PROVIDER_GUIDE.find(g => g.id === 'security').providers);
   getJSON('/api/cloud/providers')
     .then(d => {
       (d.providers || d.items || []).forEach(pr => { if (pr && pr.id) { PROVIDER_META[pr.id] = pr; if (pr.label) PROVIDER_LABELS[pr.id] = pr.label; } });
-      addGroup('Model providers', d.providers || d.items || []);
+      addGroup('models', 'keys.group_models', 'Model providers', d.providers || d.items || []);
       syncBaseUrl();
       syncOrigin();
     })
@@ -2143,7 +2154,7 @@ function widgetKeys(stack) {
   getJSON('/api/search/providers')
     .then(d => {
       const rows = d.providers || d.items || [];
-      addGroup('Web search', rows);
+      addGroup('search', 'keys.group_search', 'Web search', rows);
 
     })
     .catch(() => {});
@@ -2154,9 +2165,9 @@ function widgetKeys(stack) {
      never sent in clear, and its reason is shown here verbatim rather than pre-empted. */
   const baseUrl = document.createElement('input');
   baseUrl.type = 'url'; baseUrl.className = 'inp key-base-url'; baseUrl.hidden = true;
-  baseUrl.autocomplete = 'off'; baseUrl.spellcheck = false; baseUrl.setAttribute('aria-label', 'Custom endpoint base URL');
+  baseUrl.autocomplete = 'off'; baseUrl.spellcheck = false; baseUrl.setAttribute('aria-label', T('keys.base_url_aria', 'Custom endpoint base URL'));
   const baseUrlHint = el('div', 'subtle key-base-url-hint',
-    'Custom endpoint: the OpenAI-compatible base URL, ending in /v1 — https://host/v1, or http://127.0.0.1:port/v1 for a server on this machine. Plain http to any other host is refused so the key never travels in clear.');
+    T('keys.base_url_hint', 'Custom endpoint: the OpenAI-compatible base URL, ending in /v1 — https://host/v1, or http://127.0.0.1:port/v1 for a server on this machine. Plain http to any other host is refused so the key never travels in clear.'));
   baseUrlHint.hidden = true;
   const needsBaseUrl = () => { const v = prov.value.trim(); const meta = PROVIDER_META[v]; return meta ? !!meta.user_base_url : v === 'custom'; };
   const syncBaseUrl = () => { const show = needsBaseUrl(); baseUrl.hidden = !show; baseUrlHint.hidden = !show; };
@@ -2171,38 +2182,38 @@ function widgetKeys(stack) {
      form, no provider id is special-cased here. */
   const origin = document.createElement('input');
   origin.type = 'url'; origin.className = 'inp key-origin'; origin.hidden = true;
-  origin.autocomplete = 'off'; origin.spellcheck = false; origin.placeholder = 'optional — only an origin you chose yourself';
-  origin.setAttribute('aria-label', 'Provider origin');
+  origin.autocomplete = 'off'; origin.spellcheck = false; origin.placeholder = T('keys.origin_placeholder', 'optional — only an origin you chose yourself');
+  origin.setAttribute('aria-label', T('keys.origin_aria', 'Provider origin'));
   const originHint = el('div', 'subtle key-origin-hint',
-    'UsePod puts the token in the URL path. Paste the token alone, or the whole proxy URL -- it is split before storage and the token is never shown again. The optional origin names a different endpoint you chose yourself (https to any host, or http to a loopback host); leaving it empty keeps ' + USEPOD_ORIGIN_DEFAULT + '. A URL you pasted never becomes the origin by itself: a paste that disagrees with the origin chosen here is refused, and the token is never sent to an origin you did not pick.');
+    tfmt('keys.origin_hint', 'UsePod puts the token in the URL path. Paste the token alone, or the whole proxy URL — it is split before storage and the token is never shown again. The optional origin names a different endpoint you chose yourself (https to any host, or http to a loopback host); leaving it empty keeps {default}. A URL you pasted never becomes the origin by itself: a paste that disagrees with the origin chosen here is refused, and the token is never sent to an origin you did not pick.', { default: USEPOD_ORIGIN_DEFAULT }));
   originHint.hidden = true;
   const isPathTokenProvider = () => { const meta = PROVIDER_META[prov.value.trim()]; return !!(meta && meta.auth_placement === 'url_path_token'); };
   const syncOrigin = () => {
     const show = isPathTokenProvider();
     origin.hidden = !show; originHint.hidden = !show;
-    key.setAttribute('aria-label', show ? 'UsePod token or proxy URL' : 'API key');
-    key.title = show ? 'Paste the UsePod token, or the whole proxy URL containing it' : 'Paste the API key here';
+    key.setAttribute('aria-label', show ? T('keys.token_aria', 'UsePod token or proxy URL') : T('keys.key_aria', 'API key'));
+    key.title = show ? T('keys.token_title', 'Paste the UsePod token, or the whole proxy URL containing it') : T('keys.key_title', 'Paste the API key here');
   };
   prov.addEventListener('change', syncOrigin);
 
   const key = document.createElement('input');
-  key.type = 'password'; key.className = 'inp'; key.setAttribute('aria-label', 'API key'); key.title = 'Paste the API key here';
+  key.type = 'password'; key.className = 'inp'; key.setAttribute('aria-label', T('keys.key_aria', 'API key')); key.title = T('keys.key_title', 'Paste the API key here');
   key.autocomplete = 'off'; key.spellcheck = false;
   /* Show/Hide: reveal what is being typed, on request only. The stored value is never shown again. */
-  const reveal = el('button', 'btn key-reveal', 'Show'); reveal.type = 'button';
-  reveal.setAttribute('aria-pressed', 'false'); reveal.title = 'Show or hide the key you are typing';
+  const reveal = el('button', 'btn key-reveal', T('keys.show', 'Show')); reveal.type = 'button';
+  reveal.setAttribute('aria-pressed', 'false'); reveal.title = T('keys.reveal_title', 'Show or hide the key you are typing');
   reveal.addEventListener('click', () => {
     const shown = key.type === 'text';
     key.type = shown ? 'password' : 'text';
-    reveal.textContent = shown ? 'Show' : 'Hide';
+    reveal.textContent = shown ? T('keys.show', 'Show') : T('keys.hide', 'Hide');
     reveal.setAttribute('aria-pressed', shown ? 'false' : 'true');
   });
-  const save = el('button', 'btn primary key-save', 'Save key'); save.type = 'button';
+  const save = el('button', 'btn primary key-save', T('keys.save', 'Save key')); save.type = 'button';
   /* Save for later: the EXPLICIT unverified path. The key is stored sealed in a quarantine
      slot nothing reads — no lane, no probe, no search uses it — and shows as unverified until
      a later verification promotes it. Offered next to the verified save so the honest path
      stays the obvious one. */
-  const later = el('button', 'btn key-save-later', 'Save for later (unverified)'); later.type = 'button';
+  const later = el('button', 'btn key-save-later', T('keys.save_later', 'Save for later (unverified)')); later.type = 'button';
   const st = el('span', 'state idle key-save-state', '');
   const setSt = (cls, text) => { st.className = 'state ' + cls + ' key-save-state'; st.textContent = text; };
   /* A successful save re-renders the group so the new slot appears in the list; the confirmation
@@ -2218,15 +2229,15 @@ function widgetKeys(stack) {
     const j = await r.json().catch(() => ({}));
     return { ok: r.ok && j.ok !== false, status: r.status, j: j || {} };
   };
-  const selectedGroup = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; const g = o && o.parentElement; return g && g.tagName === 'OPTGROUP' ? g.label : ''; };
+  const selectedGroup = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; const g = o && o.parentElement; return (g && g.tagName === 'OPTGROUP' && g.dataset.family) || ''; };
   const selectedLabel = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; return o && prov.value ? o.textContent : ''; };
   const failText = (res) => res.j.detail || res.j.error || ('HTTP ' + res.status);
   const saveVerified = async () => {
     const v = key.value;
-    if (!v.trim()) { setSt('failed', 'Paste a key first.'); return; }
+    if (!v.trim()) { setSt('failed', T('keys.paste_first', 'Paste a key first.')); return; }
     save.disabled = true;
     try {
-      setSt('saving', 'Recognising the key on this machine…');
+      setSt('saving', T('keys.recognising', 'Recognising the key on this machine…'));
       const begun = await intakePost('/api/intake/begin', {});
       if (!begun.ok) throw new Error(failText(begun));
       const sid = begun.j.session_id;
@@ -2234,11 +2245,11 @@ function widgetKeys(stack) {
       if (!classified.ok) throw new Error(failText(classified));
       const candidates = classified.j.candidates || [];
       const picked = prov.value.trim();
-      const providerId = picked ? (selectedGroup() === 'Web search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
+      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
-        const choices = names.length > 1 ? ' It could be ' + names.slice(0, -1).join(', ') + ' or ' + names[names.length - 1] + '.' : '';
-        setSt('failed', (classified.j.reason || 'VOOL cannot tell which service this key is for.') + choices + ' Choose the service in the list, then press Save key again. Nothing was sent anywhere.');
+        const choices = names.length ? ' ' + tfmt('keys.could_be', 'It could be {names}.', { names: names.join(', ') }) : '';
+        setSt('failed', (classified.j.reason || T('keys.cannot_tell', 'VOOL cannot tell which service this key is for.')) + choices + ' ' + T('keys.choose_retry', 'Choose the service in the list, then press Save key again. Nothing was sent anywhere.'));
         prov.focus();
         return;
       }
@@ -2246,33 +2257,33 @@ function widgetKeys(stack) {
       const label = selectedLabel() || (candidates[0] && candidates[0].label) || providerId;
       const verifyBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
-        if (!baseUrl.value.trim()) { setSt('failed', 'Not stored — enter the base URL of the endpoint first (for example https://host/v1). Nothing was sent anywhere.'); baseUrl.focus(); return; }
+        if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first', 'Not stored — enter the base URL of the endpoint first (for example https://host/v1). Nothing was sent anywhere.')); baseUrl.focus(); return; }
         verifyBody.base_url = baseUrl.value.trim();
       }
       /* A path-token provider (UsePod): the origin field names an endpoint the operator chose. Left
          empty, the provider's documented origin applies. The paste (a token or a whole proxy URL) is
          split on this machine before anything is sent, and a URL naming another origin is refused. */
       if (isPathTokenProvider() && origin.value.trim()) verifyBody.base_url = origin.value.trim();
-      setSt('saving', 'Asking ' + label + ' once whether it accepts this key…');
+      setSt('saving', tfmt('keys.asking', 'Asking {label} once whether it accepts this key…', { label: label }));
       const verified = await intakePost('/api/intake/verify', verifyBody);
-      if (!verified.ok) { setSt('failed', 'Not stored — ' + failText(verified)); return; }
+      if (!verified.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(verified) })); return; }
       if (verified.j.outcome !== 'verified') { setSt('failed', verifyOutcomeMessage(label, verified.j)); return; }
-      setSt('saving', label + ' accepted the key. Storing it sealed on this machine…');
+      setSt('saving', tfmt('keys.storing', '{label} accepted the key. Storing it sealed on this machine…', { label: label }));
       const done = await intakePost('/api/intake/complete', { session_id: sid });
-      if (!done.ok) { setSt('failed', 'Not stored — ' + failText(done)); return; }
+      if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
       key.value = '';                     /* the secret leaves the field the moment it is stored */
       origin.value = '';
-      const use = done.j.kind === 'security_scan' ? ' Ready for add-on checks; nothing has been scanned or enabled.' : done.j.kind === 'search_web' ? ' VOOL uses it for live web lookups from now on.' : ' It is now the active model provider.';
-      const credit = verified.j.account_state === 'exhausted' ? ' Its credit limit is used up, so requests will fail until credit is added.' : '';
+      const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : T('keys.use_model', ' It is now the active model provider.');
+      const credit = verified.j.account_state === 'exhausted' ? T('keys.credit_exhausted', ' Its credit limit is used up, so requests will fail until credit is added.') : '';
       /* A path-token binding names what the runtime now holds, never the secret: the origin the token
          is sent to and the one-way fingerprint its receipts carry. */
-      const bound = done.j.origin ? ' Bound to ' + String(done.j.origin) + (done.j.credential_fingerprint ? ', fingerprint ' + done.j.credential_fingerprint : '') + '.' : '';
-      const note = 'Stored, sealed on this machine after ' + label + ' accepted the key.' + use + credit + bound;
+      const bound = done.j.origin ? tfmt('keys.bound_origin', ' Bound to {origin}', { origin: String(done.j.origin) }) + (done.j.credential_fingerprint ? tfmt('keys.fingerprint', ', fingerprint {fingerprint}', { fingerprint: done.j.credential_fingerprint }) : '') : '';
+      const note = tfmt('keys.stored_sealed', 'Stored, sealed on this machine after {label} accepted the key.', { label: label }) + use + credit + bound;
       setSt('saved', note);
       widgetCache.keySaveNote = note;
       await readSource('/api/settings/credentials');
       renderPane();
-    } catch (e) { setSt('failed', 'Not stored — ' + (e && e.message ? e.message : e)); }
+    } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
     finally { save.disabled = false; }
   };
   save.addEventListener('click', saveVerified);
@@ -2280,10 +2291,10 @@ function widgetKeys(stack) {
      stores WITHOUT asking anyone: nothing is sent anywhere. The key lands in quarantine. */
   later.addEventListener('click', async () => {
     const v = key.value;
-    if (!v.trim()) { setSt('failed', 'Paste a key first.'); return; }
+    if (!v.trim()) { setSt('failed', T('keys.paste_first', 'Paste a key first.')); return; }
     later.disabled = true;
     try {
-      setSt('saving', 'Recognising the key on this machine…');
+      setSt('saving', T('keys.recognising', 'Recognising the key on this machine…'));
       const begun = await intakePost('/api/intake/begin', {});
       if (!begun.ok) throw new Error(failText(begun));
       const sid = begun.j.session_id;
@@ -2294,14 +2305,16 @@ function widgetKeys(stack) {
       const providerId = picked ? (selectedGroup() === 'Web search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
-        setSt('failed', (classified.j.reason || 'VOOL cannot tell which service this key is for.') + (names.length ? ' Choose the service in the list first.' : '') + ' Nothing was sent anywhere.');
+        setSt('failed', (classified.j.reason || T('keys.cannot_tell', 'VOOL cannot tell which service this key is for.'))
+          + (names.length ? ' ' + T('keys.choose_service_first', 'Choose the service in the list first.') : '')
+          + T('keys.nothing_sent_suffix', ' Nothing was sent anywhere.'));
         prov.focus();
         return;
       }
       if (!picked) { prov.value = providerId.replace(/^search\./, ''); syncBaseUrl(); syncOrigin(); }
       const laterBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
-        if (!baseUrl.value.trim()) { setSt('failed', 'Not stored — enter the base URL of the endpoint first. Nothing was sent anywhere.'); baseUrl.focus(); return; }
+        if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first_short', 'Not stored — enter the base URL of the endpoint first. Nothing was sent anywhere.')); baseUrl.focus(); return; }
         laterBody.base_url = baseUrl.value.trim();
       }
       if (isPathTokenProvider() && origin.value.trim()) laterBody.base_url = origin.value.trim();
@@ -2312,63 +2325,71 @@ function widgetKeys(stack) {
       if (!done.ok) throw new Error(failText(done));
       key.value = '';
       origin.value = '';
-      const note = 'Stored sealed and UNVERIFIED for later. Nothing uses this key — not the model lane, not search — until you retry it from the list below and the provider accepts it.';
+      const note = T('keys.stored_unverified', 'Stored sealed and UNVERIFIED for later. Nothing uses this key — not the model lane, not search — until you retry it from the list below and the provider accepts it.');
       setSt('saved', note);
       widgetCache.keySaveNote = note;
       await readSource('/api/settings/credentials');
       renderPane();
-    } catch (e) { setSt('failed', 'Not stored — ' + (e && e.message ? e.message : e)); }
+    } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
     finally { later.disabled = false; }
   });
   /* One sentence per verification outcome. The server keeps a rejected key apart from throttling, an
      outage, a timeout, a wrong address, a redirect and a non-API answer; so does each sentence, and none
-     of them calls a key bad when the provider never judged it. */
+     of them calls a key bad when the provider never judged it. Each state keeps its own catalog key so
+     no translation can blur one outcome into another (a rejected key never becomes "FAILED", an
+     unjudged key never becomes rejected). */
   function verifyOutcomeMessage(label, j) {
     const http = j.http_status ? ' (HTTP ' + j.http_status + (j.provider_error_code ? ', ' + j.provider_error_code : '') + ')' : '';
-    const kept = ' Nothing was stored.';
+    const p = { label: label, http: http };
     switch (String(j.outcome || '')) {
-      case 'invalid': return label + ' rejected this key' + http + '. Check that you copied all of it and that it is a ' + label + ' key.' + kept;
-      case 'unauthorized': return label + ' recognised the key but refused this request' + http + '. Check the key’s permissions.' + kept;
-      case 'exhausted': return label + ' reports no credit or quota left for this key' + http + '. Add credit, then save again.' + kept;
-      case 'rate_limited': return label + ' is limiting requests right now' + (j.retry_after_s ? '; try again in ' + Math.ceil(j.retry_after_s) + ' s' : '; try again shortly') + '. The key was not judged.' + kept;
-      case 'timeout': return label + ' did not answer in time. The key was not judged; try again.' + kept;
-      case 'network_unavailable': return 'Could not reach ' + label + ' from this machine. The key was not judged.' + kept;
-      case 'provider_unavailable': return label + ' reported an outage' + http + '. The key was not judged; try again later.' + kept;
-      case 'endpoint_not_found': return 'No ' + label + ' API answered at that address' + http + '. Check the base URL.' + kept;
-      case 'redirected': return 'The endpoint redirected to another site' + (j.redirect_origin ? ' (' + j.redirect_origin + ')' : '') + ', so VOOL did not send the key there.' + kept;
-      case 'malformed_response': return 'That address answered with a web page, not an API response (for example a network sign-in page). The key was not judged.' + kept;
-      case 'unexpected_schema': return 'That address answered, but not the way the ' + label + ' API does. The key was not judged.' + kept;
-      case 'public_endpoint': return 'That address answers without any key, so it cannot confirm this one; VOOL did not send the key. If the service has its own entry in the list, choose that instead.' + kept;
-      case 'refused': return 'VOOL did not send the key: ' + (j.detail || 'the request was refused') + '.' + kept;
-      default: return label + ' gave an unexpected answer' + http + '. The key was not judged.' + kept;
+      case 'invalid': return tfmt('keys.outcome.invalid', '{label} rejected this key{http}. Check that you copied all of it and that it is a {label} key. Nothing was stored.', p);
+      case 'unauthorized': return tfmt('keys.outcome.unauthorized', '{label} recognised the key but refused this request{http}. Check the key’s permissions. Nothing was stored.', p);
+      case 'exhausted': return tfmt('keys.outcome.exhausted', '{label} reports no credit or quota left for this key{http}. Add credit, then save again. Nothing was stored.', p);
+      case 'rate_limited': return tfmt('keys.outcome.rate_limited', '{label} is limiting requests right now; {retry}. The key was not judged. Nothing was stored.',
+        { label: label, retry: j.retry_after_s ? tfmt('keys.outcome.rate_limited.retry_secs', 'try again in {n} s', { n: Math.ceil(j.retry_after_s) }) : T('keys.outcome.rate_limited.retry_shortly', 'try again shortly') });
+      case 'timeout': return tfmt('keys.outcome.timeout', '{label} did not answer in time. The key was not judged; try again. Nothing was stored.', p);
+      case 'network_unavailable': return tfmt('keys.outcome.network_unavailable', 'Could not reach {label} from this machine. The key was not judged. Nothing was stored.', p);
+      case 'provider_unavailable': return tfmt('keys.outcome.provider_unavailable', '{label} reported an outage{http}. The key was not judged; try again later. Nothing was stored.', p);
+      case 'endpoint_not_found': return tfmt('keys.outcome.endpoint_not_found', 'No {label} API answered at that address{http}. Check the base URL. Nothing was stored.', p);
+      case 'redirected': return tfmt('keys.outcome.redirected', 'The endpoint redirected to another site{origin}, so VOOL did not send the key there. Nothing was stored.',
+        { origin: j.redirect_origin ? ' (' + j.redirect_origin + ')' : '' });
+      case 'malformed_response': return T('keys.outcome.malformed_response', 'That address answered with a web page, not an API response (for example a network sign-in page). The key was not judged. Nothing was stored.');
+      case 'unexpected_schema': return tfmt('keys.outcome.unexpected_schema', 'That address answered, but not the way the {label} API does. The key was not judged. Nothing was stored.', p);
+      case 'public_endpoint': return T('keys.outcome.public_endpoint', 'That address answers without any key, so it cannot confirm this one; VOOL did not send the key. If the service has its own entry in the list, choose that instead. Nothing was stored.');
+      case 'refused': return tfmt('keys.outcome.refused', 'VOOL did not send the key: {detail}. Nothing was stored.',
+        { detail: j.detail || T('keys.outcome.refused.detail', 'the request was refused') });
+      default: return tfmt('keys.outcome.unexpected', '{label} gave an unexpected answer{http}. The key was not judged. Nothing was stored.', p);
     }
   }
   /* The Test button's answer for a stored key, in the same terms. */
   function keyTestMessage(label, j) {
     const state = String(j.state || '');
-    if (state === 'ok') return 'Connection verified — ' + label + ' accepted your key.';
+    if (state === 'ok') return tfmt('keys.test.ok', 'Connection verified — {label} accepted your key.', { label: label });
     const reason = state === 'failed' ? String(j.detail || '') : state;
     const http = j.http_status ? ' (HTTP ' + j.http_status + ')' : '';
-    if (reason === 'unauthorized') return label + ' rejected the key' + http + '. Re-check or replace it.';
-    if (reason === 'no_key') return 'No key is stored for ' + label + '.';
-    if (reason === 'rate_limited') return label + ' is limiting requests right now' + http + '. The key was not judged; try again shortly.';
-    if (reason === 'quota_exhausted' || reason === 'exhausted') return label + ' reports no credit or quota left for this key' + http + '.';
-    if (reason === 'redirected') return label + ' answered with a redirect to another site; VOOL did not send the key there.';
-    if (reason === 'malformed_response' || reason === 'unexpected_schema') return 'The endpoint answered, but not the way the ' + label + ' API does' + http + '. The key was not judged.';
-    if (reason === 'endpoint_not_found') return 'No ' + label + ' API answered at the configured address' + http + '. Check the base URL.';
-    if (reason === 'provider_unavailable') return label + ' reported an outage' + http + '. The key was not judged.';
-    if (reason === 'timeout') return label + ' did not answer in time. The key was not judged.';
-    if (reason === 'refused') return 'This runtime is not permitted to reach ' + label + ' right now' + (j.detail ? ' (' + j.detail + ')' : '') + '. The key was not used.';
-    if (reason === 'unreachable' || reason === 'network_unavailable') return 'Could not reach ' + label + '; the key itself was not judged.';
-    return 'Could not confirm the key with ' + label + '; the key itself was not judged' + (j.detail ? ' (' + j.detail + ')' : '') + '.';
+    const p = { label: label, http: http };
+    if (reason === 'unauthorized') return tfmt('keys.test.unauthorized', '{label} rejected the key{http}. Re-check or replace it.', p);
+    if (reason === 'no_key') return tfmt('keys.test.no_key', 'No key is stored for {label}.', p);
+    if (reason === 'rate_limited') return tfmt('keys.test.rate_limited', '{label} is limiting requests right now{http}. The key was not judged; try again shortly.', p);
+    if (reason === 'quota_exhausted' || reason === 'exhausted') return tfmt('keys.test.exhausted', '{label} reports no credit or quota left for this key{http}.', p);
+    if (reason === 'redirected') return tfmt('keys.test.redirected', '{label} answered with a redirect to another site; VOOL did not send the key there.', p);
+    if (reason === 'malformed_response' || reason === 'unexpected_schema') return tfmt('keys.test.schema', 'The endpoint answered, but not the way the {label} API does{http}. The key was not judged.', p);
+    if (reason === 'endpoint_not_found') return tfmt('keys.test.endpoint_not_found', 'No {label} API answered at the configured address{http}. Check the base URL.', p);
+    if (reason === 'provider_unavailable') return tfmt('keys.test.provider_unavailable', '{label} reported an outage{http}. The key was not judged.', p);
+    if (reason === 'timeout') return tfmt('keys.test.timeout', '{label} did not answer in time. The key was not judged.', p);
+    if (reason === 'refused') return tfmt('keys.test.refused', 'This runtime is not permitted to reach {label} right now{detail}. The key was not used.',
+      { label: label, detail: j.detail ? tfmt('keys.test.refused_detail', ' ({detail})', { detail: j.detail }) : '' });
+    if (reason === 'unreachable' || reason === 'network_unavailable') return tfmt('keys.test.unreachable', 'Could not reach {label}; the key itself was not judged.', p);
+    return tfmt('keys.test.unconfirmed', 'Could not confirm the key with {label}; the key itself was not judged{detail}.',
+      { label: label, detail: j.detail ? tfmt('keys.test.refused_detail', ' ({detail})', { detail: j.detail }) : '' });
   }
-  form.appendChild(prov); form.appendChild(baseUrl); form.appendChild(origin); form.appendChild(el('span', 'subtle', 'Key')); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later);
+  form.appendChild(prov); form.appendChild(baseUrl); form.appendChild(origin); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later);
   stack.appendChild(form);
   stack.appendChild(baseUrlHint);
   stack.appendChild(originHint);
   stack.appendChild(st);
-  stack.appendChild(el('div', 'subtle', 'Leave the provider on Auto-detect: VOOL recognises keys with a documented prefix on this machine and asks you to choose when it cannot tell. Saving asks that one service once whether it accepts the key, and only a verified key is stored. A stored key is never displayed again.'));
-  stack.appendChild(el('div', 'subtle', 'Checks use one selected provider request. Search checks may use credits; Eyebrow checks its version without scanning an add-on.'));
+  stack.appendChild(el('div', 'subtle', T('keys.autodetect_note', 'Leave the provider on Auto-detect: VOOL recognises keys with a documented prefix on this machine and asks you to choose when it cannot tell. Saving asks that one service once whether it accepts the key, and only a verified key is stored. A stored key is never displayed again.')));
+  stack.appendChild(el('div', 'subtle', T('keys.checks_note', 'Checks use one selected provider request. Search checks may use credits; Eyebrow checks its version without scanning an add-on.')));
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
      deletes it. Nothing here can touch a verified binding. */
@@ -2378,39 +2399,39 @@ function widgetKeys(stack) {
     quarantine.textContent = '';
     let q;
     try { q = await getJSON('/api/intake/quarantine/list'); }
-    catch (e) { quarantine.appendChild(el('div', 'subtle', 'Saved-for-later list unavailable — ' + (e && e.message ? e.message : e))); return; }
+    catch (e) { quarantine.appendChild(el('div', 'subtle', tfmt('keys.quarantine_unavailable', 'Saved-for-later list unavailable — {error}', { error: (e && e.message ? e.message : e) }))); return; }
     const rows = (q && (q.quarantined || (q.data && q.data.quarantined))) || [];
     if (!rows.length) return;
-    quarantine.appendChild(el('div', 'row-label', 'Saved for later (unverified)'));
-    quarantine.appendChild(el('div', 'subtle', 'These keys are sealed on this machine and nothing uses them — not the model lane, not search. Retry asks the provider once; only its acceptance promotes a key into use.'));
+    quarantine.appendChild(el('div', 'row-label', T('keys.quarantine_title', 'Saved for later (unverified)')));
+    quarantine.appendChild(el('div', 'subtle', T('keys.quarantine_help', 'These keys are sealed on this machine and nothing uses them — not the model lane, not search. Retry asks the provider once; only its acceptance promotes a key into use.')));
     rows.forEach(row => {
       const line = el('div', 'inline');
       const pill = el('span', 'pill');
       pill.appendChild(el('span', null, row.provider_label || row.provider_id));
       line.appendChild(pill);
       const why = row.status === 'unverified_quarantined' ? 'unverified' : row.status;
-      const qst = el('span', 'subtle quarantine-state', why + (row.created_at ? ' · saved ' + row.created_at : ''));
-      const retry = el('button', 'btn key-quarantine-retry', 'Retry'); retry.type = 'button'; retry.dataset.provider = row.provider_id;
+      const qst = el('span', 'subtle quarantine-state', why + (row.created_at ? ' · ' + tfmt('keys.saved_state', 'saved {date}', { date: row.created_at }) : ''));
+      const retry = el('button', 'btn key-quarantine-retry', T('keys.retry', 'Retry')); retry.type = 'button'; retry.dataset.provider = row.provider_id;
       retry.addEventListener('click', async () => {
-        retry.disabled = true; qst.textContent = 'Asking ' + (row.provider_label || row.provider_id) + ' once whether it accepts this key…';
+        retry.disabled = true; qst.textContent = tfmt('keys.quarantine_retrying', 'Asking {label} once whether it accepts this key…', { label: (row.provider_label || row.provider_id) });
         try {
           const r = await fetch('/api/intake/quarantine/retry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_id: row.provider_id }) });
           const j = await r.json().catch(() => ({}));
           if (!r.ok || j.ok === false) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
-          if (j.promoted) { qst.textContent = 'Verified and now in use — promoted out of quarantine.'; await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane(); }
-          else qst.textContent = 'Still unverified (' + (j.outcome || 'unknown') + ') — the key was not judged unless the reason says so.';
-        } catch (e) { qst.textContent = 'Retry failed — ' + (e && e.message ? e.message : e); retry.disabled = false; }
+          if (j.promoted) { qst.textContent = T('keys.quarantine_promoted', 'Verified and now in use — promoted out of quarantine.'); await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane(); }
+          else qst.textContent = tfmt('keys.quarantine_still', 'Still unverified ({outcome}) — the key was not judged unless the reason says so.', { outcome: (j.outcome || 'unknown') });
+        } catch (e) { qst.textContent = tfmt('keys.quarantine_retry_failed', 'Retry failed — {error}', { error: (e && e.message ? e.message : e) }); retry.disabled = false; }
       });
-      const del = el('button', 'btn danger key-quarantine-delete', 'Delete'); del.type = 'button'; del.dataset.provider = row.provider_id;
+      const del = el('button', 'btn danger key-quarantine-delete', T('keys.delete', 'Delete')); del.type = 'button'; del.dataset.provider = row.provider_id;
       del.addEventListener('click', async () => {
-        if (!confirm('Delete the unverified key for ' + (row.provider_label || row.provider_id) + ' from this machine? Nothing is sent anywhere.')) return;
-        del.disabled = true; qst.textContent = 'Deleting…';
+        if (!confirm(tfmt('keys.quarantine_delete_confirm', 'Delete the unverified key for {label} from this machine? Nothing is sent anywhere.', { label: (row.provider_label || row.provider_id) }))) return;
+        del.disabled = true; qst.textContent = T('keys.deleting', 'Deleting…');
         try {
           const r = await fetch('/api/intake/quarantine/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider_id: row.provider_id }) });
           const j = await r.json().catch(() => ({}));
           if (!r.ok || j.ok === false) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
           await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane();
-        } catch (e) { qst.textContent = 'Not deleted — ' + (e && e.message ? e.message : e); del.disabled = false; }
+        } catch (e) { qst.textContent = tfmt('keys.not_deleted', 'Not deleted — {error}', { error: (e && e.message ? e.message : e) }); del.disabled = false; }
       });
       line.appendChild(retry); line.appendChild(del); line.appendChild(qst);
       quarantine.appendChild(line);
@@ -2420,11 +2441,13 @@ function widgetKeys(stack) {
 
 }
 
-/* Public setup links are local metadata, not verification destinations. */
+/* Public setup links are local metadata, not verification destinations. The server resolves
+   category/provider copy through the locale's catalog (keyguide.*); these widget strings
+   resolve through the page's own T() so buttons and notes follow the selected language. */
 const KEY_PROVIDER_GUIDE = __KEY_PROVIDER_GUIDE__;
 function widgetProviderGuide(host) {
   const input = el('input', 'inp'); input.type = 'search';
-  input.placeholder = 'Find a provider…'; input.setAttribute('aria-label', 'Find a provider');
+  input.placeholder = T('keyguide.search_placeholder', 'Find a provider…'); input.setAttribute('aria-label', T('keyguide.search_aria', 'Find a provider'));
   const results = el('div', 'key-guide');
   const note = el('div', 'subtle'); note.setAttribute('role', 'status');
   host.appendChild(input); host.appendChild(results); host.appendChild(note);
@@ -2446,33 +2469,33 @@ function widgetProviderGuide(host) {
         info.appendChild(el('p', 'subtle', r.description));
         const actions = el('div', 'inline');
         if (r.url) {
-          const link = el('a', 'key-guide-link', 'Official site ↗'); link.href = r.url;
-          link.target = '_blank'; link.rel = 'noopener noreferrer'; link.setAttribute('aria-label', r.label + ' official site');
+          const link = el('a', 'key-guide-link', T('keyguide.official_site', 'Official site ↗')); link.href = r.url;
+          link.target = '_blank'; link.rel = 'noopener noreferrer'; link.setAttribute('aria-label', tfmt('keyguide.site_aria', '{label} official site', { label: r.label }));
           actions.appendChild(link);
         }
-        const add = el('button', 'btn', stored.has(r.slot) ? 'Manage key' : 'Add key'); add.type = 'button';
-        add.setAttribute('aria-label', (stored.has(r.slot) ? 'Manage ' : 'Add ') + r.label + ' key');
+        const add = el('button', 'btn', stored.has(r.slot) ? T('keyguide.manage_key', 'Manage key') : T('keyguide.add_key', 'Add key')); add.type = 'button';
+        add.setAttribute('aria-label', tfmt(stored.has(r.slot) ? 'keyguide.manage_aria' : 'keyguide.add_aria', '{label} key', { label: r.label }));
         add.addEventListener('click', () => {
           const picker = document.querySelector('.key-provider-picker');
           if (!picker || !Array.from(picker.options).some(o => o.value === r.provider)) {
-            note.textContent = 'Provider list is still loading. Try again shortly.'; return;
+            note.textContent = T('keyguide.still_loading', 'Provider list is still loading. Try again shortly.'); return;
           }
           picker.value = r.provider; picker.dispatchEvent(new Event('change', {bubbles:true}));
           const form = document.querySelector('.key-entry-form');
           form?.scrollIntoView({block:'center', behavior:'smooth'});
           const field = form?.querySelector('input[type="password"], input.key-value');
-          (field || picker).focus(); note.textContent = 'Selected ' + r.label + '. Paste its API key below.';
+          (field || picker).focus(); note.textContent = tfmt('keyguide.selected', 'Selected {label}. Paste its API key below.', { label: r.label });
         });
         actions.appendChild(add);
-        if (stored.has(r.slot)) actions.appendChild(el('span', 'pill on', 'Key saved'));
+        if (stored.has(r.slot)) actions.appendChild(el('span', 'pill on', T('keyguide.key_saved', 'Key saved')));
         card.appendChild(info); card.appendChild(actions); section.appendChild(card);
       });
       results.appendChild(section);
     });
-    if (!count) results.appendChild(el('div', 'empty', 'No matching provider.'));
+    if (!count) results.appendChild(el('div', 'empty', T('keyguide.no_match', 'No matching provider.')));
   };
   input.addEventListener('input', draw); draw();
-  host.appendChild(el('p', 'subtle', 'Plans, prices and quotas are set by each provider. Check its official site before adding credit.'));
+  host.appendChild(el('p', 'subtle', T('keyguide.plans_note', 'Plans, prices and quotas are set by each provider. Check its official site before adding credit.')));
 }
 
 /* --- Local models: the Ollama inventory on THIS machine, its registration state here, and the
@@ -4589,7 +4612,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
     return (
         page.replace("__SETTINGS_MODEL__", model)
         .replace("__LANGUAGE_CATALOG__", catalog)
-        .replace("__KEY_PROVIDER_GUIDE__", json.dumps(provider_key_guide(), ensure_ascii=False).replace("<", "\\u003c"))
+        .replace("__KEY_PROVIDER_GUIDE__", json.dumps(provider_key_guide(tag), ensure_ascii=False).replace("<", "\\u003c"))
         .replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         # The i18n bootstrap must run before the page's own script: it defines VOOLT.
         .replace(
