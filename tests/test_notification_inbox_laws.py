@@ -217,3 +217,28 @@ for(let i=0;i<10;i++) await tick();
 out({pending:window.VoolNotify.pending()});
 """, [_free_event(1)], prelude="localStorage.getItem=()=>{throw Error('storage disabled');};")
     assert not out["errors"] and out["pending"] == 1
+
+
+def test_calendar_policy_save_and_off_use_existing_route():
+    out = run_fragment(TICK + r"""
+for(let i=0;i<10;i++) await tick();
+const calls=[]; const originalFetch=fetch;
+globalThis.fetch=async(url,opts)=>{if(url==='/api/calendar/alerts/policy') calls.push(JSON.parse(opts.body));return originalFetch(url,opts);};
+const item={notification_id:'ntf-calendar',source_kind:'calendar_alert',title:'Meeting',event_key:'event-fixture',payload:{lead_minutes:15}};
+const errors=[];
+try {
+ openCard(item);
+ const form={elements:{minutes:{value:'30, 5'}}};
+ card.__on.submit({target:{closest:()=>form},preventDefault(){}});
+ for(let i=0;i<10;i++) await tick();
+ openCard(item);
+ card.__on.click({target:{closest:()=>({getAttribute:(key)=>key==='data-vcard'?'policy-off':null})}});
+ for(let i=0;i<10;i++) await tick();
+} catch(e){errors.push(String(e));}
+out({errors,calls});
+""", [])
+    assert not out["errors"], out
+    assert out["calls"] == [
+        {"event_key":"event-fixture", "lead_minutes":[30,5], "apply_now":True},
+        {"event_key":"event-fixture", "lead_minutes":[], "apply_now":True},
+    ]

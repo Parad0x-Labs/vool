@@ -379,6 +379,16 @@ function openCard(item){
   card.hidden = false;
 }
 function closeCard(){ card.hidden = true; cardItem = null; }
+function savePolicy(item, minutes){
+  return fetch('/api/calendar/alerts/policy', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({event_key: item.event_key || (item.payload || {}).event_key, lead_minutes: minutes, apply_now: true})})
+    .then(function(r){ return r.json(); }).then(function(j){
+      if (!j || !j.ok) { toast((j && (j.detail || j.reason)) || 'Could not save alert times.'); return; }
+      if (cardItem === item) closeCard();
+      toast(minutes.length ? 'Alert times saved.' : 'Alerts disabled for this event.');
+      return pollCentre();
+    }).catch(function(){ toast('Could not save alert times.'); });
+}
 // What the macOS channel proved about an item, in words. There is no 'shown' state: macOS does not report one.
 var MAC_STATE_TEXT = {
   queued: NTF('notif.mac.queued', 'handed to macOS'), submitted: NTF('notif.mac.submitted', 'accepted by macOS'), listed: NTF('notif.mac.listed', 'listed in Notification Center'),
@@ -409,7 +419,7 @@ card.addEventListener('click', function(ev){
   if (what === 'close') closeCard();
   else if (what === 'snooze') { closeCard(); centreAction(current, 'snooze', Number(control.getAttribute('data-min')) || 10); }
   else if (what === 'dismiss') { closeCard(); centreAction(current, 'dismiss'); }
-  else if (what === 'policy-off') { closeCard(); savePolicy(current, []); }
+  else if (what === 'policy-off') { savePolicy(current, []); }
   else if (what === 'chat') { closeCard(); window.openSession(current.session_id); }
 });
 card.addEventListener('submit', function(ev){
@@ -424,7 +434,6 @@ card.addEventListener('submit', function(ev){
     return;
   }
   var current = cardItem;
-  closeCard();
   savePolicy(current, values);
 });
 document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') { pop.hidden = true; if (!card.hidden) closeCard(); } });
