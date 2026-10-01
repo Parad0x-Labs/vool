@@ -1889,6 +1889,23 @@ def validate_bypass_grant(
     return grant
 
 
+def current_chat_bypass_grant(session_id: str) -> dict[str, Any] | None:
+    """Read an existing chat grant; never mint authority from a browser preference."""
+    _ensure_bypass_grants_restored()
+    root, reason = _authoritative_chat_workspace(session_id)
+    with _LOCK:
+        candidates = [dict(g) for g in _BYPASS_GRANTS.values()
+                      if g.get("scope") == "session" and g.get("session_id") == session_id]
+    for grant in reversed(candidates):
+        if grant.get("until_off") and reason != "project":
+            continue
+        valid = validate_bypass_grant(str(grant.get("token") or ""), session_id=session_id,
+                                      workspace_root=root)
+        if valid is not None:
+            return valid
+    return None
+
+
 def revoke_bypass_grant(token: str) -> bool:
     clean_token = str(token or "").strip()
     store_error: BypassStoreError | None = None
