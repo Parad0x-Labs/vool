@@ -69,7 +69,13 @@ def test_bypass_dialog_localizes_in_every_shipped_catalog_locale() -> None:
         html = render_vool_chat_html(build_commit="t", ui_locale=tag)
         catalog = catalog_for(tag)
         title = catalog.text("bypass.modal_title")
-        assert f">{title}</span>" in html or f"data-i18n=\"bypass.modal_title\">{title}" in html, tag
+        # The dialog markup carries data-i18n; the swap happens client-side, so the
+        # localized title must ride the bootstrap bundle the page ships.
+        assert f'data-i18n="bypass.modal_title"' in html
+        assert json.dumps(title, ensure_ascii=False)[1:-1] in html, f"{tag}: bundle lacks {title!r}"
+        # the readiness vocabulary must be present in the bundle for the same reason
+        readiness = catalog.text("bypass.readiness.unbound")
+        assert json.dumps(readiness, ensure_ascii=False)[1:-1] in html, tag
 
 
 def test_provider_guide_resolves_copy_per_locale() -> None:
