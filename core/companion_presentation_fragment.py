@@ -529,6 +529,23 @@ _VN_ENGINE_JS = r"""// ---------------------------------------------------------
 const VN_POS_KEY = "vool_ninja_pos_v1";
 const VN_STATE_TIMING = { idle: 160, starting: 150, thinking: 140, tool: 110, waiting: 200, approval: 120, retry: 140 };
 const VN_ONE_SHOT = { success: 1, failure: 1, cancelled: 1 };
+// The caption's state-fallback word resolves through the page's i18n catalog (VOOLT, defined by
+// the chat page's bootstrap before fragments load); the uppercase state name is the honest
+// fallback when no bundle ships. The rotating/fixed PHRASE vocabulary stays English this
+// delivery (sized limitation, next wave) — these words only cover the no-phrase fallback.
+function vnStateWord(state) {
+  var word = String(state || "idle");
+  try {
+    if (typeof VOOLT === "function") { var t = VOOLT("companion.state." + word); if (t && t !== "companion.state." + word) return t; }
+  } catch (e) {}
+  return word.toUpperCase();
+}
+function vnLabel(key, fallback) {
+  try {
+    if (typeof VOOLT === "function") { var t = VOOLT(key); if (t && t !== key) return t; }
+  } catch (e) {}
+  return fallback;
+}
 // resolve() state -> sheet state. Unmapped events fall through silently (never improvise).
 function vnSpriteState(pres) {
   switch (pres.state) {
@@ -811,7 +828,7 @@ function vnPaintNow(now) {
     } else if (pres && pres.phraseText) {
       captionText = String(pres.phraseText);
     } else {
-      captionText = nextState.toUpperCase();
+      captionText = vnStateWord(nextState);
     }
     // DISPLAY DWELL — cadence only, never truth. Measured live 2026-08-29: a real turn resolved
     // its whole activity chain in ~1s (node durations 0.3s/0.4s), so every phrase appeared for a
@@ -1338,18 +1355,19 @@ function vnBoot() {
   vnSprite.className = "vool-ninja";
   vnSprite.setAttribute("role", "button");
   vnSprite.setAttribute("tabindex", "0");
-  vnSprite.setAttribute("aria-label", "Companion");
+  vnSprite.setAttribute("aria-label", vnLabel("companion.label", "Companion"));
   vnCanvas = document.createElement("canvas");
   vnCanvas.width = 48; vnCanvas.height = 48;
   vnSprite.appendChild(vnCanvas);
   vnCaption = document.createElement("div");
   vnCaption.className = "vn-caption";
-  vnCaption.textContent = "IDLE";
+  vnCaption.textContent = vnStateWord("idle");
   vnSprite.appendChild(vnCaption);
   vnRestore = document.createElement("button");
   vnRestore.type = "button";
   vnRestore.className = "vn-restore";
-  vnRestore.innerHTML = '<span class="vn-dot"></span>Companion';
+  vnRestore.innerHTML = '<span class="vn-dot"></span>';
+  vnRestore.appendChild(document.createTextNode(vnLabel("companion.label", "Companion")));
   vnRestore.addEventListener("click", function () { vnHide(false); });
   vnPop = document.createElement("div");
   vnPop.className = "vool-ninja-pop";

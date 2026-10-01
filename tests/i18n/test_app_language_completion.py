@@ -192,6 +192,13 @@ TECHNICALLY_IDENTICAL_KEYS = frozenset(
         "header.model_label",
         "header.model_local_only_option",
         "header.model_popover_title",
+        # wave-3 (2026-10-01): the model pill's lane badge — "Auto" is the established
+        # term in de/es/fr/pl/pt (same class as mode.auto above), and the locales where
+        # Local/Cloud differ translate them (the allowlist only carries the homographs
+        # that are genuinely the locale's own correct word).
+        "header.lane_auto",
+        "header.lane_cloud",
+        "header.lane_local",
         "header.update_chip",
         "header.update_pop_aria",
         "header.update_popover_title",

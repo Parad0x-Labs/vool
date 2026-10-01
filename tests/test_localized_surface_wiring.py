@@ -183,3 +183,45 @@ def test_shortcut_hint_resolves_through_the_bundle() -> None:
     rendered = render_palette_fragment()
     assert "vpHintT('palette.hint_palette', 'palette')" in rendered
     assert "vpHintT('palette.hint_esc_stop', 'stop')" in rendered
+
+
+def test_chats_filter_lanes_and_companion_labels_ride_keys() -> None:
+    """Wave-3 surfaces found by the visual gate on the served pages: the chats filter box
+    (placeholder + aria), the model pill's lane badge and tier labels, and the companion
+    sprite's label/state-caption fallback all resolve through the catalog, never literals."""
+    from core.companion_presentation_fragment import render_companion_fragment
+    from core.composer_extras_fragment import render_composer_extras_fragment
+
+    for key in (
+        "chats.filter_placeholder",
+        "chats.filter_aria",
+        "header.lane_auto",
+        "header.lane_local",
+        "header.lane_cloud",
+        "companion.label",
+        "companion.state.idle",
+        "companion.state.unknown",
+    ):
+        assert key in ENGLISH.keys, key
+
+    extras = render_composer_extras_fragment()
+    assert "extrasT('chats.filter_placeholder', 'Search chats" in extras
+    assert "extrasT('chats.filter_aria', 'Search chats')" in extras
+    # the ⌘F shortcut token is part of the key's source, so locales keep it byte-exact
+    assert ENGLISH.text("chats.filter_placeholder").endswith("⌘F")
+
+    html = render_vool_chat_html(build_commit="t")
+    assert 'data-i18n="header.lane_auto"' in html
+    assert 'data-i18n="header.model_auto_option"' in html
+    assert "pageT('header.lane_' + laneKind, laneKind)" in html
+    assert "pageT('header.model_auto_option', 'VOOL Auto') + ' 📌'" in html
+    assert "pageT('header.model_local_only_option', 'VOOL Auto Local Only')" in html
+    # the pill's lane word and sticky marker never render as raw literals again
+    assert "lane.textContent = laneKind.toUpperCase()" not in html
+    assert "lbl.textContent = 'VOOL Auto 📌'" not in html
+
+    companion = render_companion_fragment()
+    assert 'vnLabel("companion.label", "Companion")' in companion
+    assert 'vnStateWord(nextState)' in companion
+    assert 'captionText = nextState.toUpperCase()' not in companion
+    assert 'vnCaption.textContent = vnStateWord("idle")' in companion
