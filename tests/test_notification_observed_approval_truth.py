@@ -1,7 +1,10 @@
 """A delayed runtime observation cannot resurrect a closed action in the inbox."""
 import time
+
 import pytest
+
 from tests.pa_beta_gate._pc_calendar_rig import api_get, api_post, prepare_home
+
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
@@ -10,7 +13,7 @@ def home(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('closure',['denied','expired'])
 def test_closed_before_observation_never_becomes_outstanding(home,closure):
-    from core.mode_permission_policy import register_external_approval,resolve_approval
+    from core.mode_permission_policy import register_external_approval, resolve_approval
     from core.runtime_task_events import emit_runtime_event
     token=register_external_approval({'session_id':'chat-late','task_id':'delayed-permission',
         **({'expires_at':time.time()-1} if closure=='expired' else {})})
@@ -33,10 +36,10 @@ def test_closed_before_observation_never_becomes_outstanding(home,closure):
 
 @pytest.mark.parametrize('channel',['browser','native'])
 def test_resolution_after_sync_before_claim_is_silent(home,monkeypatch,channel):
-    from core.mode_permission_policy import register_external_approval,resolve_approval
-    from core.runtime_task_events import emit_runtime_event
+    from core.mode_permission_policy import register_external_approval, resolve_approval
     from core.operator import notification_hub
-    from tests.pa_beta_gate._pc_calendar_rig import Clock,T0
+    from core.runtime_task_events import emit_runtime_event
+    from tests.pa_beta_gate._pc_calendar_rig import T0, Clock
     if channel=='native':
         clock=Clock(T0,monkeypatch)
         api_post('/api/notifications/preferences',{'preferences':{'native_notifications':True}})

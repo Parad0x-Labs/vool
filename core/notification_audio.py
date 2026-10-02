@@ -4,6 +4,7 @@ Contributor: sls_0x. This waveform is original project source, licensed under
 this repository's license. No media services, codec downloads or runtime files.
 """
 from __future__ import annotations
+
 import base64
 import io
 import math
