@@ -70,18 +70,22 @@ def main() -> int:
                 if evidence["composer"]["path"] != "/chat":
                     raise RuntimeError("The window did not load the chat route.")
                 # Exercise native keyboard delivery, not just a JavaScript value assignment.
+                # The delivery sequence is the one the product's own Linux acceptance driver
+                # proved on both Ubuntu targets (23/23 twice on this container class): raise
+                # the window through the window manager, CLICK into the composer at its own
+                # on-screen rect with the native pointer, then type at 12 ms per keystroke.
+                # The earlier windowfocus + 1 ms path recorded focus fully held yet delivered
+                # only the first character ("L") — WebKitGTK needs the real button-press on
+                # the widget and human-paced keystrokes for its edit context
+                # (run 36982838739, job 110761047078).
                 keyboard: dict = {}
                 ids = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--name", "^VOOL$"],
                                               text=True, timeout=10).splitlines()
                 keyboard["window_ids"] = ids
                 if not ids:
                     raise RuntimeError("No visible window titled VOOL was found for keyboard delivery.")
-                subprocess.run(["xdotool", "windowfocus", "--sync", ids[0]], check=True, timeout=10)
-                # Keys are routed to the X input-focus window, so delivery is only attempted once
-                # the focus actually sits on the target window (windowfocus --sync acknowledges
-                # the request; the poll proves it landed). Every fact is recorded: the 24.04 run
-                # failed the value check with no keyboard/focus timeline to diagnose
-                # (run 36982838739, job 110761047078).
+                subprocess.run(["xdotool", "windowactivate", "--sync", ids[0]], check=True, timeout=10)
+                time.sleep(0.5)
                 focused = ""
                 for _ in range(20):
                     focused = subprocess.check_output(["xdotool", "getwindowfocus"],
@@ -90,15 +94,32 @@ def main() -> int:
                         break
                     time.sleep(0.1)
                 keyboard["x_focused_window"] = focused
-                keyboard["dom_active_element"] = window.evaluate_js(
-                    "document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : null")
-                keyboard["composer_focused"] = keyboard["dom_active_element"] == "input"
                 if focused != ids[0]:
                     evidence["composer"]["keyboard"] = keyboard
                     raise RuntimeError(
                         f"Keyboard focus never reached the VOOL window (focused={focused!r}, target={ids[0]!r}).")
-                subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "1",
+                rect = window.evaluate_js("""(() => {
+                  const el = document.querySelector('textarea#input');
+                  if (!el) return null;
+                  const r = el.getBoundingClientRect();
+                  return JSON.stringify({x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)});
+                })()""")
+                center = json.loads(rect) if isinstance(rect, str) else None
+                if not center or not center.get("x"):
+                    center = {"x": 610, "y": 750}
+                keyboard["composer_click"] = center
+                subprocess.run(["xdotool", "mousemove", "--window", ids[0], str(center["x"]), str(center["y"])],
+                               check=True, timeout=10)
+                subprocess.run(["xdotool", "click", "1"], check=True, timeout=10)
+                time.sleep(0.5)
+                keyboard["dom_active_element"] = window.evaluate_js(
+                    "document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : null")
+                keyboard["composer_focused"] = keyboard["dom_active_element"] == "input"
+                # 12 ms per keystroke is the proven pacing; at 1 ms WebKitGTK delivered only
+                # the first character of the string (bulk injection is not keyboard delivery).
+                subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "12",
                                 "Linux desktop acceptance"], check=True, timeout=10)
+                time.sleep(1.0)
                 value = window.evaluate_js("document.querySelector('textarea#input').value")
                 keyboard["native_keyboard_value"] = value
                 evidence["composer"]["keyboard"] = keyboard
