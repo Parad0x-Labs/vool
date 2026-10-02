@@ -24,6 +24,7 @@ class PeftLoRAAdapter(ModelAdapter):
             warnings.append(f"{self.manifest.provider_id}: missing runtime_config.adapter_path")
         elif not Path(adapter_path).exists():
             warnings.append(f"{self.manifest.provider_id}: adapter path does not exist: {adapter_path}")
+        warnings.extend(self._local_checkpoint_confinement_warnings(base_model_ref, adapter_path))
         return warnings
 
     def invoke(self, request: ModelRequest) -> ModelResponse:
@@ -37,6 +38,11 @@ class PeftLoRAAdapter(ModelAdapter):
             raise RuntimeError(f"{self.manifest.provider_id}: missing runtime_config.adapter_path")
         if not Path(adapter_path).exists():
             raise RuntimeError(f"{self.manifest.provider_id}: adapter path does not exist: {adapter_path}")
+        # Containment gate BEFORE any ML dependency is imported or any weight is read (see
+        # _refuse_unconfined_local_checkpoint): a traversal-shaped index must never reach a
+        # loader.
+        self._refuse_unconfined_local_checkpoint(base_model_ref, kind="base_model_ref")
+        self._refuse_unconfined_local_checkpoint(adapter_path, kind="adapter_path")
 
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -110,6 +116,45 @@ class PeftLoRAAdapter(ModelAdapter):
 
     def _adapter_path(self) -> str:
         return str(self.manifest.runtime_config.get("adapter_path") or "").strip()
+
+    def _refuse_unconfined_local_checkpoint(self, path_ref: str, *, kind: str) -> None:
+        """Refuse a LOCAL checkpoint directory whose sharded index cannot be proven confined.
+
+        The advisory class (GHSA-4j2p-28q2-5m79) lives in accelerate's shard resolver, which
+        this lane never reaches (no ``device_map`` / dispatch call anywhere in it), but the
+        SAME index-traversal weakness is what a local sharded checkpoint serves to whatever
+        loader resolves its ``*.index.json`` weight_map. The staged-base lane proves
+        confinement before its load; this lane's separate loading paths now run the same
+        gate from the same owner, before ``torch`` is even imported. Non-local refs (hub
+        repo ids) are outside this boundary — the gate judges directories on this disk, not
+        names the hub will resolve."""
+        local = Path(path_ref)
+        if not local.is_dir():
+            return
+        from core.trainable_base_manager import sharded_index_confinement_error
+
+        confinement_error = sharded_index_confinement_error(local)
+        if confinement_error:
+            raise RuntimeError(f"{self.manifest.provider_id}: {kind} refused: {confinement_error}")
+
+    def _local_checkpoint_confinement_warnings(self, *path_refs: str) -> list[str]:
+        """``validate_runtime``'s advisory view of the same gate: name the problem early.
+
+        The load-time gate in :meth:`invoke` is the trust boundary; this only surfaces the
+        same confinement error as a runtime warning so health checks report a refused
+        checkpoint instead of a provider that looks ready."""
+        warnings: list[str] = []
+        kinds = ("base_model_ref", "adapter_path")
+        for kind, path_ref in zip(kinds, path_refs, strict=True):
+            local = Path(path_ref) if path_ref else None
+            if local is None or not local.is_dir():
+                continue
+            from core.trainable_base_manager import sharded_index_confinement_error
+
+            confinement_error = sharded_index_confinement_error(local)
+            if confinement_error:
+                warnings.append(f"{self.manifest.provider_id}: {kind} refused: {confinement_error}")
+        return warnings
 
     def _resolve_device(self) -> str:
         import torch

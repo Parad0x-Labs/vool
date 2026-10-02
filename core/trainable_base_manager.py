@@ -265,6 +265,12 @@ def _sharded_index_confinement_error(model_dir: Path) -> str:
     return ""
 
 
+#: Public seam for the OTHER local-checkpoint loaders (the PEFT adapter's base and adapter
+#: paths): the advisory's traversal class is reachable through any loader that resolves a
+#: sharded index, so every local load runs THIS gate, from this owner.
+sharded_index_confinement_error = _sharded_index_confinement_error
+
+
 def _verify_model_dir(*, model_dir: Path, trust_remote_code: bool) -> dict[str, Any]:
     confinement_error = _sharded_index_confinement_error(model_dir)
     if confinement_error:
