@@ -1,4 +1,4 @@
-"""Original short local bubble chime, synthesized from bounded sine envelopes.
+"""Original soft water drop, synthesized from a bounded damped liquid bubble.
 
 Contributor: sls_0x. This waveform is original project source, licensed under
 this repository's license. No media services, codec downloads or runtime files.
@@ -7,19 +7,30 @@ from __future__ import annotations
 import base64
 import io
 import math
+import random
 import struct
 import wave
 
 
 def sound_wav() -> bytes:
-    rate, duration = 16000, 0.32
+    rate, duration = 16000, 0.20
     samples = []
+    noise = random.Random(0)
+    previous_noise = 0.0
     for index in range(int(rate * duration)):
         t = index / rate
-        envelope = min(1.0, t / 0.009) * math.exp(-t * 16) * max(0.0, 1 - t / duration)
-        phase = 2 * math.pi * (920 * t - 460 * t * t)
-        value = 0.12 * envelope * (math.sin(phase) + 0.24 * math.sin(phase * 1.5)) / 1.24
-        samples.append(struct.pack('<h', round(32767 * value)))
+        # A contracting bubble rises briefly in pitch, then dies away.
+        phase = 2 * math.pi * (760 * t - 410 * 0.018 * (1 - math.exp(-t / 0.018)))
+        envelope = (1 - math.exp(-t / 0.0018)) * math.exp(-t / 0.027)
+        bubble = 0.095 * envelope * math.sin(phase)
+        # A quiet, sub-10ms impact supplies texture without a ringing tail.
+        white = noise.uniform(-1, 1)
+        previous_noise = 0.55 * previous_noise + 0.45 * white
+        impact = 0.012 * previous_noise * (1 - math.exp(-t / 0.0005)) * math.exp(-t / 0.003)
+        fade = min(1.0, (duration - t) / 0.015)
+        sample = round(32767 * (bubble + impact) * fade)
+        # Keep the quantization of the approved, 30% quieter audition.
+        samples.append(struct.pack('<h', round(sample * 0.70)))
     output = io.BytesIO()
     with wave.open(output, 'wb') as audio:
         audio.setnchannels(1)

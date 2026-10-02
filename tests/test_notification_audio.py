@@ -103,16 +103,21 @@ def test_native_task_request_uses_chime_once_and_rehand_is_silent(home,monkeypat
     assert len(rehand)==1 and rehand[0]['sound'] is False
 
 
-def test_waveform_is_small_soft_original_pcm():
-    import io,wave,struct
+def test_waveform_matches_approved_soft_water_drop():
+    import hashlib,io,wave,struct
     from core.notification_audio import sound_wav
     data=sound_wav()
-    assert len(data)<12000
+    assert hashlib.sha256(data).hexdigest() == "8865db59e130762acb39ed75e5dc5dc7627788afe09662017dbb5c090fbd76a2"
+    assert len(data)<7000
     with wave.open(io.BytesIO(data)) as wav:
         assert wav.getnchannels()==1 and wav.getsampwidth()==2
-        assert wav.getnframes()/wav.getframerate()==0.32
+        assert wav.getframerate() == 16000 and wav.getnframes() == 3200
         values=struct.unpack('<'+'h'*wav.getnframes(),wav.readframes(wav.getnframes()))
-        assert 500<max(map(abs,values))<4000
+        assert 500 < max(map(abs,values)) < 2100
+        assert values[0] == 0 and abs(values[-1]) <= 1
+        assert max(map(abs,values[2400:])) < 20
+        assert sum(v*v for v in values[:960]) > 0.95 * sum(v*v for v in values)
+        assert sound_wav() == data
 
 
 def test_mute_refreshes_os_owned_future_timer_without_new_identifier(home,monkeypatch):
