@@ -176,3 +176,45 @@ def test_linux_acceptance_refuses_simulated_platform_evidence(tmp_path: Path) ->
     assert "requires Linux" in done.stderr
     assert not profile.exists()
     assert not evidence.exists()
+
+
+@pytest.mark.parametrize("smoke_exit", [0, 17])
+def test_linux_workflow_owns_its_window_manager(tmp_path: Path, smoke_exit: int) -> None:
+    """Run the workflow shell and preserve failures while cleaning its display owner."""
+    import json
+
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/linux-desktop.yml").read_text())
+    steps = workflow["jobs"]["desktop"]["steps"]
+    provision = next(step["run"] for step in steps if step.get("name") == "Provision real GTK and WebKitGTK")
+    assert "openbox" in next(line for line in provision.splitlines() if "apt-get install" in line)
+    run = next(step["run"] for step in steps if step.get("name") == "Open real native chat and prove shutdown")
+    runner = tmp_path / "runner with spaces"
+    shims = tmp_path / "bin"
+    shims.mkdir()
+    python = runner / "desktop-venv/bin/python"
+    python.parent.mkdir(parents=True)
+    marker = tmp_path / "wm.json"
+    (shims / "xvfb-run").write_text('#!/bin/bash\nshift\nexec "$@"\n')
+    (shims / "openbox").write_text(
+        f'#!/bin/bash\nprintf "%s" "$$" > "{marker}"\nexec sleep 30\n')
+    python.write_text(
+        f"#!{sys.executable}\nimport json,os,pathlib,sys,time\n"
+        f"p=pathlib.Path({str(marker)!r})\n"
+        "for _ in range(100):\n"
+        "    if p.exists(): break\n"
+        "    time.sleep(0.01)\n"
+        "pid=int(p.read_text()); os.kill(pid,0)\n"
+        f"pathlib.Path({str(tmp_path / 'observed.json')!r}).write_text(json.dumps(dict(pid=pid,argv=sys.argv)))\n"
+        f"sys.exit({smoke_exit})\n")
+    for script in (shims / "xvfb-run", shims / "openbox", python):
+        script.chmod(0o755)
+    result = subprocess.run(["bash", "-c", run], cwd=ROOT,
+                            env={**os.environ, "RUNNER_TEMP": str(runner), "PATH": f"{shims}:{os.environ['PATH']}"},
+                            text=True, capture_output=True, timeout=15)
+    assert result.returncode == smoke_exit, result.stderr
+    observed = json.loads((tmp_path / "observed.json").read_text())
+    assert "ops/linux_desktop_smoke.py" in observed["argv"]
+    with pytest.raises(ProcessLookupError):
+        os.kill(observed["pid"], 0)
