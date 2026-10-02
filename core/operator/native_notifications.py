@@ -387,8 +387,10 @@ def _immediate(conn: Any, *, now: datetime, now_iso: str, state: dict[str, Any],
         payload = _decode(row["payload_json"])
         if source_kind == "background_run" and payload.get("event_type") not in {"task_completed", "task_pending_approval"}:
             continue
-        if source_kind == "background_run" and payload.get("event_type") == "task_pending_approval" and not payload.get("approval_id"):
-            continue
+        if source_kind == "background_run":
+            from core.operator.notification_hub import supersede_closed_action
+            if supersede_closed_action(conn, row, now_iso=now_iso):
+                continue
         generation = _generation(row["dedupe_key"])
         if row["schedule_id"] and generation is not None:
             linked = conn.execute(
