@@ -1,12 +1,16 @@
 """Node component proof of observer/claim wiring; actual audio is a platform lane."""
 import re
 
+import pytest
+
 from core.notification_fragment import render_notification_fragment
 from tests.chat_page_js_harness import DOM, run_node
 
 
-def test_locked_observer_cannot_steal_sound_or_replay_after_unlock():
-    script=re.findall(r'<script>(.*?)</script>',render_notification_fragment(),re.S)[0]
+@pytest.mark.parametrize('tag', ['script', 'SCRIPT', 'ScRiPt'])
+def test_locked_observer_cannot_steal_sound_or_replay_after_unlock(tag):
+    fragment = render_notification_fragment().replace('<script>', f'<{tag}>').replace('</script>', f'</{tag}>')
+    script = re.findall(r'<script>(.*?)</script>', fragment, re.S | re.I)[0]
     result=run_node(DOM+r"""
 let cursor=10, ready=false, claims=[], played=0;
 window.VoolNotificationAudio={ready:()=>ready,cue:async()=>{played++;}};
