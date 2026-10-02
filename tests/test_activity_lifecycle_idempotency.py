@@ -168,20 +168,69 @@ def test_passive_boot_navigation_and_new_drafts_never_post_mode_events() -> None
 const calls = [];
 await new Promise(setImmediate);
 globalThis.fetch = async (url, options) => {
-  calls.push({ url: String(url), method: String((options && options.method) || 'GET') });
+  const body = options && options.body ? JSON.parse(options.body) : null;
+  calls.push({ url: String(url), method: String((options && options.method) || 'GET'), op: body && body.op });
   return {
     ok: true, status: 200,
     json: async () => ({ sessions: [], messages: [], queue: [], pins: [], projects: [], events: [], next_after: 0 }),
   };
 };
+const bootId = displayedChat;
+const snap = (id) => { const o = chatState(id); return [String(o.mode), JSON.stringify(o.bypassGrant || null)]; };
+const before = { boot: snap(bootId), existing: snap('chat:existing-idle') };
 newChat();
 await newChatInProject('');
 await openSession('chat:existing-idle');
-out({ modePosts: calls.filter((call) => call.url === '/api/mode'), calls });
+out({
+  modeOps: calls.filter((call) => call.url === '/api/mode').map((call) => call.op),
+  // The boundary: every POST to /api/mode EXCEPT the accepted read-only probe.
+  modePosts: calls.filter((call) => call.url === '/api/mode' && call.op !== 'bypass_options'),
+  before: before,
+  after: { boot: snap(bootId), existing: snap('chat:existing-idle') },
+  calls,
+});
 """
     )
     assert result["errors"] == []
-    assert result["modePosts"] == []
+    # Passive boot/navigation/new drafts send no state-changing mode operation. The one POST
+    # they do send is the read-only grant probe the shipped reload-restore feature added to
+    # loadSessions (op bypass_options; the server owner mints nothing -- pinned by
+    # tests/test_bypass_setup_flow.py and the wallet-home boundary). This test pins BOTH
+    # sides: the probe is the only op allowed through, and it grants nothing and changes no
+    # chat's mode -- so a probe that silently became a state-changing op, or started minting
+    # grants on passive paths, fails here.
+    assert result["modeOps"], "the boot probe is expected to run"
+    assert set(result["modeOps"]) == {"bypass_options"}
+    assert result["modePosts"] == [], "a passive path sent a state-changing mode operation"
+    assert result["after"] == result["before"], "a passive path granted or changed a mode"
+
+
+def test_an_explicit_mode_change_is_still_seen_by_the_passive_boundary() -> None:
+    """Detection proof for the boundary above: an explicit user mode change crosses the same
+    wire and must be classified as a state-changing operation, so the no-passive-posts filter
+    can never pass vacuously."""
+    result = _run(
+        """
+const calls = [];
+await new Promise(setImmediate);
+globalThis.fetch = async (url, options) => {
+  const body = options && options.body ? JSON.parse(options.body) : null;
+  calls.push({ url: String(url), method: String((options && options.method) || 'GET'), op: body && body.op });
+  return {
+    ok: true, status: 200,
+    json: async () => ({ sessions: [], messages: [], queue: [], pins: [], projects: [], events: [], next_after: 0, state: { mode: 'auto' } }),
+  };
+};
+await setModeController('auto');
+out({
+  stateOps: calls.filter((call) => call.url === '/api/mode' && call.op !== 'bypass_options'),
+  ops: calls.filter((call) => call.url === '/api/mode').map((call) => call.op),
+});
+"""
+    )
+    assert result["errors"] == []
+    assert "set" in result["ops"]
+    assert result["stateOps"], "the boundary must still see a state-changing mode operation"
 
 
 def test_passive_paths_do_not_call_the_mode_controller_by_source_contract() -> None:
