@@ -243,6 +243,25 @@ def _route(route):
         route.fulfill(status=200, content_type="application/json",
                       body=json.dumps({"credentials": [{"name": "llm.cloud.openrouter"}]}))
         return
+    # The boot's own loadSessions/refreshProjects poll re-installs SERVER truth over the
+    # client state SETUP injected. Answering these two endpoints with the same rows the
+    # fixture seeds makes that poll idempotent: without them a poll that resolved after
+    # SETUP (its timing is not synchronized with the fixture's waits) blanked
+    # _serverProjects and re-rendered the project chip as "General", which nothing in the
+    # product controls -- the race was in this rig, and it intermittently failed the
+    # tooltip assertions on runs otherwise identical to passing ones.
+    if "/api/projects" in request.url:
+        route.fulfill(status=200, content_type="application/json",
+                      body=json.dumps({"projects": [{"id": "p1", "name": "vool-local-product",
+                                                     "root": "/Users/x/vool-local-product",
+                                                     "emoji": "", "color": ""}]}))
+        return
+    if "/api/chat/sessions" in request.url:
+        route.fulfill(status=200, content_type="application/json",
+                      body=json.dumps({"sessions": [{"session_id": "c1",
+                                                     "title": "Refactor the activity ledger pipeline end to end",
+                                                     "emoji": "🔥", "project_id": "p1"}]}))
+        return
     route.fulfill(status=200, content_type="application/json", body="{}")
 
 
