@@ -70,15 +70,40 @@ def main() -> int:
                 if evidence["composer"]["path"] != "/chat":
                     raise RuntimeError("The window did not load the chat route.")
                 # Exercise native keyboard delivery, not just a JavaScript value assignment.
+                keyboard: dict = {}
                 ids = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--name", "^VOOL$"],
                                               text=True, timeout=10).splitlines()
+                keyboard["window_ids"] = ids
+                if not ids:
+                    raise RuntimeError("No visible window titled VOOL was found for keyboard delivery.")
                 subprocess.run(["xdotool", "windowfocus", "--sync", ids[0]], check=True, timeout=10)
+                # Keys are routed to the X input-focus window, so delivery is only attempted once
+                # the focus actually sits on the target window (windowfocus --sync acknowledges
+                # the request; the poll proves it landed). Every fact is recorded: the 24.04 run
+                # failed the value check with no keyboard/focus timeline to diagnose
+                # (run 36982838739, job 110761047078).
+                focused = ""
+                for _ in range(20):
+                    focused = subprocess.check_output(["xdotool", "getwindowfocus"],
+                                                      text=True, timeout=10).strip()
+                    if focused == ids[0]:
+                        break
+                    time.sleep(0.1)
+                keyboard["x_focused_window"] = focused
+                keyboard["dom_active_element"] = window.evaluate_js(
+                    "document.activeElement ? (document.activeElement.id || document.activeElement.tagName) : null")
+                keyboard["composer_focused"] = keyboard["dom_active_element"] == "input"
+                if focused != ids[0]:
+                    evidence["composer"]["keyboard"] = keyboard
+                    raise RuntimeError(
+                        f"Keyboard focus never reached the VOOL window (focused={focused!r}, target={ids[0]!r}).")
                 subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "1",
                                 "Linux desktop acceptance"], check=True, timeout=10)
                 value = window.evaluate_js("document.querySelector('textarea#input').value")
+                keyboard["native_keyboard_value"] = value
+                evidence["composer"]["keyboard"] = keyboard
                 if value != "Linux desktop acceptance":
                     raise RuntimeError("Native keyboard input did not reach the chat composer.")
-                evidence["composer"]["native_keyboard_value"] = value
                 inspected.set()
             except Exception as exc:
                 evidence["error"] = str(exc)
