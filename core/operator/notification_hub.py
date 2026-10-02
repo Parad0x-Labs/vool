@@ -191,13 +191,11 @@ def record_runtime_event(session_id, event):
             conn.close()
     from core.operator.notification_audio import enabled_now
     approval_id = str((event.get('approval_request') or {}).get('approval_id') or '')
-    if approval_id:
-        from core.mode_permission_policy import approval_is_pending
-        if not approval_is_pending(approval_id):
-            approval_id = ''
+    from core.mode_permission_policy import approval_is_pending
+    approval_pending = bool(approval_id) and approval_is_pending(approval_id)
     preferences = centre.load_preferences()
     eligible = (kind in {"task_completed", "task_pending_approval"}
-                and (kind != "task_pending_approval" or bool(approval_id))
+                and (kind != "task_pending_approval" or approval_pending)
                 and enabled_now(preferences=preferences))
     centre.record_item(dedupe_key=f"runtime:{session_id}:{turn}:{kind}:{identity}", source_kind="background_run",
                        title="Chat " + status, body=str(event.get("message") or ""), session_id=session_id,
@@ -207,17 +205,27 @@ def record_runtime_event(session_id, event):
                                 "approval_id": approval_id})
 
 
+def supersede_closed_action(conn, row, *, now_iso):
+    """Recheck canonical consent at delivery, preserving the original action identity."""
+    payload = json.loads(row['payload_json'] or '{}')
+    if payload.get('event_type') != 'task_pending_approval':
+        return False
+    from core.mode_permission_policy import approval_is_pending
+    token = payload.get('approval_id')
+    if token and approval_is_pending(token):
+        return False
+    conn.execute('UPDATE notification_items SET superseded_at = ? WHERE notification_id = ?',
+                 (now_iso, row['notification_id']))
+    return True
+
+
 def sync_pending_actions():
     """Resolved, denied and expired approvals are no longer Needs-you items."""
-    from core.mode_permission_policy import approval_is_pending
     conn = centre._default_connection()
     try:
         rows = conn.execute("SELECT notification_id, payload_json FROM notification_items WHERE source_kind = 'background_run' AND superseded_at IS NULL").fetchall()
         for row in rows:
-            payload = json.loads(row['payload_json'])
-            token = payload.get('approval_id')
-            if token and not approval_is_pending(token):
-                conn.execute('UPDATE notification_items SET superseded_at = ? WHERE notification_id = ?', (centre._utcnow(), row['notification_id']))
+            supersede_closed_action(conn, row, now_iso=centre._utcnow())
         conn.commit()
     finally:
         conn.close()

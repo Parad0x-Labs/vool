@@ -161,7 +161,10 @@ def test_exact_deep_link_and_bulk_read_cannot_acknowledge_new_arrivals(home):
 def test_distinct_approval_requests_in_same_turn_do_not_merge(home):
     from core.runtime_task_events import emit_runtime_event
     context = {"session_id": "chat-a", "cancel_turn_id": "turn-a"}
-    for request in ("approve-a", "approve-a", "approve-b"):
+    from core.mode_permission_policy import register_external_approval
+    first = register_external_approval({'session_id': 'chat-a', 'task_id': 'turn-a'})
+    second = register_external_approval({'session_id': 'chat-a', 'task_id': 'turn-a'})
+    for request in (first, first, second):
         emit_runtime_event(context, event_type="task_pending_approval", message="Needs approval",
                            details={"approval_request": {"approval_id": request}})
     assert len(inbox()["items"]) == 2

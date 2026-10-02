@@ -22,6 +22,9 @@ def claim(conn, row, *, now_iso, channel, preferences):
     payload = json.loads(row["payload_json"] or "{}")
     if row["source_kind"] != "background_run" or payload.get("event_type") not in {"task_completed", "task_pending_approval"}:
         return False
+    from core.operator.notification_hub import supersede_closed_action
+    if supersede_closed_action(conn, row, now_iso=now_iso):
+        return False
     from core.operator.native_notifications import _user_zone
     current = centre._load_preferences_conn(conn)
     preferences = {**current, 'sound': preferences['sound'] and current['sound']}
