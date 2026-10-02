@@ -4,7 +4,8 @@ These cover the conditions the mission states as hard acceptance, and they are w
 the real shipped renderer rather than a description of it:
 
 * the four approved originals are preserved, proved by a colour-aware per-cell comparison
-  against the protected prototypes' OWN drawing code run headlessly;
+  against the protected prototypes' OWN drawing code run headlessly, excluding only the
+  owner-requested removal of external cast shadows;
 * ten distinct companions, none an alias or recolour of another;
 * the display enlargement is an integer multiple of the 48px art grid and does not touch art;
 * every authoritative state and every activity substate has an authored pose that actually
@@ -117,11 +118,16 @@ def test_no_pet_fills_the_grid_and_silhouettes_differ(tmp_path):
 # ------------------------------------------------- preservation of the approved art
 
 @requires_node
-def test_originals_are_pixel_identical_to_the_approved_prototype(tmp_path):
-    """Preservation proved against the prototype's OWN code, not a description of it."""
+def test_original_creature_pixels_match_the_approved_prototype(tmp_path):
+    """Keep every creature pixel; omit only the prototype's external two-row cast shadow."""
     import gzip
 
     ref = json.loads(gzip.decompress(REFERENCE_FRAMES.read_bytes()))
+
+    # Frozen prototype colors and rows, independent of the candidate palette. Do not mask
+    # whole bottom rows: feet and action props can occupy them and must remain pixel-identical.
+    shadow_colors = {"beetle": "rgba(23,38,43,.18)", "raven": "rgba(17,29,38,.2)",
+                     "golem": "rgba(32,43,43,.2)", "tide": "rgba(18,44,67,.2)"}
 
     # The product's five prototype states, each sampled at the same documented millisecond.
     # Several product states share the prototype's single 'working' state, so the reference is
@@ -141,7 +147,11 @@ def test_originals_are_pixel_identical_to_the_approved_prototype(tmp_path):
                 capture_output=True, text=True, check=True,
             )
             got = json.loads(pathlib.Path(out).read_text())[f"{pet}/{state}"]
-            want = ref[f"{pet}/{rstate}@{times[state]}"]
+            want = [row.copy() for row in ref[f"{pet}/{rstate}@{times[state]}"]]
+            for y in (44, 45):
+                for x in range(48):
+                    if want[y][x] == shadow_colors[pet]:
+                        want[y][x] = None
             diff = [
                 (x, y) for y in range(48) for x in range(48) if got[y][x] != want[y][x]
             ]
