@@ -88,3 +88,60 @@ def test_fail_soft_never_raises(monkeypatch) -> None:
     monkeypatch.setattr(rdl, "decisions_path", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     rdl.record_decision(session_id="s", user_input="x", family="f", handled=True)  # must not raise
     assert rdl.recent_decisions() == []
+
+
+def test_supported_secret_shapes_never_persist_as_the_session_identity() -> None:
+    """A credential-shaped handle persists only as its ``openclaw:<digest>`` fold.
+
+    Alert 155's reachability question, answered at the owner: no supported secret class
+    (EVM private key, provider API key, recovery phrase) survives into either telemetry
+    sink as the session identity, whatever a caller names its chat by. The synthetic
+    values below are shape-valid fabrications, never real credentials."""
+    synthetic_secrets = [
+        "0x" + "a1b2c3d4" * 8,  # EVM private-key shape (0x + 64 hex)
+        "sk-proj-9f83kd02lwuxnm27aapos",  # provider API-key shape
+        "abandon ability able about above absent absorb abstract absurd abuse",  # phrase shape
+    ]
+    for handle in synthetic_secrets:
+        rdl.record_decision(session_id=handle, user_input="turn", family="f", handled=True)
+    stored = rdl.decisions_path().read_text()
+    for handle in synthetic_secrets:
+        assert handle not in stored, "a secret-shaped handle must never persist verbatim"
+    folded_ids = [row["session_id"] for row in rdl.recent_decisions()]
+    assert len(folded_ids) == len(synthetic_secrets)
+    for row_id in folded_ids:
+        assert row_id.startswith("openclaw:") and len(row_id) == len("openclaw:") + 20
+        assert row_id == row_id.lower()
+    # Distinct handles keep distinct identities, and each folds to exactly the identity
+    # the shared authority computes for it (correlation + deletion match on these bytes).
+    from core.chat_session_identity import canonical_chat_session_id
+
+    for handle, row_id in zip(synthetic_secrets, folded_ids, strict=True):
+        assert row_id == canonical_chat_session_id(handle)
+
+
+def test_the_canonical_shape_is_exactly_the_digest_namespace() -> None:
+    """The only handle text this log persists verbatim is exactly ``openclaw:`` + 20
+    lowercase hex — the digest namespace the runtime itself mints (``secrets.token_hex``
+    or the fold's SHA-256 truncation). Anything one character off that shape is a
+    caller-asserted string, and it is folded, never honoured: this is the validated
+    boundary the alert's static path rests on, pinned here so a future widening of the
+    canonical shape cannot silently start persisting arbitrary caller text."""
+    minted = "openclaw:" + "0123456789abcdef0123"  # the exact runtime-minted shape
+    near_misses = [
+        "openclaw:" + "0123456789abcdef012",  # 19 hex
+        "openclaw:" + "0123456789abcdef01234",  # 21 hex
+        "openclaw:" + "0123456789ABCDEF0123",  # uppercase hex
+        "OPENCLAW:" + "0123456789abcdef0123",  # uppercase prefix
+    ]
+    rdl.record_decision(session_id=minted, user_input="turn", family="f", handled=True)
+    for handle in near_misses:
+        rdl.record_decision(session_id=handle, user_input="turn", family="f", handled=True)
+    stored_ids = [row["session_id"] for row in rdl.recent_decisions()]
+    assert stored_ids[0] == minted, "the minted digest-namespace id passes through verbatim"
+    for handle in near_misses:
+        assert handle not in stored_ids, "only the exact canonical shape is ever honoured"
+    import secrets as _secrets
+
+    fresh = f"openclaw:{_secrets.token_hex(10)}"
+    assert len(fresh) == len(minted)  # the minter and the boundary agree on the shape
