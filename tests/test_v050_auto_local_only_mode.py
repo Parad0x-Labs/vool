@@ -724,14 +724,53 @@ class TestTheComposerOffersTheLane:
     def test_the_lane_is_a_known_tier_so_a_reload_does_not_reset_it(self) -> None:
         """The composer persists `vool_model` and, on boot, drops any value that is neither a known
         tier nor a well-formed cloud id. Without the label entry the selection would survive exactly
-        one page load and then silently revert to cloud-capable Auto."""
+        one page load and then silently revert to cloud-capable Auto. The tier labels resolve
+        through the page's catalog at evaluation time (the localization wave moved the literals
+        behind pageT), so what the boot gate reads is the KEY's membership in MODEL_LABELS; the
+        serialized form below pins that membership together with its English fallback."""
         html = self._page()
-        assert f"'{mode.SELECTOR_VALUE}': 'VOOL Auto Local Only'" in html, (
+        assert "'vool-local-only': pageT('header.model_local_only_option', 'VOOL Auto Local Only')" in html, (
             "the lane is not in MODEL_LABELS, so the boot-time validity check discards it on reload"
         )
         # The same table is what keeps the no-key revert from mistaking the lane for a stale cloud
         # pin, and what keeps `isCloudModel()` from pulsing the cloud dot on a local-only turn.
         assert "function isLocalOnlyMode()" in html
+        # The gate itself: a known tier OR a well-formed cloud id survives; anything else resets.
+        assert (
+            "if (!MODEL_LABELS[modelValue] && !CLOUD_MODEL_ID_RE.test(modelValue)) modelValue = 'vool';" in html
+        )
+        # The label key must exist in every shipped catalog, or a non-English operator would see
+        # the raw key rendered as the lane's name.
+        from core.i18n.catalog import catalog_for
+        from core.i18n.locales import ui_catalog_tags
+
+        for tag in ui_catalog_tags():
+            assert catalog_for(tag)._messages.get("header.model_local_only_option"), tag
+
+    def test_the_boot_gate_keeps_the_lane_and_still_discards_unknown_tiers(self) -> None:
+        """The serialized table is the means; this is the end: evaluated with the real page script,
+        a pinned local-only lane survives the boot validity check, an unknown id still resets to
+        Auto, and the lane's label resolves as a real string in the default locale."""
+        from tests.chat_page_js_harness import DOM, run_node, script
+
+        result = run_node(
+            DOM
+            + script()
+            + """
+out({
+  laneLabel: MODEL_LABELS['vool-local-only'],
+  autoLabel: MODEL_LABELS['vool'],
+  laneKept: ((!MODEL_LABELS['vool-local-only'] && !CLOUD_MODEL_ID_RE.test('vool-local-only')) ? 'vool' : 'vool-local-only'),
+  malformedReset: ((!MODEL_LABELS['not a model!'] && !CLOUD_MODEL_ID_RE.test('not a model!')) ? 'vool' : 'kept'),
+});
+"""
+        )
+        assert result["errors"] == []
+        assert result["laneLabel"] == "VOOL Auto Local Only"
+        assert result["autoLabel"] == "VOOL Auto"
+        assert result["laneKept"] == "vool-local-only", "a pinned lane must survive the boot gate"
+        assert result["malformedReset"] == "vool", "a malformed persisted value must still be discarded"
+
 
     def test_the_cloud_catalogue_is_not_rendered_under_the_lane(self) -> None:
         html = self._page()
