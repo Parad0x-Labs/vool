@@ -12,7 +12,7 @@ Two layers of proof:
 
 * PURE -- ``settle_decision`` is the placement policy as a function (runs in the plain suite).
 * NATIVE SEAM -- the real ``PetWindowTracker._tick`` against a fake NSWindow with the real
-  ``AppKit.NSEvent`` class methods patched at the seam (skipped where pyobjc is absent, e.g.
+  ``AppKit.NSEvent`` lookup substituted at the seam (skipped where pyobjc is absent, e.g.
   the 3.12 test interpreter; the decision, clamp and settle reporting are otherwise production).
 """
 
@@ -122,12 +122,18 @@ def native_seam(monkeypatch):
 
     monkeypatch.setattr(pet_native, "visible_frames", lambda: list(SCREEN))
     buttons = type("Buttons", (), {"pressed": 0, "cursor": _Pt(0.0, 0.0)})()
-    monkeypatch.setattr(
-        AppKit.NSEvent, "pressedMouseButtons", classmethod(lambda _c: buttons.pressed)
-    )
-    monkeypatch.setattr(
-        AppKit.NSEvent, "mouseLocation", classmethod(lambda _c: buttons.cursor)
-    )
+    # Substitute the module lookup, not Objective-C selectors: PyObjC cannot remove
+    # an installed class selector during monkeypatch teardown.
+    class CursorEvents:
+        @staticmethod
+        def pressedMouseButtons():
+            return buttons.pressed
+
+        @staticmethod
+        def mouseLocation():
+            return buttons.cursor
+
+    monkeypatch.setattr(AppKit, "NSEvent", CursorEvents)
     return buttons
 
 
