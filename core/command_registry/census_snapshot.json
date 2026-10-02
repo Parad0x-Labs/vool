@@ -2227,6 +2227,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/notifications/audio": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/notifications/audio",
+      "note": "notifications lane operator action (durable sound claim)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/notifications/migrate": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/notifications/migrate",
@@ -2930,7 +2937,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 285,
+    "EXTERNAL_TRANSPORT_ONLY": 286,
     "GENERATED_ADAPTER": 124,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
