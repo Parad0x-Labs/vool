@@ -1341,7 +1341,7 @@
     "vns.title.mac": "Powiadomienia macOS",
     "vns.title.prefs": "Ciche godziny, dźwięk i treść powiadomień",
     "vns.toggle.native": "Wysyłaj też alerty VOOL jako powiadomienia macOS",
-    "vns.toggle.sound": "Odtwórz dźwięk z powiadomieniami macOS",
+    "vns.toggle.sound": "Dźwięk powiadomień",
     "vx.memory.empty": "Nic jeszcze nie zapamiętano — potwierdzone fakty trafiają tu ze swoim zapisanym zakresem, a każdy można zapomnieć.",
     "vx.memory.forget": "zapomnij",
     "vx.memory.forget_title": "Zapomnij dokładnie ten wpis",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "Zatrzymano",
     "companion.state.cancelled": "Anulowano",
     "companion.state.success": "Gotowe",
-    "companion.state.unknown": "Nieznane"
+    "companion.state.unknown": "Nieznane",
+    "vns.sound.help": "Delikatny dźwięk, gdy praca się kończy lub wymaga Twojej uwagi.",
+    "vns.sound.preview": "Odsłuchaj dźwięk",
+    "vns.sound.blocked": "Odtwarzanie dźwięku jest niedostępne. Powiadomienia pozostają pod dzwonkiem."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

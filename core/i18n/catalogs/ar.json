@@ -1341,7 +1341,7 @@
     "vns.title.mac": "إشعارات macOS",
     "vns.title.prefs": "ساعات السكون والصوت وما تعرضه الإشعارات",
     "vns.toggle.native": "أرسل تنبيهات VOOL إلى إشعارات macOS أيضًا",
-    "vns.toggle.sound": "أصدر صوتًا مع إشعارات macOS",
+    "vns.toggle.sound": "صوت الإشعارات",
     "vx.memory.empty": "لا شيء متذكَّر بعد — الحقائق المؤكدة تصل إلى هنا مع نطاقها المخزَّن، وكل منها يمكن نسيانه.",
     "vx.memory.forget": "انسَ",
     "vx.memory.forget_title": "انسَ هذا المدخل بالضبط",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "توقف",
     "companion.state.cancelled": "أُلغي",
     "companion.state.success": "تم",
-    "companion.state.unknown": "غير معروف"
+    "companion.state.unknown": "غير معروف",
+    "vns.sound.help": "نغمة هادئة عند اكتمال العمل أو الحاجة إلى تدخلك.",
+    "vns.sound.preview": "معاينة الصوت",
+    "vns.sound.blocked": "تشغيل الصوت غير متاح. تبقى الإشعارات في قائمة الجرس."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

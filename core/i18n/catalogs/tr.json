@@ -1341,7 +1341,7 @@
     "vns.title.mac": "macOS bildirimleri",
     "vns.title.prefs": "Sessiz saatler, ses ve bildirimlerin gösterdikleri",
     "vns.toggle.native": "VOOL uyarılarını macOS bildirimlerine de gönder",
-    "vns.toggle.sound": "macOS bildirimleriyle ses çal",
+    "vns.toggle.sound": "Bildirim sesi",
     "vx.memory.empty": "Henüz hatırlanan bir şey yok — onaylanan bilgiler saklanan kapsamlarıyla buraya düşer ve her biri unutulabilir.",
     "vx.memory.forget": "unut",
     "vx.memory.forget_title": "Tam olarak bu kaydı unut",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "Durduruldu",
     "companion.state.cancelled": "İptal edildi",
     "companion.state.success": "Bitti",
-    "companion.state.unknown": "Bilinmiyor"
+    "companion.state.unknown": "Bilinmiyor",
+    "vns.sound.help": "İş tamamlandığında veya müdahaleniz gerektiğinde hafif bir ses.",
+    "vns.sound.preview": "Sesi dinle",
+    "vns.sound.blocked": "Ses çalma kullanılamıyor. Bildirimler zil menüsünde kalır."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1341,7 +1341,7 @@
     "vns.title.mac": "macOS 알림",
     "vns.title.prefs": "방해 금지 시간, 소리, 알림 표시 내용",
     "vns.toggle.native": "VOOL 알림을 macOS 알림으로도 보내기",
-    "vns.toggle.sound": "macOS 알림과 함께 소리 재생",
+    "vns.toggle.sound": "알림 소리",
     "vx.memory.empty": "아직 기억된 것이 없습니다. 확인된 사실이 저장 범위와 함께 여기에 오며, 각각 잊을 수 있습니다.",
     "vx.memory.forget": "잊기",
     "vx.memory.forget_title": "정확히 이 항목만 잊기",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "중단됨",
     "companion.state.cancelled": "취소됨",
     "companion.state.success": "완료",
-    "companion.state.unknown": "알 수 없음"
+    "companion.state.unknown": "알 수 없음",
+    "vns.sound.help": "작업이 완료되거나 조치가 필요할 때 부드러운 소리가 납니다.",
+    "vns.sound.preview": "소리 미리 듣기",
+    "vns.sound.blocked": "소리를 재생할 수 없습니다. 알림은 종 메뉴에 남아 있습니다."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

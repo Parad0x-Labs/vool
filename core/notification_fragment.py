@@ -76,7 +76,8 @@ var centre = [];          // the DB-backed notification centre (calendar alerts,
 var centreUnread = 0;
 var centreBusy = false;
 var centreFlight = null;
-var CENTRE_POLL_MS = 30000;
+var audioCursor = null;
+var CENTRE_POLL_MS = 3000;
 var state = loadState();   // one-time migration of the previous browser inbox
 
 function loadState(){
@@ -224,7 +225,17 @@ function pollCentre(){
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (!j || !j.ok) return;
+      var previous = audioCursor;
+      audioCursor = Number(j.cursor) || 0;
       centre = Array.isArray(j.items) ? j.items : [];
+      centreUnread = Number(j.unread) || 0;
+      // The first read establishes observation, never plays historical unread items.
+      if (previous !== null && audioCursor > previous && window.VoolNotificationAudio && window.VoolNotificationAudio.ready()) {
+        return fetch('/api/notifications/audio', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({after:previous})})
+          .then(function(r){return r.json();}).then(function(a){
+            if (a.ok && a.notification_ids && a.notification_ids.length && window.VoolNotificationAudio) return window.VoolNotificationAudio.cue();
+          }).catch(function(){}).then(function(){paintBadge(); if (!pop.hidden) paintList();});
+      }
       centreUnread = Number(j.unread) || 0;
       paintBadge();
       if (!pop.hidden) paintList();
@@ -500,7 +511,8 @@ window.VoolNotify = Object.freeze({
 
 def render_notification_fragment() -> str:
     """The notification bell + notification centre as an appended fragment."""
-    return "<style>" + _NOTIFY_CSS + "</style><script>" + _NOTIFY_JS + "</script>"
+    from core.notification_audio import audio_script
+    return "<style>" + _NOTIFY_CSS + "</style><script>" + _NOTIFY_JS + "</script>" + audio_script()
 
 
 __all__ = ["render_notification_fragment"]

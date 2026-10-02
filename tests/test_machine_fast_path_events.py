@@ -19,6 +19,7 @@ class _FakeAgent:
         self.events.append({"event_type": event_type, "message": message, **details})
 
     def _fast_path_result(self, **kwargs):
+        self.fast_kwargs = kwargs
         return {"response": kwargs.get("response", ""), "task_id": "t1", "mode": "advice_only"}
 
 
@@ -74,3 +75,12 @@ def test_step_summary_falls_back_to_intent_when_no_output() -> None:
     _run(agent, _execution(response_text="   "))
     executed = next(e for e in agent.events if e["event_type"] == "tool_executed")
     assert executed["summary"] == "machine.disk_usage"
+
+
+def test_cancelled_machine_work_keeps_cancelled_checkpoint_truth():
+    agent = _FakeAgent()
+    execution = _execution(ok=False, response_text="Cancelled before dispatch.")
+    execution.status = "cancelled"
+    result = _run(agent, execution)
+    assert agent.fast_kwargs['checkpoint_status'] == 'cancelled'
+    assert result['status'] == 'cancelled' and result['success'] is False

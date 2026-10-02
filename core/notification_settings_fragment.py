@@ -88,9 +88,9 @@ function mountInto(host){
   var prefs = null, native = null;
   function say(text, bad){ status.textContent = text || ''; status.className = 'vns-status' + (bad ? ' vns-bad' : ''); }
   function load(){
-    return Promise.all([request('GET', '/api/notifications/preferences'), request('GET', '/api/notifications/native/status')]).then(function(r){
-      if (!r[0].ok || !r[1].ok) { say(NT('vns.status.unavailable', 'Notification settings are unavailable right now.'), true); return; }
-      prefs = r[0].preferences; native = r[1]; paint();
+    return Promise.all([request('GET', '/api/notifications/preferences'), request('GET', '/api/notifications/native/status').catch(function(){return {ok:false};})]).then(function(r){
+      if (!r[0].ok) { say(NT('vns.status.unavailable', 'Notification settings are unavailable right now.'), true); return; }
+      prefs = r[0].preferences; native = r[1].ok ? r[1] : {supported:false}; paint();
     }).catch(function(){ say(NT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
   function save(patch, done){
@@ -108,6 +108,7 @@ function mountInto(host){
   function paint(){ paintMac(); paintPrefs(); why.textContent = native.explanation || ''; }
   function paintMac(){
     macBox.textContent = '';
+    if (native.supported === false) return;
     macBox.appendChild(h('div', 'vns-title', NT('vns.title.mac', 'macOS notifications')));
     macBox.appendChild(toggle(NT('vns.toggle.native', 'Also send VOOL alerts to macOS notifications'), prefs.native_notifications, function(on){
       save({native_notifications: on}, on ? NT('vns.saved.native_on', 'On. VOOL asks macOS for permission if macOS has not given it.')
@@ -154,7 +155,16 @@ function mountInto(host){
            NT('vns.saved.quiet', 'Quiet hours saved. During them macOS is not asked; the bell still records every alert.'));
     }));
     prefBox.appendChild(quietRow);
-    prefBox.appendChild(toggle(NT('vns.toggle.sound', 'Play a sound with macOS notifications'), prefs.sound, function(on){ save({sound: on}); }));
+    prefBox.appendChild(toggle(NT('vns.toggle.sound', 'Notification sound'), prefs.sound, function(on){
+      if (!on && window.VoolNotificationAudio) window.VoolNotificationAudio.mute();
+      save({sound: on});
+    }));
+    prefBox.appendChild(h('div', 'vns-note', NT('vns.sound.help', 'A gentle chime when work completes or needs you.')));
+    prefBox.appendChild(button(NT('vns.sound.preview', 'Preview sound'), function(){
+      if (window.VoolNotificationAudio) window.VoolNotificationAudio.preview().then(function(played){
+        if (!played) say(NT('vns.sound.blocked', 'Sound playback is unavailable. Notifications remain in the bell.'), true);
+      });
+    }));
     var lockRow = h('label', 'vns-row'); lockRow.appendChild(h('span', null, NT('vns.lock.label', 'A macOS notification may show')));
     var lock = h('select', 'vns-input'); lock.setAttribute('aria-label', NT('vns.lock.aria', 'What a macOS notification may show'));
     lockOptions().forEach(function(pair){ var option = h('option', null, pair[1]); option.value = pair[0]; lock.appendChild(option); });
@@ -185,7 +195,8 @@ window.VoolNotificationSettings = Object.freeze({mountInto: mountInto});
 
 def render_notification_settings_fragment() -> str:
     """The alerts and macOS notifications panel, mounted by the Settings page's Notifications group."""
-    return "<style>" + _CSS + "</style><script>" + _JS + "</script>"
+    from core.notification_audio import audio_script
+    return "<style>" + _CSS + "</style><script>" + _JS + "</script>" + audio_script()
 
 
 __all__ = ["render_notification_settings_fragment"]

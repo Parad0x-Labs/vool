@@ -1341,7 +1341,7 @@
     "vns.title.mac": "Повідомлення macOS",
     "vns.title.prefs": "Тихі години, звук і зміст повідомлень",
     "vns.toggle.native": "Дублювати сповіщення VOOL у повідомлення macOS",
-    "vns.toggle.sound": "Програвати звук зі повідомленнями macOS",
+    "vns.toggle.sound": "Звук сповіщень",
     "vx.memory.empty": "Ще нічого не запам'ятовано — підтверджені факти потрапляють сюди зі своєю збереженою областю, і кожен можна забути.",
     "vx.memory.forget": "забути",
     "vx.memory.forget_title": "Забути саме цей запис",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "Зупинено",
     "companion.state.cancelled": "Скасовано",
     "companion.state.success": "Готово",
-    "companion.state.unknown": "Невідомо"
+    "companion.state.unknown": "Невідомо",
+    "vns.sound.help": "Тихий сигнал, коли роботу завершено або потрібна ваша дія.",
+    "vns.sound.preview": "Прослухати звук",
+    "vns.sound.blocked": "Відтворення звуку недоступне. Сповіщення залишаються в меню дзвіночка."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

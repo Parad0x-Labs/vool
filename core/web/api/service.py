@@ -2953,7 +2953,7 @@ def dispatch_post(
     # a provider is the explicit sync, which runs the same bounded account sync the background worker runs.
     if normalized_path in {
         "/api/notifications/read", "/api/notifications/migrate", "/api/notifications/action", "/api/notifications/preferences", "/api/calendar/alerts/policy", "/api/calendar/sync",
-        "/api/notifications/native/outbox", "/api/notifications/native/report", "/api/notifications/native/test",
+        "/api/notifications/audio", "/api/notifications/native/outbox", "/api/notifications/native/report", "/api/notifications/native/test",
         "/api/notifications/native/authorize", "/api/calendar/accounts/add", "/api/calendar/accounts/discover",
         "/api/calendar/accounts/select", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/disconnect",
         "/api/calendar/accounts/reconnect",
@@ -2962,6 +2962,10 @@ def dispatch_post(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.operator import calendar_accounts, calendar_alerts, native_notifications, notification_center
 
+        if normalized_path == "/api/notifications/audio":
+            from core.operator.notification_audio import claim_browser
+            result = claim_browser(body.get("after"))
+            return apply_runtime_headers(json_response(200 if result.get("ok") else 400, result), runtime)
         # The macOS notification bridge (installer/bundle/native_notifications.py) and the Settings controls for it.
         if normalized_path == "/api/notifications/native/outbox":
             result = native_notifications.outbox(bridge_id=str(body.get("bridge_id") or ""), helper_version=str(body.get("helper_version") or ""))

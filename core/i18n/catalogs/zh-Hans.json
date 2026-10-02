@@ -1341,7 +1341,7 @@
     "vns.title.mac": "macOS 通知",
     "vns.title.prefs": "免打扰时段、声音与通知显示内容",
     "vns.toggle.native": "同时把 VOOL 提醒发到 macOS 通知",
-    "vns.toggle.sound": "macOS 通知附带声音",
+    "vns.toggle.sound": "通知声音",
     "vx.memory.empty": "还没有记住任何内容——确认过的事实会连同其存储范围出现在这里，每一条都可以被遗忘。",
     "vx.memory.forget": "遗忘",
     "vx.memory.forget_title": "只遗忘这一条",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "已停止",
     "companion.state.cancelled": "已取消",
     "companion.state.success": "完成",
-    "companion.state.unknown": "未知"
+    "companion.state.unknown": "未知",
+    "vns.sound.help": "工作完成或需要你处理时，播放轻柔的提示音。",
+    "vns.sound.preview": "试听声音",
+    "vns.sound.blocked": "无法播放声音。通知仍保留在铃铛菜单中。"
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
