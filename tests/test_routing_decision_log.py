@@ -104,19 +104,24 @@ def test_secret_shaped_handles_fold_to_the_digest_namespace() -> None:
     """Alert 155's fold-owner law, pinned where the fold itself lives — without welding a
     name-classified secret source to the logger's storage path.
 
-    The clear-text-storage analyzer classifies sources by NAME and ships no sanitizer, so
-    a probe that passes ``synthetic_secrets`` straight into ``record_decision`` re-creates
-    the static source-to-sink edge through the identity authority's canonical pass-through
-    — the exact edge class commit 5127205 cut from the bridging suites. The end-to-end
-    guarantee is therefore pinned as the two laws that compose into it, each independently
-    falsifiable: HERE, the fold owner never returns a non-canonical handle verbatim —
-    whatever its prefix or length — and always yields exactly the canonical digest shape;
-    in ``test_both_telemetry_sinks_persist_exactly_the_folded_session_identity``, both
-    durable sinks persist exactly the fold of whatever handle they are given. Composed: a
-    credential a caller names its chat by cannot reach either sink verbatim, whatever
-    provider invented it, because the sinks only persist the fold and the fold of a
-    non-canonical string is never that string. The synthetic values below are shape-valid
-    fabrications, never real credentials."""
+    The clear-text-storage query classifies sources by name heuristics and declares no
+    default sanitizer for this sink, so a probe that passes ``synthetic_secrets`` straight
+    into ``record_decision`` re-creates a static source-to-sink edge through the identity
+    authority's canonical pass-through — the edge class commit 5127205 cut from the
+    bridging suites. The end-to-end guarantee is pinned instead as three laws that compose
+    into it, each independently falsifiable: HERE, the fold owner returns no non-canonical
+    handle verbatim and always yields exactly the canonical digest shape; the both-sinks
+    law below, each durable sink persists exactly the fold of the handle it is given; and
+    the raw-handle law below, ``record_decision`` reads the raw handle only to fold it, to
+    check erasure or to purge by its fold, so nothing in it can persist the raw handle on
+    a content-dependent branch.
+
+    What the composition establishes, stated exactly: a handle that is not already
+    ``openclaw:`` + 20 lowercase hex never reaches either sink verbatim, whatever its
+    format. A caller string that IS exactly that shape is honoured verbatim by design (the
+    resume contract), whatever it encodes. And the fold is an unkeyed, truncated SHA-256:
+    not plaintext, but the fold of a low-entropy handle remains guess-checkable. The
+    synthetic values below are shape-valid fabrications, never real credentials."""
     synthetic_secrets = [
         "0x" + "a1b2c3d4" * 8,  # EVM private-key shape (0x + 64 hex)
         "sk-proj-9f83kd02lwuxnm27aapos",  # provider API-key shape
@@ -141,10 +146,10 @@ def test_secret_shaped_handles_fold_to_the_digest_namespace() -> None:
         assert canonical_chat_session_id(folded) == folded
         folded_ids.append(folded)
     assert len(set(folded_ids)) == len(synthetic_secrets)
-    # The law is shape-complete, not fixture-enumerated: nothing above keys on a familiar
-    # credential prefix or length. Any caller text folds by the same derivation — empty or
-    # whitespace collapses to no identity — so a credential of an UNFAMILIAR format is
-    # covered by the same fold, not by this list.
+    # The formats above are samples, not a census. What covers an unfamiliar format is the
+    # owner's structure — every non-canonical input takes the digest branch — and these
+    # ordinary inputs exercise that branch with no credential shape at all. Empty or
+    # whitespace-only text collapses to no identity.
     arbitrary_handles = [
         "",
         "   ",
@@ -158,8 +163,8 @@ def test_secret_shaped_handles_fold_to_the_digest_namespace() -> None:
         assert rdl._fold_session_ref(handle) == expected
         assert canonical_chat_session_id(handle) == expected
     # The completing half of the shape law: a canonical id IS its own identity. The
-    # one-character-off near-misses that make this pass-through safe are pinned by
-    # test_the_canonical_shape_is_exactly_the_digest_namespace below.
+    # one-character-off near-misses that bound this pass-through to exactly the minted
+    # shape are pinned by test_the_canonical_shape_is_exactly_the_digest_namespace below.
     minted = "openclaw:" + "0123456789abcdef0123"
     assert canonical_chat_session_id(minted) == minted
     assert rdl._fold_session_ref(minted) == minted
@@ -172,18 +177,15 @@ def test_both_telemetry_sinks_persist_exactly_the_folded_session_identity() -> N
     authority's fold: a runtime-minted canonical id passes through verbatim (the served
     path's byte stability — the resume contract), while a one-character-off near-miss and
     an arbitrary caller string persist only as their ``openclaw:<digest>`` fold, with the
-    raw text absent from the stored bytes. The expected folds are recomputed by the test,
+    raw text absent from the stored bytes of BOTH sinks — every shadow record's canonical
+    bytes, not only its ``session_ref``. The expected folds are recomputed by the test,
     independent of the authority, so the logger's wiring is falsifiable on its own — and
     the shadow record's ``session_ref`` is pinned on the same bytes as the JSONL row, so
     the two sinks cannot disagree about identity (deletion matches both through it).
 
-    Together with ``test_secret_shaped_handles_fold_to_the_digest_namespace`` — the fold
-    owner never returns a non-canonical input verbatim, whatever its shape — this is the
-    composed form of the guarantee the boundary probe may no longer weld directly: feeding
-    a name-classified secret source through ``record_decision`` would re-create the static
-    source-to-sink edge the analyzer cannot see past, but the sinks persist exactly the
-    fold for EVERY input class, so no credential-shaped handle can survive into either
-    sink verbatim."""
+    The handles here are ordinary on purpose: credential shapes are pinned at the fold
+    owner, and the raw-handle law below removes the logger's means to treat other content
+    differently (see the fold-owner law for exactly what the composition covers)."""
     # The minted id's digits deliberately avoid the near-miss's ascending run: a
     # truncation-derived near-miss would be a SUBSTRING of the minted id, and the
     # raw-bytes absence assertions below read the whole file, where the minted id
@@ -213,7 +215,45 @@ def test_both_telemetry_sinks_persist_exactly_the_folded_session_identity() -> N
                 " WHERE record_type = 'RoutingDecisionShadowV2'"
             )
         ]
+        shadow_bytes = b"\n".join(
+            bytes(row[0])
+            for row in conn.execute("SELECT canonical_bytes FROM routing_authority_v2_shadow_records")
+        )
     assert sorted(shadow_refs) == sorted(expected)
+    # A raw handle copied into ANY shadow field is a leak, whatever session_ref says.
+    assert minted.encode("utf-8") in shadow_bytes
+    assert near_miss.encode("utf-8") not in shadow_bytes
+    assert arbitrary.encode("utf-8") not in shadow_bytes
+
+
+def test_the_logger_reads_a_raw_handle_only_to_fold_it_or_consult_erasure() -> None:
+    """The premise the two laws above compose on, pinned at the owner: inside
+    ``record_decision`` the caller's raw ``session_id`` is read only as a positional
+    argument of the fold, of the erasure-authority check, or of the race-closure purge
+    (which folds before it touches either sink) — never placed in a row, a record field
+    or any other expression.
+
+    The both-sinks law feeds ordinary handles, so a logger that kept the raw handle only
+    for some content — a provider prefix, a phrase-like shape — would pass it and the
+    fold-owner law alike. This law closes that gap without enumerating formats: any new
+    read of the raw handle fails here, whatever content it is conditioned on."""
+    import ast
+    import inspect
+    import textwrap
+
+    function = ast.parse(textwrap.dedent(inspect.getsource(rdl.record_decision))).body[0]
+    parents = {child: node for node in ast.walk(function) for child in ast.iter_child_nodes(node)}
+    allowed = {"_fold_session_ref", "_session_telemetry_suppressed", "purge_session_routing_telemetry"}
+    reads = [node for node in ast.walk(function) if isinstance(node, ast.Name) and node.id == "session_id"]
+    assert reads, "record_decision must still receive the caller's handle"
+    for read in reads:
+        call = parents[read]
+        assert (
+            isinstance(call, ast.Call)
+            and read in call.args
+            and isinstance(call.func, ast.Name)
+            and call.func.id in allowed
+        ), f"the raw session_id escapes the fold at record_decision line {read.lineno}"
 
 
 def test_the_canonical_shape_is_exactly_the_digest_namespace() -> None:
