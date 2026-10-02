@@ -230,6 +230,22 @@ def test_the_page_carries_no_oauth_and_no_deep_links() -> None:
     """Setup never sends anyone to a browser sign-in or a custom URL scheme; keys are pasted in Settings."""
     html = render_vool_setup_html()
     stripped = html.replace('xmlns="http://www.w3.org/2000/svg"', "")
+    # The page ships the full i18n bundle as inert data (the same deterministic bootstrap every
+    # served page carries). Its provider help legitimately cites documentation URLs -- the
+    # loopback-only plain-http rule -- so the raw substring scan would measure the catalog, not
+    # the page. Strip the payload exactly as serialized, anchored, so a change to the embedding
+    # fails loudly instead of quietly scanning the wrong bytes (the same law the chat page's
+    # self-contained boundary follows). Everything the page itself can navigate or execute is
+    # still scanned below.
+    from core.i18n.catalog import catalog_for
+    from core.i18n.page_bundle import i18n_client_bundle_for
+
+    payload = json.dumps(
+        i18n_client_bundle_for(catalog_for("en")), ensure_ascii=False, separators=(",", ":")
+    ).replace("</", "<\\/")
+    i18n_blob = f"var B = {payload};"
+    assert i18n_blob in stripped, "the i18n bootstrap payload is not embedded in its serialized form"
+    stripped = stripped.replace(i18n_blob, "")
     assert "http://" not in stripped and "https://" not in stripped, "no outbound links on the setup page"
     assert "oauth" not in stripped.lower() and "sign in with" not in stripped.lower()
     assert not re.search(r"\b[a-z][a-z0-9+.-]*://", stripped.replace("http://", "").replace("https://", "")), "no custom URL schemes (deep links)"
@@ -238,3 +254,16 @@ def test_the_page_carries_no_oauth_and_no_deep_links() -> None:
     assert targets, "the page navigates somewhere (to Settings and back to chat)"
     for target in targets:
         assert target.startswith("'/settings") or target == "'/chat'", "navigation stays on this origin: " + target
+    # Detection counterexamples: the same scan must still catch a real outbound link, a custom
+    # scheme deep link, and an executable external asset appended to the page's own markup.
+    for hostile in (
+        '<a href="https://accounts.example/oauth">sign in</a>',
+        "open me://now",
+        '<script src="http://cdn.example/x.js"></script>',
+    ):
+        probe = stripped + hostile
+        assert (
+            "http://" in probe
+            or "https://" in probe
+            or re.search(r"\b[a-z][a-z0-9+.-]*://", probe.replace("http://", "").replace("https://", ""))
+        ), f"the outbound scan went blind to: {hostile}"
