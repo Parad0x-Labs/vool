@@ -526,16 +526,6 @@ body.answer-pending footer { position: relative; z-index: 35; }
 @media (max-width: 310px) {
   .control-bar { flex-wrap:wrap; }
 }
-/* Tight-but-workable: the PROJECT chip collapses out before the chat chip is reduced to nothing --
-   keyed on the slot, not on `.muted`, which only ever marked the no-project "General" case and so
-   left a bound project's chip in place at exactly the widths that could not hold two chips.
-   #ctxBar carries the full "Project › Chat" path as its tooltip, so nothing is actually lost.
-   The bar's floor rides along with the collapse (see .ctx-bar above): with the project chip gone
-   the content floor is one chip, so the bar stops holding two chips' worth of room. */
-@container composer (max-width: 470px) {
-  .ctx-chip.cc-project, .ctx-sep { display:none; }
-  .ctx-bar { min-width:60px; }
-}
 .ctrl-btn { display:inline-flex; align-items:center; gap:6px; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:5px 10px; font:inherit; font-size:13px; cursor:pointer; }
 .ctrl-btn:hover { border-color:var(--accent); }
 .ctrl-btn:disabled { opacity:.55; cursor:default; }
@@ -643,9 +633,8 @@ body:not(.panel-open) #xpResize { display:none; }
    ZERO rather than to min-content, so without it the bar shrinks straight through its own chips.
    The floor must be the SUM of the visible chips' own floors -- two chips at their 56px minimum
    plus the separator and gaps come to ~135px. A 56px floor sits below that sum, so under enough
-   row pressure (wider platform fonts leave zero slack at a 520px window -- measured clipping on
-   CI's font stack while macOS's narrower one passed) the bar was still squeezed beneath its
-   content and the chips were cut mid-glyph. Below the 470px container the project chip is gone
+   row pressure (a wider-font proxy reproduced clipping at a 520px window while the default
+   macOS font passed) the bar was squeezed beneath its content and the chips were cut mid-glyph. Below the 470px container the project chip is gone
    and the paired query lowers the floor to a single chip. */
 .ctx-bar { display:flex; align-items:center; gap:6px; flex:0 4 auto; min-width:140px; overflow:hidden; }
 .ctx-chip { display:inline-flex; align-items:center; gap:5px; flex:0 1 auto; min-width:56px; max-width:190px; padding:4px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); font-size:12px; color:var(--ink); white-space:nowrap; overflow:hidden; }
@@ -654,6 +643,16 @@ body:not(.panel-open) #xpResize { display:none; }
 .ctx-chip .cc-name { min-width:0; overflow:hidden; text-overflow:ellipsis; }
 .ctx-chip.muted { color:var(--muted); }
 .ctx-sep { color:var(--muted); font-size:11px; flex:0 0 auto; }
+/* Tight-but-workable: the PROJECT chip collapses out before the chat chip is reduced to nothing --
+   keyed on the slot, not on `.muted`, which only ever marked the no-project "General" case and so
+   left a bound project's chip in place at exactly the widths that could not hold two chips.
+   #ctxBar carries the full "Project › Chat" path as its tooltip, so nothing is actually lost.
+   After the base rule above, the bar's floor rides along with the collapse: with the project chip
+   gone the content floor is one chip, so the bar stops holding two chips' worth of room. */
+@container composer (max-width: 470px) {
+  .ctx-chip.cc-project, .ctx-sep { display:none; }
+  .ctx-bar { min-width:60px; }
+}
 .emoji-clear { margin-top:6px; width:100%; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:5px; font:inherit; font-size:12px; cursor:pointer; }
 .emoji-clear:hover { color:var(--ink); border-color:var(--accent); }
 .pop-title { color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:6px 8px 4px; }

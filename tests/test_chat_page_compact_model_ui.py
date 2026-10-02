@@ -214,8 +214,8 @@ def test_every_control_in_the_row_has_a_floor_it_cannot_shrink_through() -> None
     # platform fonts and slice the chips mid-glyph; the 470px container query that collapses the
     # project chip pairs the bar with the single-chip floor.
     assert ".ctx-bar { display:flex; align-items:center; gap:6px; flex:0 4 auto; min-width:140px; overflow:hidden; }" in HTML
-    first = HTML.index("@container composer (max-width: 470px) {")
-    collapse = HTML[first : HTML.index("@container", first + 10)]
+    first = HTML.index("@container composer (max-width: 470px) {", HTML.index(".ctx-bar { display:flex;"))
+    collapse = HTML[first : HTML.index("\n}", first) + 2]
     assert ".ctx-chip.cc-project, .ctx-sep { display:none; }" in collapse
     assert ".ctx-bar { min-width:60px; }" in collapse
 

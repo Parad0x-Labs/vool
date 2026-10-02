@@ -194,6 +194,7 @@ REPORT = r"""
     controls: controls,
     controlOverlaps: overlaps,
     ctx: {
+      minWidth: getComputedStyle(ctxBar).minWidth,
       clipped: ctxBar.scrollWidth > Math.ceil(ctxBar.getBoundingClientRect().width) + 1,
       barTitle: ctxBar.title || '',
       chips: chips.map((c) => {
@@ -617,3 +618,14 @@ def test_a_long_cloud_name_is_shortened_in_the_label_and_kept_in_the_tooltip(mat
         assert r["cloudRows"] >= 30, f"{key}: only {r['cloudRows']} cloud rows rendered"
         assert len(r["modelLbl"]) <= 30, f"{key}: label {r['modelLbl']!r}"
 
+
+def test_context_bar_computed_floor_tracks_visible_chips(matrix) -> None:
+    """The compact rule must win the cascade after the project chip collapses."""
+    compact = wide = 0
+    for key, r in matrix.items():
+        project_visible = r["ctx"]["chips"][0]["visible"]
+        expected = "140px" if project_visible else "60px"
+        assert r["ctx"]["minWidth"] == expected, f"{key}: {r['ctx']}"
+        compact += not project_visible
+        wide += project_visible
+    assert compact and wide, "The matrix must exercise both sides of the collapse"
