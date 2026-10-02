@@ -12,6 +12,8 @@ both same-origin.
 """
 from __future__ import annotations
 
+from core.ui_palette import DARK_PALETTE_CSS
+
 _PAGE = """\
 <!doctype html>
 <html lang="en">
@@ -20,11 +22,9 @@ _PAGE = """\
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>web0.null · VOOL .null browser</title>
 <style>
-  :root {
-    --bg:#0a0a0a; --panel:#111; --panel2:#141414; --border:#222; --accent:#6cf;
-    --green:#4c4; --amber:#da3; --text:#ddd; --muted:#666; --radius:6px;
-    --font:"Courier New",monospace;
-  }
+__VOOL_PALETTE_CSS__
+  :root { --panel2:var(--field); --green:#4c4; --amber:#da3; --red:#f44;
+    --purple:#a8f; --radius:6px; --font:"Courier New",monospace; }
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   html,body{height:100%;}
   body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;
@@ -275,7 +275,7 @@ go();
 
 
 def render_null_browser_html() -> str:
-    return _PAGE
+    return _PAGE.replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
 
 
 __all__ = ["render_null_browser_html"]

@@ -69,13 +69,13 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
   position: absolute; left: 50%; bottom: calc(100% - 18px);
   transform: translateX(calc(-50% + var(--vn-bubble-dx, 0px)));
   max-width: 232px; min-width: 96px; padding: 6px 9px 7px; box-sizing: border-box;
-  background: rgba(16, 19, 24, .93); border: 1px solid var(--vn-tone, #94a3b8);
+  background: var(--panel,#1b1b1e); border: 1px solid var(--vn-tone, #94a3b8);
   border-radius: 9px; pointer-events: none; text-align: left; z-index: 2;
   display: flex; flex-direction: column; gap: 2px;
 }
 #companionLayer .vn-bubble::after {
   content: ""; position: absolute; left: 50%; top: 100%; width: 7px; height: 7px;
-  margin-left: -3.5px; background: rgba(16, 19, 24, .93);
+  margin-left: -3.5px; background: var(--panel,#1b1b1e);
   border-right: 1px solid var(--vn-tone, #94a3b8); border-bottom: 1px solid var(--vn-tone, #94a3b8);
   transform: rotate(45deg);
 }
@@ -114,7 +114,7 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important; }
 .vool-ninja-pop {
   position: fixed; z-index: 45; width: 300px; max-height: min(70vh, 480px); overflow-y: auto;
-  background: #0b0f14; color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
+  background: var(--panel,#1b1b1e); color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
   border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5); padding: 10px 12px; font-size: 12px;
 }
 .vool-ninja-pop h4 { margin: 8px 0 3px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted, #8b94a3); }
@@ -140,7 +140,7 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
 }
 .vool-character-lab .vn-lab-modal {
   width: min(620px, calc(100vw - 32px)); max-height: min(76vh, 620px); overflow: auto;
-  background: #11151b; color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
+  background: var(--panel,#1b1b1e); color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
   border-radius: 14px; box-shadow: 0 18px 55px rgba(0,0,0,.62); padding: 16px;
 }
 .vool-character-lab .vn-lab-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -149,17 +149,17 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
 .vool-character-lab .vn-lab-close { border: 0; background: none; color: var(--muted, #8b94a3); cursor: pointer; font-size: 18px; }
 .vool-character-lab .vn-lab-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
 .vool-character-lab .vn-character-card {
-  color: inherit; background: #161b22; border: 1px solid #2a3140; border-radius: 10px; padding: 8px;
+  color: inherit; background: var(--field,#232326); border: 1px solid var(--border,#39393f); border-radius: 10px; padding: 8px;
   cursor: pointer; text-align: left; min-width: 0;
 }
-.vool-character-lab .vn-character-card.selected { border-color: #5eead4; box-shadow: inset 0 0 0 1px #5eead4; }
+.vool-character-lab .vn-character-card.selected { border-color: var(--accent,#c3b8a8); box-shadow: inset 0 0 0 1px var(--accent,#c3b8a8); }
 .vool-character-lab .vn-character-card canvas { display: block; width: 96px; height: 96px; max-width: 100%; margin: auto; image-rendering: pixelated; }
 .vool-character-lab .vn-character-card b { display: block; margin-top: 5px; font-size: 11px; }
 .vool-character-lab .vn-character-card small { display: block; color: var(--muted, #8b94a3); font-size: 9px; }
 .vool-character-lab .vn-pack-title { margin: 15px 0 7px; color: var(--muted, #8b94a3); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .vool-character-lab .vn-pack-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
-.vool-character-lab .vn-pack-card { border: 1px solid #2a3140; border-radius: 8px; background: #161b22; color: inherit; padding: 7px; cursor: pointer; font-size: 10px; }
-.vool-character-lab .vn-pack-card.selected { border-color: #5eead4; color: #a7f3e5; }
+.vool-character-lab .vn-pack-card { border: 1px solid var(--border,#39393f); border-radius: 8px; background: var(--field,#232326); color: inherit; padding: 7px; cursor: pointer; font-size: 10px; }
+.vool-character-lab .vn-pack-card.selected { border-color: var(--accent,#c3b8a8); color: var(--accent,#c3b8a8); }
 .vool-character-lab button:focus-visible { outline: 2px solid var(--vn-tone, #94a3b8); outline-offset: 2px; }
 @media (max-width: 520px) {
   .vool-character-lab .vn-lab-grid { grid-template-columns: 1fr; }
@@ -279,11 +279,11 @@ const VN_FIXED = {
 // Typed colour language (TDL addendum). Tone derives from the SAME reducer output as
 // the phrase; colour is never the sole carrier — the word is always rendered alongside.
 const VN_TONES = {
-  start: "#38bdf8",        // START / voolling — cool cyan, calm exploration
-  active: "#22d3ee",       // active execution — brighter electric cyan
+  start: "#9ba1ab",        // START / voolling — calm slate
+  active: "#b9b2a9",       // active execution — warm stone
   synthesis: "#a78bfa",    // synthesis / threading — violet indigo
   verify: "#fbbf24",       // verification — warm gold attention, NOT failure
-  final: "#2dd4bf",        // finalization — teal, only on the real task.finalizing
+  final: "#c3b8a8",        // finalization — stone, only on the real task.finalizing
   waiting: "#94a3b8",      // waiting — neutral grey
   approval: "#fb923c",     // approval required — persistent orange
   retry: "#f97316",        // retry / recovery — controlled orange, not red panic
@@ -291,7 +291,7 @@ const VN_TONES = {
   failure: "#f87171",      // failure — red
   unknown: "#b3a284",      // unknown / unverified — muted amber-grey, distinct from pass and fail
   cancelled: "#9ca3af",    // cancelled — neutral grey
-  completed: "#7dd3fc",    // completed without independent review — neutral sky, never PASS green
+  completed: "#a8b3c0",    // completed without independent review — slate, never PASS green
   idle: "#8b94a3",
 };
 const VN_CATEGORY_TONES = {
