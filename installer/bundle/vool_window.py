@@ -350,6 +350,25 @@ def _close_to_dock_enabled() -> bool:
     return override not in ("0", "false", "no", "off")
 
 
+def _run_post_start(post_start) -> None:
+    """Run the post-start work once the native run loop is up.
+
+    ``post_start`` is the dock callback and is None on every non-macOS platform by contract
+    (``_dock_post_start`` returns None when close-to-Dock is disabled) — measured in the
+    Linux acceptance gate (run 36982838739, job 110761047078): calling it unconditionally
+    raised ``TypeError: 'NoneType' object is not callable`` on every Linux launch and
+    aborted the Settings-shortcut install with it. The Settings binding below stays
+    best-effort on each backend, exactly as before.
+    """
+    if post_start is not None:
+        post_start()
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(_install_settings_shortcut)   # main thread, like the dock hook
+    except Exception:
+        _install_settings_shortcut()
+
+
 def _dock_post_start(window: object):
     """Return a post-start callback (run by webview.start once the run loop is up) that installs the
     close-to-Dock delegates on the main thread, or None when disabled. Fail-soft."""
@@ -1369,12 +1388,7 @@ def main() -> int:
         _post_start = _dock_post_start(window)
 
         def _post_start_all() -> None:
-            _post_start()
-            try:
-                from PyObjCTools import AppHelper
-                AppHelper.callAfter(_install_settings_shortcut)   # main thread, like the dock hook
-            except Exception:
-                _install_settings_shortcut()
+            _run_post_start(_post_start)
 
         menu = _settings_menu(api)
         try:

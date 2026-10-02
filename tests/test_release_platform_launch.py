@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -120,6 +121,49 @@ def test_public_bootstrap_uses_the_public_repository() -> None:
     windows = (ROOT / "installer/bootstrap_vool.ps1").read_text()
     assert 'REPO="${VOOL_GITHUB_REPO:-vool}"' in shell
     assert '$RepoName = "vool"' in windows
+
+
+_POST_START_DRIVER = """
+    import importlib.util, sys, types
+
+    # Keep the Settings binding on its deterministic non-Cocoa fallback so the control does
+    # not depend on whether the host happens to have PyObjCTools installed.
+    sys.modules["PyObjCTools"] = None  # 'from PyObjCTools import ...' now raises ImportError
+    spec = importlib.util.spec_from_file_location("nw", {window!r})
+    nw = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(nw)
+
+    seen = []
+    nw._install_settings_shortcut = lambda *a, **k: seen.append("settings")
+
+    callback = None
+    if {with_callback}:
+        callback = lambda: seen.append("dock")
+    nw._run_post_start(callback)
+    print("POST-START", seen)
+"""
+
+
+@pytest.mark.parametrize("with_callback,expected", [(False, ["settings"]), (True, ["dock", "settings"])])
+def test_post_start_contract_covers_the_absent_dock_callback(tmp_path: Path, with_callback: bool,
+                                                             expected: list) -> None:
+    """The post-start hook must survive the absent dock callback and still do its own work.
+
+    ``_dock_post_start`` returns None on every non-macOS platform by contract; calling it
+    unconditionally raised ``TypeError: 'NoneType' object is not callable`` on every Linux
+    launch (run 36982838739, job 110761047078) and aborted the Settings-shortcut install
+    with it. The absent-callback case and the legitimate-callback case are both driven
+    through the real window-host module, off the real control flow.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    driver = tmp_path / "driver.py"
+    driver.write_text(textwrap.dedent(_POST_START_DRIVER.format(
+        window=str(ROOT / "installer/bundle/vool_window.py"), with_callback=with_callback)))
+    done = subprocess.run([sys.executable, str(driver)], capture_output=True, text=True, timeout=60,
+                          env={"PATH": "/usr/bin:/bin", "HOME": str(home)})
+    assert done.returncode == 0, done.stderr
+    assert f"POST-START {expected}" in done.stdout, done.stdout
 
 
 @pytest.mark.skipif(sys.platform == "linux", reason="requires a non-Linux host")
