@@ -1341,7 +1341,7 @@
     "vns.title.mac": "macOS pranešimai",
     "vns.title.prefs": "Tylios valandos, garsas ir ką rodo pranešimai",
     "vns.toggle.native": "Siųsti ir VOOL įspėjimus kaip macOS pranešimus",
-    "vns.toggle.sound": "Groti garsą su macOS pranešimais",
+    "vns.toggle.sound": "Pranešimų garsas",
     "vx.memory.empty": "Kol kas nieko neprisiminta — patvirtinti faktai atsiranda čia su savo išsaugota apimtimi, ir kiekvieną galima užmiršti.",
     "vx.memory.forget": "užmiršti",
     "vx.memory.forget_title": "Užmiršti būtent šį įrašą",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "Sustabdyta",
     "companion.state.cancelled": "Atšaukta",
     "companion.state.success": "Atlikta",
-    "companion.state.unknown": "Nežinoma"
+    "companion.state.unknown": "Nežinoma",
+    "vns.sound.help": "Švelnus garsas, kai darbas baigtas arba reikia jūsų veiksmo.",
+    "vns.sound.preview": "Išbandyti garsą",
+    "vns.sound.blocked": "Garso paleisti nepavyko. Pranešimai lieka varpelio meniu."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

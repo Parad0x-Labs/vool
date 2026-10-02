@@ -1341,7 +1341,7 @@
     "vns.title.mac": "macOS सूचनाएँ",
     "vns.title.prefs": "ख़ामोशी के घंटे, ध्वनि और सूचनाओं की सामग्री",
     "vns.toggle.native": "VOOL के अलर्ट macOS सूचनाओं में भी भेजें",
-    "vns.toggle.sound": "macOS सूचनाओं के साथ ध्वनि बजाएँ",
+    "vns.toggle.sound": "सूचना ध्वनि",
     "vx.memory.empty": "अभी कुछ याद नहीं है — पुष्ट सत्य अपनी सहेजी सीमा के साथ यहाँ आते हैं, और हर एक को भुलाया जा सकता है।",
     "vx.memory.forget": "भुलाएँ",
     "vx.memory.forget_title": "केवल यही प्रविष्टि भुलाएँ",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "रुक गया",
     "companion.state.cancelled": "रद्द किया गया",
     "companion.state.success": "हो गया",
-    "companion.state.unknown": "अज्ञात"
+    "companion.state.unknown": "अज्ञात",
+    "vns.sound.help": "काम पूरा होने या आपकी कार्रवाई की ज़रूरत होने पर हल्की ध्वनि।",
+    "vns.sound.preview": "ध्वनि सुनें",
+    "vns.sound.blocked": "ध्वनि चलाना उपलब्ध नहीं है। सूचनाएँ घंटी में बनी रहती हैं।"
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

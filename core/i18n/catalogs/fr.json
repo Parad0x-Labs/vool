@@ -1341,7 +1341,7 @@
     "vns.title.mac": "Notifications macOS",
     "vns.title.prefs": "Heures silencieuses, son et contenu des notifications",
     "vns.toggle.native": "Envoyer aussi les alertes VOOL en notifications macOS",
-    "vns.toggle.sound": "Jouer un son avec les notifications macOS",
+    "vns.toggle.sound": "Son des notifications",
     "vx.memory.empty": "Rien de mémorisé pour l’instant — les faits confirmés arrivent ici avec leur portée enregistrée, et chacun peut être oublié.",
     "vx.memory.forget": "oublier",
     "vx.memory.forget_title": "Oublier exactement cette entrée",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "Arrêté",
     "companion.state.cancelled": "Annulé",
     "companion.state.success": "Terminé",
-    "companion.state.unknown": "Inconnu"
+    "companion.state.unknown": "Inconnu",
+    "vns.sound.help": "Un son doux quand le travail est terminé ou nécessite votre intervention.",
+    "vns.sound.preview": "Écouter le son",
+    "vns.sound.blocked": "La lecture du son est indisponible. Les notifications restent dans la cloche."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1341,7 +1341,7 @@
     "vns.title.mac": "macOS-Mitteilungen",
     "vns.title.prefs": "Stille Stunden, Ton und was Mitteilungen zeigen",
     "vns.toggle.native": "VOOL-Erinnerungen zusätzlich als macOS-Mitteilungen senden",
-    "vns.toggle.sound": "Einen Ton mit macOS-Mitteilungen abspielen",
+    "vns.toggle.sound": "Benachrichtigungston",
     "vx.memory.empty": "Noch nichts erinnert — bestätigte Fakten landen hier mit ihrem gespeicherten Geltungsbereich, und jeder kann vergessen werden.",
     "vx.memory.forget": "vergessen",
     "vx.memory.forget_title": "Genau diesen Eintrag vergessen",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "Gestoppt",
     "companion.state.cancelled": "Abgebrochen",
     "companion.state.success": "Fertig",
-    "companion.state.unknown": "Unbekannt"
+    "companion.state.unknown": "Unbekannt",
+    "vns.sound.help": "Ein sanfter Ton, wenn die Arbeit fertig ist oder Ihre Mitwirkung benötigt.",
+    "vns.sound.preview": "Ton anhören",
+    "vns.sound.blocked": "Die Tonwiedergabe ist nicht verfügbar. Benachrichtigungen bleiben im Glockenmenü."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

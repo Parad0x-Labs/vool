@@ -1341,7 +1341,7 @@
     "vns.title.mac": "Уведомления macOS",
     "vns.title.prefs": "Тихие часы, звук и содержимое уведомлений",
     "vns.toggle.native": "Дублировать оповещения VOOL в уведомления macOS",
-    "vns.toggle.sound": "Проигрывать звук с уведомлениями macOS",
+    "vns.toggle.sound": "Звук уведомлений",
     "vx.memory.empty": "Пока ничего не запомнено — подтверждённые факты попадают сюда со своей сохранённой областью, и каждый можно забыть.",
     "vx.memory.forget": "забыть",
     "vx.memory.forget_title": "Забыть ровно эту запись",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "Остановлено",
     "companion.state.cancelled": "Отменено",
     "companion.state.success": "Готово",
-    "companion.state.unknown": "Неизвестно"
+    "companion.state.unknown": "Неизвестно",
+    "vns.sound.help": "Мягкий сигнал, когда работа завершена или требуется ваше действие.",
+    "vns.sound.preview": "Прослушать звук",
+    "vns.sound.blocked": "Воспроизведение звука недоступно. Уведомления остаются в меню колокольчика."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

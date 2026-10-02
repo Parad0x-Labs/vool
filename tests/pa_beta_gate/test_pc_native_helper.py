@@ -30,6 +30,8 @@ def test_helper_app_compiles_signs_and_reads_the_macos_notification_settings(tmp
     from core import notifications_macos
 
     app = notifications_macos.build_helper_app(tmp_path / notifications_macos.HELPER_APP_NAME, bundle_identifier=BUNDLE_ID)
+    from core.notification_audio import sound_wav
+    assert (app / "Contents" / "Resources" / "vool-pop.wav").read_bytes() == sound_wav()
     info = plistlib.loads((app / "Contents" / "Info.plist").read_bytes())
     assert info["CFBundleIdentifier"] == BUNDLE_ID and info["LSUIElement"] is True, info
     assert info["CFBundleExecutable"] == notifications_macos.HELPER_EXECUTABLE, info

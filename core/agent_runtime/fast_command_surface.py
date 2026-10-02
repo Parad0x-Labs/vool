@@ -1907,10 +1907,13 @@ def fast_path_result(
     if is_task:
         agent._emit_runtime_event(
             source_context,
-            event_type="task_completed",
+            event_type=("task_pending_approval" if (runtime_event_details or {}).get("approval_request") else
+                        "task_cancelled" if checkpoint_status == "cancelled" else
+                        "task_failed" if checkpoint_status != "completed" else "task_completed"),
             message=f"Fast-path response ready: {agent._runtime_preview(decorated_response)}",
             task_id=pseudo_task_id,
             status=reason,
+            **({"approval_request": (runtime_event_details or {})["approval_request"]} if (runtime_event_details or {}).get("approval_request") else {}),
             **_builder_runtime_event_details(runtime_event_details),
         )
     # `checkpoint_status`/`failure_text` let a caller whose response is only PARTIALLY successful

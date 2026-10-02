@@ -1341,7 +1341,7 @@
     "vns.title.mac": "Thông báo macOS",
     "vns.title.prefs": "Giờ im lặng, âm thanh và nội dung thông báo",
     "vns.toggle.native": "Gửi cả cảnh báo của VOOL qua thông báo macOS",
-    "vns.toggle.sound": "Phát âm thanh kèm thông báo macOS",
+    "vns.toggle.sound": "Âm thanh thông báo",
     "vx.memory.empty": "Chưa nhớ gì — các dữ kiện đã xác nhận sẽ đến đây cùng phạm vi lưu của chúng, và mỗi dữ kiện đều có thể bị quên.",
     "vx.memory.forget": "quên",
     "vx.memory.forget_title": "Quên đúng dữ kiện này",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "Đã dừng",
     "companion.state.cancelled": "Đã hủy",
     "companion.state.success": "Xong",
-    "companion.state.unknown": "Không rõ"
+    "companion.state.unknown": "Không rõ",
+    "vns.sound.help": "Âm thanh nhẹ khi công việc hoàn tất hoặc cần bạn xử lý.",
+    "vns.sound.preview": "Nghe thử",
+    "vns.sound.blocked": "Không thể phát âm thanh. Thông báo vẫn còn trong mục chuông."
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

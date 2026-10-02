@@ -4,7 +4,7 @@ Measured 2026-09-06 on the delivered build with a scratch daemon: the machine wr
 streamed `task.completed` and only then `permission.required`. The chat page ignores every
 non-verification event that reaches an ended run, so the approval bar never painted and the
 operator read the approval prompt as a refusal. The typed order is the contract this test pins:
-the actionable approval (with its id) precedes the turn's first `task.completed`.
+the actionable approval carries its id, and pending work never claims `task.completed`.
 
 No approval is granted; the directory is never created (asserted).
 """
@@ -53,12 +53,8 @@ def test_manual_mode_folder_request_streams_an_actionable_approval_before_comple
     assert not (Path.home() / "Desktop" / TARGET).exists(), "nothing was approved, nothing may be created"
     types = [ev.get("type") for ev in typed]
     assert "permission.required" in types, types
-    first_completed = types.index("task.completed")
+    assert "task.completed" not in types, "pending work must never claim successful completion"
     first_permission = types.index("permission.required")
-    assert first_permission < first_completed, (
-        f"the approval must precede the turn's completion, or the page (which ignores events after a run "
-        f"ends) never paints it: {types}"
-    )
     approval = typed[first_permission].get("approval") or {}
     assert approval.get("approval_id"), "the approval is a receipt without an id and cannot be answered"
     assert approval.get("intent") == "machine.ensure_directory", approval

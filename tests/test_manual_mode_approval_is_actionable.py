@@ -62,3 +62,12 @@ __streams['{A}'].push(ev({{ type: 'task.completed', seq: 3, summary: 'Completed'
 """)
     assert data["pending"] is False
     assert data["barHidden"] in (True, None), data
+
+
+def test_pending_transport_ends_without_a_false_success_event_and_keeps_actionable_bar():
+    data = _run(f"""
+__streams['{A}'].push(ev({{ type: 'permission.required', seq: 2, stage: 'Waiting for permission', summary: 'Needs approval', approval: {json.dumps(APPROVAL)} }}));
+__streams['{A}'].push(chunk('Manual mode requires approval for this exact action.'));
+""")
+    assert data['pending'] and data['pendingId'] == 'appr-1', data
+    assert data['barHidden'] is False and data['runEnded'], data
