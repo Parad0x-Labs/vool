@@ -1,7 +1,10 @@
 """Synthetic runtime events through real persistence and served owner routes."""
 from concurrent.futures import ThreadPoolExecutor
+
 import pytest
+
 from tests.pa_beta_gate._pc_calendar_rig import api_get, api_post, prepare_home
+
 
 @pytest.fixture
 def home(tmp_path, monkeypatch):
@@ -9,8 +12,8 @@ def home(tmp_path, monkeypatch):
     return prepare_home(tmp_path, monkeypatch)
 
 def event(turn='export', kind='task_completed', chat='chat-a'):
-    from core.runtime_task_events import emit_runtime_event
     from core.mode_permission_policy import register_external_approval
+    from core.runtime_task_events import emit_runtime_event
     token = register_external_approval({'session_id': chat, 'task_id': turn}) if kind == 'task_pending_approval' else ''
     emit_runtime_event({'session_id':chat, 'cancel_turn_id':turn}, event_type=kind,
                        message='Synthetic bounded work', details={'approval_request':{'approval_id':token}} if kind=='task_pending_approval' else {})
@@ -87,7 +90,7 @@ def test_actual_permission_authority_revokes_pending_sound(home):
 
 
 def test_native_task_request_uses_chime_once_and_rehand_is_silent(home,monkeypatch):
-    from tests.pa_beta_gate._pc_calendar_rig import Clock,T0
+    from tests.pa_beta_gate._pc_calendar_rig import T0, Clock
     clock=Clock(T0,monkeypatch)
     api_post('/api/notifications/preferences',{'preferences':{'native_notifications':True}})
     api_post('/api/notifications/native/report',{'bridge_id':'sound-native','events':[{'event':'settings','authorization':'authorized','sound':'enabled'}]})
@@ -104,7 +107,11 @@ def test_native_task_request_uses_chime_once_and_rehand_is_silent(home,monkeypat
 
 
 def test_waveform_matches_approved_soft_water_drop():
-    import hashlib,io,wave,struct
+    import hashlib
+    import io
+    import struct
+    import wave
+
     from core.notification_audio import sound_wav
     data=sound_wav()
     assert hashlib.sha256(data).hexdigest() == "8865db59e130762acb39ed75e5dc5dc7627788afe09662017dbb5c090fbd76a2"
@@ -121,8 +128,8 @@ def test_waveform_matches_approved_soft_water_drop():
 
 
 def test_mute_refreshes_os_owned_future_timer_without_new_identifier(home,monkeypatch):
-    from tests.pa_beta_gate._pc_calendar_rig import Clock,T0
     from core.operator import reminders
+    from tests.pa_beta_gate._pc_calendar_rig import T0, Clock
     clock=Clock(T0,monkeypatch)
     api_post('/api/notifications/preferences',{'preferences':{'native_notifications':True}})
     api_post('/api/notifications/native/report',{'bridge_id':'future','events':[{'event':'settings','authorization':'authorized'}]})
@@ -137,7 +144,7 @@ def test_mute_refreshes_os_owned_future_timer_without_new_identifier(home,monkey
 
 
 def test_concurrent_settings_patches_keep_both_preferences(home):
-    from core.operator.notification_center import save_preferences,load_preferences
+    from core.operator.notification_center import load_preferences, save_preferences
     with ThreadPoolExecutor(2) as pool:
         results=list(pool.map(save_preferences,[{'sound':False},{'lock_screen':'hidden'}]))
     assert all(x['ok'] for x in results)

@@ -190,7 +190,6 @@ def outbox(
 ) -> dict[str, Any]:
     """The requests the bridge should hand to macOS now: withdrawals first, then re-sends, then new requests."""
     from core.operator import notification_center
-
     from core.operator.notification_hub import sync_pending_actions
     sync_pending_actions()
     now_iso = now_fn()

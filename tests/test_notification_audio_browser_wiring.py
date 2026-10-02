@@ -1,5 +1,6 @@
 """Node component proof of observer/claim wiring; actual audio is a platform lane."""
 import re
+
 from core.notification_fragment import render_notification_fragment
 from tests.chat_page_js_harness import DOM, run_node
 
