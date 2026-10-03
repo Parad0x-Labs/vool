@@ -33,6 +33,7 @@ from core.runtime_continuity import (
     upsert_runtime_attempt_subtask,
 )
 from storage.migrations import run_migrations
+from tests._turn_session_identity import echoed_session_identity
 
 
 def _mp_create_retry_worker_sabotaged_no_uniqueness(db_path: str, parent_attempt_id: str, trigger_turn: str, barrier, out_queue) -> None:
@@ -351,7 +352,7 @@ class MutationDRemoveTurnWiringTests(unittest.TestCase):
                     "market prices for gold and bitcoin plus weather in Atlantisxyzabc123 and Kaunas",
                     source_context={"surface": "openclaw", "platform": "openclaw"},
                 )
-                sid = incident["session_id"]
+                sid = echoed_session_identity(agent, incident)
 
                 with mock.patch.object(VoolAgent, "_canonical_user_turn_id", staticmethod(lambda source_context: "")):
                     retry_result = agent.run_once(

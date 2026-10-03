@@ -24,6 +24,7 @@ from core.runtime_continuity import (
     reset_runtime_continuity_state,
 )
 from storage.migrations import run_migrations
+from tests._turn_session_identity import echoed_session_identity
 
 _SOURCE_CONTEXT = {"surface": "openclaw", "platform": "openclaw"}
 _INCIDENT_TEXT = "market prices for gold and bitcoin plus weather in Atlantisxyzabc123 and Kaunas"
@@ -76,7 +77,7 @@ class RetryTurnIdentityTests(unittest.TestCase):
              mock.patch("tools.web.web_research._market_quote_fallback_multi", side_effect=fake_commodity), \
              mock.patch("tools.web.web_research.structured_weather_lookup", side_effect=fake_weather):
             result = self.agent.run_once(_INCIDENT_TEXT, source_context=dict(_SOURCE_CONTEXT))
-        return result["session_id"]
+        return echoed_session_identity(self.agent, result)
 
     def test_first_attempt_has_real_matching_origin_and_trigger_turn_ids(self) -> None:
         sid = self._submit_incident()

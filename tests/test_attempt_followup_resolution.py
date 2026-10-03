@@ -18,6 +18,7 @@ from unittest import mock
 from apps.vool_agent import VoolAgent
 from core.runtime_continuity import configure_runtime_continuity_db_path, reset_runtime_continuity_state
 from storage.migrations import run_migrations
+from tests._turn_session_identity import echoed_session_identity
 
 _SOURCE_CONTEXT = {"surface": "openclaw", "platform": "openclaw"}
 _INCIDENT_TEXT = "market prices for gold and bitcoin plus weather in Atlantisxyzabc123 and Kaunas"
@@ -79,7 +80,7 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
              mock.patch("tools.web.web_research._market_quote_fallback_multi", side_effect=fake_commodity), \
              mock.patch("tools.web.web_research.structured_weather_lookup", side_effect=fake_weather):
             result = self.agent.run_once(_INCIDENT_TEXT, source_context=dict(_SOURCE_CONTEXT))
-        return result["session_id"]
+        return echoed_session_identity(self.agent, result)
 
     # --- positive production-path tests -----------------------------------------------------
 
@@ -143,7 +144,7 @@ class AttemptFollowupResolutionTests(unittest.TestCase):
                 source_url="https://x", observed_at="02:35 PM",
             )
             first = self.agent.run_once("weather in Kaunas and Vilnius", source_context=dict(_SOURCE_CONTEXT))
-        sid = first["session_id"]
+        sid = echoed_session_identity(self.agent, first)
 
         def tripwire_refetch(*_a, **_k):
             raise AssertionError("repeat-original-request re-fetched instead of reconstructing")
