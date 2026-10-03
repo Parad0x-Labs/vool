@@ -6442,6 +6442,7 @@ class VoolAgent(
         reason: str,
         classification_details: dict[str, Any] | None = None,
         runtime_event_details: dict[str, Any] | None = None,
+        checkpoint_status: str = "completed",
         failure_text: str = "",
         route_prefix: str = "deterministic",
     ) -> dict:
@@ -6461,6 +6462,8 @@ class VoolAgent(
             kwargs["classification_details"] = classification_details
         if runtime_event_details is not None:
             kwargs["runtime_event_details"] = runtime_event_details
+        if checkpoint_status != "completed":
+            kwargs["checkpoint_status"] = checkpoint_status
         if failure_text:
             kwargs["failure_text"] = failure_text
         if reason in _UNFULFILLED_FAST_PATH_REASONS or failure_text:

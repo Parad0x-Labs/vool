@@ -13,6 +13,16 @@ from core.operator import notification_center as centre
 
 _LOCK = threading.RLock()
 _BASELINE = "model_news_inbox_v1"
+# Canonical runtime reasons for greetings, transport polling and UI controls.
+# These are terminal transport receipts, not completed requested work.
+_NON_WORK_COMPLETIONS = frozenset({
+    "smalltalk_fast_path", "empty_turn_fast_path", "help_fast_path",
+    "startup_sequence_fast_path", "heartbeat_poll_fast_path", "ui_command_fast_path",
+    "user_preference_command", "bare_secret_intercept", "cloud_key_command",
+    "image_key_command", "cloud_model_command", "cloud_models_command",
+    "cloud_escalation_command", "spend_brakes_command", "hive_cleanup_noop",
+    "image_generate_cancelled", "hive_topic_create_cancelled",
+})
 
 
 def _key(provider, model, kind, before, after, offer="permanent", expiry=""):
@@ -57,6 +67,7 @@ def sync_model_news():
     from core.model_market_feed import read_events
     from storage import model_radar as radar
 
+    sync_pending_actions()
     with _LOCK:
         conn = centre._default_connection()
         try:
@@ -157,6 +168,8 @@ def record_runtime_event(session_id, event):
     kind = event.get("event_type")
     if kind not in {"task_completed", "task_failed", "task_cancelled", "task_pending_approval"}:
         return
+    if kind == "task_completed" and event.get("status") in _NON_WORK_COMPLETIONS:
+        return
     turn = event.get("client_turn_id") or event.get("turn_key")
     if not turn:
         return  # no stable identity: never guess which turn ended
@@ -164,7 +177,55 @@ def record_runtime_event(session_id, event):
     identity = ""
     if kind == "task_pending_approval":
         identity = hashlib.sha256(json.dumps(event.get("approval_request") or {}, sort_keys=True).encode()).hexdigest()
+    # Terminal truth closes earlier action cards for this exact turn only.
+    if kind in {"task_completed", "task_failed", "task_cancelled"}:
+        conn = centre._default_connection()
+        try:
+            rows = conn.execute("SELECT notification_id, payload_json FROM notification_items WHERE session_id = ? AND source_kind = 'background_run' AND superseded_at IS NULL", (session_id,)).fetchall()
+            for row in rows:
+                payload = json.loads(row["payload_json"])
+                if payload.get("turn_id") == turn and payload.get("event_type") == "task_pending_approval":
+                    conn.execute("UPDATE notification_items SET superseded_at = ? WHERE notification_id = ?", (centre._utcnow(), row["notification_id"]))
+            conn.commit()
+        finally:
+            conn.close()
+    from core.operator.notification_audio import enabled_now
+    approval_id = str((event.get('approval_request') or {}).get('approval_id') or '')
+    from core.mode_permission_policy import approval_is_pending
+    approval_pending = bool(approval_id) and approval_is_pending(approval_id)
+    preferences = centre.load_preferences()
+    eligible = (kind in {"task_completed", "task_pending_approval"}
+                and (kind != "task_pending_approval" or approval_pending)
+                and enabled_now(preferences=preferences))
     centre.record_item(dedupe_key=f"runtime:{session_id}:{turn}:{kind}:{identity}", source_kind="background_run",
                        title="Chat " + status, body=str(event.get("message") or ""), session_id=session_id,
                        payload={"section": "needs" if kind in {"task_failed", "task_pending_approval"} else "updates",
-                                "turn_id": turn, "status": status, "event_type": kind})
+                                "turn_id": turn, "status": status, "event_type": kind, "audio_eligible": eligible,
+                                "audio_owner": "native" if preferences["native_notifications"] else "browser",
+                                "approval_id": approval_id})
+
+
+def supersede_closed_action(conn, row, *, now_iso):
+    """Recheck canonical consent at delivery, preserving the original action identity."""
+    payload = json.loads(row['payload_json'] or '{}')
+    if payload.get('event_type') != 'task_pending_approval':
+        return False
+    from core.mode_permission_policy import approval_is_pending
+    token = payload.get('approval_id')
+    if token and approval_is_pending(token):
+        return False
+    conn.execute('UPDATE notification_items SET superseded_at = ? WHERE notification_id = ?',
+                 (now_iso, row['notification_id']))
+    return True
+
+
+def sync_pending_actions():
+    """Resolved, denied and expired approvals are no longer Needs-you items."""
+    conn = centre._default_connection()
+    try:
+        rows = conn.execute("SELECT notification_id, payload_json FROM notification_items WHERE source_kind = 'background_run' AND superseded_at IS NULL").fetchall()
+        for row in rows:
+            supersede_closed_action(conn, row, now_iso=centre._utcnow())
+        conn.commit()
+    finally:
+        conn.close()

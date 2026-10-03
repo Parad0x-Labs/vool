@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import sys
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
@@ -46,7 +47,7 @@ UNKNOWN_CAP = 50
 STATUS_ROWS = 20
 _SQL_CHUNK = 400
 IDENTIFIER_PREFIX = "vool."
-NATIVE_KINDS = ("calendar_alert", "calendar_catch_up", "reminder", "test")
+NATIVE_KINDS = ("calendar_alert", "calendar_catch_up", "reminder", "test", "background_run")
 AUTHORIZATIONS = ("not_determined", "denied", "authorized", "provisional", "ephemeral")
 SENDABLE = frozenset({"authorized", "provisional", "ephemeral"})
 SETTINGS_KEYS = ("authorization", "alert", "sound", "notification_center", "lock_screen", "previews", "alert_style")
@@ -59,6 +60,7 @@ GENERIC_BODY = {
     "calendar_catch_up": "Calendar alerts passed while VOOL was not running",
     "reminder": "A reminder is due",
     "test": "Test notification",
+    "background_run": "A chat completed or needs your action",
 }
 #: What the macOS channel is and is not, shown beside its settings.
 EXPLANATION = (
@@ -124,7 +126,7 @@ def _load_state(conn: Any) -> dict[str, Any]:
     stored = _decode(row["value_json"]) if row is not None else {}
     state: dict[str, Any] = {
         "enabled_at": "", "want_authorization": False, "settings": {}, "settings_at": "", "seen_at": "", "bridge_id": "",
-        "helper_version": "", "unknown_identifiers": [], "authorization_request": {},
+        "audio_started_at": "", "helper_version": "", "unknown_identifiers": [], "authorization_request": {},
     }
     for key in state:
         if key in stored:
@@ -188,7 +190,8 @@ def outbox(
 ) -> dict[str, Any]:
     """The requests the bridge should hand to macOS now: withdrawals first, then re-sends, then new requests."""
     from core.operator import notification_center
-
+    from core.operator.notification_hub import sync_pending_actions
+    sync_pending_actions()
     now_iso = now_fn()
     now = _parse(now_iso) or datetime.now(timezone.utc)
     preferences = notification_center.load_preferences(get_connection_fn=get_connection_fn)
@@ -198,7 +201,12 @@ def outbox(
     conn = get_connection_fn()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        preferences = notification_center._load_preferences_conn(conn)
+        enabled = bool(preferences['native_notifications'])
         state = _load_state(conn)
+        seen = _parse(state['seen_at'])
+        if state['bridge_id'] != str(bridge_id or '')[:80] or not seen or now - seen > timedelta(seconds=CONNECTED_WITHIN_SECONDS):
+            state['audio_started_at'] = now_iso
         state.update(seen_at=now_iso, bridge_id=str(bridge_id or "")[:80], helper_version=str(helper_version or "")[:40])
         authorization = str(state["settings"].get("authorization") or "")
         for identifier in [str(value) for value in state["unknown_identifiers"]][:OUTBOX_CAP]:
@@ -206,7 +214,8 @@ def outbox(
         state["unknown_identifiers"] = []
         _withdrawals(conn, now=now, now_iso=now_iso, enabled=enabled, ops=ops, effects=effects)
         if enabled and authorization in SENDABLE:
-            _rehands(conn, now=now, now_iso=now_iso, ops=ops, effects=effects)
+            _refresh_scheduled_sound(conn, now=now, now_iso=now_iso, preferences=preferences)
+            _rehands(conn, now=now, now_iso=now_iso, ops=ops, effects=effects, sound_enabled=preferences['sound'])
         if enabled and authorization:
             _immediate(conn, now=now, now_iso=now_iso, state=state, authorization=authorization, preferences=preferences,
                        ops=ops, effects=effects)
@@ -288,17 +297,33 @@ def _withdraw_reason(row: Any, *, now: datetime, enabled: bool) -> str:
             return "the alert moved or was snoozed"
         if status == "cancelled":
             return "the alert was cancelled"
-        if dismissed and row["state"] in ("submitted", "listed"):
+        if dismissed and row["state"] in ("queued", "submitted", "listed"):
             return "dismissed in VOOL"
         return ""
     if not enabled and row["state"] == "queued":
         return "macOS notifications were turned off in VOOL"
-    if dismissed and row["state"] in ("submitted", "listed"):
+    if dismissed and row["state"] in ("queued", "submitted", "listed"):
         return "dismissed in VOOL"
     return ""
 
 
-def _rehands(conn: Any, *, now: datetime, now_iso: str, ops: list[dict[str, Any]], effects: list[tuple[Any, ...]]) -> None:
+def _refresh_scheduled_sound(conn: Any, *, now: datetime, now_iso: str, preferences: dict[str, Any]) -> None:
+    """Replace future OS requests under the SAME identifier when mute changes.
+
+    macOS already owns these timers; the connected bridge must update them too.
+    Immediate requests already accepted by macOS cannot be unsounded retroactively.
+    """
+    rows = conn.execute("SELECT * FROM native_notification_requests WHERE kind = 'scheduled' AND state IN ('queued', 'submitted') AND deliver_at_utc > ?", (now.isoformat(),)).fetchall()
+    for row in rows:
+        op = _decode(row['request_json'])
+        desired = bool(preferences['sound'])
+        if op and op.get('sound') != desired:
+            op['sound'] = desired
+            conn.execute("UPDATE native_notification_requests SET request_json = ?, state = 'queued', hand_count = 0, handed_at = ?, updated_at = ? WHERE identifier = ?",
+                         (json.dumps(op, sort_keys=True), (now - timedelta(seconds=REHAND_AFTER_SECONDS)).isoformat(), now_iso, row['identifier']))
+
+
+def _rehands(conn: Any, *, now: datetime, now_iso: str, ops: list[dict[str, Any]], effects: list[tuple[Any, ...]], sound_enabled: bool = True) -> None:
     cutoff = (now - timedelta(seconds=REHAND_AFTER_SECONDS)).isoformat()
     rows = conn.execute(
         "SELECT * FROM native_notification_requests WHERE state = 'queued' AND handed_at != '' AND handed_at <= ? ORDER BY created_at ASC",
@@ -325,6 +350,9 @@ def _rehands(conn: Any, *, now: datetime, now_iso: str, ops: list[dict[str, Any]
             if row["notification_id"]:
                 effects.append(("delivery", row["notification_id"], "failed", detail, row["identifier"]))
             continue
+        # Replacing an uncertain submitted request can otherwise ding again.
+        if op.get("source_kind") == "background_run" or not sound_enabled:
+            op["sound"] = False
         ops.append(op)
         conn.execute(
             "UPDATE native_notification_requests SET handed_at = ?, hand_count = hand_count + 1, updated_at = ? WHERE identifier = ?",
@@ -355,6 +383,13 @@ def _immediate(conn: Any, *, now: datetime, now_iso: str, state: dict[str, Any],
         if len(ops) >= OUTBOX_CAP:
             return
         notification_id, source_kind = row["notification_id"], row["source_kind"]
+        payload = _decode(row["payload_json"])
+        if source_kind == "background_run" and payload.get("event_type") not in {"task_completed", "task_pending_approval"}:
+            continue
+        if source_kind == "background_run":
+            from core.operator.notification_hub import supersede_closed_action
+            if supersede_closed_action(conn, row, now_iso=now_iso):
+                continue
         generation = _generation(row["dedupe_key"])
         if row["schedule_id"] and generation is not None:
             linked = conn.execute(
@@ -388,6 +423,11 @@ def _immediate(conn: Any, *, now: datetime, now_iso: str, state: dict[str, Any],
         op = _submit_op(identifier=identifier, kind="immediate", deliver_at="", source_kind=source_kind, title=row["title"],
                         body=row["body"], preferences=preferences, thread=row["event_key"] or f"vool.{source_kind}",
                         notification_id=notification_id, schedule_id=row["schedule_id"])
+        if source_kind == "background_run":
+            from core.operator.notification_audio import claim
+            op["sound"] = bool(payload.get("audio_owner") == "native" and row['created_at'] >= state['audio_started_at'] and
+                               claim(conn, row, now_iso=now_iso, channel="native", preferences=preferences))
+            op["sound_name"] = "vool-pop.wav"
         conn.execute(_INSERT, (identifier, "immediate", notification_id, row["schedule_id"], generation or 0, "", "queued",
                                "handed to the macOS bridge", json.dumps(op, sort_keys=True), 1, now_iso, now_iso, now_iso))
         effects.append(("delivery", notification_id, "queued", "handed to the macOS bridge", identifier))
@@ -698,6 +738,7 @@ def bridge_status(*, now_fn: Callable[[], str] = _utcnow, get_connection_fn: Cal
         "ok": True,
         "enabled": bool(preferences.get("native_notifications")),
         "connected": connected,
+        "supported": sys.platform == "darwin",
         "seen_at": state["seen_at"],
         "helper_version": state["helper_version"],
         "authorization": str(state["settings"].get("authorization") or "") or "unknown",

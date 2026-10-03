@@ -1341,7 +1341,7 @@
     "vns.title.mac": "macOS通知",
     "vns.title.prefs": "サイレント時間・サウンド・通知の表示内容",
     "vns.toggle.native": "VOOLのアラートをmacOS通知にも送る",
-    "vns.toggle.sound": "macOS通知でサウンドを再生する",
+    "vns.toggle.sound": "通知音",
     "vx.memory.empty": "まだ何も記憶していません。確認済みの事実は保存スコープ付きでここに届き、それぞれ忘れられます。",
     "vx.memory.forget": "忘れる",
     "vx.memory.forget_title": "この項目だけを忘れる",
@@ -1744,9 +1744,12 @@
     "companion.state.failure": "停止しました",
     "companion.state.cancelled": "キャンセル済み",
     "companion.state.success": "完了",
-    "companion.state.unknown": "不明"
+    "companion.state.unknown": "不明",
+    "vns.sound.help": "作業が完了したときや対応が必要なときに、穏やかな音で知らせます。",
+    "vns.sound.preview": "音を試聴",
+    "vns.sound.blocked": "音を再生できません。通知はベルに残ります。"
   },
-  "source_catalog_sha256": "61052a49e4b2ebe243c2f08401b90b055a899009cca2c49269d3f4414d4ae828",
+  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

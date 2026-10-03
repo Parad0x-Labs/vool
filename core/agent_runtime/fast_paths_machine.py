@@ -705,6 +705,8 @@ def _machine_tool_fast_path_result(
         source_context=source_context,
         reason=reason,
         runtime_event_details=details,
+        checkpoint_status="pending_approval" if approval_request else "cancelled" if status == "cancelled" else "completed" if ok else "failed",
+        failure_text="" if ok or approval_request else step_summary,
     )
     result["mode"] = mode
     result["details"] = details

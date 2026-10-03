@@ -1693,7 +1693,7 @@
     "vns.title.mac": "macOS notifications",
     "vns.title.prefs": "Quiet hours, sound and what notifications show",
     "vns.toggle.native": "Also send VOOL alerts to macOS notifications",
-    "vns.toggle.sound": "Play a sound with macOS notifications",
+    "vns.toggle.sound": "Notification sound",
     "vx.memory.empty": "Nothing remembered yet — confirmed facts land here with their stored scope, and each can be forgotten.",
     "vx.memory.forget": "forget",
     "vx.memory.forget_title": "Forget exactly this entry",
@@ -1744,7 +1744,10 @@
     "wallet.sign_phantom": "Sign with Phantom",
     "wallet.signature": "signature",
     "wallet.testnet_badge": "testnet funds, not real money",
-    "wallet.watch_only_hint": "watch-only: this proposal can be approved in an external wallet, not signed here"
+    "wallet.watch_only_hint": "watch-only: this proposal can be approved in an external wallet, not signed here",
+    "vns.sound.help": "A gentle chime when work completes or needs you.",
+    "vns.sound.preview": "Preview sound",
+    "vns.sound.blocked": "Sound playback is unavailable. Notifications remain in the bell."
   },
   "html_keys": [
     "bypass.modal_limits",

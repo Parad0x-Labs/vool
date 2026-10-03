@@ -3071,6 +3071,15 @@ def register_external_approval(request: dict[str, Any]) -> str:
     return token
 
 
+def approval_is_pending(token: str) -> bool:
+    """Read the existing approval authority without granting or consuming anything."""
+    _ensure_approvals_restored()
+    with _LOCK:
+        approval = _APPROVALS.get(str(token or ""))
+        return bool(approval and approval.get("status") == "pending" and
+                    float(approval.get("expires_at") or 0) > time.time())
+
+
 def resolve_approval(token: str, *, decision: str, scope: str = "once") -> dict[str, Any] | None:
     _ensure_approvals_restored()
     clean_token = str(token or "").strip()

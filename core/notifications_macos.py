@@ -140,7 +140,10 @@ func submit(_ request: [String: Any]) {
     let content = UNMutableNotificationContent()
     content.title = (request["title"] as? String) ?? "VOOL"
     content.body = (request["body"] as? String) ?? ""
-    if (request["sound"] as? Bool) ?? true { content.sound = UNNotificationSound.default }
+    if (request["sound"] as? Bool) ?? true {
+        content.sound = (request["sound_name"] as? String) == "vool-pop.wav"
+            ? UNNotificationSound(named: UNNotificationSoundName(rawValue: "vool-pop.wav")) : UNNotificationSound.default
+    }
     content.threadIdentifier = (request["thread"] as? String) ?? "vool"
     content.categoryIdentifier = (request["category"] as? String) ?? "vool.info"
     content.userInfo = ["vool_identifier": identifier]
@@ -308,7 +311,8 @@ def swift_source() -> str:
 
 
 def source_digest() -> str:
-    return hashlib.sha256((PROTOCOL_VERSION + _SWIFT_SOURCE).encode("utf-8")).hexdigest()[:16]
+    from core.notification_audio import sound_wav
+    return hashlib.sha256((PROTOCOL_VERSION + _SWIFT_SOURCE).encode("utf-8") + sound_wav()).hexdigest()[:16]
 
 
 def helper_executable(app: Path) -> Path:
@@ -364,6 +368,10 @@ def build_helper_app(destination: Path, *, bundle_identifier: str, arch: str | N
         if compiled.returncode != 0 or not helper_executable(staged).exists():
             lines = (compiled.stderr or b"").decode("utf-8", "replace").strip().splitlines()
             raise RuntimeError("the notification helper did not compile: " + ("; ".join(lines[-3:]) or "unknown compiler error"))
+        from core.notification_audio import sound_wav
+        resources = staged / "Contents" / "Resources"
+        resources.mkdir(parents=True, exist_ok=True)
+        (resources / "vool-pop.wav").write_bytes(sound_wav())
         (staged / "Contents" / "Info.plist").write_bytes(_info_plist(identifier, floor))
         signed = subprocess.run([CODESIGN, "--force", "--sign", "-", "--identifier", identifier, str(staged)],
                                 capture_output=True, timeout=120, check=False)

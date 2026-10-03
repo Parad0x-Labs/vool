@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 SOURCE_KINDS = frozenset({"calendar_alert", "calendar_catch_up", "reminder", "test", "model_offer", "model_market", "background_run"})
-CHANNELS = frozenset({"in_app", "session_log", "macos"})
+CHANNELS = frozenset({"in_app", "session_log", "macos", "audio"})
 DELIVERY_STATES = frozenset({
     "recorded", "queued", "submitted", "listed", "acknowledged", "suppressed", "failed", "uncertain",
     "withdraw_requested", "withdrawn",
@@ -416,17 +416,22 @@ def unread_count(*, get_connection_fn: Callable[[], Any] = _default_connection) 
 # ---------------------------------------------------------------------------------------------
 
 
-def load_preferences(*, get_connection_fn: Callable[[], Any] = _default_connection) -> dict[str, Any]:
+def _load_preferences_conn(conn: Any) -> dict[str, Any]:
+    """Read the typed preference authority inside an existing delivery transaction."""
     preferences = copy.deepcopy(DEFAULT_PREFERENCES)
-    conn = get_connection_fn()
-    try:
-        row = conn.execute("SELECT value_json FROM notification_preferences WHERE pref_key = 'global'").fetchone()
-    finally:
-        conn.close()
+    row = conn.execute("SELECT value_json FROM notification_preferences WHERE pref_key = 'global'").fetchone()
     stored = _decode(row["value_json"]) if row is not None else {}
-    with contextlib.suppress(ValueError):  # a damaged stored value never replaces the defaults with a guess
+    with contextlib.suppress(ValueError):
         preferences.update(_validated_preferences(stored, base=preferences))
     return preferences
+
+
+def load_preferences(*, get_connection_fn: Callable[[], Any] = _default_connection) -> dict[str, Any]:
+    conn = get_connection_fn()
+    try:
+        return _load_preferences_conn(conn)
+    finally:
+        conn.close()
 
 
 def save_preferences(
@@ -437,14 +442,15 @@ def save_preferences(
 ) -> dict[str, Any]:
     if not isinstance(patch, dict):
         return {"ok": False, "reason": "invalid_preferences", "detail": "preferences must be an object"}
-    current = load_preferences(get_connection_fn=get_connection_fn)
-    before = copy.deepcopy(current)
-    try:
-        current.update(_validated_preferences(patch, base=current))
-    except ValueError as exc:
-        return {"ok": False, "reason": "invalid_preferences", "detail": str(exc)}
     conn = get_connection_fn()
     try:
+        conn.execute("BEGIN IMMEDIATE")
+        current = _load_preferences_conn(conn)
+        before = copy.deepcopy(current)
+        try:
+            current.update(_validated_preferences(patch, base=current))
+        except ValueError as exc:
+            return {"ok": False, "reason": "invalid_preferences", "detail": str(exc)}
         conn.execute(
             """
             INSERT INTO notification_preferences (pref_key, value_json, updated_at) VALUES ('global', ?, ?)
