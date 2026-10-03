@@ -2677,21 +2677,38 @@ def no_answer_terminal_line(terminal: dict[str, Any], *, created_at: str | None 
     return json.dumps({"vool_terminal": payload}, separators=(",", ":")).encode("utf-8") + b"\n"
 
 
-def _final_task_event(result_payload: dict[str, Any], *, cancelled: bool = False) -> dict[str, Any]:
-    """Terminal task.completed/task.failed/task.cancelled event synthesized from the turn result,
-    carrying the final model lane + cost so the card can collapse to a verified summary.
+def _final_task_event(result_payload: dict[str, Any], *, cancelled: bool = False) -> dict[str, Any] | None:
+    """Project terminal task truth without treating the end of transport as success.
 
-    `cancelled` is read by the caller from the committed bytes: a turn the operator cancelled
-    before publication commits the typed cancel notice, and its terminal is `task.cancelled`,
-    never a `task.completed` that would paint a finished answer under a cancelled turn."""
+    Pending approval already has an actionable permission event. The final NDJSON frame closes
+    its transport, but the task remains pending, so no terminal task event is synthesized.
+    Cancellation and explicit unfulfilled results retain their authoritative outcome, while
+    ordinary legacy results preserve completion and model/cost framing.
+    """
     usage = result_payload.get("usage_summary") if isinstance(result_payload.get("usage_summary"), dict) else {}
-    ok = not bool(result_payload.get("error")) and str(result_payload.get("status") or "ok").lower() not in {"failed", "error"}
-    if cancelled:
+    status = str(result_payload.get("status") or "").strip().lower()
+    task_outcome = str(result_payload.get("task_outcome") or "").strip().lower()
+    fulfillment = result_payload.get("fulfillment_outcome")
+    fulfillment_status = (
+        str(fulfillment.get("fulfillment_status") or "").strip().lower()
+        if isinstance(fulfillment, dict) else ""
+    )
+    is_cancelled = cancelled or "cancelled" in {status, task_outcome, fulfillment_status}
+    if not is_cancelled and "pending_approval" in {status, task_outcome}:
+        return None
+    ok = not (
+        bool(result_payload.get("error"))
+        or result_payload.get("success") is False
+        or status in {"failed", "error", "blocked"}
+        or task_outcome in {"failed", "failure", "blocked", "partial", "partially_fulfilled"}
+        or fulfillment_status in {"failed", "blocked", "partially_fulfilled"}
+    )
+    if is_cancelled:
         event: dict[str, Any] = {
             "type": "task.cancelled",
             "raw_type": "stream_result",
             "stage": "Cancelled",
-            "summary": "Cancelled before publication",
+            "summary": "Cancelled before publication" if cancelled else "Cancelled",
             "tool": None,
             "status": "cancelled",
         }
@@ -3369,12 +3386,12 @@ def _stream_agent_with_events_inner(
                     from core.finalization import CANCELLED_BEFORE_PUBLICATION
 
                     _committed = str((response_commit or {}).get("canonical_content") or "")
-                    yield task_event_line(
-                        _final_task_event(
-                            result_payload,
-                            cancelled=_committed.startswith(CANCELLED_BEFORE_PUBLICATION[:28]),
-                        )
+                    final_event = _final_task_event(
+                        result_payload,
+                        cancelled=_committed.startswith(CANCELLED_BEFORE_PUBLICATION[:28]),
                     )
+                    if final_event is not None:
+                        yield task_event_line(final_event)
                 break
     finally:
         # NOTE: the live-turn entry is deliberately NOT released here. This block runs when the

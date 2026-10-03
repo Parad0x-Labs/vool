@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 from core.runtime_task_events import (
     configure_runtime_event_store,
     emit_runtime_event,
@@ -143,6 +145,70 @@ class RuntimeTaskEventsTests(unittest.TestCase):
         self.assertNotIn("__WORKSTATION_HEADER__", html)
         self.assertNotIn("__WORKSTATION_SCRIPT__", html)
         self.assertNotIn("__TASK_RAIL_CLIENT_SCRIPT__", html)
+
+
+@pytest.mark.parametrize("payload", [
+    {"status": "pending_approval", "success": False},
+    {"task_outcome": "pending_approval"},
+])
+def test_pending_result_does_not_synthesize_success(payload):
+    from core.web.api.runtime import _final_task_event
+
+    # The permission event already carries the actionable request; stream completion
+    # must not invent task completion or a second tokenless permission request.
+    assert _final_task_event(payload) is None
+
+
+@pytest.mark.parametrize("payload", [
+    {"fulfillment_outcome": {"fulfillment_status": "failed"}},
+    {"fulfillment_outcome": {"fulfillment_status": "blocked"}},
+    {"fulfillment_outcome": {"fulfillment_status": "partially_fulfilled"}},
+    {"success": False},
+    {"task_outcome": "failed"},
+    {"status": "completed", "fulfillment_outcome": {"fulfillment_status": "failed"}},
+])
+def test_unfulfilled_result_never_becomes_stream_completion(payload):
+    from core.web.api.runtime import _final_task_event
+
+    event = _final_task_event(payload)
+    assert event["type"] == "task.failed"
+    assert event["status"] == "failed"
+
+
+@pytest.mark.parametrize(("payload", "cancelled"), [
+    ({"task_outcome": "pending_approval", "status": "pending_approval"}, True),
+    ({"status": "cancelled"}, False),
+    ({"fulfillment_outcome": {"fulfillment_status": "cancelled"}}, False),
+    ({"task_outcome": "cancelled"}, False),
+])
+def test_cancelled_result_preserves_terminal_precedence(payload, cancelled):
+    from core.web.api.runtime import _final_task_event
+
+    event = _final_task_event(payload, cancelled=cancelled)
+    assert event["type"] == "task.cancelled"
+    assert event["status"] == "cancelled"
+
+
+@pytest.mark.parametrize("payload", [
+    {},
+    {"status": "completed"},
+    {"fulfillment_outcome": {"fulfillment_status": "fulfilled"}, "success": True},
+])
+def test_completed_result_preserves_legacy_model_and_cost_fields(payload):
+    from core.web.api.runtime import _final_task_event
+
+    event = _final_task_event({**payload, "usage_summary": {
+        "cost_class": "paid_cloud", "model_id": "provider/example-model",
+        "usd_actual": 0.03, "prompt_tokens": 4, "output_tokens": 7,
+    }})
+    assert event["type"] == "task.completed" and event["status"] == "completed"
+    assert event["model"] == {
+        "lane": "cloud", "paid": True, "provider_id": None, "model_id": "example-model",
+    }
+    assert event["cost"] == {
+        "cost_class": "paid_cloud", "paid": True, "usd_actual": 0.03,
+        "output_tokens": 7, "prompt_tokens": 4,
+    }
 
 
 if __name__ == "__main__":
