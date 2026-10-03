@@ -173,22 +173,97 @@ def test_scope_exit_hands_the_turn_its_receipts_instead_of_dropping_them():
 
 
 def test_a_worker_task_records_into_the_turn_that_owns_it():
-    """A pool worker running the turn's copied context reports into the turn's
-    ledger, not into a ledger of its own that dies with the task."""
+    """A pool worker running the turn's per-task copied context reports into the
+    turn's ledger, not into a ledger of its own that dies with the task.
+
+    RED (CI run 37118968367, job 111191509148, shard tests(7)): this dispatch
+    shared ONE Context object across two pool workers. A Context cannot be
+    entered twice at once, so overlapping workers raised
+    ``RuntimeError: cannot enter context: ... is already entered``; the same
+    forced-overlap failure reproduces on baseline 660e28b, so the defect was
+    this dispatch, not a newer source change. The dispatch now follows the law
+    the product scheduler already pins (``scheduler._submit_node``): ONE fresh
+    ``copy_context()`` PER TASK, taken on the submitting (turn) thread. Each
+    task owns its copy, the copies hold the turn's ledger by reference, and
+    the two leading tasks rendezvous INSIDE their runs so the pool is proven
+    to overlap genuinely rather than by serialization."""
     import contextvars
     from concurrent.futures import ThreadPoolExecutor
 
+    both_inside = threading.Barrier(2)
+
+    def _task(index: int) -> None:
+        record_effect_receipt(_receipt(f"worker-{index}"))
+        if index < 2:
+            # Waiting here means this task is INSIDE its Context.run while the
+            # other leading task is inside its own: real overlap, forced, not
+            # hoped for. Under the old shared-carrier dispatch the second
+            # worker raises before reaching this point and the barrier breaks.
+            both_inside.wait(timeout=10)
+
     with remote_fetch_policy_scope(TURN_A):
-        carrier = contextvars.copy_context()
         with ThreadPoolExecutor(max_workers=2) as pool:
-            list(
-                pool.map(
-                    lambda index: carrier.run(record_effect_receipt, _receipt(f"worker-{index}")),
-                    range(4),
-                )
-            )
+            futures = [
+                pool.submit(contextvars.copy_context().run, _task, index)
+                for index in range(4)
+            ]
+            for future in futures:
+                future.result()  # worker failures propagate, never swallowed
         reasons = sorted(r["reason"] for r in effect_receipts())
     assert reasons == ["worker-0", "worker-1", "worker-2", "worker-3"], reasons
+
+
+def test_a_reused_pool_thread_reports_only_into_the_turn_that_submitted_it():
+    """A pool thread reused by a later turn carries nothing from the turn whose
+    tasks it ran before: each owning turn's published ledger holds exactly its
+    own receipts. The scheduler's own suite pins the marker-var version of this
+    law at ``_submit_node``; this is the receipt-ledger version of the same
+    seam, including proof that the second wave really did reuse the pool."""
+    import contextvars
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _task(index: int, prefix: str, threads: list[int], barrier=None) -> None:
+        def _run() -> None:
+            threads.append(threading.get_ident())
+            if barrier is not None:
+                barrier.wait(timeout=10)
+            record_effect_receipt(_receipt(f"{prefix}-{index}"))
+
+        return _run
+
+    turn_a, turn_b = dict(TURN_A), dict(TURN_B)
+    wave_one_threads: list[int] = []
+    wave_two_threads: list[int] = []
+    both_exist = threading.Barrier(2)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        with remote_fetch_policy_scope(turn_a):
+            futures = [
+                pool.submit(contextvars.copy_context().run, _task(index, "a", wave_one_threads, both_exist))
+                for index in range(2)
+            ]
+            for future in futures:
+                future.result()
+        with remote_fetch_policy_scope(turn_b):
+            futures = [
+                pool.submit(contextvars.copy_context().run, _task(index, "b", wave_two_threads))
+                for index in range(2)
+            ]
+            for future in futures:
+                future.result()
+
+    from core.effect_gateway import EFFECT_RECEIPTS_CONTEXT_KEY
+
+    a_receipts = sorted(r["reason"] for r in turn_a[EFFECT_RECEIPTS_CONTEXT_KEY])
+    b_receipts = sorted(r["reason"] for r in turn_b[EFFECT_RECEIPTS_CONTEXT_KEY])
+    assert a_receipts == ["a-0", "a-1"], a_receipts
+    assert b_receipts == ["b-0", "b-1"], b_receipts
+    # Genuine reuse, pinned as the contract states it: the second wave ran on
+    # the pool's existing threads (an idle one may take both jobs, so subset,
+    # not equality) -- never on a foreign or freshly spawned thread.
+    assert set(wave_two_threads) <= set(wave_one_threads), (
+        wave_one_threads,
+        wave_two_threads,
+    )
 
 
 # ------------------------------------------------------------------ the receipt itself
