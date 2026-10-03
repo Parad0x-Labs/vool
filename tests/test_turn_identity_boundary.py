@@ -373,6 +373,7 @@ def test_the_answering_attempt_is_found_on_every_surface():
     find the attempt that answered. Both arms assert the same thing on purpose: surface
     parity is the property, and the HTTP arm is the one that was broken.
     """
+    from tests._turn_session_identity import echoed_session_identity
     from tests.test_attempt_followup_resolution import (
         _INCIDENT_TEXT,
         _SOURCE_CONTEXT,
@@ -387,8 +388,9 @@ def test_the_answering_attempt_is_found_on_every_surface():
         # turn root was filed under an empty session and simply invisible to the query.
         with _incident_mocks():
             first = case.agent.run_once(_INCIDENT_TEXT, source_context=dict(_SOURCE_CONTEXT))
+        sid = echoed_session_identity(case.agent, first)
         in_process = case.agent.run_once(
-            question, source_context=dict(_SOURCE_CONTEXT), session_id_override=first["session_id"]
+            question, source_context=dict(_SOURCE_CONTEXT), session_id_override=sid
         )["response"]
         for name in ("Gold", "Bitcoin", "Kaunas", "Atlantisxyzabc123"):
             assert name in in_process, (
