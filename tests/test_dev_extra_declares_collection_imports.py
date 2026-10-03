@@ -28,9 +28,10 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
 from importlib.metadata import distributions
 from pathlib import Path
+
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 

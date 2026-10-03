@@ -100,8 +100,8 @@ def _serve(content: str, withheld: tuple[str, ...], monkeypatch) -> dict:
             }
         }
 
-    from core.semantic.semantic_admissions import set_request_context
     from core.semantic import semantic_admissions as _sa
+    from core.semantic.semantic_admissions import set_request_context
 
     token = set_request_context("req:http:obligation-boundary")
     try:
