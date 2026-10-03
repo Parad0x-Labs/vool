@@ -127,6 +127,9 @@ def _build(root: Path, out: Path, *, pythons: dict[str, bool], extra_env: dict[s
     env = {
         "PATH": f"{shim_dir}:{BASE_PATH}",
         "HOME": str(out),
+        # A no-git synthetic install must not discover an unrelated repository
+        # containing the test scratch directory (for example an SSD volume root).
+        "GIT_CEILING_DIRECTORIES": str(out),
         **(extra_env or {}),
     }
     cmd = ["bash", str(root / "installer" / "bundle" / BUILD_SCRIPT.name), "--out", str(out / "VOOL.app")]

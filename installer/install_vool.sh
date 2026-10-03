@@ -1312,6 +1312,28 @@ RUN
 }
 
 
+# Desktop Entry strings have their own escaping; they are not shell command lines.
+desktop_entry_value() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//$'\n'/\\n}"
+  value="${value//$'\r'/\\r}"
+  value="${value//$'\t'/\\t}"
+  printf '%s' "${value}"
+}
+
+desktop_entry_arg() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//\$/\\\$}"
+  value="${value//\`/\\\`}"
+  value="${value//%/%%}"
+  printf '"'
+  desktop_entry_value "${value}"
+  printf '"'
+}
+
 create_desktop_shortcut() {
   local os_name
   os_name="$(uname)"
@@ -1353,9 +1375,10 @@ create_desktop_shortcut() {
       desktop_dir="${detected}"
     fi
   fi
-  if [[ ! -d "${desktop_dir}" ]]; then
-    return 0
-  fi
+  # GNOME and headless installs need not have a Desktop folder. Always install in
+  # the application menu; a desktop copy is optional, never the only launch door.
+  local applications_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/applications"
+  mkdir -p "${applications_dir}"
 
   # A previous install may have left the retired OpenClaw desktop entry; it is our own
   # generated shortcut (now a stub), so replace it with the native VOOL entry.
@@ -1363,36 +1386,45 @@ create_desktop_shortcut() {
     rm -f "${desktop_dir}/OpenClaw_VOOL.desktop"
     say "Removed retired desktop shortcut: ${desktop_dir}/OpenClaw_VOOL.desktop"
   fi
-  local desktop_file="${desktop_dir}/VOOL.desktop"
+  local desktop_file="${applications_dir}/VOOL.desktop"
   cat >"${desktop_file}" <<EOF
 [Desktop Entry]
 Type=Application
 Name=VOOL
 Comment=Start VOOL and open chat
-Exec=/usr/bin/env bash "${PROJECT_ROOT}/Open_Chat.sh"
-Icon=${assets_dir}/vool.png
-Path=${PROJECT_ROOT}
+Exec=/usr/bin/env bash $(desktop_entry_arg "${PROJECT_ROOT}/Open_Chat.sh")
+Icon=$(desktop_entry_value "${assets_dir}/vool.png")
+Path=$(desktop_entry_value "${PROJECT_ROOT}")
 Terminal=false
 Categories=Utility;Development;
 EOF
   chmod +x "${desktop_file}" || true
   DESKTOP_SHORTCUT_PATH="${desktop_file}"
+  if [[ -d "${desktop_dir}" && "${desktop_dir}" != "${applications_dir}" ]]; then
+    cp "${desktop_file}" "${desktop_dir}/VOOL.desktop"
+    chmod +x "${desktop_dir}/VOOL.desktop" || true
+    DESKTOP_SHORTCUT_PATH="${desktop_dir}/VOOL.desktop"
+  fi
 
   # Stop VOOL desktop entry (red brake icon), mirroring the Windows "Stop VOOL" shortcut.
   if [[ -f "${PROJECT_ROOT}/Stop_VOOL.sh" ]]; then
-    local stop_file="${desktop_dir}/Stop_VOOL.desktop"
+    local stop_file="${applications_dir}/Stop_VOOL.desktop"
     cat >"${stop_file}" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Stop VOOL
 Comment=Stop every VOOL process and disable auto-restart
-Exec=/usr/bin/env bash "${PROJECT_ROOT}/Stop_VOOL.sh"
-Icon=${assets_dir}/vool_stop.png
-Path=${PROJECT_ROOT}
+Exec=/usr/bin/env bash $(desktop_entry_arg "${PROJECT_ROOT}/Stop_VOOL.sh")
+Icon=$(desktop_entry_value "${assets_dir}/vool_stop.png")
+Path=$(desktop_entry_value "${PROJECT_ROOT}")
 Terminal=false
 Categories=Utility;Development;
 EOF
     chmod +x "${stop_file}" || true
+    if [[ -d "${desktop_dir}" && "${desktop_dir}" != "${applications_dir}" ]]; then
+      cp "${stop_file}" "${desktop_dir}/Stop_VOOL.desktop"
+      chmod +x "${desktop_dir}/Stop_VOOL.desktop" || true
+    fi
   fi
 }
 

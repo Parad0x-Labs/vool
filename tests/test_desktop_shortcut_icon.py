@@ -137,13 +137,82 @@ def test_generator_reproduces_icns_and_png() -> None:
     assert ICNS.read_bytes() != STOP_ICNS.read_bytes(), "stop .icns must differ from the launch .icns"
 
 
-def test_unix_installer_wires_branded_icons() -> None:
+def test_unix_installer_wires_branded_icons(tmp_path: Path) -> None:
     text = SH.read_text(encoding="utf-8")
     # macOS: a branded .app bundle carrying the .icns as its CFBundleIconFile.
     assert "make_mac_app_bundle" in text, "installer does not build a macOS .app bundle"
     assert "CFBundleIconFile" in text, "app bundle does not set an icon file"
     assert "vool.icns" in text and "vool_stop.icns" in text, "installer does not use both .icns assets"
     assert "Stop VOOL.app" in text, "installer does not create a Stop VOOL app icon"
-    # Linux: .desktop entries reference the .png icons.
-    assert "Icon=${assets_dir}/vool.png" in text, "Linux OpenClaw .desktop lacks Icon="
-    assert "Icon=${assets_dir}/vool_stop.png" in text, "Linux Stop .desktop lacks Icon="
+    # Linux: the REAL create_desktop_shortcut runs in a sandbox and the GENERATED .desktop
+    # entries must reference the branded .png icons. The old literal greps (Icon=${assets_dir}/
+    # vool.png) went stale when icon values started flowing through desktop_entry_value()
+    # escaping — the wiring was never lost, but prose could no longer prove it.
+    generated, project_root = _generate_desktop_entries(tmp_path)
+    assets_dir = project_root / "installer" / "assets"  # the install root's own assets dir
+    launch_entry = (generated / "applications" / "VOOL.desktop").read_text(encoding="utf-8")
+    stop_entry = (generated / "applications" / "Stop_VOOL.desktop").read_text(encoding="utf-8")
+    assert f"Icon={assets_dir}/vool.png" in launch_entry, launch_entry
+    assert f"Icon={assets_dir}/vool_stop.png" in stop_entry, stop_entry
+    desktop_copy = generated.parents[1] / "Desktop" / "VOOL.desktop"  # ${HOME}/Desktop copy
+    assert desktop_copy.exists() and f"Icon={assets_dir}/vool.png" in desktop_copy.read_text(encoding="utf-8")
+
+
+def _generate_desktop_entries(tmp_path: Path) -> Path:
+    """Run the REAL create_desktop_shortcut for its Linux lane in a sandbox.
+
+    The installer is sourced only up to its ``parse_args`` boundary (no execution), so the
+    function definitions load with the repo's own text; the generated entries are written
+    under the sandbox home and returned.
+    """
+    import os
+    import subprocess
+
+    sandbox = tmp_path / "desktop-sandbox"
+    home = sandbox / "home"
+    (home / "Desktop").mkdir(parents=True)
+    project = sandbox / "project"
+    project.mkdir()
+    for name in ("Open_Chat.sh", "Stop_VOOL.sh"):
+        (project / name).write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    # The icon assets are resolved as ${PROJECT_ROOT}/installer/assets: mirror the real
+    # subtree so the generated entries carry the repo's real asset paths.
+    (project / "installer").mkdir()
+    (project / "installer" / "assets").symlink_to(REPO / "installer" / "assets", target_is_directory=True)
+
+    installer_src = SH.read_text(encoding="utf-8")
+    cut = installer_src.rfind('\nparse_args "$@"')
+    assert cut != -1, "installer parse_args boundary not found"
+    functions = sandbox / "installer_functions.sh"
+    functions.write_text(installer_src[:cut] + "\n", encoding="utf-8")
+
+    harness = sandbox / "run_shortcuts.sh"
+    harness.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -uo pipefail\n"
+        f'source "{functions}"\n'
+        # The .desktop lane is what this file guards; drive it deterministically on any
+        # host with the same boundary-double rule the main-flow harness uses (a function
+        # double, never PATH shadowing).
+        "uname() { printf 'Linux\\n'; }\n"
+        f'HOME="{home}"\n'
+        "export HOME\n"
+        f'PROJECT_ROOT="{project}"\n'
+        'VENV_DIR="${PROJECT_ROOT}/.venv"\n'
+        'DESKTOP_SHORTCUT_PATH=""\n'
+        "create_desktop_shortcut\n"
+        'rc=$?\n'
+        'printf "HARNESS_RC=%s\\n" "${rc}"\n'
+        'exit "${rc}"\n',
+        encoding="utf-8",
+    )
+    harness.chmod(0o755)
+    done = subprocess.run(
+        ["/usr/bin/env", "bash", str(harness)],
+        env={"PATH": "/usr/bin:/bin", "HOME": str(home)},
+        capture_output=True, text=True, timeout=60,
+    )
+    assert done.returncode == 0, f"create_desktop_shortcut failed: {done.stdout}\n{done.stderr}"
+    generated = home / ".local" / "share"
+    assert (generated / "applications" / "VOOL.desktop").exists(), done.stderr
+    return generated, project

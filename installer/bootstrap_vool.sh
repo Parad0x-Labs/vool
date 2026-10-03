@@ -2,7 +2,7 @@
 set -euo pipefail
 
 OWNER="${VOOL_GITHUB_OWNER:-Parad0x-Labs}"
-REPO="${VOOL_GITHUB_REPO:-vool-local}"
+REPO="${VOOL_GITHUB_REPO:-vool}"
 REF="${VOOL_GITHUB_REF:-main}"
 # NULLA -> VOOL compatibility: reuse a pre-rename install directory instead of creating a second one.
 __vool_pick_install_dir() {

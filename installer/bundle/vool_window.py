@@ -5,8 +5,8 @@ its own title and taskbar/Dock entry, no browser tab strip, no address bar -- so
 desktop app rather than a browser tab. On Windows, when the WebView2 runtime is absent (WebView2 is
 not guaranteed on Windows 10), it falls back to the Edge --app opener BEFORE trying pywebview,
 because a missing runtime does not always raise from webview.start(); this keeps a launch from
-dead-ending on a blank window. On macOS/Linux there is no such runtime gate (WKWebView/WebKitGTK are
-part of the OS), so pywebview is tried directly; if no native window can be shown there, a packaged
+dead-ending on a blank window. macOS provides WKWebView; Linux needs separately installed
+GTK/WebKitGTK or Qt libraries. pywebview is tried directly; if no native window can be shown there, a packaged
 launch FAILS CLOSED (exit 1) rather than silently opening a browser and calling it success -- an
 app-mode browser window is used only when VOOL_ALLOW_BROWSER_FALLBACK=1 opts in explicitly.
 A single-instance guard stops repeated launches from stacking windows: a named mutex on Windows,
@@ -348,6 +348,25 @@ def _close_to_dock_enabled() -> bool:
         return False
     override = str(os.environ.get("VOOL_CLOSE_TO_DOCK", "")).strip().lower()
     return override not in ("0", "false", "no", "off")
+
+
+def _run_post_start(post_start) -> None:
+    """Run the post-start work once the native run loop is up.
+
+    ``post_start`` is the dock callback and is None on every non-macOS platform by contract
+    (``_dock_post_start`` returns None when close-to-Dock is disabled) — measured in the
+    Linux acceptance gate (run 36982838739, job 110761047078): calling it unconditionally
+    raised ``TypeError: 'NoneType' object is not callable`` on every Linux launch and
+    aborted the Settings-shortcut install with it. The Settings binding below stays
+    best-effort on each backend, exactly as before.
+    """
+    if post_start is not None:
+        post_start()
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(_install_settings_shortcut)   # main thread, like the dock hook
+    except Exception:
+        _install_settings_shortcut()
 
 
 def _dock_post_start(window: object):
@@ -1342,8 +1361,8 @@ def main() -> int:
             f"ownership={'native-host' if supervisor.owns_runtime else 'matching-existing'}"
         )
 
-        # The WebView2 runtime gate is Windows-only; macOS (WKWebView) and Linux (WebKitGTK) ship a
-        # web view with the OS, so pywebview is tried directly there.
+        # The WebView2 gate is Windows-only. macOS supplies WKWebView; Linux
+        # operators must provision GTK/WebKitGTK or Qt before this native lane.
         if sys.platform == "win32" and not _has_webview2():
             _log("WebView2 runtime not found; using Edge fallback")
             _fallback_to_edge()
@@ -1369,12 +1388,7 @@ def main() -> int:
         _post_start = _dock_post_start(window)
 
         def _post_start_all() -> None:
-            _post_start()
-            try:
-                from PyObjCTools import AppHelper
-                AppHelper.callAfter(_install_settings_shortcut)   # main thread, like the dock hook
-            except Exception:
-                _install_settings_shortcut()
+            _run_post_start(_post_start)
 
         menu = _settings_menu(api)
         try:
