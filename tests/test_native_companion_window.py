@@ -58,7 +58,8 @@ def test_payload_is_allowlisted_and_bounded() -> None:
         {"state": "made-up", "character": "foreign", "pack": "bad", "caption": "x" * 200,
          "secret": "must-not-cross"}
     )
-    assert clean == {"state": "unknown", "character": "spark", "pack": "default", "caption": "x" * 64}
+    assert clean == {"state": "unknown", "character": "spark", "pack": "default", "caption": "x" * 64,
+                     "chatTitle": "", "activity": ""}
 
 
 def test_detach_creates_one_real_desktop_window_and_reuses_it() -> None:

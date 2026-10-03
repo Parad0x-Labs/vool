@@ -1,0 +1,10 @@
+"""Shared presentation geometry for the inline and detached companion."""
+ART_GRID = 48
+CANVAS_SIZE = ART_GRID * 3
+INLINE_SIZE = CANVAS_SIZE + 24
+DESKTOP_WIDTH = 208
+DESKTOP_HEIGHT = 236
+CANVAS_BOTTOM = 12
+BUBBLE_GAP = 6
+BUBBLE_HEIGHT = 40
+BUBBLE_WIDTH = 196

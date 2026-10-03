@@ -468,16 +468,13 @@ law("SHEET.manifest", () => {
 });
 
 law("WORLD.authority", () => {
-  // The approved family is the three voxel heroes PLUS the recovered hand-drawn pixel trio
-  // (Prism Shifter / Veil Shadowstep / Ember Signal) — the 126-frame sheets shipped as dead
-  // payload from b7d045fe until the 2026-08-28 recovery re-bound their rasteriser.
-  eq(Object.keys(VC.characters).sort().join(","), "ember,prime,prism,rascal,spark,veil", "approved Character Lab family ships");
-  eq(VC.characters.prism.renderer, "sheet", "PRISM renders from its hand-drawn sheet");
-  eq(VC.characters.veil.renderer, "sheet", "VEIL renders from its hand-drawn sheet");
-  eq(VC.characters.ember.renderer, "sheet", "EMBER renders from its hand-drawn sheet");
+  const ids = Object.keys(VC.characters).sort();
+  eq(ids.join(","), "beetle,ember,golem,prime,prism,rascal,raven,spark,tide,veil", "ten authored companions ship");
+  for (const id of ids) eq(VC.characters[id].renderer, "pet", id + " renders through the shared authored family");
+  for (const id of ["beetle", "raven", "golem", "tide"]) eq(VC.characters[id].original, true, id + " preserves approved art");
   const layer = document.body.children.find((c) => c.id === "companionLayer");
   const sprite = layer.children.find((c) => c.attrs && c.attrs.role === "button");
-  const canvas = sprite.children[0];
+  const canvas = sprite.children.find((c) => c.tagName === "CANVAS");
   eq(canvas.width, 48, "approved world canvas is 48 pixels wide");
   eq(canvas.height, 48, "approved world canvas is 48 pixels high");
   eq(VC.pos().v, 2, "placement schema records the BigHead-family generation");
@@ -496,7 +493,17 @@ law("WORLD.character_lab_selects_one_cosmetic_identity", () => {
   const lab = layer.children[layer.children.length - 1];
   eq(lab.style.display, "flex", "Character Lab opens as a real chooser");
   const modal = lab.children[0], candidateGrid = modal.children[1], packGrid = modal.children[3];
-  eq(candidateGrid.children.length, 6, "SPARK/RASCAL/PRIME + PRISM/VEIL/EMBER are selectable");
+  // pet-original-style-20260930: the exact six-ID roster is obsolete. The four approved
+  // originals (beetle/raven/golem/tide) are added and the six saved ids (spark/rascal/prime/
+  // prism/veil/ember) are preserved, so the chooser must offer all ten -- and each must be a
+  // DISTINCT authored drawing, never an alias of another id.
+  eq(candidateGrid.children.length, 10, "all ten companions are selectable");
+  const labels = Array.from(candidateGrid.children).map((c) => c.querySelector("b").textContent);
+  eq(new Set(labels).size, 10, "every companion is its own character, not a recolour of another");
+  ["MORROW BEETLE","CLOCKWORK RAVEN","STONE GOLEM","TIDE WISP","SPARK","RASCAL","PRIME","PRISM","VEIL","EMBER"]
+    .forEach(function (name) {
+      eq(labels.some(function (l) { return l.indexOf(name) >= 0; }), true, name + " is offered in the chooser");
+    });
   eq(packGrid.children.length, 4, "the four authoritative cosmetic packs are selectable");
   VC.chooseCharacter("spark"); VC.choosePack("default");
 });

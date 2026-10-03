@@ -11,6 +11,8 @@ message has a Copy button.
 """
 from __future__ import annotations
 
+from core.ui_palette import DARK_PALETTE_CSS
+
 _VOOL_CHAT_HTML = r"""<!doctype html>
 <html lang="en">
 <head>
@@ -19,7 +21,7 @@ _VOOL_CHAT_HTML = r"""<!doctype html>
 <title>VOOL</title>
 <link rel="icon" type="image/png" href="__VOOL_LOGO_URI__"/>
 <style>
-:root { --bg:#101216; --panel:#16191f; --panel-solid:#16191f; --chat:#101216; --field:#1d2129; --ink:#e8eaf0; --text:#e8eaf0; --muted:#9aa1af; --accent:#5eead4; --accent2:#34d399; --grad:linear-gradient(135deg,#5eead4,#34d399); --user:#233043; --border:#262b35; --active:#1d2129; }
+__VOOL_PALETTE_CSS__
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; height:100vh; display:flex; flex-direction:row; overflow:hidden; }
 #sidebar { flex:0 0 240px; width:240px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
@@ -122,7 +124,7 @@ img.chat-img:hover { border-color:var(--accent); }
   border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; font-size:11.5px; cursor:pointer; }
 .proof-chip-head:hover { color:var(--ink); border-color:var(--accent); }
 .proof-chip .pc-state { font-weight:700; letter-spacing:.4px; }
-.proof-chip .pc-state-verified { color:var(--accent2); }
+.proof-chip .pc-state-verified { color:var(--success); }
 .proof-chip .pc-state-recorded { color:var(--muted); }
 .proof-chip .pc-state-incomplete { color:#fbbf24; }
 .proof-chip .pc-state-unverified { color:#f87171; }
@@ -225,11 +227,11 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 .set-input:focus { outline:none; border-color:var(--accent); }
 .set-btn { background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:0 14px; font:inherit; font-weight:600; cursor:pointer; }
 .set-btn:hover { border-color:var(--accent); }
-.set-btn.primary { background:var(--grad); color:#fff; border:none; }
+.set-btn.primary { background:var(--grad); color:var(--accent-ink); border:none; }
 .set-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
 .set-actions .set-btn { min-height:34px; }
 .set-status { margin-top:8px; font-size:12.5px; color:var(--muted); }
-.set-status.ok { color:var(--accent); }
+.set-status.ok { color:var(--success); }
 .set-status.err { color:#f87171; }
 /* Credential row: the key field used to be one flex sibling among a select and three buttons, so
    it collapsed to a few characters wide on a narrow modal. It now wraps and holds a real minimum. */
@@ -241,7 +243,7 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 .key-reveal:hover { color:var(--ink); border-color:var(--accent); }
 /* A saved key is a security-relevant state change, so the confirmation is a real banner rather
    than a one-line colour change that reads as decoration. */
-.save-banner { display:none; align-items:center; gap:8px; margin-top:10px; padding:9px 12px; border-radius:9px; border:1px solid var(--accent); background:rgba(37,99,255,.12); color:var(--ink); font-size:13px; }
+.save-banner { display:none; align-items:center; gap:8px; margin-top:10px; padding:9px 12px; border-radius:9px; border:1px solid var(--accent); background:var(--accent-soft); color:var(--ink); font-size:13px; }
 .save-banner.show { display:flex; }
 .save-banner .sb-ico { flex:0 0 auto; color:var(--accent); font-weight:700; }
 .build-info { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 14px; margin:2px 0 0; font-size:12.5px; }
@@ -411,7 +413,7 @@ footer { background:linear-gradient(transparent,var(--chat) 24%); padding:10px 2
 .qchip-more:hover { border-color:var(--accent); }
 #input { flex:1 1 auto; min-width:200px; resize:none; min-height:44px; max-height:180px; background:var(--field); color:var(--ink); border:1px solid var(--border); border-radius:10px; padding:10px 12px; font:inherit; }
 #input::placeholder { color:#aab0c4; opacity:1; }
-#send { background:var(--grad); color:#fff; border:none; border-radius:10px; padding:0 18px; font-weight:700; cursor:pointer; }
+#send { background:var(--grad); color:var(--accent-ink); border:none; border-radius:10px; padding:0 18px; font-weight:700; cursor:pointer; }
 #send:disabled { opacity:.5; cursor:default; }
 /* Dictation: the microphone writes DRAFT text into the textarea; it never sends anything.
    The button is an ICON with four distinct states: idle (plain mic), recording (warm ring,
@@ -468,7 +470,7 @@ body.answer-pending footer { position: relative; z-index: 35; }
 .perm-actions { flex:0 0 auto; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
 .perm-btn { font:inherit; font-size:12.5px; border:1px solid var(--border); background:var(--field); color:var(--ink); border-radius:8px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
 .perm-btn:hover { border-color:var(--accent); }
-.perm-btn.primary { background:var(--grad); color:#fff; border:none; font-weight:600; }
+.perm-btn.primary { background:var(--grad); color:var(--accent-ink); border:none; font-weight:600; }
 .perm-btn.ghost { background:transparent; color:var(--muted); }
 
 /* ---- Composer control bar (mode / attach / model / effort) ---- */
@@ -479,7 +481,7 @@ body.answer-pending footer { position: relative; z-index: 35; }
    narrowest supported width, where one line genuinely cannot hold three controls. */
 .control-bar { display:flex; align-items:center; gap:8px; flex-wrap:nowrap; min-width:0; }
 .council-lock { margin:0 0 8px; padding:7px 11px; border:1px solid var(--accent,#5eead4); border-radius:9px;
-  background:rgba(94,234,212,.06); color:var(--muted,#9aa1af); font-size:11.5px; line-height:1.5; }
+  background:var(--accent-soft); color:var(--muted,#9aa1af); font-size:11.5px; line-height:1.5; }
 /* A plain gap. This used to be the thing positioning the model control -- `flex:1` capped at 96px --
    which is why the selector floated: its position was the sum of the widths to its left and nothing
    else, so it sat at x=663 whether the window was 900px or 1900px and whether Activity was open or
@@ -513,7 +515,7 @@ body.answer-pending footer { position: relative; z-index: 35; }
 #modelBtn:hover { color:var(--ink); }
 .model-lane { flex:0 0 auto; border-radius:999px; padding:1px 7px; font-size:9px; line-height:16px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
 .model-lane.auto { color:#c4b5fd; background:#27213a; }
-.model-lane.local { color:var(--accent); background:#0e3b32; }
+.model-lane.local { color:var(--accent); background:var(--accent-soft); }
 .model-lane.cloud { color:#93c5fd; background:#15294d; }
 .mode-info { flex:0 0 auto; }
 /* Below this the row genuinely cannot hold three controls on one line: the floors above plus the
@@ -732,7 +734,7 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
 .pin-btn2 { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:4px 10px; font:inherit; font-size:12px; cursor:pointer; }
 .pin-btn2:hover { color:var(--ink); border-color:var(--accent); }
 .pin-empty { color:var(--muted); font-size:13px; padding:8px 2px; }
-.task-card { align-self:stretch; max-width:min(760px,92%); background:linear-gradient(180deg,var(--panel),#0d1631); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
+.task-card { align-self:stretch; max-width:min(760px,92%); background:linear-gradient(180deg,var(--panel),var(--bg)); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
 .task-card.done { border-left-color:var(--muted); opacity:.92; }
 /* A plain model answer needs no completed-status card -- the answer message stands alone (clean). */
 .task-card.bare { display:none; }
@@ -1009,7 +1011,7 @@ body:not(.panel-open) #xpanel { display:none; }
                 border-radius:10px; background:var(--bg-elev,#1a1a1e); font-size:13px; color:var(--muted,#9a9aa2); }
   .setup-line[hidden] { display:none; }
   .setup-line-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .setup-line-open { background:var(--accent,#4c7df0); border:1px solid var(--accent,#4c7df0); color:#fff; border-radius:6px; padding:4px 11px; cursor:pointer; font-size:12.5px; font-weight:600; }
+  .setup-line-open { background:var(--accent,#4c7df0); border:1px solid var(--accent,#4c7df0); color:var(--accent-ink); border-radius:6px; padding:4px 11px; cursor:pointer; font-size:12.5px; font-weight:600; }
   .setup-line-x { background:none; border:none; color:var(--muted,#9a9aa2); cursor:pointer; font-size:16px; line-height:1; padding:2px 6px; }
   .setup-line-x:hover { color:var(--text,#eee); }
 </style>
@@ -11778,7 +11780,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en") -> s
     tag = catalog_for(ui_locale).locale
     spec = get_locale(tag)
     page = (
-        _VOOL_CHAT_HTML.replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
+        _VOOL_CHAT_HTML.replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS).replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         .replace("__VOOL_LOGO_URI__", logo_uri)
         .replace("</body>", "".join(_page_fragments()) + "</body>")
     )

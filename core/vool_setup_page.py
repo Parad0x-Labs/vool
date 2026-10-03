@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 
 from core.setup_progress import STEPS
+from core.ui_palette import DARK_PALETTE_CSS
 
 COPY = {
     "title": "Set up VOOL",
@@ -59,13 +60,12 @@ _SETUP_HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>VOOL Setup</title>
 <style>
-:root { --bg:#101216; --panel:#16191f; --field:#1d2129; --ink:#e8eaf0; --muted:#9aa1af; --accent:#5eead4; --accent-ink:#0b0f14;
-        --accent-soft:rgba(94,234,212,.28); --border:#262b35; --ok:#34d399; --bad:#f87171; --mk-bg:#0c0e12; --mk-border:#2b313c; --shadow:rgba(0,0,0,.45); }
+__VOOL_PALETTE_CSS__
 /* The light palette is a HOST choice (?theme=light, or data-theme set on <html>), not the OS setting:
    the chat and Settings surfaces are dark-only today, and a framed page that followed the OS would
    sit light inside a dark window (seen 2026-09-07 in the frame overlay). Same tokens, both ways. */
-:root[data-theme="light"] { --bg:#f4f5f8; --panel:#ffffff; --field:#eef0f4; --ink:#14171c; --muted:#5b6472; --accent:#0f9d8a; --accent-ink:#ffffff;
-          --accent-soft:rgba(15,157,138,.25); --border:#d9dde5; --ok:#15803d; --bad:#b91c1c; --mk-bg:#e9ecf1; --mk-border:#c9cfda; --shadow:rgba(0,0,0,.14); }
+:root[data-theme="light"] { --bg:#f4f5f8; --panel:#ffffff; --field:#eef0f4; --ink:#14171c; --muted:#5b6472; --accent:#655642; --accent-ink:#ffffff;
+          --accent-soft:rgba(101,86,66,.18); --border:#d9dde5; --ok:#15803d; --bad:#b91c1c; --mk-bg:#e9ecf1; --mk-border:#c9cfda; --shadow:rgba(0,0,0,.14); }
 * { box-sizing:border-box; }
 html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; flex-direction:column; }
@@ -678,7 +678,7 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> 
 
     tag = catalog_for(ui_locale).locale
     direction = (get_locale(tag) or get_locale("en")).direction
-    page = _SETUP_HTML + _SETUP_JS
+    page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
     return (
         page.replace("__SETUP_STEPS__", json.dumps(setup_steps_model(ui_locale), separators=(",", ":"), ensure_ascii=False))
         .replace("__SETUP_COPY__", json.dumps(_localized_copy(ui_locale), separators=(",", ":"), ensure_ascii=False))
