@@ -115,6 +115,14 @@ dev = [
     # are in flight. It was never declared, so it passed only on machines that happened to have it
     # and failed in CI with ModuleNotFoundError every run -- the test could never have gone green there.
     "httpx>=0.27",
+    # The autouse Liquefy isolation fixture in tests/conftest.py imports core.liquefy at collection,
+    # and the vendored columnar codec (which may not be edited) imports zstandard at module top with
+    # no fallback -- every environment that collects the suite needs it. The Ubuntu 22.04 desktop lane
+    # (run 37039146436) errored in setup 50 times on exactly this; Ubuntu 24.04 passed only because its
+    # --system-site-packages venv inherited zstandard from the runner image, an unrecorded package
+    # rather than a declared one. Declared here so `pip install -e ".[dev]"` can collect; the runtime
+    # keeps resolving it optionally through the companion extra, unchanged.
+    "zstandard>=0.22.0",
 ]
 
 [project.urls]
