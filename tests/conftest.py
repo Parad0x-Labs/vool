@@ -337,8 +337,8 @@ def isolation_backend_probe_cache_reset() -> None:
 
 @pytest.fixture(autouse=True)
 def request_turn_context_isolation() -> None:
-    """Snapshot and restore the request/execution identity ContextVars at the
-    test boundary (P1 request-context isolation).
+    """Snapshot and restore the request/execution/obligation identity ContextVars at
+    the test boundary (P1 request-context isolation).
 
     The A0 request id (``core.semantic.semantic_admissions._CURRENT_REQUEST_ID``)
     and the turn fence tuple (``_EXECUTION_IDENTITY``) are context state, not
@@ -353,16 +353,37 @@ def request_turn_context_isolation() -> None:
     The teardown re-installs the PREVIOUS value (never a cleared default), so
     context belonging to an outer scope is restored, not destroyed; within one
     test nothing is touched, so ordered turns keep working.
+
+    The obligation active set (``obligation_ledger``'s ``_ACTIVE_SET``) is the
+    same kind of state and joins the family here (2026-10-03, shard 4 of CI run
+    37039146306): the F-07 forged-closure pin binds ``bind_active_set`` and
+    restores only the request id, and one file order later the withheld-content
+    suite's fixture swaps the DB while finalization — whose ledger precedence
+    law correctly prefers the active context over the caller's rider —
+    re-derived a verdict for that stale set against a database that never held
+    it. ``closure_verdict`` answers ``open_count=-1`` for an absent row, so a
+    VALID two-slot control turn was refused with ``OBLIGATIONS_OPEN:-1``: not a
+    product bug in the refusal, a leaked turn identity selecting a foreign
+    ledger. Restoring the previous binding at the boundary closes that class
+    the same way the request id above is closed; the product's fail-closed
+    precedence itself is untouched.
     """
+    from core.conductor import obligation_ledger as _obligations
     from core.semantic import semantic_admissions as _sa
 
     _prev_request = _sa._CURRENT_REQUEST_ID.get()
     _prev_execution = _sa._EXECUTION_IDENTITY.get()
+    _prev_obligation_set = _obligations.active_set()
     yield
     if _sa._CURRENT_REQUEST_ID.get() != _prev_request:
         _sa._CURRENT_REQUEST_ID.set(_prev_request)
     if _sa._EXECUTION_IDENTITY.get() != _prev_execution:
         _sa._EXECUTION_IDENTITY.set(_prev_execution)
+    if _obligations.active_set() != _prev_obligation_set:
+        if _prev_obligation_set is None:
+            _obligations.clear_active_set()
+        else:
+            _obligations.bind_active_set(*_prev_obligation_set)
 
 
 @pytest.fixture(autouse=True)
