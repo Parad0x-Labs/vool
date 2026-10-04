@@ -151,6 +151,25 @@ vool = "core.command_registry.cli:main"
 [tool.setuptools.packages.find]
 include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*"]
 
+[tool.uv]
+# Resolver-side security floors for the open Python advisories (2026-10-04 intake). The lock is
+# the tested artifact (tests/test_dependency_security_floors.py), but a lock alone only records one
+# resolution: without a constraint, a future `uv lock` re-resolution is free to drift back below an
+# advisory floor. These constraints make the resolver itself hold the floor, so a regressed
+# resolution fails `uv lock --check` before any environment is built from it.
+#   urllib3>=2.8.0  Dependabot #59/#60/#61 (GHSA-8988-9cw3-xx77, GHSA-vxq7-64xx-v4gw,
+#                   GHSA-gh4c-6fx4-qh6g): proxy-TLS override, unbounded chunk-size line,
+#                   chunked-Deflate loop. First patched: 2.8.0.
+#   datasets>=5.0.1 Dependabot #62 (GHSA-379c-qx7v-6h59): folder-builder `file_name` path
+#                   traversal. First patched: 5.0.1.
+# accelerate (#46, GHSA-4j2p-28q2-5m79) is deliberately NOT constrained: upstream lists no first
+# patched version, so there is no floor to hold; the lock pins the contained release 1.14.0 and
+# the checkpoint confinement suites own that defense.
+constraint-dependencies = [
+    "urllib3>=2.8.0",
+    "datasets>=5.0.1",
+]
+
 [tool.ruff]
 target-version = "py310"
 line-length = 120
