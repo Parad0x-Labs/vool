@@ -1,0 +1,77 @@
+name: CodeQL main follow-up
+
+# Automatic main coverage when the CodeQL push run could not upload: a
+# Dependabot-authored merge on main (e.g. a squash-merged Dependabot PR)
+# produces a commit whose push-triggered runs are read-only, so CodeQL's
+# upload fails with "Resource not accessible by integration". A
+# workflow_run-triggered workflow executes from the default branch with a
+# normal token, so it can upload for that exact commit — no manual dispatch,
+# no waiting for the next human commit.
+
+on:
+  workflow_run:
+    workflows: [CodeQL]
+    types: [completed]
+
+# Every job starts from read-only repository access; the analyze job widens
+# exactly the two grants an upload needs and nothing more.
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Accept only a failed same-repository push run for main. Anything else —
+    # upstream pull_request (including every fork PR), schedule, dispatch,
+    # other branches, fork/wrong-repository events, or a successful push run
+    # (which already uploaded its main analyses itself; following it would
+    # only duplicate scans) — is refused.
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'failure'
+    permissions:
+      # required to check out the repository
+      contents: read
+      # required to upload code scanning results
+      security-events: write
+    strategy:
+      # A red language must not cancel the other two legs: each analysis is
+      # independent evidence.
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+    steps:
+      - name: Checkout repository
+        # Bind the analyzed source to the exact commit of the push run.
+        # workflow_run's own GITHUB_SHA is the default branch tip, which may
+        # already have moved — it is never the analyzed SHA here.
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Initialize CodeQL
+        # Same query-suite/threat-model posture as CodeQL's analyze job
+        # (see codeql.yml).
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Perform CodeQL Analysis
+        # sha/ref pin the uploaded analysis to the same exact commit; without
+        # them the action falls back to GITHUB_SHA/GITHUB_REF, which for
+        # workflow_run runs name the default branch tip. Categories match
+        # CodeQL's exactly (one analysis per commit and category).
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+          sha: ${{ github.event.workflow_run.head_sha }}
+          ref: refs/heads/${{ github.event.workflow_run.head_branch }}

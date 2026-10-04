@@ -1,0 +1,82 @@
+name: CodeQL
+
+# Advanced setup for code scanning. This replaces default setup, which cannot
+# analyze Dependabot pull requests at all (it reports a NEUTRAL "configurations
+# not found" check for them), so the checkout-bump Dependabot PRs could never
+# earn real CodeQL evidence. Category identity below deliberately matches the
+# categories default setup already published on main (/language:<name>) so PR
+# analyses compare against that baseline; whether identical categories keep
+# existing alert history in one stream is unverified until this workflow's
+# real uploads exist.
+on:
+  # Never add dependabot/** here: push-triggered runs for Dependabot-authored
+  # commits are read-only and the SARIF upload would fail with
+  # "Resource not accessible by integration". The pull_request trigger below
+  # covers Dependabot PRs — code scanning always accepts uploads for
+  # pull_request-triggered runs. Dependabot-authored merges that land on main
+  # are scanned automatically by codeql-main.yml (workflow_run follow-up).
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Parity with default setup's weekly schedule (Monday 08:30 UTC, offset from
+  # Security Audit's 08:00 cron so the two weekly runs do not share a minute).
+  schedule:
+    - cron: '30 8 * * 1'
+  # Owner-only backstop: Dependabot-authored main merges are covered
+  # automatically by codeql-main.yml; this manual trigger only exists for
+  # anything the automatic paths miss (e.g. a cancelled run).
+  workflow_dispatch:
+
+# Every job starts from read-only repository access; the analyze job widens
+# exactly the two grants an upload needs and nothing more.
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      # required to check out the repository
+      contents: read
+      # required to upload code scanning results
+      security-events: write
+    strategy:
+      # A red language must not cancel the other two legs: each analysis is
+      # independent evidence.
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Initialize CodeQL
+        # No `queries` input: the default query suite runs, matching default
+        # setup's query_suite=default. The action exposes no threat-model input
+        # (verified against the v4.38.2 input list) and passes no --threat-model
+        # flag, so the CodeQL CLI's 'default' threat model stays enabled — the
+        # CLI manual states it can only be disabled by an explicit
+        # --threat-model !default. Exact finding parity with default setup's
+        # threat_model=remote is NOT claimed; it is confirmed only by actual
+        # uploaded analyses.
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Perform CodeQL Analysis
+        # Category matches default setup's published category strings exactly
+        # (/language:<name>), the official starter convention. Identical strings
+        # are expected to continue the existing alert streams rather than open
+        # parallel ones, but that continuity is unverified until actual
+        # uploaded analyses confirm it.
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
