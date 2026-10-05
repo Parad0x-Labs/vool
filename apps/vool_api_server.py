@@ -368,6 +368,18 @@ def create_app(runtime: RuntimeServices | None = None):
     from core.council import pin_lock
 
     pin_lock.reset_on_startup()
+    # Agent teams outlive this process: their agents run in their own sessions. Re-open every
+    # team that still had live agents so its coordinator re-adopts the ones that are provably
+    # the same processes (pid + create time), reports the rest lost, and resumes the overlap
+    # watch. Nothing is relaunched. A failure here is logged, never fatal to the server.
+    try:
+        from core.agent_team import service as agent_team_service
+
+        agent_team_service.recover_all()
+    except Exception as exc:  # pragma: no cover - recovery is best-effort at boot
+        import logging
+
+        logging.getLogger(__name__).warning("agent team recovery at boot failed: %s", exc)
     return create_api_app(
         runtime=runtime or _legacy_handler_runtime(),
         model_name=MODEL_NAME,
