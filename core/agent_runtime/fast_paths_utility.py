@@ -3198,6 +3198,40 @@ def startup_sequence_fast_path(user_input: str) -> str | None:
     return f"I’m {get_agent_display_name()}. New session is clean and I’m ready. What do you want to do?"
 
 
+# Markers that only ever mean VOOL's own ledger. Matched as whole words.
+_VOOL_LEDGER_MARKER_RE = re.compile(
+    r"\b(?:compute\s+credits?|credit\s+receipts?|credit\s+ledger|recent\s+payouts?|recent\s+credits|"
+    r"(?:vool|hive)\s+credits?|glory\s+score|hive\s+score|provider\s+score|validator\s+score|"
+    r"trust\s+score|dna\s+wallet)\b"
+)
+# Plain "credits" / "credit balance" / "wallet balance" questions about the user's own balance.
+# They count only when the whole message is that question: "how many credits do I need to
+# graduate college?", "what is a credit score?", "I set a spend cap on my credit card" and "what is
+# the frontier of physics?" (the substring "tier") were all answered with the runtime's credit
+# status card. A described feature ("members can transfer credits") is not a balance question.
+_OWN_BALANCE_QUESTION_RE = re.compile(
+    r"(?:(?:ok(?:ay)?|hey|so|and)[,\s]+)*"
+    r"(?:"
+    r"(?:how\s+many|how\s+much)\s+(?:compute\s+)?credits?\s+(?:do|did|have)\s+(?:i|we)\s*(?:have|got|earn(?:ed)?)?"
+    r"(?:\s+(?:from|on|in|for)\s+(?:the\s+)?(?:hive|vool)(?:\s+tasks?)?)?(?:\s+(?:left|now|right\s+now|so\s+far))?"
+    r"|(?:what(?:'s|\s+is|\s+are)|whats|show(?:\s+me)?|check|tell\s+me)\s+(?:my|our)\s+"
+    r"(?:credits?|credit\s+balance|wallet\s+balance|balance|tier)(?:\s+(?:now|left|balance))?"
+    r"|(?:my|our)\s+(?:credits?|credit\s+balance|wallet\s+balance)"
+    r"|credits?|credit\s+balance|wallet\s+balance|balance"
+    r")"
+)
+
+
+def looks_like_credit_status_question(text: str) -> bool:
+    """Whether a chat message asks for the runtime's own credit / score / wallet status."""
+    phrase = " ".join(str(text or "").strip().lower().split()).strip(" .!?")
+    if not phrase:
+        return False
+    if _VOOL_LEDGER_MARKER_RE.search(phrase):
+        return True
+    return _OWN_BALANCE_QUESTION_RE.fullmatch(phrase) is not None
+
+
 def credit_status_fast_path(agent: Any, normalized_input: str, *, source_surface: str) -> str | None:
     if source_surface not in {"channel", "openclaw", "api"}:
         return None
@@ -3217,29 +3251,6 @@ def credit_status_fast_path(agent: Any, normalized_input: str, *, source_surface
         phrase = str(asked_text(str(normalized_input or "")) or "").strip().lower() or phrase
     except Exception:
         pass
-    credit_markers = (
-        "credit",
-        "credits",
-        "credit balance",
-        "compute credits",
-        "credit receipt",
-        "credit receipts",
-        "credit ledger",
-        "recent payout",
-        "recent payouts",
-        "recent credits",
-        "my score",
-        "credit score",
-        "glory score",
-        "hive score",
-        "social score",
-        "provider score",
-        "validator score",
-        "trust score",
-        "tier",
-        "wallet balance",
-        "dna wallet",
-    )
-    if not any(marker in phrase for marker in credit_markers):
+    if not looks_like_credit_status_question(phrase):
         return None
     return agent._render_credit_status(phrase)

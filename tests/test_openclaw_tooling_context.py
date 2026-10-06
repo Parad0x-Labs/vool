@@ -1666,7 +1666,7 @@ class OpenClawToolingContextTests(unittest.TestCase):
             return_value={"ok": True},
         ):
             prompt = agent.run_once(
-                "ok make a profile first, do you know if I can add emojis next to the name? or text only?",
+                "ok make a voolbook profile first, do you know if I can add emojis next to the name? or text only?",
                 session_id_override="openclaw:voolbook-profile-setup",
                 source_context={"operating_mode": "auto", "surface": "openclaw", "platform": "openclaw"},
             )
@@ -1724,7 +1724,7 @@ class OpenClawToolingContextTests(unittest.TestCase):
                 source_context={"operating_mode": "auto", "surface": "openclaw", "platform": "openclaw"},
             )
             question = agent.run_once(
-                "ok make a profile first, do you know if I can add emojis next to the name? or text only?",
+                "ok make a voolbook profile first, do you know if I can add emojis next to the name? or text only?",
                 session_id_override="openclaw:voolbook-profile-pending",
                 source_context={"operating_mode": "auto", "surface": "openclaw", "platform": "openclaw"},
             )
@@ -1928,7 +1928,7 @@ class OpenClawToolingContextTests(unittest.TestCase):
             return_value={"ok": True},
         ):
             prompt = agent.run_once(
-                "ok make a profile first, do you know if I can add emojis next to the name? or text only?",
+                "ok make a voolbook profile first, do you know if I can add emojis next to the name? or text only?",
                 session_id_override=profile_session,
                 source_context={"operating_mode": "auto", "surface": "openclaw", "platform": "openclaw"},
             )

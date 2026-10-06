@@ -77,6 +77,19 @@ _VERSION_RE = re.compile(
 # question marker, so `which` sits beside `what` and no noun-led alternative is needed -- one was
 # tried and it claimed the STATEMENT "the skill is installed correctly now" as a list request.
 _LIST_RE = re.compile(r"\b(?:list|show|what|which)\b[^.?!]{0,30}\b" + _SKILL_WORD + r"\b", re.IGNORECASE)
+# The listing is the answer only when the whole message asks for the inventory. Searched anywhere,
+# _LIST_RE claimed ordinary questions that merely say "which ... skill": "which skill would you use
+# to cook pasta?" and "which skills are in demand for data science jobs?" got the skill inventory.
+_INVENTORY_RE = re.compile(
+    r"(?:(?:ok(?:ay)?|hey|please|so)[,\s]+)*(?:(?:can|could)\s+you\s+)?"
+    r"(?:list|show(?:\s+me)?|what|which)\s+(?:are\s+)?"
+    r"(?:(?:all|the|my|your|our|installed|available|active|enabled|current|of)\s+)*"
+    + _SKILL_WORD
+    + r"(?:\s+(?:do|does|are|is)\s+(?:you|i|we|vool|there|installed|available|loaded|active|enabled)"
+    r"(?:\s+(?:have|got|installed|available|loaded|know))?)?"
+    r"(?:\s+(?:installed|available|loaded|here|now|right\s+now|on\s+this\s+runtime))?",
+    re.IGNORECASE,
+)
 
 # The name, however it was introduced. Quoted or back-ticked wins, then "called/named X", then a
 # bare hyphenated token next to the skill word.
@@ -159,7 +172,7 @@ def skill_request(text: str) -> dict[str, Any] | None:
     # Listing is a READ, so it is decided before the deliberation gate rather than after. That gate
     # reads "what skills do i have" as discussion -- correctly, for a gate whose job is to stop
     # WRITES -- and letting it veto here answered a direct question with nothing.
-    if _LIST_RE.search(body) and not _CREATE_RE.search(body):
+    if _INVENTORY_RE.fullmatch(body.strip(" .?!")) and not _CREATE_RE.search(body):
         return {"action": "list", "name": ""}
 
     # Everything below this line mutates, so discussion stops here. "how would i create a skill?"

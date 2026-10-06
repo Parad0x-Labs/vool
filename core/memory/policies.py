@@ -182,6 +182,16 @@ def set_session_memory_policy(
     }
 
 
+_SCOPE_COMMAND_LEAD_RE = re.compile(r"^(?:(?:ok(?:ay)?|please|pls|hey|so)[,!\s]+)+")
+_SCOPE_COMMAND_TAIL_RE = re.compile(r"(?:[,\s]+(?:please|pls|now|for this (?:chat|session|conversation)))+$")
+
+
+def _scope_command_core(lowered: str) -> str:
+    """The message as a bare command: polite lead and tail words and end punctuation removed."""
+    core = _SCOPE_COMMAND_LEAD_RE.sub("", str(lowered or "").strip(" .!?"))
+    return _SCOPE_COMMAND_TAIL_RE.sub("", core).strip(" .!?,")
+
+
 def parse_session_scope_command(text: str) -> dict[str, Any] | None:
     cleaned = " ".join(str(text or "").split()).strip()
     if not cleaned:
@@ -196,39 +206,43 @@ def parse_session_scope_command(text: str) -> dict[str, Any] | None:
         restricted_terms = parse_restricted_terms(except_match.group(1))
         lowered = cleaned[: except_match.start()].strip().lower().strip(" .!?")
 
-    if lowered in {"private", "private vault", "local only", "keep this private", "this conversation is private", "store this locally", "only local", "locked"}:
+    # A scope change is a settings action, so it is recognised only when the WHOLE message is the
+    # command. Matching these phrases anywhere in a sentence flipped this chat's sharing scope on
+    # ordinary questions: "how do bees use hive mind signals?" (the substring "use hive mind"),
+    # "because hive mind thinking ruins teams" ("use hive mind" inside "because"), "how do I make
+    # this public on github?" (to PUBLIC COMMONS), and a bare "hive mind" typed as a topic.
+    command = _scope_command_core(lowered)
+    if command in {"private", "private vault", "local only", "keep this private", "this conversation is private", "store this locally", "only local", "locked"}:
         return {"action": "set", "share_scope": "local_only", "restricted_terms": restricted_terms}
     if looks_like_hive_task_query(lowered):
         return None
-    if lowered in {"hive mind", "shared pack", "friend-swarm", "friend swarm", "mesh-share"} or any(
-        phrase in lowered
-        for phrase in (
-            "share with hive",
-            "share this with hive",
-            "set shared pack",
-            "set hive mind",
-            "switch to shared pack",
-            "switch to hive mind",
-            "use shared pack",
-            "use hive mind",
-            "this is hive mind",
-            "this is shared pack",
-        )
-    ):
+    if command in {
+        "shared pack",
+        "share with hive",
+        "share this with hive",
+        "set shared pack",
+        "set hive mind",
+        "switch to shared pack",
+        "switch to hive mind",
+        "use shared pack",
+        "use hive mind",
+        "this is hive mind",
+        "this is shared pack",
+    }:
         return {"action": "set", "share_scope": "hive_mind", "restricted_terms": restricted_terms}
-    if lowered in {"public knowledge", "public commons", "hive/public commons"} or any(
-        phrase in lowered
-        for phrase in (
-            "make this public",
-            "this is public knowledge",
-            "publish this knowledge",
-            "set public commons",
-            "switch to public commons",
-            "use public commons",
-        )
-    ):
+    if command in {
+        "public knowledge",
+        "public commons",
+        "hive/public commons",
+        "make this public",
+        "this is public knowledge",
+        "publish this knowledge",
+        "set public commons",
+        "switch to public commons",
+        "use public commons",
+    }:
         return {"action": "set", "share_scope": "public_knowledge", "restricted_terms": restricted_terms}
-    if any(phrase in lowered for phrase in ("private forever", "keep this local", "keep this private")):
+    if command in {"private forever", "keep this local", "keep this private"}:
         return {"action": "set", "share_scope": "local_only", "restricted_terms": restricted_terms}
     return None
 
