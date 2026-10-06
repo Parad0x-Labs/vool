@@ -313,8 +313,11 @@ def build_live_data_plan(
         # outside the per-mention binding window and eth was silently dropped.
         # Negation withdrawal still applies inside the flag
         # (`mention_is_market_authorized` checks `market_terms_are_negated`).
+        # The turn's classification establishes that SOME clause is a market request; it does not
+        # make an index-only ordinary word in another clause an asset ("a rhyme about rain, and
+        # BTC price" planned a quote for the coin "Rain" whenever the live index was loaded).
         for alias in price_assets_named(
-            candidate_text, domain_already_authorized=True
+            candidate_text, domain_already_authorized=True, index_mentions_bind_locally=True
         ) if presence_pass_allowed else ():
             resolved = _resolve_price_alias(alias)
             if resolved is None:
