@@ -106,7 +106,7 @@ class ReferenceOwnershipTests(unittest.TestCase):
         finally:
             conn.close()
         self._cas_root = Path(tempfile.mkdtemp(prefix="lq-refs-cas-"))
-        patcher = mock.patch.object(chunk_store, "CHUNK_ROOT", self._cas_root)
+        patcher = mock.patch.object(chunk_store, "chunk_root", lambda: self._cas_root)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(lambda: _rmtree(self._cas_root))

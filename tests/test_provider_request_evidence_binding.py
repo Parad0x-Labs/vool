@@ -134,6 +134,7 @@ def test_style_retry_preserves_original_query_and_keeps_draft_out_of_support():
     router.registry.build_adapter.return_value = adapter
     context = {"chat_id": "provider-bound", "current_turn_id": "provider-turn", "admitted_capsule_evidence": original}
     with mock.patch("core.memory_first_router.should_probe_health", return_value=False), \
+            mock.patch("core.final_answer_authorship.precall_author_verdict", return_value=None), \
             mock.patch("core.memory_first_router.circuit_is_open", return_value=False):
         _, response, error = router._invoke_manifest(manifest=_manifest(), request=request, output_mode="plain_text",
                                                      task=SimpleNamespace(task_id="style-evidence"), source_context=context)
@@ -282,6 +283,7 @@ def test_formatting_retry_drops_original_history_support():
     adapter.run_text_task.side_effect = run
     router.registry.build_adapter.return_value = adapter
     with mock.patch("core.memory_first_router.should_probe_health", return_value=False), \
+            mock.patch("core.final_answer_authorship.precall_author_verdict", return_value=None), \
             mock.patch("core.memory_first_router.circuit_is_open", return_value=False):
         _, response, error = router._invoke_manifest(manifest=_manifest(), request=request, output_mode="plain_text",
                                                      task=SimpleNamespace(task_id="format-evidence"), source_context={})

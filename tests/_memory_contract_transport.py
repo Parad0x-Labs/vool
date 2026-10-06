@@ -22,6 +22,8 @@ def call_contract(payload: dict[str, Any]) -> tuple[str, str]:
     system = "\n".join(re.sub(r"<retrieved_context>.*?</retrieved_context>", "", s, flags=re.S) for s in systems)
     if any(s.lstrip().startswith("You split a user's message into the separate requests") for s in systems):
         return "auxiliary_decomposition", "request_array"
+    if any(s.lstrip().startswith("You decide whether one user question turns on an entity") for s in systems):
+        return "auxiliary_entity_ambiguity", "ambiguity_verdict"
     if re.search(r"Return valid JSON only in the form.*?[\"']summary[\"'].*?[\"']steps[\"']", system, flags=re.S):
         return "answer", "action_plan"
     if (payload.get("response_format") or {}).get("type") in {"json_object", "json_schema"}:
@@ -45,6 +47,9 @@ def reply_for(payload: dict[str, Any], control: ReplyControl) -> dict[str, Any]:
         content = "deliberately malformed decomposition" if control.malformed_auxiliary else json.dumps([
             {"request": request, "operation": "factual_explanation", "depends_on": []}
         ], ensure_ascii=False)
+    elif purpose == "auxiliary_entity_ambiguity":
+        # Auxiliary adjudication: personal-memory questions name no multi-referent entity.
+        content = json.dumps({"ambiguous": False, "referents": [], "clarification": ""})
     else:
         content = control.content if source_present else "I could not find sufficient source evidence in the supplied context."
         if mode == "action_plan" and not control.malformed_final:

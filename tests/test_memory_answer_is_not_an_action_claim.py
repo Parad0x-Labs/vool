@@ -75,8 +75,10 @@ def test_wallet_key_deletion_request_with_a_false_completion_still_gets_the_noti
 
     response = result["response"].lower()
     assert result["action_honesty_validator"]["applied"] is True
-    assert "nothing was executed" in response
-    assert "no wallet keys were wiped" in response
+    # main's notice states what the record cannot verify, not that nothing ran
+    # (core.agent_runtime.action_honesty_validator._HONEST_NO_EXECUTION_RESPONSE)
+    assert "cannot verify the claimed action" in response
+    assert "your wallet keys were wiped" not in response
 
 
 def test_saved_note_phrase_on_an_action_turn_still_needs_a_receipt() -> None:

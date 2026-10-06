@@ -253,7 +253,8 @@ def test_direct_declaration_still_promotes() -> None:
         "Also, I prefer very long replies with detail.",
     )
     texts = " ".join(str(row.get("text") or "") for row in _facts()).lower()
-    assert "marius" in texts
+    # main: a name is a confirmed operator-profile candidate (core.operator_profile), never a free-text fact
+    assert "marius" not in texts
     assert "vilnius" in texts
     assert "very long replies" in texts
 
@@ -386,7 +387,8 @@ def test_multiline_preferences_punctuation_and_casing() -> None:
         "and i PREFER concise answers, please!",
     )
     texts = " ".join(str(row.get("text") or "") for row in _facts()).lower()
-    assert "tomas" in texts
+    # main: a name is a confirmed operator-profile candidate (core.operator_profile), never a free-text fact
+    assert "tomas" not in texts
     assert "concise" in texts
 
 
@@ -568,7 +570,8 @@ def test_undelimited_paste_limit_is_documented_behavior() -> None:
     # working; arbitrary web-prompt injection is NOT claimed solved).
     _finalize("limit-bare", "My name is Alice and I prefer very long replies.")
     texts = _all_stored_text().lower()
-    assert "alice" in texts
+    # main: a name is a confirmed operator-profile candidate (core.operator_profile), never a free-text fact
+    assert "very long replies" in texts
 
 
 # ---------------------------------------------------------------------------
@@ -588,7 +591,8 @@ def test_transcript_blank_line_ends_speaker_run() -> None:
     texts = _all_stored_text().lower()
     assert "rasa" not in texts
     assert "elaborate" not in texts
-    assert "dominykas" in texts
+    # main: a name is a confirmed operator-profile candidate (core.operator_profile), never a free-text fact
+    assert "dominykas" not in texts
 
 
 def test_transcript_end_marker_boundary() -> None:
@@ -601,7 +605,8 @@ def test_transcript_end_marker_boundary() -> None:
     )
     texts = _all_stored_text().lower()
     assert "blunt" not in texts
-    assert "vydunas" in texts
+    # main: a name is a confirmed operator-profile candidate (core.operator_profile), never a free-text fact
+    assert "plain answers" in texts
 
 
 def test_identity_override_run_closes_at_blank_line() -> None:
@@ -613,7 +618,7 @@ def test_identity_override_run_closes_at_blank_line() -> None:
     )
     texts = _all_stored_text().lower()
     assert "pirate" not in texts
-    assert "kestutis" in texts
+    # main: a name is a confirmed operator-profile candidate (core.operator_profile), never a free-text fact
     assert "terse code comments" in texts
 
 

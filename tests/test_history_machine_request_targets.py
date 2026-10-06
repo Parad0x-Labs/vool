@@ -43,7 +43,7 @@ def test_a_requested_directory_creation_still_reaches_the_existing_planner(monke
     def executor(intent, arguments, **kwargs):
         calls.append(("execute", intent, arguments))
         return SimpleNamespace()
-    monkeypatch.setattr(machine, "execute_runtime_tool", executor)
+    monkeypatch.setattr(machine, "execute_authorized_runtime_tool", executor)
     monkeypatch.setattr(machine, "_machine_tool_fast_path_result", lambda *args, **kwargs: {"intent": kwargs["intent"]})
     result = machine.maybe_handle_direct_machine_write_request(
         SimpleNamespace(_plan_tool_workflow=planner), text,

@@ -793,6 +793,50 @@ def _current_turn_has_executed_receipt(
     return bool(_collect_executed_tools(session_id, source_context))
 
 
+def _location_answer_has_verified_past_receipt(
+    output: dict[str, Any],
+    *,
+    session_id: str | None,
+    source_context: dict[str, object] | None,
+) -> bool:
+    """Whether an answer about where an EARLIER write went is backed by that write's verified record.
+
+    "Where did that file go?" is answered from the record of a write an earlier turn made, so this
+    turn's own receipts never hold it, and the turn-scoped check blocked a true answer with "I did
+    not create those files". Two shapes may read past turns: the receipt-location render itself, or
+    an answer that names the very file a verified record wrote. Only typed action records that the
+    durable verifier accepts count (hashes, chat and project scope); legacy success flags from earlier
+    turns still authorize nothing, and an answer naming no recorded file is judged on this turn alone.
+    """
+    clean_session = str(session_id or "").strip()
+    if not clean_session:
+        return False
+    route = " ".join(str(output.get(key) or "") for key in ("route", "route_reason", "reason"))
+    response = str(output.get("response") or "")
+    try:
+        from core.runtime_continuity import list_runtime_tool_receipts
+
+        verified = [
+            receipt
+            for receipt in list_runtime_tool_receipts(clean_session, limit=8)
+            if isinstance(receipt, dict)
+            and isinstance(dict(receipt.get("execution") or {}).get("action_record"), dict)
+            and _receipt_shows_execution(receipt, session_id=clean_session, source_context=source_context)
+        ]
+    except Exception:
+        return False
+    if not verified:
+        return False
+    if "action_receipt_location" in route:
+        return True
+    for receipt in verified:
+        written = str(dict(receipt.get("arguments") or {}).get("path") or "").strip()
+        name = written.replace("\\", "/").rsplit("/", 1)[-1]
+        if name and name in response:
+            return True
+    return False
+
+
 def _active_mission_forbidden_terms(session_id: str | None) -> list[str]:
     clean_session = str(session_id or "").strip()
     if not clean_session:
@@ -1156,6 +1200,8 @@ def enforce_final_action_honesty(
     if str(output.get("mode") or output.get("mode_override") or "").strip().lower() == "tool_executed":
         return output
     if _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context):
+        return output
+    if _location_answer_has_verified_past_receipt(output, session_id=session_id, source_context=source_context):
         return output
 
     output["response"] = {

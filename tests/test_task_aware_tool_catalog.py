@@ -34,14 +34,10 @@ def catalog(task_class: str) -> set[str]:
     return set(_INTENT_RE.findall(text))
 
 
-def test_a_file_write_turn_is_offered_the_machine_write_tools():
-    offered = catalog("file_write")
-    assert {"machine.write_file", "machine.ensure_directory"} <= offered
-
-
-def test_a_code_edit_turn_can_read_and_write_the_workspace():
-    offered = catalog("file_edit")
-    assert {"workspace.write_file", "workspace.replace_in_file", "workspace.read_file"} <= offered
+# The two write-offer tests of the v14 line are not carried: they seat write tools from the v14 task
+# classes "file_write"/"file_edit" through capability_hint, while main seats write tools from the
+# user's own demand signals in core.tool_offer_assembly (pinned by main's
+# tests/test_p0_tool_offer_authority.py). The read-only and bounded-catalog laws below still hold.
 
 
 @pytest.mark.parametrize("task_class", ["file_read", "code_review", "debugging"])
