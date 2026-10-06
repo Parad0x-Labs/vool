@@ -352,7 +352,7 @@ def _linux_modes(member: Member) -> dict[str, str]:
         return {}
     try:
         return {os.path.realpath(f.path): str(getattr(f, "mode", "") or "") for f in proc.open_files()}
-    except Exception:
+    except Exception:  # unreadable now (exited, permission): no mode evidence, never a crash
         return {}
 
 

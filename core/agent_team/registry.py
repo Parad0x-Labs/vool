@@ -83,7 +83,7 @@ BEGIN SELECT RAISE(ABORT, 'events are append-only'); END;
 #: Agent states. ``partial`` is a cap hit with work kept; ``lost`` is a recorded process
 #: that is gone (or is now a different process) after a coordinator restart.
 LIVE_STATES = ("pending", "running", "paused")
-END_STATES = ("done", "failed", "partial", "stopped", "lost", "needs_decision", "refused")
+END_STATES = ("done", "failed", "partial", "stopped", "lost", "needs_decision", "refused", "unverified")
 
 _JSON_COLUMNS = {"contract", "spend", "result"}
 

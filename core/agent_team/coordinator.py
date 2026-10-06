@@ -517,7 +517,7 @@ class TeamCoordinator:
         try:
             proc.send_signal(sig)  # psutil re-checks the identity before signalling
             return True
-        except psutil.Error:
+        except (psutil.Error, OSError):
             return False
 
     def _freeze(self, agent_ids: Iterable[str]) -> dict[str, list[int]]:
@@ -679,15 +679,29 @@ class TeamCoordinator:
                 forced_state = forced_state or ("partial" if self._cap_hit.get(agent_id) else "refused")
                 note = note or str(outcome["refused"])
             elif outcome.get("error"):
-                forced_state = forced_state or "failed"
-                note = note or str(outcome["error"])
+                # A stream closed by our own cap or stop is that cap or stop, not a fault.
+                if self._cap_hit.get(agent_id):
+                    forced_state = forced_state or "partial"
+                elif agent_id in self._stopping:
+                    forced_state = forced_state or "stopped"
+                else:
+                    forced_state = forced_state or "failed"
+                    note = note or str(outcome["error"])
             elif outcome.get("stopped"):
                 forced_state = forced_state or "stopped"
             result_payload = dict(outcome.get("parsed") or {})
             text = str(result_payload.get("summary") or outcome.get("text") or "")
             receipts = int(outcome.get("receipts") or 0)
-            exit_observed = not forced_state
-            exit_code = 0 if exit_observed else None
+            if not forced_state and not result_payload:
+                # The turn ended without the agent's typed RESULT line: what came back is VOOL's
+                # own reply (often a refusal), not the agent's report. Never shown as done.
+                forced_state = "unverified"
+                note = note or "its turn ended without a RESULT line, so its answer is not taken as a report"
+                text = text[:600]
+            # The turn's end is observed in this process (its thread returned); a refusal or a
+            # transport fault is already a forced state, never an unobserved exit.
+            exit_observed = True
+            exit_code = 0
         snapshot = self._launch_snapshots.get(agent_id)
         if snapshot is None:
             try:
@@ -976,7 +990,7 @@ class TeamCoordinator:
                     continue
                 if proc.environ().get(ENV_TOKEN) == token:
                     return ProcId(proc.info["pid"], proc.info["create_time"])
-            except psutil.Error:
+            except (psutil.Error, OSError, SystemError, ValueError):
                 continue
         return None
 
