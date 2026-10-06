@@ -616,6 +616,10 @@ def _direct_math_expression(text: str) -> str:
     # "x" / "×" between digits is multiplication ("100x50", "100 x 50", "100×50"). The digit
     # look-around keeps it unambiguous, so a variable-name "x" elsewhere is never touched.
     expression = re.sub(r"(?<=\d)\s*[x×]\s*(?=\d)", "*", expression)
+    # Exactly-grouped thousands separators are part of the number ("2,340 * 3"); any comma left
+    # after that ("2,34 + 1") is ambiguous and fails the character check below, so the turn goes to
+    # the model instead of being computed from a guessed number.
+    expression = _GROUPED_NUMBER_RE.sub(lambda m: m.group(0).replace(",", ""), expression)
     if not _DIRECT_MATH_EXPRESSION_RE.fullmatch(expression):
         return ""
     if not any(marker in expression for marker in ("+", "-", "*", "/", "%")):
@@ -643,15 +647,37 @@ def looks_like_direct_math_request(text: str) -> bool:
 #: symbols. Measured live 2026-08-15: "the square root of 144" reached a cloud model and came back
 #: "echo fourtytwo" -- wrong by thirty, and misspelled. An arithmetic question must never be
 #: settled by a stochastic lane when the runtime can compute it exactly.
+#: One operand as people write it: plain ("2340", "0.25") or with thousands separators ("2,340",
+#: "1,234,567.5"). Grouping must be exact -- one to three leading digits, then groups of three --
+#: so "2,34" never reads as a number here (see `_ambiguous_operand`).
+_MATH_NUMBER = r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"
 _SQUARE_ROOT_RE = re.compile(
-    r"(?:\bsquare\s+root\s+of\s+|\bsqrt\s*\(?\s*|\u221a\s*)(?P<n>\d+(?:\.\d+)?)\s*\)?",
+    rf"(?:\bsquare\s+root\s+of\s+|\bsqrt\s*\(?\s*|\u221a\s*)(?P<n>{_MATH_NUMBER})\s*\)?",
     re.IGNORECASE,
 )
-_POWER_RE = re.compile(r"\b(?P<n>\d+(?:\.\d+)?)\s+(?P<word>squared|cubed)\b", re.IGNORECASE)
+_POWER_RE = re.compile(rf"\b(?P<n>{_MATH_NUMBER})\s+(?P<word>squared|cubed)\b", re.IGNORECASE)
 _PERCENT_OF_RE = re.compile(
-    r"\b(?P<pct>\d+(?:\.\d+)?)\s*(?:%|percent|per\s*cent)\s+of\s+(?P<n>\d+(?:\.\d+)?)\b",
+    rf"\b(?P<pct>{_MATH_NUMBER})\s*(?:%|percent|per\s*cent)\s+of\s+(?P<n>{_MATH_NUMBER})\b",
     re.IGNORECASE,
 )
+#: Exactly-grouped thousands separators inside an arithmetic expression ("2,340 * 3").
+_GROUPED_NUMBER_RE = re.compile(r"(?<![\d,.])\d{1,3}(?:,\d{3})+(?:\.\d+)?(?![\d,])")
+
+
+def _math_operand(text: str) -> float:
+    return float(text.replace(",", ""))
+
+
+def _ambiguous_operand(body: str, match: re.Match[str], group: str) -> bool:
+    """True when a matched operand sits inside a longer digit-comma run it does not account for.
+
+    "17% of 2,34" or "1,000,00": the comma is either a decimal comma or a typo, and either way the
+    number is not knowable. Measured on 9adff83: "What is 17% of 2,340?" was answered
+    "17% of 2 = 0.34" -- the separator was read as the end of the number. A turn like that goes to
+    the model, which can ask, rather than being served a confident guess.
+    """
+    start, end = match.span(group)
+    return bool(re.match(r",\d", body[end:]) or re.search(r"\d,$", body[:start]))
 
 
 def _format_number(value: float) -> str:
@@ -659,7 +685,12 @@ def _format_number(value: float) -> str:
 
     if value == int(value):
         return str(int(value))
-    return f"{round(value, 6):g}"
+    # Six significant digits, as before, but never fewer than the integer part plus four decimals:
+    # `:g` alone rounded a correct answer away once operands were large (10% of 1,234,567.5
+    # printed "123457", and its operand "1.23457e+06").
+    rounded = round(value, 6)
+    significant = max(6, len(str(int(abs(rounded)))) + 4)
+    return f"{rounded:.{significant}g}"
 
 
 def evaluate_named_math_request(text: str) -> str | None:
@@ -676,19 +707,25 @@ def evaluate_named_math_request(text: str) -> str | None:
 
     percent = _PERCENT_OF_RE.search(body)
     if percent is not None:
-        pct = float(percent.group("pct"))
-        base = float(percent.group("n"))
+        if _ambiguous_operand(body, percent, "pct") or _ambiguous_operand(body, percent, "n"):
+            return None
+        pct = _math_operand(percent.group("pct"))
+        base = _math_operand(percent.group("n"))
         return f"{_format_number(pct)}% of {_format_number(base)} = {_format_number(pct * base / 100)}."
 
     power = _POWER_RE.search(body)
     if power is not None:
-        base = float(power.group("n"))
+        if _ambiguous_operand(body, power, "n"):
+            return None
+        base = _math_operand(power.group("n"))
         exponent = 2 if power.group("word").lower() == "squared" else 3
         return f"{_format_number(base)}^{exponent} = {_format_number(base**exponent)}."
 
     root = _SQUARE_ROOT_RE.search(body)
     if root is not None:
-        value = float(root.group("n"))
+        if _ambiguous_operand(body, root, "n"):
+            return None
+        value = _math_operand(root.group("n"))
         if value < 0:
             return None
         return f"The square root of {_format_number(value)} is {_format_number(value**0.5)}."
