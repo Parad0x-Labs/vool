@@ -74,5 +74,8 @@ name.
   running it is presumed the owner's; otherwise it is reported unattributed.
 - A model agent's chat turn cannot be re-adopted after a coordinator restart; it is reported lost
   and its chat keeps the record.
+- A model agent's reply passes through VOOL's own answer gates, which can withhold statements the
+  turn's evidence does not support. If that removes the agent's `RESULT` line, the agent is reported
+  unverified, never done; its full turn stays in its chat and on disk.
 - Write-mode model agents need VOOL's runtime tool door to ask the gate; until that hook is
   installed in the serving process they are refused, not started.
