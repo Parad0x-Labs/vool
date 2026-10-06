@@ -519,10 +519,13 @@ _TELEGRAM_SETUP_RE = re.compile(
     # A bare "telegram bot" is usually a build, research, or documentation request. Keep
     # the setup fast path for explicit connection/setup language so it cannot hijack queries
     # such as "latest telegram bot api updates" before the live-info router sees them.
-    r"|telegram\s+(?:bridge|setup|integration|account)"
+    r"|telegram\s+(?:bridge|setup|integration)"
+    # The phone arm names VOOL ("you"/"vool"). With the subject optional, and with "telegram
+    # account" and "work from my phone" as arms of their own, ordinary sentences got the bridge
+    # setup script: "I opened a telegram account, how do I set a username?", "I work from my phone
+    # a lot, any productivity tips?".
     r"|(?:use|run|access|control|reach|talk\s+to|chat\s+with|work\s+(?:with|on|from))\s+"
-    r"(?:vool|you|this|it)?\s*(?:from|on|via|through)\s+(?:my\s+)?(?:phone|mobile|telegram)"
-    r"|work\s+from\s+my\s+phone"
+    r"(?:vool|you)\s+(?:from|on|via|through)\s+(?:my\s+)?(?:phone|mobile|telegram)"
     r"|vool\s+(?:on|to|via|through)\s+telegram"
     r"|(?:connect|link)\s+(?:my\s+)?(?:tg|telegram)"
     r")",

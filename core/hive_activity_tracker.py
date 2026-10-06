@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from core.hive_command_shape import hive_command_core as _hive_command_core
+from core.hive_command_shape import matches_hive_command, names_the_product_hive
 from core.runtime_paths import config_path
 from storage.curiosity_state import recent_curiosity_runs_for_session, recent_curiosity_topics_for_session
 from storage.db import get_connection
@@ -253,7 +255,7 @@ class HiveActivityTracker:
             }
 
         reminder_minutes = _extract_reminder_minutes(text)
-        if "ignore" in text and "remind" in text:
+        if looks_like_hive_prompt_control(text) and "remind" in text:
             minutes = reminder_minutes or _DEFAULT_REMINDER_MINUTES
             snooze_hive_prompts(session_id, minutes=minutes)
             return True, {
@@ -264,7 +266,7 @@ class HiveActivityTracker:
                 "topics": [],
                 "online_agents": [],
             }
-        if "ignore hive" in text or "ignore it for now" in text:
+        if "ignore hive" in text or (bool(state.get("pending_topic_ids")) and _hive_command_core(text) == "ignore it for now"):
             snooze_hive_prompts(session_id, minutes=_DEFAULT_REMINDER_MINUTES)
             return True, {
                 "command_kind": "prompt_control",
@@ -568,12 +570,32 @@ def load_hive_activity_tracker_config() -> HiveActivityTrackerConfig:
     )
 
 
+# Hive commands are recognised only when the message IS the command (see core.hive_command_shape).
+# Every pattern above used to be searched anywhere in the text, so an ordinary sentence that merely
+# contained one was answered with the Hive watcher script and never reached the model: "what tasks
+# should I do in my hive this spring?", "check the hive temperature, it's 5 degrees outside, is that
+# ok for bees?", "what's on the hive tonight? my bees are noisy", "what is online banking?"
+# (overview), "should I ignore my boss or remind him about the deadline?" (snoozed Hive nudges).
+# The contextual patterns keep searching: they only apply while this chat has just been offered
+# Hive tasks (pending_topic_ids), where "ok lets pull online tasks and see" is an answer to that offer.
+
+
+def looks_like_hive_prompt_control(text: str) -> bool:
+    """"ignore hive" / "ignore hive and remind me in 30 minutes": a command about Hive nudges.
+
+    Must name the Hive. "ignore" plus "remind" anywhere used to snooze Hive nudges and answer with
+    the snooze script, so "remind me to ignore my ex's texts" never reached the model.
+    """
+    lowered = " ".join(str(text or "").strip().lower().split())
+    return bool(lowered) and bool(re.search(r"\bhive\b", lowered)) and "ignore" in lowered
+
+
 def _looks_like_hive_pull_request(text: str) -> bool:
-    lowered = str(text or "").strip().lower()
+    lowered = _hive_command_core(text)
     if not lowered:
         return False
     if any(
-        phrase in lowered
+        phrase == lowered
         for phrase in (
             "pull available tasks now",
             "pull hive tasks now",
@@ -591,7 +613,7 @@ def _looks_like_hive_pull_request(text: str) -> bool:
         )
     ):
         return True
-    return any(pattern.search(lowered) for pattern in _HIVE_PULL_PATTERNS)
+    return matches_hive_command(lowered, _HIVE_PULL_PATTERNS)
 
 
 def _looks_like_contextual_hive_pull_request(text: str) -> bool:
@@ -602,15 +624,17 @@ def _looks_like_contextual_hive_pull_request(text: str) -> bool:
 
 
 def _looks_like_hive_overview_request(text: str) -> bool:
-    lowered = str(text or "").strip().lower()
+    lowered = _hive_command_core(text)
     if not lowered:
         return False
-    if any(pattern.search(lowered) for pattern in _HIVE_OVERVIEW_PATTERNS):
+    # "who is online" / "what's online" alone is the Hive overview; inside a sentence it is only
+    # when the sentence names the Hive ("what do we have online? any tasks in hive mind?").
+    # "online" next to "tasks" or "work" is not enough ("I work online, what tasks can I automate?").
+    if any(pattern.fullmatch(lowered) for pattern in _HIVE_OVERVIEW_PATTERNS):
         return True
-    return (
-        _contains_phrase_marker(lowered, ("online", "agents"))
-        and _contains_phrase_marker(lowered, ("hive", "hive mind", "brain hive", "tasks", "task", "work"))
-    )
+    if not names_the_product_hive(lowered) or len(lowered.split()) > 16:
+        return False
+    return bool(re.search(r"\bonline\b", lowered))
 
 
 def session_hive_state(session_id: str) -> dict[str, Any]:
