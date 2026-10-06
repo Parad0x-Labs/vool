@@ -64,6 +64,7 @@ class TeamCoordinator:
         chat_text: str = "",
         model_runner: Any = None,
         output_ceiling: int = 2048,
+        on_alert: Any = None,
     ) -> None:
         self.team_dir = Path(team_dir)
         self.registry = Registry(self.team_dir)
@@ -73,6 +74,9 @@ class TeamCoordinator:
         self.chat_text = str(chat_text or "")
         self.model_runner = model_runner
         self.output_ceiling = int(output_ceiling)
+        #: Called with each new alert (overlap, git internals, unattributed change) so it reaches
+        #: the user as it happens, not when they next ask for status.
+        self.on_alert = on_alert
         self._lock = threading.RLock()
         self._procs: dict[str, subprocess.Popen] = {}
         self._model_threads: dict[str, threading.Thread] = {}
@@ -411,6 +415,12 @@ class TeamCoordinator:
                 alert = self._handle(finding, lineages)
                 if alert:
                     alerts.append(alert)
+                    if self.on_alert is not None:
+                        try:
+                            self.on_alert(alert)
+                        except Exception as exc:  # delivery failed: say so in the trail, keep watching
+                            self.registry.event(self.team_id, "alert_delivery_failed", "",
+                                                conflict_id=alert.get("conflict_id"), error=f"{type(exc).__name__}: {exc}")
             self._launch_ready()
             for agent_id, row in rows.items():
                 if row["state"] in ("running", "paused"):
