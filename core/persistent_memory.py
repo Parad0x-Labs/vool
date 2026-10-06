@@ -1034,37 +1034,32 @@ def _write_conversation_event(
                 session_id,
                 type(exc).__name__,
             )
-        if not is_image_turn:
-            # This is the single finalized-turn seam for every route, including
-            # fast paths.  Keeping semantic persistence here prevents the
-            # model-wording chat surface from becoming an accidental special
-            # case and carries the same server-resolved policy/runtime home to
-            # both write and later retrieval.
-            try:
-                from core.context_retrieval import store_turn
+        # Every finalized turn retains its attributed source, including an
+        # image brief. A fictional render subject remains evidence of an ask;
+        # it is neither mined above nor indexed as a standing user assertion.
+        try:
+            from core.context_retrieval import store_turn
 
-                semantic_result = store_turn(
-                    session_id,
-                    redacted_user,
-                    redacted_assistant,
-                    access_policy=resolved_policy,
-                    source_context=source_context,
-                )
-                if semantic_result.get("status") == "failed":
-                    LOGGER.warning(
-                        "semantic memory write rejected for chat %s: %s",
-                        session_id,
-                        semantic_result.get("reason", "unknown"),
-                    )
-            except Exception as exc:
-                # Semantic memory is fail-soft for the response path, but the
-                # failure must be visible to diagnostics rather than silently
-                # making the round trip appear successful.
+            semantic_result = store_turn(
+                session_id,
+                redacted_user,
+                redacted_assistant,
+                access_policy=resolved_policy,
+                source_context=source_context,
+                index_user_statements=not is_image_turn,
+            )
+            if semantic_result.get("status") == "failed":
                 LOGGER.warning(
-                    "semantic memory write unavailable for chat %s: %s",
+                    "semantic memory write rejected for chat %s: %s",
                     session_id,
-                    type(exc).__name__,
+                    semantic_result.get("reason", "unknown"),
                 )
+        except Exception as exc:
+            LOGGER.warning(
+                "semantic memory write unavailable for chat %s: %s",
+                session_id,
+                type(exc).__name__,
+            )
 
 
 #: Assistant-authored artifacts that belong in a chat's TRANSCRIPT but in none of the
@@ -1732,19 +1727,20 @@ def maybe_handle_memory_command(
         facts = _split_explicit_memory_facts(fact)
         added_count = 0
         for memory_fact in facts:
-            memory_scope = _memory_scope_for_user_fact(
+            for eligible_fact, eligible_scope, eligible_source in _admitted_remember_facts(
                 memory_fact,
                 policy=resolved_policy,
-            )
-            added_count += int(
-                add_memory_fact(
-                    memory_fact,
-                    session_id=resolved_session,
-                    scope=memory_scope,
-                    authority="confirmed_memory",
-                    access_policy=resolved_policy,
+            ):
+                added_count += int(
+                    add_memory_fact(
+                        eligible_fact,
+                        session_id=resolved_session,
+                        scope=eligible_scope,
+                        authority="confirmed_memory",
+                        source=eligible_source,
+                        access_policy=resolved_policy,
+                    )
                 )
-            )
         if added_count:
             return True, "Locked in. I’ll remember that."
         return True, "I already had that in memory."
@@ -1804,8 +1800,84 @@ def _memory_scope_for_user_fact(
     not make every user-authored fact a profile preference.  Only explicit
     preference/identity language is eligible for profile scope; all other
     captures stay bound to their originating chat.
+
+    Eligibility is decided on the fact's AUTHORED portion only: an explicitly
+    remembered quotation ("Remember this article excerpt: \"My name is Petra.
+    …\"") is retained in the chat as source material, and its embedded
+    identity/preference markers never promote the quoted speaker into the
+    user's profile.  A direct authored declaration ("my preferred name is …")
+    keeps its existing profile eligibility.
     """
     if not policy.allow_user_profile_context:
         return "chat"
-    lowered = " ".join(str(fact or "").casefold().split())
+    from core.memory.admission import classify_user_text
+
+    authored = classify_user_text(fact).authored_text
+    if not authored:
+        # The entire fact is quoted/fenced source material.
+        return "chat"
+    lowered = " ".join(authored.casefold().split())
     return "user_profile" if any(marker in lowered for marker in _PROFILE_MEMORY_MARKERS) else "chat"
+
+
+#: Trailing connective framing that introduces quoted/pasted source material
+#: inside an otherwise personal declaration ("…, and this article excerpt:").
+#: Stripped only when the authored remainder is an attributable declaration and
+#: the quote is stored separately; never used to delete content outright.
+_REMEMBERED_SOURCE_FRAMING_TAIL_RE = re.compile(
+    r"[,;:]?\s*(?:and\s+|also\s+|plus\s+|with\s+|alongside\s+)?"
+    r"(?:this|that|these|those|the\s+(?:following|attached|pasted))?\s*"
+    r"(?:[a-z-]+\s+from\s+(?:the|this|that)\s+[a-z-]+"
+    r"|article|excerpt|quote|quotation|passage|snippet|post|note|text|"
+    r"template|bit|words|lines|phrases|fragments)\b[^a-z0-9]*:?\s*(?:and\s+)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _attributable_declaration(text: str) -> bool:
+    """Whether authored text itself asserts a personal declaration/instruction."""
+    lowered = " ".join(str(text or "").casefold().split())
+    if not lowered:
+        return False
+    if any(marker in lowered for marker in _PROFILE_MEMORY_MARKERS):
+        return True
+    from core.memory.learning import extract_memory_candidates
+
+    return bool(extract_memory_candidates(text))
+
+
+def _admitted_remember_facts(
+    fact: str,
+    *,
+    policy: ContextAccessPolicy,
+) -> list[tuple[str, str, str]]:
+    """Split one explicitly remembered fact into admissible (content, scope, source).
+
+    The persisted content and its scope must agree: a genuine personal marker
+    in the authored portion never authorizes storing the third-party material
+    quoted beside it at profile scope.  When the authored portion is an
+    unambiguous personal declaration, the declaration is stored through the
+    normal scope decision and the quoted source material is retained
+    chat-scoped as source.  Mixed content without an attributable declaration
+    stays whole and chat-scoped.  Nothing is discarded.
+    """
+    from core.memory.admission import classify_user_text
+
+    origin = classify_user_text(fact)
+    if not origin.has_source_material:
+        return [(fact, _memory_scope_for_user_fact(fact, policy=policy), "manual")]
+    authored = " ".join(origin.authored_text.split())
+    source_material = " ".join(origin.source_text.split())
+    if not _attributable_declaration(authored):
+        return [(fact, "chat", "manual")]
+    attributable = _REMEMBERED_SOURCE_FRAMING_TAIL_RE.sub("", authored).strip() or authored
+    pairs = [
+        (
+            attributable,
+            _memory_scope_for_user_fact(attributable, policy=policy),
+            "manual",
+        )
+    ]
+    if source_material:
+        pairs.append((source_material, "chat", "remembered_source_material"))
+    return pairs

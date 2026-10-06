@@ -51,18 +51,6 @@ _GROUNDED_LISTING_VERDICTS = frozenset(
     {"executed", "truncated", "no_results", "not_allowed", "not_found"}
 )
 
-# "what i put there", "the file i saved yesterday", "where i moved it" -- the user narrating their
-# own past action. The verb is a write verb, the subject is the user, the tense is past, and the
-# sentence around it is a question. None of that asks this assistant to write anything.
-_USER_ALREADY_DID_IT_RE = re.compile(
-    # "...what i PUT in documents", "the note i SAVED there"
-    r"\bi\s+(?:already\s+|just\s+)?"
-    r"(?:put|saved|wrote|created|made|added|moved|renamed|dropped|stuck|stored|left)\b"
-    # "what DID I SAVE to my desktop" -- the auxiliary carries the tense, so the verb is a stem
-    r"|\bdid\s+i\s+(?:put|save|write|create|make|add|move|rename|drop|stick|store|leave)\b",
-    re.IGNORECASE,
-)
-
 
 def _remember_machine_read(session_id: str, *, kind: str, drive: str | None, turn_id: str = "") -> None:
     key = str(session_id or "").strip()
@@ -141,6 +129,11 @@ _AFFIRMATIVE_MACHINE_WRITE_RE = re.compile(
     r"\b(?:create|make|mkdir|write|save|append|put|edit|change|delete|remove|rename|move)\b",
     re.IGNORECASE,
 )
+_MACHINE_WRITE_LOCATION_PREFIX_RE = re.compile(
+    r"(?:on|in|into|under|to)\s+(?:(?:my|our|the|this)\s+)?"
+    r"(?:desktop|downloads|documents|docs)\b[\s,]*", re.IGNORECASE,
+)
+_TRANSCRIPT_EXPORT_REQUEST_RE = re.compile(r"(?:export|save|write|dump)\b", re.IGNORECASE)
 _SAFE_MACHINE_WRITE_TARGETS = (
     " desktop ",
     " on my desktop ",
@@ -512,6 +505,8 @@ def looks_like_supported_machine_read_request(user_input: str) -> bool:
 
 def looks_like_safe_machine_write_request(user_input: str) -> bool:
     lowered = " " + " ".join(str(user_input or "").split()).strip().lower() + " "
+    # Sentence punctuation does not change an explicitly named safe target.
+    lowered = re.sub(r"[.!?;,](?=\s|$)", " ", lowered)
     if not lowered.strip():
         return False
     # Asking for the TEXT of an artifact is authoring, not a machine write (MF-13, third seam).
@@ -523,16 +518,7 @@ def looks_like_safe_machine_write_request(user_input: str) -> bool:
 
     if asks_for_instructions_not_execution(user_input):
         return False
-    if _USER_ALREADY_DID_IT_RE.search(lowered):
-        # "i cant remember what i PUT in the Documents dir, can you check" is a question about what
-        # is already there. The write lane claimed it on the bare word " put " and answered "I
-        # won't pretend I created or changed files I did not really write" -- a write refusal to a
-        # read question, measured on the deployed build 2026-07-30.
-        #
-        # A write verb whose subject is the USER in the past tense reports something ALREADY DONE.
-        # It is never an instruction to this assistant, so it cannot be what makes a turn a write.
-        return False
-    has_write_verb = _has_affirmative_machine_write_verb(lowered)
+    has_write_verb = _has_affirmative_machine_write_verb(user_input)
     has_safe_machine_target = any(marker in lowered for marker in _SAFE_MACHINE_WRITE_TARGETS)
     has_workspace_target = any(marker in lowered for marker in _WORKSPACE_TARGET_MARKERS)
     if has_safe_machine_target and has_write_verb:
@@ -540,26 +526,24 @@ def looks_like_safe_machine_write_request(user_input: str) -> bool:
     return False
 
 
-def _has_affirmative_machine_write_verb(text: str) -> bool:
-    """Recognize an affirmative write verb without requiring a root marker.
+def _machine_write_request_text(text: str) -> str:
+    from core.instructional_request import requested_action_clauses
 
-    File-write extraction can infer the safe Desktop/Documents root from a named folder, so it
-    must not require the sentence to repeat the root word. The higher-level write lane still
-    applies its explicit safe-root and workspace checks.
-    """
-    lowered = " " + " ".join(str(text or "").split()).strip().lower() + " "
-    if not lowered.strip() or _USER_ALREADY_DID_IT_RE.search(lowered):
-        return False
-    for match in _AFFIRMATIVE_MACHINE_WRITE_RE.finditer(lowered):
-        prefix = lowered[max(0, match.start() - 80) : match.start()]
-        if re.search(r"\b(?:do\s+not|don't|never)\b[^.!?]*$", prefix) is None:
-            return True
-    return False
+    return " and ".join(requested_action_clauses(
+        text, _AFFIRMATIVE_MACHINE_WRITE_RE, location_prefix=_MACHINE_WRITE_LOCATION_PREFIX_RE,
+    ))
+
+
+def _has_affirmative_machine_write_verb(text: str) -> bool:
+    """Require an actual write request; keep safe-target checks with their owner."""
+    return bool(_machine_write_request_text(text))
 
 
 def looks_like_supported_machine_directory_create_request(user_input: str) -> bool:
-    lowered = " " + " ".join(str(user_input or "").split()).strip().lower() + " "
-    if not lowered.strip():
+    request_text = _machine_write_request_text(user_input)
+    lowered = " " + " ".join(request_text.split()).strip().lower() + " "
+    lowered = re.sub(r"[.!?;,](?=\s|$)", " ", lowered)
+    if not request_text:
         return False
     if not any(marker in lowered for marker in (" create ", " make ", " mkdir ")):
         return False
@@ -814,7 +798,7 @@ def maybe_handle_direct_machine_write_request(
     if not looks_like_supported_machine_directory_create_request(user_input):
         return None
     decision = agent._plan_tool_workflow(
-        user_text=user_input,
+        user_text=_machine_write_request_text(user_input),
         task_class="unknown",
         executed_steps=[],
         source_context=dict(source_context or {}),
@@ -921,11 +905,15 @@ def maybe_handle_direct_machine_download_request(
 
 
 def _extract_machine_transcript_export_target(user_input: str) -> str:
-    raw = " ".join(str(user_input or "").split()).strip()
+    from core.instructional_request import requested_action_clauses
+
+    requested = requested_action_clauses(
+        user_input, _TRANSCRIPT_EXPORT_REQUEST_RE,
+        location_prefix=_MACHINE_WRITE_LOCATION_PREFIX_RE,
+    )
+    raw = " ".join(" and ".join(requested).split()).strip()
     lowered = f" {raw.lower()} "
     if not raw:
-        return ""
-    if not any(marker in lowered for marker in _TRANSCRIPT_EXPORT_VERBS):
         return ""
     if not any(marker in lowered for marker in _TRANSCRIPT_EXPORT_SUBJECTS):
         return ""
@@ -1034,11 +1022,9 @@ def _extract_machine_text_file_write_target(
     *,
     source_context: dict[str, object] | None,
 ) -> dict[str, str] | None:
-    raw = " ".join(str(user_input or "").split()).strip()
+    raw = " ".join(_machine_write_request_text(user_input).split()).strip()
     lowered = f" {raw.lower()} "
     if not raw:
-        return None
-    if not _has_affirmative_machine_write_verb(raw):
         return None
     if any(marker in lowered for marker in _WORKSPACE_TARGET_MARKERS):
         return None

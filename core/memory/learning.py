@@ -7,6 +7,7 @@ from typing import Any
 
 from core.context_scope import ContextAccessPolicy
 from core.memory import entries as memory_entries
+from core.memory.admission import classify_user_text
 from core.memory.files import (
     MAX_DENSE_OPERATOR_PROFILE_BYTES,
     MAX_SESSION_SUMMARY_BYTES,
@@ -121,6 +122,216 @@ _SHORTHAND_PATTERNS = [
     re.compile(r"[\"'](.+?)[\"']\s+means\s+[\"'](.+?)[\"']", re.IGNORECASE),
     re.compile(r"\bby\s+[\"'](.+?)[\"']\s+i mean\s+[\"']?(.+?)[\"']?\s*$", re.IGNORECASE),
 ]
+
+# ---------------------------------------------------------------------------
+# Heuristic admission contract: predicate, target, polarity, scope
+# ---------------------------------------------------------------------------
+# The marker tables above are the VOCABULARY (admission's quote boundary reads
+# them through _writer_marker_phrases); a row is admitted only when the clause
+# carrying the marker is an AFFIRMATIVE user-owned predicate about the right
+# OBJECT class, is not negated, and is not scoped to a single task.  Before
+# this contract the extractor fired on bare marker presence, so "I prefer
+# clear skies" stored a response-style heuristic, a negated source ban became
+# a standing GitHub preference, motion "go" became the Go stack, a one-task
+# inspection became an enduring source rule, and "do not just do it" became
+# hands-off autonomy.  Negated preferences are WITHHELD, never inverted: the
+# heuristic store has no durable-negative representation (the explicit facts
+# lane keeps negative declarations verbatim), so a withheld false positive is
+# the honest outcome.
+
+#: Communication nouns a style adjective must modify (or a be/keep/answer
+#: frame must govern it): "concise answers" is style, "clear skies" is not.
+_COMMUNICATION_NOUNS = (
+    "answer", "answers", "reply", "replies", "response", "responses",
+    "style", "tone", "format", "formatting", "explanation", "explanations",
+    "summary", "summaries", "update", "updates", "message", "messages",
+    "writing", "prose", "feedback", "instruction", "instructions",
+    "comment", "comments",
+)
+_COMMUNICATION_NOUN_ALT = "|".join(_COMMUNICATION_NOUNS)
+
+#: Stative user-owned preference ("I prefer ...", "we like ...").
+_STATIVE_PREFERENCE_RE = re.compile(
+    r"\b(?:i|we)\s+(?:really\s+|absolutely\s+|generally\s+|usually\s+|mostly\s+|just\s+|do\s+)?"
+    r"(?:prefer|prefers|like|likes|love|loves|want|wants|need|needs)"
+    r"|\b(?:i|we)\s+(?:would|'d)\s+rather\b"
+    r"|\b(?:my|our)\s+(?:preferred|favourite|favorite)\b",
+    re.IGNORECASE,
+)
+#: First-person ongoing activity ("I'm building", "we run") — affirmative for
+#: project-focus observations that are statements, not directives.
+_FIRST_PERSON_ACTIVITY_RE = re.compile(
+    r"\b(?:i|we)(?:(?:'m|'re)|\s+(?:am|are))?\s+"
+    r"(?:building|maintaining|developing|writing|running|hosting|using|use|"
+    r"work(?:ing)?\s+on|code(?:ing)?\s+in|build(?:ing)?\s+(?:with|in))\b"
+    # a verb with its OBJECT before the preposition: "we build our tooling
+    # in Rust" — the stack frame gate still requires in/with + marker
+    r"|\b(?:i|we)\s+(?:build|write|code|develop|maintain|use)\b"
+    r"[^.!?;:]{0,40}\b(?:in|with|using)\b",
+    re.IGNORECASE,
+)
+#: Standing-scope adverbials that make a directive durable.
+_STANDING_SCOPE_RE = re.compile(
+    r"\b(?:always|from now on|going forward|whenever|in general|generally|"
+    r"by default|as a rule|each time|every time)\b",
+    re.IGNORECASE,
+)
+#: A standing adverb confers affirmative authority only when it OPENS the
+#: clause (softeners, direct address or first-person ownership aside) and
+#: governs a bare imperative verb form ("always cite official documentation").
+#: An explicit subject before the adverb makes the clause a DECLARATIVE
+#: about that subject: third-person plurals ("my colleagues always prefer
+#: concise answers") share the bare verb form with imperatives ("always
+#: prefer…"), so directive ownership is bound at the clause level — no
+#: subject means the user's own directive, a named third party means that
+#: party's habit, which is not a user preference.
+_STANDING_IMPERATIVE_RE = re.compile(
+    r"^(?:please\s+|kindly\s+|just\s+|only\s+|and\s+|also\s+|now\s+|then\s+|"
+    r"you\s+|let'?s\s+|let\s+us\s+|i\s+|we\s+)*"
+    r"(?:always|never|from now on|going forward|whenever|in general|generally|"
+    r"by default|as a rule|each time|every time)\s+"
+    r"(?:please\s+|only\s+|just\s+)?"
+    r"(?:use|keep|be|stay|make|write|answer|respond|reply|cite|reference|"
+    r"build|create|implement|scaffold|code|prefer|summarise|summarize|"
+    r"explain|adopt|give|send|show|share|stick|rely|consult|trust|choose)\b",
+    re.IGNORECASE,
+)
+#: Imperative addressed to the assistant at clause start (softeners allowed).
+_IMPERATIVE_RE = re.compile(
+    r"^(?:please\s+|kindly\s+|can\s+you\s+|could\s+you\s+|would\s+you\s+|"
+    r"just\s+|go\s+ahead\s+and\s+|also\s+|and\s+)*"
+    r"(?:use|keep|be|stay|make|write|answer|respond|reply|cite|reference|"
+    r"build|create|implement|scaffold|code|prefer|summarise|summarize|"
+    r"explain|adopt|give|send|show|share|stick|rely|consult|trust|choose)\b",
+    re.IGNORECASE,
+)
+#: One-shot scopers that make an otherwise affirmative directive task-local.
+_TASK_LOCAL_SCOPER_RE = re.compile(
+    r"\bfor\s+this\s+(?:task|email|message|reply|answer|change|session|chat|run|one|request)\b"
+    r"|\b(?:just\s+)?this\s+once\b"
+    r"|\bone[-\s]time\b"
+    r"|\bfor\s+now\b"
+    r"|\bonly\s+(?:this|here|for\s+now)\b"
+    r"|\bthis\s+time\s+only\b",
+    re.IGNORECASE,
+)
+#: Source-usage directives: an ongoing instruction about WHERE implementation
+#: material comes from ("Use GitHub repos for implementation examples").
+_SOURCE_USAGE_DIRECTIVE_RE = re.compile(
+    r"\b(?:use|uses|used|using|cite|cites|cited|citing|reference|references|"
+    r"referenced|referencing|consult|consults|consulted|consulting|"
+    r"rely\s+on|relies\s+on|relying\s+on|stick\s+to|sticks\s+to|sticking\s+to|"
+    r"go\s+to|goes\s+to|trust|trusts|choose|chose)\b",
+    re.IGNORECASE,
+)
+_SOURCE_ROLE_NOUN_RE = re.compile(
+    r"\b(?:sources?|references?|citations?|research|docs|documentation)\b",
+    re.IGNORECASE,
+)
+#: Source marker phrases that name a source role themselves.
+_SOURCE_ROLE_MARKER_PHRASES = frozenset(
+    {
+        "official docs", "official documentation", "official sources",
+        "reputable sources", "trusted sources", "public websites", "good sources",
+    }
+)
+#: Software-intent context for a stack/project marker.
+_SOFTWARE_INTENT_RE = re.compile(
+    r"\b(?:build|building|create|creating|make|making|write|writing|code|coding|"
+    r"program|programming|implement|implementing|scaffold|develop|developing|"
+    r"maintain|maintaining|refactor|rewriting|script|service|api|app|application|"
+    r"backend|frontend|server|cli|tool|tools|library|sdk|daemon|worker|project|"
+    r"microservice|bot|agent|runtime|integration)\b",
+    re.IGNORECASE,
+)
+#: Standing hands-off autonomy: an affirmative directive about the ASKING /
+#: APPROVAL behavior itself ("don't ask me before making changes" is a
+#: low-friction request; "do not just do it" is not about asking at all).
+_AUTONOMY_HANDS_OFF_RE = re.compile(
+    r"\b(?:don'?t|do\s+not|no\s+need\s+to|never|stop)\s+(?:be\s+)?ask(?:ing|ed)?\b"
+    r"|\bwithout\s+(?:asking|being\s+asked|my\s+approval|approval|confirmation|"
+    r"checking\s+with\s+me|sign[-\s]?off)\b"
+    r"|\bno\s+micro[-\s]?approvals?\b"
+    r"|\bdon'?t\s+(?:wait\s+for|seek|request|need)\s+(?:my\s+|your\s+)?"
+    r"(?:approval|confirmation|permission|sign[-\s]?off)\b"
+    r"|\b(?:proceed|act|continue|go\s+ahead)\s+without\b"
+    r"|\bno\s+approval\s+needed\b",
+    re.IGNORECASE,
+)
+#: The "without ... approval/asking" FRAME alone is ambiguous: it rides on
+#: low-friction directives ("proceed without asking") and on approval-
+#: REQUIRED requests ("never act without my approval") alike.
+_AUTONOMY_WITHOUT_FRAME_RE = re.compile(
+    r"\bwithout\s+(?:my\s+|your\s+|the\s+|any\s+|further\s+)*"
+    r"(?:asking|being\s+asked|approval|confirmation|"
+    r"checking\s+with\s+me|permission|sign[-\s]?off|oversight|review)\b",
+    re.IGNORECASE,
+)
+#: Predicates of the ASKING/approval behavior itself.  When a negation
+#: governs one of these ("don't ask", "never seek my sign-off", "no need to
+#: wait for approval"), the clause asks for LESS friction — the hands-off
+#: direction.
+_AUTONOMY_ASKING_PREDICATE_RE = re.compile(
+    r"\b(?:ask(?:ing|ed)?|wait(?:ing)?|seek(?:ing)?|request(?:ing)?|need(?:ing|ed)?|"
+    r"check(?:ing)?|consult(?:ing)?|confirm(?:ing)?|"
+    r"approval|approvals|permission|confirmation|sign[-\s]?off|oversight)\b",
+    re.IGNORECASE,
+)
+#: A negation reaching a predicate OTHER than the asking/approval behavior
+#: itself ("don't work without my approval", "never ship without sign-off"):
+#: in the without-frame the negation binds to DOING, not to asking, so the
+#: clause DEMANDS approval — the opposite of the hands-off preference, never
+#: a valid source for it.  Polarity comes from WHAT the negation governs
+#: (acting vs asking), not from a memorized action-verb list.
+_AUTONOMY_NEGATION_RE = re.compile(
+    r"\b(?:don'?t|do\s+not|does\s+not|did\s+not|never|stop|avoid|refuse\s+to|"
+    r"must\s+not|shall\s+not|cannot|can'?t|won'?t|will\s+not)\b",
+    re.IGNORECASE,
+)
+
+
+#: Fillers that may sit between a negator and the predicate it governs
+#: ("do not JUST do it", "don't EVER ask", "never BE asked"): auxiliaries,
+#: the infinitive marker and manner/temporal adverbs.  The first word after
+#: them is the governed predicate.
+_NEGATION_FILLER_RE = re.compile(r"^(?:to|be|been|being|just|simply|even|ever|again|always|please)$", re.IGNORECASE)
+
+
+def _negation_governed_predicate(clause: str, match: re.Match[str]) -> str:
+    """The predicate the negation at *match* actually governs: the first
+    word after the negator that is not an auxiliary/filler.
+
+    Words FARTHER away do not count: in "never act without approval" the
+    approval noun is the OBJECT of the without-condition attached to the
+    action, not the negated predicate — the negation governs "act".  Only
+    the governed predicate decides the polarity direction.
+    """
+    for word in re.findall(r"[A-Za-z']+", clause[match.end() :]):
+        if not _NEGATION_FILLER_RE.match(word):
+            return word
+    return ""
+
+
+def _clause_negation_demands_approval(clause: str) -> bool:
+    """Whether a negation in *clause* governs a predicate other than the
+    asking/approval behavior itself.
+
+    Polarity is read from the GOVERNED predicate — the first non-filler word
+    after the negator: negation + asking predicate is the low-friction
+    direction ("don't ask me", "never seek my sign-off"), while a negation
+    governing any other predicate in a clause carrying the without-frame
+    ("never act without approval", "don't proceed without confirmation")
+    withholds autonomous action until approval — it can never be stored as
+    hands-off.  An asking/approval word appearing later in the clause is the
+    object of a condition on the action, not evidence about what was
+    negated.
+    """
+    for match in _AUTONOMY_NEGATION_RE.finditer(clause):
+        governed = _negation_governed_predicate(clause, match)
+        if governed and not _AUTONOMY_ASKING_PREDICATE_RE.fullmatch(governed):
+            return True
+    return False
+
 _NEGATIVE_FEEDBACK_PATTERNS = [
     re.compile(r"\bno,?\s+(?:that'?s?\s+)?(?:not|wrong|incorrect)\b", re.IGNORECASE),
     re.compile(r"\bthat'?s?\s+(?:not|wrong|incorrect|bad|off)\b", re.IGNORECASE),
@@ -242,15 +453,22 @@ def auto_capture_memory(*, session_id: str, user_input: str, project_id: str | N
     if not should_auto_extract(user_input):
         return
 
-    _auto_learn_shorthand(session_id=session_id, user_input=user_input)
+    # Admission: a user-role message may quote or paste somebody else's words.
+    # Only the user's AUTHORED prose may produce personal facts and shorthand;
+    # quoted/fenced/transcript spans are source material, retained for same-chat
+    # recall by the conversation log and the semantic store, never promoted.
+    origin = classify_user_text(user_input)
+    admission_text = origin.authored_text
+
+    _auto_learn_shorthand(session_id=session_id, user_input=admission_text)
 
     seen: set[str] = set()
     authority = (
         "user_correction"
-        if memory_entries.is_user_correction(user_input)
+        if memory_entries.is_user_correction(admission_text)
         else "confirmed_memory"
     )
-    for candidate in extract_memory_candidates(user_input):
+    for candidate in extract_memory_candidates(admission_text):
         text = memory_entries.sanitize_fact(str(candidate.get("text") or ""))
         if not text:
             continue
@@ -269,9 +487,54 @@ def auto_capture_memory(*, session_id: str, user_input: str, project_id: str | N
             authority=authority,
         )
 
+    _capture_explicitly_adopted_source_statement(
+        origin=origin,
+        session_id=session_id,
+        project_id=project_id,
+    )
+
+
+def _capture_explicitly_adopted_source_statement(
+    *,
+    origin,
+    session_id: str,
+    project_id: str | None = None,
+) -> None:
+    """Promote quoted material ONLY through an explicit, unambiguous adoption.
+
+    The user's authored prose must carry an adoption directive ("that also
+    describes me", "same here", "remember it for me") AND the quoted material
+    must contain exactly one adoptable identity/preference statement.  More
+    than one candidate — or none — withholds promotion; the quote stays
+    available as chat-local source material.
+    """
+    statements = origin.adoptable_source_statements()
+    if len(statements) != 1:
+        return
+    adopted = memory_entries.sanitize_fact(statements[0])
+    if not adopted or contains_negated_declaration(adopted):
+        return
+    category = "name" if any(pattern.search(adopted) for pattern in _NAME_PATTERNS) else "preference"
+    memory_entries.add_memory_fact(
+        adopted,
+        category=category,
+        session_id=session_id,
+        source="adopted_user_declaration",
+        confidence=0.85,
+        keywords=memory_entries.keyword_tokens_filtered(adopted),
+        project_id=project_id,
+        authority="confirmed_memory",
+    )
+
 
 def update_user_heuristics(*, session_id: str, user_input: str, project_id: str | None = None) -> None:
-    candidates = extract_user_heuristic_candidates(user_input)
+    # Heuristics persist at scope=user_profile with authority=confirmed_memory, so
+    # they may be built ONLY from the user's authored prose — never from quoted
+    # or pasted third-party content (repetition inside quotes must not launder a
+    # signal into a confirmed profile preference either).
+    candidates = extract_user_heuristic_candidates(
+        classify_user_text(user_input).authored_text
+    )
     _apply_feedback_to_heuristics(session_id=session_id)
     if not candidates:
         return
@@ -328,6 +591,9 @@ def update_user_heuristics(*, session_id: str, user_input: str, project_id: str 
             "project_id": str(project_id or "").strip(),
             "provenance": {
                 "kind": "direct_user_observation",
+                # Admission origin (additive): every new heuristic row comes from
+                # the user's authored prose, never from quoted source material.
+                "origin": "user_authored",
                 "source_id": "profile:confirmed",
                 "content_hash": hashlib.sha256(text.encode()).hexdigest(),
                 "origin_chat_id": session_id,
@@ -479,14 +745,169 @@ def update_session_summary(
     trim_jsonl_file(session_summaries_path(), max_bytes=MAX_SESSION_SUMMARY_BYTES)
 
 
+def _heuristic_clauses(user_input: str) -> list[str]:
+    """Sentences of the authored text, further split into clause units.
+
+    A marker only carries meaning inside the clause that governs it; scanning
+    the whole turn let a marker in one clause borrow a predicate from another.
+    """
+    text = " ".join(str(user_input or "").split()).strip()
+    if not text:
+        return []
+    clauses: list[str] = []
+    for sentence in _SENTENCE_SPLIT_RE.split(text):
+        for clause in re.split(r"[;:\u2014]", sentence):
+            clause = clause.strip()
+            if clause:
+                clauses.append(clause)
+    return clauses
+
+
+def _clause_is_affirmative(clause: str) -> bool:
+    stripped = clause.strip()
+    return bool(
+        _STATIVE_PREFERENCE_RE.search(clause)
+        or _FIRST_PERSON_ACTIVITY_RE.search(clause)
+        or _STANDING_IMPERATIVE_RE.search(clause)
+        or _IMPERATIVE_RE.match(stripped)
+    )
+
+
+def _clause_is_negated(clause: str, matched_markers: tuple[str, ...]) -> bool:
+    # Negation is judged with the matched marker phrases blanked: the style
+    # vocabulary itself contains "no fluff" / "no bullshit", which are positive
+    # style directives, not negations.
+    from core.memory.admission import _NEGATION_CLASS_RE
+
+    scan = clause
+    for marker in matched_markers:
+        if marker:
+            scan = re.sub(re.escape(marker), " ", scan, flags=re.IGNORECASE)
+    return bool(_NEGATION_CLASS_RE.search(scan))
+
+
+def _clause_is_uncertain_or_conditional(clause: str) -> bool:
+    from core.memory.admission import (
+        _CONDITIONAL_MARKER_RE,
+        _HEDGE_RE,
+        _UNCERTAINTY_CLASS_RE,
+    )
+
+    return bool(
+        _CONDITIONAL_MARKER_RE.search(clause)
+        or _HEDGE_RE.search(clause)
+        or _UNCERTAINTY_CLASS_RE.search(clause)
+    )
+
+
+#: Style phrases that are directives in themselves: no separate predicate is
+#: required for them to carry the user's instruction ("no fluff, please").
+_SELF_DIRECTED_STYLE_PHRASES = frozenset(
+    {"no fluff", "no hopium", "no copium", "no bullshit", "brutally honest"}
+)
+
+
+def _style_marker_targets_communication(clause: str, marker: str) -> bool:
+    marker = marker.lower()
+    if marker in _SELF_DIRECTED_STYLE_PHRASES:
+        # These phrases are themselves style directives about replies.
+        return True
+    m = re.escape(marker)
+    frame = re.compile(
+        rf"\b(?:be|stay)\s+(?:more\s+|very\s+|super\s+|really\s+)?{m}\b"
+        # "keep" must govern a COMMUNICATION object before the marker: "keep
+        # your answers concise" is style; "keep the freezer clear" is a
+        # physical state with a coincidental adjective.
+        rf"|\bkeep\b[^.!?;:]{{0,30}}?\b(?:{_COMMUNICATION_NOUN_ALT})"
+        rf"\b[^.!?;:]{{0,30}}?\b{m}\b"
+        rf"|\b{m}\s+(?:{_COMMUNICATION_NOUN_ALT})\b"
+        rf"|\b(?:answer|respond|reply|write|explain|summarise|summarize)"
+        rf"[^.!?;:]{{0,30}}?\b{m}(?:ly)?\b",
+        re.IGNORECASE,
+    )
+    return bool(frame.search(clause))
+
+
+def _source_marker_targets_sources(clause: str, marker: str) -> bool:
+    directive = _SOURCE_USAGE_DIRECTIVE_RE.search(clause)
+    stative = _STATIVE_PREFERENCE_RE.search(clause)
+    if not (directive or stative):
+        return False
+    if marker.lower() in _SOURCE_ROLE_MARKER_PHRASES:
+        # The marker phrase itself names a source role.
+        return True
+    if directive:
+        # A usage directive governs the marker directly ("Use GitHub repos
+        # for implementation examples") — no source noun is required.
+        return True
+    # A bare stative preference needs a source role in the clause to be about
+    # sources at all ("I like GitHub memes" is not a source preference).
+    return bool(_SOURCE_ROLE_NOUN_RE.search(clause))
+
+
+def _stack_marker_targets_software(clause: str, marker: str) -> bool:
+    if not _SOFTWARE_INTENT_RE.search(clause):
+        return False
+    m = re.escape(marker)
+    frames = (
+        rf"\b(?:in|with|using)\s+{m}\b",
+        rf"\b{m}\s+for\s+(?:the\s+)?"
+        rf"(?:backend|front?end|server|service|api|cli|tool|daemon|worker|library|sdk|microservices?)\b",
+        rf"\b(?:i|we)\s+(?:prefer|like|love|use|code|write|build|work|program)"
+        rf"[^.!?;:]{{0,15}}\b{m}\b",
+    )
+    return any(re.search(frame, clause, re.IGNORECASE) for frame in frames)
+
+
+def _project_marker_targets_software(clause: str) -> bool:
+    build_verb = re.search(
+        r"\b(?:build|building|create|creating|make|making|implement|implementing|"
+        r"write|writing|develop|developing|deploy|deploying|maintain|maintaining|"
+        r"set\s+up|setting\s+up|work(?:ing)?\s+on|scaffold(?:ing)?|ship|shipping|"
+        r"launch|launching|run(?:ning)?|host(?:ing)?)\b",
+        clause,
+        re.IGNORECASE,
+    )
+    if not build_verb:
+        return False
+    software_noun = re.search(
+        r"\b(?:bot|app|application|service|api|tool|agent|runtime|integration|"
+        r"project|daemon|script|workflow|channel|bridge|relay|dashboard|pipeline)\b",
+        clause,
+        re.IGNORECASE,
+    )
+    return bool(software_noun or _STATIVE_PREFERENCE_RE.search(clause))
+
+
 def extract_user_heuristic_candidates(user_input: str) -> list[dict[str, Any]]:
-    lowered = " ".join(str(user_input or "").split()).strip().lower()
-    if not lowered or len(lowered) < 10:
+    clauses = _heuristic_clauses(user_input)
+    if not clauses or len(" ".join(clauses)) < 10:
         return []
     out: list[dict[str, Any]] = []
 
-    for signal, markers in _HEURISTIC_STYLE_MARKERS.items():
-        if any(marker in lowered for marker in markers):
+    for clause in clauses:
+        affirmative = _clause_is_affirmative(clause)
+        scoped_to_one_task = bool(_TASK_LOCAL_SCOPER_RE.search(clause))
+        uncertain = _clause_is_uncertain_or_conditional(clause)
+
+        for signal, markers in _HEURISTIC_STYLE_MARKERS.items():
+            matched = tuple(
+                marker
+                for marker in markers
+                if re.search(rf"\b{re.escape(marker)}\b", clause, re.IGNORECASE)
+            )
+            if not matched:
+                continue
+            self_directed = any(marker in _SELF_DIRECTED_STYLE_PHRASES for marker in matched)
+            if not (affirmative or self_directed) or scoped_to_one_task or uncertain:
+                continue
+            # Markers of one signal are synonyms; in a coordination
+            # ("stay concise, direct, and clear") the frame governs the whole
+            # coordination, so ANY framed marker carries the signal.
+            if not any(_style_marker_targets_communication(clause, marker) for marker in matched):
+                continue
+            if _clause_is_negated(clause, matched):
+                continue
             out.append(
                 {
                     "heuristic_id": f"response_style:{signal}",
@@ -498,8 +919,20 @@ def extract_user_heuristic_candidates(user_input: str) -> list[dict[str, Any]]:
                 }
             )
 
-    for signal, markers in _HEURISTIC_SOURCE_MARKERS.items():
-        if any(marker in lowered for marker in markers):
+        for signal, markers in _HEURISTIC_SOURCE_MARKERS.items():
+            matched = tuple(
+                marker
+                for marker in markers
+                if re.search(rf"\b{re.escape(marker)}\b", clause, re.IGNORECASE)
+            )
+            if not matched:
+                continue
+            if not affirmative or scoped_to_one_task or uncertain:
+                continue
+            if not any(_source_marker_targets_sources(clause, marker) for marker in matched):
+                continue
+            if _clause_is_negated(clause, matched):
+                continue
             out.append(
                 {
                     "heuristic_id": f"source_preference:{signal}",
@@ -511,9 +944,24 @@ def extract_user_heuristic_candidates(user_input: str) -> list[dict[str, Any]]:
                 }
             )
 
-    wants_build = any(marker in lowered for marker in _HEURISTIC_BUILD_MARKERS)
-    for signal, markers in _HEURISTIC_STACK_MARKERS.items():
-        if any(re.search(rf"\b{re.escape(marker)}\b", lowered) for marker in markers) and wants_build:
+        for signal, markers in _HEURISTIC_STACK_MARKERS.items():
+            matched = tuple(
+                marker
+                for marker in markers
+                if re.search(rf"\b{re.escape(marker)}\b", clause, re.IGNORECASE)
+            )
+            if not matched:
+                continue
+            # No separate build-verb requirement: the technology frame plus the
+            # affirmative predicate (stative "I prefer Go for the API layer"
+            # carries no build verb) is the contract; a bare noun match cannot
+            # pass both.
+            if not affirmative or scoped_to_one_task or uncertain:
+                continue
+            if not any(_stack_marker_targets_software(clause, marker) for marker in matched):
+                continue
+            if _clause_is_negated(clause, matched):
+                continue
             out.append(
                 {
                     "heuristic_id": f"preferred_stack:{signal}",
@@ -525,8 +973,15 @@ def extract_user_heuristic_candidates(user_input: str) -> list[dict[str, Any]]:
                 }
             )
 
-    for signal, markers in _HEURISTIC_PROJECT_MARKERS.items():
-        if any(marker in lowered for marker in markers):
+        for signal, markers in _HEURISTIC_PROJECT_MARKERS.items():
+            if not any(marker in clause.lower() for marker in markers):
+                continue
+            if not affirmative or scoped_to_one_task or uncertain:
+                continue
+            if not _project_marker_targets_software(clause):
+                continue
+            if _clause_is_negated(clause, tuple(markers)):
+                continue
             out.append(
                 {
                     "heuristic_id": f"project_focus:{signal}",
@@ -538,17 +993,35 @@ def extract_user_heuristic_candidates(user_input: str) -> list[dict[str, Any]]:
                 }
             )
 
-    if any(marker in lowered for marker in _HEURISTIC_AUTONOMY_MARKERS):
-        out.append(
-            {
-                "heuristic_id": "autonomy_preference:hands_off",
-                "category": "autonomy_preference",
-                "signal": "hands_off",
-                "text": heuristic_text("autonomy_preference", "hands_off"),
-                "confidence": 0.82,
-                "keywords": memory_entries.keyword_tokens_filtered(heuristic_text("autonomy_preference", "hands_off")),
-            }
-        )
+        # Autonomy: the hands-off row means LOW-FRICTION execution, so it is
+        # admitted only from a directive about the asking/approval behavior
+        # itself — never from a bare task command ("just do it"), never from
+        # its negation ("do not just do it; ask me before ..."), and never
+        # from an approval-REQUIRED request: in a clause carrying the
+        # without-frame, a negation governing any predicate other than the
+        # asking/approval behavior ("never act without my approval",
+        # "don't work without my approval") binds the negation to DOING, not
+        # to asking, so the clause asks for MORE friction — the opposite
+        # preference.
+        if (
+            not scoped_to_one_task
+            and not uncertain
+            and _AUTONOMY_HANDS_OFF_RE.search(clause)
+            and not (
+                _AUTONOMY_WITHOUT_FRAME_RE.search(clause)
+                and _clause_negation_demands_approval(clause)
+            )
+        ):
+            out.append(
+                {
+                    "heuristic_id": "autonomy_preference:hands_off",
+                    "category": "autonomy_preference",
+                    "signal": "hands_off",
+                    "text": heuristic_text("autonomy_preference", "hands_off"),
+                    "confidence": 0.82,
+                    "keywords": memory_entries.keyword_tokens_filtered(heuristic_text("autonomy_preference", "hands_off")),
+                }
+            )
 
     deduped: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -596,6 +1069,17 @@ def _turn_carries_an_explicit_remember_directive(sentences: list[str]) -> bool:
     """Whether one of these sentences is a bare instruction to remember the others."""
 
     return any(_STANDALONE_REMEMBER_RE.match(sentence.strip()) for sentence in sentences)
+
+
+#: A declaration whose captured value opens with a negation ("my name is not
+#: Alice") denies the value rather than asserting it; storing "not Alice" as
+#: the name would promote the denial as an endorsement.
+_NEGATION_OPENERS = {"not", "no", "never", "nobody", "none", "neither"}
+
+
+def contains_negated_declaration(value: str) -> bool:
+    tokens = str(value or "").strip().lower().split()
+    return bool(tokens) and tokens[0] in _NEGATION_OPENERS
 
 
 def extract_memory_candidates(user_input: str) -> list[dict[str, Any]]:

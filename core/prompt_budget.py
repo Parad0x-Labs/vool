@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 import math
 import re
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
+
+from core.internal_message_schema import is_turn_directives_message
 
 # Per-message chat-template cost. Measured at 5 tokens/message for qwen2.5's template
 # (<|im_start|>role\n ... <|im_end|>\n), taken as the slope between a 10- and a 50-message
@@ -31,6 +34,15 @@ _CONTEXT_SUMMARY_MARKER = "<context_summary>"
 # read low. Validated against real counts for Chinese, Japanese, Korean, Cyrillic, English,
 # shouty English, Python, Markdown, JSON, emoji and hex; see the pinned counts in
 # tests/test_prompt_budget_guard.py.
+#
+# Scope of that never-reads-low claim (2026-09-30 qualification): the margins hold
+# for the measured qwen2.5 tokenizer over the validated content classes, and the
+# estimator's payload coverage is text content + tool-call fields + tool/format
+# schemas (see estimate_message_tokens). It is NOT established for other served
+# tokenizers beyond the margin carried in the table, NOT for chat templates other
+# than the one measured, and NOT for non-text parts (images/audio are out of
+# estimator scope entirely). Bytes are exact where bytes are measured; every token
+# figure is an estimate on this calibration, never model tokenization.
 _SPACE_TOKENS_PER_CHAR = 0.05
 _NEWLINE_TOKENS_PER_CHAR = 0.12
 _ASCII_LOWER_TOKENS_PER_CHAR = 0.26
@@ -163,6 +175,54 @@ def _price_alnum_runs(text: str) -> tuple[str, int]:
     return "".join(fragments), priced_characters
 
 
+def _message_tool_call_text(message: dict[str, Any]) -> str:
+    """Every provider-bound character a message carries outside ``content``.
+
+    Assistant tool-call turns serialize their ``tool_calls`` (call id, type,
+    function name and the full arguments JSON) onto the wire, and tool-role
+    replies carry ``name`` and ``tool_call_id`` — all of it tokenized by the
+    provider even though none of it lives in ``content``. Arguments are the
+    load-bearing case: a single large structured payload rides inside one
+    message while ``content`` stays empty.
+    """
+    parts: list[str] = []
+    name = message.get("name")
+    if isinstance(name, str) and name:
+        parts.append(name)
+    tool_call_id = message.get("tool_call_id")
+    if isinstance(tool_call_id, str) and tool_call_id:
+        parts.append(tool_call_id)
+    calls = message.get("tool_calls")
+    if isinstance(calls, (list, tuple)):
+        for call in calls:
+            if not isinstance(call, dict):
+                parts.append(str(call or ""))
+                continue
+            call_id = call.get("id")
+            if isinstance(call_id, str) and call_id:
+                parts.append(call_id)
+            call_type = call.get("type")
+            if isinstance(call_type, str) and call_type:
+                parts.append(call_type)
+            function = call.get("function")
+            if isinstance(function, dict):
+                function_name = function.get("name")
+                if isinstance(function_name, str) and function_name:
+                    parts.append(function_name)
+                arguments = function.get("arguments")
+                if isinstance(arguments, str):
+                    parts.append(arguments)
+                elif arguments is not None:
+                    try:
+                        parts.append(json.dumps(
+                            arguments, sort_keys=True, ensure_ascii=False))
+                    except (TypeError, ValueError):
+                        parts.append(str(arguments))
+            elif function is not None:
+                parts.append(str(function))
+    return "\n".join(part for part in parts if part)
+
+
 def estimate_message_tokens(messages: list[dict[str, Any]]) -> int:
     """Estimate prompt tokens from the character classes actually present.
 
@@ -172,12 +232,22 @@ def estimate_message_tokens(messages: list[dict[str, Any]]) -> int:
     5251. Under-reading here is not a cosmetic error: the guard passes the oversized prompt
     through and the provider left-truncates the protected system prompt anyway, which is the
     exact failure this module exists to prevent.
+
+    Scope: text ``content`` plus the provider-bound tool-call fields
+    (``tool_calls``/``name``/``tool_call_id``, see _message_tool_call_text).
+    Non-text message parts (images, audio) are NOT estimated — this product
+    does not pack them into provider messages, and inventing a byte-to-token
+    rate for them would be a fabricated bound. Every figure stays an
+    ESTIMATE against the calibrated rate table, not model tokenization.
     """
     content_tokens = math.fsum(
         estimate_text_tokens(_message_text(message.get("content"))) for message in messages
     )
+    tool_call_tokens = math.fsum(
+        estimate_text_tokens(_message_tool_call_text(message)) for message in messages
+    )
     return (
-        math.ceil(content_tokens)
+        math.ceil(content_tokens + tool_call_tokens)
         + (_MESSAGE_OVERHEAD_TOKENS * len(messages))
         + _RESPONSE_OVERHEAD_TOKENS
     )
@@ -239,7 +309,23 @@ def fit_messages_to_context_window(
 
     if fitted and estimate_message_tokens(fitted) > available and memory_prefix:
         primary_system_index = _primary_system_index(fitted)
-        if primary_system_index is not None:
+        turn_index = next(
+            (
+                index
+                for index, message in enumerate(fitted)
+                if is_turn_directives_message(message) and memory_prefix in str(message["content"])
+            ),
+            None,
+        )
+        if turn_index is not None:
+            fitted[turn_index] = {
+                **fitted[turn_index],
+                "content": str(fitted[turn_index]["content"]).replace(
+                    f"{memory_prefix}\n\n---\n\n", "", 1
+                ),
+            }
+            dropped_memory = True
+        elif primary_system_index is not None:
             fitted[primary_system_index] = {
                 **fitted[primary_system_index],
                 "content": protected_system_prompt,
@@ -361,6 +447,10 @@ def _is_sheddable_history(
     primary_system_index: int | None,
 ) -> bool:
     if index == primary_system_index or messages[index] is current_user:
+        return False
+    if is_turn_directives_message(messages[index]):
+        # The per-turn facts (clock, corrections, recall) used to live inside the protected
+        # primary system message; moving them after the history must not make them sheddable.
         return False
     text = _message_text(messages[index].get("content"))
     return _RETRIEVED_CONTEXT_MARKER not in text and _CONTEXT_SUMMARY_MARKER not in text

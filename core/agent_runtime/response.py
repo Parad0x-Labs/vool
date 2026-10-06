@@ -14,6 +14,7 @@ from core.model_output_guard import (
     answer_is_unfulfilled_intent,
     has_restored_evidence_provenance,
     is_reasoning_only,
+    replace_unobserved_live_claims,
     turn_ran_observations,
     unobserved_live_value_claims,
     unverified_live_value_notice,
@@ -84,7 +85,6 @@ _ORCHESTRATION_LEAK_MARKERS = (
     "scheduled_children",
     "merged_result",
     "step_results",
-    "graph",
 )
 _ENVELOPE_ROLE_MARKERS = (
     "queen envelope",
@@ -95,7 +95,49 @@ _ENVELOPE_ROLE_MARKERS = (
     "memory_clerk envelope",
     "narrator envelope",
 )
+# AMBIGUOUS leak markers: bare English words that are also substrings and tokens of ordinary
+# prose. Every compound marker above is snake_case machinery vocabulary -- `capacity_state`
+# does not occur inside an English word, so a plain substring match convicts only real leaks.
+# `graph` is different on both edges, and the measured failure (2026-09-30 LongMemEval case
+# q55854fc024eaae7a) was the word-boundary edge the compound markers never had: the substring
+# `graph` inside `autographed` convicted every substantive sentence of a correct abstention
+# ("I've got no record of any autographed footballs..."), and only the final sentence shipped.
+# Word-boundary anchoring alone does not close it: `\bgraph\b` still convicts legitimate
+# graph-TALK ("you've been working through graph theory"), which is ordinary content, not
+# orchestration. What actually distinguishes the leak is STRUCTURE, not vocabulary: internal
+# material carries `graph` as a mapping KEY or a quoted structural token --
+# `"graph": {...}`, `{'graph': ...}`, `{graph: ...}` -- while prose carries it as a bare word
+# with no quote, colon or brace adjacency. So an ambiguous marker convicts only in its
+# structural shapes; the compound markers keep their plain substring semantics.
+_AMBIGUOUS_LEAK_MARKER_STRUCTURAL_RES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "graph",
+        re.compile(
+            r"[\"'`]graph[\"'`]\s*:"  # quoted mapping key: "graph": / 'graph':
+            r"|\{\s*graph\s*:"  # unquoted dict key directly after an opening brace
+            r"|,\s*graph\s*:",  # unquoted dict key after a comma (Python-repr shape)
+            re.IGNORECASE,
+        ),
+    ),
+)
 _ORCHESTRATION_FRAGMENT_MARKERS = _ORCHESTRATION_LEAK_MARKERS + _ENVELOPE_ROLE_MARKERS
+
+
+def _ambiguous_leak_marker_hits(text: str) -> bool:
+    """Whether any ambiguous marker appears in a STRUCTURAL (leak-shaped) position."""
+
+    return any(pattern.search(text) for _word, pattern in _AMBIGUOUS_LEAK_MARKER_STRUCTURAL_RES)
+
+
+def _orchestration_fragment_marker_pattern() -> re.Pattern[str]:
+    """One alternation for fragment stripping: compound markers as substrings, ambiguous
+    markers in their structural shapes only."""
+
+    parts = [re.escape(marker) for marker in _ORCHESTRATION_FRAGMENT_MARKERS]
+    parts.extend(
+        f"(?:{pattern.pattern})" for _word, pattern in _AMBIGUOUS_LEAK_MARKER_STRUCTURAL_RES
+    )
+    return re.compile("|".join(parts), flags=re.IGNORECASE)
 _TRACEBACK_LINE_RE = re.compile(r'^\s*File\s+"[^"]+",\s+line\s+\d+', re.IGNORECASE | re.MULTILINE)
 # An exception line as Python actually emits one: the class name STARTS a line. `ValueError: x`,
 # `SyntaxError: invalid syntax`, `json.decoder.JSONDecodeError: ...`.
@@ -179,9 +221,28 @@ def decorate_chat_response(
         agent.ResponseClass.GENERIC_CONVERSATION,
         workflow_summary=workflow_summary,
     )
-    clean_text = agent._shape_user_facing_text(result)
     constraint = response_constraint_from_metadata(source_context)
     raw_contract = raw_output_contract_from_metadata(source_context)
+    from core.reasoning_engine import RequestedAnswerContract
+
+    answer_contract = (source_context or {}).get("_requested_answer_contract")
+    preserve_source_format = bool(
+        raw_contract is not None
+        or (isinstance(answer_contract, RequestedAnswerContract) and answer_contract.preserve_source_format)
+    )
+    clean_text = (
+        shape_user_facing_text(agent, result, preserve_source_format=True)
+        if preserve_source_format else agent._shape_user_facing_text(result)
+    )
+    if not preserve_source_format and agent._contains_generic_planner_scaffold(result.text) and isinstance(source_context, dict):
+        control = dict(source_context.get("response_control") or {})
+        control["fallback_applied"] = True
+        control["fulfillment_outcome"] = {
+            "fulfillment_status": "failed", "failure_stage": "output_validation",
+            "failure_codes": ["generic_planner_scaffold"], "retryable": True,
+        }
+        source_context["response_control"] = control
+        source_context["runtime_notice_not_an_answer"] = True
     # The UI must display the same shape the model router validated.  Workflow/Hive decoration
     # is useful context for normal replies but becomes a contract violation for an explicit
     # bounded response request.
@@ -407,11 +468,28 @@ def _validate_final_chat_output(
     # `core.unsourced_current_claim`); a raw-output contract wins as it does for every other
     # decoration on this path.
     live_claim_kinds: tuple[str, ...] = ()
+    recorded_state_retention_applied = False
+    live_claim_kinds_withdrew = False
     refused_slot_claims: tuple[dict[str, object], ...] = ()
     if raw_contract is None and not turn_ran_observations(
         source_context
     ) and not _is_recorded_deterministic_render(final_text, source_context):
-        live_claim_kinds = unobserved_live_value_claims(final_text)
+        # The current turn's own user message: a value the user stated THIS turn is a
+        # user-provided present fact, and a reply echoing it is retention, not invention.
+        # Only the last user entry is consulted -- earlier entries are history, and history
+        # is not a current-observation channel (the dated-reading contract).
+        _history = list((source_context or {}).get("conversation_history") or [])
+        _current_user_text = next(
+            (
+                str(item.get("content") or "")
+                for item in reversed(_history)
+                if isinstance(item, dict) and item.get("role") == "user"
+            ),
+            "",
+        )
+        live_claim_kinds = unobserved_live_value_claims(
+            final_text, user_turn_text=_current_user_text
+        )
         if live_claim_kinds and _stipulated_frame_owns_the_values(source_context):
             # Named stand-down, same law as the restored-provenance one below: the values in this
             # text derive from premises the USER supplied in the request (the stipulated-frame
@@ -435,12 +513,44 @@ def _validate_final_chat_output(
             # says was unanswered either.
             live_claim_kinds = ()
         if live_claim_kinds:
-            final_text = unverified_live_value_notice(
-                live_claim_kinds,
-                _request_text_of(source_context),
-                part_of_turn=bool((source_context or {}).get("planned_subturn")),
-            )
-            _mark_turn_unfulfilled(source_context, "live figures withheld: no lookup ran for them")
+            # RECORDED STATE, not invention (measured 2026-09-30, LongMemEval
+            # q48c0fce9504f8410): a personal record's latest stored value -- stated
+            # by the user, admitted into the capsule with its dates, supersession
+            # respected -- is recorded state the reply RETAINS, not a same-turn
+            # sensor observation it fabricated. The law lives in
+            # core.unsourced_current_claim.recorded_state_retention and applies
+            # ONLY to the measured-quantity kind: temperature, price and
+            # percent-change shapes keep their full original guard, and dated
+            # memory still never becomes an observation channel anywhere else.
+            # The evidence is the SAME admitted capsule the reader received
+            # (harvested at transcript assembly, session-bound at consumption).
+            if set(live_claim_kinds) <= {"measured-quantity"}:
+                from core.bootstrap_context import admitted_capsule_evidence_text
+                from core.unsourced_current_claim import recorded_state_retention
+
+                _admitted_evidence = admitted_capsule_evidence_text(source_context)
+                recorded_state_retention_applied = bool(
+                    _admitted_evidence and recorded_state_retention(final_text, _admitted_evidence)
+                )
+            if not recorded_state_retention_applied:
+                # Sentence-granular: a mixed answer ("You paid about $170 when you
+                # bought them; today they are listed at $120.") keeps its supported
+                # past half -- the claim lives in the sentence that binds the value
+                # to its currentness anchor. When no sentence is separable the whole
+                # answer is replaced, and then by the notice that names the request's
+                # own demand (the currency pair, the part of a multi-part turn).
+                withdrawn = replace_unobserved_live_claims(
+                    final_text, user_turn_text=_current_user_text
+                )
+                if withdrawn == unverified_live_value_notice(live_claim_kinds):
+                    withdrawn = unverified_live_value_notice(
+                        live_claim_kinds,
+                        _request_text_of(source_context),
+                        part_of_turn=bool((source_context or {}).get("planned_subturn")),
+                    )
+                final_text = withdrawn
+                live_claim_kinds_withdrew = True
+                _mark_turn_unfulfilled(source_context, "live figures withheld: no lookup ran for them")
     # THE C12 CONTRACT (AUD-20260829-003): a slot this session's durable record says was NOT
     # answered may never acquire a value from generation.
     #
@@ -527,8 +637,12 @@ def _validate_final_chat_output(
         }
         # Recorded only when it fired: consumers assert this record's exact shape, and an
         # empty-list key on every clean turn says nothing a missing key does not.
-        if live_claim_kinds:
+        if live_claim_kinds and live_claim_kinds_withdrew:
             control["final_ui"]["unobserved_live_claims_rejected"] = list(live_claim_kinds)
+        # Same discipline for the retention verdict: recorded only when the exemption
+        # actually kept a reply the live-claim recognizer had convicted.
+        if recorded_state_retention_applied:
+            control["final_ui"]["recorded_state_retention_applied"] = list(live_claim_kinds)
         # Same discipline: recorded only when the contract actually bit, so a clean turn's record
         # is byte-identical to what it was before this branch existed.
         if refused_slot_claims:
@@ -586,11 +700,13 @@ def _validate_final_chat_output(
     return final_text
 
 
-def shape_user_facing_text(agent: Any, result: Any) -> str:
-    text = agent._sanitize_user_chat_text(
-        result.text,
-        response_class=result.response_class,
-        allow_planner_style=result.allow_planner_style,
+def shape_user_facing_text(agent: Any, result: Any, *, preserve_source_format: bool = False) -> str:
+    text = (
+        sanitize_user_chat_text(agent, result.text, response_class=result.response_class,
+            allow_planner_style=result.allow_planner_style, preserve_source_format=True)
+        if preserve_source_format else agent._sanitize_user_chat_text(
+            result.text, response_class=result.response_class, allow_planner_style=result.allow_planner_style,
+        )
     )
     if result.response_class == agent.ResponseClass.TASK_STARTED:
         started_research_match = re.match(
@@ -664,6 +780,7 @@ def sanitize_user_chat_text(
     *,
     response_class: Any,
     allow_planner_style: bool = False,
+    preserve_source_format: bool = False,
 ) -> str:
     base_text = str(text or "").strip()
     # A model may not stamp its own guesses "verified". The runtime has never awarded that label --
@@ -693,12 +810,15 @@ def sanitize_user_chat_text(
             "I asked to run a tool and the runtime did not execute it, so I have no result to give "
             "you rather than a half-finished one. Ask again and it will retry."
         )
-    sanitized = agent._strip_runtime_preamble(base_text, allow_planner_style=False)
-    sanitized = agent._strip_planner_leakage(sanitized)
+    # Source/user deliverables can themselves contain headings and summary/steps JSON.
+    # Keep their presentation; tool, reasoning, traceback and orchestration checks still run.
+    sanitized = base_text if preserve_source_format else agent._strip_runtime_preamble(base_text, allow_planner_style=False)
+    if not preserve_source_format:
+        sanitized = agent._strip_planner_leakage(sanitized)
     reasoning_safe = suppress_internal_reasoning_leak(sanitized)
     if reasoning_safe is not None:
         return reasoning_safe
-    if agent._contains_generic_planner_scaffold(sanitized):
+    if not preserve_source_format and agent._contains_generic_planner_scaffold(sanitized):
         if response_class == agent.ResponseClass.UTILITY_ANSWER:
             return "I couldn't answer that utility request cleanly."
         if response_class in {agent.ResponseClass.TASK_FAILED_USER_SAFE, agent.ResponseClass.SYSTEM_ERROR_USER_SAFE}:
@@ -833,6 +953,10 @@ def strip_planner_leakage(agent: Any, text: str) -> str:
     if not clean:
         return ""
 
+    # A bare planner envelope ({summary|message, bullets|steps} and nothing else) is the
+    # planner's own output shape and is unwrapped to prose. An object carrying any other field
+    # is user/source data: unwrap_summary_or_action_payload returns it unchanged, so these keys
+    # never grant permission to reinterpret or discard the other fields.
     clean = agent._unwrap_summary_or_action_payload(clean)
 
     lowered = clean.lower()
@@ -860,8 +984,10 @@ def humanize_orchestration_leak(
     lowered = clean.lower()
     if lowered.startswith("search matches for ") or lowered.startswith("file `") or lowered.startswith("local file `"):
         return None
-    if not any(marker in lowered for marker in _ORCHESTRATION_LEAK_MARKERS) and not any(
-        marker in lowered for marker in _ENVELOPE_ROLE_MARKERS
+    if (
+        not any(marker in lowered for marker in _ORCHESTRATION_LEAK_MARKERS)
+        and not any(marker in lowered for marker in _ENVELOPE_ROLE_MARKERS)
+        and not _ambiguous_leak_marker_hits(clean)
     ):
         return None
     safe_text = _strip_orchestration_fragments(clean)
@@ -904,10 +1030,7 @@ def humanize_orchestration_leak(
 def _strip_orchestration_fragments(text: str) -> str:
     """Remove internal orchestration fragments while preserving adjacent user-facing output."""
     safe_paragraphs: list[str] = []
-    marker_pattern = re.compile(
-        "|".join(re.escape(marker) for marker in _ORCHESTRATION_FRAGMENT_MARKERS),
-        flags=re.IGNORECASE,
-    )
+    marker_pattern = _orchestration_fragment_marker_pattern()
     for paragraph in re.split(r"\n\s*\n", str(text or "").strip()):
         clean_paragraph = paragraph.strip()
         if not clean_paragraph:
@@ -986,7 +1109,12 @@ def contains_generic_planner_scaffold(agent: Any, text: str) -> bool:
         return False
     generic_lines = {"review problem", "choose safe next step", "validate result"}
     normalized_lines: list[str] = []
-    for raw_line in clean.splitlines():
+    lines = [line for line in clean.splitlines() if line.strip()]
+    # Exactly one leading heading may label the generated fallback; it is not a fourth
+    # substantive step. Concrete non-generic content below it still makes this false.
+    if lines and (lines[0].strip().endswith(":") or re.match(r"^\s*#{1,6}\s+", lines[0])):
+        lines = lines[1:]
+    for raw_line in lines:
         line = re.sub(r"^[\-\*\d\.\)\s]+", "", raw_line).strip().lower()
         line = re.sub(r"[.!?]+$", "", line).strip()
         if line:
@@ -995,6 +1123,9 @@ def contains_generic_planner_scaffold(agent: Any, text: str) -> bool:
         return False
     unique_lines = set(normalized_lines)
     return len(unique_lines) >= 2 and unique_lines.issubset(generic_lines)
+
+
+_PLANNER_ENVELOPE_KEYS = frozenset({"summary", "message", "bullets", "steps"})
 
 
 def unwrap_summary_or_action_payload(text: str) -> str:
@@ -1007,12 +1138,19 @@ def unwrap_summary_or_action_payload(text: str) -> str:
         return raw
     if not isinstance(payload, dict):
         return raw
+    # Only the planner envelope itself is presentation scaffolding. A field outside it means the
+    # object is data, and rendering summary/steps alone would discard that field.
+    if not payload or any(key not in _PLANNER_ENVELOPE_KEYS for key in payload):
+        return raw
 
     summary = str(payload.get("summary") or payload.get("message") or "").strip()
     bullet_source = payload.get("bullets") or payload.get("steps") or []
-    bullets = [str(item).strip() for item in list(bullet_source) if str(item).strip()]
+    if not isinstance(bullet_source, list) or any(not isinstance(item, str) for item in bullet_source):
+        return raw
+    bullets = [item.strip() for item in bullet_source if item.strip()]
     lines: list[str] = []
     if summary:
         lines.append(summary)
-    lines.extend(f"- {item}" for item in bullets[:6])
+    # Informational rendering consumes the finite generated reply; it never executes these items.
+    lines.extend(f"- {item}" for item in bullets)
     return "\n".join(line for line in lines if line.strip()) or raw

@@ -890,7 +890,7 @@ def _seal_semantic_result(
     # the web API module -- that round-trip was the core<->apps cycle's return leg.
     try:
         from core.agent_runtime.action_honesty_validator import enforce_url_grounding as _ground_urls
-        from core.context_retrieval import remote_fetch_attempt_count
+        from core.remote_fetch_policy import remote_fetch_attempt_count
 
         result = _ground_urls(
             result, user_input=user_input, fetch_attempts=remote_fetch_attempt_count()

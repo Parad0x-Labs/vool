@@ -2517,7 +2517,10 @@ def plan_conductor_turn(
     Every other failure -- an exception, an unparseable reply, an invented word, a single-clause
     plan, a graph that is not a DAG -- still yields None.
     """
-    from core.agent_runtime.turn_planner import turn_may_hold_several_requests
+    from core.agent_runtime.turn_planner import (
+        recall_question_needs_no_planner,
+        turn_may_hold_several_requests,
+    )
     from core.plain_task_routing import is_ordinary_multi_part_plain_task
 
     original = str(text or "").strip()
@@ -2588,6 +2591,11 @@ def plan_conductor_turn(
     if plain_shaped and not _turn_requires_live_evidence(original):
         return None
     if not turn_may_hold_several_requests(original):
+        return None
+    # One question about the speaker's own facts is one reader call from memory. A planner call
+    # here returns a single clause (and so None) at the price of a whole model call; the joiner
+    # inside "between the day I X and the day I Y" is what admitted it above.
+    if recall_question_needs_no_planner(original):
         return None
 
     try:

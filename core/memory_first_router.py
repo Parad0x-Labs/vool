@@ -80,6 +80,7 @@ from core.ordinary_chat_response_guard import (
     recover_bounded_ordinary_chat_output,
     remove_unrequested_prior_turn_literals,
     remove_unsolicited_generic_follow_up,
+    retrieved_record_speakers,
 )
 from core.output_validator import validate_provider_output
 from core.paid_call_reservation import (
@@ -93,7 +94,8 @@ from core.presentation_selection import (
     selection_repair_acceptance,
 )
 from core.prompt_budget import PromptBudgetExceededError
-from core.prompt_normalizer import normalize_prompt
+from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+from core.prompt_normalizer import TURN_DIRECTIVES_METADATA_KEY, normalize_prompt
 from core.provider_execution_boundary import invoke_provider_execution_boundary
 from core.provider_invocation_gateway import ProviderInvocationValidationError
 from core.provider_routing import ProviderRole, provider_capability_truth_for_manifest, rank_provider_candidates
@@ -1219,11 +1221,22 @@ class MemoryFirstRouter:
             )
         auto_free_model = str(getattr(policy, "auto_free_model", "auto") or "auto").strip()
         preferred_auto_model = "" if auto_free_model.lower() == "auto" else auto_free_model
+        from copy import deepcopy
+
+        cloud_evidence = deepcopy(request.metadata.get("admitted_capsule_evidence"))
+        cloud_evidence_indices = {
+            index for index in request.metadata.get("request_evidence_message_indices") or ()
+            if isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(request.messages)
+        }
         # The turn's attachments ride the broker lane too. An image attachment makes image input a
         # REQUIRED capability, so the broker only ever picks a model the catalog says can read it;
         # the parts are then rendered with that guarantee. Text attachments are inlined as data and
         # join the privacy evaluation below, exactly like the prompt they accompany.
-        cloud_messages = [dict(message) for message in request.messages]
+        cloud_messages = [
+            {**message, "_vool_evidence_support": index in cloud_evidence_indices}
+            if isinstance(cloud_evidence, dict) else dict(message)
+            for index, message in enumerate(request.messages)
+        ]
         attachment_texts: tuple[str, ...] = ()
         if request.attachments:
             from core.chat_attachments import apply_to_provider_messages
@@ -1261,6 +1274,8 @@ class MemoryFirstRouter:
                     or "local"
                 ),
                 "context_manifest": dict(request.context or {}),
+                **({"admitted_capsule_evidence": cloud_evidence}
+                   if isinstance(cloud_evidence, dict) else {}),
                 # A11 receipt provenance: this lane IS the Auto free-cloud boost, so
                 # these are mechanically known here. Empty stays empty otherwise.
                 "requested_model": preferred_auto_model,
@@ -1498,6 +1513,15 @@ class MemoryFirstRouter:
             prompt_tokens_reported=normalized.usage_input_reported,
             output_tokens_reported=normalized.usage_output_reported,
         )
+        selected_evidence = getattr(result.response, "admitted_request_evidence", None)
+        if not isinstance(selected_evidence, dict):
+            from core.bootstrap_context import finalize_request_evidence
+
+            # A custom adapter bypassing the signed wire gateway cannot
+            # certify any support from the earlier internal request.
+            selected_evidence = finalize_request_evidence(cloud_evidence, list(cloud_request.messages),
+                                                         evidence_messages=[])
+        _publish_selected_request_evidence(source_context, selected_evidence)
         return ModelExecutionDecision(
             source="free_cloud_boost",
             task_hash=task_hash,
@@ -1559,14 +1583,24 @@ class MemoryFirstRouter:
             str(surface or "").strip().lower() in _CHAT_TRUTH_SURFACES
             or str((source_context or {}).get("surface", "") or "").strip().lower() in _CHAT_TRUTH_SURFACES
         )
+        normalized_input = _interpreted_user_text(interpretation, task)
+        requested_output_mode = ""
+        if chat_surface:
+            from core.reasoning_engine import RequestedAnswerContract, resolve_requested_answer_contract
+
+            answer_contract = (source_context or {}).get("_requested_answer_contract")
+            if not isinstance(answer_contract, RequestedAnswerContract):
+                answer_contract = resolve_requested_answer_contract(normalized_input)
+            requested_output_mode = answer_contract.output_mode
+            classification = {**classification, "requested_answer_contract": answer_contract.to_dict()}
         profile = model_execution_profile(
             str(classification.get("task_class", "unknown")),
             chat_surface=chat_surface,
             planner_style_requested=bool(classification.get("planner_style_requested", False)),
+            requested_output_mode=requested_output_mode,
         )
         task_kind = str(profile["task_kind"])
         output_mode = str(profile["output_mode"])
-        normalized_input = _interpreted_user_text(interpretation, task)
         cache_scope = _candidate_cache_scope(source_context)
         task_hash = build_task_hash(
             normalized_input=normalized_input,
@@ -1955,6 +1989,13 @@ class MemoryFirstRouter:
             or getattr(interpretation, "normalized_text", "")
             or _interpreted_user_text(interpretation, task)
         )
+        # Retrieved memory records reach the reader as a `<retrieved_context>` system message.
+        retrieved_record_messages = [
+            str(getattr(message, "content", "") or "")
+            for message in getattr(internal_request, "messages", ())
+            if str(getattr(message, "role", "") or "") == "system"
+            and "<retrieved_context>" in str(getattr(message, "content", "") or "")
+        ]
         output_policy = ordinary_chat_output_policy(
             prompt_profile=prompt_profile,
             output_mode=output_mode,
@@ -1975,6 +2016,9 @@ class MemoryFirstRouter:
                     if message.role == "user"
                 ],
             ),
+            memory_records_supplied=bool(retrieved_record_messages),
+            # The speakers those records label: a question naming one names a person.
+            record_speakers=retrieved_record_speakers(retrieved_record_messages),
         )
         if isinstance(source_context, dict):
             source_context["ordinary_chat_output_policy"] = output_policy
@@ -2002,6 +2046,37 @@ class MemoryFirstRouter:
                     system_prompt = f"{system_prompt}\n\n{_school_directive}"
         except Exception:
             pass
+        # Explicit user numbering is stated before the first call and any retry.
+        # Independent request count alone grants no numbering requirement; the shared
+        # output policy carries the bound user contract and records unknown semantics.
+        # An explicit length request ("give a concise answer", "keep it short") states its answer
+        # shape here too, so the first draft is already short instead of only the rewrite.
+        # A memory question that asks when something happened states the relative-time rule here
+        # too: a record's "last week" is answered anchored to the record's date, not as that date.
+        # A record question with no not-mentioned option states how records are read before the
+        # reader says they are silent, and, when it names a person, how a fact the records hold for
+        # someone else is answered (fact first, then whose it is; no opening denial).
+        from core.ordinary_chat_response_guard import (
+            linked_records_instruction,
+            not_mentioned_option_instruction,
+            numbered_parts_instruction,
+            person_attribution_instruction,
+            relative_event_time_instruction,
+            short_answer_instruction,
+        )
+
+        _parts_instruction = (
+            numbered_parts_instruction(
+                int(dict(output_policy or {}).get("required_numbered_parts") or 0)
+            )
+            + short_answer_instruction(output_policy)
+            + relative_event_time_instruction(output_policy)
+            + not_mentioned_option_instruction(output_policy)
+            + person_attribution_instruction(output_policy)
+            + linked_records_instruction(output_policy)
+        )
+        if _parts_instruction:
+            system_prompt = f"{system_prompt}\n\nAnswer format for this request:{_parts_instruction}"
         if response_constraint is not None:
             system_prompt = (
                 f"{system_prompt}\n\n{_response_constraint_guidance(response_constraint)}"
@@ -2069,17 +2144,56 @@ class MemoryFirstRouter:
         except Exception:
             pass
         provider_messages = internal_request.as_openai_messages()
-        # The wire carries the MESSAGES, and the chat lane always arrives with them built — a
-        # system prompt appended above (response constraints OR learned guidance) must also be
-        # written back into the system message, or the model never sees it.
+        # The wire carries the MESSAGES, and the chat lane always arrives with them built -- a
+        # system prompt appended above (response constraints, learned guidance, the school
+        # directive or the answer format) must also be written back, or the model never sees it.
         if system_prompt != internal_request.system_prompt():
-            for index, message in enumerate(provider_messages):
-                if str(message.get("role") or "").lower() == "system":
-                    provider_messages[index] = {
-                        **message,
-                        "content": system_prompt,
-                    }
-                    break
+            # These additions are per-turn ("Answer format for this request", response
+            # constraints), so they join the per-turn system message that follows the history
+            # rather than the leading one, which stays byte-stable across turns for provider
+            # prompt caching. (Ported from 00ba5bd, which applies the same placement on main.)
+            base_system_prompt = internal_request.system_prompt()
+            _turn_additions = (
+                system_prompt[len(base_system_prompt):].lstrip("\n")
+                if system_prompt.startswith(base_system_prompt)
+                else ""
+            )
+            _turn_index = next(
+                (
+                    index
+                    for index, message in enumerate(internal_request.messages)
+                    if message.role == "system"
+                    and bool((message.metadata or {}).get(TURN_DIRECTIVES_METADATA_KEY))
+                ),
+                None,
+            )
+            if not _turn_additions:
+                # Not a pure append: keep the previous behaviour and replace the leading system
+                # message whole, so nothing the guidance layer wrote is ever dropped.
+                for index, message in enumerate(provider_messages):
+                    if str(message.get("role") or "").lower() == "system":
+                        provider_messages[index] = {**message, "content": system_prompt}
+                        break
+            elif _turn_index is not None and _turn_index < len(provider_messages):
+                existing = str(provider_messages[_turn_index].get("content") or "")
+                provider_messages[_turn_index] = {
+                    **provider_messages[_turn_index],
+                    "content": f"{existing}\n\n{_turn_additions}" if existing else _turn_additions,
+                }
+            else:
+                # No per-turn message was built: place one right before the current user turn.
+                _last_user = max(
+                    (
+                        index
+                        for index, message in enumerate(provider_messages)
+                        if str(message.get("role") or "").lower() == "user"
+                    ),
+                    default=len(provider_messages),
+                )
+                provider_messages.insert(
+                    _last_user,
+                    {"role": "system", "content": f"{TURN_DIRECTIVES_HEADER}\n{_turn_additions}"},
+                )
         provider_prompt = internal_request.user_prompt()
         # A9 CURRENT-TURN PAYLOAD LAW: what reaches the provider as the current user message must
         # be the literal turn bytes wherever an authoritative raw form exists — literal
@@ -2111,6 +2225,18 @@ class MemoryFirstRouter:
                     }
                     break
             provider_prompt = raw_batch_prompt
+        from copy import deepcopy
+
+        evidence_record = deepcopy((source_context or {}).get("admitted_capsule_evidence"))
+        current_user_index = next((
+            index for index in range(len(provider_messages) - 1, -1, -1)
+            if str(provider_messages[index].get("role") or "").casefold() == "user"
+        ), None)
+        source_indices = (evidence_record.get("evidence_message_indices") or ()
+                          if isinstance(evidence_record, dict) else ())
+        evidence_indices = [index for index in source_indices
+                            if isinstance(index, int) and not isinstance(index, bool)
+                            and 0 <= index < len(provider_messages) and index != current_user_index]
         return ModelRequest(
             task_kind=task_kind,
             prompt=provider_prompt,
@@ -2144,6 +2270,9 @@ class MemoryFirstRouter:
             },
             metadata={
                 **dict(internal_request.metadata or {}),
+                **({"admitted_capsule_evidence": evidence_record,
+                    "request_evidence_message_indices": evidence_indices}
+                   if isinstance(evidence_record, dict) else {}),
                 # Which turn this is, for the one adapter decision that depends on it. An audit
                 # carries its whole evidence report in the prompt, so a local thinking model spends
                 # its entire read timeout reasoning before it starts answering -- measured, that is
@@ -2399,6 +2528,7 @@ class MemoryFirstRouter:
             )
             # Redundant for the copied path above, kept for the shared-object branch.
             call_request.metadata.pop("prompt_budget", None)
+            call_request.metadata.pop("request_evidence_finalized", None)
             # Carry the mode down to the adapter. The adapter is handed a ModelRequest and never a
             # source context, so without this the transport-level guard would have nothing to read
             # and the deepest seam would be the only unenforced one. Same mechanism as everywhere
@@ -2585,6 +2715,7 @@ class MemoryFirstRouter:
                     call_id = _note_attempt()
                     call_started = active_monotonic()
 
+                task_request.metadata.pop("request_evidence_finalized", None)
                 try:
                     response = invoke_provider_execution_boundary(
                         adapter,
@@ -3087,6 +3218,9 @@ class MemoryFirstRouter:
                             # turn and failed draft are already explicit above.
                             "memory_prompt": {"enabled": False},
                             "response_constraint_retry": 1,
+                            # This retry keeps only instructions, the current
+                            # question and its failed draft, not source history.
+                            "request_evidence_message_indices": [],
                             "defer_stream_until_verified": True,
                             **(
                                 {"response_constraint_origin": "automatic"}
@@ -3978,6 +4112,19 @@ class MemoryFirstRouter:
                     source_context=source_context,
                     call_role=str((source_context or {}).get("model_call_role") or ""),
                 )
+            from core.bootstrap_context import finalize_request_evidence
+
+            response_metadata = dict(getattr(response_request, "metadata", None) or {})
+            record = response_metadata.get("admitted_capsule_evidence")
+            if not response_metadata.get("request_evidence_finalized"):
+                # An adapter without final wire binding cannot certify that
+                # an earlier internal support carrier reached its provider.
+                record = finalize_request_evidence(record, list(response_request.messages or []),
+                                                   evidence_messages=[])
+            if isinstance(record, dict):
+                # Transient lane carrier: candidate-output persistence must
+                # not duplicate source evidence inside validation metadata.
+                response._admitted_capsule_evidence = record
             return adapter, response, None
         except PromptBudgetExceededError as exc:
             # A prompt too large for this window is a property of the prompt, not of the
@@ -4796,6 +4943,7 @@ class MemoryFirstRouter:
         # and whether or not it was streamed. Placed BEFORE the meter so an exception in metering
         # cannot leave the turn with an answer and no provenance.
         _record_model_provenance(source_context, manifest=manifest, response=response)
+        _publish_selected_request_evidence(source_context, getattr(response, "_admitted_capsule_evidence", None))
         # Meter a BYOK cloud burst against the daily cap at the single funnel every served
         # response passes through, so a paid lane reached by direct selection, race, mux, or
         # failover is counted once per real API response (a response here means the call
@@ -5621,7 +5769,11 @@ class MemoryFirstRouter:
             #
             # "auto" not "required": a plain_text turn is usually conversation, and forcing a call
             # would make every greeting reach for a tool.
-            from core.capability_graph import family_hint_from_task_class, model_visible_specs
+            from core.capability_graph import (
+                capability_hint_from_task_class,
+                family_hint_from_task_class,
+                model_visible_specs,
+            )
             from core.cloud_tool_call_contract import build_cloud_tool_definitions
 
             family_hint = family_hint_from_task_class(
@@ -5630,6 +5782,7 @@ class MemoryFirstRouter:
             request.tools = build_cloud_tool_definitions(
                 model_visible_specs(
                     family_hint=family_hint,
+                    capability_hint=capability_hint_from_task_class(str(classification.get("task_class") or "")),
                 )
             )
             request.tool_choice = "auto"
@@ -6868,6 +7021,20 @@ def _provider_role_for_request(role: object) -> ProviderRole:
     if candidate in {"drone", "queen"}:
         return candidate
     return "auto"
+
+
+def _publish_selected_request_evidence(source_context: dict[str, Any] | None, record: Any) -> None:
+    """Publish only the served lane's process-local evidence carrier."""
+    if not isinstance(record, dict):
+        return
+    from copy import deepcopy
+
+    selected = deepcopy(record)
+    if isinstance(source_context, dict):
+        source_context["admitted_capsule_evidence"] = selected
+    from core.context_retrieval import update_retrieval_telemetry
+
+    update_retrieval_telemetry(last_admitted_capsule=selected)
 
 
 def _request_prompt_budget(request: Any) -> dict[str, Any]:

@@ -348,13 +348,15 @@ def apply_exact_response_control(result: dict[str, Any], user_text: str) -> dict
     if not target:
         return result
     response = str(dict(result or {}).get("response") or "").strip()
-    if response == target:
-        return result
+    # The marker records a validated literal contract even when its bytes are
+    # already correct. Downstream semantic guards must honor that contract;
+    # whether this binder changed the response is recorded separately.
     controlled = dict(result or {})
     controlled["response"] = target
     controlled["response_control"] = {
         "mode": "exact_target",
         "target": target,
+        "changed": response != target,
         "original_response_excerpt": response[:240],
     }
     return controlled

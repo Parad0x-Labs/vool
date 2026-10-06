@@ -128,8 +128,11 @@ def test_exact_control_does_not_promote_the_directive_to_the_target() -> None:
 def test_exact_control_is_a_noop_when_response_already_matches():
     result = {"response": "PONG"}
     out = apply_exact_response_control(result, "reply exactly: PONG")
-    assert out == result
-    assert "response_control" not in out  # unchanged, no override metadata added
+    # No-op on answer bytes; the validated literal remains visible to later guards.
+    assert out["response"] == result["response"] == "PONG"
+    assert out["response_control"]["mode"] == "exact_target"
+    assert out["response_control"]["target"] == "PONG"
+    assert out["response_control"]["changed"] is False
 
 
 def test_exact_control_is_a_noop_without_an_exact_directive():

@@ -566,3 +566,14 @@ def plausibly_about_bound_workspace(text: str) -> bool:
         or contains_listing_intent(text)
         or contains_overview_intent(text)
     )
+
+
+def asks_to_list_the_bound_workspace(text: str) -> bool:
+    """The strict form of the signals above: the message NAMES the workspace ("my workspace", "this
+    repo") and asks what files it holds.
+
+    For callers that decide WHICH evidence lane a turn gets, not merely whether tools are offered.
+    The overview and audit readings are left out on purpose: "describe my project idea" carries an
+    overview word and "my project", and is not a read of anything on disk.
+    """
+    return _mentions_workspace_noun(_tokens(text)) and contains_listing_intent(text)
