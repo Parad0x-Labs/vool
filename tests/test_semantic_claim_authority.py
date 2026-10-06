@@ -74,6 +74,11 @@ def _pinned_live_index(monkeypatch):
 
     monkeypatch.setattr(coin_index, "resolve_tokens", _resolve, raising=True)
     monkeypatch.setattr(price_mod, "resolve_tokens", _resolve, raising=False)
+    # The plan builder resolves a named alias through `resolve_symbol`, which reads the index
+    # directly, not through `resolve_tokens`. Left unpinned it saw an EMPTY index offline and the
+    # LIVE one online, so the rhyme's "rain" was dropped offline for the wrong reason and planned
+    # as a quote online (Rain was CoinGecko #19 on 2026-10-06). Pin the same index there too.
+    monkeypatch.setattr(coin_index, "_index", lambda: dict(_REAL_INDEX), raising=True)
 
 
 def test_the_pinned_index_really_is_live_for_these_tests():

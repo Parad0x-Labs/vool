@@ -397,7 +397,12 @@ def ticker_mentions(text: str, *, dollar_only: bool = False, require_market_bind
     return found
 
 
-def price_assets_named(text: str, *, domain_already_authorized: bool = False) -> list[str]:
+def price_assets_named(
+    text: str,
+    *,
+    domain_already_authorized: bool = False,
+    index_mentions_bind_locally: bool = False,
+) -> list[str]:
     """Every asset alias the message AUTHORIZES, in the order it names them.
 
     `domain_already_authorized` is for callers holding independent domain evidence this text does
@@ -405,6 +410,14 @@ def price_assets_named(text: str, *, domain_already_authorized: bool = False) ->
     bare corrections "i mean btc" / "what about solana" / "or ethereum?" market requests. The domain
     is still established BEFORE the entity is resolved; it was established by the thread rather than
     by this sentence. See `core.semantic_claim_authority`.
+
+    `index_mentions_bind_locally` narrows that flag to the curated table. A caller whose domain
+    evidence is THIS turn's own classification (the live-data plan) knows that some clause of the
+    message is a market request, not that every clause is: "write a rhyme about rain, and give me
+    BTC price" is a market turn, and "rain" is still a rhyme. The live index is unbounded and lists
+    ordinary English words (Rain was rank #19 on 2026-10-06), so a mention found ONLY there must be
+    bound to a market term by its own clause. Curated aliases keep the domain authority, which is
+    what keeps "24 change on eth" in "...also btc price and 24 change on eth" planned.
 
     `_extract_price_asset_alias` returns the first and stops, which is why "btc price now? and sol
     price please" answered Bitcoin and said nothing about Solana. Longest-first matching keeps
@@ -458,7 +471,8 @@ def price_assets_named(text: str, *, domain_already_authorized: bool = False) ->
             continue
         end = start + len(match.group(0))
         if not mention_is_market_authorized(
-            lowered, start, end, curated=False, domain_already_authorized=domain_already_authorized,
+            lowered, start, end, curated=False,
+            domain_already_authorized=domain_already_authorized and not index_mentions_bind_locally,
             sibling_spans=tuple(claimed),
         ):
             continue
