@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from contextlib import suppress
+import re
 from typing import Any
 
 from core import audit_logger, policy_engine
@@ -100,6 +101,16 @@ _MAX_BATCH_MEMBERS_PER_ROUND = 8
 # much work a turn is allowed to do - that is the capability difference CLAUDE.md section 1
 # prohibits ("reasoning budgets restricted without cause"). One number now, for every model.
 _MAX_MODEL_ROUNDS_PER_TURN = 12
+
+
+#: The user asking for the web itself: a search engine, a lookup or browse verb, or the web/online
+#: by name. Closed class; used only to keep a refused web step's failure report for such a request.
+_ASKS_FOR_THE_WEB_RE = re.compile(
+    r"\b(?:google|bing|duckduckgo|brows(?:e|ing)\s+(?:the\s+)?(?:web|internet|online)|"
+    r"look\s+(?:it\s+|that\s+|them\s+)?up|search\s+(?:the\s+)?(?:web|internet|online)|"
+    r"online|internet|on\s+the\s+web|web\s+(?:search|page|site))\b",
+    re.IGNORECASE,
+)
 
 
 def _semantic_payload_signature(payload: Any) -> str:
@@ -2137,6 +2148,19 @@ class ResearchToolLoopFacadeMixin:
                         # these same steps if the model will not answer from them.
                         loop_stop_reason = "tool_failed_after_evidence"
                         break
+                        return None
+                    # Nor may an optional web step the turn's own fetch veto refused: no socket
+                    # opened and nothing ran, so the turn is answered on the ordinary path. Measured
+                    # 2026-10-06 (round 3's LoCoMo questions, v12 and v13 alike): a research-labelled
+                    # memory question planned web.search, the veto refused it, and the turn shipped
+                    # "I wasn't able to turn that into a completed action" without a model answer.
+                    if self._web_step_refused_by_turn_veto(
+                        execution=execution,
+                        executed_steps=executed_steps,
+                        effective_input=effective_input,
+                        source_context=loop_source_context,
+                    ):
+                        return None
                 confidence = max(0.35, min(0.96, confidence_hint))
                 task_outcome = "pending_approval" if execution.mode == "tool_preview" else "failed"
                 safe_response = self._tool_failure_user_message(
@@ -2583,6 +2607,32 @@ class ResearchToolLoopFacadeMixin:
                 validation_state=final_validation,
             ),
         }, executed_steps)
+
+    def _web_step_refused_by_turn_veto(
+        self,
+        *,
+        execution: Any,
+        executed_steps: list[dict[str, Any]],
+        effective_input: str,
+        source_context: dict[str, Any] | None,
+    ) -> bool:
+        """Whether this failure is only a web step the turn's own `allow_remote_fetch: false` veto
+        refused: the failed tool is a web or browser intent, no step of the turn ran, the veto is
+        on, and the user did not ask for the web themselves (that request keeps its failure report)."""
+        if bool(getattr(execution, "ok", False)):
+            return False
+        if any(str(step.get("mode") or "") == "tool_executed" for step in executed_steps or []):
+            return False
+        tool = str(getattr(execution, "tool_name", "") or "").strip().lower()
+        if tool.split(".", 1)[0] not in {"web", "browser"}:
+            return False
+        from core.remote_fetch_policy import explicit_remote_fetch_disabled, remote_fetch_forbidden
+
+        if not (remote_fetch_forbidden() or explicit_remote_fetch_disabled(source_context)):
+            return False
+        # The user's own words, not the task class: `has_explicit_tool_intent_request` answers yes
+        # for any research-labelled turn, which is exactly the misrouted kind this net is for.
+        return not _ASKS_FOR_THE_WEB_RE.search(str(effective_input or ""))
 
     def _should_fallback_after_tool_failure(
         self,

@@ -151,7 +151,7 @@ def detect_creative_brief(user_text: str) -> CreativeBrief | None:
 
     prompt_word = _has_any(low, _PROMPT_WORDS)
     enhance = _has_any(low, _ENHANCE_WORDS)
-    want = _has_any(low, _WANT_LEADINS)
+    want = _has_word(low, _WANT_LEADINS)
     image_signal = _has_any(low, _IMAGE_WORDS) or _has_any(low, _IMAGE_MODELS)
     video_signal = _has_any(low, _VIDEO_WORDS) or _has_any(low, _VIDEO_MODELS)
     media_signal = image_signal or video_signal
@@ -167,7 +167,22 @@ def detect_creative_brief(user_text: str) -> CreativeBrief | None:
     )
     if not fires:
         return None
+    # Asking what an earlier turn said or produced ("remind me which video you suggested", "what
+    # coat did the detective wear in the script you wrote") is recall. An explicit prefix, an
+    # enhancement verb or a whole-word request lead-in keeps such a turn a brief ("expand the
+    # prompt you wrote", "write me a new prompt like the one you made").
+    if _RECALL_FRAME_RE.search(low) and not (low.startswith(_PREFIXES) or enhance or want):
+        return None
     return CreativeBrief(medium=_resolve_medium(low), idea=_strip_prefix(text), raw_text=text)
+
+
+_RECALL_FRAME_RE = re.compile(
+    r"\b(?:you|we)\s+(?:recommended|wrote|gave|suggested|provided|mentioned|described|shared|"
+    r"created|made|generated|sent|discussed)\b"
+    r"|\bremind\s+me\b"
+    r"|\b(?:our|the|that)\s+(?:previous|earlier|last)\s+(?:chat|conversation|session|discussion)\b",
+    re.IGNORECASE,
+)
 
 
 # Everyday communication forms - routed to the polished-writing prompt (the PA transfer), distinct

@@ -69,7 +69,24 @@ def test_the_model_is_told_not_to_deny_having_a_clock() -> None:
 
     truth = _runtime_turn_truth({})
     assert "never say you cannot access a clock" in truth
-    assert "never answer a date or time question from memory" in truth
+    assert "never answer a present-time question from training memory" in truth
+
+
+def test_the_clock_law_no_longer_bans_historical_recall() -> None:
+    """The over-broad ban ("never answer a date or time question from memory")
+    read the model's own supplied context as memory, so past-event recall was
+    refused or answered from the wrong authority (LME q051a848 class). The
+    present-time ban stays; the blanket one is gone, and the historical path is
+    stated instead -- including the abstention half: with no evidence, the
+    honest answer names the gap (measured on the served path 2026-09-29: a
+    clinic-arrival question with no record was answered with an invented
+    "9:45 AM")."""
+
+    truth = _runtime_turn_truth({})
+    assert "never answer a date or time question from memory" not in truth
+    assert "answered from the conversation and context evidence supplied" in truth
+    assert "not from this clock" in truth
+    assert "never" in truth and "invent a time, date, duration or amount" in truth
 
 
 def test_a_pinned_cloud_model_is_told_the_time_too() -> None:

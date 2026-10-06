@@ -41,6 +41,36 @@ def _resolve_db_path_cached(db_path_str: str) -> str:
     return str(path)
 
 
+@functools.lru_cache(maxsize=256)
+def _resolve_db_path_no_create(db_path_str: str) -> str:
+    """Resolve without creating parent directories.
+
+    get_connection() must compare the caller's requested path against the base
+    DEFAULT_DB_PATH (which lives under the project root) to decide whether the
+    runtime-home override applies. Creating the base path's parents as a side
+    effect of that COMPARISON forced a write outside the configured runtime
+    home on every connection — harmless on a desktop the app owns, but a real
+    isolation defect under any confined/sandboxed runtime (measured:
+    PermissionError inside seal_provider_invocation took down every embedding
+    request and silently degraded them to hash fallback). Only the EFFECTIVE
+    database path is materialized."""
+    path = Path(db_path_str).expanduser().resolve()
+    return str(path)
+
+
+def _db_path_text(db_path: str | Path) -> str:
+    """Validated path text; a non-path (e.g. a connection object) is a caller bug."""
+    if not isinstance(db_path, (str, Path)):
+        raise TypeError(
+            f"db_path must be a str or Path, got {type(db_path).__name__}. "
+            "Passing a connection here silently creates a database named after the object."
+        )
+    text = str(db_path).strip()
+    if not text or text.startswith("<"):
+        raise ValueError(f"db_path is not a usable filesystem path: {text[:80]!r}")
+    return text
+
+
 def _resolve_db_path(db_path: str | Path) -> str:
     # get_connection() calls this multiple times per invocation (including on its cached-connection
     # fast path), so on Windows this was issuing a real GetFinalPathNameByHandleW syscall (via

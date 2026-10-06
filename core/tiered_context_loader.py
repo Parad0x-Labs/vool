@@ -21,7 +21,11 @@ from core.context_history_authority import select_history_policy
 from core.context_manifest import build_context_manifest
 from core.context_namespace import load_chat_namespace
 from core.context_relevance_ranker import rank_context_items, retrieval_confidence
-from core.context_retrieval import exact_recall_requires_current_session
+from core.context_retrieval import (
+    exact_recall_requires_current_session,
+    revoked_tokens_for_chat,
+    text_carries_revoked_token,
+)
 from core.context_scope import (
     ContextScopePolicy,
     CurrentTurnCorrection,
@@ -88,17 +92,20 @@ class TieredContextResult:
 
     def assembled_context(self, *, prompt_profile: str = "default") -> str:
         sections: list[str] = []
+        capsule_profile = prompt_profile in _CAPSULE_PROFILES
         bootstrap_items = _filter_context_items_for_prompt_profile(self.bootstrap_items, prompt_profile=prompt_profile)
-        if prompt_profile == "chat_capsule":
+        if capsule_profile:
             bootstrap_items = [item for item in bootstrap_items if item.source_type != "active_mission"]
+        if prompt_profile == MEMORY_QA_PROFILE:
+            bootstrap_items = _memory_qa_view(bootstrap_items)
         relevant_items = (
             []
-            if prompt_profile == "chat_capsule"
+            if capsule_profile
             else _filter_context_items_for_prompt_profile(self.relevant_items, prompt_profile=prompt_profile)
         )
         cold_items = (
             []
-            if prompt_profile == "chat_capsule"
+            if capsule_profile
             else _filter_context_items_for_prompt_profile(self.cold_items, prompt_profile=prompt_profile)
         )
         bootstrap_sections = _render_context_sections("Bootstrap Context", bootstrap_items)
@@ -228,6 +235,56 @@ def empty_tiered_context_result(
         retrieval_confidence_score=0.0,
         cold_decision=ColdContextDecision(False, str(reason or "context_not_loaded")),
     )
+
+
+#: A turn answered from a retrieved memory capsule. Like ``chat_capsule`` (the capsule replaces
+#: competing retrieval), and in addition the bootstrap is cut to what bears on answering a question
+#: about the user's own past -- see `_memory_qa_view`. Chosen by the prompt normalizer only for a
+#: first-person recall question on the minimal chat profile that carries a capsule.
+MEMORY_QA_PROFILE = "chat_memory_qa"
+_CAPSULE_PROFILES = frozenset({"chat_capsule", MEMORY_QA_PROFILE})
+
+
+def _memory_qa_view(items: list[ContextItem]) -> list[ContextItem]:
+    """The bootstrap a memory-QA turn carries.
+
+    An item marked ``memory_qa_omit`` is left out (the vault-sharing policy, the tool doctrine).
+    An item with ``memory_qa_strip`` loses exactly those spans (the name anchors of the continuity
+    item, the task summary that restates the user's message); an item left empty is dropped.
+    Nothing else changes: persona, safety, conversation policy and every unmarked item stay as
+    built. Item order is preserved.
+    """
+    kept: list[ContextItem] = []
+    for item in items:
+        metadata = dict(item.metadata or {})
+        if metadata.get("memory_qa_omit"):
+            continue
+        strip = [str(span) for span in list(metadata.get("memory_qa_strip") or []) if str(span or "")]
+        if not strip:
+            kept.append(item)
+            continue
+        content = str(item.content or "")
+        for span in strip:
+            content = content.replace(span, " ")
+        content = " ".join(content.split())
+        if not content:
+            continue
+        kept.append(
+            ContextItem(
+                item_id=item.item_id,
+                layer=item.layer,
+                source_type=item.source_type,
+                title=item.title,
+                content=content,
+                priority=item.priority,
+                confidence=item.confidence,
+                must_keep=item.must_keep,
+                include_reason=item.include_reason,
+                metadata=metadata,
+                provenance=dict(item.provenance or {}),
+            )
+        )
+    return kept
 
 
 def _filter_context_items_for_prompt_profile(
@@ -427,16 +484,47 @@ def _local_candidate_items(
     return items, ranked
 
 
-def _dialogue_items(session_id: str) -> list[ContextItem]:
+def _dialogue_items(session_id: str, *, query_text: str = "") -> list[ContextItem]:
     items: list[ContextItem] = []
+    # Forget law (F14-01): dialogue context items are a second carrier of
+    # stored turns into prompts; they clear the same durable revocation
+    # ledger as canonical transcript assembly.
+    revoked = revoked_tokens_for_chat(session_id)
+    # Current-observation contract (sealed acceptance F15-02): a NOW-anchored
+    # question must not receive a past-tense report of a measured value as
+    # "Recent dialogue turn" context — the stale record re-enters the prompt
+    # through this leg even after every retrieval leg excluded it. Same
+    # authority and same conjunction as the retrieval eligibility law;
+    # mixed now-and-then questions keep both halves.
+    current_ask = False
+    if str(query_text or "").strip():
+        try:
+            from core.temporal_question_scope import question_time_scope
+
+            scope = question_time_scope(query_text)
+            current_ask = bool(scope.asks_current and not scope.asks_past)
+        except Exception:
+            current_ask = False
+    if current_ask:
+        from core.temporal_selection import is_stale_observation_for_current_ask
+    else:
+        is_stale_observation_for_current_ask = None
     for turn in recent_dialogue_turns(session_id, limit=6):
+        content = str(turn.get("normalized_input") or turn.get("raw_input") or turn.get("reconstructed_input") or "")
+        if text_carries_revoked_token(content, revoked):
+            continue
+        if (
+            is_stale_observation_for_current_ask is not None
+            and is_stale_observation_for_current_ask(content)
+        ):
+            continue
         items.append(
             ContextItem(
                 item_id=f"dialogue-{turn['turn_id']}",
                 layer="relevant",
                 source_type="dialogue_turn",
                 title="Recent dialogue turn",
-                content=str(turn.get("normalized_input") or turn.get("raw_input") or turn.get("reconstructed_input") or "")[:260],
+                content=content[:260],
                 confidence=float(turn.get("understanding_confidence") or 0.0),
                 include_reason="recent_dialogue_memory",
                 metadata={
@@ -1546,7 +1634,8 @@ class TieredContextLoader:
                     )
                 )
             if history_selection.expands_beyond_adjacency:
-                relevant_candidates.extend(_dialogue_items(session_id))
+                relevant_candidates.extend(
+                    _dialogue_items(session_id, query_text=query_text))
             persistent_items = (
                 _persistent_memory_items(
                     query_text,

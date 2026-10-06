@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from copy import deepcopy
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -373,7 +374,11 @@ class CloudModelBroker:
                     max_output_tokens=(
                         int(budget.tokens) if budget.tokens > 0 else int(request.max_output_tokens or 0)
                     ),
+                    # Each adapter seals its own final wire support. Sharing
+                    # metadata would let a failed lane overwrite the winner.
+                    metadata=deepcopy(request.metadata),
                 )
+                call_request.metadata.pop("request_evidence_finalized", None)
                 estimated_max = float(recheck.estimated_max_usd or 0.0)
                 current_executed_key = str(fresh.catalog_key or f"{fresh.provider_id}:{fresh.model_id}")
                 predecessor_key = (
@@ -450,6 +455,14 @@ class CloudModelBroker:
                         transport,
                         call_request,
                     )
+                    wire_evidence = None
+                    if call_request.metadata.get("request_evidence_finalized"):
+                        finalized = call_request.metadata.get("admitted_capsule_evidence")
+                        if isinstance(finalized, dict):
+                            wire_evidence = deepcopy(finalized)
+                    # Adapter-supplied response fields are not a substitute for
+                    # this attempt having passed the final payload gateway.
+                    response = replace(response, admitted_request_evidence=wire_evidence)
                     if callable(response_validator):
                         validation = response_validator(response)
                         valid = bool(validation[0]) if isinstance(validation, tuple) else bool(validation)

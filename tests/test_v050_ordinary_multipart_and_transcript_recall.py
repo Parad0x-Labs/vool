@@ -116,16 +116,21 @@ def test_real_workspace_search_keeps_the_tool_lane() -> None:
 def test_sabotage_removing_operational_exclusion_hijacks_a_real_workspace_request(
     monkeypatch,
 ) -> None:
-    """Load-bearing mutation: workspace intent must invalidate the whole ordinary lane."""
+    """Load-bearing mutation: workspace intent must invalidate the whole ordinary lane.
+
+    The prompt names no file. One that does ("Write a file in the workspace named retry notes; ...") is
+    also held back by the workspace-listing recognizer the routing fix added (asks_to_list_the_bound_workspace
+    reads a file word beside a named workspace), so it no longer isolates the exclusion this sabotage removes.
+    """
+    prompt = "Write the retry notes into the workspace; explain what retries mean."
+    source_context = {"surface": "api", "platform": "api"}
+    assert is_ordinary_multi_part_plain_task(prompt) is False
+    assert should_attempt_tool_intent(prompt, task_class="chat_conversation", source_context=source_context) is True
+
     monkeypatch.setattr("core.plain_task_routing._OPERATIONAL_REQUEST_RE", re.compile(r"(?!)"))
-    prompt = "Write a file in the workspace named retry notes; explain what retries mean."
 
     assert is_ordinary_multi_part_plain_task(prompt) is True
-    assert should_attempt_tool_intent(
-        prompt,
-        task_class="chat_conversation",
-        source_context={"surface": "api", "platform": "api"},
-    ) is False
+    assert should_attempt_tool_intent(prompt, task_class="chat_conversation", source_context=source_context) is False
 
 
 @pytest.mark.parametrize("prompt", (REPORTED_MULTIPART, REPORTED_IDENTITY_MULTIPART))
@@ -414,11 +419,17 @@ def test_final_display_backstop_keeps_lettered_complete_answers_without_request_
     assert inspect_ordinary_chat_output(answer, policy).allowed is True
 
 
-def test_completeness_guard_rejects_a_fluent_partial_answer() -> None:
-    assert ordinary_multi_part_answer_complete(
-        REPORTED_MULTIPART,
-        "Soap surrounds grease so water can carry it away. 46 × 19 = 874.",
-    ) is False
+def test_unindexed_partial_prose_has_unknown_semantic_coverage() -> None:
+    # This text does omit the title, but absent labels never proved that fact. The
+    # old guard convicted complete prose by the same rule. Preserve the partial
+    # case while reporting the actual structural detector's limited authority.
+    from core.plain_task_routing import ordinary_multi_part_answer_status
+
+    answer = "Soap surrounds grease so water can carry it away. 46 × 19 = 874."
+    assert ordinary_multi_part_answer_complete(REPORTED_MULTIPART, answer) is True
+    assert ordinary_multi_part_answer_status(
+        REPORTED_MULTIPART, answer,
+    ) == "unindexed_semantic_coverage_unknown"
 
 
 def test_sabotage_removing_completeness_guard_recreates_the_partial_final_answer(

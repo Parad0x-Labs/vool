@@ -36,11 +36,18 @@ def maybe_handle_memory_fast_path(
 
 
 def model_final_response_text(model_execution: Any) -> str:
+    # Only this answer-bearing decision is read here; auxiliary decomposition verdicts do
+    # not enter this function or grant action authority.
+    if str(getattr(model_execution, "validation_state", "") or "").lower() == "contract_failed":
+        return ""
     final_text = str(getattr(model_execution, "output_text", "") or "").strip()
     if final_text:
         return final_text
     structured = getattr(model_execution, "structured_output", None)
     if isinstance(structured, dict):
+        if isinstance(structured.get("steps"), list) and isinstance(structured.get("summary"), str):
+            from core.model_output_contracts import _normalize_payload
+            return _normalize_payload("action_plan", structured).strip()
         return str(structured.get("summary") or structured.get("message") or "").strip()
     return ""
 

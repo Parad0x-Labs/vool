@@ -2582,6 +2582,7 @@ def model_execution_profile(
     *,
     chat_surface: bool = False,
     planner_style_requested: bool = False,
+    requested_output_mode: str = "",
 ) -> dict[str, Any]:
     mapping = {
         "dependency_resolution": {"task_kind": "action_plan", "output_mode": "action_plan", "allow_paid_fallback": True, "provider_role": "queen"},
@@ -2605,6 +2606,12 @@ def model_execution_profile(
     }
     normalized_task_class = str(task_class or "unknown").strip().lower() or "unknown"
     base_profile = dict(mapping.get(normalized_task_class, mapping["unknown"]))
+
+    if chat_surface and requested_output_mode == "plain_text":
+        # A user-specified deliverable outranks a classifier's internal plan wrapper.
+        # Preserve the task kind, capability set and spending/execution policy.
+        base_profile["output_mode"] = "plain_text"
+        return base_profile
 
     if chat_surface and normalized_task_class in _AI_FIRST_CHAT_DOMAIN_TASK_CLASSES:
         if planner_style_requested:

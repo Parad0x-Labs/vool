@@ -71,6 +71,18 @@ __all__ = [
 #: Human-facing token estimate only — never a gate, never persisted as a cost.
 CHARS_PER_TOKEN_ESTIMATE = 4
 
+#: The exact assembly wrapper. Every shipped block is joined with ``_JOIN`` and the
+#: whole context ends with ``_WRAPPER_SUFFIX`` — both are bytes the model receives,
+#: so both are charged to the budget before anything is appended (the receipt
+#: reports the length of the exact shipped text, never the sum of bare parts).
+_JOIN = "\n\n"
+_WRAPPER_SUFFIX = "\n\nCurrent message: "
+_WRAPPER_COST = len(_WRAPPER_SUFFIX)
+
+#: Inline note appended to a partially-rendered hot answer, so the model itself can
+#: see the clip and resolve the omitted bytes through the recall handle.
+_CLIP_NOTE_MAX = 64
+
 _RECALL_PREFIX = "p"
 
 # Anchor vocabulary beyond the lexical span authority. Acronyms (>=2 caps) and
@@ -311,11 +323,29 @@ class PagedSession:
         existing shape); when omitted, the last ``hot_window`` admitted pages are the hot
         tier. ``guard=False`` exists ONLY for the sabotage test that proves the coverage
         check is load-bearing — production paths never pass it.
+
+        Accounting law (F08/F09 repair): the budget covers the EXACT shipped text —
+        every join separator and the trailing wrapper included — and ``used_chars``
+        is measured on that text, never on the bare parts. The spine is mandatory
+        and fail-closed; optional tiers may be partial or omitted, but a receipt
+        never claims bytes that were not shipped, and a clipped hot answer carries
+        its exact rendered span plus a resolvable recall handle for the remainder.
         """
         ledger_rows = ledger_rows or []
         rows: list[CoverageRow] = []
         parts: list[str] = []
-        used = 0
+        # Reserve the wrapper upfront: it ships whenever anything ships, so the
+        # whole budget available to content is budget minus the wrapper.
+        remaining = budget_chars - _WRAPPER_COST
+
+        def _cost(part: str) -> int:
+            """Exact marginal cost of appending ``part`` to the shipped text."""
+            return len(part) + (len(_JOIN) if parts else 0)
+
+        def _commit(part: str) -> None:
+            nonlocal remaining
+            remaining -= _cost(part)
+            parts.append(part)
 
         # SPINE FIRST — the non-negotiable part. Verbatim ledger rows, exactly the
         # rendering the REPL already speaks, checked (not assumed) below.
@@ -328,25 +358,24 @@ class PagedSession:
                 " set resolves_carryover to its id):\n"
                 + "\n".join(f"{c['id']}: {c['description']} ({c['reason']})" for c in ledger_rows)
             )
-        spine_chars = len(spine_text)
-        if guard and spine_chars > budget_chars:
+        if guard and spine_text and _cost(spine_text) > remaining:
             uncovered = tuple(
                 (c["id"], c["description"])
                 for c in ledger_rows
             )
             raise ContextUndercovered(uncovered, budget_chars)
         if spine_text:
-            parts.append(spine_text)
-            used += spine_chars
+            _commit(spine_text)
             for c in ledger_rows:
                 rows.append(CoverageRow(
                     item=str(c["id"]), kind="obligation", tier="spine",
                     detail="verbatim ledger row (open work)",
                 ))
 
-        remaining = budget_chars - used
-
         # HOT — newest turns verbatim, newest last (the caller's `history[-4:]` shape).
+        # The F09 defect rendered `a[:400]` while receipting "verbatim (X+Y chars)";
+        # now the full answer renders when it fits, and a clip is partial BY NAME,
+        # with the omitted span resolvable through the page's recall handle.
         hot: list[tuple[str, str, str]] = []  # (label_user, label_answer, page_id or "")
         if hot_history:
             for q, a in hot_history[-self._hot_window:]:
@@ -354,35 +383,77 @@ class PagedSession:
         else:
             for page in self._pages[-self._hot_window:]:
                 hot.append((page.user_text, page.answer_text, page.page_id))
-        hot_text = ""
-        if hot:
-            hot_text = "Conversation so far:\n" + "\n".join(
-                f"user: {q}\nassistant: {a[:400]}" for q, a, _ in hot
+
+        def _hot_render(entries: list[tuple[str, str, str]]) -> str:
+            return "Conversation so far:\n" + "\n".join(
+                f"user: {q}\nassistant: {a}" for q, a, _ in entries
             )
-            if guard and len(hot_text) > remaining:
+
+        hot_text = ""
+        hot_detail: Optional[str] = None  # disposition of the newest entry when clipped
+        if hot:
+            hot_text = _hot_render(hot)
+            if guard and _cost(hot_text) > remaining:
                 # The hot window shrinks from the oldest end — the live working set is
                 # recent turns, and a spine + newest turn beats a full window.
-                while hot and len("Conversation so far:\n" + "\n".join(
-                    f"user: {q}\nassistant: {a[:400]}" for q, a, _ in hot
-                )) > remaining:
+                while len(hot) > 1 and _cost(_hot_render(hot)) > remaining:
                     hot.pop(0)
-                hot_text = (
-                    "Conversation so far:\n" + "\n".join(
-                        f"user: {q}\nassistant: {a[:400]}" for q, a, _ in hot
-                    ) if hot else ""
-                )
+                    hot_text = _hot_render(hot)
+                if _cost(_hot_render(hot)) > remaining:
+                    # Even the newest turn alone cannot ship complete: render it
+                    # partially, say so exactly, and point at the omitted bytes.
+                    q, a, pid = hot[-1]
+                    prefix = (
+                        "Conversation so far:\n"
+                        + ("" if len(hot) == 1 else "\n".join(
+                            f"user: {q2}\nassistant: {a2}" for q2, a2, _ in hot[:-1]
+                        ) + "\n")
+                        + f"user: {q}\nassistant: "
+                    )
+                    room = remaining - _cost(prefix)
+                    handle = f"{_RECALL_PREFIX}{pid}" if pid else None
+                    rendered = max(0, room - _CLIP_NOTE_MAX)
+                    while rendered > 0:
+                        note = (
+                            f" …[clipped {len(a) - rendered}/{len(a)} chars"
+                            + (f" — full bytes via :recall {handle}]" if handle else "]")
+                        )
+                        if _cost(prefix) + rendered + len(note) <= remaining:
+                            break
+                        rendered -= 1
+                    else:
+                        note = ""
+                    if _cost(prefix) + rendered <= remaining:
+                        hot_text = prefix + a[:rendered] + (note or "")
+                        hot = hot[:-1] + [(q, a[:rendered], pid)]
+                        clipped_of = len(a)
+                        hot_detail = (
+                            f"partial (assistant rendered {rendered}/{clipped_of} chars"
+                            + (f"; recall {handle} for the full bytes)" if handle
+                               else "; caller-supplied history is not paged)")
+                        )
+                    else:
+                        hot = []
+                        hot_text = ""
+                else:
+                    hot_text = _hot_render(hot)
         if hot_text:
-            parts.append(hot_text)
-            used += len(hot_text)
+            _commit(hot_text)
             for q, a, pid in hot:
+                last = (q, a, pid) == hot[-1]
+                detail = (
+                    hot_detail
+                    if last and hot_detail is not None
+                    else f"verbatim ({len(q)}+{len(a)} chars)"
+                )
                 rows.append(CoverageRow(
                     item=pid or f"turn:{q[:24]!r}", kind="hot_page", tier="hot",
-                    detail=f"verbatim ({len(q)}+{len(a)} chars)",
+                    detail=detail,
                 ))
 
         # PREVIOUS ANSWER artifact — numbered, so deixis has real referents (existing law).
         if hot:
-            _last_q, last_a, _ = hot[-1]
+            _, last_a, _ = hot[-1]
             prev_lines = [ln.strip() for ln in last_a.splitlines() if ln.strip()][:10]
             if prev_lines:
                 numbered = "\n".join(f"  {i}. {ln[:120]}" for i, ln in enumerate(prev_lines, 1))
@@ -391,14 +462,14 @@ class PagedSession:
                     " 'the second one', 'keep the first two', 'change it', they mean"
                     " these items — revise them, never restate the instruction):\n" + numbered
                 )
-                if not guard or len(artifact) <= remaining:
-                    parts.append(artifact)
-                    used += len(artifact)
+                # remaining is exact here (recomputed on every commit) — the F08 defect
+                # budgeted this block against space the hot tier had already spent.
+                if not guard or _cost(artifact) <= remaining:
+                    _commit(artifact)
 
         # COLD HITS — sparse retrieval: only pages sharing an anchor with THIS turn,
         # newest first, capped by the supplement budget. Headers only; bytes stay cold.
         question_anchors = set(_anchors(question))
-        supplement: list[str] = []
         if question_anchors and self._supplement_budget > 0:
             matched: list[Page] = []
             # Whatever is already in the hot tier never repeats as a cold hit — with a
@@ -417,28 +488,40 @@ class PagedSession:
                 anchor_hits[page.page_id] = len(overlap)
                 matched.append(page)
             matched.sort(key=lambda p: (-anchor_hits[p.page_id], -p.turn_index, p.page_id))
-            budget_left = min(self._supplement_budget, max(remaining, 0))
+            cold_header = (
+                "PAGED RECALL FROM EARLIER SESSION (byte-verified pages; recall exact bytes "
+                "with :recall <handle>):"
+            )
+            # The block's own header line and join are real shipped bytes — the F08
+            # defect let them ride outside the budget. base = join + header + newline.
+            base = _cost(cold_header) + 1
+            budget_left = min(self._supplement_budget, max(remaining - base, 0))
+            supplement: list[str] = []
+            acc = 0
             for page in matched:
                 header = page.header(self._header_chars)
-                joiner = 1 if supplement else 0
-                if joiner + len(header) > budget_left:
+                cost = len(header) + (1 if supplement else 0)
+                if acc + cost > budget_left:
                     break
                 supplement.append(header)
-                budget_left -= joiner + len(header)
-        if supplement:
-            block = (
-                "PAGED RECALL FROM EARLIER SESSION (byte-verified pages; recall exact bytes "
-                "with :recall <handle>):\n" + "\n".join(supplement)
-            )
-            parts.append(block)
-            used += len(block)
-            for header in supplement:
-                rows.append(CoverageRow(
-                    item=header.split("]")[0].lstrip("["), kind="cold_page", tier="cold_hit",
-                    detail="anchor-intersecting page header (bytes stay cold)",
-                ))
+                acc += cost
+            if supplement:
+                _commit(cold_header + "\n" + "\n".join(supplement))
+                for header in supplement:
+                    rows.append(CoverageRow(
+                        item=header.split("]")[0].lstrip("["), kind="cold_page", tier="cold_hit",
+                        detail="anchor-intersecting page header (bytes stay cold)",
+                    ))
 
-        text = ("\n\n".join(parts) + "\n\nCurrent message: ") if parts else ""
+        text = (_JOIN.join(parts) + _WRAPPER_SUFFIX) if parts else ""
+        used = len(text)
+        if guard and parts and used > budget_chars:
+            # The receipt is a contract: if the accounting above ever drifts from
+            # the composed text, fail loudly here instead of shipping a lie.
+            raise AssertionError(
+                f"paged assembly accounting drift: shipped {used} chars against budget "
+                f"{budget_chars} (accounted {budget_chars - remaining})"
+            )
 
         dense = sum(page.chars for page in self._pages)
         return ContextAssembly(

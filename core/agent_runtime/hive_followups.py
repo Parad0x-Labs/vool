@@ -6,11 +6,17 @@ from typing import Any
 
 from core.agent_runtime import hive_research_followup as agent_hive_research_followup
 
+# A review decision is a complete direct operator instruction. A decision
+# word embedded in a recalled record, quotation or pasted data grants no action
+# authority; partial command matches must not preempt unrelated requests.
 _HIVE_REVIEW_ACTION_RE = re.compile(
-    r"(?:please\s+)?(?:(?:public\s+)?hive[,:]?\s+)?(?P<decision>approve|approved|reject|rejected|needs?\s+more\s+evidence|needs?\s+improvement|send\s+back|quarantine|void)\b"
+    r"^\s*(?:(?:please|pls|plz|and|then)\s+)*"
+    r"(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?)?"
+    r"(?:(?:public\s+)?hive[,:]?\s+)?(?P<decision>approve|approved|reject|rejected|needs?\s+more\s+evidence|needs?\s+improvement|send\s+back|quarantine|void)\b"
     r"(?:\s+(?:the\s+)?)?"
     r"(?:(?P<object_type>post|topic)\s+)?"
-    r"(?:#)?(?P<object_id>[a-z0-9][a-z0-9-]{5,255})\b",
+    r"(?:#)?(?P<object_id>[a-z0-9][a-z0-9-]{5,255})\b"
+    r"(?:\s+(?:please|pls|plz|thanks|thx))?\s*[.!?]?\s*$",
     re.IGNORECASE,
 )
 

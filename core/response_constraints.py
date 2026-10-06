@@ -224,9 +224,10 @@ _ONE_PER_LINE_RE = re.compile(
 # one- or two-digit numeral, so a year ("the 2019 results as a bullet list") can never be a count.
 _LIST_COUNT_RE = re.compile(
     r"\b(?:exactly\s+|the\s+|these\s+)?"
-    r"(?P<count>one|two|three|four|five|six|seven|eight|nine|ten|\d{1,2})\s+"
+    r"(?P<count>one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|\d{1,2})[\s-]+"
     r"(?:[a-z][a-z-]{2,}\s+){0,2}?"
-    r"(?:items?|points?|entries|lines?|steps?|reasons?|examples?|options?|colours?|colors?|"
+    r"(?P<unit>items?|components?|parts?|points?|entries|lines?|steps?|reasons?|examples?|options?|colours?|colors?|"
     r"names?|words?|things?|bullets?)\b",
     re.IGNORECASE,
 )
@@ -896,6 +897,52 @@ def _requested_item_count(text: str) -> int | None:
         count = _spelled_or_digit_count(match.group("count"), maximum=20)
         if count is not None:
             return count
+    return None
+
+
+
+def requested_output_item_count(user_text: str) -> int | None:
+    """Bounded cardinality of a requested collection, distinct from a source quantity.
+
+    Reuse the structural count and request-clause owners. Quotes and code remain data;
+    asking what a counted object costs does not request that many output items. This
+    presentation intent grants no actions and imposes no inferred list formatting.
+    """
+    from core.raw_output_contract import _directive_surface
+
+    visible, _ = _directive_surface(str(user_text or ""))
+    producing_verbs = {
+        "create", "draft", "generate", "give", "list", "make", "name", "print",
+        "recommend", "return", "show", "suggest", "write",
+    }
+    reported_production = re.compile(
+        r"\b(?:include[ds]?|list(?:ed)?|recommend(?:ed)?|suggest(?:ed)?|name[ds]?|"
+        r"show(?:ed|n)?|provide[ds]?|give|gave|create[ds]?|write|wrote|make|made|"
+        r"record(?:ed)?|store[ds]?|save[ds]?)\b",
+        re.IGNORECASE,
+    )
+    for _, _, clause in _clauses(visible):
+        body = _CLAUSE_LEAD_FILLER_RE.sub("", clause.strip().lower()).strip()
+        head = _WORD_RE.match(body)
+        if head is None:
+            continue
+        first = head.group(0)
+        count = _requested_item_count(body)
+        match = _LIST_COUNT_RE.search(body)
+        # Word counts already belong to the explicit length owner, not collections.
+        if count is None or match is None or match.group("unit").startswith("word"):
+            continue
+        prefix_words = _WORD_RE.findall(body[head.end():match.start()])
+        direct_object = all(word in _SHAPE_INSTRUCTION_FILLER for word in prefix_words)
+        if first in producing_verbs and direct_object:
+            return count
+        if first in {"what", "which"}:
+            production = reported_production.search(body)
+            # The count is the interrogative object ("what seven items did you list")
+            # or follows the requested production ("what would you include in a
+            # seven-item set"). A relative clause on a priced object is neither.
+            if production is not None and (direct_object or production.start() < match.start()):
+                return count
     return None
 
 

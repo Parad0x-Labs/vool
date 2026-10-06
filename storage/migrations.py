@@ -10,6 +10,20 @@ from pathlib import Path
 
 from storage.db import STORE_APPLICATION_ID, StoreVersionError, get_connection
 
+# K-04 (F0-C) durable A2 admission referent. One definition, executed by run_migrations and by the
+# admission writer itself (core.semantic.semantic_admissions), so a process that admits before any
+# migration ran still writes its referent instead of failing on a missing table.
+SEMANTIC_ADMISSIONS_DDL = """
+CREATE TABLE IF NOT EXISTS semantic_admissions (
+    sr_id                  TEXT PRIMARY KEY,
+    request_id             TEXT NOT NULL DEFAULT '',
+    admitted_at            TEXT NOT NULL,
+    source_class           TEXT NOT NULL,
+    obligation_set_version TEXT NOT NULL DEFAULT '',
+    accepted               INTEGER NOT NULL DEFAULT 1
+)
+"""
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS persona_profiles (
     persona_id TEXT PRIMARY KEY,
@@ -2607,18 +2621,7 @@ def _run_migrations_locked(db_file: Path, *, db_path=None, force: bool = False) 
         # K-04 (F0-C): durable A2 admission referent. Thin six-column
         # insert-once representation (D5). request_id correlation is fed from
         # A0 where bound; no legacy backfill (forward-only identity).
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS semantic_admissions (
-                sr_id                  TEXT PRIMARY KEY,
-                request_id             TEXT NOT NULL DEFAULT '',
-                admitted_at            TEXT NOT NULL,
-                source_class           TEXT NOT NULL,
-                obligation_set_version TEXT NOT NULL DEFAULT '',
-                accepted               INTEGER NOT NULL DEFAULT 1
-            )
-            """
-        )
+        conn.execute(SEMANTIC_ADMISSIONS_DDL)
         # F0-D (K-05 producer): durable obligation sets. JSON snapshot, not
         # normalized rows; dispositions mutate the snapshot forward-only.
         conn.execute(

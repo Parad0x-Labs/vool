@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from storage.db import get_connection
+from storage.migrations import SEMANTIC_ADMISSIONS_DDL
 
 _CURRENT_REQUEST_ID: ContextVar[str] = ContextVar("invocation_request_id", default="")
 
@@ -112,6 +113,18 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _admissions_connection():
+    """Connection on which the referent table exists.
+
+    The referent is written by whichever process admits, which need not be one that ran the
+    store migrations (a fresh worker or probe process). Creating the table here with the same DDL
+    the migration uses keeps the write durable everywhere; a genuine storage failure still raises.
+    """
+    conn = get_connection()
+    conn.execute(SEMANTIC_ADMISSIONS_DDL)
+    return conn
+
+
 def record_admission(
     semantic_result_id: str,
     *,
@@ -125,7 +138,7 @@ def record_admission(
     if not clean_sr:
         raise ValueError("semantic_result_id required")
     req = str(request_id if request_id is not None else current_request_id()).strip()
-    conn = get_connection()
+    conn = _admissions_connection()
     try:
         try:
             conn.execute(
@@ -176,7 +189,7 @@ def get_admission(semantic_result_id: str) -> dict[str, Any] | None:
     clean = str(semantic_result_id or "").strip()
     if not clean:
         return None
-    conn = get_connection()
+    conn = _admissions_connection()
     try:
         row = conn.execute(
             "SELECT * FROM semantic_admissions WHERE sr_id = ?", (clean,)
@@ -194,7 +207,7 @@ def admission_exists(semantic_result_id: str) -> bool:
     clean = str(semantic_result_id or "").strip()
     if not clean:
         return False
-    conn = get_connection()
+    conn = _admissions_connection()
     try:
         row = conn.execute(
             "SELECT 1 FROM semantic_admissions WHERE sr_id = ? AND accepted = 1 LIMIT 1",

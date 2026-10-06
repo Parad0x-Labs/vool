@@ -275,27 +275,103 @@ def render_response(
     return _render_diagnostic(plan, gate_decision, persona, input_interpretation, prompt_assembly_report)
 
 
-def explicit_planner_style_requested(user_input: str) -> bool:
-    """Whether the user asked for VOOL's plan document rather than an ordinary answer.
+# An interrogative whose predicate is the past auxiliary "did": a question about an event that
+# already happened ("what did ... hear", "how did ... help", "when did ... finish").
+_PAST_ACCOUNT_QUESTION_RE = re.compile(
+    r"^\s*(?:what|which|who|whom|whose|where|when|why|how)\b[^.!?;\n]{0,80}?\bdid\b",
+    re.IGNORECASE,
+)
 
-    A turn that states the exact shape of the answer it wants has already answered this question.
-    Measured on the v0.5.0 smoke run (QA-050-027): "Answer in one sentence: give me the numbered
-    steps to boil an egg." matched `\\bsteps to\\b`, which forces `output_mode=action_plan`
-    (`core/task_router.model_execution_profile`), and the reader got a plan scaffold instead of the
-    one sentence they specified. The two instructions are contradictory and the explicit shape is
-    the more specific one, so it wins.
 
-    Narrow on purpose: this only declines when the turn carries a parsed response constraint. "Give
-    me a step-by-step rollout plan" still gets the planner, because nothing in it says otherwise.
+@dataclass(frozen=True)
+class RequestedAnswerContract:
+    """Presentation requested by the user; this never authorizes a tool or an effect."""
+
+    kind: str
+    planner_style: bool = False
+    preserve_source_format: bool = False
+    complete_collection: bool = False
+    requested_items: int | None = None
+    output_mode: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "planner_style": self.planner_style,
+            "preserve_source_format": self.preserve_source_format,
+            "complete_collection": self.complete_collection,
+            "requested_items": self.requested_items,
+            "output_mode": self.output_mode,
+        }
+
+
+def resolve_requested_answer_contract(user_input: str) -> RequestedAnswerContract:
+    """Resolve the requested deliverable before planner vocabulary selects its wire shape.
+
+    Existing shape and collection owners retain their authority. Historical restatement is
+    informational even when its source is a plan; a newly requested plan keeps its existing
+    finite generation and execution policies. Quoted text is data in this analysis copy.
     """
-    lowered_input = str(user_input or "").strip().lower()
-    if not lowered_input:
-        return False
-    if not any(re.search(pattern, lowered_input) for pattern in _EXPLICIT_PLAN_REQUEST_PATTERNS):
-        return False
-    from core.response_constraints import parse_response_constraint
+    from core.context_retrieval import query_requests_complete_collection
+    from core.raw_output_contract import parse_raw_output_contract
+    from core.response_constraints import parse_response_constraint, requested_output_item_count
+    from core.turn_ir import ClauseKind, parse_turn_ir
 
-    return parse_response_constraint(user_input) is None
+    text = str(user_input or "").strip()
+    visible = re.sub(r"```[\s\S]*?```|`[^`]*`|\"[^\"]*\"|[“][^”]*[”]", " ", text)
+    requested_items = requested_output_item_count(text)
+    complete = query_requests_complete_collection(text) or requested_items is not None
+    shape = parse_response_constraint(text)
+    raw_contract = parse_raw_output_contract(text)
+    summary = bool(re.search(r"\b(?:summari[sz]e|condense|briefly|short\s+summary)\b", visible, re.I))
+    if shape is not None:
+        return RequestedAnswerContract("summary" if summary else "bounded_answer", complete_collection=complete, requested_items=requested_items)
+    if raw_contract is not None:
+        return RequestedAnswerContract("exact_output", preserve_source_format=True, complete_collection=complete, requested_items=requested_items, output_mode="plain_text")
+    if summary:
+        return RequestedAnswerContract("summary", complete_collection=complete, requested_items=requested_items)
+    clauses = parse_turn_ir(visible, response_shape_parser=None).clauses
+
+    def historical_clause(clause: Any) -> bool:
+        request = clause.request_text
+        return bool(
+            clause.kind is ClauseKind.RECALL
+            or re.search(r"^\s*(?:(?:please|pls|can\s+you|could\s+you)\s+)*(?:restate|repeat|reproduce|retell|remind|recall|quote)\b", request, re.I)
+            or re.search(r"\b(?:you|we)\s+(?:(?:had|previously|earlier|already)\s+)*(?:proposed|suggested|outlined|recommended|wrote|said|provided)\b", request, re.I)
+            or re.search(r"\b(?:what|which)\s+(?:was|were)\b", request, re.I)
+        )
+
+    historical = any(historical_clause(clause) for clause in clauses)
+    fresh_plan = any(
+        not historical_clause(clause)
+        and any(re.search(pattern, clause.request_text, re.I) for pattern in _EXPLICIT_PLAN_REQUEST_PATTERNS)
+        for clause in clauses
+    )
+    if historical and not fresh_plan:
+        # A restatement is delivered as text even when a classifier keyword (a "meeting", a
+        # "sync") names an action class whose internal wrapper is a plan document.
+        return RequestedAnswerContract("historical_restatement", preserve_source_format=True, complete_collection=complete, requested_items=requested_items, output_mode="plain_text")
+
+    planner = bool(text and any(re.search(pattern, visible, re.I) for pattern in _EXPLICIT_PLAN_REQUEST_PATTERNS))
+    # "What did Sela hear about at the guild meeting?" asks for an account of something that
+    # already happened. Its deliverable is information, never a new {"summary","steps"} plan, so
+    # the classifier's plan wrapper may not choose its wire shape. Kind and policy stay "answer".
+    past_account = bool(
+        not planner
+        and clauses
+        and all(
+            clause.kind is ClauseKind.KNOW and _PAST_ACCOUNT_QUESTION_RE.search(clause.request_text)
+            for clause in clauses
+        )
+    )
+    return RequestedAnswerContract(
+        "plan" if planner else "answer", planner_style=planner, complete_collection=complete,
+        requested_items=requested_items, output_mode="plain_text" if past_account else "",
+    )
+
+
+def explicit_planner_style_requested(user_input: str) -> bool:
+    return resolve_requested_answer_contract(user_input).planner_style
 
 
 def should_use_planner_renderer(

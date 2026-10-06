@@ -195,6 +195,9 @@ class CloudModelResponse:
     #: of them thinking and returned its half-written monologue as ``content``. The router's
     #: validator refuses a ``"length"`` completion instead of shipping that draft.
     finish_reason: str = ""
+    # Process-local selected-wire carrier. Journals retain hashes and source
+    # identifiers; source plaintext must not be copied into durable receipts.
+    admitted_request_evidence: dict[str, Any] | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True)

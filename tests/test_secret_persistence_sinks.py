@@ -16,9 +16,17 @@ _SECRET = "fixture-sensitive-value-814"
 class _FakeMemory:
     def __init__(self):
         self.stored: list[str] = []
+        self.occurrences: list[str] = []
 
-    def node_store(self, *, content, keywords, tags, context_description, embedding, lineage_request_id=""):
+    def node_store(self, *, content, keywords, tags, context_description, embedding, embedding_backend="", lineage_request_id="", source_occurrence_id="", importance=None):
         self.stored.append(content)
+
+    def occurrence_store(self, *, chat_scope, role, body, authority, **_kwargs):
+        # layer-1 retention seam (CONTRACT mr29/1); bodies recorded for the
+        # redaction assertions below to keep covering BOTH layers.
+        self.occurrences.append(body)
+        from types import SimpleNamespace
+        return SimpleNamespace(occurrence_id=f"occ-{len(self.occurrences)}", role=role, body=body, status="active")
 
     def close(self):
         pass
@@ -44,3 +52,7 @@ def test_store_turn_redacts_secret_before_persist(monkeypatch):
     assert fake.stored, "high-importance turn should be persisted"
     for content in fake.stored:
         assert _SECRET not in content
+    # layer-1 occurrences are redacted by the same one-time seam
+    assert fake.occurrences, "source evidence should be retained"
+    for body in fake.occurrences:
+        assert _SECRET not in body

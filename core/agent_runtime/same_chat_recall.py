@@ -61,6 +61,23 @@ _KIND_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
 )
+# A number/value modified by an attributive noun ("the archive number", "her serial
+# number", "the plate's value") names a property of that subject, not the answer slot
+# of an earlier typed request. The typed recall lane can only prove absence for slots
+# it can extract (labelled parts, typed request numbers, visible math results); for a
+# domain number it would return a FALSE proved absence. Measured 2026-09-29 (q90 dev
+# corpus F12-08): "What did you say the correct archive number for the 1934 Virgo
+# plate was?" was answered "That number does not appear in the visible history of
+# this chat" although the assistant had stated PV-2217 earlier in the same chat.
+# Determiners, ordinals and part-words keep the slot sense ("the number", "the third
+# number", "the number for part 2").
+_DOMAIN_NUMBER_BOUND_RE = re.compile(
+    r"\b(?!(?:the|a|an|this|that|these|those|my|your|our|their|his|her|its|"
+    r"first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|"
+    r"last|next|other|same|what|which|part|item|entry|bullet)\b)"
+    r"(?P<modifier>[a-z][a-z'’-]*)\s+(?P<head>numbers?|values?)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -279,6 +296,12 @@ def same_chat_transcript_recall_fast_path(
         return None
 
     kind = _recall_kind(user_input)
+    # A domain number ("the archive number for the plate") is a fact question about
+    # what was said, not a typed slot the extractor can enumerate. Decline so the
+    # turn reaches the model lane with the expanded transcript instead of a false
+    # proved absence (or an unrelated visible math result).
+    if kind == "number" and _DOMAIN_NUMBER_BOUND_RE.search(str(user_input or "")):
+        return None
     if kind == "number" or _MATH_RECALL_SUBJECT_RE.search(str(user_input or "")):
         math_answers = _visible_math_answers(exchanges)
         if math_answers:

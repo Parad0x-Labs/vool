@@ -891,6 +891,8 @@ class OpenClawToolingContextTests(unittest.TestCase):
 
         system_prompt = request.system_prompt().lower()
         self.assertEqual(request.output_mode, "tool_intent")
+        # Since the bounded capability catalog (f4614c95) a turn sees the tools of its own task
+        # family, not the whole global catalog: a release-notes lookup gets the web tools.
         self.assertIn("web.search", system_prompt)
         # Initial offers are navigators; domain tools appear after expansion.
         self.assertIn("operator.list_tools", system_prompt)
@@ -898,6 +900,25 @@ class OpenClawToolingContextTests(unittest.TestCase):
         self.assertIn("orchestration.execute_envelope", system_prompt)
         self.assertIn("respond.direct", system_prompt)
         self.assertIn("never invent intent names", system_prompt)
+        self.assertNotIn("hive.research_topic", system_prompt)
+
+        # A hive turn sees the hive research tools the bridge makes available. Before the live
+        # catalog was synced into the capability graph no family hint could surface them at all.
+        from core.prompt_normalizer import _tool_intent_catalog_text
+
+        with mock.patch(
+            "core.tool_intent_executor.load_public_hive_bridge_config",
+            return_value=PublicHiveBridgeConfig(
+                enabled=True,
+                meet_seed_urls=("https://seed-eu.example.test:8766",),
+                topic_target_url="https://seed-eu.example.test:8766",
+                auth_token="cluster-token",
+            ),
+        ):
+            hive_catalog = _tool_intent_catalog_text(family_hint="hive").lower()
+        self.assertIn("hive.export_research_packet", hive_catalog)
+        self.assertIn("hive.research_topic", hive_catalog)
+        self.assertIn("never invent intent names", hive_catalog)
 
     def test_openclaw_model_tool_intent_returns_tool_execution_result(self) -> None:
         agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")

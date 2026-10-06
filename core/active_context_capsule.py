@@ -514,7 +514,12 @@ def _verified_action_record(
     *,
     chat_id: str,
     project_id: str,
+    runtime_session_id: str | None = None,
 ) -> dict[str, Any] | None:
+    # The producer stores the ledger row in the runtime session and the
+    # action's origin in the chat namespace. Existing capsule callers use
+    # the chat as their ledger session; runtime consumers bind both explicitly.
+    ledger_session_id = chat_id if runtime_session_id is None else str(runtime_session_id).strip()
     clean_receipt_id = str(receipt_id or "").strip()
     if not clean_receipt_id:
         return None
@@ -522,7 +527,7 @@ def _verified_action_record(
     if (
         not isinstance(receipt, dict)
         or str(receipt.get("receipt_key") or "").strip() != clean_receipt_id
-        or str(receipt.get("session_id") or "").strip() != chat_id
+        or str(receipt.get("session_id") or "").strip() != ledger_session_id
     ):
         return None
     execution = receipt.get("execution")

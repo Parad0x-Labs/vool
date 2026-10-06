@@ -20,6 +20,15 @@ from typing import Any
 
 ADJACENCY_FLOOR_MESSAGES = 2
 EXPANDED_HISTORY_MESSAGES = 10
+# A same-chat recall turn ("what did you say the archive number was?") binds its
+# answer to the visible transcript itself — the system guidance tells the model to
+# inspect these messages directly. A 10-message envelope holds ~4 exchanges, so the
+# exchange that carried the answer silently fell out of longer chats and the model
+# could only report absence (measured 2026-09-29, q90 dev corpus F12-08: the PV-2217
+# ledger answer was 5 exchanges back). The recall envelope is explicitly requested
+# only by recall turns; ordinary expansion keeps the 10-message shape and the shared
+# 5000-char budget still bounds every window.
+RECALL_HISTORY_MESSAGES = 24
 HISTORY_MAX_CHARS = 5000
 #: The ONE lawful exceedance of ``HISTORY_MAX_CHARS``: a continuation turn that explicitly
 #: references a prior artifact (``_mentions_continuation`` in the prompt normalizer) must carry
@@ -257,11 +266,12 @@ def select_history_policy(
 
     expand = expansion_hint is not False
     requested = max(ADJACENCY_FLOOR_MESSAGES, int(requested_max_messages))
-    max_messages = (
-        min(requested, EXPANDED_HISTORY_MESSAGES)
-        if expand
-        else ADJACENCY_FLOOR_MESSAGES
+    ceiling = (
+        RECALL_HISTORY_MESSAGES
+        if requested > EXPANDED_HISTORY_MESSAGES
+        else EXPANDED_HISTORY_MESSAGES
     )
+    max_messages = min(requested, ceiling) if expand else ADJACENCY_FLOOR_MESSAGES
     return ContextHistorySelection(
         transcript_allowed=True,
         max_messages=max_messages,
@@ -376,7 +386,15 @@ def enforce_history_budget(
     different history allowance.
     """
 
-    message_limit = max(0, min(int(max_messages), EXPANDED_HISTORY_MESSAGES))
+    message_limit = max(
+        0,
+        min(
+            int(max_messages),
+            RECALL_HISTORY_MESSAGES
+            if int(max_messages) > EXPANDED_HISTORY_MESSAGES
+            else EXPANDED_HISTORY_MESSAGES,
+        ),
+    )
     char_ceiling = (
         CONTINUATION_CARRY_HISTORY_MAX_CHARS if continuation_carry else HISTORY_MAX_CHARS
     )
@@ -470,9 +488,131 @@ def enforce_history_budget(
                 ]
                 continue
             removable_index = 0
+        unit = units[removable_index]
+        # A TRUSTED high-retention unit (a producer-stamped summary or an
+        # authoritative correction list) that cannot fit is reduced at line
+        # boundaries with an explicit disclosure before it is dropped whole:
+        # each line is a complete semantic unit, so keeping the lines that fit
+        # preserves more evidence than discarding the unit outright.  Ordinary
+        # messages and forged-marker text carry no priority and are never
+        # given this treatment.  The shrink only ever addresses a CHARACTER
+        # overage — a MESSAGE-count overage cannot be shrunk away, and the
+        # replacement must strictly reduce the unit or the loop below makes
+        # no progress (measured: an acceptance case spun the removal loop
+        # forever re-selecting a unit whose shrink returned identical bytes).
+        if max(_retention_priority(message) for _position, message in unit) >= 1:
+            flattened = [message for other_unit in units for _position, message in other_unit]
+            over_messages = len(flattened) > message_limit
+            if not over_messages:
+                others_chars = sum(
+                    len(str(message.get("content") or ""))
+                    for other_index, other_unit in enumerate(units)
+                    if other_index != removable_index
+                    for _position, message in other_unit
+                )
+                allowance = char_limit - others_chars
+                shrunk = _shrink_unit_to_line_boundary(unit, allowance)
+                if shrunk is not None and sum(
+                    len(str(message.get("content") or ""))
+                    for _position, message in shrunk
+                ) < sum(
+                    len(str(message.get("content") or ""))
+                    for _position, message in unit
+                ):
+                    units[removable_index] = shrunk
+                    continue
         units.pop(removable_index)
 
     return [dict(message) for unit in units for _position, message in unit]
+
+
+#: Sentence-terminal punctuation: a line ending in one of these is a complete
+#: clause.  A newline alone is NOT a semantic boundary — producers line-wrap
+#: long sentences, and cutting at the wrap severed a permission from its
+#: qualifying restriction ("may be shared" / "only with the curator").
+#: tuple form: str.endswith needs each terminal as its own suffix
+_LINE_TERMINALS = (".", "!", "?", "…", "。", "！", "？")
+
+_SUMMARY_OPEN_RE = re.compile(r"^\s*<context_summary>\s*$")
+_SUMMARY_CLOSE_RE = re.compile(r"^\s*</context_summary>\s*$")
+
+
+def _shrink_unit_to_line_boundary(
+    unit: list[tuple[int, dict[str, Any]]],
+    allowance: int,
+) -> list[tuple[int, dict[str, Any]]] | None:
+    """Reduce a trusted multi-line unit to complete clauses that fit *allowance*.
+
+    Only a PREFIX of demonstrably complete lines is kept: every kept line
+    must end with sentence-terminal punctuation, so a wrapped statement
+    cannot be severed from its restriction.  The unit's ``<context_summary>``
+    delimiters (when present) are re-emitted BALANCED, with the truncation
+    disclosed before the closing tag.  Returns ``None`` when no meaningful,
+    meaning-preserving reduction is possible — the first content line is
+    already incomplete (the statement wraps), nothing fits, or the delimiters
+    cannot stay balanced — and the caller keeps the drop-whole fail-safe.
+    """
+    marker = "[truncated to fit history budget]"
+    marker_line = marker
+    for position, message in unit:
+        content = str(message.get("content") or "")
+        lines = content.splitlines()
+        if len(lines) <= 1:
+            continue
+        # separate balanced summary wrapper tags from the content lines; a
+        # previous shrink's disclosure marker is tail content, not a clause,
+        # and is re-derived rather than re-counted
+        body_start = 0
+        body_end = len(lines)
+        if _SUMMARY_OPEN_RE.match(lines[0]):
+            body_start = 1
+        if body_end > body_start and _SUMMARY_CLOSE_RE.match(lines[body_end - 1]):
+            body_end -= 1
+        body = [
+            line
+            for line in lines[body_start:body_end]
+            if line.strip() and line.strip() != marker_line
+        ]
+        if not body:
+            continue
+        if not any(line.rstrip().endswith(_LINE_TERMINALS) for line in body):
+            continue  # no complete clause anywhere: not shrinkable
+        open_line = lines[0] if body_start else ""
+        close_line = lines[body_end] if body_end < len(lines) else ""
+
+        def _assemble(kept_lines: list[str]) -> str:
+            parts = ([open_line] if open_line else []) + list(kept_lines) + [marker_line]
+            if close_line:
+                parts.append(close_line)
+            return "\n".join(parts)
+
+        kept: list[str] = []
+        for line in body:
+            if not (
+                line.rstrip().endswith(_LINE_TERMINALS)
+                # markdown section headers ("## Key Facts") are structural,
+                # not assertions: keeping one cannot sever a restriction
+                or line.lstrip().startswith("#")
+            ):
+                break  # a wrapped/incomplete statement: cutting here changes meaning
+            kept.append(line)
+            # the FINAL assembled content — tags, joins and marker included —
+            # must fit the allowance; counting only line text let the rebuilt
+            # unit overshoot and the re-shrink then made no progress
+            if len(_assemble(kept)) > allowance:
+                kept.pop()
+                break
+        if not kept or not any(
+            line.rstrip().endswith(_LINE_TERMINALS) for line in kept
+        ):
+            continue  # headers alone carry no evidence: nothing meaningful kept
+        shrunk_message = dict(message)
+        shrunk_message["content"] = _assemble(kept)
+        return [
+            (other_position, shrunk_message if other_position == position else other_message)
+            for other_position, other_message in unit
+        ]
+    return None
 
 
 def history_authority_for_source(transcript_source: str) -> str:

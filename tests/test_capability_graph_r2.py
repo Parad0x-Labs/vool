@@ -125,12 +125,14 @@ def test_R3_broad_family_bounded() -> None:
     _register_synthetic_catalog(100, ["web", "email"])
     specs = model_visible_specs(family_hint="filesystem")
     assert len(specs) <= _DEFAULT_MAX_CANDIDATES
-    # No foreign family tools leaked
+    # No foreign family tools leaked. Membership is the graph's own family, not the intent's
+    # spelling: live runtime tools such as machine.read_file belong to the filesystem family.
     for s in specs:
         intent = str(s.get("intent", "")).strip()
         if intent in _ALWAYS_VISIBLE:
             continue
-        assert intent.startswith("filesystem."), f"foreign intent leaked: {intent}"
+        capability = cg._intent_to_capability.get(intent)
+        assert capability is not None and capability.family == "filesystem", f"foreign intent leaked: {intent}"
 
 
 # ---------------------------------------------------------------------------

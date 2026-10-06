@@ -402,6 +402,13 @@ _PENDING_WORK_RE = re.compile(
 
 _WHERE_RE = re.compile(r"\b(?:where|wher|whre|wheer|whereabouts)\b", re.IGNORECASE)
 
+# Gate 3b's sibling-interrogative cue: a sibling clause ASKING its own
+# question (wh-word other than the location ask itself - "where" belongs to
+# the ask clause).
+_SIBLING_INTERROGATIVE_RE = re.compile(
+    r"\b(?:what|which|who|whom|whose|how|why|when)\b", re.IGNORECASE
+)
+
 # Gate 2. Every way this family asks for a location.
 _LOCATION_ASK_RE = re.compile(
     r"\b(?:where|wher|whre|wheer|whereabouts)\b"
@@ -583,6 +590,30 @@ def location_followup_kind(
         return None
     if any(not _token_is_familiar(token, subject_tokens) for token in tokens):
         return None
+
+    # Gate 3b. The vocabulary check ran on the ASK clause only; a compound
+    # message can carry its real subject in a SIBLING INTERROGATIVE clause
+    # ("what kind of station is on the mast, and where?") whose tokens this
+    # family has never been allowed to answer about. The lane claimed such
+    # turns on the strength of a two-word elliptical tail and answered a
+    # different question with a canned file-receipt refusal (measured, fresh
+    # cohort F11-03: zero provider requests, deterministic off-topic
+    # answer). DECLARATIVE sibling context ("since this is General chat")
+    # and pending-work clauses stay untouched - gate 1b owns work, and the
+    # vocabulary law has never policed context; only a sibling that asks its
+    # own question about an unfamiliar subject declines the turn.
+    for sibling in _clauses(text):
+        if sibling == clause:
+            continue
+        if not _SIBLING_INTERROGATIVE_RE.search(sibling):
+            continue
+        sibling_tokens = _WORD_RE.findall(sibling)
+        unfamiliar = [
+            token for token in sibling_tokens
+            if not _token_is_familiar(token, subject_tokens)
+        ]
+        if len(unfamiliar) >= 2:
+            return None
 
     names_receipt_file = bool(subject_tokens) and any(token in subject_tokens for token in tokens)
     points_at_my_action = bool(
