@@ -213,15 +213,18 @@ def build_prompt(*, display_name: str, objective: str, claims: tuple[str, ...], 
         lines.append(f"The user decided: {decision}")
     if extra:
         lines.append(extra)
+    # FIRST, not last: VOOL trims long replies to the turn's output budget, and a report line at
+    # the end is the first thing a trim removes (measured on the served run, 2026-10-06).
     lines.append(
-        "Finish with one line `RESULT: {\"status\": \"done|partial|needs_decision|failed\", "
-        "\"summary\": \"<= 3 sentences\", \"changed\": [paths], \"question\": \"only if needs_decision\"}`."
+        "Begin your reply with one line `RESULT: {\"status\": \"done|partial|needs_decision|failed\", "
+        "\"summary\": \"<= 3 sentences\", \"changed\": [paths], \"question\": \"only if needs_decision\"}`, "
+        "then any detail."
     )
     return "\n\n".join(lines)
 
 
 def parse_result_line(text: str) -> dict[str, Any]:
-    for line in reversed(str(text or "").splitlines()):
+    for line in str(text or "").splitlines():
         stripped = line.strip()
         if stripped.upper().startswith("RESULT:"):
             try:
