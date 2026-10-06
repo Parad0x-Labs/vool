@@ -12,6 +12,7 @@ moment of signalling, never its own process or any ancestor, never anything by n
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import signal
@@ -343,10 +344,8 @@ class TeamCoordinator:
     # =============================================================== gate API
     def gate_write(self, agent_id: str, abs_path: str) -> tuple[bool, str]:
         rel = ""
-        try:
+        with contextlib.suppress(ValueError):
             rel = Path(abs_path).relative_to(self.workspace).as_posix()
-        except ValueError:
-            pass
         with self._lock:
             self._sync_claims()
             owner = self.watch.owner_of(rel) if rel else ""
@@ -491,10 +490,8 @@ class TeamCoordinator:
             event.set()
         response = self._responses.get(agent_id)
         if response is not None:
-            try:
+            with contextlib.suppress(Exception):
                 response.close()
-            except Exception:
-                pass
 
     # ============================================================== signalling
     def _members(self, agent_id: str) -> list[Member]:
@@ -536,10 +533,8 @@ class TeamCoordinator:
             row = self.registry.agent(agent_id)
             if row and row["state"] in ("running", "launching"):
                 self.registry.update_agent(agent_id, state="paused")
-            try:
+            with contextlib.suppress(KeyError):
                 self.budget.clock_for(agent_id).pause()
-            except KeyError:
-                pass
         return {a: sorted(p) for a, p in frozen.items()}
 
     def _thaw(self, agent_id: str) -> list[int]:
@@ -551,10 +546,8 @@ class TeamCoordinator:
         row = self.registry.agent(agent_id)
         if row and row["state"] == "paused":
             self.registry.update_agent(agent_id, state="running", pause_reason="")
-        try:
+        with contextlib.suppress(KeyError):
             self.budget.clock_for(agent_id).resume()
-        except KeyError:
-            pass
         return resumed
 
     def _terminate_lineage(self, agent_id: str) -> None:
@@ -573,10 +566,8 @@ class TeamCoordinator:
             self._signal(member, signal.SIGKILL)
         proc = self._procs.get(agent_id)
         if proc is not None:
-            try:
+            with contextlib.suppress(subprocess.TimeoutExpired):
                 proc.wait(timeout=STOP_GRACE_SECONDS)
-            except subprocess.TimeoutExpired:
-                pass
 
     # ================================================================ findings
     def _handle(self, finding: Finding, lineages: Mapping[str, Mapping[int, Member]]) -> dict[str, Any] | None:
@@ -746,7 +737,7 @@ class TeamCoordinator:
     def stop(self, agent: str = "") -> dict[str, Any]:
         """Stop one agent (by display name, title or key) or, with no name, every live agent."""
         with self._lock:
-            targets = [r for r in self.registry.agents(LIVE_STATES + ("launching",)) if
+            targets = [r for r in self.registry.agents((*LIVE_STATES, "launching")) if
                        not agent or agent in (r["display_name"], r["title"], r["key"], r["agent_id"])]
             if agent and not targets:
                 return {"ok": False, "error": f"no running agent is called {agent!r}"}
@@ -770,8 +761,8 @@ class TeamCoordinator:
                 if any(a in [t["agent_id"] for t in targets] for a in conflict["agents"]):
                     survivors = [a for a in conflict["agents"] if a not in [t["agent_id"] for t in targets]]
                     for a in survivors:
-                        row = self.registry.agent(a)
-                        if row and row["state"] == "paused":
+                        survivor = self.registry.agent(a)
+                        if survivor and survivor["state"] == "paused":
                             self._thaw(a)
                     self.registry.update_conflict(conflict["conflict_id"], state="resolved",
                                                   decision={"stopped": [t["agent_id"] for t in targets]})
@@ -827,8 +818,9 @@ class TeamCoordinator:
                 return {"ok": False, "error": "choose wait, swap or stop"}
             self.registry.event(self.team_id, "conflict_decided", "", conflict_id=conflict_id, choice=choice,
                                 kept=keep, paused=paused)
-            return {"ok": True, "choice": choice, "running": self.registry.agent(keep)["display_name"],
-                    "paused": self.registry.agent(paused)["display_name"]}
+            kept_row, paused_row = self.registry.agent(keep), self.registry.agent(paused)
+            return {"ok": True, "choice": choice, "running": kept_row["display_name"] if kept_row else "",
+                    "paused": paused_row["display_name"] if paused_row else ""}
 
     def answer(self, agent: str, decision: str) -> dict[str, Any]:
         """Answer an agent that returned ``needs_decision``: it runs again with the decision."""
@@ -956,7 +948,7 @@ class TeamCoordinator:
                     ident, alive = found, True
                     self.registry.update_agent(agent_id, pid=found.pid, create_time=found.create_time,
                                                state="running")
-            if alive:
+            if alive and ident is not None:
                 self.recovered["adopted"].append(row["display_name"])
                 self.registry.event(self.team_id, "agent_readopted", agent_id, pid=ident.pid)
                 if row["state"] != "paused":

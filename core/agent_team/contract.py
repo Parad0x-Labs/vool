@@ -258,7 +258,7 @@ def validate_plan(
 
     # Dependencies: known keys, no cycles.
     known = set(pool)
-    for key, agent in normalized.items():
+    for agent in normalized.values():
         for dep in agent.depends_on:
             if dep not in known:
                 raise ContractRefused(f"{agent.title} depends on {dep!r}, which is not in this team")
@@ -288,7 +288,7 @@ def validate_plan(
     display = names.assign_display_names(titles, taken=taken)
 
     out: list[ValidatedAgent] = []
-    for (key, agent), (_title, effective, _claims), name in zip(normalized.items(), titles, display):
+    for (key, agent), (_title, effective, _claims), name in zip(normalized.items(), titles, display, strict=True):
         out.append(ValidatedAgent(
             contract=agent,
             title=agent.title,

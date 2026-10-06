@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass
+from typing import Any
 
 from core.command_registry.spec import (
     ApprovalDecision,
@@ -131,7 +132,7 @@ def _handle_answer(inp, ctx):
 
 def register(reg) -> None:
     reg.add_group(GroupSpec(group_id="agents", description="agent teams: start, watch, pause and stop agents for this chat"))
-    base = {"group": "agents", "exit_codes": (0, 2, 10, 20), "lifecycle": "preview"}
+    base: dict[str, Any] = {"group": "agents", "exit_codes": (0, 2, 10, 20), "lifecycle": "preview"}
     probe = Availability("core.command_registry.groups.agent_team_group:_probe_teams_root")
     operator = ApprovalGate(kind="agents.control", verifier="core.command_registry.groups.agent_team_group:_gate_operator")
     reg.add(CommandSpec(
