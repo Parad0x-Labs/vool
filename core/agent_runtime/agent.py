@@ -6740,6 +6740,9 @@ class VoolAgent(
 
 
 def main() -> int:
+    from core.runtime_provider_defaults import apply_product_runtime_defaults
+
+    apply_product_runtime_defaults()
     parser = argparse.ArgumentParser(prog="vool-agent")
     parser.add_argument("--backend", default="auto")
     parser.add_argument("--device", default="auto")
