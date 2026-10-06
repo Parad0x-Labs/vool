@@ -6929,10 +6929,14 @@ def _dispatch_post_inner(
             reset_admission()
             admit_semantic_result(dict(null_result or {}))
             from core.finalization import finalize_answer
+            # Imported under its own name here: the late import of the same alias further down
+            # this function made the name local to the whole function, so this earlier use raised
+            # UnboundLocalError on every NULL-protocol local fallback.
+            from core.response_provenance import strip_provenance_footer as _strip_null_footer
 
             null_commit = finalize_answer(
                 turn_id=str(null_req.session_id or ""),
-                canonical_content=strip_provenance_footer_str(str(null_result.get("response") or "")),
+                canonical_content=_strip_null_footer(str(null_result.get("response") or "")),
                 source_context={"surface": "null_protocol"},
                 display_metadata={"route": "null_protocol_local"},
             )

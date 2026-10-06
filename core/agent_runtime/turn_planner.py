@@ -165,6 +165,57 @@ def turn_may_hold_several_requests(text: str) -> bool:
     return any(token in lowered for token in _JOINING_TOKENS)
 
 
+def recall_question_needs_no_planner(text: str) -> bool:
+    """Whether a planner call on *text* can only learn that it is one request.
+
+    True for a single-clause question about the speaker's own facts
+    (`core.plain_task_routing.single_clause_recall_question`) that the requirements authority does
+    not mark as needing live data. Such a turn is answered by one reader call from memory; asking
+    the planner first costs a whole model call (its system prompt alone is about a thousand
+    tokens) to return one clause. Both planners -- the conductor's and the generic one below --
+    consult this before their call, so a decline in one never buys the call in the other.
+
+    Fails toward the planner: any exception, any doubt about the shape, or a LIVE_DATA verdict
+    keeps today's behaviour.
+    """
+    try:
+        from core.plain_task_routing import single_clause_recall_question
+
+        subject = _subject_without_answer_frame(text)
+        if not single_clause_recall_question(subject):
+            return False
+        from core.execution_requirements import requirements_for
+
+        return requirements_for(str(subject or "").strip()).answer_mode != "LIVE_DATA"
+    except Exception:
+        return False
+
+
+def _subject_without_answer_frame(text: str) -> str:
+    """The turn minus the sentences that only say HOW to answer.
+
+    A turn often wraps one recall question in answer directives ("Answer from
+    my notes only. Keep it short. What did I name the boat?"). The directives
+    are not requests (the conductor prompt says so itself), but their
+    sentence boundaries made the turn look like several requests, and the
+    planner call was spent to learn that it was one: measured 2026-10-06
+    (official LongMemEval_S run 1), the call cost 960 prompt tokens per
+    question, 13% of the per-question total, and returned a single clause on
+    112 of 112 questions. The retrieval lane already strips the same
+    directives before recall (`core.context_retrieval._answer_frame_free_query`,
+    the one owner of that grammar); the request-shape test reads the same
+    subject. Fails toward the planner: any exception keeps the whole turn.
+    """
+    raw = str(text or "")
+    try:
+        from core.context_retrieval import _answer_frame_free_query
+
+        subject = str(_answer_frame_free_query(raw) or "")
+    except Exception:
+        return raw
+    return subject if subject.strip() else raw
+
+
 def parse_plan(raw: str) -> list[PlannedTask]:
     """Parse the planner's reply. Returns [] for anything not a usable plan.
 
@@ -286,6 +337,8 @@ def plan_turn(
     from core.agent_runtime.grounded_mode import is_software_authoring_request
 
     if is_software_authoring_request(text):
+        return []
+    if recall_question_needs_no_planner(text):
         return []
     try:
         raw = ask_model(PLANNER_SYSTEM_PROMPT, str(text or "").strip())

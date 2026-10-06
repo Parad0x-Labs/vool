@@ -5,6 +5,20 @@ from typing import Any, Literal
 
 MessageRole = Literal["system", "user", "assistant", "context"]
 
+# Opens the per-turn system message that follows the chat history (clock, skill pick, corrections,
+# memory recall and other facts that change from turn to turn). The leading system message stays
+# byte-stable so provider prompt caches can reuse it and the history behind it. Wire-level code that
+# only sees plain dict messages (memory prefix placement, local context-window fitting) finds the
+# message by this header.
+TURN_DIRECTIVES_HEADER = "Context for this turn:"
+
+
+def is_turn_directives_message(message: Any) -> bool:
+    if not isinstance(message, dict) or str(message.get("role") or "").strip().lower() != "system":
+        return False
+    content = message.get("content")
+    return isinstance(content, str) and content.startswith(TURN_DIRECTIVES_HEADER)
+
 
 @dataclass
 class InternalMessage:
@@ -41,6 +55,16 @@ class InternalModelRequest:
             if message.role == "system":
                 return message.content
         return ""
+
+    def instructions(self) -> str:
+        """Every system instruction the model receives, in order: the stable leading system message
+        and the per-turn system message after the history. Retrieved-evidence capsules (also sent
+        with the system role) are evidence, not instructions, and are left out."""
+        return "\n\n".join(
+            message.content
+            for message in self.messages
+            if message.role == "system" and "<retrieved_context>" not in message.content
+        )
 
     def user_prompt(self) -> str:
         parts = [message.content for message in self.messages if message.role in {"user", "context"}]

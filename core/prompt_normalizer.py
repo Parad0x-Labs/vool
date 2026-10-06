@@ -12,6 +12,8 @@ from core.bootstrap_context import canonical_runtime_transcript
 from core.context_history_authority import (
     AUTHORITATIVE_CORRECTIONS_PREFIX,
     HISTORY_MAX_CHARS,
+    EXPANDED_HISTORY_MESSAGES,
+    RECALL_HISTORY_MESSAGES,
     enforce_history_budget,
     history_authority_for_source,
     is_current_user_message,
@@ -25,7 +27,7 @@ from core.creative_director import (
     detect_creative_brief,
     detect_prose_request,
 )
-from core.internal_message_schema import InternalMessage, InternalModelRequest
+from core.internal_message_schema import TURN_DIRECTIVES_HEADER, InternalMessage, InternalModelRequest
 from core.local_operator_actions import list_operator_tools
 from core.output_budget_policy import (
     LaneCapability,
@@ -33,7 +35,7 @@ from core.output_budget_policy import (
     resolve_output_budget,
 )
 from core.plain_task_routing import plain_task_kind
-from core.stipulated_frame import STIPULATED_FRAME_PROMPT_GUIDANCE
+from core.stipulated_frame import STIPULATED_FRAME_PROMPT_GUIDANCE, has_stipulated_frame
 from core.tool_intent_executor import runtime_tool_specs
 from core.user_preferences import load_preferences
 from core.visual_playbooks import detect_visual_genre, visual_playbook_directive
@@ -104,6 +106,47 @@ _PAYLOAD_CURRENT_USER_TURN = "current_user_turn"
 _PAYLOAD_CATEGORY_KEY = "payload_category"
 _PAYLOAD_SEGMENT_NAME_KEY = "payload_segment_name"
 _PAYLOAD_SEGMENTS_KEY = "prompt_payload_segments"
+# Provider prompt caches (OpenAI, DeepSeek, Z.AI, Grok, Moonshot implicitly; Anthropic and Gemini
+# through cache_control) reuse only an unchanged request PREFIX. Measured on the wire 2026-10-05:
+# the minute clock, the per-turn skill pick and the other facts below sat inside the leading system
+# message, so it changed on almost every turn and the chat history behind it was re-billed uncached
+# (VOOL 13.2% cached prompt tokens vs 74-87% for agents with a stable prefix). These segments
+# therefore travel in a second system message placed AFTER the history, and the leading system
+# message carries only text that is the same from turn to turn. (Ported from 00ba5bd.)
+_PER_TURN_SYSTEM_SEGMENTS = frozenset({"skill_guidance", "x_editorial_voice", "tool_catalog"})
+TURN_DIRECTIVES_METADATA_KEY = "turn_directives"
+
+
+_SCOPE_DISCIPLINE_TEXT = (
+    "Answer only what was asked; do not restate unrelated facts or identifiers from earlier turns."
+)
+#: The same rule on a memory-QA turn: scoped to this chat's earlier turns, so the retrieved memory
+#: the answer comes from is not read as something to withhold.
+_MEMORY_QA_SCOPE_DISCIPLINE_TEXT = (
+    "Answer only what was asked; do not restate unrelated facts or identifiers from earlier chat "
+    "turns. The retrieved memory is evidence for this answer, not an earlier turn to avoid."
+)
+
+
+def _is_memory_qa_turn(*, prompt_profile: str, user_text: str, capsule_suppressed: bool) -> bool:
+    """Whether this turn answers a question about the user's own past from retrieved memory.
+
+    All of: the minimal chat profile (a tool-capable profile keeps its whole bootstrap), a capsule
+    that will actually be delivered, a first-person recall question
+    (`core.plain_task_routing.first_person_recall_question`), and not a question about the user's
+    or the assistant's name -- those keep the name anchors the memory-QA view leaves out.
+    """
+    if prompt_profile != "chat_minimal" or capsule_suppressed:
+        return False
+    try:
+        from core.plain_task_routing import first_person_recall_question
+        from core.user_identity_authority import classify_identity_question
+
+        if not first_person_recall_question(user_text):
+            return False
+        return not classify_identity_question(user_text).subject
+    except Exception:
+        return False
 
 
 def _join_system_segments(segments: list[tuple[str, str, str]]) -> str:
@@ -194,8 +237,21 @@ _ASSISTANT_REFERENCE_FOLLOWUP_RE = re.compile(
     r"\b(?:explain|clarify|unpack|expand\s+on|summarize)\s+(?:that|this|it)\b|"
     r"\b(?:what|which)\s+(?:part|point|detail|aspect)\s+of\s+"
     r"(?:that|this)\s+(?:explanation|answer|response)\b|"
+    # Bare "there" is a locative far more often than a pointer at an answer ("what should I see
+    # there next month?" asks about a place, not about a preceding reply), so it is not a cue.
     r"\b(?:what|which)\b[^.!?]{0,80}\b(?:you\s+(?:just\s+)?(?:said|gave|mentioned|explained|described)|"
-    r"(?:there|above|earlier|before))\b",
+    r"(?:above|earlier|before))\b",
+    re.IGNORECASE,
+)
+
+
+#: A reference that points PAST this chat ("the spice you told me about last time", "in an
+#: earlier session you said"). A bare "make that shorter" / "explain that" stays a focused
+#: follow-up on the immediate exchange.
+_CROSS_SESSION_RECALL_RE = re.compile(
+    r"\b(?:earlier|before|last\s+time|previous(?:ly)?|(?:our|that)\s+(?:last|earlier|previous)\s+"
+    r"(?:chat|conversation|session|discussion))\b"
+    r"|\byou\s+(?:mentioned|said|gave|provided|recommended|suggested|told\s+me)\b",
     re.IGNORECASE,
 )
 
@@ -383,6 +439,21 @@ def _x_editorial_selected(skill_rows: Any) -> bool:
     return skill_selected(skill_rows)
 
 
+def _stipulated_frame_in_play(
+    user_text: str,
+    current_user_raw_text: str,
+    history_messages: list[InternalMessage],
+) -> bool:
+    """True when this turn, or a user turn in the history sent with it, stipulates a frame."""
+
+    if has_stipulated_frame(user_text) or has_stipulated_frame(current_user_raw_text):
+        return True
+    return any(
+        message.role == "user" and has_stipulated_frame(str(message.content or ""))
+        for message in history_messages
+    )
+
+
 def _build_conversational_request(
     *,
     user_text: str,
@@ -401,6 +472,7 @@ def _build_conversational_request(
     tool_offer: Any | None = None,
 ) -> InternalModelRequest:
     """Build a natural conversational prompt for chat surfaces."""
+    caller_source_context = source_context
     persona_name = getattr(persona, "display_name", None) or "VOOL"
     persona_tone = getattr(persona, "tone", "calm")
     exact_output_target = _extract_exact_output_target(user_text)
@@ -488,6 +560,7 @@ def _build_conversational_request(
     runtime_session_id = str(
         source_context.get("runtime_session_id")
         or source_context.get("session_id")
+        or source_context.get("chat_id")
         or ""
     ).strip()
     has_openclaw_tools = source_platform in {"openclaw", "web_companion", "telegram", "discord"} or source_surface in {"channel", "openclaw", "api"}
@@ -545,8 +618,8 @@ def _build_conversational_request(
             "simple_code": "Return only the requested code and any essential one-line note. Do not add JSON or a plan.",
             "explanation": "Answer directly and simply. Do not add JSON, labels, commentary, or a plan.",
             "multi_part_qa": (
-                "Answer every requested part in order in one complete response, with numbered "
-                "answers 1 through N matching the requests. Keep each length or "
+                "Answer every requested part in order in one complete response. Use numbered "
+                "answers only when the user requests them. Keep each length or "
                 "format instruction scoped only to the part it modifies. Do not omit a part, return "
                 "planner JSON, or describe model/provider selection."
             ),
@@ -578,11 +651,7 @@ def _build_conversational_request(
                 "Use relevant context when it helps, but do not mention internal systems, confidence scores, or planning steps.",
             ),
             ("brevity", _PAYLOAD_SYSTEM_BOOTSTRAP, "Keep responses concise but complete."),
-            (
-                "scope_discipline",
-                _PAYLOAD_SYSTEM_BOOTSTRAP,
-                "Answer only what was asked; do not restate unrelated facts or identifiers from earlier turns.",
-            ),
+            ("scope_discipline", _PAYLOAD_SYSTEM_BOOTSTRAP, _SCOPE_DISCIPLINE_TEXT),
             (
                 "no_unsolicited_creative",
                 _PAYLOAD_SYSTEM_BOOTSTRAP,
@@ -592,7 +661,7 @@ def _build_conversational_request(
         ])
     else:
         tooling_guidance = _tooling_guidance(has_openclaw_tools=has_openclaw_tools)
-        from core.capability_graph import family_hint_from_task_class
+        from core.capability_graph import capability_hint_from_task_class, family_hint_from_task_class
         _tct_family_hint = family_hint_from_task_class(task_class)
         tool_catalog_guidance = (
             _tool_intent_catalog_text(
@@ -705,32 +774,30 @@ def _build_conversational_request(
                     ("x_editorial_voice", _PAYLOAD_SYSTEM_BOOTSTRAP, _voice_segment)
                 )
 
-    system_content = _join_system_segments(system_segments)
+    system_content = _join_system_segments(
+        [segment for segment in system_segments if segment[0] not in _PER_TURN_SYSTEM_SEGMENTS]
+    )
+    # Everything that changes from one turn to the next, in the order it used to be appended to
+    # the leading system message. Emitted as one system message after the history (see
+    # _PER_TURN_SYSTEM_SEGMENTS).
+    turn_directives: list[str] = [
+        text
+        for name, _category, text in system_segments
+        if name in _PER_TURN_SYSTEM_SEGMENTS and str(text or "").strip()
+    ]
 
     # A response-shaping follow-up is scoped to the immediate assistant answer.
     # Do not put unrelated per-turn facts (especially the clock) beside that
     # answer: small local models can satisfy an exact shape with the wrong fact
     # when the shape request is ambiguous.  The focused guidance above carries
     # the only source the model should transform.
-    runtime_truth = "" if focused_assistant_followup else _runtime_turn_truth(source_context)
+    reference_now = None if focused_assistant_followup else datetime.now().astimezone()
+    runtime_truth = "" if reference_now is None else _runtime_turn_truth(source_context, reference_now=reference_now)
     if runtime_truth:
-        system_content = f"{system_content}\n\n{runtime_truth}"
+        turn_directives.append(runtime_truth)
         system_segments.append(("runtime_truth", _PAYLOAD_SYSTEM_BOOTSTRAP, runtime_truth))
 
-    # This guidance was added to the emitted system message after the payload segment ledger had
-    # already been built, leaving the real prompt larger than the measured prompt on every turn.
-    # Record it beside the other system contributors before metadata is finalized.
-    system_segments.append(
-        (
-            "stipulated_frame_guidance",
-            _PAYLOAD_SYSTEM_BOOTSTRAP,
-            STIPULATED_FRAME_PROMPT_GUIDANCE,
-        )
-    )
-    system = InternalMessage(
-        role="system",
-        content=f"{system_content}\n\n{STIPULATED_FRAME_PROMPT_GUIDANCE}",
-    )
+    system = InternalMessage(role="system", content=system_content)
     history_messages, transcript_source = _history_messages_for_chat(
         source_context,
         runtime_session_id=runtime_session_id,
@@ -742,19 +809,31 @@ def _build_conversational_request(
         max_messages=(
             2
             if focused_assistant_followup
-            else 10
+            else RECALL_HISTORY_MESSAGES
+            if same_chat_history_recall
+            else EXPANDED_HISTORY_MESSAGES
         ),
     )
+    # The stipulated-frame rule ("answer inside the frame, never replace named people") is right
+    # only when the user set up a frame. Sent on every turn, it told the reader to answer inside
+    # the premise of an ordinary question -- including a false premise that names the wrong
+    # person. It goes out when this turn, or a user turn in the history sent with it, stipulates
+    # (follow-ups keep the frame), and its ledger entry goes out with it.
+    if _stipulated_frame_in_play(user_text, current_user_raw_text, history_messages):
+        system_segments.append(
+            (
+                "stipulated_frame_guidance",
+                _PAYLOAD_SYSTEM_BOOTSTRAP,
+                STIPULATED_FRAME_PROMPT_GUIDANCE,
+            )
+        )
+        turn_directives.append(STIPULATED_FRAME_PROMPT_GUIDANCE)
     if same_chat_history_recall and history_messages:
-        system = InternalMessage(
-            role="system",
-            content=(
-                f"{system.content}\n\n"
-                "The prior user and assistant messages supplied below are the authoritative "
-                "visible history of this chat. Inspect them directly when answering this recall "
-                "request. Never claim that no earlier chat history exists when those messages are "
-                "present."
-            ),
+        turn_directives.append(
+            "The prior user and assistant messages supplied above are the authoritative "
+            "visible history of this chat. Inspect them directly when answering this recall "
+            "request. Never claim that no earlier chat history exists when those messages are "
+            "present."
         )
     correction_messages = [
         message
@@ -768,12 +847,21 @@ def _build_conversational_request(
         history_messages = [
             message for message in history_messages if message not in correction_messages
         ]
+    if (
+        focused_assistant_followup
+        and _CROSS_SESSION_RECALL_RE.search(user_text)
+        and not any(
+            message.role == "assistant" and str(message.content or "").strip() for message in history_messages
+        )
+    ):
+        # A reference to an earlier answer with NO assistant turn in this chat points at a past
+        # SESSION ("which spice did you say to toast earlier?"). That is recall: it keeps the memory
+        # context and the reader's evidence-only rules, instead of an instruction to declare the
+        # answer unavailable while the stored evidence is withheld.
+        focused_assistant_followup = False
     if focused_assistant_followup:
         followup_guidance = _focused_followup_guidance(history_messages)
-        system = InternalMessage(
-            role="system",
-            content=f"{system.content}\n\n{followup_guidance}",
-        )
+        turn_directives.append(followup_guidance)
         # Binds the answer to the assistant turn it must transform -- provenance, not conduct.
         system_segments.append(
             ("focused_followup_binding", _PAYLOAD_ANSWER_BINDER, followup_guidance)
@@ -784,6 +872,30 @@ def _build_conversational_request(
         if message.role == "system" and "<retrieved_context>" in message.content
     ]
     history_messages = [message for message in history_messages if message not in capsule_messages]
+    memory_qa_turn = bool(capsule_messages) and _is_memory_qa_turn(
+        prompt_profile=prompt_profile,
+        user_text=str(current_user_raw_text or user_text),
+        capsule_suppressed=_memory_prompt_metadata(
+            source_context=source_context,
+            source_platform=source_platform,
+            source_surface=source_surface,
+            prompt_profile=prompt_profile,
+            output_mode=output_mode,
+            runtime_session_id=runtime_session_id,
+        ).get("suppressed_reason") in {"disabled_by_caller", "group_chat", "surface_not_allowed"},
+    )
+    if memory_qa_turn:
+        # The scope rule bans restating earlier-turn facts; on a turn answered FROM retrieved
+        # memory it must not read as a ban on that memory. Narrowed to the chat's own earlier
+        # turns, with the capsule named as the evidence it is.
+        system = InternalMessage(
+            role="system",
+            content=system.content.replace(_SCOPE_DISCIPLINE_TEXT, _MEMORY_QA_SCOPE_DISCIPLINE_TEXT, 1),
+        )
+        system_segments = [
+            (name, category, _MEMORY_QA_SCOPE_DISCIPLINE_TEXT if name == "scope_discipline" else text)
+            for name, category, text in system_segments
+        ]
     context_message = None
     if (
         exact_output_target is None
@@ -791,9 +903,17 @@ def _build_conversational_request(
         and not preference_state_update
         and prompt_profile not in ("plain_task_minimal", CREATIVE_DIRECTOR_PROFILE)
     ):
+        from core.tiered_context_loader import MEMORY_QA_PROFILE
+
         context_message = _conversational_context_message(
             context_result,
-            prompt_profile="chat_capsule" if capsule_messages else prompt_profile,
+            prompt_profile=(
+                MEMORY_QA_PROFILE
+                if memory_qa_turn
+                else "chat_capsule"
+                if capsule_messages
+                else prompt_profile
+            ),
         )
     # The FINAL budget is where a carried continuation artifact would die: it arrives larger
     # than the 5,000-char window and the budget drops an over-sized unit whole (measured live
@@ -827,19 +947,20 @@ def _build_conversational_request(
         capsule_messages,
         context_message,
         context_result=context_result,
-        max_messages=2 if focused_assistant_followup else 10,
+        max_messages=(
+            2
+            if focused_assistant_followup
+            else RECALL_HISTORY_MESSAGES
+            if same_chat_history_recall
+            else EXPANDED_HISTORY_MESSAGES
+        ),
         max_chars=_final_max_chars,
         # The grown budget is lawful ONLY on a continuation turn; the authority clamps every
         # other turn back to the 5,000-char envelope, call-site number notwithstanding.
         continuation_carry=_final_max_chars > HISTORY_MAX_CHARS,
     )
     if correction_messages:
-        system = InternalMessage(
-            role="system",
-            content="\n\n".join(
-                [system.content, *(message.content for message in correction_messages)]
-            ),
-        )
+        turn_directives.extend(message.content for message in correction_messages)
         for index, message in enumerate(correction_messages):
             system_segments.append(
                 (f"authoritative_correction_{index}", _PAYLOAD_ANSWER_BINDER, message.content)
@@ -852,14 +973,10 @@ def _build_conversational_request(
             "ownership, and project facts. Use it instead of model priors, and do not invent a "
             "conflicting owner, product expansion, or project description.",
         ))
-        system = InternalMessage(
-            role="system",
-            content=(
-                f"{system.content}\n\n"
-                "Canonical project context in this request is authoritative for product identity, "
-                "ownership, and project facts. Use it instead of model priors, and do not invent a "
-                "conflicting owner, product expansion, or project description."
-            ),
+        turn_directives.append(
+            "Canonical project context in this request is authoritative for product identity, "
+            "ownership, and project facts. Use it instead of model priors, and do not invent a "
+            "conflicting owner, product expansion, or project description."
         )
     tool_observation_message = _runtime_tool_observation_message(source_context)
     user = InternalMessage(
@@ -938,13 +1055,74 @@ def _build_conversational_request(
         output_mode=output_mode,
         runtime_session_id=runtime_session_id,
     )
+    # The per-turn memory switch governs the memory-capsule lane when the CALLER turned
+    # memory off or the context is a group chat. It already refuses group chats and denied
+    # surfaces in `_memory_prompt_metadata`; the transcript-injected `<retrieved_context>`
+    # block was separated into `capsule_messages` above and then extended
+    # UNCONDITIONALLY, so a caller who turned memory off
+    # (`source_context.memory_prompt_enabled=false`) still had the semantic capsule in the
+    # serialized provider request. Measured on the served path on head 9174b42c (q90
+    # routing rig, F15-05 fresh-profile read with --memory-prompt off: request still
+    # carried the capsule block). Structured/operational modes keep the capsule by their
+    # own pinned contract (prompt_assembly_profiles), so the gate reads
+    # `suppressed_reason`, not `enabled`. Adopted from the old role's e92664b6 after
+    # reproducing its target on this head.
+    if memory_prompt.get("suppressed_reason") in {"disabled_by_caller", "group_chat", "surface_not_allowed"}:
+        capsule_messages = []
     messages = [system, *history_messages]
+    turn_directives_message: InternalMessage | None = None
+    if turn_directives:
+        turn_directives_message = InternalMessage(
+            role="system",
+            content=TURN_DIRECTIVES_HEADER + "\n" + "\n\n".join(turn_directives),
+            metadata={
+                _PAYLOAD_CATEGORY_KEY: _PAYLOAD_SYSTEM_BOOTSTRAP,
+                _PAYLOAD_SEGMENT_NAME_KEY: "turn_directives",
+                TURN_DIRECTIVES_METADATA_KEY: True,
+            },
+        )
+        messages.append(turn_directives_message)
+    # The runtime clock and the user's corrections travel in the turn-directives message, not in
+    # the leading system message (see _PER_TURN_SYSTEM_SEGMENTS). That message is the carrier the
+    # request seal must name: marking index 0 instead left the clock with no surviving carrier, so
+    # finalize_request_evidence dropped it and the past-time guard ran without a reference clock
+    # (reference_clock_supplied None on every guarded turn of the stable-prefix builds, measured on
+    # the wire 2026-10-06), withdrawing checked "N days/months ago" answers as unsupported.
+    clock_or_correction_carrier = (
+        turn_directives_message
+        if turn_directives_message is not None and (bool(correction_messages) or reference_now is not None)
+        else None
+    )
     if context_message is not None:
         messages.append(context_message)
     messages.extend(capsule_messages)
     if tool_observation_message is not None:
         messages.append(tool_observation_message)
     messages.append(user)
+
+    # Canonical transcript assembly precedes final budget and memory policy.
+    # Only the evidence surviving those decisions may support this answer.
+    from core.bootstrap_context import seal_request_evidence
+
+    actual_evidence = [*correction_messages, *history_messages, *capsule_messages]
+    if context_message is not None:
+        actual_evidence.append(context_message)
+    if tool_observation_message is not None:
+        actual_evidence.append(tool_observation_message)
+    seal_request_evidence(
+        caller_source_context, session_id=runtime_session_id, question=user_text,
+        turn_id=current_turn_id,
+        messages=[{"role": message.role, "content": message.content} for message in messages],
+        evidence_texts=[message.content for message in actual_evidence],
+        capsule_text="\n".join(message.content for message in capsule_messages),
+        evidence_message_indices=[
+            index for index, message in enumerate(messages)
+            if any(message is evidence for evidence in actual_evidence)
+            or (clock_or_correction_carrier is not None and message is clock_or_correction_carrier)
+        ],
+        reference_clock=({"source": "runtime_clock", "date": reference_now.date().isoformat(),
+                          "text": _runtime_clock_text(reference_now)} if reference_now is not None else None),
+    )
 
     return InternalModelRequest(
         task_kind=task_kind,
@@ -959,6 +1137,7 @@ def _build_conversational_request(
         context_summary=context_result.report.to_dict(),
         metadata={
             "persona_id": getattr(persona, "persona_id", "default"),
+            "requested_answer_contract": dict(classification.get("requested_answer_contract") or {}),
             "generation_profile": generation_profile,
             "memory_prompt": memory_prompt,
             "system_prompt_profile": prompt_profile,
@@ -983,10 +1162,16 @@ def _build_conversational_request(
                     if history_expansion_hint
                     else "same_chat_adjacency_floor"
                 ),
-                "history_budget_messages": len(historical_context_messages),
+                "history_budget_messages": sum(
+                    message.metadata.get("history_budget_domain") != "retrieved_evidence"
+                    for message in historical_context_messages
+                ),
                 "history_budget_chars": sum(
                     len(message.content) for message in historical_context_messages
+                    if message.metadata.get("history_budget_domain") != "retrieved_evidence"
                 ),
+                "retrieval_budget_messages": len(capsule_messages),
+                "retrieval_budget_chars": sum(len(message.content) for message in capsule_messages),
                 "continuation_hint": conversation_continuation,
                 "same_chat_history_recall": same_chat_history_recall,
                 "context_attached": context_message is not None,
@@ -1023,7 +1208,12 @@ def _build_conversational_request(
     )
 
 
-def _runtime_turn_truth(source_context: dict[str, Any] | None) -> str:
+def _runtime_clock_text(now: datetime) -> str:
+    return (f"The current date and time is {now.strftime('%A %d %B %Y, %H:%M')} "
+            f"({now.strftime('%Z')}, UTC offset {now.strftime('%z')}).")
+
+
+def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now: datetime | None = None) -> str:
     """Server-owned UI and scope facts the answering model must not pretend it cannot see."""
 
     context = dict(source_context or {})
@@ -1039,11 +1229,26 @@ def _runtime_turn_truth(source_context: dict[str, Any] | None) -> str:
     # model to answer, so the model answers. VOOL supplies the fact, the model supplies the words.
     # This also sits AFTER the stable system-prompt body, so a per-turn timestamp cannot invalidate
     # a cached prefix.
-    now = datetime.now().astimezone()
+    now = reference_now if reference_now is not None else datetime.now().astimezone()
+    # The clock fact exists because models answered PRESENT-time questions from
+    # their training prior (measured 2026-07-29: "January 15, 2025" for today's
+    # date). The original instruction -- "never answer a date or time question
+    # from memory" -- banned far more than that failure: a model reading its own
+    # supplied context treats conversation evidence as memory too, so a past-
+    # event recall ("when did I arrive at the clinic") was refused or answered
+    # from the wrong authority. The law is narrowed to what it was always for:
+    # present-time questions may not be guessed from training memory; past-event
+    # questions are answered from the evidence supplied in this request, using
+    # the times that evidence itself records.
     facts.append(
-        f"The current date and time is {now.strftime('%A %d %B %Y, %H:%M')} "
-        f"({now.strftime('%Z')}, UTC offset {now.strftime('%z')}). This is authoritative; never say "
-        "you cannot access a clock, and never answer a date or time question from memory."
+        f"{_runtime_clock_text(now)} This is authoritative; never say "
+        "you cannot access a clock, and never answer a present-time question from training memory. "
+        "A question about a past event -- a date, time, duration or amount anchored to something "
+        "that already happened -- is answered from the conversation and context evidence supplied "
+        "in this request. Its event date comes from that evidence, not from this clock or training "
+        "memory. A supported elapsed 'ago' interval may combine a recorded event date with this "
+        "reference clock. If the event evidence is missing or ambiguous, say so plainly; never "
+        "invent a time, date, duration or amount."
     )
     workspace_path = str(context.get("workspace") or context.get("workspace_root") or "").strip()
     folder_name = Path(workspace_path).name if workspace_path else ""
@@ -1341,7 +1546,13 @@ def _apply_final_history_budget(
     list[InternalMessage],
     InternalMessage | None,
 ]:
-    """Reapply the hard envelope after any prior-turn evidence is inserted."""
+    """Apply the history envelope without charging admitted retrieval twice.
+
+    Canonical retrieval already resolves its evidence allowance before injection.
+    Only capsules stamped from that fresh admission use the retrieval allowance;
+    stored or client-supplied marker text remains ordinary history. The adapter's
+    final context-window fitting still applies to the complete provider request.
+    """
 
     if context_message is None or not _contains_historical_context(context_result):
         return correction_messages, history_messages, capsule_messages, context_message
@@ -1353,7 +1564,16 @@ def _apply_final_history_budget(
     )
     tagged.extend((f"history:{index}", message) for index, message in enumerate(history_messages))
     tagged.append(("historical_context", context_message))
-    tagged.extend((f"capsule:{index}", message) for index, message in enumerate(capsule_messages))
+    admitted_capsule_ids = {
+        f"capsule:{index}"
+        for index, message in enumerate(capsule_messages)
+        if message.metadata.get("history_budget_domain") == "retrieved_evidence"
+    }
+    tagged.extend(
+        (f"capsule:{index}", message)
+        for index, message in enumerate(capsule_messages)
+        if f"capsule:{index}" not in admitted_capsule_ids
+    )
     selected = enforce_history_budget(
         [
             {
@@ -1365,7 +1585,7 @@ def _apply_final_history_budget(
                     if budget_id.startswith("correction:")
                     else 1
                     if budget_id == "historical_context"
-                    else 0
+                    else int(message.metadata.get("history_retention_priority", 0))
                 ),
             }
             for budget_id, message in tagged
@@ -1393,7 +1613,7 @@ def _apply_final_history_budget(
         [
             message
             for index, message in enumerate(capsule_messages)
-            if f"capsule:{index}" in selected_ids
+            if f"capsule:{index}" in selected_ids | admitted_capsule_ids
         ],
         context_message if "historical_context" in selected_ids else None,
     )
@@ -1636,10 +1856,25 @@ def _history_messages_for_chat(
         ]
         transcript_source = f"{transcript_source}+continuation_artifact"
     if transcript:
-        return (
-            [InternalMessage(role=item["role"], content=item["content"]) for item in transcript],
-            transcript_source,
+        # canonical_runtime_transcript overwrites or clears this carrier on every
+        # assembly pass. A raw history tag or telemetry fallback cannot grant a
+        # second allowance; only exact text from this session's fresh producer can.
+        record = (source_context or {}).get("admitted_capsule_evidence")
+        admitted_text = (
+            str(record.get("text") or "")
+            if isinstance(record, dict)
+            and record.get("source") == "canonical_runtime_transcript"
+            and record.get("chat_id") == runtime_session_id
+            else ""
         )
+        messages = []
+        for item in transcript:
+            metadata = {"history_retention_priority": int(item.get("_history_retention_priority", 0))}
+            if (admitted_text and item["role"] == "system"
+                    and str(item["content"]).strip() == admitted_text):
+                metadata["history_budget_domain"] = "retrieved_evidence"
+            messages.append(InternalMessage(role=item["role"], content=item["content"], metadata=metadata))
+        return messages, transcript_source
     return [], transcript_source
 
 
@@ -1752,9 +1987,8 @@ def _generation_profile(
 ) -> dict[str, Any]:
     """The generation profile, plus the answer-length intent that produced its budget.
 
-    The intent is carried, not applied: `max_output_tokens` is byte-for-byte the number this
-    function has always returned. It rides along so a later step can resolve the budget against the
-    lane serving the turn, which is the one thing the profile has never been able to see.
+    The intent accompanies `max_output_tokens` so a later step can resolve
+    this answer-length contract against the lane serving the turn.
     """
     profile = _generation_profile_shape(
         surface=surface,
@@ -1819,15 +2053,21 @@ def _generation_profile(
 def _output_budget_intent(profile: dict[str, Any], *, output_mode: str) -> dict[str, Any]:
     """What this profile wants from the answer, in the shape `OutputBudgetIntent` takes.
 
-    A `ceiling` of 0 means the profile states no upper bound and the lane decides. Two profiles do
-    state one: an exact-string turn is pinned to its own length -- it ends at a stop sequence, so
-    extra room buys nothing and only gives a reasoning model somewhere to wander -- and an adaptive
-    chat turn carries the length band the runtime already clamps itself to.
+    A `ceiling` of 0 leaves the upper bound to the lane. Exact strings and
+    explicitly short collections are pinned to their own length; complete
+    collections carry the bounded collection allowance. Ordinary adaptive
+    chat retains its existing length band.
     """
     base = int(profile.get("max_output_tokens") or 0)
     profile_id = str(profile.get("profile_id") or "")
     if profile_id == "chat_exact_plain_text":
         return _intent_entry(output_mode, base, base, base, "exact_output_target")
+    if profile_id == "chat_counted_collection":
+        return _intent_entry(output_mode, base, base, base, "requested_item_count")
+    if profile_id == "chat_complete_collection":
+        return _intent_entry(output_mode, base, base, base, "complete_collection")
+    if profile_id == "chat_short_collection":
+        return _intent_entry(output_mode, base, base, base, "explicit_short_collection")
     if profile_id == "chat_plain_text":
         floor, ceiling = _adaptive_chat_output_bounds(research=False)
         return _intent_entry(output_mode, base, floor, ceiling, "adaptive_chat_length")
@@ -1923,6 +2163,32 @@ def _generation_profile_shape(
                 "stop_sequences": [],
             }
         if normalized_task_class in _PLAIN_TEXT_CHAT_TASK_CLASSES or normalized_task_kind in {"conversation", "normalization_assist"}:
+            from core.context_retrieval import query_requests_complete_collection
+            from core.ordinary_chat_response_guard import explicit_short_output_max_words
+            from core.response_constraints import requested_output_item_count
+
+            requested_items = requested_output_item_count(user_text)
+            complete_collection = query_requests_complete_collection(user_text)
+            if complete_collection or requested_items is not None:
+                short_max_words = explicit_short_output_max_words(user_text)
+                output_tokens = (
+                    min(520, max(16, short_max_words * 4 + 16))
+                    if short_max_words is not None
+                    else (2048 if complete_collection else min(2048, max(320, requested_items * 96)))
+                )
+                return {
+                    "profile_id": (
+                        "chat_short_collection" if short_max_words is not None
+                        else "chat_complete_collection" if complete_collection
+                        else "chat_counted_collection"
+                    ),
+                    "profile_family": "chat_plain_text",
+                    "temperature": 0.72,
+                    "top_p": 0.92,
+                    "max_output_tokens": output_tokens,
+                    "adaptive_length": False,
+                    "stop_sequences": [],
+                }
             return {
                 "profile_id": "chat_plain_text",
                 "profile_family": "chat_plain_text",
@@ -2155,16 +2421,24 @@ def _memory_prompt_metadata(
     explicit = source_context.get("memory_prompt_enabled")
     if group_like:
         enabled = False
+        suppressed_reason = "group_chat"
     elif isinstance(explicit, bool):
         enabled = explicit
+        suppressed_reason = "" if explicit else "disabled_by_caller"
     else:
         platform_allowed = source_platform in direct_platforms or not source_platform
         surface_allowed = source_surface in direct_surfaces or not source_surface
         enabled = platform_allowed and surface_allowed
+        suppressed_reason = "" if enabled else "surface_not_allowed"
     if prompt_profile == "chat_exact" or output_mode in _STRUCTURED_OUTPUT_MODES:
         enabled = False
+        # Structured/operational modes still RECEIVE the transcript capsule (pinned by
+        # test_prompt_assembly_profiles): an operational tool turn needs its context.
+        # The mode disables the conversational memory prompt, not the evidence lane,
+        # so the reason stays empty and the assembler's gate does not fire.
     return {
         "enabled": bool(enabled),
+        "suppressed_reason": suppressed_reason,
         "runtime_home": str(source_context.get("runtime_home") or "").strip(),
         "agent_id": str(source_context.get("agent_id") or "").strip() or SEMANTIC_MEMORY_AGENT_ID,
         "session_id": runtime_session_id,
@@ -2350,6 +2624,7 @@ def _tool_signature(arguments: Any) -> str:
 def _tool_intent_catalog_text(
     *,
     family_hint: str | None = None,
+    capability_hint: str | None = None,
     toolset_hints: tuple[str, ...] = (),
     user_text: str = "",
     task_class: str = "",

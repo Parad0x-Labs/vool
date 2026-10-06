@@ -550,6 +550,10 @@ def load_canonical_shareable_shard_payload(shard_id: str) -> dict[str, Any] | No
     manifest = manifest_for_shard(shard_id)
     if not manifest:
         return None
+    # Identity: the manifest reached by shard id must itself name the requested
+    # shard — a swapped or foreign manifest row is a refusal, not a lookup.
+    if str(manifest.get("shard_id") or "") != str(shard_id):
+        return None
     metadata = dict(manifest.get("metadata") or {})
     blob_hash = str(metadata.get("dense_cas_blob_hash") or metadata.get("cas_blob_hash") or "").strip()
     storage_backend = str(metadata.get("dense_storage_backend") or "local_archive")
@@ -558,12 +562,49 @@ def load_canonical_shareable_shard_payload(shard_id: str) -> dict[str, Any] | No
     compressed = get_bytes(blob_hash)
     if compressed is None:
         return None
+    # Integrity binding: the fetched bytes must hash to what the trusted manifest
+    # recorded at pack time. The CAS already verified the blob against its own
+    # address; this binds it to the MANIFEST's record — a manifest rewritten to
+    # point at other bytes is a disagreement, and disagreement is a refusal.
+    recorded_compressed_sha = str(metadata.get("dense_compressed_sha256") or "").strip()
+    if recorded_compressed_sha and hashlib.sha256(compressed).hexdigest() != recorded_compressed_sha:
+        return None
     try:
         raw = load_packed_bytes(payload=compressed, storage_backend=storage_backend)
+    except Exception:
+        return None
+    content_hash = str(manifest.get("content_hash") or "").strip()
+    if content_hash and hashlib.sha256(raw).hexdigest() != content_hash:
+        return None
+    try:
         payload = json.loads(raw.decode("utf-8"))
     except Exception:
         return None
     if not isinstance(payload, dict):
+        return None
+    # Requested identity: the capsule's own shard id must equal the request —
+    # bytes belonging to a different shard are never served under this call.
+    if str(payload.get("shard_id") or "").strip() != str(shard_id):
+        return None
+    # Authorization parity with the live-row branch: the restored payload re-enters
+    # the SAME shareability authority. The scope check uses both the payload (the
+    # actual content) and the manifest metadata (trusted pack-time record); the
+    # remaining gates (expiry, freshness window, quality/trust/utility, risk
+    # flags) are re-evaluated now, at restore time — a pack-time pass does not
+    # outlive its facts. Counts that lived only in the deleted row default to 0,
+    # which policy accepts by default (min validation 0 / max failures 1).
+    payload_scope = normalize_share_scope(str(payload.get("share_scope") or "local_only"))
+    metadata_scope = normalize_share_scope(str(metadata.get("share_scope") or payload_scope))
+    if not share_scope_is_public(payload_scope) or not share_scope_is_public(metadata_scope):
+        return None
+    gate_row = dict(payload)
+    gate_row["risk_flags_json"] = list(payload.get("risk_flags") or [])
+    gate_row["resolution_pattern_json"] = list(payload.get("resolution_pattern") or [])
+    gate_row["quarantine_status"] = "active"
+    gate_row["share_scope"] = payload_scope
+    gate_row.setdefault("local_validation_count", 0)
+    gate_row.setdefault("local_failure_count", 0)
+    if not evaluate_shareable_knowledge(gate_row).can_promote:
         return None
     return {
         "shard_id": str(payload.get("shard_id") or shard_id),

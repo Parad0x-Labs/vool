@@ -139,6 +139,140 @@ _EXPLICIT_MACHINE_MATERIALIZATION_RE = re.compile(
 )
 
 
+# These are grammatical request leads, rather than words describing a subject.
+_ACTION_REQUEST_LEAD_RE = re.compile(
+    r"^\s*(?:(?:ok(?:ay)?|so|hey|hi|please|pls|kindly|just|now|then|also|"
+    r"instead|next|first|finally|and|but|go\s+ahead(?:\s+and)?)\b[\s,]*"
+    r"|(?:can|could|would|will)\s+(?:you|u)(?:\s+please)?\s+"
+    # "can't you export this chat ..." asks for the action; "could you not paint ..." does not, and
+    # keeps its "not" in front of the verb, so it is never read as a request.
+    r"|(?:can['’]?t|cannot|couldn['’]?t|won['’]?t|wouldn['’]?t)\s+(?:you|u)(?:\s+please)?\s+"
+    r"|i\s+(?:want|need|would\s+like)(?:\s+you)?\s+to\s+"
+    r"|i['’]d\s+like(?:\s+you)?\s+to\s+"
+    r"|(?:let['’]s|lets|help\s+me(?:\s+to)?)\s+)*",
+    re.IGNORECASE,
+)
+_EXPLICIT_ACTION_LEAD_RE = re.compile(
+    r"\b(?:please|pls|kindly|(?:can|could|would|will|can['’]?t|cannot|couldn['’]?t|won['’]?t|wouldn['’]?t)\s+(?:you|u)|"
+    r"i\s+(?:want|need|would\s+like)|i['’]d\s+like|help\s+me|let['’]s)\b",
+    re.IGNORECASE,
+)
+# A sibling action may follow an established action request, but a sibling
+# historical verb in a question cannot establish that request.
+_ACTION_SEQUENCE_VERB_RE = re.compile(
+    r"(?:create|make|mkdir|write|save|append|put|edit|change|delete|remove|"
+    r"rename|move|export|dump|generate|draw|paint|render|design|produce|"
+    r"sketch|illustrate|doodle|imagine|give\s+me|whip\s+up|cook\s+up)\b",
+    re.IGNORECASE,
+)
+_OTHER_REQUEST_VERB_RE = re.compile(
+    r"(?:tell|show|explain|describe|summarize|summarise|read|list|check|find|"
+    r"compare|send|execute|run|apply|deploy|schedule|deliver|draft|compose)\b",
+    re.IGNORECASE,
+)
+_QUOTED_ACTION_TEXT_RE = re.compile(
+    chr(96) * 3 + r".*?" + chr(96) * 3
+    + "|" + chr(96) + "[^" + chr(96) + "]*" + chr(96)
+    + r'|"(?:\\.|[^"\\])*"|(?<!\w)\'(?:\\.|[^\'\\])*\'(?!\w)'
+    + r'|“(?:\\.|[^”\\])*”|(?<!\w)‘.*?’(?!\w)',
+    re.DOTALL,
+)
+# A colon-introduced paragraph is displayed data until its blank-line boundary.
+# A new request outside that paragraph can still establish its own action clause.
+_REPORTED_ACTION_BLOCK_RE = re.compile(
+    r"(?m)(^.*:[ \t]*\n)([^\n]+(?:\n(?![ \t]*\n)[^\n]+)*)"
+)
+_ACTION_CLAUSE_BREAK_RE = re.compile(
+    r",\s*(?:(?:and\s+)?then|and|but|also|next)?\s*"
+    r"|\s+\b(?:and(?:\s+then)?|then|but)\b\s+",
+    re.IGNORECASE,
+)
+_ACTION_DESCRIPTION_RE = re.compile(
+    r"\b(?:who|whose|which|that|where|when|while|whether|what|how)\b",
+    re.IGNORECASE,
+)
+
+
+def requested_action_clauses(
+    text: Any, verbs: re.Pattern[str], *, location_prefix: re.Pattern[str] | None = None
+) -> tuple[str, ...]:
+    """Return clauses whose leading verb is actually requested.
+
+    Quoted/code text cannot supply a request header. An explicit second request
+    can follow information or a past description; a bare coordinated verb only
+    inherits an already established action request. This is request grammar,
+    not a grant of permission to execute anything.
+    """
+    raw = str(text or "")
+    visible = _QUOTED_ACTION_TEXT_RE.sub(lambda match: " " * len(match.group()), raw)
+    visible = _REPORTED_ACTION_BLOCK_RE.sub(
+        lambda match: match.group(1) + " " * len(match.group(2)), visible
+    )
+    clauses: list[str] = []
+    sentence_start = 0
+    # Sentence-ending punctuation is attached to the word it ends. A detached period ("save it
+    # as . txt in the Marchtest folder") is part of a filename, not the end of the request.
+    sentence_ends = list(re.finditer(r"(?<=\S[.!?])\s+|;|\n+", visible))
+    for boundary in [*sentence_ends, None]:
+        sentence_end = boundary.start() if boundary is not None else len(raw)
+        sentence = visible[sentence_start:sentence_end]
+        if location_prefix is not None:
+            lead = _ACTION_REQUEST_LEAD_RE.match(sentence)
+            location = location_prefix.match(sentence[lead.end():])
+            if location:
+                end = lead.end() + location.end()
+                sentence = sentence[:lead.end()] + sentence[lead.end():end].replace(",", " ") + sentence[end:]
+        breaks = list(_ACTION_CLAUSE_BREAK_RE.finditer(sentence))
+        starts = [0, *(match.end() for match in breaks)]
+        ends = [*(match.start() for match in breaks), len(sentence)]
+        actions: list[tuple[int, int, bool]] = []
+        action_frame = False
+        # A plain statement ("you are acting weird but create a hello world file") neither requests
+        # nor describes an action, so an imperative after it is a request. A question, a clause
+        # opening with an auxiliary ("Did Morgan create a portrait and make ..."), a description
+        # ("what I saved") or another request ("Tell me ..., then create ...") ends that frame.
+        statements_only = not (
+            sentence.rstrip().endswith("?")
+            or re.match(r"\s*(?:did|does|do|is|are|was|were|can|could|would|will|has|have|had|should)\b", sentence, re.I)
+        )
+        for index, (start, end) in enumerate(zip(starts, ends)):
+            part = sentence[start:end]
+            lead = _ACTION_REQUEST_LEAD_RE.match(part)
+            offset = lead.end()
+            request_start = offset
+            if location_prefix is not None:
+                location = location_prefix.match(part[offset:])
+                if location:
+                    offset += location.end()
+                    offset += _ACTION_REQUEST_LEAD_RE.match(part[offset:]).end()
+                else:
+                    request_start = offset
+            if location_prefix is None or not location:
+                request_start = offset
+            tail = part[offset:]
+            own = verbs.match(tail)
+            sequence = _ACTION_SEQUENCE_VERB_RE.match(tail)
+            other = _OTHER_REQUEST_VERB_RE.match(tail)
+            explicit = bool(_EXPLICIT_ACTION_LEAD_RE.search(part[:offset]))
+            if (own or sequence or other) and (index == 0 or explicit or action_frame or statements_only):
+                clause_start = breaks[index - 1].start() if index else 0
+                actions.append((clause_start, start + request_start, bool(own)))
+                action_frame = bool(sequence) and not _ACTION_DESCRIPTION_RE.search(
+                    tail[(own or sequence or other).end():]
+                )
+            elif _ACTION_DESCRIPTION_RE.search(part):
+                action_frame = False
+            if own or sequence or other or _ACTION_DESCRIPTION_RE.search(part) or not re.search(r"[A-Za-z]{2,}", part):
+                # A markup-only fragment (a ">" quote marker) is not a statement of the speaker's.
+                statements_only = False
+        for index, (_, verb_start, owned) in enumerate(actions):
+            if owned:
+                end = actions[index + 1][0] if index + 1 < len(actions) else len(sentence)
+                clauses.append(raw[sentence_start + verb_start:sentence_start + end].strip())
+        sentence_start = boundary.end() if boundary is not None else len(raw)
+    return tuple(clauses)
+
+
 def asks_for_instructions_not_execution(text: Any) -> bool:
     """Whether this request asks HOW to do something rather than asking for it to be done.
 
@@ -156,10 +290,30 @@ def asks_for_instructions_not_execution(text: Any) -> bool:
         # A NEGATED execution phrase is the opposite of an execution ask: "draft the email, do
         # not send it" is authoring twice over. Scrub negated clauses before the override test.
         affirmative = _NEGATED_EXECUTION_RE.sub(" ", request)
-        return not (
-            _EXPLICIT_EXECUTION_ASK_RE.search(affirmative)
-            or _EXPLICIT_MACHINE_MATERIALIZATION_RE.search(affirmative)
+        # A command's infinitive/relative complement describes the command;
+        # it does not request that embedded operation here. A separately
+        # requested send/save/run clause still retains the execution override.
+        execution_verbs = re.compile(
+            r"(?:write|draft|compose|generate|send|execute|run|apply|deploy|"
+            r"deliver|schedule|save|create|put)\b", re.IGNORECASE
         )
+        for clause in requested_action_clauses(affirmative, execution_verbs):
+            if re.match(r"(?:send|execute|run|apply|deploy|deliver|schedule)\b", clause, re.IGNORECASE):
+                return False
+            authoring = _AUTHORING_REQUEST_RE.match(clause)
+            if authoring:
+                description = re.search(
+                    r"\b(?:that|which)\b|\bto\s+(?:"
+                    + _ACTION_SEQUENCE_VERB_RE.pattern
+                    + r"|" + _OTHER_REQUEST_VERB_RE.pattern + r")",
+                    clause[authoring.end():], re.IGNORECASE,
+                )
+                if description:
+                    clause = clause[:authoring.end() + description.start()]
+            if (_EXPLICIT_EXECUTION_ASK_RE.search(clause)
+                    or _EXPLICIT_MACHINE_MATERIALIZATION_RE.search(clause)):
+                return False
+        return True
     if _NAMES_THIS_TARGET_RE.search(request):
         return False
     return bool(

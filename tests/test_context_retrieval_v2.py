@@ -33,6 +33,7 @@ class _FakeMem:
         top_k,
         min_score,
         session_id,
+        query_embedding_backend="",
     ):
         self.calls.append("hybrid")
         return self._hits
@@ -72,6 +73,7 @@ class _FakeMemTopK:
         top_k,
         min_score,
         session_id,
+        query_embedding_backend="",
     ):
         self.calls.append(("hybrid", top_k))
         return self._hits[:top_k]
@@ -174,10 +176,14 @@ def test_legacy_does_not_redact_but_v2_does(monkeypatch) -> None:
 def test_v2_distills_instead_of_score_prefixed_retrieval_stuffing(monkeypatch) -> None:
     many = _hits(*[f"distinct durable fact number {i} about topic {i}" for i in range(8)])
     _wire(monkeypatch, _FakeMem(many))
-    v2 = cr.inject_retrieved("s", "facts", _transcript(), env={"VOOL_CONTEXT_CAPSULE_V2": "1"})
+    # "summary" carries no lexical (raw or Porter-stemmed) overlap with the
+    # records, so this exercises the generic "- retrieved fact:" fallback shape.
+    # ("facts" used to pin that fallback too, but stemming now correctly matches
+    # it to the stored singular "fact" chunks — the paraphrase-recall repair.)
+    v2 = cr.inject_retrieved("s", "summary", _transcript(), env={"VOOL_CONTEXT_CAPSULE_V2": "1"})
     assert cr.get_last_retrieval_telemetry()["capsule_mode"] == "distilled"
     _wire(monkeypatch, _FakeMem(many))
-    legacy = cr.inject_retrieved("s", "facts", _transcript(), env={})
+    legacy = cr.inject_retrieved("s", "summary", _transcript(), env={})
     v2_items = _retrieved_block(v2).count("[score=")
     legacy_items = _retrieved_block(legacy).count("[score=")
     assert legacy_items <= 4                               # legacy cap
@@ -787,3 +793,29 @@ def test_explicit_remember_requests_are_scored_high_enough_to_store() -> None:
     # ...without turning filler into stored noise (keeps the memory signal-dense).
     for m in ("lol ok thanks that is cool", "what do you think about the weather", "haha nice"):
         assert cr._score_importance(m) < T, m
+
+
+def test_distiller_keeps_short_term_facts(monkeypatch):
+    """Regression: 3-char query terms ("pet") must count for overlap lines so a
+    multi-part answer keeps every asked-for fact (wifi AND pet)."""
+    from core.context_retrieval import _distill_retrieved_hits
+
+    selected = [
+        ("Please remember: my wifi password is WIFI-00.", 0.9),
+        ("Please remember: my pet is corgi named Biscuit.", 0.8),
+    ]
+    distilled, telemetry = _distill_retrieved_hits(
+        "What is my wifi password and my pet?", selected
+    )
+    assert "WIFI-00" in distilled
+    assert "Biscuit" in distilled
+
+
+def test_distiller_does_not_sever_honorific_names():
+    """Regression: sentence chunking must not split at 'Mr.' — the distilled
+    fact previously lost the name ('...name is Mr.' with Halvorsen severed)."""
+    from core.context_retrieval import _distill_retrieved_hits
+
+    selected = [("Please remember: my accountant's name is Mr. Halvorsen.", 0.9)]
+    distilled, _telemetry = _distill_retrieved_hits("Who is my accountant?", selected)
+    assert "Halvorsen" in distilled

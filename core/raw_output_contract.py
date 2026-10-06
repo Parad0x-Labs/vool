@@ -126,7 +126,13 @@ _PUNCTUATION_BEARING_FORMAT_RE = re.compile(
 _NO_EXTRA_RE = re.compile(
     r"\b(?:no|without|do\s+not\s+(?:include|add|write|show))\b"
     r"[^.;\n]{0,96}\b(?:intro(?:duction)?|introductory\s+text|preamble|explanation|notes?|"
-    r"checklist|title|metadata)\b",
+    r"checklist|title|metadata)\b|"
+    + _PROHIBITION_BOUNDARY
+    + r"(?:no|without|do\s+not\s+(?:include|add|write|show))\b"
+    r"[^.;\n]{0,96}\b(?:headings?|footers?|attribution|(?:other|extra|additional)\s+text)\b|"
+    r"^(?:return|output|reply|respond|print|write|give|reproduce|repeat)\b"
+    r"[^.;\n]{0,128}\bwithout\b[^.;\n]{0,48}\b"
+    r"(?:headings?|footers?|attribution|(?:other|extra|additional)\s+text)\b",
     re.IGNORECASE,
 )
 _EXPLICIT_JSON_RE = re.compile(
@@ -141,6 +147,11 @@ _EXPLICIT_JSON_RE = re.compile(
 # served verbatim. Deliberately narrower than _EXPLICIT_JSON_RE: "as/in JSON" soft phrasing
 # stays soft.
 _JSON_ONLY_RE = re.compile(r"\bjson\s+only\b|\bonly\s+json\b", re.IGNORECASE)
+_JSON_OBJECT_OUTPUT_RE = re.compile(
+    r"\b(?:return|output|reply(?:\s+with)?|respond(?:\s+with)?|give(?:\s+me)?)\s+"
+    r"(?:(?:exactly|only|a|one|single|valid|complete)\s+){0,6}json\s+object\b",
+    re.IGNORECASE,
+)
 _EXPLICIT_MARKDOWN_RE = re.compile(
     r"\b(?:return|output|reply\s+with|respond\s+with|write|use|using|as|in)\s+"
     r"(?:the\s+result\s+)?(?:only\s+)?markdown\b|\bmarkdown\s+only\b",
@@ -526,6 +537,9 @@ class RawOutputContract:
     no_markdown: bool = False
     no_internal_thought: bool = False
     no_json: bool = False
+    # JSON is user-requested data here, not the runtime's internal plan envelope.
+    json_required: bool = False
+    json_object: bool = False
     no_punctuation: bool = False
     #: Only the very end of the answer may not carry sentence punctuation; structural characters
     #: inside the deliverable ("[4,3,10]") are content, not violations.
@@ -547,7 +561,12 @@ class RawOutputContract:
     code_deliverable: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        # An inactive extension must preserve the existing serialized contract.
+        if not self.json_required and not self.json_object:
+            payload.pop("json_required")
+            payload.pop("json_object")
+        return payload
 
 
 @dataclass(frozen=True)
@@ -753,6 +772,76 @@ def _directive_surface(user_text: str) -> tuple[str, bool]:
     return _masked_quoted_text(raw), False
 
 
+
+# These spans describe a requested JSON serialization, not retained attributes.
+# They are bound to a direct output instruction; matching vocabulary in a source,
+# quotation, literal output, or ordinary JSON data has no projection authority.
+_JSON_PROPERTY_FRAME_RE = re.compile(
+    r"\s+with\s+(?:the\s+)?(?:(?:sole|only|single)\s+)?(?:key|field)\s+",
+    re.IGNORECASE,
+)
+_JSON_PROPERTY_LABEL_RE = re.compile(
+    r'"(?:\\.|[^"\\])*"|\'[^\'\n]*\'|[A-Za-z_][A-Za-z0-9_]*'
+)
+_JSON_PROPERTY_VALUE_RE = re.compile(
+    r"\s+(?:and|with)\s+(?:(?:its|the|a|an|your|his|her|their)\s+)?"
+    r"(?:recorded\s+)?(?P<type>string|integer|number|boolean)\s+value\b",
+    re.IGNORECASE,
+)
+_PURE_PRESENTATION_PROHIBITION_RE = re.compile(
+    r"\s*(?:please\s+)?(?:do\s+not\s+(?:include|use|add|write|show)|no|without)\s+"
+    r"(?:any\s+)?(?:prose|markdown|json)"
+    r"(?:\s+(?:or|and)\s+(?:prose|markdown|json)){0,2}\s*",
+    re.IGNORECASE,
+)
+
+
+def request_content_for_retrieval(user_text: str) -> str:
+    """An offset-preserving content view for recognized direct JSON presentation.
+
+    The format owner may remove its own serialization prefix, property framing,
+    value type and pure presentation prohibitions. Requested property labels,
+    entities and relations remain exact. This is only an analysis copy; it grants
+    no source access, does not reroute a turn and does not validate its answer.
+    Unrecognized/quoted instructions, exact literals and inline JSON stay intact.
+    """
+    raw = str(user_text or "")
+    if raw.lstrip().startswith(("{", "[")):
+        return raw
+    contract = parse_raw_output_contract(raw)
+    if contract is None or not contract.json_required or contract.exact_text is not None:
+        return raw
+    # Use the same quote grammar as the output owner, retaining request offsets.
+    visible = re.sub(r'"(?:\\.|[^"\\])*"|\'[^\'\n]*\'',
+                     lambda match: " " * len(match.group()), raw)
+    spans: list[tuple[int, int]] = []
+    for match in _JSON_OBJECT_OUTPUT_RE.finditer(visible):
+        boundary = max((visible.rfind(mark, 0, match.start()) for mark in ".!?;\n"), default=-1) + 1
+        prefix = visible[boundary:match.start()]
+        if re.fullmatch(r"\s*(?:(?:please|pls|plz|and|then)\s+)*", prefix, re.IGNORECASE) is None:
+            continue
+        spans.append((match.start(), match.end()))
+        prop = _JSON_PROPERTY_FRAME_RE.match(raw, match.end())
+        if prop is None:
+            continue
+        label = _JSON_PROPERTY_LABEL_RE.match(raw, prop.end())
+        if label is None:
+            continue
+        spans.append((prop.start(), prop.end()))
+        value = _JSON_PROPERTY_VALUE_RE.match(raw, label.end())
+        if value is not None:
+            spans.append(value.span("type"))
+    if not spans:
+        return raw
+    for clause in re.finditer(r"[^.!?;\n]+", visible):
+        if _PURE_PRESENTATION_PROHIBITION_RE.fullmatch(clause.group()):
+            spans.append(clause.span())
+    result = list(raw)
+    for start, end in spans:
+        result[start:end] = " " * (end-start)
+    return "".join(result)
+
+
 def _match_count(pattern: re.Pattern[str], text: str, *, maximum: int = 200) -> int | None:
     match = pattern.search(text)
     return _bounded_count(match.group("count"), maximum=maximum) if match else None
@@ -782,7 +871,15 @@ def _explicit_literal(
     ):
         match = pattern.search(raw_text)
         if match:
-            return str(match.group("literal") or "").strip()
+            literal = str(match.group("literal") or "").strip()
+            # An unquoted deictic/possessive noun phrase refers to the deliverable, not
+            # supplied answer bytes: "the exact table", "my previous response", etc.
+            # Explicitly quoted literal phrases retain their exact binding.
+            if not match.groupdict().get("quote") and re.match(
+                r"^(?:the|this|that|these|those|my|your|our)\s+\w", literal, re.I
+            ):
+                continue
+            return literal
     if payload_authoritative and re.search(
         r"\b(?:raw\s+text|pure\s+string|no\s+json|without\s+json)\b",
         directive_text,
@@ -958,6 +1055,9 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
     # it, so "reply with raw markdown only" still keeps its markup.
     raw_code_only = bool(_RAW_CODE_ONLY_RE.search(directive_text))
     json_only = bool(_JSON_ONLY_RE.search(directive_text))
+    json_object = bool(_JSON_OBJECT_OUTPUT_RE.search(directive_text))
+    json_required = json_only or json_object
+    explicit_json = explicit_json or json_required
     # The number-only shape needs OUTPUT CONTEXT before it binds: the phrase also
     # occurs as a quantity reference ("only the number of votes matters"). Bound
     # only when an output verb precedes it, arithmetic shares the turn, or the
@@ -987,7 +1087,7 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
         # "JSON only" states the absence of a wrapper as plainly as "no markdown" does --
         # the JSON payload inside a ```json fence is not what the user asked to receive.
         # Same argument and same explicit_markdown guard as the raw-text/raw-code cases above.
-        or (json_only and not explicit_markdown)
+        or (json_required and not explicit_markdown)
         # A bare number served as a bullet list (measured live 2026-08-29: "answer
         # with just the number" came back as a numbered list that also stated the
         # date) is the same violation in a different shape.
@@ -1075,7 +1175,7 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
         or _FINAL_ONLY_RE.search(directive_text)
         or _ONLY_OUTPUT_RE.search(directive_text)
         or _NO_EXTRA_RE.search(directive_text)
-        or json_only
+        or json_required
         or numbers_only
         or no_markdown
         or no_internal_thought
@@ -1111,6 +1211,8 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
         no_markdown=no_markdown,
         no_internal_thought=no_internal_thought,
         no_json=no_json,
+        json_required=json_required,
+        json_object=json_object,
         no_punctuation=no_punctuation,
         no_trailing_punctuation=no_trailing_punctuation,
         no_title=no_title,
@@ -1164,6 +1266,8 @@ def raw_output_contract_from_metadata(metadata: dict[str, Any] | None) -> RawOut
         no_markdown=bool(payload.get("no_markdown")),
         no_internal_thought=bool(payload.get("no_internal_thought")),
         no_json=bool(payload.get("no_json")),
+        json_required=bool(payload.get("json_required")),
+        json_object=bool(payload.get("json_object")),
         no_punctuation=bool(payload.get("no_punctuation")),
         no_trailing_punctuation=bool(payload.get("no_trailing_punctuation")),
         no_title=bool(payload.get("no_title")),
@@ -1207,6 +1311,8 @@ def raw_output_contract_guidance(contract: RawOutputContract) -> str:
         requirements.append("without Markdown")
     if contract.no_json:
         requirements.append("without a JSON wrapper")
+    if contract.json_required:
+        requirements.append("as one complete valid JSON object" if contract.json_object else "as complete valid JSON")
     if contract.no_punctuation:
         requirements.append("without punctuation")
     if contract.no_trailing_punctuation:
@@ -1388,6 +1494,14 @@ def _contract_violations(text: str, contract: RawOutputContract) -> tuple[str, .
         violations.append("markdown")
     if contract.no_json and clean and clean[:1] in "[{" and clean[-1:] in "]}":
         violations.append("json")
+    if contract.json_required:
+        try:
+            payload = json.loads(clean)
+        except (TypeError, ValueError):
+            violations.append("invalid_json")
+        else:
+            if contract.json_object and not isinstance(payload, dict):
+                violations.append("json_not_object")
     scratchpad, _ = _scratchpad_block(clean)
     if contract.no_internal_thought and scratchpad:
         violations.append("internal_scaffold")
@@ -1626,4 +1740,5 @@ __all__ = [
     "raw_output_contract_from_metadata",
     "raw_output_contract_guidance",
     "raw_output_retry_instruction",
+    "request_content_for_retrieval",
 ]

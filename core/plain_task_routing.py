@@ -206,6 +206,112 @@ _ELABORATION_CONTINUATION_RE = re.compile(
 )
 
 
+_NUMBERED_ANSWER_INSTRUCTION_RE = re.compile(
+    r"^(?:(?:please|pls|plz)\s+)?(?:"
+    r"(?:number|label|enumerate)\s+(?:(?:each|every|all|the|your)\s+)*(?:answers?|responses?|parts?|them)\b"
+    r"|(?:give|provide|use|return|write)\s+(?:(?:the|your|a)\s+)?numbered\s+(?:answers?|responses?|list)\b"
+    r"|(?:answer|respond|reply)\s+(?:with|using|in)\s+(?:a\s+)?numbered\s+(?:answers?|responses?|list)\b"
+    r"|answer\s+(?:each|every|all)\b[^.!?]{0,40}\b(?:with|using|in)\s+numbered\s+(?:answers?|responses?|list)\b"
+    r")", re.IGNORECASE,
+)
+_ANSWER_DETAIL_HEAD_RE = re.compile(
+    r"^(?:(?:please|pls|plz)\s+)?(?:give|provide|show|state|report|return|include)\s+"
+    r"(?P<details>both\s+.+)$", re.IGNORECASE,
+)
+_QUESTION_PREDICATE_RE = re.compile(
+    r"\b(?:did|do|does|is|are|was|were|has|have|had|can|could|will|would|should)\b", re.IGNORECASE,
+)
+
+
+def _numbered_answer_instruction(clause: str) -> bool:
+    return bool(_NUMBERED_ANSWER_INSTRUCTION_RE.match(_normalized_ordinary_clause(
+        _outside_quoted_spans(clause))))
+
+
+def _answer_length_directive(clause: str) -> bool:
+    """A clause that only states the answer's length shapes the other parts; it is not a part."""
+    from core.ordinary_chat_response_guard import is_answer_length_directive
+
+    return is_answer_length_directive(_outside_quoted_spans(clause))
+
+
+def user_requires_numbered_answers(text: str) -> bool:
+    """Only an unquoted instruction addressed to the answer imposes numbered output."""
+    return any(_numbered_answer_instruction(part) for part in _split_unquoted_sentences(text))
+
+
+def _dependent_answer_details(clause: str, preceding_request: str) -> bool:
+    """Recognize a co-referring detail instruction, not a new independent deliverable.
+
+    ``both`` refers back to the preceding question's answer. An indefinite new artifact
+    (``give both a title and a slogan``) remains independent. This is structural binding;
+    it neither certifies that a reply contains these details nor reads their truth.
+    """
+    prior = _normalized_ordinary_clause(_outside_quoted_spans(preceding_request))
+    if not re.match(r"^(?:what|which|who|why|how|where|when)\b", prior, re.IGNORECASE):
+        return False
+    match = _ANSWER_DETAIL_HEAD_RE.match(_normalized_ordinary_clause(_outside_quoted_spans(clause)))
+    if match is None:
+        return False
+    details = match.group("details")
+    return bool(re.search(r"\band\b|,", details, re.IGNORECASE)) and not bool(
+        re.search(r"\b(?:a|an)\b", details, re.IGNORECASE)
+        or _CONNECTOR_REQUEST_RE.search(details)
+    )
+
+
+def requested_answer_field_shape(text: str) -> str:
+    """Classify requested field coordination without certifying semantic coverage.
+
+    The same structural authority serves scalar shortcuts and retrieval composition.
+    Quoted or descriptive object conjunctions do not create requested fields; an
+    unknown request grants neither scalar authority nor positive field coordination.
+    """
+    from core.turn_ir import ClauseKind, classify_clause_kind, parse_turn_ir
+
+    from core.response_constraints import requested_output_item_count
+
+    requested_items = requested_output_item_count(text)
+    if requested_items is not None and requested_items > 1:
+        return "multiple_items"
+    visible = _outside_quoted_spans(text)
+    if _OPERATIONAL_REQUEST_RE.search(visible) or _CONCRETE_FILE_OR_PATH_RE.search(visible):
+        return "unknown"
+    # Bind the interrogative after leading contextual adjuncts before TurnIR's
+    # connective split. A noun such as "rename" inside "before ... move and rename"
+    # is context, not an imperative. A genuinely requested prefix is never discarded.
+    focus = re.search(r",\s*((?:what|which)\s+.+)$", visible, re.IGNORECASE)
+    if focus is not None:
+        prefix = visible[:focus.start()]
+        context_parts = [part.strip() for part in prefix.split(",") if part.strip()]
+        if context_parts and all(classify_clause_kind(part) is ClauseKind.UNKNOWN for part in context_parts):
+            visible = focus.group(1)
+    turn = parse_turn_ir(visible, response_shape_parser=None)
+    requests = [clause.request_text for clause in turn.clauses if clause.kind is not ClauseKind.UNKNOWN]
+    if len(requests) != 1:
+        return "unknown"
+    request = _normalized_ordinary_clause(requests[0])
+    match = re.match(r"^(?:what|which)\s+(.+)$", request, re.IGNORECASE)
+    if match is None:
+        return "unknown"
+    nominal = match.group(1)
+    predicate = _QUESTION_PREDICATE_RE.search(nominal)
+    if predicate is not None:
+        # "What is the code?" puts the requested noun after the copula; an inverted
+        # past question ("What code did I set?") puts it before the predicate.
+        nominal = (nominal[predicate.end():] if predicate.start() == 0 else nominal[:predicate.start()])
+    nominal = re.split(r"\b(?:for|of|from|in|on|at|with|by)\b", nominal, maxsplit=1, flags=re.IGNORECASE)[0]
+    if not nominal.strip():
+        return "unknown"
+    return ("coordinated_fields" if re.search(r"\band\b|,", nominal, re.IGNORECASE)
+            else "single_field")
+
+
+def scalar_answer_covers_requested_shape(text: str) -> bool:
+    """Only a positively established single field permits a scalar shortcut."""
+    return requested_answer_field_shape(text) == "single_field"
+
+
 def ordinary_plain_requests(text: str) -> tuple[str, ...]:
     """Return every request when the whole turn is a small, non-operational text task.
 
@@ -232,7 +338,15 @@ def ordinary_plain_requests(text: str) -> tuple[str, ...]:
             )
             for part in connected:
                 clause = _normalized_ordinary_clause(part)
-                if not clause or _MULTIPART_PREAMBLE_RE.fullmatch(clause):
+                if (
+                    not clause
+                    or _MULTIPART_PREAMBLE_RE.fullmatch(clause)
+                    or _numbered_answer_instruction(clause)
+                    or _answer_length_directive(clause)
+                ):
+                    continue
+                if requests and _dependent_answer_details(clause, requests[-1]):
+                    requests[-1] = requests[-1] + ". " + clause
                     continue
                 if not _ORDINARY_REQUEST_HEAD_RE.match(clause):
                     return ()
@@ -277,6 +391,14 @@ def multipart_has_non_plain_request(text: str) -> bool:
         return False
     if _OPERATIONAL_REQUEST_RE.search(visible) or _CONCRETE_FILE_OR_PATH_RE.search(visible):
         return True
+    # "list" and "tell" are ordinary request heads, so "List the files in my workspace and tell me
+    # which ones are markdown." counted as two plain parts and went to the no-tools lane (measured
+    # on 9adff83, 2026-10-06). A part that names the workspace and asks what files it holds needs
+    # the workspace tools, whatever verb opens it; the workspace recognizer owns that reading.
+    from core.agent_runtime.workspace_intent_detection import asks_to_list_the_bound_workspace
+
+    if asks_to_list_the_bound_workspace(visible):
+        return True
 
     from core.task_router import looks_like_live_recency_lookup
 
@@ -294,18 +416,57 @@ def is_ordinary_multi_part_plain_task(text: str, *, task_class: str = "") -> boo
     return ordinary_plain_request_count(text) >= 2 and not multipart_has_non_plain_request(text)
 
 
-def ordinary_multi_part_answer_complete(user_text: str, answer_text: str) -> bool:
-    """Whether a multi-part plain answer visibly accounts for every requested part.
-
-    Multi-part minimal prompts require numbered answers. That gives the runtime a deterministic
-    completeness check instead of pretending it can infer semantic coverage from fluent prose.
-    """
-
+def ordinary_multi_part_answer_status(user_text: str, answer_text: str) -> str:
+    """Structural coverage verdict; unindexed prose is not a semantic completeness proof."""
     required = ordinary_plain_request_count(user_text)
     if required < 2:
-        return True
+        return "not_applicable"
+    return ordinary_indexed_answer_status(
+        required, answer_text, numbering_required=user_requires_numbered_answers(user_text),
+    )
+
+
+# Runtime narration about which model or provider served "this turn" is operator detail the
+# runtime itself emits (core.agent_runtime.memory_runtime._single_candidate_failure_hint). When a
+# provider hands that narration back as its whole reply, it carries no requested part at all: the
+# measured case was "<model-id> was the only model this turn was allowed to use" becoming the entire
+# final answer to "Explain ... Calculate ... Give a 7-word title."
+_RUNTIME_SELECTION_NARRATION_RE = re.compile(
+    r"\b(?:models?|providers?)\b[^.!?\n]{0,80}\bthis\s+turn\b(?!\s+of\b)"
+    r"|\bthis\s+turn\b(?!\s+of\b)[^.!?\n]{0,80}\b(?:models?|providers?)\b",
+    re.IGNORECASE,
+)
+_ANSWER_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def answer_is_only_runtime_selection_narration(answer_text: str) -> bool:
+    """True when every sentence of a reply is runtime model/provider-selection narration.
+
+    Structural: such a reply addresses no requested part. A reply that answers and also mentions
+    a model is not covered here; unindexed prose otherwise stays coverage-unknown.
+    """
+    sentences = [part.strip() for part in _ANSWER_SENTENCE_SPLIT_RE.split(str(answer_text or "")) if part.strip()]
+    return bool(sentences) and all(_RUNTIME_SELECTION_NARRATION_RE.search(part) for part in sentences)
+
+
+def ordinary_indexed_answer_status(required_parts: int, answer_text: str, *, numbering_required: bool) -> str:
     present = ordinary_answer_part_indexes(answer_text)
-    return all(index in present for index in range(1, required + 1))
+    if not present and answer_is_only_runtime_selection_narration(answer_text):
+        return "missing_requested_parts"
+    if not present and not numbering_required:
+        return "unindexed_semantic_coverage_unknown"
+    if not all(index in present for index in range(1, int(required_parts) + 1)):
+        return "missing_requested_parts"
+    return "indexed_parts_present_semantics_unknown"
+
+
+def ordinary_multi_part_answer_complete(user_text: str, answer_text: str) -> bool:
+    """Whether structural evidence establishes an omission of a requested answer part.
+
+    The legacy name is retained for callers. True means no established structural
+    omission, not semantic correctness; the status API exposes the unknown verdict.
+    """
+    return ordinary_multi_part_answer_status(user_text, answer_text) != "missing_requested_parts"
 
 
 def ordinary_answer_part_indexes(answer_text: str) -> frozenset[int]:
@@ -318,6 +479,159 @@ def ordinary_answer_part_indexes(answer_text: str) -> frozenset[int]:
     return frozenset(present)
 
 
+# A question asked ABOUT THE SPEAKER'S OWN FACTS is a memory-recall request,
+# not a detached generation task (measured, paid calibration 2026-09-27:
+# "How many engineers do I lead when I just started my new role…? How many
+# do I lead now?" was classed multi_part_qa, whose minimal route loads NO
+# session context — the model answered from nothing). Such questions must
+# take the ordinary chat path where memory recall runs.
+#
+# The decision is PER CONSTITUENT REQUEST, not over the whole prompt: a mixed
+# turn ("Where did I leave my passport, and how do I renew it?") contains a
+# personal-fact clause that still needs recall — a generic instructional
+# clause elsewhere in the turn must not veto it (measured, independent review
+# 2026-09-27: the whole-prompt manner check misrouted that turn to the
+# no-context plain lane). The clause set is the module's own authoritative
+# request splitter (ordinary_plain_requests), so preamble and quote handling
+# match every other plain-task decision.
+#
+# Within a clause, two shapes ask for the speaker's own stored facts:
+#   * an inverted state/past auxiliary over I/we: "How many did I lead",
+#     "When did we move", "Have I paid", "Where do I store my seeds" — past
+#     manner included: "How did I pay" asks what the speaker DID (remembered
+#     history), not for instructions;
+#   * an interrogative possessive frame: "What is my plot number",
+#     "When is my appointment", "What did my dentist tell me".
+# Present/modal manner ("how do/can/should I …") and advice-modals ask for
+# instructions and stay plain; a bare "how" is excluded from the possessive
+# frame precisely because "how … my X" is usually a how-to.
+_SELF_FACT_AUX_RE = re.compile(
+    r"\b(?:did|was|were|had|have|has|am|is|are|do|does)\s+(?:i|we)\b",
+    re.IGNORECASE,
+)
+#: PRESENT/MODAL instructional manner. Past "did" is deliberately absent:
+#: "How did I pay for it?" recalls the user's own past, it does not ask to
+#: be taught (measured, review 2026-09-27).
+_HOWTO_MANNER_RE = re.compile(
+    r"\bhow\s+(?:do|does|can|could|should|would)\s+(?:i|we)\b",
+    re.IGNORECASE,
+)
+# "how much/how many" joined the head class after the same misroute one more time
+# (q90 routing, V corpus F15-05's mixed shape, 2026-09-29): "How much is my copay
+# and how much is my deductible?" -- every clause is a possessive quantity recall,
+# none carries the inverted-auxiliary shape, so the turn classed multi_part_qa and
+# its minimal route loaded NO session context. A QUANTITY interrogative over
+# my/our is as much a recall request as "what is my plot number"; bare "how"
+# stays excluded (its "how ... my X" reading is a how-to).
+_SELF_FACT_POSSESSIVE_RE = re.compile(
+    r"\b(?:what|which|when|where|who|whose|why|how\s+much|how\s+many)\b[^.!?]{0,60}?\b(?:my|our)\b",
+    re.IGNORECASE,
+)
+_ADVICE_MODAL_RE = re.compile(
+    r"\b(?:should|can|could|would|might|must|may)\s+(?:i|we)\b",
+    re.IGNORECASE,
+)
+
+
+def _clause_requests_recall(text: str) -> bool:
+    """Whether any constituent request of *text* asks about the speaker's own
+    facts. Quoted spans are invisible to the tests (a quoted example question
+    is not the user's own request), mirroring the module's other matchers.
+    Clause normalization strips terminal punctuation, so the question mark is
+    checked once for the whole turn by the caller, not per clause."""
+    clauses = ordinary_plain_requests(text)
+    if not clauses:
+        clauses = tuple(
+            sentence for sentence in _split_unquoted_sentences(text) if sentence.strip()
+        ) or (str(text or "").strip(),)
+    for clause in clauses:
+        visible = _outside_quoted_spans(clause)
+        if _HOWTO_MANNER_RE.search(visible):
+            continue
+        if _SELF_FACT_AUX_RE.search(visible):
+            return True
+        if _SELF_FACT_POSSESSIVE_RE.search(visible) and not _ADVICE_MODAL_RE.search(
+            visible
+        ):
+            return True
+    return False
+
+
+def _first_person_recall_question(text: str) -> bool:
+    raw = str(text or "").strip()
+    if "?" not in raw:
+        return False
+    return _clause_requests_recall(raw)
+
+
+def first_person_recall_question(text: str) -> bool:
+    """Whether *text* is a question about the speaker's own facts (the recall test above)."""
+    return _first_person_recall_question(text)
+
+
+#: A word that can only open a noun phrase: a determiner, possessive, quantifier or numeral.
+#: After a joining token it proves the joiner coordinates two noun phrases inside one request
+#: ("the day I X and the day I Y", "my charger and my cable"), not two requests.
+_NOUN_PHRASE_OPENER_RE = re.compile(
+    r"(?:the|a|an|my|our|your|his|her|their|its|this|that|these|those|some|each|every|both|"
+    r"either|another|other|one|two|three|four|five|\d[\w.,]*)\b",
+    re.IGNORECASE,
+)
+#: The joining tokens the planner gate admits on (`turn_planner._JOINING_TOKENS`).
+_PLANNER_JOINER_RE = re.compile(r"\b(?:and|also|plus|then)\b|[,;]", re.IGNORECASE)
+_INTERNAL_SENTENCE_BOUNDARY_RE = re.compile(r"[.!?;:]\s+\S")
+
+
+def _joiner_opens_noun_phrase(visible: str, match: re.Match[str]) -> bool:
+    joiner = match.group(0).lower()
+    if joiner in {"also", "then", ";"}:
+        # "also"/"then" sequence requests; a semicolon separates them. Never a proven NP join.
+        return False
+    rest = visible[match.end():].lstrip(" ,")
+    if not rest:
+        return False
+    if _NOUN_PHRASE_OPENER_RE.match(rest):
+        return True
+    # A capitalized proper name ("Lisbon and Porto"), but never the pronoun "I", which opens a
+    # clause of its own.
+    first = rest.split(None, 1)[0]
+    return first[:1].isupper() and first.rstrip("?,.!") not in {"I", "I'm", "I've", "I'd", "I'll"}
+
+
+def single_clause_recall_question(text: str) -> bool:
+    """Whether *text* is one question about the speaker's own facts, making one request.
+
+    Used to skip the clause-decomposition call: such a question is answered by one reader call
+    from memory, and a planner that returns one clause (the common outcome) spends a model call to
+    learn nothing. The test is grammatical and fails toward the planner:
+
+    - exactly one question mark, at the end, and no internal sentence boundary;
+    - no operational, path, live-recency or place-seeking request anywhere in it;
+    - every joining token the planner gate admits on ("and", "plus", ",", ...) is followed by a
+      word that can only open a noun phrase (a determiner, possessive, quantifier, numeral or a
+      capitalized name), so the joiner coordinates noun phrases rather than requests; "also",
+      "then" and ";" always count as a second request;
+    - the question asks about the speaker's own facts (`_first_person_recall_question`).
+
+    Quoted spans are invisible, as in every other matcher in this module.
+    """
+
+    raw = " ".join(str(text or "").split())
+    if not raw:
+        return False
+    visible = " ".join(_outside_quoted_spans(raw).split())
+    if visible.count("?") != 1 or not visible.endswith("?"):
+        return False
+    if _INTERNAL_SENTENCE_BOUNDARY_RE.search(visible):
+        return False
+    if multipart_has_non_plain_request(visible):
+        return False
+    for match in _PLANNER_JOINER_RE.finditer(visible):
+        if not _joiner_opens_noun_phrase(visible, match):
+            return False
+    return _first_person_recall_question(raw)
+
+
 def plain_task_kind(text: str) -> str:
     """Return the plain model task kind for one-shot text tasks.
 
@@ -328,7 +642,7 @@ def plain_task_kind(text: str) -> str:
     raw = " ".join(str(text or "").strip().split())
     if not raw:
         return ""
-    if is_ordinary_multi_part_plain_task(text):
+    if is_ordinary_multi_part_plain_task(text) and not _first_person_recall_question(raw):
         return "multi_part_qa"
     if _TRANSLATE_RE.search(raw):
         return "translation"
@@ -352,8 +666,13 @@ __all__ = [
     "is_plain_task",
     "multipart_has_non_plain_request",
     "multipart_task_class_requires_tool_reachability",
+    "answer_is_only_runtime_selection_narration",
     "ordinary_answer_part_indexes",
     "ordinary_multi_part_answer_complete",
+    "ordinary_multi_part_answer_status",
+    "ordinary_indexed_answer_status",
+    "scalar_answer_covers_requested_shape",
+    "user_requires_numbered_answers",
     "ordinary_plain_request_count",
     "ordinary_plain_requests",
     "plain_task_kind",

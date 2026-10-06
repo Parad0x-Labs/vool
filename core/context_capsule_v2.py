@@ -74,8 +74,11 @@ def role_fraction(role: str) -> float:
 
 
 def estimate_tokens(text: str) -> int:
-    """Conservative chars/4 UPPER bound, rounds up. Mirrors conversation_summarizer.token_estimate's
-    /4 convention but for a raw string. Over-estimates so packing never overflows num_ctx."""
+    """Approximate character-based planning estimate, rounded up.
+
+    This is not a tokenizer bound. Final provider fitting and token enforcement
+    remain separate from evidence-allocation planning.
+    """
     n = len(str(text or ""))
     return (n + 3) // 4
 
@@ -109,6 +112,7 @@ class InjectionBudget:
     recent_floor_tokens: int
     free_tokens: int
     min_score: float
+    evidence_target_tokens: int = 420
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -117,15 +121,24 @@ class InjectionBudget:
             "usable_tokens": self.usable_tokens, "pack_target_tokens": self.pack_target_tokens,
             "pin_ceiling_tokens": self.pin_ceiling_tokens, "recent_floor_tokens": self.recent_floor_tokens,
             "free_tokens": self.free_tokens, "min_score": self.min_score,
+            "evidence_target_tokens": self.evidence_target_tokens,
         }
 
 
 def _min_score_for_bucket(bucket: Bucket) -> float:
+    """Quality floor for spending injection budget, on the retrieval score scale.
+
+    node_search_hybrid now returns normalized reciprocal-rank fusion strength in
+    [0,1] (1.0 = top of both legs), not cosine. On that scale: a keyword-leg
+    rank-1-only hit is ~0.74, rank-50 ~0.41; a semantic-leg rank-1-only hit
+    (paraphrase with no term overlap) is ~0.26. Bands keep the original intent —
+    scarcer hardware demands stronger hits — while no longer excluding pure
+    paraphrase evidence outright."""
     if bucket == "A":
-        return 0.46  # scarce room -> only strong hits
+        return 0.45  # scarce room -> keyword-led hits only
     if bucket in {"D", "E"}:
-        return 0.38  # room to spare
-    return 0.42
+        return 0.20  # room to spare -> admit strong paraphrase-only hits
+    return 0.25
 
 
 def resolve_budget(
@@ -138,9 +151,15 @@ def resolve_budget(
     transcript_tokens: int = 0,
     recent_floor_frac: float = 0.35,
     pin_ceiling_frac: float = 0.25,
+    evidence_target_tokens: int = 420,
+    retrieval_ceiling_tokens: int = _HARD_RETRIEVAL_CEILING_TOKENS,
 ) -> InjectionBudget:
     """The heart of the adaptive scheme — reserve-before-inject, table-driven, pure.
     injection can never crowd the decode window or overflow num_ctx."""
+    for name, value in (("evidence_target_tokens", evidence_target_tokens),
+                        ("retrieval_ceiling_tokens", retrieval_ceiling_tokens)):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"{name} must be a non-negative integer")
     b = bucket if bucket in _BASE_FP16 else "A"
     num_ctx = resolve_num_ctx(bucket=b, role=role, kv_quant=kv_quant)
     output_reserve = max(int(output_reserve_tokens), 256)
@@ -150,14 +169,16 @@ def resolve_budget(
     pack_target = int(usable * derate)
     pin_ceiling = round(pin_ceiling_frac * pack_target)
     recent_floor = round(recent_floor_frac * pack_target)
-    # Independent hard ceiling on the RETRIEVAL (free/semantic) pool: even a 24GB card never gets
-    # an unbounded wall of retrieved text inflating the KV cache. Pins + recent floor are separate.
-    free = min(max(0, pack_target - pin_ceiling - recent_floor), _HARD_RETRIEVAL_CEILING_TOKENS)
+    # The caller declares the retrieval allowance independently of capacity.
+    # Larger quality experiments may spend available headroom, while the
+    # existing local defaults and output/transcript reservations stay intact.
+    free = min(max(0, pack_target - pin_ceiling - recent_floor), retrieval_ceiling_tokens)
+    evidence_target = min(evidence_target_tokens, free)
     return InjectionBudget(
         bucket=b, role=role, kv_quant=kv_quant, num_ctx=num_ctx,
         output_reserve_tokens=output_reserve, usable_tokens=usable, pack_target_tokens=pack_target,
         pin_ceiling_tokens=pin_ceiling, recent_floor_tokens=recent_floor, free_tokens=free,
-        min_score=_min_score_for_bucket(b),
+        min_score=_min_score_for_bucket(b), evidence_target_tokens=evidence_target,
     )
 
 

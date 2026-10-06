@@ -17,19 +17,19 @@ def test_multi_part_policy_requires_every_numbered_answer() -> None:
     policy = ordinary_chat_output_policy(
         prompt_profile="plain_task_minimal",
         output_mode="plain_text",
-        user_text=MULTI_PART_PROMPT,
+        user_text=MULTI_PART_PROMPT+" Number each answer 1 through 3.",
     )
 
     assert policy["required_numbered_parts"] == 3
     partial = inspect_ordinary_chat_output(
         "1. Water absorbs red wavelengths more strongly, leaving blue light visible.",
         policy,
-        current_user_text=MULTI_PART_PROMPT,
+        current_user_text=MULTI_PART_PROMPT+" Number each answer 1 through 3.",
     )
     complete = inspect_ordinary_chat_output(
         "1. Water scatters and reflects more blue light.\n2. 39 × 24 = 936.\n3. Blue Depths Shape Our Living World",
         policy,
-        current_user_text=MULTI_PART_PROMPT,
+        current_user_text=MULTI_PART_PROMPT+" Number each answer 1 through 3.",
     )
 
     assert partial.allowed is False

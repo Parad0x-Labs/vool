@@ -2017,6 +2017,50 @@ def delete_conversation_session(session_id: str) -> bool:
             removed = True
     except Exception:
         pass
+    # Deletion-sweep completeness (sealed acceptance F14-04): the chat's
+    # DERIVED memory must die with it — the semantic store (nodes minted from
+    # its statements, source occurrences of its turns) plus the chat-keyed
+    # derivative tables the row sweep above does not own. A deleted chat whose
+    # distilled facts stay readable in memory_nodes / dialogue state is a
+    # deletion-sweep gap, not an archival choice.
+    try:
+        from core.vool_memory import VoolMemory
+
+        semantic = VoolMemory()
+        try:
+            semantic.node_delete_for_session(sid)
+            semantic.occurrence_delete_for_chat(sid)
+        finally:
+            semantic.close()
+    except Exception:
+        pass
+    try:
+        from storage.db import get_connection
+
+        conn = get_connection()
+        try:
+            # The session-state row is the deleted chat's own identity, not a
+            # shared table, and learning shards are per-chat derivatives.
+            # Capsule VERSIONS are deliberately untouched: that ledger is
+            # immutable by trigger law and shadow-mode (finalization ruling
+            # _sweep_step_capsules) — deleting its rows would abort this
+            # whole sweep and violate the audit contract; the namespace
+            # transition gates every reader of a deleted chat.
+            conn.execute("DELETE FROM dialogue_sessions WHERE session_id = ?", (sid,))
+            present = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                ("learning_shards",),
+            ).fetchone()
+            if present is not None:
+                conn.execute(
+                    "DELETE FROM learning_shards WHERE origin_session_id = ?",
+                    (sid,),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass
     for path in (conversation_log_path(), session_summaries_path()):
         rows = load_jsonl(path)
         kept = [row for row in rows if str(row.get("session_id") or "").strip() != sid]

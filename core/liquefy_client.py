@@ -17,11 +17,26 @@ _SEARCH_SCHEMA = "liquefy.tracevault.search.cli.v1"
 _GENERIC_SCHEMA = "liquefy.cli.v1"
 
 
+#: Bounds for external CLI calls placed on product paths (F15 repair): a hung or
+#: chatty binary must fail bounded and explicit, never hang the caller or flood
+#: the JSON layer.
+_DEFAULT_TIMEOUT_SECONDS = 30.0
+_DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024
+
+
 class LiquefyClientV1:
-    def __init__(self, *, env: dict[str, str] | None = None):
+    def __init__(
+        self,
+        *,
+        env: dict[str, str] | None = None,
+        default_timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+        max_output_bytes: int = _DEFAULT_MAX_OUTPUT_BYTES,
+    ):
         self._env = dict(os.environ)
         if env is not None:
             self._env.update(env)
+        self._default_timeout_seconds = max(0.05, float(default_timeout_seconds))
+        self._max_output_bytes = max(1, int(max_output_bytes))
         self._generic_bin = self._resolve_bin("VOOL_LIQUEFY_BIN", ("liquefy",))
         self._pack_bin = self._resolve_bin("VOOL_LIQUEFY_PACK_BIN", ("liquefy-pack",))
         self._restore_bin = self._resolve_bin("VOOL_LIQUEFY_RESTORE_BIN", ("liquefy-restore",))
@@ -30,6 +45,20 @@ class LiquefyClientV1:
     @property
     def available(self) -> bool:
         return bool(self._pack_bin or self._restore_bin or self._search_bin or self._generic_bin)
+
+    @property
+    def pack_available(self) -> bool:
+        """Operation-specific readiness: pack needs the pack binary (or the
+        generic CLI). ``available`` alone says only that SOME binary exists."""
+        return bool(self._pack_bin or self._generic_bin)
+
+    @property
+    def restore_available(self) -> bool:
+        return bool(self._restore_bin or self._generic_bin)
+
+    @property
+    def search_available(self) -> bool:
+        return bool(self._search_bin or self._generic_bin)
 
     def self_test(self) -> LiquefySelfTestV1:
         if self._pack_bin:
@@ -179,8 +208,15 @@ class LiquefyClientV1:
                 return found
         return ""
 
-    def _run_json(self, argv: list[str], *, accept_exit_codes: set[int]) -> dict[str, Any]:
+    def _run_json(
+        self,
+        argv: list[str],
+        *,
+        accept_exit_codes: set[int],
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
         run_argv = self._execution_argv(argv)
+        effective_timeout = self._default_timeout_seconds if timeout is None else timeout
         try:
             result = subprocess.run(
                 run_argv,
@@ -189,11 +225,29 @@ class LiquefyClientV1:
                 encoding="utf-8",
                 errors="replace",
                 env=self._env,
+                timeout=effective_timeout,
             )
         except FileNotFoundError:
             return {"ok": False, "exit_code": 127, "error": f"Missing Liquefy executable: {argv[0]}", "payload": {}}
+        except subprocess.TimeoutExpired:
+            return {
+                "ok": False,
+                "exit_code": 124,
+                "error": f"Liquefy command timed out after {effective_timeout}s: {argv[0]}",
+                "payload": {},
+            }
         stdout = str(result.stdout or "").strip()
         stderr = str(result.stderr or "").strip()
+        if len(stdout) > self._max_output_bytes:
+            return {
+                "ok": False,
+                "exit_code": int(result.returncode),
+                "error": (
+                    f"Liquefy command output exceeded {self._max_output_bytes} bytes "
+                    f"and was not parsed"
+                ),
+                "payload": {},
+            }
         payload: dict[str, Any] = {}
         if stdout:
             try:
@@ -202,9 +256,17 @@ class LiquefyClientV1:
                     payload = parsed
             except Exception:
                 payload = {}
-        ok = int(result.returncode) in accept_exit_codes and bool(payload or result.returncode == 0)
-        if payload:
-            payload.setdefault("ok", int(result.returncode) == 0)
+        # Transport completion, syntactic output and operation success are three
+        # different facts. Exit 0 with a payload that declares ok:false is a
+        # FAILURE (the tool's own declaration wins); an accepted non-zero exit
+        # (search uses 1 for no-matches) with ok:true is a success.
+        accepted = int(result.returncode) in accept_exit_codes
+        declared_ok = payload.get("ok") if isinstance(payload.get("ok"), bool) else None
+        if declared_ok is None:
+            ok = accepted and (bool(payload) or int(result.returncode) == 0)
+            payload["ok"] = ok
+        else:
+            ok = accepted and declared_ok
         error = ""
         if not ok:
             error = stderr or stdout or f"Liquefy command failed with exit code {int(result.returncode)}."

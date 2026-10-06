@@ -52,3 +52,32 @@ def test_sabotage_removing_the_filler_tolerance_reproduces_the_incident() -> Non
     incident_text = "weather only for berlin and copenhagen"
     assert original_pattern.search(incident_text) is None  # the bug, reproduced
     assert _looks_like_live_weather_request(incident_text) is True  # the fix
+
+
+def test_directional_particle_between_subject_and_place_is_a_live_request() -> None:
+    """V corpus F15-04 (first candidate run, amended head 9174b42c): 'What's the
+    temperature up at the lookout right now?' read False here, classified GROUNDED
+    instead of LIVE_DATA, and a stored 18 August observation shipped as the current
+    temperature. The closed particle class (up/down/out) sits in the same filler
+    slot as the already-admitted only/just/specifically."""
+    from core.agent_runtime.fast_live_info_mode_classifier import _looks_like_live_weather_request
+
+    for question in (
+        "What's the temperature up at the lookout right now?",
+        "weather out at the coast now",
+        "how's the temperature down at the shore today?",
+    ):
+        assert _looks_like_live_weather_request(question), question
+
+
+def test_particle_filler_does_not_claim_weather_prose() -> None:
+    from core.agent_runtime.fast_live_info_mode_classifier import _looks_like_live_weather_request
+
+    # Honest boundary, unchanged by the particle filler: prose WITHOUT the
+    # subject+preposition shape stays out of the lane, exactly as before.
+    for prose in (
+        "Weather patterns are complex.",
+        "We watched the temperature creep up over the month.",
+        "The weather has been nice.",
+    ):
+        assert not _looks_like_live_weather_request(prose), prose

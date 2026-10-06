@@ -414,7 +414,44 @@ def _solicits_wallet_secret(text: str) -> bool:
     return False
 
 
-def completion_claim_kind(text: str) -> str:
+#: Verbs whose REQUESTED form asks this turn to write, change, remove, move or run something. Read
+#: through `requested_action_clauses`, so a recall question ("how many times did I save ..."), a
+#: past description or quoted text never counts as a request.
+_REQUESTED_ACTION_VERB_RE = re.compile(
+    r"(?:delete|remove|erase|wipe|clear|clean|purge|send|transfer|move|pay|create|make|write|save|"
+    r"store|record|note|log|remember|add|put|edit|change|modify|update|rename|run|execute|install|"
+    r"build|generate|copy|export|set\s+up)\b",
+    re.IGNORECASE,
+)
+
+#: A stored-record noun followed by a bare storage participle, with no auxiliary: "the only note
+#: saved", "the only file written to your log". Destructive and creative participles (deleted,
+#: wiped, created, edited, ...) report an event even in this position and are never matched here.
+_RECORD_STATE_PHRASE_RE = re.compile(r"(?:notes?|files?)\s+(?:saved|written)", re.IGNORECASE)
+
+#: The participle phrase is the subject of a present-tense copula: "... note saved [to your log] is
+#: the seed list". That is a description of what the record holds now, not a report of this turn.
+_RECORD_STATE_PREDICATE_RE = re.compile(r"(?:\s+[A-Za-z'’-]+){0,6}?\s+(?:is|are)\b", re.IGNORECASE)
+
+
+def request_asks_for_action(request_text: str) -> bool:
+    """Whether the turn's request asks for something to be written, changed, removed or run."""
+
+    from core.instructional_request import requested_action_clauses
+
+    return bool(requested_action_clauses(str(request_text or ""), _REQUESTED_ACTION_VERB_RE))
+
+
+def _describes_a_stored_record(sentence: str, match: re.Match[str]) -> bool:
+    """The match is a noun phrase naming a stored record, the subject of a present copula."""
+
+    return bool(
+        _RECORD_STATE_PHRASE_RE.fullmatch(match.group(0))
+        and _RECORD_STATE_PREDICATE_RE.match(sentence, match.end())
+    )
+
+
+def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
     """What kind of finished work a reply claims: ``""``, ``"mutation"``, ``"build"`` or ``"persistence"``.
 
     One predicate for both consumers. The blocker uses it to decide whether a claim needs a
@@ -423,6 +460,14 @@ def completion_claim_kind(text: str) -> str:
 
     ``"mutation"`` wins ties: it is the older, narrower vocabulary (delete / wipe / send funds) and
     it carries the response the existing callers already expect.
+
+    ``request_text`` is the turn's request. When it is given and asks for no action, a sentence
+    that only DESCRIBES a stored record ("the only note saved is the seed list") is a memory answer,
+    not a report that this turn saved anything. Measured on the original comparison: a correct
+    "no record of that" recall answer was replaced by the no-execution notice because of exactly
+    that phrase. Without ``request_text`` (or on any turn that requests an action) the law is
+    unchanged, and a finite claim ("the files were deleted") is a claim on every turn -- the
+    follow-up turn included.
     """
 
     body = str(text or "")
@@ -433,8 +478,11 @@ def completion_claim_kind(text: str) -> str:
         # because `emit_turn_honesty_receipt` calls this predicate directly and would otherwise
         # sign an honest denial as a claim needing a receipt.
         return ""
+    describes_records = request_text is not None and not request_asks_for_action(request_text)
     for sentence in _split_sentences(body):
         mutation = _FALSE_ACTION_CLAIM_RE.search(sentence)
+        while describes_records and mutation is not None and _describes_a_stored_record(sentence, mutation):
+            mutation = _FALSE_ACTION_CLAIM_RE.search(sentence, mutation.end())
         if mutation is None:
             continue
         # A past participle can describe an object's state rather than report an action by this
@@ -557,10 +605,55 @@ def _truthy_execution_status(value: object) -> bool:
     return status in {"ok", "success", "succeeded", "executed", "completed", "tool_executed"}
 
 
-def _receipt_shows_execution(receipt: dict[str, Any]) -> bool:
+def _receipt_shows_execution(
+    receipt: dict[str, Any],
+    *,
+    session_id: str = "",
+    source_context: dict[str, object] | None = None,
+) -> bool:
     execution = receipt.get("execution")
     if not isinstance(execution, dict):
         execution = {}
+    if "action_record" in execution:
+        # The terminal-event producer stores the typed record in this wrapper.
+        # Its success fields are authoritative only after the existing durable
+        # receipt verifier has checked hashes and chat/project scope. An invalid
+        # typed record must never fall back to a legacy success flag.
+        context = source_context or {}
+        clean_session = str(session_id or "").strip()
+        record = execution.get("action_record")
+        if (
+            not clean_session
+            or not isinstance(record, dict)
+            or str(receipt.get("session_id") or "").strip() != clean_session
+            or str(context.get("runtime_session_id") or context.get("session_id") or clean_session).strip()
+            != clean_session
+            or execution.get("executed") is False
+        ):
+            return False
+        try:
+            from core.active_context_capsule import _verified_action_record
+
+            verified = _verified_action_record(
+                str(receipt.get("receipt_key") or "").strip(),
+                chat_id=str(context.get("chat_id") or clean_session).strip(),
+                project_id=str(context.get("_trusted_project_id") or context.get("project_id") or "").strip(),
+                runtime_session_id=clean_session,
+            )
+        except Exception:
+            return False
+        if verified is None or verified != record:
+            return False
+        result = verified["result"]
+        failure = verified.get("failure")
+        return (
+            verified["action_type"] == "tool_executed"
+            and result.get("outcome") == "succeeded"
+            and result.get("ok") is True
+            and result.get("executed") is not False
+            and isinstance(failure, dict)
+            and failure.get("failed") is False
+        )
     if execution.get("executed") is True or execution.get("ok") is True:
         return True
     if _truthy_execution_status(execution.get("status") or execution.get("mode") or execution.get("outcome")):
@@ -1047,7 +1140,11 @@ def enforce_final_action_honesty(
         return output
     if _HONEST_DENIAL_RE.search(response):
         return output
-    claim_kind = completion_claim_kind(response)
+    # The request decides only whether a stored-record DESCRIPTION is a memory answer; both the
+    # raw and the narrowed text are read, so an action asked in either keeps the full law.
+    claim_kind = completion_claim_kind(
+        response, request_text=f"{user_input or ''}\n{effective_input or ''}"
+    )
     if not claim_kind:
         return output
     # NOT gated on this turn's prompt. Whether "the files were deleted" is TRUE depends on whether a
@@ -1158,7 +1255,9 @@ def _collect_executed_tools(
     out: list[dict[str, Any]] = []
 
     def _add(receipt: object) -> None:
-        if not isinstance(receipt, dict) or not _receipt_shows_execution(receipt):
+        if not isinstance(receipt, dict) or not _receipt_shows_execution(
+            receipt, session_id=str(session_id or "").strip(), source_context=source_context
+        ):
             return
         tool = str(receipt.get("tool_name") or receipt.get("tool") or receipt.get("intent") or "")
         key = str(receipt.get("receipt_id") or receipt.get("receipt_key") or "")
@@ -1225,7 +1324,7 @@ def emit_turn_honesty_receipt(
         # Same predicate the blocker used. When these two disagree the ledger is worse than
         # useless: the fabricated build of 2026-07-29 was signed `no_action_claimed` because this
         # line asked a narrower question than the claim it was recording.
-        claimed = bool(completion_claim_kind(response))
+        claimed = bool(completion_claim_kind(response, request_text=user_input))
         mode_executed = str(result.get("mode") or result.get("mode_override") or "").strip().lower() == "tool_executed"
         if contradicted:
             # Ranked above `blocked` on purpose. A contradiction is a claim the trace DISPROVES,

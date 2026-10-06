@@ -1619,7 +1619,44 @@ def _workspace_noun_is_the_subject(text: str, match: re.Match[str]) -> bool:
     if tail is None:
         # End of string, or only punctuation left: the noun is the head of the question.
         return True
-    return tail.group(1).casefold() in _WORKSPACE_NOUN_TAIL_WORDS
+    word = tail.group(1).casefold()
+    if word not in _WORKSPACE_NOUN_TAIL_WORDS:
+        return False
+    if word in _EVENT_AUXILIARIES and _event_clause_follows(text[tail.end():], do_support=word in _DO_SUPPORT):
+        return False
+    return True
+
+
+#: Auxiliaries after the workspace noun that can open a clause about someone's ACTIVITY with the
+#: noun as its object: "which project DID we finish sooner", "what project IS Leo working on".
+_EVENT_AUXILIARIES = frozenset({"do", "does", "did", "is", "are", "was", "were", "has", "have", "had"})
+_DO_SUPPORT = frozenset({"do", "does", "did"})
+#: Words that keep the clause about the BINDING itself ("is this chat bound to", "am I in",
+#: "do I have open").
+_WORKSPACE_BINDING_WORDS = frozenset(
+    {
+        "bound", "set", "open", "opened", "active", "selected", "configured", "loaded", "pointed",
+        "pointing", "called", "named", "scoped", "use", "uses", "using", "used", "in", "on", "inside",
+        "at", "here", "there", "now", "currently", "right",
+    }
+)
+_CLAUSE_WORD_RE = re.compile(r"[A-Za-z']+")
+
+
+def _event_clause_follows(rest: str, *, do_support: bool) -> bool:
+    """True when the words after the auxiliary describe an activity rather than the binding.
+
+    Scans at most four words: a binding word first means the binding; an -ing/-ed participle first
+    means an activity; do-support ("did I start") always carries a lexical verb, so absent a binding
+    word it is an activity too. Declining is the safe direction: the model lane keeps the turn.
+    """
+    for raw in _CLAUSE_WORD_RE.findall(rest)[:4]:
+        token = raw.casefold()
+        if token in _WORKSPACE_BINDING_WORDS:
+            return False
+        if len(token) > 4 and token.endswith(("ing", "ed")):
+            return True
+    return do_support
 
 
 # An overview asks what the project IS; identity asks WHICH one it is. "what is this project about"
@@ -1921,9 +1958,19 @@ _EVENT_TIME_RE = re.compile(
 # Each alternative requires `time` to be the thing being asked about: the head of an interrogative
 # ("what time", "what's the time"), determined as the clock ("current time", "local time"), or the
 # subject of a present-tense clock predicate ("time is it", "time now").
+#: `time` is the clock only as the HEAD of its noun phrase. When an open-class word follows it
+#: ("what time blocking methods", "what time capsule") `time` modifies that word, and the
+#: question is about the modified thing. Closed-class followers (copula/auxiliary, pronoun,
+#: preposition, deictic adverb) and "zone" leave `time` the head; later gates still decide event
+#: times ("what time did I ...").
+_TIME_IS_HEAD = (
+    r"time\b(?!\s+(?!(?:is|was|are|were|do|does|did|will|would|should|can|could|has|have|had|it|"
+    r"in|at|on|of|for|by|there|here|now|right|exactly|today|tonight|please|currently|zone|zones)\b)"
+    r"[a-z]+)"
+)
 _ASKS_TIME_RE = re.compile(
-    r"\bwhat(?:'?s| is| was)?\s+(?:the\s+)?(?:current\s+|local\s+|exact\s+)?time\b"
-    r"|\bwhat\s+time\b"
+    r"\bwhat(?:'?s| is| was)?\s+(?:the\s+)?(?:current\s+|local\s+|exact\s+)?" + _TIME_IS_HEAD +
+    r"|\bwhat\s+" + _TIME_IS_HEAD +
     r"|\b(?:current|local)\s+time\b"
     r"|\btime\s+(?:is\s+it|now|right\s+now)\b"
     r"|\b(?:tell|give)\s+me\s+(?:the\s+)?time\b"
@@ -2059,6 +2106,31 @@ def date_time_fast_path(
         or bool(contextual_timezone)
     )
     if not asks_date and not asks_time:
+        return None
+    # This lane answers questions ABOUT THE CLOCK. A past-event or habitual ask
+    # ("What time did I reach the clinic on Monday?", "What time do I usually
+    # leave for work?") shares the words "what time" with a clock question and
+    # asks for something else entirely: the time of an event the runtime can
+    # only know from history. Measured on the frozen base e821457d: that
+    # clinic question was claimed here and answered "Current time is 13:40
+    # EEST." (LME case q051a848) -- a confident, deterministic, wrong answer
+    # with no path to the conversation's own record of the arrival.
+    #
+    # The decline is owned by `core.temporal_question_scope`, whose signals are
+    # grammatical constructions rather than topic words, so "What was the date I
+    # moved to Berlin?" falls with it while "What time is it now?" -- same
+    # vocabulary, present reference -- stays claimed. The scope is read off
+    # `base`, the sentence with any RELATIVE OFFSET already stripped: "what
+    # time was it 2 hrs ago in Berlin?" is clock arithmetic this lane owns --
+    # the offset phrase is the question's own shift of the clock, not a past
+    # event -- while "what time did the ferry leave 2 hours ago?" still carries
+    # its event interrogative in `base` and declines. A question that ALSO
+    # carries a current anchor ("I landed at 9. What time is it now?") keeps
+    # this lane for its current half; the scope owner's `past_only` is False
+    # exactly then.
+    from core.temporal_question_scope import question_time_scope
+
+    if question_time_scope(base).past_only:
         return None
     # MULTI-CITY: the ask names several places and wants each of their clocks.
     # Measured live 2026-08-29 (watch session 2026-08-29T1150Z): "what time is

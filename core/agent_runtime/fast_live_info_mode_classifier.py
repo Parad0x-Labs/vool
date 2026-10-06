@@ -47,7 +47,15 @@ _WEATHER_LIVE_REQUEST_RE = re.compile(
     # Berlin and Copenhagen" was measured to miss this pattern entirely (fell through to the
     # model, which hallucinated or stalled) because the original pattern required the preposition
     # immediately after the subject word with no filler allowed.
-    rf"(?:{_WEATHER_WORD}|forecast|temperature|humidity|sunrise|sunset)\s+(?:only\s+|just\s+|specifically\s+)?"
+    #
+    # Directional/locative particles ("up", "down", "out") sit in exactly that slot in natural
+    # speech and were the same miss one more time: V's frozen corpus (first candidate run on
+    # the amended head, 2026-09-29, case F15-04) -- "What's the temperature up at the lookout
+    # right now?" -- read False here, classified GROUNDED instead of LIVE_DATA, and a stored 18
+    # August reading shipped as the current temperature. Closed particle class, not topic
+    # vocabulary. Adopted from the old role's ready repair 327b017f after reproducing its
+    # target on this head.
+    rf"(?:{_WEATHER_WORD}|forecast|temperature|humidity|sunrise|sunset)\s+(?:only\s+|just\s+|specifically\s+|up\s+|down\s+|out\s+)?"
     r"(?:in|for|at|like|around|over|today|tomorrow|tonight|now|currently|this\s+(?:morning|afternoon|evening|weekend))"
     # `wether` is admitted HERE and only here: this branch requires the subject word be followed
     # by a preposition and a place, and in that frame ("wether in Rome") the weather reading is

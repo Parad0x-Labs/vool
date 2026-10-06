@@ -278,6 +278,8 @@ def _retrieval_prohibited_requirements(
     all_tools: bool,
     live_data: bool,
     extra_reasons: tuple[str, ...] = (),
+    past_only: bool = False,
+    current_input_only: bool = False,
 ) -> ExecutionRequirements:
     """A current fact may be unavailable when the user forbids the only permitted evidence lane.
 
@@ -285,16 +287,24 @@ def _retrieval_prohibited_requirements(
     explicitly prohibited them recreates the exact conflict that caused the forbidden fetch.  It
     is also not permission to infer a current value.  The ordinary reasoning lane receives the
     user's words and can explain that limitation, but no retrieval lane is eligible to pre-empt it.
+
+    ``past_only`` keeps the current-value law for PRESENT asks and withdraws it for
+    historically-anchored ones: a past question the user forbade looking up is answered from
+    supplied history or not at all -- there is no CURRENT value it could be tempted to invent.
     """
 
     reasons = ["explicit_tool_prohibition" if all_tools else "explicit_retrieval_prohibition"]
     if live_data:
         reasons.append("live_data_toolset_prohibited")
     reasons.extend(extra_reasons)
+    if past_only:
+        reasons.append("historically_anchored_not_current")
+    if current_input_only:
+        reasons.append("current_input_frame_not_observation")
     return ExecutionRequirements(
         answer_mode="DIRECT",
         external_evidence_required=False,
-        current_information_required=True,
+        current_information_required=not (past_only or current_input_only),
         user_material_supplied=supplied,
         tools_required=False,
         allowed_toolsets=(),
@@ -332,6 +342,25 @@ def classify_requirements(
     computation alone; it cannot widen, freeze or escalate a turn.
     """
     return _compute_requirements(user_input, task_class=task_class, source_context=None)
+
+
+def _current_evidence_toolsets(text: str) -> tuple[str, ...]:
+    """Where the evidence for a current-information ask lives.
+
+    The web, unless the ask names the workspace and asks what files it holds. "Which files in my
+    workspace are markdown right now?" reads as current information ("right now") and was offered
+    only `web.*` tools (measured on 9adff83, 2026-10-06): nothing could observe the workspace, so the
+    turn ended in the no-sources refusal. The workspace IS the source there, so its read family is
+    seated ahead of the web lanes, the same set the audit branch above already offers.
+    """
+    try:
+        from core.agent_runtime.workspace_intent_detection import asks_to_list_the_bound_workspace
+
+        if asks_to_list_the_bound_workspace(text):
+            return ("workspace", "web_search", "web_fetch")
+    except Exception:
+        pass
+    return ("web_search", "web_fetch")
 
 
 def requirements_for(
@@ -717,6 +746,21 @@ def _compute_requirements(
             inference_allowed=True,
             reason_codes=("user_stipulated_frame",),
         )
+    # A question anchored to a PAST state or a habit is not asking for a present
+    # observation. Measured on the frozen base e821457d: the tenure question
+    # "How long have I been working before I started my current job at Google?"
+    # classified GROUNDED with current_information_required=True, and the
+    # unsourced-current guard withdrew a correct memory-backed "about 6 years"
+    # as a fabricated reading (LME q7db408b). External evidence may still be
+    # required below -- "current" and "external" are different contracts, and
+    # only the former is withdrawn here. Mixed questions (past AND current
+    # anchors) keep their current requirements for their current half; the one
+    # authority for this decision is `core.temporal_question_scope`.
+    from core.temporal_question_scope import question_time_scope
+
+    time_scope = question_time_scope(text)
+    past_only = time_scope.past_only
+    current_input_only = time_scope.current_input_only
     constraints = analyze_retrieval_constraints(text)
     # P0 POLICY CONSERVATION — a child sub-turn runs a CLEAN SLICE of a turn
     # whose parent may have frozen prohibitions elsewhere in the message; the
@@ -772,6 +816,8 @@ def _compute_requirements(
         ):
             authoring_request = False
     reasons: list[str] = []
+    if current_input_only:
+        reasons.append("current_input_frame_not_observation")
 
     normalized_class = str(task_class or "unknown").strip().lower()
     if normalized_class in {"workspace_audit"} and mode is not AnswerMode.AUDIT_GRADE:
@@ -902,7 +948,13 @@ def _compute_requirements(
             reason_codes=tuple(reasons),
         )
 
-    live_data = None if authoring_request else _live_data_classification(text)
+    # A live instrument reads the PRESENT. A past-anchored market/weather ask
+    # ("What was the BTC price at its 2021 peak?") classified LIVE_DATA on the
+    # base and was answered with the CURRENT reading by the wrong instrument;
+    # history is a research question, so the classification declines it and the
+    # ordinary grounded path owns it. Mixed questions keep `past_only == False`
+    # and keep this lane for their current half.
+    live_data = None if (authoring_request or past_only) else _live_data_classification(text)
     if live_data is None:
         # A bare continuation of a live-data turn IS that turn's request again. Measured live:
         # "and?" / "well?" / "what about now" after a grounded weather answer all fell through to
@@ -957,7 +1009,11 @@ def _compute_requirements(
     # Ask the same classifier once against only the positive candidate text.  If it recognizes a
     # live request there but the constrained call above did not, every matching live toolset was
     # explicitly vetoed.  That conflict must resolve to no tool and no invented current value.
-    unrestricted_live_data = _live_data_classification(candidate_text) if constraints.has_prohibition else None
+    unrestricted_live_data = (
+        _live_data_classification(candidate_text)
+        if constraints.has_prohibition and not past_only
+        else None
+    )
     if unrestricted_live_data is not None and all(
         constraints.forbids(toolset) for toolset in unrestricted_live_data[2]
     ):
@@ -975,15 +1031,19 @@ def _compute_requirements(
                 all_tools=constraints.forbids_all_tools,
                 live_data=False,
                 extra_reasons=_conservation_reasons,
+                past_only=past_only,
+                current_input_only=current_input_only,
             )
         reasons.append("request_promises_evidence")
+        if past_only:
+            reasons.append("historically_anchored_not_current")
         return ExecutionRequirements(
             answer_mode="GROUNDED",
             external_evidence_required=True,
-            current_information_required=True,
+            current_information_required=not (past_only or current_input_only),
             user_material_supplied=supplied,
             tools_required=True,
-            allowed_toolsets=("web_search", "web_fetch"),
+            allowed_toolsets=_current_evidence_toolsets(candidate_text),
             inference_allowed=not no_guessing,
             reason_codes=tuple(reasons),
         )
@@ -1046,6 +1106,38 @@ def _compute_requirements(
     world_facts = bool(requests_world_facts(text)) and not message_supplies_data
     if world_facts:
         reasons.append("world_facts_requested")
+    # The amount-ask exception to the DIRECT fallthrough: a question whose ask-shape is an
+    # amount/count of something AND which the temporal authority anchors to the present is
+    # asking for a CURRENT observation even though no retrieval lane can produce one (a
+    # private stock level is not on the web). Before this, such a question read
+    # stable_knowledge with current_information_required=False and the unsourced-current
+    # guard had no jurisdiction: measured on the frozen head 9174b42c (V corpus F15-05,
+    # 2026-09-29), "How much graded gravel is in the quarry yard at the moment?" was answered
+    # by the plain chat route with an invented "12,400 tonnes ... at the moment" that shipped
+    # unchanged -- while the SAME question phrased "right now" was already guarded, a marker
+    # drift between this module's currency markers and the temporal authority's closed
+    # anchor class. The repair is on the ASK (interrogative head + temporal anchor, never a
+    # subject list): the turn keeps its DIRECT mode and no forced tools -- the truthful
+    # outcome is the guard's own notice when nothing was observed, not a doomed web search
+    # for a private quantity.
+    from core.temporal_question_scope import question_time_scope as _scope_for_amount
+    from core.unsourced_current_claim import question_asks_for_measured_amount
+
+    amount_ask = question_asks_for_measured_amount(text)
+    present_anchored = amount_ask and _scope_for_amount(text).asks_current and not past_only
+    if present_anchored and not _is_about_the_assistant_ask(text):
+        return ExecutionRequirements(
+            answer_mode="DIRECT",
+            external_evidence_required=False,
+            current_information_required=True,
+            user_material_supplied=supplied,
+            tools_required=False,
+            allowed_toolsets=(),
+            inference_allowed=True,
+            reason_codes=tuple(
+                [*reasons, "present_anchored_measured_amount"],
+            ),
+        )
     return ExecutionRequirements(
         answer_mode="DIRECT",
         external_evidence_required=False,
@@ -1154,6 +1246,20 @@ def asked_text(text: str) -> str:
     if len(kept) == len(units):
         return value
     return "\n".join(kept)
+
+
+def _is_about_the_assistant_ask(text: str) -> bool:
+    """An amount question whose subject is the assistant is not a world observation ask.
+
+    "How much do you know about X at the moment?" carries every amount-ask marker and is a
+    question about this assistant's own state -- the same carve-out `answer_mode_for` applies
+    to its currency markers, from the same owner (`core.agent_runtime.grounded_mode`), reused
+    rather than restated so the two cannot drift.
+    """
+
+    from core.agent_runtime.grounded_mode import _is_about_the_assistant
+
+    return _is_about_the_assistant(" ".join(str(text or "").split()))
 
 
 def _user_material_supplied(source_context: dict[str, Any] | None) -> bool:

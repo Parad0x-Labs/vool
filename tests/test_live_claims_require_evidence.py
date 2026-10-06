@@ -256,7 +256,9 @@ def test_sabotage_blinding_the_detector_recommits_the_fabrication(
 ) -> None:
     import core.agent_runtime.response as response_module
 
-    monkeypatch.setattr(response_module, "unobserved_live_value_claims", lambda _text: ())
+    # **_kw: the seam passes the current turn's user text through (the user-fact
+    # exemption); the sabotage blinds the detector itself either way.
+    monkeypatch.setattr(response_module, "unobserved_live_value_claims", lambda _text, **_kw: ())
     assert _validate_final_chat_output(FABRICATED_REPLY, source_context={}) == FABRICATED_REPLY
 
 

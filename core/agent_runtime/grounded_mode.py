@@ -20,11 +20,13 @@ breakdown, or a scientific constant nobody publishes to the requested precision.
 
 Why a keyword detector is acceptable HERE
 -----------------------------------------
-Three hand-tuned word rules were reverted earlier in this work because they decided *what a request
-meant* and got it wrong in both directions. This one only decides whether to spend MORE care. A
-false positive costs a slower, better-evidenced answer; a false negative is exactly today's
-behaviour. Wrong in either direction, it cannot fabricate -- which is the asymmetry that makes the
-list defensible here and not inside a split.
+Care-level markers do not all request a fresh observation. The temporal authority scopes a
+CURRENT modifier inside an ordinary proposal's input argument before it promotes the request:
+"suggest accessories for my current setup" uses remembered background, while "their prices today"
+still asks for fresh world information. False positives can wrongly withdraw a useful answer when
+a current-value guard consumes the resulting requirements, so this distinction is part of the
+contract rather than an assumption that additional grounding is harmless. Unknown constructions
+retain the conservative care-level reading; explicit evidence promises remain GROUNDED.
 
 The claim contract
 ------------------
@@ -436,7 +438,9 @@ def answer_mode_for(request: str) -> AnswerMode:
         return AnswerMode.GROUNDED
     if _matches(text, _ASKS_FOR_A_BREAKDOWN):
         return AnswerMode.GROUNDED
-    if _matches(text, _WANTS_CURRENT) and not _is_about_the_assistant(text):
+    from core.temporal_question_scope import current_observation_text
+
+    if _matches(current_observation_text(text), _WANTS_CURRENT) and not _is_about_the_assistant(text):
         # Currency alone means "go and look" only when the subject is the WORLD. "what is your
         # current mood right now" carries every currency marker and is a question about the
         # assistant -- measured 2026-08-06, it opened the tool loop and tripped a gauntlet gate
