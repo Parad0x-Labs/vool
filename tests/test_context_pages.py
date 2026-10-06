@@ -178,11 +178,6 @@ def test_manual_pins_are_honored_by_the_residency_law():
 def test_unverified_bytes_are_never_served_by_page_in():
     # Tamper with the CAS behind a page's back: the served address must go
     # loud instead of handing back confidently wrong evidence.
-    # Amendment (CAS verify-on-read repair): the tampered chunk is now refused
-    # one layer deeper — storage.cas.get_bytes verifies each chunk against its
-    # address and returns None, so page_in raises its unavailable-page refusal
-    # instead of its own hash-verification message. The pinned guarantee is
-    # unchanged: tampered bytes are never served, and the miss is loud.
     import hashlib
 
     from storage.chunk_store import chunk_root
@@ -196,12 +191,7 @@ def test_unverified_bytes_are_never_served_by_page_in():
     original = chunk_path.read_bytes()
     try:
         chunk_path.write_bytes(original + b' "corruption": true}')
-        from storage.cas import get_bytes
-
-        assert get_bytes(hashlib.sha256(canonical).hexdigest()) is None, (
-            "the CAS itself must refuse the tampered chunk"
-        )
-        with pytest.raises(PageNotFoundError):
+        with pytest.raises(PageNotFoundError, match="hash verification"):
             page_in(page.page_hash)
     finally:
         chunk_path.write_bytes(original)

@@ -126,7 +126,8 @@ def test_memory_qa_turn_drops_bootstrap_that_does_not_bear_on_the_question(monke
     # The parent assembly carried every one of these on this turn.
     assert "The USER's name" in full
     assert "Session sharing" in full
-    assert "OpenClaw tool doctrine" in full
+    # main gates the tool doctrine by relevance (core.bootstrap_context._turn_needs_tool_doctrine), so a
+    # recall turn never assembles it in the first place; what this test pins is that it is not delivered.
     assert "Summary:" in full
 
     delivered = _bootstrap_message(request)
@@ -137,7 +138,7 @@ def test_memory_qa_turn_drops_bootstrap_that_does_not_bear_on_the_question(monke
     assert "Summary:" not in delivered
     # What stays: identity, safety, conversation policy, the task class itself.
     assert "Agent identity" in delivered
-    assert "Execution default" in delivered
+    assert "Operating mode" in delivered  # main's name for the safety item's execution line
     assert "Conversation policy" in delivered
     assert "Task class: chat_conversation" in delivered
     assert len(delivered) < len(full)

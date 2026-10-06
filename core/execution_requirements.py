@@ -1072,7 +1072,9 @@ def _compute_requirements(
     # quoted demands and every pasted line keep the as-written clause boundaries above.
     _example_stripped = _strip_reported_examples(asked_text(str(user_input or "")) if not constraints.has_prohibition else asked_text(candidate_text))
     signals = firing_signals(_example_stripped)
-    if signals and not _is_about_the_assistant(candidate_text) and not authoring_request:
+    # A historically anchored ask, or one whose numbers are the current input the user supplied, is
+    # not a request for a present observation: the same exemptions the live-data lane honours above.
+    if signals and not (past_only or current_input_only) and not _is_about_the_assistant(candidate_text) and not authoring_request:
         signal_codes = tuple(f"{SIGNAL_REASON_PREFIX}{signal.reason_code}" for signal in signals)
         if constraints.forbids_external_retrieval:
             # The user vetoed the only evidence lane: the requirement still stands

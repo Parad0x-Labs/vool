@@ -117,6 +117,9 @@ def main() -> int:
                 }
             )
             return _REAL_POST(url, **kwargs)
+        _systems = [str(m.get("content") or "") for m in (payload or {}).get("messages", []) if m.get("role") == "system"]
+        if any(x.lstrip().startswith("You decide whether one user question turns on an entity") for x in _systems):
+            return _ScriptedResponse({"choices": [{"message": {"content": json.dumps({"ambiguous": False, "referents": [], "clarification": ""})}, "finish_reason": "stop"}], "model": PROVIDER_MODEL, "usage": {"prompt_tokens": 0, "completion_tokens": 0}})
         calls.append(
             {
                 "method": "POST",
@@ -153,13 +156,16 @@ def main() -> int:
 
     requests.post = _sink_post  # type: ignore[assignment]
     requests.get = _sink_get  # type: ignore[assignment]
+    import core.provider_http as _provider_http
+    _provider_http.post = _sink_post
+    _provider_http.get = _sink_get
 
     # Observe the returned vector-space stamp, rather than guessing the model
     # from an open port. The wrapper returns the original vector unchanged.
     import core.embedding_service as embedding_service
     import core.context_retrieval as context_retrieval
 
-    assert embedding_service._OLLAMA_BASE == "http://127.0.0.1:11434"
+    from core.ollama_endpoint import ollama_base_url as _obu; assert _obu() == "http://127.0.0.1:11434", _obu()
     embedding_receipts: list[dict] = []
     original_embed_stamped = embedding_service.embed_stamped
 
@@ -231,6 +237,8 @@ def main() -> int:
             "metadata": {"orchestration_role": "drone"},
         }
     )
+    from tests._authorship_certification import certify_for_authorship
+    certify_for_authorship(manifest)
 
     # --- the agent under its real served path --------------------------------
     from apps.vool_agent import VoolAgent

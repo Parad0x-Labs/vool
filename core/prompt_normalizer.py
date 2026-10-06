@@ -661,7 +661,7 @@ def _build_conversational_request(
         ])
     else:
         tooling_guidance = _tooling_guidance(has_openclaw_tools=has_openclaw_tools)
-        from core.capability_graph import capability_hint_from_task_class, family_hint_from_task_class
+        from core.capability_graph import family_hint_from_task_class
         _tct_family_hint = family_hint_from_task_class(task_class)
         tool_catalog_guidance = (
             _tool_intent_catalog_text(

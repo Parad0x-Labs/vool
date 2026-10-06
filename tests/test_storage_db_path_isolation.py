@@ -24,6 +24,8 @@ def isolated_paths(monkeypatch):
     with tempfile.TemporaryDirectory() as tmp:
         fake_base = str(Path(tmp) / "never" / "created" / "web0.db")
         monkeypatch.setattr(db, "DEFAULT_DB_PATH", fake_base)
+        # main recognises "the default database" by its import-frozen sentinel, so the fake base is that too
+        monkeypatch.setattr(db, "_FROZEN_DEFAULT_DB_PATH", str(Path(fake_base).expanduser().resolve()))
         # clear caches so the patched constant is used
         db._resolve_db_path_cached.cache_clear()
         db._resolve_db_path_no_create.cache_clear()

@@ -65,7 +65,7 @@ def test_first_complete_reader_reply_is_not_retried_or_clipped():
     router=MemoryFirstRouter(registry=mock.Mock());router.registry.build_adapter.return_value=adapter
     policy=ordinary_chat_output_policy(prompt_profile="chat_minimal",output_mode="plain_text",user_text=PROMPT)
     req=ModelRequest(task_kind="conversation",prompt=PROMPT,messages=[{"role":"user","content":PROMPT}],output_mode="plain_text",max_output_tokens=320,metadata={"ordinary_chat_output_policy":policy,"defer_stream_until_verified":True})
-    with mock.patch("core.memory_first_router.should_probe_health",return_value=False),mock.patch("core.memory_first_router.circuit_is_open",return_value=False):
+    with mock.patch("core.memory_first_router.should_probe_health",return_value=False),mock.patch("core.final_answer_authorship.precall_author_verdict",return_value=None),mock.patch("core.memory_first_router.circuit_is_open",return_value=False):
         _,reply,error=router._invoke_manifest(manifest=_manifest(local=True),request=req,output_mode="plain_text",task=SimpleNamespace(task_id="counted-info"),source_context={})
     assert error is None and reply is not None
     assert reply.output_text==RAW

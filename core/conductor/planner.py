@@ -2518,6 +2518,7 @@ def plan_conductor_turn(
     plan, a graph that is not a DAG -- still yields None.
     """
     from core.agent_runtime.turn_planner import (
+        _subject_without_answer_frame,
         recall_question_needs_no_planner,
         turn_may_hold_several_requests,
     )
@@ -2668,6 +2669,26 @@ def plan_conductor_turn(
     # which is strictly better than emitting a page of "could not".
     if all(node.operation == UNRESOLVED_OPERATION for node in plan.nodes):
         return None
+    # Answer directives are not requests (the conductor prompt says so itself). A turn that wraps
+    # one question in directives ("Answer using the imported prior conversations. ... Give a concise
+    # final answer. <question>") came back as the question plus an unresolved node for the
+    # directives, and the conductor's knowledge node answers without the chat's memory records, so
+    # a recall question the ordinary path answers from those records shipped "I don't know" beside
+    # a "Could not be answered" row for the instructions (measured 2026-10-06 on the memory port's
+    # official-150 parity run). Nodes that only restate the directives do not count as requests.
+    subject = _subject_without_answer_frame(original)
+    if subject.strip() and subject.strip() != original:
+        subject_key = " ".join(subject.lower().split())
+        requests = [
+            node
+            for node in plan.nodes
+            if not (
+                node.operation == UNRESOLVED_OPERATION
+                and " ".join(str(node.request_text or "").lower().split()) not in subject_key
+            )
+        ]
+        if len(requests) < 2 and not single_computation:
+            return None
     # NOT extended to "a plan that serves a MINORITY of the turn". That extension was built and
     # measured on 2026-09-09, and it made the reader's outcome WORSE, so it is recorded here rather
     # than kept. It routed acceptance turn 18 exactly as intended -- the turn left the conductor for
