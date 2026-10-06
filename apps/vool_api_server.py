@@ -583,6 +583,9 @@ def main() -> int:
     from core.unattended_preflight import preflight
 
     preflight("apps.vool_api_server")
+    from core.runtime_provider_defaults import apply_product_runtime_defaults
+
+    apply_product_runtime_defaults()
     # Environment conformance (P0 release proof 2026-09-05): an under-installed
     # runtime must fail HERE — typed, naming the missing module and the repair —
     # never as a mid-request HTTP 500 from the command registry's import closure

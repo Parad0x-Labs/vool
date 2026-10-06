@@ -124,6 +124,9 @@ def main() -> int:
     from core.unattended_preflight import preflight
 
     preflight('apps.vool_chat')
+    from core.runtime_provider_defaults import apply_product_runtime_defaults
+
+    apply_product_runtime_defaults()
     args = build_parser().parse_args()
     try:
         agent = _bootstrap_agent(persona_id=str(args.persona), device=str(args.device))
