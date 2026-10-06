@@ -491,12 +491,32 @@ def fence_spawned_daemons_from_live_ollama():
         joined = " ".join(str(part) for part in parts)
         return "vool_api_server" in joined or "launch_daemon" in joined or "vool_daemon" in joined
 
+    # The daemon's INTERNET is fenced the same way, through the proxy every HTTP client in the
+    # daemon honours (urllib's ProxyHandler, requests): a dead proxy, with loopback exempt so the
+    # rig's own stubs and the daemon's API still answer. Measured 2026-10-06 with a refusing,
+    # recording proxy over 136 price/market test files: 41 outbound requests, every one from a
+    # served daemon -- api.coingecko.com, query1.finance.yahoo.com, search.yahoo.com,
+    # search.brave.com, api.duckduckgo.com, openrouter.ai -- from the release conversation
+    # gauntlet, the gold-then-car served turn and the served code-task ingress tests. Their results
+    # then depended on what those services returned that minute (a CoinGecko 429 flipped
+    # price tests on the owner's Mac). Set, not setdefault: a launcher that copies os.environ would
+    # otherwise hand the daemon the developer's or CI's real proxy. VOOL_ALLOW_LIVE_NETWORK_TESTS=1
+    # opts out for deliberate live acceptance runs.
+    _child_network_fence = {
+        "HTTPS_PROXY": _dead, "https_proxy": _dead, "HTTP_PROXY": _dead, "http_proxy": _dead,
+        "ALL_PROXY": _dead, "all_proxy": _dead,
+        "NO_PROXY": "127.0.0.1,localhost,::1", "no_proxy": "127.0.0.1,localhost,::1",
+    }
+    _fence_child_network = os.environ.get("VOOL_ALLOW_LIVE_NETWORK_TESTS") != "1"
+
     class _FencedPopen(_real_popen):  # type: ignore[misc,valid-type]
         def __init__(self, args, *popen_args, **kwargs):
             if _spawns_a_vool_daemon(args):
                 env = dict(kwargs.get("env") if kwargs.get("env") is not None else os.environ)
                 for name, value in _child_endpoints.items():
                     env.setdefault(name, value)
+                if _fence_child_network:
+                    env.update(_child_network_fence)
                 kwargs["env"] = env
             super().__init__(args, *popen_args, **kwargs)
 
@@ -547,6 +567,29 @@ def block_live_local_ollama_under_pytest(monkeypatch):
         yield
     finally:
         network_seal.release(token)
+
+
+@pytest.fixture(autouse=True)
+def coin_index_cache_is_per_test(monkeypatch, tmp_path_factory, request):
+    """The CoinGecko rank index may not carry from one test, or one process, into another.
+
+    `tools.web.coin_index` keeps the index in a module global and in
+    `<VOOL_HOME>/cache/coingecko_rank_index.json`. Under pytest VOOL_HOME is ONE directory for the
+    whole session, inherited by every daemon a served test spawns -- and a daemon is a separate
+    process with no in-process network guard, so it can fetch the live index and write it there.
+    Every later in-process test then read the live top 250 back from disk, and the result depended
+    on what CoinGecko listed that day: Rain at rank 19 (2026-10-06) turned "write a rhyme about
+    rain" into an asset in test_semantic_claim_authority.py, and a 429 flipped others. Each test
+    now starts with an empty memory cache and a private, initially absent cache file; tests that
+    need an index pin one explicitly.
+    """
+    from tools.web import coin_index
+
+    private = tmp_path_factory.getbasetemp() / "coin-index" / f"{abs(hash(request.node.nodeid)):x}.json"
+    monkeypatch.setattr(coin_index, "_cache_path", lambda: private)
+    coin_index.reset_cache_for_test()
+    yield
+    coin_index.reset_cache_for_test()
 
 
 @pytest.hookimpl(tryfirst=True)

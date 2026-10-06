@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -33,6 +34,20 @@ from core.task_router import classify, create_task_record, redact_text
 from core.tool_intent_executor import ToolIntentExecution
 from core.user_preferences import maybe_handle_preference_command
 from storage.migrations import run_migrations
+
+_REAL_GETADDRINFO = socket.getaddrinfo
+
+
+def _example_com_resolves_publicly(host, *args, **kwargs):
+    """The download fast path's SSRF check resolves the URL's host before fetching. The fetch is
+    faked in these tests, but the resolution reached real DNS, so with no network the guard
+    (correctly) refused example.com and the tests failed. Answer it with example.com's documented
+    public address; the guard still runs and still rejects private or loopback answers."""
+    if str(host or "").lower() == "example.com":
+        import socket as _socket
+
+        return [(_socket.AF_INET, _socket.SOCK_STREAM, _socket.IPPROTO_TCP, "", ("93.184.215.14", 0))]
+    return _REAL_GETADDRINFO(host, *args, **kwargs)
 
 # Auto deliberately stops to ask before OVERWRITING an existing file (see
 # tests/test_mode_permission_policy.py::test_manual_review_and_auto_have_distinct_real_effects).
@@ -4378,7 +4393,9 @@ class OpenClawToolingContextTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir, mock.patch("core.runtime_execution_tools.Path.home", return_value=Path(tmpdir)), mock.patch(
             "core.agent_runtime.fast_paths_machine.Path.home",
             return_value=Path(tmpdir),
-        ), mock.patch("core.agent_runtime.fast_paths_machine.urllib_request.urlopen", return_value=_FakeResponse()), mock.patch.dict(
+        ), mock.patch("core.agent_runtime.fast_paths_machine.urllib_request.urlopen", return_value=_FakeResponse()), mock.patch(
+            "core.null_dial.socket.getaddrinfo", side_effect=_example_com_resolves_publicly
+        ), mock.patch.dict(
             os.environ,
             {"HOME": tmpdir},
             clear=False,
@@ -4428,7 +4445,9 @@ class OpenClawToolingContextTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir, mock.patch("core.runtime_execution_tools.Path.home", return_value=Path(tmpdir)), mock.patch(
             "core.agent_runtime.fast_paths_machine.Path.home",
             return_value=Path(tmpdir),
-        ), mock.patch("core.agent_runtime.fast_paths_machine.urllib_request.urlopen", return_value=_FakeResponse()), mock.patch.dict(
+        ), mock.patch("core.agent_runtime.fast_paths_machine.urllib_request.urlopen", return_value=_FakeResponse()), mock.patch(
+            "core.null_dial.socket.getaddrinfo", side_effect=_example_com_resolves_publicly
+        ), mock.patch.dict(
             os.environ,
             {"HOME": tmpdir},
             clear=False,
@@ -4486,7 +4505,9 @@ class OpenClawToolingContextTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir, mock.patch("core.runtime_execution_tools.Path.home", return_value=Path(tmpdir)), mock.patch(
             "core.agent_runtime.fast_paths_machine.Path.home",
             return_value=Path(tmpdir),
-        ), mock.patch("core.agent_runtime.fast_paths_machine.urllib_request.urlopen", return_value=_FakeResponse()), mock.patch.dict(
+        ), mock.patch("core.agent_runtime.fast_paths_machine.urllib_request.urlopen", return_value=_FakeResponse()), mock.patch(
+            "core.null_dial.socket.getaddrinfo", side_effect=_example_com_resolves_publicly
+        ), mock.patch.dict(
             os.environ,
             {"HOME": tmpdir},
             clear=False,

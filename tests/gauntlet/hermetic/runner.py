@@ -65,6 +65,17 @@ def child_env(home: Path, *, port: int) -> dict[str, str]:
     env["VOOL_DAEMON_BIND_PORT"] = str(port)
     env["PYTHONPATH"] = str(PROJECT_ROOT)
     env.setdefault("PYTHONUNBUFFERED", "1")
+    # Hermetic means no internet. The child is a separate interpreter, so the parent's in-process
+    # network guards never reach it; measured 2026-10-06 with a refusing, recording proxy, gauntlet
+    # children called api.coingecko.com, search.yahoo.com, search.brave.com, api.duckduckgo.com and
+    # openrouter.ai. A dead proxy (loopback exempt, so the child's own stubs still answer) makes
+    # every proxy-honouring client in the child fail fast instead of reaching those services.
+    if os.environ.get("VOOL_ALLOW_LIVE_NETWORK_TESTS") != "1":
+        dead = "http://127.0.0.1:9"
+        loopback = "127.0.0.1,localhost,::1"
+        for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"):
+            env[name] = dead
+        env["NO_PROXY"] = env["no_proxy"] = loopback
     return env
 
 
