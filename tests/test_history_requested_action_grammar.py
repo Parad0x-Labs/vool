@@ -119,7 +119,7 @@ def test_information_never_reaches_media_capability_or_health_probes(monkeypatch
 def test_information_never_plans_directory_creation(monkeypatch, text: str) -> None:
     def forbidden(*args, **kwargs):
         pytest.fail("Information reached a machine write planner or executor")
-    monkeypatch.setattr(machine, "execute_runtime_tool", forbidden)
+    monkeypatch.setattr(machine, "execute_authorized_runtime_tool", forbidden)
     agent = SimpleNamespace(_plan_tool_workflow=forbidden)
     assert machine.maybe_handle_direct_machine_write_request(
         agent, text, session_id="history-intent", source_surface="api", source_context={},

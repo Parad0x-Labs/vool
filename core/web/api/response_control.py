@@ -311,6 +311,18 @@ def exact_response_target(user_text: str) -> str:
     if not literal_colon_form and not _explicitly_delimited_target(target_match):
         if _target_is_executable_demand(target):
             return ""
+        # EXACT constrains a requested deliverable; it does not supply that deliverable. An
+        # unquoted description of the output ("Output exactly a CSV row of the recorded values.")
+        # is model-owned: binding it would ship the description in place of the answer from the
+        # records. Only a marker-shaped token, or a cue that names its payload, binds here.
+        cue_names_payload = re.search(
+            r"\bexactly(?:\s+(?:this|the(?:\s+following)?)\s+(?:marker|text|string|phrase|token|word))?"
+            r"(?:\s+and\s+(?:nothing\s+else|no\s+other\s+text|no\s+extra\s+text|no\s+extra\s+characters))?\s*:",
+            str(user_text or ""),
+            re.IGNORECASE,
+        )
+        if not (cue_names_payload or re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,79}", target)):
+            return ""
     return target
 
 

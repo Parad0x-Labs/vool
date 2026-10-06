@@ -28,8 +28,9 @@ def test_served_reality_case_binds_and_serves_only_the_payload() -> None:
     assert _bound_literal(SERVED_CASE) == "VERBATIM-PROOF-2291"
     served = apply_exact_response_control({"response": "VERBATIM-PROOF-2291"}, SERVED_CASE)
     assert served["response"] == "VERBATIM-PROOF-2291"
-    # The overwrite never happens: a boundary that rewrote would leave its marker behind.
-    assert "response_control" not in served
+    # The overwrite never happens. The marker records the bound literal contract for the guards
+    # downstream, and says separately whether this boundary changed anything.
+    assert served["response_control"]["changed"] is False
 
 
 def test_a_wrong_model_answer_is_replaced_by_the_typed_bytes_not_cue_residue() -> None:

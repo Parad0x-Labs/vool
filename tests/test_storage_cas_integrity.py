@@ -23,6 +23,7 @@ import pytest
 
 import storage.chunk_store as chunk_store
 from storage.cas import get_bytes, put_bytes
+from storage.cas_integrity import CasCorruptionError
 from storage.manifest_store import load_manifest, save_manifest
 
 
@@ -30,7 +31,7 @@ from storage.manifest_store import load_manifest, save_manifest
 def cas_root(tmp_path, monkeypatch):
     root = tmp_path / "cas_chunks"
     root.mkdir()
-    monkeypatch.setattr(chunk_store, "CHUNK_ROOT", root)
+    monkeypatch.setattr(chunk_store, "chunk_root", lambda: root)
     return root
 
 
@@ -67,7 +68,8 @@ def test_corrupted_chunk_file_is_never_served(cas_root):
     original = path.read_bytes()
     try:
         path.write_bytes(original + b" tampered tail")
-        assert get_bytes(manifest["blob_hash"]) is None
+        with pytest.raises(CasCorruptionError):
+            get_bytes(manifest["blob_hash"])
     finally:
         path.write_bytes(original)
 
@@ -79,7 +81,8 @@ def test_truncated_chunk_file_is_never_served(cas_root):
     original = path.read_bytes()
     try:
         path.write_bytes(original[: len(original) // 2])  # a torn write
-        assert get_bytes(manifest["blob_hash"]) is None
+        with pytest.raises(CasCorruptionError):
+            get_bytes(manifest["blob_hash"])
     finally:
         path.write_bytes(original)
 
@@ -91,7 +94,8 @@ def test_load_chunk_verifies_the_address(cas_root):
     original = path.read_bytes()
     try:
         path.write_bytes(b"different body at the same address")
-        assert chunk_store.load_chunk(chunk_hash) is None
+        with pytest.raises(CasCorruptionError):
+            chunk_store.load_chunk(chunk_hash)
     finally:
         path.write_bytes(original)
     assert chunk_store.load_chunk(chunk_hash) == data
@@ -116,7 +120,8 @@ def test_manifest_describing_a_different_blob_is_rejected(cas_root):
     foreign = dict(manifest)
     foreign["blob_hash"] = hashlib.sha256(b"a different blob").hexdigest()
     save_manifest(meta_manifest_id, foreign["blob_hash"], foreign)
-    assert get_bytes(manifest["blob_hash"]) is None
+    with pytest.raises(CasCorruptionError):
+        get_bytes(manifest["blob_hash"])
 
 
 def test_manifest_total_bytes_mismatch_is_rejected(cas_root):
@@ -125,7 +130,8 @@ def test_manifest_total_bytes_mismatch_is_rejected(cas_root):
     lying = dict(load_manifest(manifest["manifest_id"]))
     lying["total_bytes"] = len(payload) + 512
     save_manifest(manifest["manifest_id"], manifest["blob_hash"], lying)
-    assert get_bytes(manifest["blob_hash"]) is None
+    with pytest.raises(CasCorruptionError):
+        get_bytes(manifest["blob_hash"])
 
 
 # -- atomic publication and torn-chunk recovery -------------------------------------------------
@@ -157,6 +163,7 @@ def test_full_blob_recovery_after_chunk_corruption(cas_root):
     first_hash = manifest["chunk_hashes"][0]
     path = cas_root / first_hash[:2] / first_hash[2:4] / first_hash
     path.write_bytes(b"corrupted incumbent bytes")
-    assert get_bytes(manifest["blob_hash"]) is None
+    with pytest.raises(CasCorruptionError):
+        get_bytes(manifest["blob_hash"])
     repaired = put_bytes(payload, chunk_size=64)
     assert get_bytes(repaired["blob_hash"]) == payload

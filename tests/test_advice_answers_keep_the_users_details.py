@@ -145,14 +145,13 @@ def test_an_advice_rewrite_keeps_the_users_own_detail() -> None:
 
     response, adapter = _invoke(policy, ADVICE_TURN, [DRAFT, REWRITE])
 
-    assert adapter.run_text_task.call_count == 2
-    instruction = adapter.run_text_task.call_args_list[1].args[0].prompt
-    assert "earlier turn" not in instruction
-    assert "earlier opaque codes" not in instruction
-    assert "Keep the details from the user's own context that make this answer fit them." in instruction
-    assert "at most 140 words" in instruction
+    # On main default brevity is advisory (core.memory_first_router: brevity_advisory), so an
+    # over-length advice draft is never sent back for a rewrite: the draft that names the user's
+    # own detail ships whole in one call. The rewrite instruction itself is pinned by the
+    # ordinary_chat_retry_instruction tests below.
+    assert adapter.run_text_task.call_count == 1
     assert FACT in response.output_text
-    assert response.output_text == REWRITE
+    assert response.output_text == DRAFT
 
 
 def test_the_earlier_code_sentence_is_sent_only_when_the_chat_holds_one() -> None:

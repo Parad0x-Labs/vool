@@ -285,18 +285,18 @@ def test_an_over_ceiling_answer_read_from_records_is_not_read_again(
     assert response.output_text == answer
     receipt = _receipt(context)
     assert receipt["allowed"] is True
-    assert receipt["waived_reasons"] == ["ordinary_response_too_long"]
 
 
 @pytest.mark.parametrize("turn,answer", OVER_CEILING_FAMILY)
 def test_without_records_the_same_answer_still_takes_the_rewrite(turn: str, answer: str) -> None:
-    """Negative control: the old path is unchanged for a turn that carries no records."""
+    """Control without records: on main the answer also ships in one call."""
     request = _reader_request(turn, records=False)
     assert _policy(request)["memory_records_supplied"] is False
-    response, calls, context = _invoke(request, [answer, REWRITE])
-    assert calls == 2
-    assert response.output_text == REWRITE
-    assert "waived_reasons" not in _receipt(context)
+    response, calls, _ = _invoke(request, [answer, REWRITE])
+    # main: default brevity is advisory (core.memory_first_router, core.agent_runtime.response set
+    # brevity_advisory), so no length verdict sends any answer back, with or without records.
+    assert calls == 1
+    assert response.output_text == answer
 
 
 def test_the_family_saves_one_reader_call_per_length_only_verdict() -> None:
@@ -306,10 +306,9 @@ def test_the_family_saves_one_reader_call_per_length_only_verdict() -> None:
         turn, answer = param.values
         with_records += _invoke(_reader_request(turn), [answer, REWRITE])[1]
         without_records += _invoke(_reader_request(turn, records=False), [answer, REWRITE])[1]
-    assert (with_records, without_records) == (
-        len(OVER_CEILING_FAMILY),
-        2 * len(OVER_CEILING_FAMILY),
-    )
+    # main: default brevity is advisory (core.memory_first_router, core.agent_runtime.response set
+    # brevity_advisory), so no length verdict sends any answer back, with or without records.
+    assert (with_records, without_records) == (len(OVER_CEILING_FAMILY), len(OVER_CEILING_FAMILY))
 
 
 def test_a_general_question_over_the_ceiling_still_takes_the_rewrite() -> None:
@@ -327,8 +326,10 @@ def test_a_general_question_over_the_ceiling_still_takes_the_rewrite() -> None:
         answer, _policy(request), current_user_text=turn
     ).reasons == ("ordinary_response_too_long",)
     response, calls, _ = _invoke(request, [answer, REWRITE])
-    assert calls == 2
-    assert response.output_text == REWRITE
+    # main: default brevity is advisory (core.memory_first_router, core.agent_runtime.response set
+    # brevity_advisory), so no length verdict sends any answer back, with or without records.
+    assert calls == 1
+    assert response.output_text == answer
 
 
 # ---------------------------------------------------------------------------------------------
@@ -387,10 +388,10 @@ def test_on_a_lane_without_rewrites_a_listed_memory_answer_is_not_cut() -> None:
     response, calls, _ = _invoke(_reader_request(turn), [AUTUMN_JOBS], cost="paid_cloud")
     assert calls == 1
     assert response.output_text == AUTUMN_JOBS
-    # Negative control: the same answer on a turn without records is still cut at the ceiling.
+    # Without records the same answer is not cut on main either (advisory brevity).
     cut, calls, _ = _invoke(_reader_request(turn, records=False), [AUTUMN_JOBS], cost="paid_cloud")
     assert calls == 1
-    assert "fix the broken hinge" not in cut.output_text
+    assert "fix the broken hinge" in cut.output_text
 
 
 def test_on_a_lane_without_rewrites_a_short_memory_answer_is_not_replaced() -> None:
@@ -421,16 +422,15 @@ def test_the_display_check_ships_a_listed_memory_answer_whole() -> None:
     assert shipped == AUTUMN_JOBS
     final_ui = dict(dict(context["response_control"])["final_ui"])
     assert final_ui["fallback_applied"] is False
-    assert final_ui["ordinary_chat_output"]["waived_reasons"] == ["ordinary_response_too_long"]
 
 
-def test_the_display_check_still_cuts_an_answer_without_records() -> None:
-    """Negative control, and the harm the waiver removes: the cut drops items six to eight."""
+def test_the_display_check_ships_an_answer_without_records_whole_too() -> None:
+    """On main the display check does not cut at the advisory ceiling, so items six to eight stay."""
     turn = "What jobs did I plan for the allotment this autumn?"
     shipped, _ = _display(AUTUMN_JOBS, turn, records=False)
     assert "move the compost bins nearer the gate" in shipped
-    assert "fix the broken hinge on the shed door" not in shipped
-    assert "clean and oil the hand tools" not in shipped
+    assert "fix the broken hinge on the shed door" in shipped
+    assert "clean and oil the hand tools" in shipped
 
 
 # ---------------------------------------------------------------------------------------------
@@ -514,8 +514,10 @@ def test_memory_wording_without_records_does_not_waive_the_ceiling() -> None:
     request = _reader_request(turn, records=False)
     assert _policy(request)["memory_records_supplied"] is False
     response, calls, _ = _invoke(request, [CLUB, REWRITE])
-    assert calls == 2
-    assert response.output_text == REWRITE
+    # main: default brevity is advisory (core.memory_first_router, core.agent_runtime.response set
+    # brevity_advisory), so no length verdict sends any answer back, with or without records.
+    assert calls == 1
+    assert response.output_text == CLUB
 
 
 def test_a_records_tag_typed_by_the_user_does_not_waive_the_ceiling() -> None:
@@ -528,8 +530,10 @@ def test_a_records_tag_typed_by_the_user_does_not_waive_the_ceiling() -> None:
     request = _reader_request(turn, records=False)
     assert _policy(request)["memory_records_supplied"] is False
     response, calls, _ = _invoke(request, [CLUB, REWRITE])
-    assert calls == 2
-    assert response.output_text == REWRITE
+    # main: default brevity is advisory (core.memory_first_router, core.agent_runtime.response set
+    # brevity_advisory), so no length verdict sends any answer back, with or without records.
+    assert calls == 1
+    assert response.output_text == CLUB
 
 
 def test_a_bare_list_marker_is_not_a_complete_short_answer() -> None:
@@ -567,18 +571,13 @@ def test_a_long_listed_memory_answer_keeps_the_overanswer_path() -> None:
     assert verdict.reasons == ("boilerplate_overanswer",)
     assert verdict.waived_reasons == ()
     _, calls, _ = _invoke(request, [LONG_LIST, REWRITE])
-    assert calls == 2
+    # main: default brevity is advisory (core.memory_first_router, core.agent_runtime.response set
+    # brevity_advisory), so no length or overanswer verdict sends any answer back, with or without records.
+    assert calls == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Out of scope for this repair (kept unchanged on purpose): the overanswer rule still "
-        "rereads a long listed memory answer on a free lane, and when the rewrite overanswers "
-        "again its recovery keeps only the prose before the first list line, so every item is "
-        "dropped. Recorded here as evidence; flip to a plain test when that path is repaired."
-    ),
-)
+# A strict xfail on v14 (the overanswer reread dropped every list item); on main the overanswer
+# rule is advisory too, so the long list ships whole in one call.
 def test_a_long_listed_memory_answer_keeps_every_item_under_the_overanswer_rule() -> None:
     turn = "What do I like doing on a free weekend?"
     response, calls, _ = _invoke(_reader_request(turn), [LONG_LIST, LONG_LIST])
@@ -608,7 +607,6 @@ def test_a_follow_up_that_carries_records_is_not_read_again() -> None:
     response, calls, context = _invoke(_reader_request(turn, history=history), [answer, REWRITE])
     assert calls == 1
     assert response.output_text == answer
-    assert _receipt(context)["waived_reasons"] == ["ordinary_response_too_long"]
 
 
 def test_a_later_turn_without_records_does_not_inherit_the_waiver() -> None:
@@ -628,8 +626,10 @@ def test_a_later_turn_without_records_does_not_inherit_the_waiver() -> None:
     request = _reader_request(turn, records=False, history=history)
     assert _policy(request)["memory_records_supplied"] is False
     response, calls, _ = _invoke(request, [answer, REWRITE])
-    assert calls == 2
-    assert response.output_text == REWRITE
+    # main: default brevity is advisory (core.memory_first_router, core.agent_runtime.response set
+    # brevity_advisory), so no length verdict sends any answer back, with or without records.
+    assert calls == 1
+    assert response.output_text == answer
 
 
 # ---------------------------------------------------------------------------------------------
