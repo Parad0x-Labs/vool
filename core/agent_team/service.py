@@ -46,11 +46,37 @@ def _team_for(session_id: str) -> TeamCoordinator | None:
         if team is not None:
             return team
         if (path / "team.sqlite3").exists():
-            team = TeamCoordinator(path)
+            team = TeamCoordinator(path, on_alert=_notifier(session_id))
             team.start_loop()
             _TEAMS[path.name] = team
             return team
         return None
+
+
+_ALERT_TITLES = {
+    "overlap": "Two agents touched the same files",
+    "git_internal": "An agent wrote git internals",
+    "unattributed": "Files changed and no agent can be tied to it",
+}
+
+
+def _notifier(session_id: str):
+    """Push each alert into VOOL's notification center for this chat (a background run item)."""
+
+    def notify(alert: Mapping[str, Any]) -> None:
+        from core.operator import notification_center
+
+        notification_center.record_item(
+            dedupe_key=f"agent-team:{alert.get('conflict_id')}",
+            source_kind="background_run",
+            title=_ALERT_TITLES.get(str(alert.get("kind") or ""), "Agent team alert"),
+            body=str(alert.get("alert") or ""),
+            payload={"alert_id": alert.get("conflict_id"), "kind": alert.get("kind"),
+                     "recommendation": alert.get("recommendation")},
+            session_id=session_id,
+        )
+
+    return notify
 
 
 def start(session_id: str, plan: Sequence[Mapping[str, Any]], *, team_limits: Mapping[str, Any],
@@ -70,7 +96,9 @@ def start(session_id: str, plan: Sequence[Mapping[str, Any]], *, team_limits: Ma
 
                 runner = HttpChatRunner(base_url)
             team = TeamCoordinator(_team_dir(session_id), workspace=workspace, team_limits=limits,
-                                   tick_seconds=tick_seconds, chat_text=chat_text, model_runner=runner)
+                                   tick_seconds=tick_seconds, chat_text=chat_text, model_runner=runner,
+                                   on_alert=_notifier(session_id))
+            (_team_dir(session_id) / "session.txt").write_text(str(session_id))
             team.start_loop()
             _TEAMS[_team_dir(session_id).name] = team
         try:
@@ -122,7 +150,11 @@ def recover_all() -> list[dict[str, Any]]:
         with _LOCK:
             if path.parent.name in _TEAMS:
                 continue
-            team = TeamCoordinator(path.parent)
+            try:
+                session_id = (path.parent / "session.txt").read_text().strip()
+            except OSError:
+                session_id = ""
+            team = TeamCoordinator(path.parent, on_alert=_notifier(session_id))
             team.start_loop()
             _TEAMS[path.parent.name] = team
         out.append({"team": path.parent.name, **team.recovered})

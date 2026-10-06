@@ -73,3 +73,36 @@ def test_start_status_stop_through_the_registry(reg, tmp_path):
                                                  "team_limits": {"max_usd": 1}, "workspace": str(ws)},
                                 reg=reg, context=operator)
     assert unbounded.execution.exit_code != 0 and "unbounded" in unbounded.summary
+
+
+def test_an_overlap_alert_is_pushed_to_the_chats_notifications(reg, tmp_path):
+    from core.agent_team import service
+    from core.operator import notification_center
+
+    ws = tmp_path / "ws"
+    for d in ("a", "b"):
+        (ws / d).mkdir(parents=True)
+    (ws / "b" / "session.py").write_text("SESSION = 1\n")
+    session = "openclaw:" + "9" * 20
+    limits = {**LIMITS, "wall_clock_seconds": 60}
+    plan = [
+        {"key": "login", "objective": "Login redirect fix", "importance": "high", "claims": ["b"],
+         "command": [sys.executable, AGENT, "sleeper", "30"], "limits": limits},
+        {"key": "store", "objective": "Session store refactor", "claims": ["a"],
+         "command": [sys.executable, AGENT, "grandchild_writer", str(ws / "b" / "session.py"), "6"], "limits": limits},
+    ]
+    assert service.start(session, plan, team_limits=limits, workspace=str(ws), tick_seconds=0.25)["ok"]
+    try:
+        deadline = time.monotonic() + 40
+        items: list = []
+        while time.monotonic() < deadline and not items:
+            items = [i for i in notification_center.list_items()["items"] if i.get("session_id") == session]
+            time.sleep(0.25)
+        assert items, service.status(session)
+        item = items[0]
+        assert item["source_kind"] == "background_run" and item["title"] == "Two agents touched the same files"
+        assert "Login redirect fix · high" in item["body"] and "stays paused" in item["body"]
+        alert_id = service.status(session)["alerts"][0]["alert_id"]
+        assert service.decide(session, alert_id, "stop")["ok"]
+    finally:
+        service.stop(session)
