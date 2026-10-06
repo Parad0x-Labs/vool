@@ -373,6 +373,9 @@ def main() -> int:
     from core.unattended_preflight import preflight
 
     preflight("core.agent_runtime.daemon")
+    from core.runtime_provider_defaults import apply_product_runtime_defaults
+
+    apply_product_runtime_defaults()
 
     parser = argparse.ArgumentParser(prog="vool-daemon")
     parser.add_argument("--bind-host", default="0.0.0.0")

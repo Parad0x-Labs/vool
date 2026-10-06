@@ -2584,6 +2584,9 @@ def main(argv: list[str] | None = None) -> int:
     from core.unattended_preflight import preflight
 
     preflight('apps.vool_cli')
+    from core.runtime_provider_defaults import apply_product_runtime_defaults
+
+    apply_product_runtime_defaults()
     parser = build_parser()
     args = parser.parse_args(argv)
 
