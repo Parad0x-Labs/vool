@@ -329,9 +329,9 @@ class OverlapWatch:
         claim_root = _claim_root(self._claims, owner, path)
         out = []
         for ev in evidence:
-            if ev.layer in {"gate", "open_file", "open_file_write"} and ev.path == path:
-                out.append(ev)
-            elif ev.layer == "cwd" and ev.path and _inside(ev.path, claim_root):
+            exact = ev.layer in {"gate", "open_file", "open_file_write"} and ev.path == path
+            working_there = ev.layer == "cwd" and bool(ev.path) and _inside(ev.path, claim_root)
+            if exact or working_there:
                 out.append(ev)
         return sorted(out, key=lambda ev: -_STRENGTH[ev.layer])
 

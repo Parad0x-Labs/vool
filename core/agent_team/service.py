@@ -10,6 +10,7 @@ internal ids except the alert id the user's choice must name.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -113,7 +114,7 @@ def recover_all() -> list[dict[str, Any]]:
     for path in sorted(teams_root().glob("*/team.sqlite3")):
         registry = Registry(path.parent)
         try:
-            live = registry.agents(LIVE_STATES + ("launching",))
+            live = registry.agents((*LIVE_STATES, "launching"))
         finally:
             registry.close()
         if not live:
@@ -131,10 +132,8 @@ def recover_all() -> list[dict[str, Any]]:
 def _forget_for_tests() -> None:
     with _LOCK:
         for team in _TEAMS.values():
-            try:
+            with contextlib.suppress(Exception):
                 team.close()
-            except Exception:
-                pass
         _TEAMS.clear()
 
 

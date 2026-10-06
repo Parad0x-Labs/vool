@@ -208,7 +208,7 @@ class Registry:
                 "INSERT INTO events (ts, team_id, agent_id, kind, data) VALUES (?,?,?,?,?)",
                 (time.time(), team_id, agent_id, kind, json.dumps(data, default=str)),
             )
-            return int(cur.lastrowid)
+            return int(cur.lastrowid or 0)
 
     def events(self, after: int = 0, kind: str | None = None) -> list[dict[str, Any]]:
         with self._lock:

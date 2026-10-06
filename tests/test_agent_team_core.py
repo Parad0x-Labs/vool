@@ -102,7 +102,7 @@ def test_plan_law_refuses_overlap_escape_depth_and_unbounded(ws):
     with pytest.raises(ContractRefused, match="only one agent may write"):
         validate_plan([one, AgentContract(key="q", objective="Lexer cleanup", limits=lim, claims=("a/lex",),
                                           command=("true",))], workspace=ws)
-    with pytest.raises(ContractRefused, match="escapes|relative"):
+    with pytest.raises(ContractRefused, match=r"escapes|relative"):
         validate_plan([AgentContract(key="e", objective="Escape attempt", limits=lim, claims=("../x",),
                                      command=("true",))], workspace=ws)
     (ws / "link").symlink_to("/")
