@@ -57,7 +57,8 @@ def check_write(path: str, *, session_id: str = "") -> tuple[bool, str]:
     if bound is None:
         return True, ""
     owner, agent_id = bound
-    return owner.gate_write(agent_id, os.path.realpath(str(path)))
+    allowed, reason = owner.gate_write(agent_id, os.path.realpath(str(path)))
+    return bool(allowed), str(reason)
 
 
 GATE_STATUS = "blocked_by_agent_team_gate"
@@ -99,7 +100,7 @@ def check_tool(intent: str, arguments: Any, source_context: Any) -> str:
             return f"`{raw}` could not be resolved"
         allowed, reason = owner.gate_write(agent_id, str(resolved))
         if not allowed:
-            return reason
+            return str(reason)
     return ""
 
 

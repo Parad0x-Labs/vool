@@ -128,7 +128,7 @@ def assign_display_names(entries: Iterable[tuple[str, str, Sequence[str]]],
     for name in [*base, *used]:
         counts[name] = counts.get(name, 0) + 1
     result: list[str] = []
-    for (title, importance, claims), name in zip(rows, base):
+    for (title, importance, claims), name in zip(rows, base, strict=True):
         if counts.get(name, 0) > 1 or name in used:
             area = area_of(claims)
             clean_title = validate_title(title)
