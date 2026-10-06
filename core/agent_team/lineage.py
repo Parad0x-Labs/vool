@@ -32,6 +32,11 @@ from dataclasses import dataclass
 import psutil
 
 ENV_TOKEN = "VOOL_AGENT_RUN"
+#: A process can exit between being listed and being read. psutil reports that as its own error
+#: on most paths, but on macOS ``proc_environ`` can surface it as SystemError (measured on the
+#: served run 2026-10-06). Every read of another process's state treats all of these as
+#: "unreadable now" — never as a crash of the coordinator's watch.
+_PROC_READ_ERRORS = (psutil.Error, OSError, SystemError, ValueError)
 _CT_TOLERANCE = 0.01
 
 
@@ -88,7 +93,7 @@ def verified_process(ident: ProcId) -> psutil.Process | None:
         if proc.status() == psutil.STATUS_ZOMBIE:
             return None
         return proc
-    except psutil.Error:
+    except _PROC_READ_ERRORS:
         return None
 
 
@@ -98,7 +103,7 @@ def protected_pids() -> frozenset[int]:
     try:
         for parent in psutil.Process(os.getpid()).parents():
             out.add(parent.pid)
-    except psutil.Error:
+    except _PROC_READ_ERRORS:
         pass
     return frozenset(out)
 
@@ -106,12 +111,12 @@ def protected_pids() -> frozenset[int]:
 def _cmdline(proc: psutil.Process) -> str:
     try:
         parts = proc.cmdline()
-    except psutil.Error:
+    except _PROC_READ_ERRORS:
         parts = []
     if not parts:
         try:
             parts = [proc.name()]
-        except psutil.Error:
+        except _PROC_READ_ERRORS:
             parts = ["?"]
     text = " ".join(" ".join(parts).split())
     return text if len(text) <= 240 else text[:237] + "..."
@@ -144,7 +149,7 @@ class LineageTracker:
             return self._env_checked[ident]
         try:
             token = str(proc.environ().get(ENV_TOKEN) or "")
-        except psutil.Error:
+        except _PROC_READ_ERRORS:
             token = ""
         self._env_checked[ident] = token
         return token
@@ -253,11 +258,11 @@ def open_paths(member: Member) -> tuple[list[str], str]:
     files: list[str] = []
     try:
         files = [os.path.realpath(f.path) for f in proc.open_files()]
-    except psutil.Error:
+    except _PROC_READ_ERRORS:
         files = []
     try:
         cwd = os.path.realpath(proc.cwd())
-    except psutil.Error:
+    except _PROC_READ_ERRORS:
         cwd = ""
     return files, cwd
 
