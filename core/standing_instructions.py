@@ -95,6 +95,12 @@ def _main_clause(sentence: str) -> str:
     return _LEAD_FILLER_RE.sub("", s)
 
 
+def _has_lead(sentence: str) -> bool:
+    """Whether the sentence opens with a standing lead or a condition ("from now on", "whenever …,")."""
+    s = _LEAD_FILLER_RE.sub("", " ".join(str(sentence or "").split()))
+    return bool(_STANDING_LEAD_RE.match(s) or _CONDITION_LEAD_RE.match(s))
+
+
 def _addressed_to_vool(sentence: str) -> bool:
     s = _main_clause(sentence)
     if _PREFERENCE_RE.match(s):
@@ -353,6 +359,50 @@ _TASK_QUANTITY_RE = re.compile(
 _CONTEXT_RE = re.compile(r"^(?:i|i'm|i've|i'd|my|we|we're|our)\b", re.IGNORECASE)
 
 
+# An implicit correction of the previous answer. A complaint about how it came across ("that was way too formal",
+# "too stiff") is a lasting preference when it names a setting of how answers look and is not a one-off ("this
+# time", "but it's fine here", "for a birthday card"); a content fix ("that was wrong, it's Canberra") names no
+# setting and is about that answer only.
+_COMPLAINT_RE = re.compile(
+    r"^(?:(?:ugh|hmm|meh|wow|well|no|nope|ok(?:ay)?)[,.!\s]+)*(?:"
+    r"(?:(?:that|this|it)(?:\s+(?:one|answer|reply|response))?|your\s+(?:answers?|replies|reply|responses?|tone|writing)|you)"
+    r"\s+(?:was|were|is|are|sound(?:s|ed)?|seem(?:s|ed)?|came\s+across|reads?|felt|feels|looked|looks)\b|"
+    r"(?:(?:way|much|far)\s+)?too\s+\w+)", re.IGNORECASE)
+_EXCESS_RE = re.compile(r"\b(?:too|overly|full\s+of|like\s+a)\b", re.IGNORECASE)
+_ONE_OFF_COMPLAINT_RE = re.compile(
+    r"\bbut\b.*\b(?:fine|ok|okay|good|alright)\b|\bfor\s+(?:a|an|the|this|that|my|your)\s+\w+", re.IGNORECASE)
+# A lasting fact about the owner given as the reason to redo the answer ("I'm vegetarian, redo it").
+_LASTING_FACT_RE = re.compile(
+    r"^(?:(?:i'?m|i\s+am|we'?re|we\s+are)\s+(?:an?\s+)?(?:vegetarian|vegan|pescatarian|diabetic|coeliac|celiac|teetotal|"
+    r"(?:lactose|gluten|[a-z]+)[- ]intolerant|allergic\s+to\s+[a-z][a-z\s-]{1,40})|"
+    r"(?:i|we)\s+(?:don'?t|do\s+not|can'?t|cannot|never)\s+(?:eat|drink)\s+[a-z][a-z\s-]{1,40}|"
+    r"(?:i|we)\s+keep\s+(?:kosher|halal)(?:\s+at\s+home)?|"
+    r"(?:i'?m|i\s+am|we'?re|we\s+are)\s+on\s+an?\s+[a-z-]+\s+diet)$", re.IGNORECASE)
+_REDO_RE = re.compile(
+    r"\b(?:redo|re-do|try\s+again|do\s+it\s+again|rewrite|re-write|regenerate|start\s+over|swap|replace|"
+    r"change\s+(?:it|that|the))\b", re.IGNORECASE)
+_CLAUSE_RE = re.compile(r"\s*(?:[,;]|\s+so\s+|\s+and\s+)\s*", re.IGNORECASE)
+
+
+def _complaint(sentence: str) -> bool:
+    s = sentence.strip()
+    return bool(_COMPLAINT_RE.match(s) and _EXCESS_RE.search(s) and (_facets(s) or _PRESENTATION_RE.search(s))
+                and not _ONE_OFF_RE.search(s) and not _ONE_OFF_COMPLAINT_RE.search(s))
+
+
+def _lasting_facts(sentences: list[str]) -> list[str]:
+    """The owner's lasting facts in a turn that asks for a redo; nothing when there is no redo."""
+    if not any(_REDO_RE.search(sentence) for sentence in sentences):
+        return []
+    facts: list[str] = []
+    for sentence in sentences:
+        for clause in _CLAUSE_RE.split(sentence):
+            clause = clause.strip().rstrip(".!?").strip()
+            if clause and _LASTING_FACT_RE.match(clause):
+                facts.append(clause + ".")
+    return facts
+
+
 def _plain_kind(sentence: str) -> str:
     """"workflow" / "plain" for a rule said without trigger words, "context" for a reason about the owner, else ""."""
     s = sentence.strip()
@@ -379,7 +429,8 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
             # "Whenever we talk about money, assume euros" orders VOOL to assume: its marker is the verb of an
             # instruction. Any other stipulation ("suppose I told you to …") is a premise and saves nothing.
             orders = {(_main_clause(part).split() or [""])[0].lower().strip(",.")
-                      for part in _SENTENCE_RE.split(text) if _addressed_to_vool(part)}
+                      for part in _SENTENCE_RE.split(text)
+                      if _addressed_to_vool(part) and _has_lead(part)}
             if not frame.markers or not {str(m).lower() for m in frame.markers} <= orders:
                 return [], []
     except Exception:
@@ -387,6 +438,7 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
     sentences = [s.strip() for s in _SENTENCE_RE.split(text) if s.strip()]
     saves: list[str] = []
     take_backs: list[str] = []
+    consumed: set[int] = set()
     for index, sentence in enumerate(sentences):
         # A take-back verb inside a condition ("before you delete anything, ask me") is not a take-back.
         if _TAKE_BACK_RE.search(_main_clause(sentence)) and not _QUESTION_RE.search(sentence):
@@ -402,7 +454,15 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
                 take_backs.append(before.strip(" ,;-"))
                 saves.append(after[:1].upper() + after[1:])
                 continue
-        if not _is_standing(sentence):
+        if not _is_standing(sentence) and _complaint(sentence):
+            following = sentences[index + 1] if index + 1 < len(sentences) else ""
+            if following and _addressed_to_vool(following) and not _QUESTION_RE.search(following) \
+                    and not _ONE_OFF_RE.search(following) and not _SPECIFIC_OBJECT_RE.search(following):
+                consumed.add(index + 1)
+                sentence = f"{sentence} {following}"
+            saves.append(sentence)
+            continue
+        if index in consumed or not _is_standing(sentence):
             continue
         # A lesson often arrives with its reason first ("I live in Canada. Always give me Celsius."): the reason
         # is kept with the instruction, so the instruction keeps its meaning in a chat that never saw the reason.
@@ -411,6 +471,7 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
                 and not _is_standing(previous) and not _QUESTION_RE.search(previous):
             sentence = f"{previous} {sentence}"
         saves.append(sentence)
+    saves.extend(fact for fact in _lasting_facts(sentences) if fact not in saves)
     if not saves and not take_backs:
         kinds = [_plain_kind(sentence) for sentence in sentences]
         if all(kinds) and any(kind in ("plain", "workflow") for kind in kinds):
