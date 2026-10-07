@@ -977,7 +977,7 @@ def test_explicit_same_chat_recall_expands_past_the_latest_exchange() -> None:
     assert truth["same_chat_history_recall"] is True
     assert truth["history_expansion"] == "bounded_broad"
     assert truth["history_messages"] == 6
-    assert "Never claim that no earlier chat history exists" in payload[0]["content"]
+    assert "Never claim that no earlier chat history exists" in request.instructions()
 
 
 def test_mutating_classifier_true_stays_bounded_and_cannot_cross_chat_or_project_scope() -> None:

@@ -85,7 +85,7 @@ def test_chat_prompt_makes_stipulated_facts_authoritative_across_followups() -> 
         output_mode="plain_text",
     )
 
-    system = request.as_openai_messages()[0]["content"]
+    system = request.instructions()
     assert "User-stipulated assumptions" in system
     assert "without searching" in system
     assert "replacing named people, roles" in system
@@ -110,7 +110,7 @@ def test_selected_model_and_bound_workspace_are_in_authoritative_prompt_context(
         },
     )
 
-    system_prompt = request.system_prompt()
+    system_prompt = request.instructions()
     assert "explicitly selected model `nvidia/nemotron-3-ultra-550b-a55b:free`" in system_prompt
     assert "This chat is bound to project `web0`" in system_prompt
     assert "do not search the whole machine" in system_prompt
@@ -306,7 +306,7 @@ def test_canonical_project_context_reaches_the_provider_before_generic_context()
     assert "Authoritative canonical project context" in context_messages[0].content
     assert "VOOL is the local-first personal agent built by Parad0x Labs" in context_messages[0].content
     assert context_messages[0].metadata["canonical_grounding"] is True
-    assert "Canonical project context in this request is authoritative" in request.system_prompt()
+    assert "Canonical project context in this request is authoritative" in request.instructions()
 
 
 @pytest.mark.parametrize(
@@ -431,7 +431,7 @@ def test_authoritative_correction_is_folded_into_primary_system_prompt(monkeypat
         },
     )
 
-    assert correction in request.system_prompt()
+    assert correction in request.instructions()
     assert [
         message
         for message in request.messages
@@ -570,7 +570,7 @@ def test_response_shaping_followup_guides_model_to_immediate_assistant_answer(mo
         },
     )
 
-    system = request.system_prompt()
+    system = request.instructions()
     assert "response-shaping follow-up" in system
     assert "Shared interests and respectful listening make it feel easy." in system
     assert "<immediate_assistant_answer>" in system
@@ -819,7 +819,8 @@ def test_internal_message_schema_maps_context_to_user_role_for_provider_calls() 
         trace_id="trace-1",
         surface="openclaw",
         source_context={"surface": "openclaw", "platform": "openclaw"},
-    ).as_openai_messages()[1]
+    ).as_openai_messages()
+    provider_message = next(m for m in provider_message if "relevant context and evidence:" in str(m["content"]).lower())
 
     assert provider_message["role"] == "user"
     assert "relevant context and evidence:" in provider_message["content"].lower()
@@ -911,7 +912,7 @@ def test_plain_text_chat_keeps_explicit_prior_answer_reason_followup_history() -
         and "personal connection to writing" in message.content
         for message in request.messages
     )
-    assert "personal connection to writing" in request.system_prompt()
+    assert "personal connection to writing" in request.instructions()
 
 
 def test_plain_text_chat_prefers_persisted_transcript_over_thin_client_history() -> None:
@@ -1202,7 +1203,7 @@ def test_workspace_audit_evidence_is_labeled_as_tool_input_not_model_answer() ->
         },
     )
 
-    assert "output is evidence, not an answer" in request.system_prompt()
+    assert "output is evidence, not an answer" in request.instructions()
     messages = request.as_openai_messages()
     evidence = next(message for message in messages if "workspace.audit" in message["content"])
     assert evidence["role"] == "user"
