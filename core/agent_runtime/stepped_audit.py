@@ -2877,7 +2877,7 @@ def _persist_audit_detail(source_context: dict[str, Any], detail: dict[str, Any]
         )
 
 
-def _register_audit_reads(evidence: Any, session_id: str) -> None:
+def _register_audit_reads(evidence: Any, session_id: str, source_context: dict[str, Any] | None = None) -> None:
     """Register the audit's OWN reads as execution records.
 
     Driven live 2026-08-01: the inspection honesty gate was dormant on audit turns (nothing had
@@ -2901,6 +2901,10 @@ def _register_audit_reads(evidence: Any, session_id: str) -> None:
                 details={"resolved_target": str(path)},
                 ok=True,
                 status="executed",
+                # Stamps this turn's id, so the turn-scoped readers (grounding harvest,
+                # `turn_has_current_evidence`) see the read. None when the evidence was rebuilt
+                # from a resumed capsule: those bytes were read by an earlier turn.
+                source_context=source_context,
             )
 
 
@@ -3223,6 +3227,7 @@ def run_stepped_audit(
     ctx["audit_execution_policy"] = policy.as_dict()
 
     evidence = _evidence_from_context(ctx)
+    evidence_read_this_turn = evidence is not None
     if evidence is None and resumed is not None:
         # A continuation whose turn carries no fresh evidence still knows its subject: the capsule
         # pinned the file and the bytes. Rebuilding evidence from it is what makes "prove it" mean
@@ -3239,7 +3244,7 @@ def run_stepped_audit(
             task_id=getattr(task, "task_id", ""),
         )
 
-    _register_audit_reads(evidence, session_id)
+    _register_audit_reads(evidence, session_id, ctx if evidence_read_this_turn else None)
 
     # SCALPEL final-tip verification, 2026-08-06: available as soon as evidence resolves, so every
     # BLOCKED exit from this point on -- including the vendor-collision gate right below -- can
