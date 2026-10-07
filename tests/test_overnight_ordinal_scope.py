@@ -1,6 +1,9 @@
 """Ordinal list probes require an ordered collection in the question."""
 import pytest
+
 from core.context_retrieval import _query_ordinal_reference
+
+
 @pytest.mark.parametrize('q,expected',[
     ('What song on the Fifth Album did you say showed their growth?',None),
     ('What did you say about the Third Symphony in our previous discussion?',None),

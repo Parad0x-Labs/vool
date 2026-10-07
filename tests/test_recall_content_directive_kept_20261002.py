@@ -22,7 +22,7 @@ import core.context_retrieval as cr
 from tests.test_recall_answer_frame_subject_20261002 import _capsule, _turn
 
 try:
-    from tests.test_fresh_acceptance_memrepair2b_20260927 import (  # noqa: F401
+    from tests.test_fresh_acceptance_memrepair2b_20260927 import (
         fresh_profile,
     )
 except ImportError:  # pragma: no cover

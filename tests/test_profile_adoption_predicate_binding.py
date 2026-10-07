@@ -1,8 +1,11 @@
 """Regression checks for binding the user's adoption predicate and possessors."""
 import json
+
 import pytest
+
 from core.memory.files import memory_entries_path, user_heuristics_path
 from core.persistent_memory import append_conversation_event
+
 
 def _rows(path):
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()] if path.exists() else []

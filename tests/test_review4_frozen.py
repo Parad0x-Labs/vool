@@ -1,20 +1,22 @@
 """Independent frozen review-2 acceptance; expectations declared before execution."""
 import json
+
 import pytest
 
+
 def signals(text):
-    from core.persistent_memory import append_conversation_event
     from core.memory.files import user_heuristics_path
+    from core.persistent_memory import append_conversation_event
     append_conversation_event(session_id="review2-profile",user_input=text,
         assistant_output="Acknowledged.",source_context={"surface":"cli","platform":"cli"})
     p=user_heuristics_path()
     return [json.loads(line)["signal"] for line in p.read_text().splitlines()] if p.exists() else []
 
 def inject(tmp_path,monkeypatch,text,query):
-    from core.vool_memory import VoolMemory
-    from core.context_namespace import ensure_chat_namespace
     import core.context_retrieval as cr
     from core.context_capsule_v2 import resolve_budget
+    from core.context_namespace import ensure_chat_namespace
+    from core.vool_memory import VoolMemory
     sid="review2-recall"
     ensure_chat_namespace(sid,grant_current_receipts=False)
     monkeypatch.setattr(cr,"embed_stamped",lambda s:([1.,0.,0.],"review"))
@@ -31,9 +33,11 @@ def inject(tmp_path,monkeypatch,text,query):
 
 import core.context_retrieval as cr
 from core.context_namespace import ensure_chat_namespace
+
+
 def _injected_block(tmp_path, monkeypatch, text, query, transcript):
-    from core.vool_memory import VoolMemory
     from core.context_capsule_v2 import resolve_budget
+    from core.vool_memory import VoolMemory
 
     sid = "fresh5-recall"
     ensure_chat_namespace(sid, grant_current_receipts=False)

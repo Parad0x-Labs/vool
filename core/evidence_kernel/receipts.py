@@ -23,9 +23,10 @@ import os
 import threading
 import time
 import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 SCHEMA = "vool.receipt.envelope.v2"
 _LOCK = threading.RLock()

@@ -16,7 +16,6 @@ import pytest
 
 from core.temporal_selection import question_ordinal
 
-
 # ───────────────────────── deictic periods are not ordinals ───────────────
 
 @pytest.mark.parametrize("question", [

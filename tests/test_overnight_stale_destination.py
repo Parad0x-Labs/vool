@@ -1,5 +1,5 @@
 """Development repro and controls for stale co-tenant destination clauses."""
-from tests.test_overnight_source_structure import source_env, _store, _recall
+from tests.test_overnight_source_structure import _recall, _store, source_env
 
 
 def _shuttle(home):

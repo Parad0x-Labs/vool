@@ -17,7 +17,7 @@ import core.context_retrieval as cr
 from core.grounding_lifecycle import GroundingLifecycle, TurnIdentity
 from core.grounding_publication import _support_rows, publication_verdict
 from core.memory_grounding import memory_record_rows, question_names_someone_in_the_records
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _hash_backend
 
 RECORDS_LEAD = "That is not mentioned in the records I have from our conversations"
 LIVE_LEAD = "I can't publish an answer to this: it needed current information"

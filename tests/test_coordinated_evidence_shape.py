@@ -1,7 +1,9 @@
 """A multi-field ask cannot establish all-source absence from scalar vocabulary. Contributor: sls_0x."""
 import pytest
+
 from core.context_retrieval import _query_shape
 from core.plain_task_routing import scalar_answer_covers_requested_shape
+
 
 @pytest.mark.parametrize('question',[
  "I'm checking Cora's original gear label against her April 1 intake note. Which interface, sample rate, and case color did she report then?",

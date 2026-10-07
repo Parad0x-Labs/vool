@@ -55,7 +55,6 @@ class ProviderInvocationValidationError(ValueError):
     """A local manifest preflight failure, never evidence of provider health."""
 
 
-from core.prompt_budget import PromptBudgetExceededError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -1081,10 +1080,20 @@ def seal_provider_invocation(
     try:
         from core.context_delivery_ledger import (
             ProviderPayloadMeasurementFailedError as _cdl_measurement_failed,
+        )
+        from core.context_delivery_ledger import (
             build_receipt as _cdl_build,
+        )
+        from core.context_delivery_ledger import (
             enforcement_enabled as _cdl_enforcement_enabled,
-            measure_provider_payload as _cdl_measure,
+        )
+        from core.context_delivery_ledger import (
             maybe_refuse as _cdl_refuse,
+        )
+        from core.context_delivery_ledger import (
+            measure_provider_payload as _cdl_measure,
+        )
+        from core.context_delivery_ledger import (
             record_delivery_receipt as _cdl_record,
         )
     except Exception:

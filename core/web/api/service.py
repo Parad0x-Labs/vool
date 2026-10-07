@@ -6929,6 +6929,7 @@ def _dispatch_post_inner(
             reset_admission()
             admit_semantic_result(dict(null_result or {}))
             from core.finalization import finalize_answer
+
             # Imported under its own name here: the late import of the same alias further down
             # this function made the name local to the whole function, so this earlier use raised
             # UnboundLocalError on every NULL-protocol local fallback.

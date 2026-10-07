@@ -1,13 +1,16 @@
 """Retrieved evidence has its own allowance and reaches the actual provider payload."""
 from __future__ import annotations
-from types import SimpleNamespace
-from copy import deepcopy
+
 import json
+from copy import deepcopy
+from types import SimpleNamespace
+
 import pytest
-from core import bootstrap_context as bc
-from core import prompt_normalizer as pn
+
 from adapters.base_adapter import ModelRequest
 from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
+from core import bootstrap_context as bc
+from core import prompt_normalizer as pn
 
 QUESTION = "What sequence did you recommend for preparing the exhibit?"
 TARGET = "Stage 27: leave a 3 mm hinge gap before binding the panels."
@@ -17,7 +20,7 @@ CAPSULE = "<retrieved_context>\n- assistant said: " + ("Earlier exhibit material
 
 @pytest.fixture(autouse=True)
 def preserve_retrieval_telemetry():
-    from core.context_retrieval import get_last_retrieval_telemetry, _set_retrieval_telemetry
+    from core.context_retrieval import _set_retrieval_telemetry, get_last_retrieval_telemetry
     before = deepcopy(get_last_retrieval_telemetry())
     try:
         yield

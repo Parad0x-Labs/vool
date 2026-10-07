@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.test_question_date_time_leg_20261002 import (  # noqa: F401  (fixture)
+from tests.test_question_date_time_leg_20261002 import (
     _capsule,
     _hash_backend,
     _ingest,

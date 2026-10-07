@@ -18,14 +18,23 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import os
 import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
 
-from core.memory_receipts import _QUOTED_SPAN_RE, _slot as _slot_terms, _stem, _statement_day, match_receipts, question_terms, receipts_for_scope, resolve_event_day
+from core.memory_receipts import (
+    _QUOTED_SPAN_RE,
+    _statement_day,
+    _stem,
+    match_receipts,
+    question_terms,
+    receipts_for_scope,
+    resolve_event_day,
+)
+from core.memory_receipts import _slot as _slot_terms
 
 LOGGER = logging.getLogger(__name__)
 _UTC = timezone.utc
@@ -308,7 +317,7 @@ def _label(fact: Mapping[str, Any]) -> str:
 _ORDINAL_RE = re.compile(r"\b(?P<o>first|earliest|initial|last|latest|most\s+recent|final|second|third|fourth)\b", re.IGNORECASE)
 _ORDINAL_INDEX = {"first": 0, "earliest": 0, "initial": 0, "second": 1, "third": 2, "fourth": 3, "last": -1, "latest": -1, "most recent": -1, "final": -1}
 _SIDE_SPLIT_RE = re.compile(r"\s+(?:or|and)\s+(?=(?:my|the|our|when|i\b))|\s+(?:before|after)\s+(?=(?:my|the|our|i\b))|,\s+(?=(?:my|the|our)\b)", re.IGNORECASE)
-_SIDE_STOP = frozenset("which came first what how many days weeks between did i my the a an of to in on at for and or before after was were is are when go went attend attended have had this that there".split())
+_SIDE_STOP = frozenset(["which", "came", "first", "what", "how", "many", "days", "weeks", "between", "did", "i", "my", "the", "a", "an", "of", "to", "in", "on", "at", "for", "and", "or", "before", "after", "was", "were", "is", "are", "when", "go", "went", "attend", "attended", "have", "had", "this", "that", "there"])
 
 
 def _operand_sides(question: str) -> list[str]:

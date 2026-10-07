@@ -1,5 +1,6 @@
 from core.context_retrieval import _distill_retrieved_hits, _recall_query_hits
 
+
 def test_pet_answer_not_buried_by_carpet_catalogue():
     fact = "Please remember my pet's name is Bramble."
     noise = "\n".join(f"Carpet Catalogue Name Directory lists {n} products from Market House." for n in range(11, 24))

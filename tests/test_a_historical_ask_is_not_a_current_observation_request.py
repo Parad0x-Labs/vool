@@ -14,7 +14,6 @@ wording, facts, domains and dates and were frozen before first execution.
 
 from core.execution_requirements import requirements_for
 
-
 # ---------------------------------------------------------------- regression
 
 

@@ -12,9 +12,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.execution.constants import local_fact_capability_required  # noqa: E402
-from core.creative_director import detect_creative_brief  # noqa: E402
-import core.agent_runtime.fast_paths_utility as fpu  # noqa: E402
+import core.agent_runtime.fast_paths_utility as fpu
+from core.creative_director import detect_creative_brief
+from core.execution.constants import local_fact_capability_required
 
 SC = {"surface": "openclaw", "platform": "api", "chat_id": "t"}
 
@@ -93,7 +93,7 @@ def test_creative_brief_still_detected(text):
 
 
 # --- prompt_normalizer focused-assistant-follow-up: a locative "there" is not a pointer at an answer.
-import core.prompt_normalizer as pn  # noqa: E402
+import core.prompt_normalizer as pn
 
 NOT_FOLLOWUP = ["I'm planning a trip to Lisbon soon. Any suggestions on what to do there?", "What should I see there next month?"]
 FOLLOWUP = ["What did you say about that earlier?", "Which point of that answer matters most?", "make that shorter", "explain that"]

@@ -47,7 +47,7 @@ from core.temporal_selection import (
     carries_undo_marker,
     retraction_marker,
 )
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _hash_backend
 
 UTC = timezone.utc
 NOW = datetime(2026, 11, 1, tzinfo=UTC)

@@ -27,8 +27,6 @@ behaves exactly as before.
 """
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import calendar
 import json
 import logging
@@ -36,16 +34,16 @@ import os
 import re
 import time
 import uuid
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Mapping, Sequence
+from types import SimpleNamespace
+from typing import Any
 
 from core.temporal_selection import (
     _stem,
-    _value_conflict,
     retraction_marker,
     slot_signature,
-    value_tokens,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -148,11 +146,11 @@ _STATE_KEYS = {"drive": "vehicle", "bought a new": "vehicle?", "replaced my": "r
                "got a new job as": "job", "took a job as": "job", "took a new job as": "job", "became": "job", "live in": "home_city", "moved to": "home_city", "own": "owns",
                "use": "uses", "rent": "rents", "play for": "team", "study at": "school", "commute by": "commute", "switched to": "switch", "upgraded to": "switch", "changed my": "switch"}
 _STATE_NOUN_KEYS = {"car": "vehicle", "job": "job", "role": "job", "city": "home_city", "apartment": "home", "flat": "home", "home": "home", "phone": "phone", "laptop": "laptop", "bike": "bike", "employer": "employer", "team": "team"}
-_STATE_STOP_OBJ = frozenset("lot bit little long time while much more way home there here now today".split())
+_STATE_STOP_OBJ = frozenset(["lot", "bit", "little", "long", "time", "while", "much", "more", "way", "home", "there", "here", "now", "today"])
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])|\n+")
 _ENVELOPE_RE = re.compile(r"^\s*Session date:\s*(?P<d>\d{4}/\d{2}/\d{2})[^\n]*\n?", re.IGNORECASE)
-_STOP = frozenset("the a an and or of to in on at for with is was were be been are i my me you your it its this that these those as by from about not no yes also they them their he she his her we our us have has had do does did will would can could should may might than then there here when where which who what how into over after before during up down out off so if but just really very some any all each every both get got been being am".split())
-_COUNT_NOUN_STOP = frozenset("days weeks months years hours minutes mins hrs seconds times time ago am pm percent dollars euros pounds year month week day hour minute".split())
+_STOP = frozenset(["the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "with", "is", "was", "were", "be", "been", "are", "i", "my", "me", "you", "your", "it", "its", "this", "that", "these", "those", "as", "by", "from", "about", "not", "no", "yes", "also", "they", "them", "their", "he", "she", "his", "her", "we", "our", "us", "have", "has", "had", "do", "does", "did", "will", "would", "can", "could", "should", "may", "might", "than", "then", "there", "here", "when", "where", "which", "who", "what", "how", "into", "over", "after", "before", "during", "up", "down", "out", "off", "so", "if", "but", "just", "really", "very", "some", "any", "all", "each", "every", "both", "get", "got", "been", "being", "am"])
+_COUNT_NOUN_STOP = frozenset(["days", "weeks", "months", "years", "hours", "minutes", "mins", "hrs", "seconds", "times", "time", "ago", "am", "pm", "percent", "dollars", "euros", "pounds", "year", "month", "week", "day", "hour", "minute"])
 
 
 @dataclass
@@ -618,7 +616,7 @@ def _cut_object(obj: str) -> str:
     return "" if (not words or words[0].lower() in _STATE_STOP_OBJ) else obj
 
 
-def state_key_and_object(m: "re.Match[str]", sentence: str) -> tuple[str, str]:
+def state_key_and_object(m: re.Match[str], sentence: str) -> tuple[str, str]:
     """(state key, object phrase) for a state sentence: 'drive' + 'a Skoda Octavia' -> ('vehicle', 'Skoda Octavia')."""
     verb = (m.group("verb") or m.group("verb2") or "").lower()
     noun = (m.group("noun") or "").lower()
@@ -661,7 +659,7 @@ def _value_head(sentence: str, value: str) -> set[str]:
     return {w.lower() for w in before + after if len(w) > 2 and w.lower() not in _STOP and w.lower() not in _HEAD_STOP}
 
 
-_HEAD_STOP = frozenset("bought buy purchased got picked paid spent cost costs recently just last week weekend today yesterday new another also even finally treat myself decided".split())
+_HEAD_STOP = frozenset(["bought", "buy", "purchased", "got", "picked", "paid", "spent", "cost", "costs", "recently", "just", "last", "week", "weekend", "today", "yesterday", "new", "another", "also", "even", "finally", "treat", "myself", "decided"])
 
 
 def _same_head(fact: Fact, old: Mapping[str, Any]) -> bool:
@@ -914,7 +912,7 @@ def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | Non
     return receipt
 
 
-_QUESTION_NOISE = frozenset("remind previous conversation conversations mention mentioned mentioning earlier follow following discussed discuss told said ask asked want wanted know think like remember recall recently back going go come came thing things way one ones still now long many much time times first last ago before after between since until day days week weeks month months year years hour hours minute minutes mins did do does have has had was were".split())
+_QUESTION_NOISE = frozenset(["remind", "previous", "conversation", "conversations", "mention", "mentioned", "mentioning", "earlier", "follow", "following", "discussed", "discuss", "told", "said", "ask", "asked", "want", "wanted", "know", "think", "like", "remember", "recall", "recently", "back", "going", "go", "come", "came", "thing", "things", "way", "one", "ones", "still", "now", "long", "many", "much", "time", "times", "first", "last", "ago", "before", "after", "between", "since", "until", "day", "days", "week", "weeks", "month", "months", "year", "years", "hour", "hours", "minute", "minutes", "mins", "did", "do", "does", "have", "has", "had", "was", "were"])
 
 
 def question_terms(question: str) -> list[str]:

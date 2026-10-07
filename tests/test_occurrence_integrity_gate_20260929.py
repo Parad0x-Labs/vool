@@ -47,8 +47,8 @@ def store(tmp_path: Path):
     """A real per-test profile home so materialize_source_evidence opens the
     SAME store the test wrote (the runtime resolves the canonical db path
     from the configured home)."""
-    from core.vool_memory import VoolMemory
     from core.runtime_paths import configure_runtime_home
+    from core.vool_memory import VoolMemory
 
     profile = tmp_path / "home"
     (profile / "workspace").mkdir(parents=True, exist_ok=True)

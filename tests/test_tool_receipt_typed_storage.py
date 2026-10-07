@@ -1,11 +1,15 @@
 """Structural receipt metadata survives redaction only after integrity checks."""
-from copy import deepcopy
 import json
+from copy import deepcopy
+
 import pytest
+
 from core.agent_runtime import orchestrator
 from core.runtime_continuity import (
-    configure_runtime_continuity_db_path, load_tool_receipt,
-    reset_runtime_continuity_state, store_tool_receipt,
+    configure_runtime_continuity_db_path,
+    load_tool_receipt,
+    reset_runtime_continuity_state,
+    store_tool_receipt,
 )
 from storage.migrations import run_migrations
 

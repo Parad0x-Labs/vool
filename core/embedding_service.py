@@ -16,8 +16,6 @@ similarity without requiring any model download.
 from __future__ import annotations
 
 import hashlib
-from contextlib import contextmanager
-from contextvars import ContextVar
 import itertools
 import json
 import logging
@@ -28,6 +26,8 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from core.ollama_endpoint import ollama_base_url
 from core.provider_invocation_gateway import (

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from core.context_retrieval import _advice_topic_clause, _advice_ask_frame_terms
+
+from core.context_retrieval import _advice_ask_frame_terms, _advice_topic_clause
 
 
 @pytest.mark.parametrize("query, subjects", [

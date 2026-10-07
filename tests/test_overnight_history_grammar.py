@@ -1,7 +1,9 @@
 """Development grammar regressions: noun-qualified past interrogatives."""
 import pytest
+
 from core.temporal_question_scope import question_time_scope
-from tests.test_overnight_source_structure import source_env, _store, _recall
+from tests.test_overnight_source_structure import _recall, _store, source_env
+
 
 @pytest.mark.parametrize("question,subject", [
     ("What binding material did I report using for the attic atlas restoration?", "user"),

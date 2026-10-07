@@ -1,6 +1,8 @@
 """Literal source quotation boundaries do not include word apostrophes."""
 import pytest
-from tests.test_overnight_source_structure import source_env, _store, _recall
+
+from tests.test_overnight_source_structure import _recall, _store, source_env
+
 
 @pytest.mark.parametrize("utterance", [
     "I'm tuning the brass gong to 294 Hz.",

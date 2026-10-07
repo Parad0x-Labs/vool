@@ -1,8 +1,11 @@
 """Historical interval source readability differs from active-state applicability."""
 from datetime import datetime, timezone
+
 import pytest
+
 from core.temporal_selection import AsOfIntent, TemporalCandidate, apply_temporal_selection, resolve_question_as_of
 from tests.test_temporal_voolble_asof_contract import SURVEY_FIRST, SURVEY_SECOND
+
 UTC = timezone.utc
 JULY = "On 2024-07-10, which of Elena Ruiz and Julian Voss was assigned to the estuary survey? Explain using their recorded intervals rather than assuming that their assignments were shared."
 NEGATIVE = "On 2024-07-10, was Rosa Li assigned to the reef survey, and what exact recorded interval supports that answer?"

@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 import core.context_retrieval as cr
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _hash_backend
 
 BOOTH = ("The ferry ticket booth on the east quay uses booth number Q-58. Its awning colour is rust "
          "orange. Those are all the details I keep for that booth.")

@@ -1,11 +1,13 @@
 """The existing request owners govern explicit historical source selection. Contributor: sls_0x."""
 from __future__ import annotations
+
 import pytest
+
 from core import context_retrieval as cr
-from core.memory.entries import resolve_memory_access_policy
 from core.context_namespace import ensure_chat_namespace
+from core.memory.entries import resolve_memory_access_policy
 from core.temporal_question_scope import question_time_scope
-from tests.test_requested_source_authority_contract import source_home,_capsule
+from tests.test_requested_source_authority_contract import _capsule, source_home
 
 BODY=("Seven items in the park bench restoration kit:\n"
       "1. Cedar slats measuring 900 mm by 70 mm.\n"

@@ -16,7 +16,7 @@ import re
 
 import pytest
 
-from tests.test_overnight_source_structure import _recall, _store, source_env  # noqa: F401
+from tests.test_overnight_source_structure import _recall, _store, source_env
 
 _ENTRY = re.compile(r"^- (?P<head>[^:\n]*?)(?: \((?:stated|recorded)[^)]*\))?: (?P<body>.*)$", re.S)
 

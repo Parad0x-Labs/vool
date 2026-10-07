@@ -17,12 +17,12 @@ from __future__ import annotations
 import pytest
 
 import core.prompt_normalizer as prompt_normalizer
+from core.context_namespace import ensure_chat_namespace
 from core.human_input_adapter import HumanInputInterpretation
 from core.identity_manager import load_active_persona
 from core.prompt_normalizer import normalize_prompt
 from core.task_router import create_task_record
 from core.tiered_context_loader import TieredContextLoader
-from core.context_namespace import ensure_chat_namespace
 
 _CAPSULE = (
     "<retrieved_context>\n"

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-
 from contextlib import suppress
 from typing import Any
 
@@ -1737,7 +1736,6 @@ def execute_grounded_turn(
                 from core.evidence_compiler import verify_enabled as _verify_enabled
 
                 if _verify_enabled():
-                    from core.context_retrieval import get_last_retrieval_telemetry as _telemetry
 
                     from core.bootstrap_context import admitted_capsule_evidence_text as _admitted_text
                     from core.evidence_kernel.snapshot import packet_facts_for as _packet_facts_for

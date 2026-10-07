@@ -206,7 +206,7 @@ def _run_driver(tmp_path, *, name, seed, skip_seed, flag_off, delete_token):
     home.mkdir(parents=True)
     turns_file = tmp_path / f"turns-{name}.json"
     out_file = tmp_path / f"served-{name}-result.json"
-    import argparse  # noqa: F401  (driver parses its own args)
+    import argparse
 
     turns_doc = {
         "past-duration": TURNS_MAIN[0],

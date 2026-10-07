@@ -254,9 +254,9 @@ def test_a_delivered_capsule_carries_the_new_header(tmp_path, monkeypatch) -> No
 
     home = tmp_path / "header-world"
     home.mkdir()
+    import core.embedding_service as embeddings
     from core import runtime_paths
     from storage.migrations import run_migrations
-    import core.embedding_service as embeddings
 
     monkeypatch.setenv("VOOL_HOME", str(home))
     monkeypatch.setenv("VOOL_HOME", str(home))

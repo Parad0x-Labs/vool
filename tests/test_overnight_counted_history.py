@@ -1,6 +1,8 @@
 """Counted prior-output sets retain each name and its predicate."""
 import pytest
+
 from core.context_retrieval import _query_shape, _structured_source_windows
+
 
 @pytest.mark.parametrize('q',[
     'Remind me of the two studios you mentioned that offer apprenticeships like Northfield.',

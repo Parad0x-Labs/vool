@@ -1,7 +1,8 @@
 """Advice query framing development reproductions, separate from ownership."""
 import pytest
-from core.context_retrieval import _advice_topic_clause, _advice_ask_frame_terms
-from tests.test_p300_pref_retrieval_repair import pref_env, _ingest, _capsule
+
+from core.context_retrieval import _advice_ask_frame_terms, _advice_topic_clause
+from tests.test_p300_pref_retrieval_repair import _capsule, _ingest, pref_env
 
 
 @pytest.mark.parametrize("question", [
