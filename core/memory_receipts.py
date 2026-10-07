@@ -235,6 +235,10 @@ def _strip_envelope(body: str) -> tuple[str, float | None]:
     return text[match.end():], _epoch(day)
 
 
+_HEDGE_RE = re.compile(r"\b(?:maybe|perhaps|possibly|probably|i\s+think|i\s+guess|i\s+believe|not\s+sure|unsure|if\s+i\s+recall|if\s+i\s+remember|might\s+have|may\s+have|could\s+have\s+been|or\s+so|roughly\s+around)\b", re.IGNORECASE)
+_QUOTED_SPAN_RE = re.compile(r"\"[^\"]*\"|“[^”]*”|'[^']{3,}'")
+
+
 def resolve_event_day(sentence: str, statement_day: date | None) -> tuple[date | None, str]:
     """The calendar day a sentence dates its own event to, with its grain (day, week, month, year, explicit).
 
@@ -242,6 +246,10 @@ def resolve_event_day(sentence: str, statement_day: date | None) -> tuple[date |
     most recent past reading). Two different relative phrases in one sentence are ambiguous: nothing is dated."""
     text = str(sentence or "")
     found: list[tuple[date, str]] = []
+    if _HEDGE_RE.search(text):
+        # a hedged clause ("maybe yesterday ...", "I am not sure", "perhaps") dates nothing: unknown stays unknown
+        # (the capsule's own hedged-back-reference law, now honoured at the receipts; v14.6 port time-leg ids)
+        return None, "hedged"
     if statement_day is not None:
         for m in _DEICTIC_DAY_RE.finditer(text):
             w = m.group("w").lower()
@@ -881,7 +889,10 @@ def match_receipts(receipts: Sequence[dict[str, Any]], question: str, *, extra_t
             near = False
             if target_day is not None and fact.get("event_at") is not None:
                 try:
-                    near = abs((_statement_day(fact["event_at"]) - target_day).days) <= 3
+                    delta = (_statement_day(fact["event_at"]) - target_day).days
+                    # the as-of law: a record dated after the asked day is not evidence for that day unless its own
+                    # words date it back (then its event day is on or before the day); within three days before, near
+                    near = -3 <= delta <= 0
                 except Exception:
                     near = False
             if shared == 0 and not near:
