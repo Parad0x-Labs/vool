@@ -140,6 +140,7 @@ def reply_temporal_values(text: str) -> list[TValue]:
 @dataclass
 class Operands:
     days: dict[date, str] = field(default_factory=dict)        # day -> provenance
+    day_text: dict[date, str] = field(default_factory=dict)    # event day -> the record's own words (for the actor check)
     durations: list[tuple[float, str, str]] = field(default_factory=list)  # (days, unit, provenance)
 
 
@@ -156,7 +157,11 @@ def packet_operands(packet_facts: Sequence[Mapping[str, Any]], reference_day: da
         said = _day(f.get("statement_at")); ev = _day(f.get("event_at"))
         rid = str(f.get("receipt_id") or "")
         if ev is not None:
-            ops.days.setdefault(ev, f"event day of {rid}")
+            # an event-grade day outranks a statement-day or reference-day registration of the same date (two records
+            # can share a date: one said that day, the other dated its event to it)
+            if ev not in ops.days or ops.days[ev].startswith("statement day") or ops.days[ev].startswith("reference day"):
+                ops.days[ev] = f"event day of {rid}"
+                ops.day_text[ev] = line
         if said is not None:
             ops.days.setdefault(said, f"statement day of {rid}")
             for m in _AGO_RE.finditer(line):
@@ -187,7 +192,20 @@ def packet_operands(packet_facts: Sequence[Mapping[str, Any]], reference_day: da
 _SESSION_FRAME_RE = re.compile(r"\b(?:session|as\s+of|said|told|mentioned|wrote|noted|stated|recorded|logged|reported|chat|conversation|on\s+your|you\s+(?:said|told|mentioned|stated|noted))\b[^.]{0,40}$", re.IGNORECASE)
 
 
-def _bind_value(v: TValue, ops: Operands, reply_days: dict[date, str], *, before: str = "") -> None:
+_NAME_RE = re.compile(r"(?<![.!?]\s)\b([A-Z][a-z]{2,})\b")
+
+
+def _actor_mismatch(question: str, record_text: str) -> bool:
+    """The question names a person and the record names a different person only: 'When did Neri finish the mural?'
+    is not dated by 'Theo finished his gallery mural on 19 May 2025' (port native case wrong-actor-date)."""
+    q_names = {n.lower() for n in _NAME_RE.findall(" " + str(question or ""))} - {"when", "what", "which", "how", "did", "does", "the", "where", "who"}
+    if not q_names:
+        return False
+    r_names = {n.lower() for n in _NAME_RE.findall(" " + str(record_text or ""))}
+    return bool(r_names) and not (q_names & r_names)
+
+
+def _bind_value(v: TValue, ops: Operands, reply_days: dict[date, str], *, before: str = "", question: str = "") -> None:
     all_days = {**ops.days, **reply_days}
     if v.kind == "date":
         # A date the reply states as an EVENT binds to an event-grade day (a typed event day, or a day a fact's own
@@ -195,6 +213,7 @@ def _bind_value(v: TValue, ops: Operands, reply_days: dict[date, str], *, before
         # ("as of your 28 January session"): the day a thing was said is not the day it happened.
         session_frame = bool(_SESSION_FRAME_RE.search(before))
         candidates = {d: why for d, why in ops.days.items() if session_frame or not (why.startswith("statement day") or why.startswith("reference day"))}
+        candidates = {d: why for d, why in candidates.items() if not _actor_mismatch(question, ops.day_text.get(d, ""))}
         if v.day is not None:
             for d, why in candidates.items():
                 if d == v.day:
@@ -287,7 +306,7 @@ def bind_temporal_claims(*, question: str, reply: str, packet_facts: Sequence[Ma
     # two passes: stated days of the reply first, so a weekday or an interval can bind to a day the reply itself states
     for v in values:
         if v.kind == "date":
-            _bind_value(v, ops, {}, before=reply[max(0, v.start - 48): v.start])
+            _bind_value(v, ops, {}, before=reply[max(0, v.start - 48): v.start], question=str(question or ""))
     reply_days = {v.day: f"reply date {v.text}" for v in values if v.kind == "date" and v.day is not None and v.status != "unsupported"}
     diff_ask = bool(_DIFFERENCE_ASK_RE.search(str(question or "")))
     for v in values:

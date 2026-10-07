@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 
-from core.memory_receipts import _slot as _slot_terms, _stem, _statement_day, match_receipts, question_terms, receipts_for_scope, resolve_event_day
+from core.memory_receipts import _QUOTED_SPAN_RE, _slot as _slot_terms, _stem, _statement_day, match_receipts, question_terms, receipts_for_scope, resolve_event_day
 
 LOGGER = logging.getLogger(__name__)
 _UTC = timezone.utc
@@ -440,7 +440,9 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
         except Exception:
             reference_day = None
     # a relative phrase in the question ("two weeks ago", "last month") points at a day; facts dated near it match
-    target_day, _grain = resolve_event_day(question, reference_day) if reference_day is not None else (None, "")
+    # a date inside quotation marks is quoted text, not the question's own frame ('The tide table says "April 11, 2024",
+    # which port do I usually moor in?' names no day)
+    target_day, _grain = resolve_event_day(_QUOTED_SPAN_RE.sub(" ", question), reference_day) if reference_day is not None else (None, "")
     wants_lists = ob.kind == "assistant_output" or bool(re.search(r"\b(?:list|listed|steps?|items?|options?|tips?|recipe|ingredients?|objectives?)\b", question, re.I))
     # value kinds the question can use: a count only for an aggregate ask, a clock only for a time ask, an amount
     # only for a money ask, so generic typed values ("few ways", "5 GHz", "$20") do not crowd the packet
