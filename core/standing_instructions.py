@@ -405,6 +405,31 @@ def _lasting_facts(sentences: list[str]) -> list[str]:
     return facts
 
 
+def _about_presentation(text: str) -> bool:
+    return bool(_facets(text) or _PRESENTATION_RE.search(text) or _STYLE_RE.search(text))
+
+
+_FORMAT_PHRASE_RE = re.compile(r"\s+(?:in|as|with|using|under|within|to|for)\s+", re.IGNORECASE)
+
+
+def _format_is_the_request(sentence: str) -> bool:
+    """Whether the format words ARE the order ("Answer in bullet points.") rather than shape a request for content
+    ("Explain how vaccines work in two sentences."). The trailing phrase that carries the format is cut; what is
+    left must still be about how answers look, or be the bare verb ("Answer", "Reply")."""
+    clause = _main_clause(sentence).strip().rstrip(".!")
+    if _PREFERENCE_RE.match(clause):
+        return True
+    rest = clause
+    for match in _FORMAT_PHRASE_RE.finditer(clause):
+        if _about_presentation(clause[match.start():]):
+            rest = clause[:match.start()]
+            break
+    if rest == clause or _about_presentation(rest):
+        return True
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z'\-]*", rest) if w.lower() not in {"me", "us", "please"}]
+    return len(words) <= 1
+
+
 def _plain_kind(sentence: str) -> str:
     """"workflow" / "plain" for a rule said without trigger words, "context" for a reason about the owner, else ""."""
     s = sentence.strip()
@@ -413,7 +438,7 @@ def _plain_kind(sentence: str) -> str:
     if _addressed_to_vool(s) and not _SPECIFIC_OBJECT_RE.search(s) and not _TASK_QUANTITY_RE.search(s):
         if _WORKFLOW_RE.search(s):
             return "workflow"
-        if _facets(s) or _PRESENTATION_RE.search(s) or _STYLE_RE.search(s):
+        if _about_presentation(s) and _format_is_the_request(s):
             return "plain"
     if _CONTEXT_RE.match(s) and not _addressed_to_vool(s):
         return "context"
