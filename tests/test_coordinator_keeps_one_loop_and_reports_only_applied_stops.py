@@ -104,3 +104,51 @@ def test_a_partial_stop_names_both_outcomes(tmp_path):
 def test_a_stop_with_no_receipt_is_reported_as_unknown():
     text = planner.stop_report_text({"axis": "cost", "stops": {"stop:t:a:budget": "a"}}, {"stop:t:a:budget": "intent"})
     assert "I stopped" not in text and "don't know whether 1 stopped" in text, text
+
+
+def _council_over_cap(tmp_path, monkeypatch, run_id):
+    from core.council import api as council_api
+    from core.council.run_store import CouncilRunStore
+    from core.standing_coordinator.council_port import CouncilRunPort
+
+    requested = threading.Event()
+    monkeypatch.setattr(council_api, "_RUNS", {run_id: SimpleNamespace(run_id=run_id, request_stop=requested.set)})
+    monkeypatch.setattr(council_api, "_PAUSED", {})
+    run_store = CouncilRunStore(run_id)
+    run_store.write_state({"state": "round_open", "started_at": 1000, "problem": "Controlled fixture",
+                           "rounds": [{"reports": [{"usage": {"usd_actual": 2}}]}]})
+    port = CouncilRunPort()
+    notifier = MemoryNotifier()
+    store = CoordinatorStore(tmp_path / "coordinator.sqlite3", clock=lambda: 1001)
+    coordinator = StandingCoordinator(store, notifier=notifier, port_resolver=lambda _id: port, clock=lambda: 1001)
+    team_id = "council:" + run_id
+    coordinator.watch(team_id, WatchPolicy(ceilings=SpendCeilings(max_cost_usd=1, max_tokens=1000, max_calls=100,
+                                                                   wall_clock_seconds=1000)))
+    coordinator.tick()
+    return requested, run_store, port, notifier, store, coordinator, team_id
+
+
+def test_a_live_council_stop_request_is_reported_as_pending_not_stopped(tmp_path, monkeypatch):
+    # Pack 2b re-audit, 2026-10-07: the council API answers a stop request with stopping=True while the
+    # run keeps going until its thread notices; that was recorded as an applied stop and reported as
+    # "I stopped 1" while the run was still RUNNING.
+    requested, _run_store, port, notifier, store, _coordinator, team_id = _council_over_cap(
+        tmp_path, monkeypatch, "pending-stop-report")
+    assert requested.is_set()
+    assert port.snapshot(team_id).agents[0].state is AgentState.RUNNING
+    bodies = [item["body"] for item in notifier.items]
+    assert bodies and not any("I stopped" in body for body in bodies), bodies
+    assert any("not confirmed" in body and "may still be running" in body for body in bodies), bodies
+    assert [row["status"] for row in store.actions(team_id, kind="stop")] == ["pending"]
+
+
+def test_a_pending_stop_is_done_only_once_a_snapshot_shows_the_run_ended(tmp_path, monkeypatch):
+    _requested, run_store, _port, _notifier, store, coordinator, team_id = _council_over_cap(
+        tmp_path, monkeypatch, "pending-stop-confirm")
+    coordinator.tick()
+    assert [row["status"] for row in store.actions(team_id, kind="stop")] == ["pending"], "still running: not proven"
+    run_store.write_state({"state": "stopped", "started_at": 1000, "problem": "Controlled fixture",
+                           "rounds": [{"reports": [{"usage": {"usd_actual": 2}}]}]})
+    coordinator.tick()
+    [row] = store.actions(team_id, kind="stop")
+    assert row["status"] == "done" and row["detail"].get("confirmed_by") == "snapshot", row

@@ -136,7 +136,9 @@ class CouncilRunPort:
             return PortReceipt(False, "not_found", "not this port's run")
         code, body = council_api.stop(run_id)
         if code == 200:
-            return PortReceipt.applied("stopping" if not body.get("stopped") else "stopped")
+            # A live run only takes the request here ("stopping"); it ends when its thread notices.
+            # Until a snapshot shows it ended, the stop is pending, never done.
+            return PortReceipt.applied("stopped") if body.get("stopped") else PortReceipt.pending("stopping")
         return PortReceipt(False, "not_found", str(body.get("error") or code))
 
 
