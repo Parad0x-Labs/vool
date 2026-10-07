@@ -16,6 +16,13 @@
 #   bash installer/bundle/build_macos_app.sh                     # -> ./dist/VOOL.app
 #   bash installer/bundle/build_macos_app.sh --out ~/Applications
 #   bash installer/bundle/build_macos_app.sh --dmg               # also build dist/VOOL.dmg
+#   bash installer/bundle/build_macos_app.sh --self-contained --release-sign artifacts/release/0.7.0
+#       # Developer ID sign + notarize + staple; writes VOOL-<version>-macos-<arch>.dmg and its
+#       # signing receipt into that directory. Fails closed without credentials; see
+#       # docs/releases/0.7-readiness.md.
+#   bash installer/bundle/build_macos_app.sh --self-contained --release-dir artifacts/release/0.7.0
+#       # Unsigned download: the same versioned DMG name, ad-hoc signed and NOT notarized
+#       # (users open it via System Settings -> Privacy & Security -> Open Anyway).
 #
 # Provenance contract (2026-09-02): a build from a DIRTY tree is refused — uncommitted source
 # used to ride inside the bundle while BUILD_MANIFEST claimed a committed SHA it did not contain
@@ -33,6 +40,8 @@ MAKE_DMG=0
 SELF_CONTAINED=0
 BUNDLE_MODE="wrapper"
 PY_VERSION="3.11"
+RELEASE_SIGN_DIR=""
+RELEASE_DIR=""
 # ── Architecture and deployment floor ─────────────────────────────────────────────────────
 # ARCHITECTURE IS DECLARED, NEVER INHERITED. Every arch-bearing step below (the embedded
 # CPython, the wheels, the Swift device-auth helper) used to take whatever the build host
@@ -140,11 +149,13 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) OUT_DIR="${2:?--out needs a directory}"; shift 2 ;;
     --dmg) MAKE_DMG=1; shift ;;
+    --release-dir) RELEASE_DIR="${2:?--release-dir needs the release output directory}"; shift 2 ;;
+    --release-sign) RELEASE_SIGN_DIR="${2:?--release-sign needs the release output directory}"; shift 2 ;;
     --self-contained) SELF_CONTAINED=1; BUNDLE_MODE="self-contained"; shift ;;
     --python) PY_VERSION="${2:?--python needs a version}"; shift 2 ;;
     --arch) TARGET_ARCH="${2:?--arch needs arm64 or x86_64}"; shift 2 ;;
     --min-macos) MACOS_MIN_VERSION="${2:?--min-macos needs a version}"; shift 2 ;;
-    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,24p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -224,6 +235,31 @@ case "${TARGET_ARCH}" in
   x86_64) UV_ARCH="x86_64";  UV_PLATFORM="x86_64-apple-darwin" ;;
 esac
 say "Target: ${TARGET_ARCH}, minimum macOS ${MACOS_MIN_VERSION}"
+
+# ── Release outputs ───────────────────────────────────────────────────────────────────────
+# --release-dir (ad-hoc, not notarized) and --release-sign (Developer ID, notarized) both write
+# VOOL-<version>-macos-<arch>.dmg for publication, so both need a self-contained bundle from a
+# clean committed tree. --release-sign additionally checks its credentials here, before the
+# long staging phase.
+# --release-sign is the ONLY route to a release DMG. It is refused up front, before the long
+# staging phase, unless the build is self-contained, from a clean committed tree, and the
+# Developer ID identity plus notary credentials are present and authenticate.
+DISTRIBUTION_SIGNING="none"
+[[ -z "${RELEASE_DIR}" || -z "${RELEASE_SIGN_DIR}" ]] || die "pass --release-dir OR --release-sign, not both."
+if [[ -n "${RELEASE_DIR}${RELEASE_SIGN_DIR}" ]]; then
+  [[ "${SELF_CONTAINED}" -eq 1 ]] || die "a release DMG needs --self-contained: a wrapper bundle drives a local install and is never distributable."
+  [[ "${RELEASE_BUILD}" == "true" ]] || die "a release DMG needs a clean committed source tree; this build is NON-RELEASE."
+  [[ "${RELEASE_VERSION}" =~ ^[0-9A-Za-z.+-]+$ ]] || die "a release DMG needs a release_version in config/release/update_channel.json."
+fi
+if [[ -n "${RELEASE_DIR}" ]]; then
+  MAKE_DMG=1
+fi
+if [[ -n "${RELEASE_SIGN_DIR}" ]]; then
+  [[ -f "${SCRIPT_DIR}/sign_macos_release.sh" ]] || die "release signing script missing at ${SCRIPT_DIR}/sign_macos_release.sh"
+  bash "${SCRIPT_DIR}/sign_macos_release.sh" --preflight \
+    || die "release signing preflight failed (see above); no release build was started."
+  DISTRIBUTION_SIGNING="developer-id"
+fi
 say "Build id: ${VOOL_BUILD_ID}"
 
 # macOS TCC: processes spawned by Finder/LaunchServices (and launchd agents) cannot read
@@ -655,6 +691,7 @@ cat >"${APP}/Contents/Resources/BUILD_MANIFEST.json" <<MANIFEST
   "built_under_translation": ${BUILD_HOSTED_UNDER_TRANSLATION},
   "natively_verified": $([[ "${CROSS_BUILD}" -eq 1 ]] && echo false || echo true),
   "source_tree_clean": ${SOURCE_TREE_CLEAN},
+  "distribution_signing": "${DISTRIBUTION_SIGNING}",
   "release": ${RELEASE_BUILD}
 }
 MANIFEST
@@ -985,16 +1022,61 @@ verify_bundle
 # the ollama binary, the devauth helper and the notification app do. A signed bundle makes
 # Gatekeeper's first-open flow the predictable "unidentified developer" warning with a
 # working right-click -> Open, rather than the harsher treatment fully-unsigned downloads
-# can get on macOS 13+. Notarization still needs an Apple Developer ID (see README).
-if [[ -x /usr/bin/codesign ]]; then
+# can get on macOS 13+. A --release-sign build skips it: sign_macos_release.sh signs every
+# Mach-O with the Developer ID identity instead, then notarizes.
+if [[ -n "${RELEASE_SIGN_DIR}" ]]; then
+  say "  ad-hoc signature skipped: Developer ID signing follows the manifest checks"
+elif [[ -x /usr/bin/codesign ]]; then
   if codesign --force --deep --sign - "${APP}" >/dev/null 2>&1; then
     say "  ad-hoc code signature applied to the bundle"
     codesign --verify --deep --strict "${APP}" >/dev/null 2>&1 \
       || die "ad-hoc signature did not verify after signing"
+    # `--deep` seals the bundle but does not sign Mach-O files under Contents/Resources (the
+    # embedded interpreter, libpython, extension modules, ollama). Each must still carry a valid
+    # signature of its own -- the footprint scrub rewrote some of them with install_name_tool --
+    # or Apple Silicon kills the process when it loads that file. Re-sign any that fail, then
+    # require every one to verify.
+    if [[ "${SELF_CONTAINED}" -eq 1 ]]; then
+      bad_macho=0
+      seen_macho=0
+      while IFS= read -r -d '' macho; do
+        seen_macho=$((seen_macho + 1))
+        codesign --verify --strict "${macho}" >/dev/null 2>&1 && continue
+        codesign --force --sign - "${macho}" >/dev/null 2>&1 \
+          && codesign --verify --strict "${macho}" >/dev/null 2>&1 \
+          || { say "  invalid signature: ${macho#"${APP}/"}" >&2; bad_macho=$((bad_macho + 1)); }
+      done < <("${SYS_PY:-python3}" - "${APP}/Contents/Resources" <<'MACHO'
+import os, struct, sys
+# Mach-O by magic number (thin 32/64-bit either endianness, or universal with a plausible
+# slice count -- a Java class file shares the universal magic but not the count).
+THIN = {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe"}
+for base, _dirs, files in os.walk(sys.argv[1]):
+    for name in files:
+        path = os.path.join(base, name)
+        if os.path.islink(path):
+            continue
+        with open(path, "rb") as fh:
+            head = fh.read(8)
+        fat = head[:4] == b"\xca\xfe\xba\xbe" and len(head) == 8 and 0 < struct.unpack(">I", head[4:])[0] < 20
+        if head[:4] in THIN or fat:
+            sys.stdout.write(path + "\0")
+MACHO
+)
+      [[ "${seen_macho}" -gt 0 ]] || die "found no Mach-O files under Contents/Resources; the signature check enumerated nothing"
+      [[ "${bad_macho}" -eq 0 ]] || die "${bad_macho} Mach-O file(s) in the bundle carry no valid signature; Apple Silicon would refuse to load them"
+      codesign --force --sign - "${APP}" >/dev/null 2>&1 \
+        && codesign --verify --deep --strict "${APP}" >/dev/null 2>&1 \
+        || die "the bundle seal did not verify after per-file signature repair"
+      say "  all ${seen_macho} Mach-O files in Contents/Resources carry a valid signature"
+    fi
   else
+    # Apple Silicon refuses to execute arm64 code without a valid signature, so an unsigned
+    # self-contained bundle would not start at all on the machines it is built for.
+    [[ "${SELF_CONTAINED}" -ne 1 ]] || die "ad-hoc codesign failed; an unsigned self-contained bundle cannot run on Apple Silicon."
     say "WARNING: ad-hoc codesign failed; the bundle ships unsigned."
   fi
 else
+  [[ "${SELF_CONTAINED}" -ne 1 ]] || die "codesign unavailable; an unsigned self-contained bundle cannot run on Apple Silicon."
   say "WARNING: codesign unavailable; the bundle ships unsigned."
 fi
 
@@ -1036,6 +1118,16 @@ fi
 
 say "OK: ${APP}  [${BUNDLE_MODE}]"
 
+# --- release signing ----------------------------------------------------------------------
+# Signing, notarization and the release DMG happen together or not at all. A failure deletes
+# the half-signed app so nothing Developer-ID-stamped but un-notarized is left lying around.
+if [[ -n "${RELEASE_SIGN_DIR}" ]]; then
+  bash "${SCRIPT_DIR}/sign_macos_release.sh" --app "${APP}" --release-dir "${RELEASE_SIGN_DIR}" \
+      --name "VOOL-${RELEASE_VERSION}-macos-${TARGET_ARCH}" \
+    || { rm -rf "${APP}"; die "release signing failed; the partially signed app was removed and no release DMG exists."; }
+  MAKE_DMG=0
+fi
+
 # --- optional dmg -------------------------------------------------------------------------
 if [[ "${MAKE_DMG}" -eq 1 ]]; then
   if [[ "${SELF_CONTAINED}" -ne 1 ]]; then
@@ -1050,7 +1142,14 @@ if [[ "${MAKE_DMG}" -eq 1 ]]; then
   hdiutil create -volname "VOOL" -srcfolder "${STAGE}" -ov -format UDZO "${DMG}" >/dev/null \
     || die "hdiutil failed to build ${DMG}"
   rm -rf "${STAGE}"
-  say "OK: ${DMG}  (unsigned — notarization needs an Apple Developer ID; see installer/bundle/README.md)"
+  say "OK: ${DMG}  (ad-hoc signed, NOT notarized: Gatekeeper asks users to Open Anyway; --release-sign notarizes)"
+  if [[ -n "${RELEASE_DIR}" ]]; then
+    mkdir -p "${RELEASE_DIR}" || die "cannot create ${RELEASE_DIR}"
+    REL_DMG="${RELEASE_DIR}/VOOL-${RELEASE_VERSION}-macos-${TARGET_ARCH}.dmg"
+    [[ ! -e "${REL_DMG}" ]] || die "${REL_DMG} already exists; a release artifact is never overwritten"
+    cp "${DMG}" "${REL_DMG}" || die "could not copy the DMG to ${REL_DMG}"
+    say "OK: ${REL_DMG}  (unsigned release download; publish its checksum beside it)"
+  fi
 fi
 
 say ""
