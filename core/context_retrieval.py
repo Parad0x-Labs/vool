@@ -8128,6 +8128,18 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
     if not text:
         _set_retrieval_telemetry(telemetry)
         return transcript
+    # v14.6: a packet alone rides only when the compiler found every operand the obligation needs and the scope is
+    # covered. The capsule withheld every line (an assertion gate, a facet gate, no hit); a packet that is itself
+    # incomplete would carry partial evidence past that gate (port assertion-gate Q04, F03, F07 and the absent-qualifier
+    # case: "incomplete: missing typed_values>=2" with one record reached the reader).
+    try:
+        _complete = bool(dict(getattr(evidence_packet, "telemetry", {}) or {}).get("complete"))
+    except Exception:
+        _complete = False
+    if not _complete:
+        telemetry["capsule_mode"] = "packet_withheld_incomplete"
+        _set_retrieval_telemetry(telemetry)
+        return transcript
     telemetry["capsule_mode"] = "packet_only"
     _set_retrieval_telemetry(telemetry)
     return _inject_render_block(transcript, "<retrieved_context>\n" + text + "\n</retrieved_context>")
@@ -11900,12 +11912,6 @@ def _capsule_v2_inject_retrieved(
             query=query, expansions=search_expansions)
     except Exception:
         LOGGER.debug("whole-turn lane render failed", exc_info=True)
-    if turn_lines:
-        lane = _TURN_LANE_HEADER + "\n" + "\n".join(turn_lines)
-        if render_block:
-            render_block = render_block.replace("\n</retrieved_context>", "\n" + lane + "\n</retrieved_context>", 1)
-        else:
-            render_block = "<retrieved_context>\n" + lane + "\n</retrieved_context>"
     packet_text = ""
     if evidence_packet is not None:
         try:
@@ -11924,6 +11930,15 @@ def _capsule_v2_inject_retrieved(
             render_block = render_block.replace("\n</retrieved_context>", "\n" + packet_text + "\n</retrieved_context>", 1)
         else:
             render_block = "<retrieved_context>\n" + packet_text + "\n</retrieved_context>"
+    # v14.6: the verbatim turn lane is the LAST section of the block (distilled lines, then the receipts packet, then
+    # the lane), so the lane's record-format law reads only lane lines and the packet's typed lines never sit under
+    # the lane header (port whole_turn_lane format law, kernel on)
+    if turn_lines:
+        lane = _TURN_LANE_HEADER + "\n" + "\n".join(turn_lines)
+        if render_block:
+            render_block = render_block.replace("\n</retrieved_context>", "\n" + lane + "\n</retrieved_context>", 1)
+        else:
+            render_block = "<retrieved_context>\n" + lane + "\n</retrieved_context>"
     telemetry.update(
         {
             "whole_turn_units": len(whole_turn_units),

@@ -121,7 +121,9 @@ _DURATION_WORDS_RE = re.compile(
     rf"(?:\s+(?:and|&)\s+(?P<n2>{_NUM})\s+(?P<u2>minutes?|mins?|hours?|days?))?", re.IGNORECASE)
 _AMOUNT_RE = re.compile(r"(?:\$|€|£)\s?(?P<v>\d[\d,]*(?:\.\d+)?)(?:\s?(?:k|K|million|m)\b)?|\b(?P<v2>\d[\d,]*(?:\.\d+)?)\s+(?:dollars|euros|pounds|bucks|usd|eur|gbp)\b", re.IGNORECASE)
 _CLOCK_RE = re.compile(r"\b(?P<h>\d{1,2})(?::(?P<m>[0-5]\d))?\s?(?P<ap>am|pm|a\.m\.|p\.m\.)\b", re.IGNORECASE)
-_AGE_RE = re.compile(r"\b(?:i(?:'m| am)|turned|turning|i was|is|was|he's|she's|they're)\s+(?P<n>\d{1,3})(?:\s+years?\s+old)?\b|\b(?P<n2>\d{1,3})\s+years?\s+old\b|\b(?:my|her|his|their)\s+(?P<who>\w+)\s+is\s+(?P<n3>\d{1,3})\b", re.IGNORECASE)
+# an age is a bare number after an age verb or "N years old"; a number followed by another word ("is 60 crowns",
+# "is 26 km") is a price, a measure or a count, never an age (v14.6 port: a course fee typed as age reached an abstaining ask)
+_AGE_RE = re.compile(r"\b(?:i(?:'m| am)|i was|is|was|he's|she's|they're)\s+(?P<n>\d{1,3})(?:\s+years?\s+old)?\b(?!\s*[a-z])|\b(?:turned|turning)\s+(?P<n4>\d{1,3})\b|\b(?P<n2>\d{1,3})\s+years?\s+old\b|\b(?:my|her|his|their)\s+(?P<who>\w+)\s+is\s+(?P<n3>\d{1,3})\b", re.IGNORECASE)
 #: v14.6 (item 6 metamorphic family "duration-record"): a measured quantity with a physical unit is a typed fact of its own,
 #: so "my longest tunnel route is now 31 km" becomes a record the record law can supersede; before, "is 26 km" was typed as
 #: an AGE ("is 26") and the correction carried no fact at all.
@@ -360,10 +362,31 @@ def _clause_event_days(sentence: str, statement_day: date | None) -> list[tuple[
     return out
 
 
+_SPEAKER_LABEL_RE = re.compile(r"(?m)^\s*(?:\*\*)?(USER|ASSISTANT|SYSTEM)(?:\*\*)?\s*:\s*", re.IGNORECASE)
+
+
+def _own_speaker_text(text: str, role: str) -> str:
+    """The part of a stored body that this role said. A body that quotes the other speaker under a label ("ASSISTANT:
+    You might instead book ... for 110 euros" pasted inside a user record) keeps that segment out of this role's facts:
+    the assistant's words are the assistant's, whoever's record carries them (v14.6 item 4 at the receipts typer;
+    port assertion-gate Q07, kernel on)."""
+    parts = list(_SPEAKER_LABEL_RE.finditer(text))
+    if not parts:
+        return text
+    own = str(role or "user").lower()
+    keep: list[str] = [text[: parts[0].start()]]
+    for i, m in enumerate(parts):
+        end = parts[i + 1].start() if i + 1 < len(parts) else len(text)
+        if m.group(1).lower() == own:
+            keep.append(text[m.end(): end])
+    return "\n".join(k for k in keep if k.strip())
+
+
 def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact]:
     """Typed values a turn asserts, one Fact per (sentence, value): durations, amounts, counts, ages, clock times,
     and dated events (a sentence whose own words date an event, even without another value)."""
     text, envelope_at = _strip_envelope(body)
+    text = _own_speaker_text(text, role)
     stmt_day = _statement_day(statement_at if statement_at is not None else envelope_at)
     facts: list[Fact] = []
     pos = 0
@@ -441,7 +464,7 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
         for m in _AGE_RE.finditer(sentence):
             if _MEASURE_RE.match(sentence, m.start("n")) if m.group("n") else False:
                 continue   # "is 26 km" is a measure, not an age
-            n = m.group("n") or m.group("n2") or m.group("n3")
+            n = m.group("n") or m.group("n2") or m.group("n3") or m.group("n4")
             if n and 0 < int(n) < 120:
                 add("age", m.group(0), n, at=m.start())
         for m in _COUNT_RE.finditer(sentence):
