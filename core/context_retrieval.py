@@ -4727,10 +4727,25 @@ _QUERY_OVERLAP_STOPWORDS = frozenset(
 #: "when/how/what/why" describe the SHAPE of the ask, not the facet it
 #: requests. who/whom/whose DO discriminate (a person-ask whose actor term
 #: is absent is asking for something the chat never stated).
-# "who"/"whom"/"whose" are interrogatives like what/which: a relative clause ("the plumber who bled the radiators")
-# or a person ask names the frame, never a retained facet (measured 2026-10-07: {who, bill} armed the absence gate
-# on a past ask and withheld the plumber's invoice; the present-tense form armed it too)
-_FACET_FRAME_WORDS = frozenset({"when", "what", "which", "why", "how", "who", "whom", "whose"})
+_FACET_FRAME_WORDS = frozenset({"when", "what", "which", "why", "how"})
+
+#: "who"/"whom"/"whose" is an asked facet when it HEADS the ask ("Who installed the chairlift cable?": the actor is
+#: what is asked, and an unretained actor is an absent facet) but ask frame when it opens a RELATIVE clause after a
+#: noun ("The plumber who bled the radiators - how much was his bill?"; measured 2026-10-07: {who, bill} armed the
+#: gate and withheld the invoice). An embedded interrogative ("tell me who ...", "remember who ...") heads the ask.
+_WHO_HEAD_RE = re.compile(
+    r"^\W*(?:who|whom|whose)\b"
+    r"|\b(?:me|us|know|knows|knew|tell|told|ask|asked|wonder|wondered|remember|recall|say|said|forget|forgot|"
+    r"and|or|but|so|about|of)\s+(?:who|whom|whose)\b",
+    re.IGNORECASE)
+
+
+def _relative_who_terms(question: str) -> frozenset[str]:
+    """The who/whom/whose tokens of a question that are relative-clause frame, not the asked facet."""
+    text = str(question or "")
+    if not re.search(r"\b(?:who|whom|whose)\b", text, re.IGNORECASE) or _WHO_HEAD_RE.search(text):
+        return frozenset()
+    return frozenset({"who", "whom", "whose"})
 
 # Bound modal departure phrases describe the requested action, rather than
 # an attribute asserted by the source. Keep head/set/out/off as ordinary
@@ -9580,10 +9595,12 @@ def _capsule_v2_inject_retrieved(
     from core.raw_output_contract import request_content_for_retrieval
     _fp_content_query = _FACET_DEPARTURE_FRAME_RE.sub(
         " ", request_content_for_retrieval(_fp_question))
+    _fp_relative_who = _relative_who_terms(_fp_content_query)
     _fp_discriminators = {
         str(t) for t in _query_overlap_terms(_fp_content_query)
         if str(t) not in _FACET_FRAME_WORDS
         and str(t) not in _FACET_FRAME_EXTRA
+        and str(t) not in _fp_relative_who
         # a PAST ask's time-frame words name when it looks, not its facet
         and not (_fp_scope.asks_past and str(t) in _FACET_PAST_FRAME_WORDS)
         # a pre-colon lead-in is channel/meta instruction, not asked facet
