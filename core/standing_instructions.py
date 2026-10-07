@@ -443,6 +443,55 @@ def _supplies_material(raw: str, authored: str) -> bool:
     return bool(_INTRODUCES_MATERIAL_RE.search(authored))
 
 
+_OBJECT_STOP = frozenset(["to", "for", "about", "on", "with", "in", "at", "from", "of", "and", "or", "but", "that",
+                          "which", "as", "under", "over", "than", "using", "within", "without", "into", "by"])
+_DETERMINERS = frozenset(["a", "an", "the", "your", "my", "our", "this", "that", "some", "any", "one", "two", "three",
+                          "four", "five", "six", "seven", "eight", "nine", "ten"])
+_INDEFINITE = frozenset(["a", "an", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"])
+_FORMAT_CONTINUATION_RE = re.compile(r"^(?:as|in|using|under|within|instead|with\s+(?:me|us)|for\s+(?:me|us))\b",
+                                     re.IGNORECASE)
+
+
+def _ends_with_presentation(phrase: str, *, indefinite: bool) -> bool:
+    patterns = [_PRESENTATION_RE, *(pattern for _name, pattern in _FACETS)]
+    if not indefinite:  # "your answers", "the pleasantries" -- but "a formal reply" is a thing to write
+        patterns.append(_STYLE_RE)
+    return any(match.end() == len(phrase) for pattern in patterns for match in pattern.finditer(phrase))
+
+
+def _object_is_how_answers_look(sentence: str) -> bool:
+    """Whether the order's object is how answers look ("use a casual tone", "keep your answers short") rather than a
+    thing to produce ("draft a short, friendly email to my landlord", "write two formal sentences thanking the team").
+    The object is the noun phrase after the verb; its last word must name a presentation setting, and what follows
+    it may only say more about the format."""
+    clause = _main_clause(sentence)
+    if _PREFERENCE_RE.match(clause):
+        return True
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'\-/]*", clause.replace(",", " "))
+    rest = words[1:]
+    while rest and rest[0].lower() in {"me", "us", "you"}:
+        rest = rest[1:]
+    if not rest or rest[0].lower() in _OBJECT_STOP:
+        return True  # no object: "Answer in bullet points", "Reply in short sentences"
+    determiner = rest[0].lower() if rest[0].lower() in _DETERMINERS or rest[0].isdigit() else ""
+    phrase: list[str] = []
+    index = 1 if determiner else 0
+    while index < len(rest):
+        word = rest[index]
+        if word.lower() in _OBJECT_STOP or (phrase and word.lower().endswith("ing")):
+            break
+        phrase.append(word)
+        index += 1
+    if not phrase:
+        return False
+    indefinite = determiner in _INDEFINITE or determiner.isdigit()
+    head_phrase = " ".join(([determiner] if determiner in _INDEFINITE else []) + phrase)
+    if not _ends_with_presentation(head_phrase, indefinite=indefinite):
+        return False
+    continuation = " ".join(rest[index:])
+    return not continuation or bool(_FORMAT_CONTINUATION_RE.match(continuation)) or _about_presentation(continuation)
+
+
 def _plain_kind(sentence: str) -> str:
     """"workflow" / "plain" for a rule said without trigger words, "context" for a reason about the owner, else ""."""
     s = sentence.strip()
@@ -451,7 +500,7 @@ def _plain_kind(sentence: str) -> str:
     if _addressed_to_vool(s) and not _SPECIFIC_OBJECT_RE.search(s) and not _TASK_QUANTITY_RE.search(s):
         if _WORKFLOW_RE.search(s):
             return "workflow"
-        if _about_presentation(s) and _format_is_the_request(s):
+        if _about_presentation(s) and _format_is_the_request(s) and _object_is_how_answers_look(s):
             return "plain"
     if _CONTEXT_RE.match(s) and not _addressed_to_vool(s):
         return "context"
