@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -30,7 +31,10 @@ from core.vool_chat_page import render_vool_chat_html
 from tests import served_browser
 
 HTML = render_vool_chat_html()
-EVIDENCE = Path(__file__).resolve().parents[2] / "validation-logs" / "command-centre-palette"
+EVIDENCE = Path(os.environ.get(
+    "VOOL_PALETTE_EVIDENCE",
+    str(Path(__file__).resolve().parents[2] / "validation-logs" / "command-centre-palette"),
+))
 
 
 def _route(route):
@@ -58,9 +62,12 @@ def _route(route):
 
 @pytest.fixture(scope="module")
 def browser():
-    _manager, browser = served_browser.launch_chromium()
-    yield browser
-    browser.close()
+    manager, browser = served_browser.launch_chromium()
+    try:
+        yield browser
+    finally:
+        browser.close()
+        manager.stop()
 
 
 @pytest.fixture
@@ -115,16 +122,57 @@ def test_palette_opens_searches_and_runs_a_read_command(page):
     assert page.locator("#vpOverlay").is_hidden()
 
 
-def test_palette_shows_unavailable_with_reason(page):
+@pytest.mark.parametrize("failure", ["status", "exception"])
+def test_palette_shows_unavailable_with_reason(page, monkeypatch, failure):
+    from core.council import api as council_api
+
+    def unreachable_runs(*args, **kwargs):
+        if failure == "exception":
+            raise RuntimeError("owned council store offline")
+        return 503, {"error": "owned council store offline"}
+
+    stop_calls = []
+    monkeypatch.setattr(council_api, "runs", unreachable_runs)
+    monkeypatch.setattr(council_api, "stop", lambda run_id: stop_calls.append(run_id))
+    expected = ("council run store unreachable: owned council store offline"
+                if failure == "exception" else "council run store answered 503")
     page.goto("http://vool.test/chat")
-    page.wait_for_timeout(250)
     page.keyboard.press("Meta+k")
     page.fill("#vpInput", "council.stop")
-    page.wait_for_timeout(150)
-    row = page.locator("#vpList").inner_text()
-    assert "unavailable" in row.lower()
-    assert "no council runs" in row
-    _shot(page, "04-unavailable-with-reason")
+    row = page.locator('[data-vp="cmd:council.stop"]')
+    from playwright.sync_api import expect
+
+    expect(row).to_contain_text("unavailable: " + expected)
+    expect(row).to_have_class(re.compile(r"\bvp-unavail\b"))
+    # The command remains discoverable; a real registry dispatch fails closed.
+    row.click()
+    page.fill('[data-vp-arg="run_id"]', "missing-owned-run")
+    page.click("[data-vp-run]")
+    expect(page.locator("#vpResult")).to_contain_text(expected)
+    assert stop_calls == []
+    _shot(page, "04-unavailable-" + failure)
+
+
+def test_palette_reachable_empty_store_preserves_missing_run_truth(page):
+    from playwright.sync_api import expect
+
+    from core.council import api as council_api
+
+    status, payload = council_api.runs(limit=1)
+    assert status == 200 and not payload["runs"]
+    page.goto("http://vool.test/chat")
+    page.keyboard.press("Meta+k")
+    page.fill("#vpInput", "council.stop")
+    row = page.locator('[data-vp="cmd:council.stop"]')
+    expect(row).to_contain_text("council.stop")
+    assert "unavailable" not in row.inner_text().lower()
+    row.click()
+    page.fill('[data-vp-arg="run_id"]', "missing-owned-run")
+    page.click("[data-vp-run]")
+    expect(page.locator("#vpResult")).to_contain_text("404")
+    status, payload = council_api.runs(limit=1)
+    assert status == 200 and not payload["runs"]
+    _shot(page, "04-reachable-empty-store")
 
 
 def test_palette_typed_argument_form_and_approval_presentation(page):
