@@ -329,4 +329,12 @@ def profile_frame_for_result(result: dict[str, Any] | None) -> dict[str, Any] | 
         values = [v for v in list(obs.get(key) or []) if v]
         if values:
             frame[key] = values
+    # A standing instruction is saved for every later chat in the workspace; without its own line
+    # the user never learns it was kept, or that a take-back worked. It rides the "saved" list the
+    # chat page already renders as the confirmation line (no item_id: undo is a take-back in chat).
+    standing = obs.get("standing_instructions") if isinstance(obs.get("standing_instructions"), dict) else {}
+    lines = [{"report": f"Saved for every chat: {text}"} for text in standing.get("saved") or [] if text]
+    lines += [{"report": f"No longer following: {text}"} for text in standing.get("taken_back") or [] if text]
+    if lines:
+        frame["saved"] = list(frame.get("saved") or []) + lines
     return frame or None
