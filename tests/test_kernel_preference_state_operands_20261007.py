@@ -64,7 +64,7 @@ def test_a_stated_preference_reaches_the_packet_for_an_advice_ask_without_a_shar
     block, telemetry = _ask(home, chat, question)
     ec = telemetry["evidence_compiler"]
     assert ec["obligation"]["kind"] == "preference" and ec["complete"] is True, ec
-    assert needle.lower() in block.lower() and "<preference>" in block
+    assert needle.lower() in block.lower() and "<stated preference: respect it in the answer>" in block
 
 
 NOT_PREFERENCES = ["I love the idea of a weekly review!", "I like those suggestions, thanks.", "I love how the app divides the tasks.", "I like the thought of a quiet morning."]
