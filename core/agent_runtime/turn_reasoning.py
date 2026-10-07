@@ -1256,6 +1256,19 @@ def execute_grounded_turn(
         if is_chat_surface
         else agent._model_final_response_text(model_execution)
     )
+    # The JSON plan wrapper on a chat turn nobody asked a plan of is the classifier's choice, not
+    # the user's: a plain answer that misses that internal wrapper is still the answer (main's
+    # behaviour). Only an explicitly requested plan keeps contract-failed text out.
+    internal_wrapper_contract_miss = bool(
+        not model_final_text
+        and is_chat_surface
+        and not planner_style_requested
+        and str(getattr(model_execution, "source", "") or "").lower() == "provider_execution"
+        and str(getattr(model_execution, "validation_state", "") or "").lower() == "contract_failed"
+        and str(getattr(model_execution, "output_text", "") or "").strip()
+    )
+    if internal_wrapper_contract_miss:
+        model_final_text = str(getattr(model_execution, "output_text", "") or "").strip()
     model_final_answer_hit = bool(model_final_text)
     rendered_via = "model_final_wording"
     response_reason = "grounded_model_response"
@@ -1286,6 +1299,7 @@ def execute_grounded_turn(
     final_contract_failed = bool(
         model_execution.used_model
         and str(getattr(model_execution, "validation_state", "") or "").lower() == "contract_failed"
+        and not internal_wrapper_contract_miss
     )
     if final_contract_failed:
         response = agent._chat_surface_honest_degraded_response(
