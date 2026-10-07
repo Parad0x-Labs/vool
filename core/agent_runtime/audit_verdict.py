@@ -341,6 +341,9 @@ class AuditVerdict:
     # out by an adversarial source check" wording as a genuine `"refuted"` falsification). Each
     # item carries title/verdict/reason/counterexample (see `stepped_audit._challenge_finding`).
     challenged_out: list[dict[str, Any]] = field(default_factory=list)
+    # sls, 2026-10-07: findings that survived the adversarial source challenge on a turn that could not
+    # run a proof. A read-only review lists them, each labelled unproven; they never move the score.
+    supported_unproven: list[VerdictFinding] = field(default_factory=list)
     # Split out of `additional_findings` in `__post_init__` below (Finding E point 3): a
     # `harm_class == "strength"` row is never a defect and must never share the bug-shaped table.
     strengths: list[VerdictFinding] = field(default_factory=list)
@@ -805,7 +808,12 @@ def _score_lines(verdict: AuditVerdict) -> list[str]:
                     additional_unreviewed_count += 1
                 else:
                     additional_likely_count += 1
-            challenged_count = rejected_count + attempted_unresolved_count + additional_likely_count
+            # A listed unproven primary passed its challenge too; leaving it out read "Challenged: 0"
+            # directly above the finding it describes.
+            primary_supported = int(
+                verdict.state == CANDIDATE_UNPROVEN and verdict.finding is not None and bool(verdict.supported_unproven)
+            )
+            challenged_count = rejected_count + attempted_unresolved_count + additional_likely_count + primary_supported
             never_reviewed_count = additional_unreviewed_count + never_attempted_count
             return [
                 "**NOT PROVEN** — no current correctness bug was confirmed in this pass.",
@@ -1155,6 +1163,40 @@ def _primary_classification_bullets(finding: VerdictFinding, confidence: str) ->
     ]
 
 
+def _unproven_listing_lines(findings: list[VerdictFinding], remaining_proof: str = "") -> list[str]:
+    """Findings that passed the source challenge but were never executed, each labelled unproven.
+
+    No affirmative language, no suggested fix and no score: a source check is weaker than a failing
+    test, and `asserts_reproduction` stays true only for `proven`.
+    """
+    heading = "## Likely bug, not proven" if len(findings) == 1 else "## Likely bugs, not proven"
+    lines = [
+        heading,
+        "",
+        (
+            "This passed an adversarial check against the source, but no test has run, so it is not "
+            "proven."
+            if len(findings) == 1
+            else "Each of these passed an adversarial check against the source, but no test has run, so "
+            "none is proven."
+        ),
+        "",
+    ]
+    for item in findings:
+        lines.append(
+            f"- `{item.location}` — **{item.title}**: {item.failure_scenario} "
+            f"(Severity: {item.severity}; confidence: unproven)"
+        )
+    lines += [
+        "",
+        'To check one, reply "prove it": VOOL writes a failing test outside your files and runs it.',
+    ]
+    if remaining_proof:
+        lines += ["", f"- {remaining_proof}"]
+    lines += ["", "_Candidate-by-candidate detail for this pass is in Activity._"]
+    return lines
+
+
 def render_audit_report(verdict: AuditVerdict) -> str:
     """The operator-visible report. A pure function of the typed state — no model call, no branch
     that can disagree with `asserts_reproduction`."""
@@ -1191,20 +1233,23 @@ def render_audit_report(verdict: AuditVerdict) -> str:
         # unchanged in `details.stepped_audit` for Activity; only the CHAT answer is trimmed.
         title = finding.title if finding is not None else "the candidate"
         reason = str(verdict.blocked_reason or verdict.remaining_proof or "").strip()
-        lines = [
-            "## No verified bug found",
-            "",
-            (
-                f"**{title}** was tested and the test passed, which disproves the claim rather "
-                "than supporting it."
-                if state == REFUTED
-                else "The candidate found during this pass did not survive to a confirmed bug, "
-                "so I won't present it as a real defect."
-            ),
-        ]
-        if reason:
-            lines += ["", f"- Where the search ended: {reason}"]
-        lines += ["", "_Candidate-by-candidate detail for this pass is in Activity._"]
+        if state == CANDIDATE_UNPROVEN and verdict.supported_unproven:
+            lines = _unproven_listing_lines(verdict.supported_unproven, str(verdict.remaining_proof or "").strip())
+        else:
+            lines = [
+                "## No verified bug found",
+                "",
+                (
+                    f"**{title}** was tested and the test passed, which disproves the claim rather "
+                    "than supporting it."
+                    if state == REFUTED
+                    else "The candidate found during this pass did not survive to a confirmed bug, "
+                    "so I won't present it as a real defect."
+                ),
+            ]
+            if reason:
+                lines += ["", f"- Where the search ended: {reason}"]
+            lines += ["", "_Candidate-by-candidate detail for this pass is in Activity._"]
     elif state == NO_FINDING:
         # The operator asked for a bug. The answer is that there isn't one they can act on, said in
         # those words — the old heading ("No checkable finding") named an internal terminal state,

@@ -3404,6 +3404,9 @@ def run_stepped_audit(
     # this the search stopped at the FIRST supported candidate, so "audit this file, tell me pros
     # and cons" was answered with one defect and the rest of the pass was discarded.
     extra_findings: list[Any] = []
+    # Ids of candidates that survived the source challenge on this turn (or on the turn that displayed
+    # a carried one). In a read-only review these are listed, labelled unproven.
+    challenge_supported_ids: set[str] = set()
     survey_rows: list[dict[str, Any]] = []
 
     # Everything above this point (evidence/policy/capsule/routing resolution) is the closest this
@@ -3632,6 +3635,8 @@ def run_stepped_audit(
                 continue
 
         if not policy.proof_authorized:
+            # Reaching here without proof authority means the challenge above said `supported`.
+            challenge_supported_ids.add(finding.id)
             # Rule 2/3: no execution was authorized, so this is a CANDIDATE and is labelled one.
             terminal = CANDIDATE_UNPROVEN
             proof = None
@@ -4068,6 +4073,15 @@ def run_stepped_audit(
         # and could -- a real, executed falsification that previously reached only internal
         # telemetry (`details.stepped_audit.screened_out` below) and never the visible report.
         challenged_out=list(screened_rows),
+        supported_unproven=[
+            rendered
+            for rendered in (
+                _verdict_finding(item)
+                for item in ([finding] if finding is not None else []) + list(extra_findings)
+                if item is not None and item.id in challenge_supported_ids
+            )
+            if rendered is not None
+        ],
     )
     _render_started = time.monotonic()
     report = render_audit_report(verdict)
