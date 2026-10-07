@@ -47,6 +47,7 @@ def test_agent_turn_names_its_author_folder_session_and_mode():
         server.server_close()
     assert len(seen) == 1
     body = seen[0]
+    assert body["turn_author"] == "agent"
     assert body["workspace"] == "/srv/team-folder"
     assert body["session_id"] == "openclaw:" + "7" * 20 and body["model"] == "local-model:7b"
     assert body["mode"] == "plan" and body["model_selection"] == "sticky"
