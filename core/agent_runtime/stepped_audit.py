@@ -1627,7 +1627,10 @@ def _source_window(evidence: Any, path: str, start: int, end: int, *, pad: int =
         return ""
     span = max(1, int(end or start or 1) - int(start or 1)) + 2 * pad
     first = max(1, min(int(start or 1) - pad, len(lines) - span))
-    last = min(len(lines), max(first + 1, int(end or start or 1) + pad))
+    # The window is `span` lines from `first`, however near the top the citation sits. Ending it at
+    # `end + pad` cut a citation of line 1 in a 35-line file off at line 21, and the model was told its
+    # source was "truncated at line 21" (live agent-team comparison, 2026-10-07).
+    last = min(len(lines), max(first + span, int(end or start or 1) + pad))
     return "\n".join(f"{number:>6}: {lines[number - 1]}" for number in range(first, last + 1))
 
 
