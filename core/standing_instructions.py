@@ -53,17 +53,65 @@ _ONE_OFF_RE = re.compile(
     r"right\s+now|today|in\s+this\s+(?:chat|conversation|thread)|for\s+this\s+(?:chat|question|one|task)|here)\b",
     re.IGNORECASE,
 )
-# The sentence must tell VOOL what to do, not ask it something or describe someone else.
-_ADDRESSED_TO_VOOL_RE = re.compile(
-    r"^(?:(?:please|pls|and|also|so|ok(?:ay)?|right)[,\s]+)*(?:"
-    r"(?:from\s+now\s+on|going\s+forward|in\s+(?:the\s+)?future|by\s+default|as\s+a\s+rule|whenever\s+[^,]+|"
-    r"every\s+time\s+[^,]+|each\s+time\s+[^,]+)[,\s]+|"
-    r")(?:please\s+)?(?:you\s+(?:should\s+|must\s+)?|i\s+(?:want|need|would\s+like|'d\s+like)\s+you\s+to\s+)?"
-    r"(?:always|never|don'?t(?:\s+ever)?|do\s+not(?:\s+ever)?|stop|give|use|write|reply|answer|respond|show|"
-    r"put|add|include|keep|start|end|format|list|convert|quote|cite|call|address|sign|spell|round|sort|be|avoid|"
-    r"make|send|tell|explain|ask|check|mention|leave|skip|label)\b",
-    re.IGNORECASE,
-)
+# The sentence must tell VOOL what to do, not ask it something or describe someone else. This used to be a list of
+# ~40 verbs the main clause had to start with, so "whenever I paste a stack trace, point out the failing line" was
+# dropped ("point" was not listed). English has a small closed set of words that cannot open an imperative --
+# pronouns, determiners, auxiliaries, question words, prepositions -- so the test is the inverse: after the standing
+# lead, the condition clause and the politeness words, the main clause must not open with one of those, and must
+# not read as a statement about something ("Tables always break", "Being concise matters").
+_LEAD_FILLER_RE = re.compile(r"^(?:(?:please|pls|kindly|and|also|so|ok(?:ay)?|right|then)[,\s]+)+", re.IGNORECASE)
+_STANDING_LEAD_RE = re.compile(
+    r"^(?:from\s+now\s+on|going\s+forward|in\s+(?:the\s+)?future|by\s+default|as\s+a\s+rule)\b[,\s]*", re.IGNORECASE)
+_CONDITION_LEAD_RE = re.compile(r"^(?:whenever|every\s+time|each\s+time|any\s+time|before|after|when|once)\b[^,]{1,120},\s*",
+                                re.IGNORECASE)
+_SUBJECT_YOU_RE = re.compile(
+    r"^(?:you\s+(?:should|must|need\s+to|have\s+to|can|could|may|will|ought\s+to)\s+|"
+    r"i\s+(?:want|need|would\s+like|'d\s+like|would\s+prefer|'d\s+prefer)\s+you\s+to\s+)", re.IGNORECASE)
+_MODE_ADVERB_RE = re.compile(r"^(?:always|never|just|also|don'?t(?:\s+ever)?|do\s+not(?:\s+ever)?)\s+", re.IGNORECASE)
+_PREFERENCE_RE = re.compile(r"^i\s+(?:prefer|like|want|need|'d\s+(?:prefer|like|rather)|would\s+(?:prefer|like|rather))\b",
+                            re.IGNORECASE)
+_NOT_AN_IMPERATIVE = frozenset("""
+i me my mine we us our ours he him his she her hers it its they them their theirs you your yours one
+the a an this that these those some any each every all no none both either neither another other such
+is are was were be been am will would can could should shall may might must do does did has have had
+what why how when where who whom whose which whether if though although because since unless while
+in on at for with about of to from by into onto over under after before during between through without
+there here not and or but nor yet so as than then also only even still too very
+""".split())
+
+
+def _main_clause(sentence: str) -> str:
+    """The sentence with its standing lead, condition clause, politeness and "you should" removed."""
+    s = " ".join(str(sentence or "").split())
+    s = _LEAD_FILLER_RE.sub("", s)
+    s = _STANDING_LEAD_RE.sub("", s)
+    s = _LEAD_FILLER_RE.sub("", s)
+    s = _CONDITION_LEAD_RE.sub("", s)
+    s = _LEAD_FILLER_RE.sub("", s)
+    if _PREFERENCE_RE.match(s):
+        return s
+    s = _SUBJECT_YOU_RE.sub("", s)
+    s = _MODE_ADVERB_RE.sub("", s)
+    return _LEAD_FILLER_RE.sub("", s)
+
+
+def _addressed_to_vool(sentence: str) -> bool:
+    s = _main_clause(sentence)
+    if _PREFERENCE_RE.match(s):
+        return True
+    words = re.findall(r"[A-Za-z][A-Za-z'\-]*", s)
+    if not words:
+        return False
+    first = words[0].lower()
+    if first in _NOT_AN_IMPERATIVE or first.endswith("ing"):
+        return False
+    # "<Something> always/never/is …": a statement about that something, not an order to VOOL.
+    if len(words) > 1 and words[1].lower() in {"always", "never", "usually", "often", "is", "are", "was", "were",
+                                                "has", "have", "had", "does", "do", "did", "will", "would", "can"}:
+        return False
+    return True
+
+
 _QUESTION_RE = re.compile(r"\?\s*$|^(?:do|does|did|can|could|would|will|should|is|are|why|what|how|when|where|who)\b",
                           re.IGNORECASE)
 _THIRD_PERSON_RE = re.compile(r"^(?:my\s+\w+|he|she|they|it|we|his|her|their|the\s+\w+)\s+(?:always|never)\b",
@@ -274,7 +322,7 @@ def _is_standing(sentence: str) -> bool:
     s = sentence.strip()
     if not s or _QUESTION_RE.search(s) or _ONE_OFF_RE.search(s) or _THIRD_PERSON_RE.search(s):
         return False
-    if _STANDING_RE.search(s) and _ADDRESSED_TO_VOOL_RE.search(s):
+    if _STANDING_RE.search(s) and _addressed_to_vool(s):
         return True
     lead = _CORRECTION_LEAD_RE.match(s)
     if lead and lead.end() > 0:
@@ -283,21 +331,65 @@ def _is_standing(sentence: str) -> bool:
     return False
 
 
+# A rule said plainly ("Use metric units.", "Before you delete anything, ask me.") carries no "always" or "from now
+# on". It is saved only when the WHOLE turn is instructions, optionally with a reason about the owner: beside a task
+# or a question the same words are about that task ("Convert 3 cups of flour to grams. Use metric units.").
+_STYLE_RE = re.compile(
+    r"\b(?:answers?|replies|reply|responses?|pleasantries|small\s+talk|filler|preambles?|disclaimers?|caveats?|"
+    r"apolog\w*|jargon|to\s+the\s+point|wording|spelling|british|american|oxford\s+comma)\b", re.IGNORECASE)
+# The words of a task, not a rule: an order about one specific thing ("the attached report", "this recipe", "it").
+_SPECIFIC_OBJECT_RE = re.compile(
+    r"\b(?:it|this|that|these|those|attached|following|above|below)\b|"
+    r"\b(?:the|my)\s+(?:\w+\s+){0,2}(?:report|file|text|email|document|draft|article|code|page|message|data|"
+    r"recipe|essay|letter|post|paper|notes?|spreadsheet|pdf|slides?|screenshot)\b", re.IGNORECASE)
+_WORKFLOW_RE = re.compile(
+    r"^(?:(?:please|and|also|so)[,\s]+)*(?:before|after|once)\s+[^,]{1,120},|"
+    r"\b(?:before|after)\s+(?:you\s+\w+|\w+ing)\b", re.IGNORECASE)
+# A quantity of something ("3 cups of flour", "12 km") is data to work on, so the sentence is a task; a count of
+# sentences, lines or words is how long an answer should be.
+_TASK_QUANTITY_RE = re.compile(
+    r"\b\d[\d.,/]*\s*(?!(?:sentences?|lines?|words?|paragraphs?|bullets?|points?|items?|characters?|hours?)\b)[a-z]+",
+    re.IGNORECASE)
+_CONTEXT_RE = re.compile(r"^(?:i|i'm|i've|i'd|my|we|we're|our)\b", re.IGNORECASE)
+
+
+def _plain_kind(sentence: str) -> str:
+    """"workflow" / "plain" for a rule said without trigger words, "context" for a reason about the owner, else ""."""
+    s = sentence.strip()
+    if not s or _QUESTION_RE.search(s) or _ONE_OFF_RE.search(s) or _THIRD_PERSON_RE.search(s):
+        return ""
+    if _addressed_to_vool(s) and not _SPECIFIC_OBJECT_RE.search(s) and not _TASK_QUANTITY_RE.search(s):
+        if _WORKFLOW_RE.search(s):
+            return "workflow"
+        if _facets(s) or _PRESENTATION_RE.search(s) or _STYLE_RE.search(s):
+            return "plain"
+    if _CONTEXT_RE.match(s) and not _addressed_to_vool(s):
+        return "context"
+    return ""
+
+
 def read_turn(user_input: str) -> tuple[list[str], list[str]]:
     """``(instructions to save, take-back sentences)`` for one owner turn. Pure: saves nothing."""
     text = _authored_text(user_input)
     try:
         from core.hypothetical_frame import detect_hypothetical_frame
 
-        if detect_hypothetical_frame(str(user_input or "")).supplies_premises:
-            return [], []
+        frame = detect_hypothetical_frame(str(user_input or ""))
+        if frame.supplies_premises:
+            # "Whenever we talk about money, assume euros" orders VOOL to assume: its marker is the verb of an
+            # instruction. Any other stipulation ("suppose I told you to …") is a premise and saves nothing.
+            orders = {(_main_clause(part).split() or [""])[0].lower().strip(",.")
+                      for part in _SENTENCE_RE.split(text) if _addressed_to_vool(part)}
+            if not frame.markers or not {str(m).lower() for m in frame.markers} <= orders:
+                return [], []
     except Exception:
         pass
     sentences = [s.strip() for s in _SENTENCE_RE.split(text) if s.strip()]
     saves: list[str] = []
     take_backs: list[str] = []
     for index, sentence in enumerate(sentences):
-        if _TAKE_BACK_RE.search(sentence) and not _QUESTION_RE.search(sentence):
+        # A take-back verb inside a condition ("before you delete anything, ask me") is not a take-back.
+        if _TAKE_BACK_RE.search(_main_clause(sentence)) and not _QUESTION_RE.search(sentence):
             marker = _STANDING_RE.search(sentence)
             if marker is None:
                 take_backs.append(sentence)
@@ -319,6 +411,14 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
                 and not _is_standing(previous) and not _QUESTION_RE.search(previous):
             sentence = f"{previous} {sentence}"
         saves.append(sentence)
+    if not saves and not take_backs:
+        kinds = [_plain_kind(sentence) for sentence in sentences]
+        if all(kinds) and any(kind in ("plain", "workflow") for kind in kinds):
+            for index, (sentence, kind) in enumerate(zip(sentences, kinds)):
+                if kind == "context":
+                    continue
+                previous = sentences[index - 1] if index > 0 and kinds[index - 1] == "context" else ""
+                saves.append(f"{previous} {sentence}" if previous else sentence)
     return saves, take_backs
 
 
@@ -337,7 +437,7 @@ def observe_turn(user_input: str, source_context: Mapping[str, Any] | None, *, p
         removed.extend(gone)
         # "Stop using emojis" with no saved rule about emojis is not a take-back: it is a new standing
         # instruction in its own right ("stop …" reads as "never … again"), unless it is a one-off.
-        if not gone and _ADDRESSED_TO_VOOL_RE.search(sentence) and not _ONE_OFF_RE.search(sentence) \
+        if not gone and _addressed_to_vool(sentence) and not _ONE_OFF_RE.search(sentence) \
                 and re.match(r"^(?:(?:please|and|also|so)[,\s]+)*(?:stop|don'?t|do\s+not|quit)\b", sentence, re.IGNORECASE):
             saves.append(sentence)
         # "No more emojis in your replies" with nothing saved about emojis is a new "never" -- but only when it is
