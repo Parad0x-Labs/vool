@@ -141,6 +141,12 @@ class SharedPlannerArtifact:
                 record.failed = True
             return record.raw
 
+    def recorded(self, kind: PlannerCallKind = PlannerCallKind.CLAUSE_DECOMPOSITION) -> str | None:
+        """This turn's answer to `kind`, or None when it was not asked. Never calls a provider."""
+        with self._lock:
+            record = self._records.get(PlannerCallKind(kind).value)
+            return record.raw if record is not None and record.attempted and not record.failed else None
+
     def attempted_kinds(self) -> frozenset[str]:
         """Which questions have been asked this turn. For receipts and for tests."""
         with self._lock:
@@ -208,6 +214,34 @@ def ensure_shared_planner_artifact(
             _ARTIFACTS_BY_TURN.clear()  # bounded: stale turns are never valid to reuse anyway
         _ARTIFACTS_BY_TURN[turn_id] = artifact
     return artifact
+
+
+def decomposition_groups_whole_turn(source_context: dict[str, Any] | None, text: str) -> bool:
+    """Whether this turn's clause decomposition, already asked, read the whole message as ONE request.
+
+    The decomposition is the turn's one model reading of how many requests the message makes; when it
+    grouped every clause into a single request (as it does for "Review the three files ... For each file,
+    find the bug ... Read the code; do not change any file."), no later deterministic cut may split the
+    turn again. Reads only what was already asked: no provider call is made here.
+    """
+    import json as _json
+
+    from core.turn_ir import parse_turn_ir
+
+    if not isinstance(source_context, dict):
+        return False
+    raw = ensure_shared_planner_artifact(source_context).recorded(PlannerCallKind.CLAUSE_DECOMPOSITION)
+    if not raw:
+        return False
+    try:
+        entries = _json.loads(raw)
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(entries, list) or len(entries) != 1 or not isinstance(entries[0], dict):
+        return False
+    grouped = " ".join(str(entries[0].get("request") or "").split())
+    clauses = [" ".join(c.request_text.split()) for c in parse_turn_ir(str(text or "")).clauses]
+    return bool(grouped) and len(clauses) >= 2 and all(clause in grouped for clause in clauses)
 
 
 def _strict_json_array(text: str) -> str:
