@@ -100,6 +100,7 @@ EXIT_PARTIAL = "partial"
 ORIGIN_TYPED_OBSERVATION = "typed_observation"
 ORIGIN_BOUND_EVIDENCE = "bound_evidence"
 ORIGIN_COMPUTED_VALUE = "computed_value"
+ORIGIN_MEMORY_RECORD = "memory_record"
 
 _MAX_TRACKED_TURNS = 256
 
@@ -254,6 +255,12 @@ class GroundingLifecycle:
     #: `bound` above do not read this field. It exists so the publication gate can support a
     #: computed claim in a mixed turn whose SIBLING clause needed current information.
     computed_values: tuple[dict[str, Any], ...] = ()
+    #: This chat's own memory records the reader was given for this turn (the admitted capsule
+    #: evidence, `core.bootstrap_context.admitted_capsule_evidence_text`). Not observations: a
+    #: record is what was said in this chat, not a reading of the world now, so `retrieved` and
+    #: `bound` do not read this field. The publication gate offers the lines as support rows, so
+    #: a claim the records state publishes and a claim they do not state is withheld as before.
+    memory_records: tuple[dict[str, Any], ...] = ()
     #: Stable-knowledge renders this turn's plan produced (an OPEN-authority knowledge node's
     #: rendered line). NOT support of any kind -- `_support_rows` never offers it, because the
     #: text was written by a model and the model's own output may not certify itself. The
@@ -409,6 +416,7 @@ class GroundingLifecycle:
             "synthesis_calls": [call.as_dict() for call in self.synthesis_calls],
             "typed_observation_count": len(self.typed_observations),
             "computed_value_count": len(self.computed_values),
+            "memory_record_count": len(self.memory_records),
             "model_authored": self.generated,
             "rejected_binding_count": len(self.rejected_bindings),
             "children": [dict(child) for child in self.children],
@@ -867,6 +875,43 @@ def record_computed_values(
             if repr(sorted(entry.items(), key=lambda kv: str(kv[0]))) not in known
         ]
         record.computed_values = (*record.computed_values, *added)
+        return len(added)
+
+
+def record_memory_records(
+    source_context: dict[str, Any] | None,
+    *,
+    entries: Any,
+) -> int:
+    """This chat's own memory records mint support of their own kind for this turn's lifecycle.
+
+    Mirrors `record_computed_values`: its own channel, idempotent, and `retrieved`/`bound` never
+    read it. Entries are published by `core.memory_grounding.publish_memory_records_for_turn`
+    from the admitted capsule evidence the reader saw.
+    """
+
+    if entries is None:
+        return 0
+    if isinstance(entries, dict):
+        entries = [entries]
+    try:
+        items = [dict(entry) for entry in list(entries) if isinstance(entry, dict)]
+    except TypeError:
+        return 0
+    usable = [entry for entry in items if str(entry.get("summary") or "").strip()]
+    if not usable:
+        return 0
+    with _LOCK:
+        record = _record_for(source_context)
+        if record is None:
+            return 0
+        known = {repr(sorted(entry.items(), key=lambda kv: str(kv[0]))) for entry in record.memory_records}
+        added = [
+            entry
+            for entry in usable
+            if repr(sorted(entry.items(), key=lambda kv: str(kv[0]))) not in known
+        ]
+        record.memory_records = (*record.memory_records, *added)
         return len(added)
 
 

@@ -810,6 +810,16 @@ def finalize_answer(
         )
     except Exception:  # pragma: no cover - the gate runs on the channels it has
         _log.exception("plain-lane unit publication failed; the gate runs on the channels it has")
+    # MEMORY RECORDS AS SUPPORT. A question about this chat's own records can open the lifecycle
+    # through lookup-shaped words; the records the reader was given are its support.
+    try:
+        from core.memory_grounding import publish_memory_records_for_turn
+
+        publish_memory_records_for_turn(
+            _selection_context if isinstance(_selection_context, dict) else None
+        )
+    except Exception:  # pragma: no cover - the gate runs on the channels it has
+        _log.exception("memory-record publication failed; the gate runs on the channels it has")
     try:
         content, _grounding_record = gate_publishable_content(
             content, turn_id=turn_id,
