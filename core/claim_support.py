@@ -149,6 +149,13 @@ def _iter_number_tokens(text: str) -> Iterator[str]:
 
 _URL_RE = re.compile(r"\(?\bhttps?://\S+\)?")
 _QUOTE_RE = re.compile(r"[\"“]([^\"“”]{2,}?)[\"”]")
+# Month names are calendar words, not names: "Jan 7" and "7 January" name the same month, and "Around February"
+# at a sentence start is an adverb beside a month, not one proper noun. Each month is its own entity under its full
+# name, matched in a source by its full name or its abbreviation.
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+           "november", "december")
+_MONTH_CANON = {**{m: m for m in _MONTHS}, **{m[:3]: m for m in _MONTHS}, "sept": "september"}
+_MONTH_ALIASES = {m: (m, m[:3]) + (("sept",) if m == "september" else ()) for m in _MONTHS}
 _WORD_RE = re.compile(r"[^\W\d_][\w'&.-]*", re.UNICODE)
 _CAP_WORD_RE = re.compile(r"[A-ZÀ-Þ][\w'&.-]*")
 #: A sentence ends at ". " / "! " / "? " -- unless the period belongs to an abbreviation. Measured
@@ -553,16 +560,25 @@ def _entity_candidates(
         ]
         if not kept:
             continue
-        at_sentence_start = match.start() == 0
-        if len(kept) == 1 and at_sentence_start:
-            folded = kept[0][1]
-            if folded not in cross_caps and folded in lowercase_seen:
+        # A month splits the run: it is its own entity under its full name, and the words beside it form their own.
+        groups: list[list[tuple[str, str]]] = [[]]
+        for raw, folded in kept:
+            month = _MONTH_CANON.get(folded.rstrip("."))
+            if month:
+                groups.extend([[(raw, month)], []])
+            else:
+                groups[-1].append((raw, folded))
+        for index, group in enumerate(g for g in groups if g):
+            at_sentence_start = match.start() == 0 and index == 0 and group[0][0] == tokens[0]
+            if len(group) == 1 and at_sentence_start:
+                folded = group[0][1]
+                if folded not in _MONTHS and folded not in cross_caps and folded in lowercase_seen:
+                    continue
+            phrase = " ".join(folded for _, folded in group)
+            phrase_tokens = set(phrase.split())
+            if phrase_tokens <= request_terms:
                 continue
-        phrase = " ".join(folded for _, folded in kept)
-        phrase_tokens = set(phrase.split())
-        if phrase_tokens <= request_terms:
-            continue
-        entities.append(phrase)
+            entities.append(phrase)
     return tuple(dict.fromkeys(entities))
 
 
@@ -647,6 +663,11 @@ def _build_sources(notes: Sequence[Any] | None) -> list[_Source]:
 
 
 def _entity_in_source(entity: str, source: _Source) -> bool:
+    if entity in _MONTH_ALIASES:
+        return any(
+            re.search(rf"(?<![\w'-]){alias}\.?(?![\w'-])", source.folded) is not None
+            for alias in _MONTH_ALIASES[entity]
+        )
     if " " in entity:
         return entity in source.folded
     return re.search(rf"(?<![\w'-]){re.escape(entity)}(?![\w'-])", source.folded) is not None
