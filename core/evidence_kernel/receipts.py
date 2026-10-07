@@ -35,6 +35,45 @@ def _sha256(data: str | bytes) -> str:
     return hashlib.sha256(data.encode("utf-8") if isinstance(data, str) else data).hexdigest()
 
 
+_DIGEST_KEY_NAME = ".digest_key"
+_DIGEST_KEY_LOCK = threading.Lock()
+
+
+def _digest_key() -> bytes:
+    """This install's local digest key (32 random bytes, created once, owner-only), beside the ledgers it keys."""
+    path = _ledger_dir() / _DIGEST_KEY_NAME
+    with _DIGEST_KEY_LOCK:
+        try:
+            key = path.read_bytes()
+            if len(key) == 32:
+                return key
+        except FileNotFoundError:
+            pass
+        path.parent.mkdir(parents=True, exist_ok=True)
+        key = os.urandom(32)
+        tmp = path.with_suffix(".tmp")
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, key)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp, path)
+        return path.read_bytes()
+
+
+def keyed_digest(data: str | bytes) -> str:
+    """The digest a ledger may carry for user text: HMAC-SHA256 under this install's local key ("k1:" prefix).
+
+    A plain SHA-256 of a stored sentence lets anyone holding the ledger confirm a guessed sentence ("my locker code
+    is 4417"); the keyed digest is meaningful only inside this install, where the key lives.
+    """
+    import hmac
+
+    raw = data.encode("utf-8") if isinstance(data, str) else data
+    return "k1:" + hmac.new(_digest_key(), raw, hashlib.sha256).hexdigest()
+
+
 def _canonical(obj: Any) -> bytes:
     return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
@@ -139,7 +178,7 @@ def issue(*, kind: str, session_id: str, subject_type: str, subject: Any, eviden
     commit=True: a failed append RAISES (the caller must not treat the subject as recorded); commit=False keeps
     best-effort semantics and returns the envelope with status "unwritten" on failure."""
     refs = [r.as_dict() if isinstance(r, EvidenceRef) else dict(r) for r in evidence_refs]
-    subject_digest = _sha256(_canonical(subject)) if not isinstance(subject, str) else _sha256(subject)
+    subject_digest = keyed_digest(_canonical(subject)) if not isinstance(subject, str) else keyed_digest(subject)
     body = {"receipt_id": "r2-" + uuid.uuid4().hex, "kind": str(kind), "issued_at": time.time(), "request_id": str(request_id or ""),
             "session_id": str(session_id or ""), "turn_id": str(turn_id or ""), "parents": [str(p) for p in parents], "subject_type": str(subject_type),
             "subject_digest": subject_digest, "evidence_refs": refs, "status": str(status), "reason_codes": [str(c) for c in reason_codes],

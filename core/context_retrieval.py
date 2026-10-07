@@ -76,16 +76,14 @@ class _KernelWriteError(RuntimeError):
 
 
 def _kernel_turn_envelope(chat_id: str, occurrence: Any, body: str, receipt: Mapping[str, Any] | None, lineage: str) -> Any:
-    import hashlib as _hashlib
-
-    from core.evidence_kernel.receipts import EvidenceRef, issue
+    from core.evidence_kernel.receipts import EvidenceRef, issue, keyed_digest
 
     facts = list((receipt or {}).get("facts") or [])
     changes = list((receipt or {}).get("changes") or [])
     return issue(
         kind="vool.memory.turn.v1", session_id=str(chat_id or ""), subject_type="memory_receipt",
         subject={"receipt_id": (receipt or {}).get("receipt_id", ""), "facts": facts, "changes": changes, "withdraws": list((receipt or {}).get("withdraws") or [])},
-        evidence_refs=[EvidenceRef(occurrence_id=str(getattr(occurrence, "occurrence_id", "")), digest=_hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        evidence_refs=[EvidenceRef(occurrence_id=str(getattr(occurrence, "occurrence_id", "")), digest=keyed_digest(body),
                                    role=str(getattr(occurrence, "role", "")), kind="turn")],
         status="recorded" if receipt else "recorded_without_receipt",
         reason_codes=[f"facts:{len(facts)}", f"changes:{len(changes)}"], request_id=str(lineage or ""), turn_id=str(getattr(occurrence, "occurrence_id", "")),
@@ -98,16 +96,14 @@ def _kernel_packet_envelope(chat_id: str, question: str, evidence_packet: Any, t
     if evidence_packet is None or not _kernel_on():
         return
     try:
-        import hashlib as _hashlib
-
-        from core.evidence_kernel.receipts import EvidenceRef, issue
+        from core.evidence_kernel.receipts import EvidenceRef, issue, keyed_digest
 
         facts = list(getattr(evidence_packet, "facts", []) or [])
         tele = dict(getattr(evidence_packet, "telemetry", {}) or {})
-        refs = [EvidenceRef(occurrence_id=str(f.get("occurrence_id") or ""), digest=_hashlib.sha256(str(f.get("line") or f.get("text") or "").encode("utf-8")).hexdigest(),
+        refs = [EvidenceRef(occurrence_id=str(f.get("occurrence_id") or ""), digest=keyed_digest(str(f.get("line") or f.get("text") or "")),
                             role="user", kind=str(f.get("value_type") or f.get("kind") or "fact")) for f in facts if isinstance(f, Mapping)]
         env = issue(kind="vool.memory.packet.v1", session_id=str(chat_id or ""), subject_type="evidence_packet",
-                    subject={"question_sha256": _hashlib.sha256(str(question or "").encode("utf-8")).hexdigest(), "obligation": tele.get("obligation"), "facts": facts},
+                    subject={"question_digest": keyed_digest(str(question or "")), "obligation": tele.get("obligation"), "facts": facts},
                     evidence_refs=refs, status=str(tele.get("completeness") or "unknown"),
                     reason_codes=[f"facts:{len(facts)}", f"lines:{tele.get('lines', '')}"], commit=False)
         telemetry["kernel_packet_receipt"] = {"receipt_id": env.receipt_id, "status": env.status, "assurance": env.assurance}

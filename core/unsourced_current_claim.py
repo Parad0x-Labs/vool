@@ -956,22 +956,20 @@ def _kernel_claim_envelope(session_id: Any, question: Any, reply: Any, binding: 
     """Claim envelope (vool.memory.claim.v1, VOOL_EVIDENCE_KERNEL=1): every value claim of the reply with its status
     and the evidence lines it bound to, by digest. Best-effort on the answer path; an unwritten envelope is recorded."""
     try:
-        from core.evidence_kernel.receipts import EvidenceRef, kernel_enabled, issue
+        from core.evidence_kernel.receipts import EvidenceRef, issue, kernel_enabled, keyed_digest
     except Exception:
         return None
     if not kernel_enabled():
         return None
     try:
-        import hashlib as _hashlib
-
         claims = list(binding.get("claims") or [])
         refs = []
         for c in claims:
             for line in list(c.get("evidence") or [])[:4]:
-                refs.append(EvidenceRef(occurrence_id="", digest=_hashlib.sha256(str(line).encode("utf-8")).hexdigest(), role="user", kind=str(c.get("status") or "")))
+                refs.append(EvidenceRef(occurrence_id="", digest=keyed_digest(str(line)), role="user", kind=str(c.get("status") or "")))
         env = issue(kind="vool.memory.claim.v1", session_id=str(session_id or ""), subject_type="claim_binding",
-                    subject={"question_sha256": _hashlib.sha256(str(question or "").encode("utf-8")).hexdigest(),
-                             "reply_sha256": _hashlib.sha256(str(reply or "").encode("utf-8")).hexdigest(), "claims": claims},
+                    subject={"question_digest": keyed_digest(str(question or "")),
+                             "reply_digest": keyed_digest(str(reply or "")), "claims": claims},
                     evidence_refs=refs, status="supported" if binding.get("all_supported") else ("unsupported" if binding.get("attempted") else "not_attempted"),
                     reason_codes=[str(binding.get("reason") or ""), f"claims:{len(claims)}", f"packet_facts:{len(list(packet_facts or []))}"], commit=False)
         return {"receipt_id": env.receipt_id, "status": env.status, "assurance": env.assurance}
