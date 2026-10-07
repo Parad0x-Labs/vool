@@ -59,6 +59,20 @@ def _kernel_temporal_decision(question: str, raw_reply: str, packet_facts: list,
     return decision
 
 
+def _memory_route_receipt(capsule_mode: str) -> dict:
+    """The memory route this turn ran (core.memory_route), for the turn's receipt. A turn whose retrieval took the
+    legacy path ("disabled" capsule mode) says so whatever the switches read now."""
+    try:
+        from core.memory_route import memory_route
+
+        route = memory_route()
+    except Exception:
+        return {"route": "unknown", "switches": []}
+    if capsule_mode == "disabled":
+        return {"route": "legacy_semantic", "switches": []}
+    return route
+
+
 def _internal_payload(text: str) -> bool:
     """Machine scaffolding or a bare monologue, never an answer to a person.
 
@@ -2043,6 +2057,7 @@ def execute_grounded_turn(
         "web_calls": web_calls,
         "evidence_binding": evidence_binding,
         "capsule_mode": capsule_mode,
+        "memory_route": _memory_route_receipt(capsule_mode),
         "exact_response_control": False,
         "fast_path_hit": False,
     }

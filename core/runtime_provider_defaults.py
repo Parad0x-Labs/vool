@@ -408,7 +408,17 @@ def _runtime_provider_model_roles(
 # instead. Before it, only the source installers exported the flag, so the macOS app and the
 # Windows bundle (whose supervisors never ran those installers) started every chat on the
 # legacy recall path. An explicit value, including "0", always wins.
-_PRODUCT_RUNTIME_ENV_DEFAULTS: tuple[tuple[str, str], ...] = (("VOOL_CONTEXT_CAPSULE_V2", "1"),)
+# The memory path a shipped process runs is the path the memory benchmarks measure: Context Capsule 2.0 plus the
+# memory kernel (receipts at ingest, the evidence compiler packet with one hop, the withdrawn-answer verifier and
+# kernel receipts). Each switch is a default only: an explicit value, 0 included, wins.
+_PRODUCT_RUNTIME_ENV_DEFAULTS: tuple[tuple[str, str], ...] = (
+    ("VOOL_CONTEXT_CAPSULE_V2", "1"),
+    ("VOOL_MEMORY_RECEIPTS", "1"),
+    ("VOOL_EVIDENCE_COMPILER", "1"),
+    ("VOOL_EVIDENCE_HOP", "1"),
+    ("VOOL_EVIDENCE_VERIFY", "1"),
+    ("VOOL_EVIDENCE_KERNEL", "1"),
+)
 
 
 def apply_product_runtime_defaults(env: MutableMapping[str, str] | None = None) -> None:
