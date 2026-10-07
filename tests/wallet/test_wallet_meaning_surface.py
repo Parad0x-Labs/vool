@@ -90,10 +90,12 @@ def test_an_external_signing_request_carries_the_bytes_meaning(wallet_env):
 def test_served_fragment_gates_red_behind_the_capability_and_shows_green_on_the_card(tmp_path):
     import tests._reader_served_rig as rig
     from tests.served_browser import launch_chromium
+    from tests.wallet._rig import ScriptedRpc
 
     red = _red_meaning()
-    with rig.CapturingProvider(default="ok") as provider:
-        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider, env_extra={"VOOL_WALLET_ENABLED": "1", "VOOL_WALLET_NETWORK_ENVIRONMENT": "testnet", "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "")})
+    # The proposal's quote reads the chain; a loopback devnet answers it, so the daemon needs no internet.
+    with ScriptedRpc() as chain, rig.CapturingProvider(default="ok") as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider, env_extra={"VOOL_WALLET_ENABLED": "1", "VOOL_WALLET_NETWORK_ENVIRONMENT": "testnet", "VOOL_WALLET_TESTNET_RPC_URL": chain.url, "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "")})
         daemon.register_provider()
         try:
             daemon.start()
