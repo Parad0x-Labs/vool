@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from core.wallet import config, custody, proposals
@@ -548,9 +548,14 @@ def _deliver(binding: dict[str, Any], proposal: proposals.TransactionProposal, *
     return X402Outcome(status=OUTCOME_DELIVERED, http_status=status, body=body, proposal_id=proposal.proposal_id, binding_id=binding["binding_id"], tx_signature=proposal.tx_signature)
 
 
-def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, Any] | None = None, method: str = "GET", headers: dict[str, str] | None = None, timeout: float = 20.0) -> X402Outcome:
-    """Fetch; on a 402 offer park a capped proposal (or reuse the parked/paid one). Never pays on its own."""
+def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, Any] | None = None, method: str = "GET", headers: dict[str, str] | None = None, timeout: float = 20.0, body: bytes = b"") -> X402Outcome:
+    """Fetch; on a 402 offer park a capped proposal (or reuse the parked/paid one). Never pays on its own.
+
+    This lane binds and replays a request by method and URL only, so a request body cannot ride it: one is refused
+    typed before anything is sent, never silently dropped."""
     custody.require_enabled(source_context=source_context)
+    if body:
+        raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "request_body_needs_paykit_lane"}, source_context=source_context)
     clean_url = str(url or "").strip()
     if not _target_allowed(clean_url):
         raise wallet_fault("wallet_network_disabled", authority=AUTHORITY, context={"reason": "x402_target_not_public", "host": urlsplit(clean_url).hostname or ""}, source_context=source_context)
@@ -686,6 +691,12 @@ def _fetch_v2(v2_offer, clean_url: str, method: str, wallet_id: str, *, source_c
     entry, reason = x402_v2.select_offer(v2_offer, wallet_id=wallet_id, source_context=source_context)
     if entry is None:
         raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": reason}, source_context=source_context)
+    # the paid retry replays the CALLER's request: an offer that names another method than the one this request used
+    # is refused, and an offer naming none is bound to the caller's own method (never a silent GET)
+    declared_method = str((entry.raw or {}).get("method") or "").strip().upper()
+    if declared_method and declared_method != str(method or "GET").upper():
+        raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "offer_method_differs_from_request", "offered": declared_method[:12], "requested": str(method or "GET").upper()[:12]}, source_context=source_context)
+    entry = replace(entry, resource_method=str(method or "GET").upper())
     digest = _request_digest(method, clean_url)
     facilitator = ""
     try:
