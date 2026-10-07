@@ -22,7 +22,6 @@ comparison ANVIL asked for. The JobRunner-level unit proof and its mutation test
 from __future__ import annotations
 
 import os
-import pwd
 import sys
 import tempfile
 import unittest
@@ -34,7 +33,13 @@ from core.runtime_execution_tools import execute_runtime_tool
 _SKIP_REASON = "Kernel-enforced sandboxing (sandbox-exec) is macOS-only; this proof needs a real backend, not a mock."
 
 # The operator's real home, from the account database rather than $HOME, so no fixture can hide it.
-_REAL_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+# `pwd` exists only on POSIX; elsewhere the class below is skipped and the module must still collect.
+if sys.platform == "darwin":
+    import pwd
+
+    _REAL_HOME: Path | None = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+else:
+    _REAL_HOME = None
 
 
 def _context(workspace_dir: str) -> dict:
@@ -72,6 +77,7 @@ class RunTestsFilesystemConfinementTests(unittest.TestCase):
 
     def _canary(self, folder: str, name: str) -> Path:
         canary = Path.home() / folder / name
+        assert _REAL_HOME is not None  # the class runs only on macOS, where the home was read above
         self.assertFalse(canary.resolve().is_relative_to(_REAL_HOME),
                          f"canary {canary} resolves under the real home; refusing to run an escape probe there")
         self.addCleanup(lambda: canary.unlink(missing_ok=True))
