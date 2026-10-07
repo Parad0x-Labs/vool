@@ -45,6 +45,11 @@ _AGO_RE = re.compile(rf"\b(?P<n>{_NUM})\s+(?P<u>days?|weeks?|months?|years?)\s+a
 _LAST_RE = re.compile(r"\b(?:last|this\s+past|the\s+previous)\s+(?P<u>week|month|year|weekend)\b|\byesterday\b", re.IGNORECASE)
 _CLAUSE_SPLIT_RE = re.compile(r"\s+[—–]\s+|;\s+|,\s+(?=(?:so|which|that'?s|inferred|roughly|about|meaning|i\.e\.|or\b))|\s+\((?=[^)]*\))|\binferred\b", re.IGNORECASE)
 _TRAILING_CONNECTOR_RE = re.compile(r"(?:\s*[—–,;:]?\s*(?:so|inferred|which|that'?s|roughly|about|meaning|i\.e\.|and|but|or)\b\s*[,;:]?)+\s*$", re.IGNORECASE)
+# a question about a difference of two durations: a comparison word, or a margin against a goal or a record ("by how many
+# minutes did I beat/miss my goal time", "how far off my target was I"); a plain "how many minutes did the run take" is not one
+_DIFFERENCE_ASK_RE = re.compile(
+    r"\b(?:longer|shorter|more|less|fewer|difference|differ|than|compared|gap|margin|faster|slower|ahead\s+of|behind|off\s+(?:my|the|your)|beat|beaten|missed?|short\s+of|over\s+(?:my|the)\s+(?:goal|target)|under\s+(?:my|the)\s+(?:goal|target))\b"
+    r"|\bby\s+how\s+(?:many|much)\b", re.IGNORECASE)
 _ASK_INTERVAL_RE = re.compile(r"\bhow\s+(?:many|much)\s+(?:days?|weeks?|months?|years?|time)\b|\bhow\s+long\s+(?:ago|before|after|between|since|until)\b", re.IGNORECASE)
 _ASK_HOWLONG_RE = re.compile(r"\bhow\s+long\s+(?:have|has|had|did|do|does|were|was)\b", re.IGNORECASE)
 _ASK_WEEKDAY_RE = re.compile(r"\b(?:which|what)\s+day\s+of\s+the\s+week\b|\bwhat\s+weekday\b", re.IGNORECASE)
@@ -274,7 +279,7 @@ def bind_temporal_claims(*, question: str, reply: str, packet_facts: Sequence[Ma
         if v.kind == "date":
             _bind_value(v, ops, {}, before=reply[max(0, v.start - 48): v.start])
     reply_days = {v.day: f"reply date {v.text}" for v in values if v.kind == "date" and v.day is not None and v.status != "unsupported"}
-    diff_ask = bool(re.search(r"\b(?:longer|shorter|more|less|fewer|difference|differ|than|compared|gap)\b", str(question or ""), re.IGNORECASE))
+    diff_ask = bool(_DIFFERENCE_ASK_RE.search(str(question or "")))
     for v in values:
         if v.kind != "date":
             v.difference_ask = diff_ask
