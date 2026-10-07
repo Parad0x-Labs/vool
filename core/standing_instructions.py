@@ -70,14 +70,17 @@ _SUBJECT_YOU_RE = re.compile(
 _MODE_ADVERB_RE = re.compile(r"^(?:always|never|just|also|don'?t(?:\s+ever)?|do\s+not(?:\s+ever)?)\s+", re.IGNORECASE)
 _PREFERENCE_RE = re.compile(r"^i\s+(?:prefer|like|want|need|'d\s+(?:prefer|like|rather)|would\s+(?:prefer|like|rather))\b",
                             re.IGNORECASE)
-_NOT_AN_IMPERATIVE = frozenset("""
-i me my mine we us our ours he him his she her hers it its they them their theirs you your yours one
-the a an this that these those some any each every all no none both either neither another other such
-is are was were be been am will would can could should shall may might must do does did has have had
-what why how when where who whom whose which whether if though although because since unless while
-in on at for with about of to from by into onto over under after before during between through without
-there here not and or but nor yet so as than then also only even still too very
-""".split())
+_NOT_AN_IMPERATIVE = frozenset([
+    "i", "me", "my", "mine", "we", "us", "our", "ours", "he", "him", "his", "she", "her", "hers", "it", "its",
+    "they", "them", "their", "theirs", "you", "your", "yours", "one", "the", "a", "an", "this", "that", "these",
+    "those", "some", "any", "each", "every", "all", "no", "none", "both", "either", "neither", "another", "other",
+    "such", "is", "are", "was", "were", "be", "been", "am", "will", "would", "can", "could", "should", "shall",
+    "may", "might", "must", "do", "does", "did", "has", "have", "had", "what", "why", "how", "when", "where", "who",
+    "whom", "whose", "which", "whether", "if", "though", "although", "because", "since", "unless", "while", "in",
+    "on", "at", "for", "with", "about", "of", "to", "from", "by", "into", "onto", "over", "under", "after", "before",
+    "during", "between", "through", "without", "there", "here", "not", "and", "or", "but", "nor", "yet", "so", "as",
+    "than", "then", "also", "only", "even", "still", "too", "very",
+])
 
 
 def _main_clause(sentence: str) -> str:
@@ -112,10 +115,9 @@ def _addressed_to_vool(sentence: str) -> bool:
     if first in _NOT_AN_IMPERATIVE or first.endswith("ing"):
         return False
     # "<Something> always/never/is …": a statement about that something, not an order to VOOL.
-    if len(words) > 1 and words[1].lower() in {"always", "never", "usually", "often", "is", "are", "was", "were",
-                                                "has", "have", "had", "does", "do", "did", "will", "would", "can"}:
-        return False
-    return True
+    return not (len(words) > 1 and words[1].lower() in {"always", "never", "usually", "often", "is", "are", "was",
+                                                         "were", "has", "have", "had", "does", "do", "did", "will",
+                                                         "would", "can"})
 
 
 _QUESTION_RE = re.compile(r"\?\s*$|^(?:do|does|did|can|could|would|will|should|is|are|why|what|how|when|where|who)\b",
@@ -475,7 +477,7 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
     if not saves and not take_backs:
         kinds = [_plain_kind(sentence) for sentence in sentences]
         if all(kinds) and any(kind in ("plain", "workflow") for kind in kinds):
-            for index, (sentence, kind) in enumerate(zip(sentences, kinds)):
+            for index, (sentence, kind) in enumerate(zip(sentences, kinds, strict=True)):
                 if kind == "context":
                     continue
                 previous = sentences[index - 1] if index > 0 and kinds[index - 1] == "context" else ""
@@ -498,14 +500,13 @@ def observe_turn(user_input: str, source_context: Mapping[str, Any] | None, *, p
         removed.extend(gone)
         # "Stop using emojis" with no saved rule about emojis is not a take-back: it is a new standing
         # instruction in its own right ("stop …" reads as "never … again"), unless it is a one-off.
-        if not gone and _addressed_to_vool(sentence) and not _ONE_OFF_RE.search(sentence) \
-                and re.match(r"^(?:(?:please|and|also|so)[,\s]+)*(?:stop|don'?t|do\s+not|quit)\b", sentence, re.IGNORECASE):
-            saves.append(sentence)
-        # "No more emojis in your replies" with nothing saved about emojis is a new "never" -- but only when it is
-        # about how answers look; "no more coffee for me after six" is about the owner's evening, not VOOL.
-        elif not gone and not _ONE_OFF_RE.search(sentence) \
-                and re.match(r"^(?:(?:please|and|also|so)[,\s]+)*no\s+more\b", sentence, re.IGNORECASE) \
-                and (_facets(sentence) or _PRESENTATION_RE.search(sentence)):
+        # "No more emojis in your replies" with nothing saved about emojis is a new "never" too -- but only when it
+        # is about how answers look; "no more coffee for me after six" is about the owner's evening, not VOOL.
+        stop_order = _addressed_to_vool(sentence) and re.match(
+            r"^(?:(?:please|and|also|so)[,\s]+)*(?:stop|don'?t|do\s+not|quit)\b", sentence, re.IGNORECASE)
+        no_more_order = re.match(r"^(?:(?:please|and|also|so)[,\s]+)*no\s+more\b", sentence, re.IGNORECASE) \
+            and (_facets(sentence) or _PRESENTATION_RE.search(sentence))
+        if not gone and not _ONE_OFF_RE.search(sentence) and (stop_order or no_more_order):
             saves.append(sentence)
     saved = [i.text for i in (_add(principal, workspace, text, session_id) for text in saves) if i is not None]
     return {"saved": saved, "taken_back": removed}
