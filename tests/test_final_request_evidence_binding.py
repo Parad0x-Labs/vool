@@ -57,9 +57,10 @@ def test_evidence_is_sealed_to_final_messages_query_and_turn(monkeypatch):
     serialized = json.dumps(request.as_openai_messages(), ensure_ascii=False, separators=(",",":"))
     assert record["request_sha256"] == hashlib.sha256(serialized.encode()).hexdigest()
     assert record["turn_id"] == "turn-a"
-    # Carrier indices include the separate runtime clock at zero. It must
+    # Carrier indices include the separate runtime clock, which since ae264ad6 (2026-10-06) is the turn-directives
+    # system message after the stable leading system prompt (index 1), followed by the capsule (index 2). It must
     # survive provider serialization without becoming event/claim evidence.
-    assert record["evidence_message_indices"] == [0, 1]
+    assert record["evidence_message_indices"] == [1, 2]
     assert record["evidence_texts"] == [CAPSULE]
     clock = bc.admitted_request_reference_clock(context, "bound-chat", question=QUESTION)
     assert clock is not None
@@ -130,7 +131,7 @@ def test_clock_only_provider_carrier_cannot_authorize_a_past_event(monkeypatch):
     context = {"chat_id":"bound-chat", "surface":"api", "platform":"api", "current_turn_id":"turn-a"}
     internal = _request(monkeypatch, context, with_capsule=False)
     record = deepcopy(context["admitted_capsule_evidence"])
-    assert record["evidence_message_indices"] == [0]
+    assert record["evidence_message_indices"] == [1]   # the clock carrier after the stable leading prompt (ae264ad6)
     assert record["evidence_texts"] == []
     request = ModelRequest(task_kind="summarization", prompt=QUESTION,
         system_prompt=internal.system_prompt(), messages=internal.as_openai_messages(),

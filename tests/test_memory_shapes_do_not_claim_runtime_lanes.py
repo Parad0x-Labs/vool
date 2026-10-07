@@ -157,6 +157,9 @@ def test_follow_up_on_a_present_answer_still_transforms_that_answer(monkeypatch)
         {"role": "assistant", "content": "Toast the cumin seeds, then soften the onions."},
     ]
     request = _conversational_request(monkeypatch, text, transcript)
-    system = str(request.messages[0].content or "")
+    # ae264ad6 (2026-10-06): the per-turn additions travel in the turn-directives system message ("Context for this
+    # turn: ..."), so the leading system message stays byte-stable; the immediate answer is read from the served
+    # system messages together
+    system = "\n".join(str(m.content or "") for m in request.messages if getattr(m, "role", None) == "system")
     assert "<immediate_assistant_answer>" in system
     assert "Toast the cumin seeds, then soften the onions." in system
