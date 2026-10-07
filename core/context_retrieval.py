@@ -8569,7 +8569,7 @@ def _capsule_v2_inject_retrieved(
                         )) if leg_terms else 0
                         ranked_leg.append((
                             time_leg_window.day_distance(content_day),
-                            -overlap, len(ranked_leg), occurrence, reference_day,
+                            -overlap, len(ranked_leg), occurrence, reference_day, content_day,
                         ))
                 ranked_leg.sort(key=lambda item: item[:3])
                 pooled_leg_ids = {
@@ -8580,10 +8580,15 @@ def _capsule_v2_inject_retrieved(
                 leg_anchor_ids: set[str] = set()
                 leg_days: dict[str, Any] = {}
                 leg_additions: list[tuple[Any, float]] = []
-                for distance, _neg, _idx, occurrence, reference_day in (
+                for distance, _neg, _idx, occurrence, reference_day, content_day in (
                         ranked_leg[:item_limit]):
                     occ_key = str(getattr(occurrence, "occurrence_id", "") or "")
                     if not occ_key:
+                        continue
+                    if reference_day is None and content_day > time_leg_window.last_day:
+                        # the as-of law: a record stated after the named day that does not date itself back onto
+                        # it is not evidence for that day, even though the leg read it from the window
+                        # (tests/test_question_date_time_leg_20261002.py::test_window_record_from_after_the_day_without_back_reference_stays_out)
                         continue
                     leg_ids.add(occ_key)
                     if distance == 0:
