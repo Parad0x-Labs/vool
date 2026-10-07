@@ -53,11 +53,6 @@ _GIT_READ_ONLY_SUBCOMMANDS = frozenset({
     "for-each-ref", "describe", "blame", "cat-file", "shortlog", "count-objects", "whatchanged",
     "rev-list", "name-rev", "check-ignore", "version", "help",
 })
-# Flags that turn `git branch` from a listing into a mutation (delete / rename / move / force).
-_GIT_BRANCH_MUTATING_FLAGS = frozenset({
-    "-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
-    "--set-upstream-to", "--unset-upstream", "--edit-description",
-})
 
 
 def _git_is_read_only(argv: list[str]) -> bool:
@@ -71,11 +66,12 @@ def _git_is_read_only(argv: list[str]) -> bool:
     subcommand = str(argv[1] or "").strip().lower()
     tokens = [str(item or "").strip() for item in argv[2:] if str(item or "").strip()]
     if subcommand == "branch":
-        # A listing (`git branch`, `git branch -a -v`) is read-only. A mutating flag, or any
-        # positional argument (which creates or targets a branch), is not.
-        if any(token in _GIT_BRANCH_MUTATING_FLAGS for token in tokens):
-            return False
-        return all(token.startswith("-") for token in tokens)
+        # A listing (`git branch`, `git branch -a -v`) is read-only. A mutating option, or a
+        # positional argument (which creates or targets a branch), is not. The option parsing has
+        # one owner, so the gate and the mode policy cannot disagree about `--unset-up` or `-uX`.
+        from core.mode_permission_policy import PermissionAction, _git_branch_actions
+
+        return _git_branch_actions(tokens) == {PermissionAction.RUN_SAFE_COMMANDS}
     return subcommand in _GIT_READ_ONLY_SUBCOMMANDS
 
 

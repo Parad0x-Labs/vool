@@ -2003,12 +2003,45 @@ _GIT_READ_SUBCOMMANDS = frozenset(
         "count-objects", "check-ignore", "version",
     }
 )
-_GIT_BRANCH_MUTATING_FLAGS = frozenset(
+# `git branch` options, by what they do. git takes `--opt=value`, packs short options (`-uorigin/main`
+# is `-u origin/main`, `-vd` deletes) and accepts any unambiguous long-option prefix (`--unset-up`), so
+# an option is resolved the way git resolves it, never matched by equality.
+_GIT_BRANCH_MUTATING_LONG = frozenset(
     {
-        "-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
-        "--set-upstream-to", "--unset-upstream", "--edit-description",
+        "delete", "move", "copy", "force", "create-reflog", "track", "no-track", "set-upstream-to",
+        "set-upstream", "unset-upstream", "edit-description", "recurse-submodules",
     }
 )
+_GIT_BRANCH_READ_LONG = frozenset(
+    {
+        "list", "all", "remotes", "verbose", "quiet", "abbrev", "no-abbrev", "color", "no-color", "column",
+        "no-column", "ignore-case", "omit-empty", "show-current", "contains", "no-contains", "merged",
+        "no-merged", "points-at", "sort", "format",
+    }
+)
+# Short options that change refs or config. `-u` and `-t` take a value that may be packed onto them.
+_GIT_BRANCH_MUTATING_SHORT = frozenset("dDmMcCfut")
+
+
+def _git_branch_option_mutates(token: str) -> bool:
+    """Whether one `git branch` option changes a ref or the config, resolved as git resolves it.
+
+    An abbreviation that could name a mutating option counts as mutating: git refuses an ambiguous
+    one, so treating it as a write costs nothing, and an unknown option is never a provable read.
+    """
+    if token.startswith("--"):
+        name = token[2:].split("=", 1)[0].lower()
+        if not name:
+            return False  # `--` ends the options; what follows is a branch name
+        if name in _GIT_BRANCH_READ_LONG:
+            return False
+        if name in _GIT_BRANCH_MUTATING_LONG:
+            return True
+        matches = [option for option in _GIT_BRANCH_MUTATING_LONG | _GIT_BRANCH_READ_LONG if option.startswith(name)]
+        return not matches or any(option in _GIT_BRANCH_MUTATING_LONG for option in matches)
+    if token.startswith("-") and len(token) > 1:
+        return any(flag in _GIT_BRANCH_MUTATING_SHORT for flag in token[1:])
+    return False
 # ripgrep options that run another program: `--pre` runs a preprocessor on every searched file,
 # `--hostname-bin` runs a binary to name the host. `--pre-glob` only scopes `--pre`.
 _RG_EXECUTING_OPTIONS = ("--pre", "--hostname-bin")
@@ -2035,6 +2068,29 @@ def _git_option_writes(token: str, *, subcommand: str) -> bool:
     return subcommand == "grep" and token.startswith("-") and "O" in token[1:]
 
 
+# Listing filters whose value may follow as the next argument (`--contains <commit>`, `--sort -date`).
+_GIT_BRANCH_READ_VALUE_OPTIONS = frozenset({"contains", "no-contains", "merged", "no-merged", "points-at", "sort", "format"})
+
+
+def _git_branch_actions(tail: list[str]) -> set[PermissionAction]:
+    """`git branch` is a listing unless an option changes a ref or config, or a name is given to create."""
+    index = 0
+    while index < len(tail):
+        item = tail[index]
+        if item == "--":
+            return {PermissionAction.MODIFY_FILES} if tail[index + 1:] else {PermissionAction.RUN_SAFE_COMMANDS}
+        if _git_branch_option_mutates(item):
+            return {PermissionAction.GIT_RESET_CLEAN}
+        if item.startswith("--") and "=" not in item and item[2:].lower() in _GIT_BRANCH_READ_VALUE_OPTIONS:
+            index += 2  # the filter's value is an argument, not a branch to create
+            continue
+        if not item.startswith("-"):
+            # `git branch <name>` creates a ref and touches no file.
+            return {PermissionAction.MODIFY_FILES}
+        index += 1
+    return {PermissionAction.RUN_SAFE_COMMANDS}
+
+
 def _git_actions(argv: list[str]) -> set[PermissionAction]:
     sub = str(argv[1] if len(argv) > 1 else "").lower()
     tail = [str(item) for item in argv[2:]]
@@ -2043,11 +2099,7 @@ def _git_actions(argv: list[str]) -> set[PermissionAction]:
         return {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
     if sub in _GIT_READ_SUBCOMMANDS:
         if sub == "branch":
-            if any(item in _GIT_BRANCH_MUTATING_FLAGS for item in tail):
-                return {PermissionAction.GIT_RESET_CLEAN}
-            if any(not item.startswith("-") for item in tail):
-                # `git branch <name>` creates a ref and touches no file.
-                return {PermissionAction.MODIFY_FILES}
+            return _git_branch_actions(tail)
         return {PermissionAction.RUN_SAFE_COMMANDS}
     if sub in {"commit", "revert", "am", "tag"}:
         if sub == "tag" and not any(not item.startswith("-") for item in tail) and not any(
