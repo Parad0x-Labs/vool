@@ -98,6 +98,12 @@ runtime = [
     "zstandard>=0.22.0",
     "xxhash>=3.4.0",
 ]
+# The native desktop window (installer/bundle/vool_window.py). Pinned: unpinned, the bundle's
+# wheel-only resolve fell back to pywebview 3.4 (2021) because every later release needs the
+# sdist-only proxy-tools, whose wheel the bundle now supplies through built_wheels.json.
+desktop = [
+    "pywebview==6.2.1",
+]
 proof = [
     "pytest>=7.0",
 ]
