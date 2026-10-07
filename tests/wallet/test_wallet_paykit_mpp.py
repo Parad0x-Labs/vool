@@ -305,6 +305,40 @@ def test_a_charge_that_failed_on_chain_releases_the_hold(env):
 
 # --- the ordinary x402 door -------------------------------------------------------------------------------------------
 
+@pytest.mark.parametrize(("sponsored", "mode", "state", "hold"), [
+    (False, "ok", "confirmed", "settled"),
+    (False, "settle_fails", "failed", "released"),
+    (True, "ok", "broadcast", "reserved"),
+], ids=["wallet-pays-fee-landed", "wallet-pays-fee-failed-on-chain", "server-pays-fee"])
+def test_a_charge_answered_with_a_bare_3xx_is_decided_by_the_chain(env, sponsored, mode, state, hold):
+    """The charge lands (or fails on chain), then the resource answers a bare 304. The request left with the payment,
+    so only the chain decides: this wallet's own signature names the transaction when it paid the fee; a sponsored
+    charge has no id this wallet knows, so its hold stays as unknown."""
+    from core.wallet import limits, proposals
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    with ScriptedMppResource(env["rpc"], sponsored=sponsored, mode=mode, paid_answer="status:304") as resource:
+        parked = _park(resource, profile)
+        if state == "broadcast":
+            with pytest.raises(WalletFault) as exc:
+                _approve(parked.proposal_id)
+            assert exc.value.context["reason"].startswith("submit_unknown:")
+        else:
+            receipt = _approve(parked.proposal_id)
+            assert receipt.state == state and receipt.tx_signature == resource.landed[0]
+            assert _receipt(parked.proposal_id)["settlement"] == ("settled" if state == "confirmed" else "failed")
+            assert _receipt(parked.proposal_id)["delivered"] is False
+        assert len(resource.landed) == 1
+        assert proposals.get_proposal(parked.proposal_id).state == state
+        assert limits.reservation_state(parked.proposal_id) == hold
+        if state != "failed":
+            with pytest.raises(WalletFault) as again:
+                _park(resource, profile)
+            assert again.value.context["reason"] == "paykit_request_already_paid"
+        assert len(resource.landed) == 1
+
+
 def test_the_ordinary_x402_door_hands_an_mpp_challenge_to_paykit(env):
     from core.wallet import proposals, x402
 

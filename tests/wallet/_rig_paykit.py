@@ -21,14 +21,45 @@ MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 PAID_BODY = b'{"report": "quarterly numbers", "paid": true}'
 
 
+def _answer_oddly(handler: BaseHTTPRequestHandler, how: str) -> bool:
+    """Answer a paid request whose payment already landed the way ``how`` names: 'status:<code>' a bare status (no
+    headers, no body), 'redirect' a 302 to another path on the same origin, 'oversize' a body over the wallet's byte
+    limit, 'drop' closes the connection without answering. 'ok' returns False: the caller answers normally."""
+    if how == "ok":
+        return False
+    if how == "drop":
+        handler.close_connection = True
+        return True
+    if how == "redirect":
+        status, headers, body = 302, {"Location": "/paid/elsewhere"}, b""
+    elif how == "oversize":
+        from core.wallet.outbound import MAX_RESPONSE_BYTES
+
+        status, headers, body = 200, {"Content-Type": "application/json"}, b"x" * (MAX_RESPONSE_BYTES + 1024)
+    elif how.startswith("status:"):
+        status, headers, body = int(how.split(":", 1)[1]), {}, b""
+    else:
+        raise ValueError(f"unknown paid answer {how!r}")
+    handler.send_response(status)
+    for k, v in headers.items():
+        handler.send_header(k, v)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    try:
+        handler.wfile.write(body)
+    except OSError:  # the wallet stops reading at its byte limit
+        pass
+    return True
+
+
 class ScriptedPayKitResource:
     """``mode``: 'ok' (settle and deliver) | 'settle_fails' (the landed transaction failed) | 'no_settlement_header'
     (deliver without naming a transaction) | 'wrong_settlement' (name a transaction that does not exist) |
     'names_earlier_payment' (land this payment but name the FIRST one this resource landed: a real, successful
-    transaction carrying the same payer's signature, over another message)."""
+    transaction carrying the same payer's signature, over another message). ``paid_answer``: see ``_answer_oddly``."""
 
     def __init__(self, rpc: ScriptedRpc, *, amount_minor: int = 1500, asset: str = "SOL", pay_to: str = OTHER_DESTINATION,
-                 network: str = DEVNET_CAIP2, fee_payer: bool = True, wire_version: int = 2, mode: str = "ok") -> None:
+                 network: str = DEVNET_CAIP2, fee_payer: bool = True, wire_version: int = 2, mode: str = "ok", paid_answer: str = "ok") -> None:
         from solders.keypair import Keypair
 
         self.rpc = rpc
@@ -39,6 +70,7 @@ class ScriptedPayKitResource:
         self.with_fee_payer = fee_payer
         self.wire_version = wire_version
         self.mode = mode
+        self.paid_answer = paid_answer
         self.fee_payer = Keypair()
         self.requests: list[dict[str, Any]] = []
         self.paid_requests: list[dict[str, Any]] = []
@@ -66,6 +98,8 @@ class ScriptedPayKitResource:
                 settled = resource.settle(payment)
                 with resource._lock:
                     resource.paid_requests.append({**record, "settled": settled})
+                if _answer_oddly(self, resource.paid_answer):
+                    return
                 headers = {"Content-Type": "application/json"}
                 if settled and resource.mode != "no_settlement_header":
                     named = {"wrong_settlement": "1" * 88, "names_earlier_payment": resource.landed[0]}.get(resource.mode, settled)
@@ -146,11 +180,12 @@ class ScriptedMppResource:
     and the bytes land on the scripted RPC; the answer carries a ``Payment-Receipt`` naming the transaction.
 
     ``sponsored``: the challenge names this resource's fee payer (else the payer pays the fee). ``intent``, ``splits``,
-    ``network``, ``currency``, ``decimals`` and ``expires`` shape the challenge; ``mode`` as in ScriptedPayKitResource."""
+    ``network``, ``currency``, ``decimals`` and ``expires`` shape the challenge; ``mode`` and ``paid_answer`` as in
+    ScriptedPayKitResource."""
 
     def __init__(self, rpc: ScriptedRpc, *, amount_minor: int = 1500, currency: str = "SOL", recipient: str = OTHER_DESTINATION,
                  network: str = "devnet", sponsored: bool = True, intent: str = "charge", splits: list[dict[str, Any]] | None = None,
-                 decimals: int | None = None, expires: str = "", external_id: str = "order-7", mode: str = "ok") -> None:
+                 decimals: int | None = None, expires: str = "", external_id: str = "order-7", mode: str = "ok", paid_answer: str = "ok") -> None:
         from solders.keypair import Keypair
 
         self.rpc = rpc
@@ -165,6 +200,7 @@ class ScriptedMppResource:
         self.expires = expires
         self.external_id = external_id
         self.mode = mode
+        self.paid_answer = paid_answer
         self.fee_payer = Keypair()
         self.requests: list[dict[str, Any]] = []
         self.paid_requests: list[dict[str, Any]] = []
@@ -191,6 +227,8 @@ class ScriptedMppResource:
                 settled = resource.settle(authorization)
                 with resource._lock:
                     resource.paid_requests.append({**record, "settled": settled})
+                if _answer_oddly(self, resource.paid_answer):
+                    return
                 headers = {"Content-Type": "application/json"}
                 if settled and resource.mode != "no_settlement_header":
                     from solana_pay_kit.protocols.mpp.core.headers import format_receipt
