@@ -626,19 +626,7 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
     coverage = scoped_coverage(receipts, question, packet.facts, extra_terms=extra, state_key=state_key)
     complete = (not missing) and (coverage["exhaustive"] if ob.needs_coverage else True)
     if packet.lines or (ob.needs_coverage and not coverage["exhaustive"]):
-        status = ("complete" if not missing else "incomplete: missing " + ", ".join(missing))
-        line = f"- This question needs: {', '.join(ob.required)} ({ob.note}). Receipts found: {status}."
-        if ob.kind == "sequence":
-            line += " Answer shape: one line per item, each a short name of one topic or event with the day it first came up, earliest first, nothing bundled."
-        if ob.needs_coverage:
-            if coverage["exhaustive"]:
-                line += f" Coverage: exhaustive, all {coverage['candidates']} matching records are shown."
-            else:
-                line += (f" Coverage: partial, {coverage['shown']} of {coverage['candidates']} matching records shown; "
-                         + {"ABSENCE": "do not conclude that something was never said", "EXTREMUM": "do not conclude which was first or latest",
-                            "LIST_ALL": "do not present the list as complete", "CURRENT_STATE": "do not conclude that no later change exists",
-                            "AGGREGATE": "do not total or average as if every record were here"}[ob.cls] + ".")
-        packet.lines.append(line)
+        packet.lines.append(_completeness_line(ob, missing, coverage))
     telemetry.update({"found": list(found), "missing": list(missing), "complete": complete, "obligation_class": ob.cls, "coverage": coverage})
     telemetry["derived_lines"] = derived
     telemetry["target_day"] = target_day.isoformat() if target_day else None
@@ -646,6 +634,71 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
     telemetry.update({"packet_lines": len(packet.lines), "packet_tokens": packet.tokens})
     packet.telemetry = telemetry
     return packet
+
+
+def _completeness_line(ob: Obligation, missing: Sequence[str], coverage: Mapping[str, Any]) -> str:
+    status = ("complete" if not missing else "incomplete: missing " + ", ".join(missing))
+    line = f"- This question needs: {', '.join(ob.required)} ({ob.note}). Receipts found: {status}."
+    if ob.kind == "sequence":
+        line += " Answer shape: one line per item, each a short name of one topic or event with the day it first came up, earliest first, nothing bundled."
+    if ob.needs_coverage:
+        if coverage["exhaustive"]:
+            line += f" Coverage: exhaustive, all {coverage['candidates']} matching records are shown."
+        else:
+            line += (f" Coverage: partial, {coverage['shown']} of {coverage['candidates']} matching records shown; "
+                     + {"ABSENCE": "do not conclude that something was never said", "EXTREMUM": "do not conclude which was first or latest",
+                        "LIST_ALL": "do not present the list as complete", "CURRENT_STATE": "do not conclude that no later change exists",
+                        "AGGREGATE": "do not total or average as if every record were here"}[ob.cls] + ".")
+    return line
+
+
+_COMPLETENESS_LINE_PREFIX = "- This question needs: "
+
+
+def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens: Callable[[str], int] | None = None) -> Packet:
+    """The packet without the rows whose occurrence the capsule refused this turn (D8-E, 2026-10-07).
+
+    compile_packet reads every receipt of the chat before the capsule's own laws run, so a record the absence gate,
+    the as-of law or a retraction refused still rendered as a typed row ("$10 per class" for the dance ask; a May turn
+    for a March ask; "Sunday at 11 am" after "scratch that"). `refused` maps occurrence_id to the decision that refused
+    it. Fact rows of a refused occurrence are dropped (lines and facts stay aligned), hop and derived lines stay, and
+    the completeness line is recomputed over the surviving rows: a dropped row was a matching record the reader does
+    not see, so coverage is partial and "complete" is never claimed over it. An empty `refused` returns the packet
+    unchanged, byte for byte."""
+    if not refused or not packet.facts:
+        return packet
+    est = estimate_tokens or (lambda t: max(1, len(t) // 4))
+    n = len(packet.facts)
+    fact_lines, tail = list(packet.lines[:n]), list(packet.lines[n:])
+    kept_lines: list[str] = []
+    kept_facts: list[dict[str, Any]] = []
+    dropped: list[dict[str, Any]] = []
+    for line, fact in zip(fact_lines, packet.facts):
+        occ = str(fact.get("occurrence_id") or "")
+        if occ and occ in refused:
+            dropped.append({"occurrence_id": occ, "receipt_id": fact.get("receipt_id"), "reason": str(refused[occ])})
+            continue
+        kept_lines.append(line)
+        kept_facts.append(fact)
+    if not dropped:
+        return packet
+    tail = [line for line in tail if not line.startswith(_COMPLETENESS_LINE_PREFIX)]
+    ob = packet.obligation
+    found, missing = _found_operands(ob, [(0.0, {"role": f.get("role"), "statement_at": f.get("statement_at")}, f) for f in kept_facts])
+    coverage = dict(packet.telemetry.get("coverage") or {"candidates": 0, "shown": 0, "exhaustive": True})
+    coverage["shown"] = max(0, int(coverage.get("shown") or 0) - len(dropped))
+    coverage["exhaustive"] = False if ob.needs_coverage else bool(coverage.get("exhaustive", True))
+    complete = (not missing) and (coverage["exhaustive"] if ob.needs_coverage else True)
+    lines = kept_lines + tail
+    if lines or (ob.needs_coverage and not coverage["exhaustive"]):
+        lines.append(_completeness_line(ob, missing, coverage))
+    out = Packet(obligation=ob, lines=lines, facts=kept_facts, telemetry=dict(packet.telemetry))
+    out.telemetry.update({"found": list(found), "missing": list(missing), "complete": complete, "coverage": coverage,
+                          "refused_rows": dropped, "packet_lines": len(lines)})
+    used = sum(est(line + "\n") for line in lines)
+    out.tokens = used + (est(PACKET_HEADER) if lines else 0)
+    out.telemetry["packet_tokens"] = out.tokens
+    return out
 
 
 def render(packet: Packet) -> str:
