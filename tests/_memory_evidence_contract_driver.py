@@ -86,6 +86,7 @@ def main() -> int:
     parser.add_argument("--reference-date", default="")
     parser.add_argument("--chat-id", default="allotment-log")
     parser.add_argument("--no-event-capture", action="store_true")
+    parser.add_argument("--commit", action="store_true", help="Also run the served door's response commit (finalization and publication gate) and record it")
     args = parser.parse_args()
 
     install_fixture_reference_clock(args.reference_date)
@@ -443,6 +444,22 @@ def main() -> int:
             workspace_root_provider=lambda: home,
         )
         unregister_runtime_event_sink(stream_id)
+        # The served door commits the result (core.web.api.runtime._response_commit): finalization and the
+        # grounding publication gate run there, after run_agent returns. Opt-in so earlier callers keep
+        # their recorded shape.
+        commit_record = None
+        if args.commit:
+            from core.web.api.runtime import _response_commit
+
+            commit = _response_commit(result, source_context=result.get("source_context") or source_context)
+            lifecycle = commit.get("grounding_lifecycle") if isinstance(commit.get("grounding_lifecycle"), dict) else {}
+            commit_record = {
+                "canonical_content": commit.get("canonical_content"),
+                "status": commit.get("status"),
+                "grounding_stages": lifecycle.get("stages"),
+                "grounding_reason_codes": lifecycle.get("reason_codes"),
+                "grounding_publication": lifecycle.get("publication"),
+            }
         # The driver's own source_context dict NEVER receives the admitted
         # capsule record: run_agent merges it into a fresh base_context, and
         # run_once returns a copy of THAT context. The guard-visible record is
@@ -470,6 +487,7 @@ def main() -> int:
                 "scripted_raw": state["scripted"],
                 "raw_provider_replies": [c["raw_provider_reply"] for c in calls if "raw_provider_reply" in c],
                 "delivered": result.get("response"),
+                "committed": commit_record,
                 "model_calls": result.get("model_calls"),
                 "result_keys": sorted(str(k) for k in result),
                 "mode": result.get("mode"),
