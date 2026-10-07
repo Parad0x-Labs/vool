@@ -5931,8 +5931,11 @@ def _scored_overlap_chunks(
 # "; "-joined "stated: …" / "recorded: …" parts inside a trailing parenthesis.
 # Consumers that must treat a fact line as a BARE value strip exactly this and
 # nothing else — legitimate parenthesized values never match.
+# The "; "-joined later parts are already inside `[^()]*`, so they are not spelled out
+# as a repeated group: that nesting backtracked exponentially on a long "(stated:;stated:…"
+# line that never closes.
 _PROVENANCE_SUFFIX_RE = re.compile(
-    r"\s*\((?:stated|recorded):[^()]*?(?:;\s*(?:stated|recorded):[^()]*?)*\)$"
+    r"\s*\((?:stated|recorded):[^()]*\)$"
 )
 
 
