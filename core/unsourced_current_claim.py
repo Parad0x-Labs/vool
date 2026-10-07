@@ -653,6 +653,9 @@ class CurrentClaimVerdict:
     #: answered once, and a re-run of the guarded path (the draft-verification pass)
     #: must not convict the runtime's own honesty output again.
     declined_live_claims: bool = False
+    # The reply's value claims bound to the user's own records in the admitted evidence
+    # (core.evidence_kernel.claim_binder). Present only when binding was attempted.
+    claim_binding: dict[str, Any] | None = None
 
     @property
     def unsupported(self) -> bool:
@@ -671,6 +674,7 @@ class CurrentClaimVerdict:
             "attributes_source": self.attributes_source,
             "declined_live_claims": self.declined_live_claims,
             "unsupported": self.unsupported,
+            "claim_binding": self.claim_binding,
         }
 
 
@@ -846,6 +850,38 @@ def inspect_unsourced_current_claim(
         ):
             has_evidence = True
 
+    # A memory answer whose every value claim is stated in, or derived from
+    # (sum, average, extremum, count, day count), the user's OWN records in the admitted evidence is
+    # memory-sourced, not a live reading this turn failed to observe. Measured 2026-10-07 on a
+    # held-out memory run: 19 correct purchase totals ("$283 total: shoes $140, lights $48, helmet $95")
+    # were replaced by the notice below. The binder labels; it never rewrites. A live-world ask, an
+    # assistant line, a stored market reading or an underivable value leave this branch untouched.
+    claim_binding: dict[str, Any] | None = None
+    if not has_evidence and not attributes_source:
+        try:
+            from core.bootstrap_context import admitted_capsule_evidence_text as _admitted_text
+            from core.evidence_kernel.claim_binder import bind_claims as _bind_claims
+
+            _packet_facts = None
+            try:
+                from core.context_retrieval import get_last_retrieval_telemetry as _telemetry
+
+                _packet_facts = list(_telemetry().get("evidence_packet_facts") or [])
+            except Exception:
+                _packet_facts = None
+            _binding = _bind_claims(
+                question=user_turn_text, reply=answer,
+                evidence_text=_admitted_text(source_context or {}, session_id, question=str(user_turn_text or "")),
+                packet_facts=_packet_facts,
+            )
+            claim_binding = _binding.as_dict()
+            if _binding.all_supported:
+                has_evidence = True
+        except Exception:
+            claim_binding = {"attempted": False, "reason": "binder_error"}
+        if isinstance(source_context, dict):
+            source_context["claim_binding"] = claim_binding
+
     # The runtime's own withdrawal notice, with no residual live claim beside it, is the
     # answered state of this defect -- not a fresh fabrication. The guarded block runs
     # more than once per turn on the served path (the draft-verification pass), and the
@@ -871,6 +907,7 @@ def inspect_unsourced_current_claim(
         asserts_measured_value=answer_asserts_a_measured_value(answer),
         attributes_source=answer_attributes_a_source(answer),
         declined_live_claims=declined,
+        claim_binding=claim_binding,
     )
 
 
