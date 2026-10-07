@@ -127,3 +127,16 @@ def test_a_fact_ask_does_not_get_the_preference_operands(home):
     _store(home, "chat-pref", "My knee has been fine since the physio sessions.", _epoch(2025, 3, 9))
     block, _facts = _packet(home, "chat-pref", "How long have my knee sessions been going on?")
     assert "<stated preference: respect it in the answer>" not in block, block
+
+
+@pytest.mark.parametrize("sentence,is_preference", [
+    ("I'm an early riser who likes to finish my run before 7am.", True),
+    ("I am someone who likes to plan meals a week ahead.", True),
+    ("My brother is a night owl who likes to game until 2am.", False),
+    ("Our neighbour is a retiree who likes to garden at dawn.", False),
+], ids=["own-early-riser", "own-someone-who", "brother", "neighbour"])
+def test_who_likes_to_is_a_preference_only_in_the_owners_own_statement(sentence, is_preference):
+    from core.memory_receipts import extract_facts
+
+    kinds = [f.value_type for f in extract_facts(sentence, _epoch(2025, 3, 1), "user")]
+    assert ("preference" in kinds) is is_preference, kinds
