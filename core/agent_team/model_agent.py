@@ -142,6 +142,10 @@ class HttpChatRunner:
             "stream": True, "stream_task_events": True,
             "session_id": session_id, "turn_id": turn_id,
             "mode": "plan" if mode == "read" else "", "autonomy": "",
+            # An agent's turn is not the owner speaking: the server keeps it out of the owner's profile
+            # and preferences (otherwise an agent's report format was saved as the owner's preference,
+            # measured on the live comparison, 2026-10-07).
+            "turn_author": "agent",
         }
         if workspace:
             # The agent works in the TEAM's folder. Without this the turn runs as a general chat with no
