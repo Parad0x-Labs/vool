@@ -85,7 +85,7 @@ _MAREK_SMALL_TALK = [
 
 def _filler(stamp: str, header: str) -> list[tuple[float, str]]:
     turns: list[str] = []
-    for ines, marek in zip(_INES_SMALL_TALK, _MAREK_SMALL_TALK):
+    for ines, marek in zip(_INES_SMALL_TALK, _MAREK_SMALL_TALK, strict=False):
         turns += [f"Ines: {ines}", f"Marek: {marek}"]
     return _session(stamp, header, turns)
 

@@ -33,10 +33,10 @@ def test_a_turn_without_a_statement_time_or_session_header_keeps_its_days_unknow
 
 def test_a_session_header_dates_the_statement_but_capture_time_never_does():
     with_header = extract_facts("Session date: 2025/03/03 (Mon) 09:00\nI bought a kettle for $40 yesterday.", None, "user")
-    amount = [f for f in with_header if f.value_type == "amount"][0]
+    amount = next(f for f in with_header if f.value_type == "amount")
     assert amount.event_at is not None and amount.event_grain   # "yesterday" resolves from the header's day
     without = extract_facts("I bought a kettle for $40 yesterday.", None, "user")
-    assert [f for f in without if f.value_type == "amount"][0].event_at is None
+    assert next(f for f in without if f.value_type == "amount").event_at is None
 
 
 def test_a_state_row_carries_its_effective_window_from_the_chain():

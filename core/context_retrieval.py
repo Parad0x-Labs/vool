@@ -47,6 +47,8 @@ def _current_request_lineage() -> str:
         return str(current_request_id() or "")
     except Exception:
         return ""
+import contextlib
+
 from core.memory.entries import resolve_memory_access_policy
 from core.vool_memory import DEFAULT_AGENT_ID, VoolMemory
 
@@ -452,12 +454,7 @@ def _chunk_adds_new_information(chunk: str, selected_text: str) -> bool:
     # "5" inside "2026-05-05" is a date digit, not the counted quantity
     # (measured: a provenance date containing the operand's digit made the
     # operand read as already-known and starved the aggregation).
-    if tokens and all(
-        re.search(rf"(?<![0-9.,/:-]){re.escape(token)}(?![0-9.,/:-])", selected_lower)
-        for token in tokens
-    ):
-        return False
-    return True
+    return not (tokens and all(re.search(rf"(?<![0-9.,/:-]){re.escape(token)}(?![0-9.,/:-])", selected_lower) for token in tokens))
 
 
 def _content_covered(content: str, context_text: str, threshold: float = DEDUP_THRESHOLD) -> bool:
@@ -550,13 +547,10 @@ def _content_covered_excluding_query(
     non_echo = words - query_words
     answer_words = {word for word in non_echo if word not in _NON_ANSWER_WORDS}
     if not answer_words:
-        if _record_is_question(content):
-            # the record itself asks: it asserts no fact, so dropping it is safe
-            return True
-        # an affirmative stored fact whose recognizable value words all
-        # appear in the current question: asking is not stating — the query
-        # cannot substitute for transcript evidence
-        return False
+        # A record that itself asks asserts no fact, so dropping it is safe. An affirmative stored
+        # fact whose recognizable value words all appear in the current question is kept: asking
+        # is not stating, and the query cannot substitute for transcript evidence.
+        return bool(_record_is_question(content))
     context_words = _answer_tokens(context_text)
     covered = sum(1 for word in answer_words if word in context_words)
     return (covered / len(answer_words)) >= threshold
@@ -1958,9 +1952,7 @@ def _user_owned_statement_body(body: str) -> bool:
         for span in re.findall(r'["\u201c][^"\u201d]{10,}["\u201d]', text))
     unquoted_words = len(re.findall(
         r"\w+", re.sub(r'["\u201c][^"\u201d]*["\u201d]', " ", text)))
-    if quoted_words > unquoted_words:
-        return False
-    return True
+    return not quoted_words > unquoted_words
 
 
 def _user_owned_preference_span(body: str, span_text: str) -> bool:
@@ -2936,7 +2928,7 @@ def _sentence_group_windows(
                 merged_members = g_members + merged_members
             else:
                 keep.append((g_sentences, g_members))
-        groups = keep + [(merged_sentences, sorted(merged_members))]
+        groups = [*keep, (merged_sentences, sorted(merged_members))]
     replacement: dict[int, dict[str, object] | None] = {}
     for sentences, members in groups:
         member_windows = [windows[i] for i in members]
@@ -3209,10 +3201,8 @@ def search_expansion_wanted(
         return False
     finally:
         if mem is not None:
-            try:
+            with contextlib.suppress(Exception):
                 mem.close()
-            except Exception:
-                pass
 
 
 def _recall_supplement_applies(query: str) -> bool:
@@ -4635,10 +4625,8 @@ def materialize_source_evidence(
             ),
         }
     finally:
-        try:
+        with contextlib.suppress(Exception):
             mem.close()
-        except Exception:
-            pass
 
 
 def _query_overlap_lines(query: str, text: str, *, limit: int = 4) -> list[str]:
@@ -7094,10 +7082,8 @@ def revoked_tokens_for_chat(chat_id: str) -> tuple[str, ...]:
         return ()
     finally:
         if mem is not None:
-            try:
+            with contextlib.suppress(Exception):
                 mem.close()
-            except Exception:
-                pass
 
 
 _FORGET_SEPARATOR_RE = re.compile(r"[\s\-_]+")
@@ -7313,11 +7299,11 @@ def import_conversation_history(
             body = redact_secrets(str(record.get("text") or "")).strip()
             if role not in ("user", "assistant"):
                 per_record.append({"index": index, "status": "rejected", "reason": "invalid_role"})
-                result["rejected"] = list(result["rejected"]) + [index]
+                result["rejected"] = [*list(result["rejected"]), index]
                 continue
             if not body:
                 per_record.append({"index": index, "status": "rejected", "reason": "empty_body"})
-                result["rejected"] = list(result["rejected"]) + [index]
+                result["rejected"] = [*list(result["rejected"]), index]
                 continue
             statement_at = _parse_source_time(record.get("statement_at"))
             event_at = _parse_source_time(record.get("event_at"))
@@ -7334,7 +7320,7 @@ def import_conversation_history(
                 import_batch=batch,
                 request_id=str(result["trace_id"]),
             )
-            result["occurrence_ids"] = list(result["occurrence_ids"]) + [occurrence.occurrence_id]
+            result["occurrence_ids"] = [*list(result["occurrence_ids"]), occurrence.occurrence_id]
             result["retained_count"] = int(result["retained_count"]) + 1
             if _memory_receipts_on():
                 try:
@@ -7859,9 +7845,7 @@ def _capsule_line_demotable(
     term_ties = _query_terms_in_text(lowered, asked_terms, stems)
     raw_ties = {term for term in asked_terms if term in lowered}
     weaker_match = span_strength >= 2 and len(term_ties) < span_strength
-    if (raw_ties or len(term_ties) >= 2) and not weaker_match:
-        return False
-    return True
+    return not ((raw_ties or len(term_ties) >= 2) and not weaker_match)
 
 
 def _evidence_span_decisive(
@@ -8938,10 +8922,8 @@ def _capsule_v2_inject_retrieved(
             # cosine hits seed the adjacency leg exactly like BM25 hits: a
             # terse correction that follows a paraphrase-matched statement
             # shares no vocabulary with the question either
-            try:
+            with contextlib.suppress(Exception):
                 _gather_neighbors(semantic_pool_additions)
-            except Exception:
-                pass
         # Anchor expansion (q90-composition): a multi-record question's
         # later operands often answer anaphorically with NO lexical tie to
         # the question ("Add VIC-2202, the Dryas octopetala …" / "Add the
@@ -9065,10 +9047,8 @@ def _capsule_v2_inject_retrieved(
                 continue
             _node_anchor_seen.add(occ_id)
             node_anchor_hits.append((occurrence, float(_score)))
-        try:
+        with contextlib.suppress(Exception):
             _gather_neighbors(node_anchor_hits)
-        except Exception:
-            pass
         # Slot completion for temporal eligibility: a superseding statement
         # often shares no query vocabulary with the question ("Correction:
         # lights-out is 21:30." answers a "bedtime at the hut" ask), so
@@ -12048,7 +12028,7 @@ def _capsule_v2_inject_retrieved(
                 )
         session_ordered = _session_ordered_capsule_texts(rendered_texts, line_times)
         lines_moved = sum(
-            1 for before, after in zip(rendered_texts, session_ordered) if before != after
+            1 for before, after in zip(rendered_texts, session_ordered, strict=False) if before != after
         )
         if render_block and lines_moved:
             render_block = (
@@ -12086,10 +12066,8 @@ def _capsule_v2_inject_retrieved(
         # v14.6: the lane is bounded by the free window the budget was resolved from as well as by its own cap, so
         # a tight caller window is never overrun by verbatim turns (tests/test_v146_capsule_whole_block_bound_20261007.py)
         _lane_cap = _TURN_LANE_MAX_TOKENS
-        try:
+        with contextlib.suppress(Exception):
             _lane_cap = max(0, min(_TURN_LANE_MAX_TOKENS, int(budget.free_tokens)))
-        except Exception:
-            pass
         turn_lines, turn_tokens = _whole_turn_lines(
             whole_turn_units, delivered_text=render_block, max_tokens=_lane_cap, rendered=lane_rendered,
             assistant_ask=_query_requests_assistant_output(query),

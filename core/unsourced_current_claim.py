@@ -824,7 +824,6 @@ def inspect_unsourced_current_claim(
     has_evidence = turn_has_current_evidence(
         notes=notes, session_id=session_id, turn_id=turn_id, source_context=source_context
     )
-    asserts_measured_value = answer_asserts_a_measured_value(answer)
     attributes_source = answer_attributes_a_source(answer)
     if not has_evidence and str(user_turn_text or "").strip():
         # The user-supplied present-fact exemption above. EVERY prose-safe value the

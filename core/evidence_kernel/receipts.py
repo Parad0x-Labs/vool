@@ -191,10 +191,14 @@ def issue(*, kind: str, session_id: str, subject_type: str, subject: Any, eviden
         peer, sig = _try_sign(content) if sign else ("", "")
         env = ReceiptEnvelopeV2(**body, content_digest=digest, signer_peer_id=peer, signature=sig)
         try:
-            p = ledger_path(kind, session_id); p.parent.mkdir(parents=True, exist_ok=True)
+            p = ledger_path(kind, session_id)
+            p.parent.mkdir(parents=True, exist_ok=True)
             with p.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(env.to_dict(), ensure_ascii=False) + "\n"); f.flush(); os.fsync(f.fileno())
-            hp = head_path(kind, session_id); tmp = hp.with_suffix(".tmp")
+                f.write(json.dumps(env.to_dict(), ensure_ascii=False) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            hp = head_path(kind, session_id)
+            tmp = hp.with_suffix(".tmp")
             tmp.write_text(json.dumps({"content_digest": digest, "receipt_id": env.receipt_id, "count": _count(p), "issued_at": env.issued_at}))
             os.replace(tmp, hp)
         except Exception:

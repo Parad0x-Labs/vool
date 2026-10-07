@@ -201,7 +201,7 @@ def _gift_store(capsule_env, chat):
     install(_GIFT_QUESTION, angles)
     # the answer is the OLDEST record: recency cannot lift it either
     turns = [("2025/02/20 (Thu) 10:00", _KITE[1], "Okay.")]
-    turns += [(date, body, "Okay.") for date, (_k, body) in zip(_dates(12), _ERRANDS)]
+    turns += [(date, body, "Okay.") for date, (_k, body) in zip(_dates(12), _ERRANDS, strict=False)]
     _ingest(home, chat, turns)
     return home
 
@@ -236,7 +236,7 @@ def test_distiller_ceiling_follows_the_allowance():
             ["blue", "green", "amber", "violet", "grey", "copper",
              "ivory", "scarlet", "olive", "silver", "ochre", "teal"],
             ["north", "south", "east", "west", "harbour", "canal",
-             "hill", "market", "river", "forest", "quarry", "bridge"])
+             "hill", "market", "river", "forest", "quarry", "bridge"], strict=False)
     ]
     sources = [
         SimpleNamespace(body=body, occurrence_id=str(i), role="user",

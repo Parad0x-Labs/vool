@@ -88,7 +88,7 @@ def test_a_sequence_packet_renders_the_dated_records_earliest_first_with_the_sha
     days = [l[3:13] for l in lines]
     assert days == sorted(days), days
     assert "greenhouse" in lines[0] and "rain barrel" in lines[-1].lower()
-    needs = [l for l in packet if l.startswith("- This question needs")][0]
+    needs = next(l for l in packet if l.startswith("- This question needs"))
     assert "one line per item" in needs and "earliest first" in needs and "nothing bundled" in needs
     assert "Coverage: exhaustive" in needs
 
@@ -99,7 +99,7 @@ def test_a_sequence_over_a_truncated_scope_is_partial(home):
         _store(home, chat, f"Garden topic {i + 1}: I brought up the {['mulch', 'trellis', 'compost', 'pond'][i % 4]} for the garden on {1 + i} May.", _epoch(2025, 5, 1 + i))
     packet, ec = _ask(home, chat, "In what order did I bring up the garden topics?")
     assert ec["obligation"]["kind"] == "sequence" and ec["complete"] is False and not ec["coverage"]["exhaustive"]
-    needs = [l for l in packet if l.startswith("- This question needs")][0]
+    needs = next(l for l in packet if l.startswith("- This question needs"))
     assert "Coverage: partial" in needs and "do not present the list as complete" in needs
     lines = [l for l in packet if l.startswith("- [")]
     assert "Garden topic 1:" in lines[0]   # earliest first even on a partial view

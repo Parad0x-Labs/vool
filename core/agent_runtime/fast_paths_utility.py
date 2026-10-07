@@ -1622,9 +1622,7 @@ def _workspace_noun_is_the_subject(text: str, match: re.Match[str]) -> bool:
     word = tail.group(1).casefold()
     if word not in _WORKSPACE_NOUN_TAIL_WORDS:
         return False
-    if word in _EVENT_AUXILIARIES and _event_clause_follows(text[tail.end():], do_support=word in _DO_SUPPORT):
-        return False
-    return True
+    return not (word in _EVENT_AUXILIARIES and _event_clause_follows(text[tail.end():], do_support=word in _DO_SUPPORT))
 
 
 #: Auxiliaries after the workspace noun that can open a clause about someone's ACTIVITY with the

@@ -176,7 +176,7 @@ def test_bp05_declared_importance_reaches_node_column(fresh_profile):
     declared = [float(t.split(":", 1)[1]) for r in rows for t in r["tags"]
                 if t.startswith("importance:")]
     assert declared, rows
-    for row, want in zip(rows, declared):
+    for row, want in zip(rows, declared, strict=False):
         assert abs(row["base_importance"] - want) < 1e-6, {
             "row": row, "declared_in_tag": want,
             "note": "store_turn computes importance into the tag but omits the "
