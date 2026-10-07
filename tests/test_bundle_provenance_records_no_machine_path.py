@@ -27,4 +27,4 @@ def test_a_wheelhouse_inside_the_build_root_is_recorded_relative_to_it():
 def test_the_committed_intel_cryptography_record_is_the_rebuilt_wheel():
     built = {entry["file"]: entry for entry in prov.built_wheels().values()}
     entry = built["cryptography-50.0.2-cp311-abi3-macosx_14_0_x86_64.whl"]
-    assert entry["sha256"] == "db26356a6f39fd612c81636ce09e88d4309e9b334f7be01f36d192e063c309aa"
+    assert entry["sha256"] == "65031bce8e063ccf4c65a19f5008cc21bfdc47cf2d0e9b5d2eeb727b6b3fd922"

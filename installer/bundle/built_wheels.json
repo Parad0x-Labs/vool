@@ -6,16 +6,16 @@
       "file": "cryptography-50.0.2-cp311-abi3-macosx_14_0_x86_64.whl",
       "package": "cryptography",
       "version": "50.0.2",
-      "sha256": "db26356a6f39fd612c81636ce09e88d4309e9b334f7be01f36d192e063c309aa",
+      "sha256": "65031bce8e063ccf4c65a19f5008cc21bfdc47cf2d0e9b5d2eeb727b6b3fd922",
       "target": "x86_64-apple-darwin",
       "macos_min": "14.0",
       "source_sdist": "cryptography-50.0.2.tar.gz",
       "source_sdist_sha256": "7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5",
-      "openssl": "4.0.3 (static)",
+      "openssl": "4.0.3 (static, no-module: the legacy provider is built in; prefix, openssldir and libdir /private/etc/ssl)",
       "openssl_tarball_sha256": "325b5c806167c13b40b1ffeadfe0248197c00eccc4cf123ec1e28d2d2fd216d9",
-      "built_with": "CPython 3.11 x86_64 under Rosetta, maturin 1.15.0, rustc 1.93.1 target x86_64-apple-darwin; RUSTFLAGS --remap-path-prefix for the cargo registry, git checkouts, rustup, the build dir and the home dir",
-      "built_on": "2026-10-07 (v2: rebuilt so the binary carries no builder home path)",
-      "checks": "single wheel tagged cp311-abi3-macosx_14_0_x86_64; _rust.abi3.so x86_64 only; no libssl/libcrypto dylib; imports as 50.0.2 with OpenSSL 4.0.3 on x86_64 (Rosetta); Fernet round-trip; 0 strings containing the builder home path"
+      "built_with": "CPython 3.11 x86_64 under Rosetta, maturin 1.15.0, rustc 1.93.1 target x86_64-apple-darwin; OpenSSL Configure darwin64-x86_64-cc no-shared no-module no-tests no-docs --prefix=/private/etc/ssl --openssldir=/private/etc/ssl --libdir=/private/etc/ssl/lib -mmacosx-version-min=14.0; RUSTFLAGS --remap-path-prefix for the cargo registry, git checkouts, rustup, the build dir and the home dir",
+      "built_on": "2026-10-07 (v4: no builder paths, and OpenSSL's directories under /private/etc/ssl)",
+      "checks": "single wheel tagged cp311-abi3-macosx_14_0_x86_64, 4,065,645 bytes; _rust.abi3.so x86_64 only; no libssl/libcrypto dylib; 0 strings containing the builder home path or the build volume; imports as 50.0.2 with OpenSSL 4.0.3 on x86_64 (Rosetta); the legacy provider loads"
     },
     {
       "file": "proxy_tools-0.1.0-py3-none-any.whl",
