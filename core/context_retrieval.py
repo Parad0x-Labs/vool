@@ -11863,6 +11863,22 @@ def _capsule_v2_inject_retrieved(
         render_block = render_block.replace(
             "<retrieved_context>\n", f"<retrieved_context>\n{header}\n", 1
         )
+    # The lane serves no user turn the capsule's absence gate refused. It ranks every turn a search leg
+    # returns, so with the gate active (two or more of the ask's terms never retained: another facet,
+    # place or person) it handed back, whole and unmarked, the very records the capsule had dropped as
+    # facet noise. The capsule's exemptions carry over: a semantic-arm or time-leg anchored record
+    # is tied to the ask by meaning or by date, not by a shared word.
+    _lane_exempt = (set(locals().get("semantic_occurrence_ids") or ())
+                    | set(locals().get("time_leg_anchor_ids") or ()))
+    whole_turn_units = [
+        unit for unit in whole_turn_units
+        if not any(
+            str(getattr(occurrence, "role", "") or "") == "user"
+            and str(getattr(occurrence, "occurrence_id", "") or "") not in _lane_exempt
+            and facet_noise(str(getattr(occurrence, "occurrence_id", "") or ""),
+                            str(getattr(occurrence, "body", "") or ""))
+            for occurrence in unit)
+    ]
     turn_lines, turn_tokens = ([], 0)
     try:
         # Rendered the same whether or not the opt-in sitting order is on. KNOWN CONFLICT (open): with
