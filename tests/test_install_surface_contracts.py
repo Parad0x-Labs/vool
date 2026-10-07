@@ -88,6 +88,18 @@ def test_pyproject_dev_extra_covers_build_and_test_tooling() -> None:
         assert marker in pyproject
 
 
+def test_the_locked_ruff_is_the_pinned_ruff() -> None:
+    # uv.lock is what `uv sync` installs and what `uv lock --check` holds CI to. A pin bumped in
+    # pyproject but not relocked leaves the lock installing the old ruff, so local lint and the
+    # gate disagree about which rules exist.
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    lock = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
+    pinned = re.search(r'"ruff==([0-9][0-9A-Za-z.\-]*)"', pyproject)
+    locked = re.search(r'\[\[package\]\]\nname = "ruff"\nversion = "([^"]+)"', lock)
+    assert pinned is not None and locked is not None
+    assert locked.group(1) == pinned.group(1), (locked.group(1), pinned.group(1))
+
+
 def test_container_and_docs_share_api_healthz_contract() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     install_doc = (REPO_ROOT / "docs" / "INSTALL.md").read_text(encoding="utf-8")
