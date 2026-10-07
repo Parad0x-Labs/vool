@@ -102,7 +102,8 @@ class ScriptedRpc:
                     info = rpc.accounts.get(key)
                     if info is None and rpc.balances.get(key, rpc.default_balance if not rpc.balances else 0) > 0:
                         info = {"executable": False, "owner": "11111111111111111111111111111111"}
-                    result = {"context": {"slot": rpc.slot}, "value": None if info is None else {"lamports": rpc.balances.get(key, rpc.default_balance), "executable": bool(info.get("executable")), "owner": str(info.get("owner") or ""), "data": ["", "base64"], "rentEpoch": 0, "space": 0}}
+                    data = bytes((info or {}).get("data") or b"")
+                    result = {"context": {"slot": rpc.slot}, "value": None if info is None else {"lamports": rpc.balances.get(key, rpc.default_balance), "executable": bool(info.get("executable")), "owner": str(info.get("owner") or ""), "data": [base64.b64encode(data).decode("ascii"), "base64"], "rentEpoch": 0, "space": len(data)}}
                 elif method == "getTransaction":
                     asked_sig = str(params[0]) if params else ""
                     options = params[1] if len(params) > 1 and isinstance(params[1], dict) else {}
