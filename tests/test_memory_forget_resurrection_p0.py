@@ -376,7 +376,9 @@ def test_crash_between_canonical_erasure_and_mirror_rewrite_cannot_resurrect(
     handled, reply = maybe_handle_memory_command(
         f"Forget {CANARY}.", session_id=CHAT, access_policy=policy
     )
-    assert handled and reply.startswith("Forget applied"), reply
+    # Contract since 2026-10-07: the canonical row is already a tombstone, so this forget removes no entry
+    # and must not say "Forget applied"; it heals the mirror and confirms the fact as already forgotten.
+    assert handled and "already forgotten" in reply and "Forget applied" not in reply, reply
     assert CANARY not in memory_path().read_text(encoding="utf-8")
 
 
@@ -879,8 +881,10 @@ def test_collision_classes_prefix_suffix_unicode_casefold(isolated_home: Path) -
     handled, reply = maybe_handle_memory_command(
         "Forget Caf\u00e9 Central", session_id=CHAT, access_policy=policy
     )
-    assert handled and reply.startswith("Forget applied"), reply
-    assert reply.strip().endswith("Removed 0 memory entries."), reply
+    # Contract since 2026-10-07: a forget that removes nothing is never answered "Forget applied"
+    # (it answered "Removed 0" while the value stayed served). Nothing is stored under the NFC form,
+    # so the command is not handled here and the turn goes to the ordinary path as a retraction.
+    assert not handled and reply == "", (handled, reply)
     texts = [str(r.get("text") or "") for r in list_memory_entries(access_policy=policy, limit=20)]
     assert any("Cafe\u0301 Central" in t for t in texts)
 
