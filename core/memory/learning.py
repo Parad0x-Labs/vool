@@ -202,7 +202,7 @@ _IMPERATIVE_RE = re.compile(
     r"just\s+|go\s+ahead\s+and\s+|also\s+|and\s+)*"
     r"(?:use|keep|be|stay|make|write|answer|respond|reply|cite|reference|"
     r"build|create|implement|scaffold|code|prefer|summarise|summarize|"
-    r"explain|adopt|give|send|show|share|stick|rely|consult|trust|choose)\b",
+    r"explain|adopt|give|send|show|share|stick|rely|consult|trust|choose|focus\s+on)\b",
     re.IGNORECASE,
 )
 #: One-shot scopers that make an otherwise affirmative directive task-local.
@@ -221,7 +221,7 @@ _SOURCE_USAGE_DIRECTIVE_RE = re.compile(
     r"\b(?:use|uses|used|using|cite|cites|cited|citing|reference|references|"
     r"referenced|referencing|consult|consults|consulted|consulting|"
     r"rely\s+on|relies\s+on|relying\s+on|stick\s+to|sticks\s+to|sticking\s+to|"
-    r"go\s+to|goes\s+to|trust|trusts|choose|chose)\b",
+    r"go\s+to|goes\s+to|trust|trusts|choose|chose|focus(?:es|ed|ing)?\s+on)\b",
     re.IGNORECASE,
 )
 _SOURCE_ROLE_NOUN_RE = re.compile(

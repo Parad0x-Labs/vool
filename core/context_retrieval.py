@@ -6574,6 +6574,15 @@ def store_turn(
             body = redact_secrets(raw_text).strip()
             if not body:
                 continue
+            if role == "assistant":
+                from core.context_history_authority import assistant_text_is_runtime_failure_notice
+
+                # A runtime NO-ANSWER notice ("... hit its output limit ... Retry the turn") is not
+                # something the assistant said about anything: recalled as evidence it would hold
+                # the failed request open beside a later question, the 2026-09-15 incident the
+                # prompt-history gate already closes. The user's request is still retained.
+                if assistant_text_is_runtime_failure_notice(raw_text):
+                    continue
             if body != raw_text.strip():
                 result["secret_redacted"] = True
             occurrence = mem.occurrence_store(

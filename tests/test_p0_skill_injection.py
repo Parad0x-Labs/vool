@@ -74,7 +74,7 @@ def test_skill_injection_reaches_normalize_prompt_for_a_tool_turn(skill_world) -
         surface="api",
         source_context={"surface": "api"},
     )
-    system_prompt = request.system_prompt()
+    system_prompt = request.instructions()
     assert SKILL_MARKER in system_prompt
     assert "pack.echo" in system_prompt
 

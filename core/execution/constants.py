@@ -1968,6 +1968,9 @@ _IMAGE_GEN_ABSTRACT_SUBJECT_RE = re.compile(
     r"story|narrative|trend|trends|outlook|climate|industry|sector|company|business|team|"
     r"process|problem|problems|issue|issues|scenario|context|background|state|status|progress|"
     r"performance|risk|risks|impact|relationship|dynamic|dynamics|picture|"
+    # Planning nouns: "sketch a bot plan", "draw up an outline" ask for a plan, not a picture.
+    r"plan|plans|outline|outlines|idea|ideas|strategy|strategies|approach|roadmap|proposal|"
+    r"workflow|schedule|budget|agenda|checklist|"
     r"you|me|us|them|him|her|it)\b"
     r"(?:\s+(?:of|in|for|with|about|around)\b.*)?$",
     re.IGNORECASE,
