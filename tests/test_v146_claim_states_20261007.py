@@ -10,6 +10,7 @@ EVIDENCE = """<retrieved_context>
 - [2025-03-10] user said: My longest tunnel route so far is 26 km.
 - [2025-04-02] user said: Correction, my longest tunnel route is now 31 km.
 - [2025-04-05] user said: My neighbour's longest route is 40 km, she is relentless.
+- [2025-04-06] user said: My coach's best deadlift is 180 kg; I have never logged mine.
 </retrieved_context>"""
 
 
@@ -39,9 +40,17 @@ def test_a_superseded_value_is_contradicted_and_only_that_removes_a_claim():
     assert qualify_reply("26 km.", r) == "26 km."   # nothing to qualify: a contradicted claim is withdrawn by the guard
 
 
-def test_a_value_only_a_third_party_states_is_ambiguous():
+def test_a_third_party_value_against_my_own_record_is_contradicted():
+    # my longest tunnel route has its own current record (31 km); the neighbour's 40 km contradicts it
     r = _bind("What is my longest tunnel route?", "40 km.")
-    assert _states(r) == {"40": AMBIGUOUS}, r.as_dict()
+    assert _states(r) == {"40": CONTRADICTED}, r.as_dict()
+    assert r.contradicted and not r.qualifiable
+
+
+def test_a_third_party_value_with_no_record_of_my_own_is_ambiguous():
+    # no record of MY deadlift exists; the only 180 kg is the coach's: a record carries the value but is not mine
+    r = _bind("What is my best deadlift?", "180 kg.")
+    assert _states(r) == {"180": AMBIGUOUS}, r.as_dict()
     assert r.qualifiable and not r.contradicted
 
 

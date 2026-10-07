@@ -55,6 +55,7 @@ _WHOLE_TURN_QUOTE_RE = re.compile(r"[\"“](?P<inner>.*?)[\"”](?P<tail>(?:\s|<
 _QUOTE_RE = re.compile(r"\"[^\"]+\"|“[^”]+”|(?<![A-Za-z0-9])'[^']{3,}?'(?![A-Za-z0-9])|‘[^’]+’|\b(?:says?|said|quotes?|writes?|wrote|reads?|states?|claims?)\s*:\s*.+$", re.IGNORECASE)
 # the single-quote arm needs a quote mark that is not inside a word on either side: the apostrophes of "I've" and
 # "I'm" in one sentence are not a quotation (measured 2026-10-07: a $79 record read as quoted, a correct average withdrawn)
+_AGGREGATE_ASK_RE = re.compile(r"\b(?:total|in\s+total|altogether|combined|sum|average|overall|in\s+all|how\s+many|how\s+much\s+did\s+i\s+(?:spend|pay)|across|together)\b", re.IGNORECASE)
 _CLAUSE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])|;\s+|,\s+(?=(?:my|not|but|and|it|the|while|whereas)\b)|\s+(?:but|whereas|while)\s+|\s+and\s+(?=my\b)", re.IGNORECASE)
 _NEGATION_BEFORE_RE = re.compile(r"\b(?:not|isn['’ʼ]?t|wasn['’ʼ]?t|aren['’ʼ]?t|weren['’ʼ]?t|no\s+longer|never|rather\s+than|instead\s+of)\s*(?:\w+\s+){0,2}$", re.IGNORECASE)
 _MISTAKE_RE = re.compile(r"\b(?:mistake|error|typo|wrong|incorrect|misread|mis-?typed|scratch\s+that|ignore\s+that)\b", re.IGNORECASE)
@@ -243,7 +244,7 @@ def claim_state(status: str, refused: Mapping[str, Any] | None) -> str:
     if status in ("stated", "derived"):
         return SUPPORTED
     if refused:
-        if refused.get("reason") == "superseded_by_current_record":
+        if refused.get("reason") in ("superseded_by_current_record", "subject_current_record_differs") or refused.get("contradicted_by"):
             return CONTRADICTED
         return AMBIGUOUS
     return UNSUPPORTED
@@ -549,6 +550,21 @@ def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: 
                 d = None  # a stated match the record law refused above is not rescued by the pool
         if d is None and kind != "money" and days:
             d = _date_derivation(value, text, days)
+        if d is None and len(claims) == 1 and not _AGGREGATE_ASK_RE.search(q) and (_CURRENT_FRAME_RE.search(q) or _record_modifier_re().search(q)):
+            # a single-value record ask ("my current longest ...", "my highest ...") is answered by the asked subject's own
+            # current record: a reply value that differs from it is CONTRADICTED, whether the value is invented (S13), the
+            # other subject's (S01), the other clause's (S02) or the pre-correction one (S06), never merely unsupported
+            typed_all = [r for r in records if (kind != "money" or r.kind == "money")]
+            # the subject's own records: every content term of the question (minus its modifiers) is in the record, so a
+            # tunnel record cannot stand for a hill route; a question with no content term names no subject
+            q_content = {t for t in _terms(q) if not _record_modifier_re().search(t) and t not in ("current", "currently", "now", "longest", "highest", "route", "score")} or {t for t in _terms(q) if not _record_modifier_re().search(t)}
+            subject = [r for r in subject_eligible(typed_all, q, "") if q_content and q_content <= set(r.terms)]
+            cur_s, why_s = current_record(subject, current_ask=bool(_CURRENT_FRAME_RE.search(q))) if subject else (None, "no_subject_record")
+            if cur_s is not None and not _close(value, cur_s.value):
+                # the record law's own reason stays (the port's cases read it); the contradiction rides beside it
+                refused = dict(refused or {"op": "refused_record", "reason": "subject_current_record_differs", "records": [r.as_dict() for r in subject][:4]})
+                refused["contradicted_by"] = cur_s.as_dict()
+                out.append(ClaimBinding(value, text, kind, "unsupported", [], refused)); continue
         if d is None and kind != "money":
             # a count may be the number of user-owned lines that each state a money amount (three items bought)
             if _close(value, float(len({line for _v, line in money}))) and money:
