@@ -476,6 +476,18 @@ def _content_covered(content: str, context_text: str, threshold: float = DEDUP_T
 #: closed.").  A stored question stripped of its punctuation is ambiguous:
 #: ambiguous content is KEPT (injected), because re-injecting redundancy
 #: loses nothing while dropping an assertion loses the fact.
+#: A record's own speaker labels ("Tim: ...", "Maria: ..."): a capitalised name at a line start before a colon.
+#: USER/ASSISTANT/SYSTEM are roles, not names, and "Session date:" is the envelope.
+_RECORD_SPEAKER_LABEL_RE = re.compile(r"(?m)^\s*([A-Z][a-z][\w'-]*(?:\s+[A-Z][a-z][\w'-]*)?):\s")
+
+
+def _record_speaker_labels(body: str) -> set[str]:
+    return {
+        m.group(1) for m in _RECORD_SPEAKER_LABEL_RE.finditer(str(body or ""))
+        if m.group(1).lower() not in ("user", "assistant", "system", "session date")
+    }
+
+
 def _record_is_question(content: str) -> bool:
     return str(content or "").strip().endswith("?")
 
@@ -9678,6 +9690,8 @@ def _capsule_v2_inject_retrieved(
                 "GATE absent=" + ",".join(sorted(_fp_absent_terms)),
                 "active=" + str(facet_noise_gate)))
 
+    _fp_withheld_speakers: set[str] = set()
+
     def facet_noise(key: str, body: str) -> bool:
         """Whether ONE source record is absent-facet noise for this turn."""
         if not facet_noise_gate:
@@ -9689,6 +9703,12 @@ def _capsule_v2_inject_retrieved(
                 and (_CURRENT_MARK_RE.search(str(body or ""))
                      or _FACET_LIVE_TOKEN_RE.search(str(body or "")))):
             return False
+        # The refused record's SPEAKER NAMES (its "Name:" labels), never its text, go to telemetry as withheld
+        # markers: the publication gate's records refusal must still know this chat holds records about the asked
+        # person when every one of them was refused for this facet (measured 2026-10-07: "How much does James pay
+        # per dance class?" lost James's cooking-class row to this gate and the refusal said "needed current
+        # information" instead of "not mentioned in the records").
+        _fp_withheld_speakers.update(_record_speaker_labels(str(body or "")))
         return True
 
     if not hits and not evidence_hits and not phrase_lanes_found:
@@ -11793,6 +11813,8 @@ def _capsule_v2_inject_retrieved(
             telemetry["capsule_mode"] = "distilled" if distilled else "empty"
     telemetry.update(
         {
+            # speaker names of the records the absence gate refused this turn (names only, never text)
+            "absence_gate_withheld_speakers": sorted(_fp_withheld_speakers),
             "source_session_ids": sorted(source_session_ids),
             "current_session_scope": _session_scope_key(session_id),
             "granted_session_scopes": sorted(
