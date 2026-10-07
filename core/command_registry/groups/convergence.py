@@ -455,6 +455,32 @@ def _handle_memory_forget(inp, ctx):
     )
 
 
+@dataclass(frozen=True)
+class MemorySourceInput:
+    occurrence_id: str
+    query: str = ""
+
+
+def _handle_memory_source(inp, ctx):
+    """The verbatim source behind a remembered line: the stored turn, the spans the query selects and its
+    neighbours (core.context_retrieval.materialize_source_evidence). A missing or withdrawn source says so."""
+    from core.context_retrieval import materialize_source_evidence
+
+    evidence = dict(materialize_source_evidence(str(inp.occurrence_id or "").strip(), query=str(inp.query or "")))
+    if not evidence.get("complete"):
+        reason = str(evidence.get("reason") or "unknown")
+        return HandlerFault(
+            fault_code="fault_validation",
+            summary=f"Memory source {inp.occurrence_id} not available: {reason}",
+            detail={"occurrence_id": inp.occurrence_id, "reason": reason},
+        )
+    return HandlerOk(
+        data=evidence,
+        summary=f"Memory source {inp.occurrence_id}: {len(str(evidence.get('body') or ''))} characters, "
+                f"{len(evidence.get('spans') or [])} span(s)",
+    )
+
+
 # ---------------------------------------------------------------------------
 # tasks group addition: coding-task recovery control
 # ---------------------------------------------------------------------------
@@ -862,6 +888,18 @@ def register(reg) -> None:
             handler=Handler("core.command_registry.groups.convergence:_handle_memory_forget"),
             availability=Availability("core.command_registry.groups.convergence:_probe_prefs_store"),
             exit_codes=(0, 2, 21, 42),
+        )
+    )
+
+    reg.add(
+        CommandSpec(
+            command_id="memory.source",
+            group="memory",
+            description="Show the verbatim source behind a remembered line, by occurrence id",
+            input_schema=MemorySourceInput,
+            effects="read_only",
+            handler=Handler("core.command_registry.groups.convergence:_handle_memory_source"),
+            exit_codes=(0, 2, 42),
         )
     )
 

@@ -253,7 +253,34 @@ def verify(envelope: Mapping[str, Any]) -> tuple[bool, str]:
 def verify_chain(kind: str, session_id: str) -> tuple[bool, str]:
     """Every envelope valid, each chained to the previous digest, and the head file naming the last one (a deleted
     tail is detected because the head no longer matches)."""
-    rows = read_ledger(kind, session_id)
+    return verify_ledger_file(ledger_path(kind, session_id))
+
+
+def iter_ledger_files(kind: str | None = None) -> list[Path]:
+    """Every kernel ledger on disk (one per kind and session; file names are the session's digest), sorted."""
+    root = _ledger_dir()
+    if not root.is_dir():
+        return []
+    kinds = [root / kind] if kind else sorted(p for p in root.iterdir() if p.is_dir())
+    return sorted(f for k in kinds if k.is_dir() for f in k.glob("*.jsonl"))
+
+
+def _read_ledger_file(p: Path) -> list[dict[str, Any]]:
+    if not p.exists():
+        return []
+    out = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            try:
+                out.append(json.loads(line))
+            except Exception:
+                out.append({"corrupt": True})
+    return out
+
+
+def verify_ledger_file(p: Path) -> tuple[bool, str]:
+    """verify_chain over one ledger file and its head file, for readers that list ledgers rather than sessions."""
+    rows = _read_ledger_file(p)
     prev = ""
     for i, r in enumerate(rows):
         ok, why = verify(r)
@@ -262,7 +289,10 @@ def verify_chain(kind: str, session_id: str) -> tuple[bool, str]:
         if str(r.get("previous_digest") or "") != prev:
             return False, f"envelope[{i}] broken_chain"
         prev = str(r.get("content_digest") or "")
-    head = latest_digest(kind, session_id)
+    try:
+        head = str(json.loads(p.with_suffix(".head.json").read_text()).get("content_digest") or "")
+    except Exception:
+        head = ""
     if rows and head != prev:
         return False, "head_mismatch (tail deleted or head stale)"
     if not rows and head:
