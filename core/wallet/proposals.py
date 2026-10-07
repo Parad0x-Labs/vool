@@ -28,7 +28,11 @@ ORIGIN_USEPOD = "usepod"
 #: A collection of accrued DNA service fees to the designated treasury (core.wallet.dna_fees): minted only by the
 #: runtime from the fee ledger's own position, approved on its own sheet, never proposed by a model, skill or plugin.
 ORIGIN_DNA_FEE = "dna_fee"
-ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE)
+#: A canonical x402 `exact` payment on Solana built by Solana pay-kit (core.wallet.paykit_x402): parked from a 402 the
+#: owner's own request met, approved on the ordinary sheet, signed by this wallet only after the built transaction
+#: proves it moves exactly the approved amount to the approved payee.
+ORIGIN_X402_PAYKIT = "x402_paykit"
+ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT)
 
 STATE_PROPOSED = "proposed"
 STATE_SIMULATED = "simulated"
@@ -299,12 +303,12 @@ def _validated_asset(network: str, asset: str, *, source_context: dict[str, Any]
 
 
 def _require_token_lane(network: str, asset: str, *, origin: str, source_context: dict[str, Any] | None) -> None:
-    """A token on a Mainnet row moves only for the UsePod x402 payment lane; the pilot's own transfers there stay native
-    coins. Test-network rows keep their registered tokens for every origin (the existing x402 lane pays with them)."""
+    """A token on a Mainnet row moves only for an x402 payment lane (UsePod's, or a pay-kit x402 payment to any site) and
+    the DNA fee collection; the pilot's own transfers there stay native coins. Test-network rows keep their registered tokens for every origin (the existing x402 lane pays with them)."""
     from core.wallet import chains
 
     spec = chains.resolve_network(network)
-    if not spec.is_mainnet or origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE) or chains.asset_for(spec.network, asset).native:
+    if not spec.is_mainnet or origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT) or chains.asset_for(spec.network, asset).native:
         return
     raise wallet_fault(
         "wallet_network_disabled", authority=AUTHORITY,
@@ -395,6 +399,7 @@ __all__ = [
     "ORIGIN_SKILL",
     "ORIGIN_USER",
     "ORIGIN_X402",
+    "ORIGIN_X402_PAYKIT",
     "STATE_APPROVED",
     "STATE_AWAITING_SIGNATURE",
     "STATE_BROADCAST",

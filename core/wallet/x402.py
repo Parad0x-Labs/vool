@@ -172,8 +172,10 @@ OUTCOME_REFUSED = "refused"
 BINDING_PAYMENT_REQUIRED = "payment_required"
 BINDING_PAID = "paid"
 BINDING_DELIVERED = "delivered"
+#: The binding version of the pay-kit lane (core.wallet.paykit_x402): the wire version (x402 v1 or v2) is in offer_json.
+BINDING_VERSION_PAYKIT = 3
 ALLOW_LOOPBACK_ENV = "VOOL_WALLET_X402_ALLOW_LOOPBACK"
-_BINDING_COLS = "binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, tx_signature, state, resource_status, resource_digest, resource_bytes, created_at, updated_at, version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, nonce, deadline, expires_at, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, fee_asset, max_timeout_seconds, asset_address"
+_BINDING_COLS = "binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, tx_signature, state, resource_status, resource_digest, resource_bytes, created_at, updated_at, version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, nonce, deadline, expires_at, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, fee_asset, max_timeout_seconds, asset_address, request_body_b64, request_headers_json, fee_payer"
 #: A request's binding is never handed to another proposal while its own proposal is being prepared, waits on its
 #: owner, is being paid or has paid (these states: every state but a terminal refusal), nor while that proposal still
 #: holds reserved spend or its amount has settled as moved: see :func:`binding_guard`. A door binds its proposal BEFORE preparing it, so the request is
@@ -196,6 +198,7 @@ _BINDING_DEFAULTS: dict[str, Any] = {
     "tx_signature": "", "resource_status": 0, "resource_digest": "", "resource_bytes": 0, "version": 1, "offer_json": "", "resource_origin": "",
     "resource_method": "GET", "facilitator_id": "", "eip712_name": "", "eip712_version": "", "asset_transfer_method": "", "nonce": "", "deadline": 0,
     "expires_at": 0, "max_facilitator_fee_minor": 0, "max_network_fee_minor": 0, "sponsored_gas": 0, "fee_asset": "", "max_timeout_seconds": 60, "asset_address": "",
+    "request_body_b64": "", "request_headers_json": "{}", "fee_payer": "",
 }
 
 
@@ -552,7 +555,8 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     """Fetch; on a 402 offer park a capped proposal (or reuse the parked/paid one). Never pays on its own.
 
     This lane binds and replays a request by method and URL only, so a request body cannot ride it: one is refused
-    typed before anything is sent, never silently dropped."""
+    typed before anything is sent, never silently dropped. A request with a body pays through the pay-kit lane
+    (:func:`core.wallet.paykit_x402.fetch_paid`), whose binding carries the body."""
     custody.require_enabled(source_context=source_context)
     if body:
         raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "request_body_needs_paykit_lane"}, source_context=source_context)
@@ -742,6 +746,10 @@ def retry_paid_resource(proposal_id: str, *, source_context: dict[str, Any] | No
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"proposal_id": str(proposal_id), "reason": "no_x402_binding"}, source_context=source_context)
     if int(binding.get("version") or 1) == 2:
         raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "v2_delivery_happens_at_submission"}, source_context=source_context)
+    if int(binding.get("version") or 1) == BINDING_VERSION_PAYKIT:
+        # the pay-kit lane delivers exactly once, at approval: its signed payment is a one-shot instrument the
+        # resource settles, so a retry here would replay it (or, worse, re-send it with another request)
+        raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "paykit_delivery_happens_at_approval"}, source_context=source_context)
     if not proposal.tx_signature or proposal.state not in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
         raise wallet_fault("wallet_approval_rejected", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "payment_not_confirmed", "status": proposal.state}, source_context=source_context)
     return _deliver(binding, proposal, timeout=timeout, source_context=source_context)
