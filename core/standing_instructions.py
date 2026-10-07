@@ -90,11 +90,19 @@ _PREFERENCE_VERB_RE = re.compile(
 _TAKE_BACK_RE = re.compile(
     r"\b(?:stop|quit|no\s+longer|don'?t\s+(?:need|have)\s+to|you\s+(?:can|may)\s+(?:stop|drop|skip)|"
     r"forget|drop|cancel|scrap|remove|delete|undo|ignore)\b.*\b(?:rule|instruction|habit|that|doing|"
-    r"[a-z]{4,})\b|^(?:never\s*mind|scratch\s+that)\b",
+    r"[a-z]{4,})\b|^(?:never\s*mind|scratch\s+that)\b|"
+    # Said the way people say it when they are tired of something: these take back only an instruction that shares
+    # the sentence's topic words, so "the weather got old fast" removes nothing.
+    r"\b(?:got|gets|getting|gotten|grown|growing)\s+(?:old|stale|tiresome|annoying|boring|repetitive)\b|"
+    r"\bno\s+more\b|\benough\s+(?:with|of)\b|\b(?:i'?m|i\s+am)\s+(?:tired|sick)\s+of\b|"
+    r"^(?:please\s+)?(?:lose|ditch|kill|cut(?:\s+out)?)\s+the\b|\bplease\s+stop\b|\bstop\s+(?:it|that|this)\b",
     re.IGNORECASE,
 )
 _STOPWORDS = frozenset(
-    ["always", "never", "from", "now", "on", "going", "forward", "future", "default", "whenever", "every", "time", "each", "please", "would", "like", "want", "need", "you", "your", "me", "my", "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with", "at", "by", "be", "is", "are", "was", "it", "that", "this", "these", "those", "give", "use", "write", "show", "reply", "answer", "respond", "put", "add", "include", "keep", "make", "stop", "forget", "drop", "rule", "instruction", "about", "any", "more", "longer", "don", "dont", "do", "not", "can", "may", "need", "have", "just", "also", "then", "than", "them", "they", "its", "into", "as", "so"]
+    ["always", "never", "from", "now", "on", "going", "forward", "future", "default", "whenever", "every", "time", "each", "please", "would", "like", "want", "need", "you", "your", "me", "my", "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with", "at", "by", "be", "is", "are", "was", "it", "that", "this", "these", "those", "give", "use", "write", "show", "reply", "answer", "respond", "put", "add", "include", "keep", "make", "stop", "forget", "drop", "rule", "instruction", "about", "any", "more", "longer", "don", "dont", "do", "not", "can", "may", "need", "have", "just", "also", "then", "than", "them", "they", "its", "into", "as", "so",
+     "got", "gets", "getting", "gotten", "grown", "growing", "old", "stale", "tiresome", "annoying", "boring",
+     "repetitive", "enough", "tired", "sick", "lose", "ditch", "kill", "cut", "out", "those", "these", "please",
+     "being", "called", "calling", "i'm"]
 )
 
 
@@ -331,6 +339,12 @@ def observe_turn(user_input: str, source_context: Mapping[str, Any] | None, *, p
         # instruction in its own right ("stop …" reads as "never … again"), unless it is a one-off.
         if not gone and _ADDRESSED_TO_VOOL_RE.search(sentence) and not _ONE_OFF_RE.search(sentence) \
                 and re.match(r"^(?:(?:please|and|also|so)[,\s]+)*(?:stop|don'?t|do\s+not|quit)\b", sentence, re.IGNORECASE):
+            saves.append(sentence)
+        # "No more emojis in your replies" with nothing saved about emojis is a new "never" -- but only when it is
+        # about how answers look; "no more coffee for me after six" is about the owner's evening, not VOOL.
+        elif not gone and not _ONE_OFF_RE.search(sentence) \
+                and re.match(r"^(?:(?:please|and|also|so)[,\s]+)*no\s+more\b", sentence, re.IGNORECASE) \
+                and (_facets(sentence) or _PRESENTATION_RE.search(sentence)):
             saves.append(sentence)
     saved = [i.text for i in (_add(principal, workspace, text, session_id) for text in saves) if i is not None]
     return {"saved": saved, "taken_back": removed}
