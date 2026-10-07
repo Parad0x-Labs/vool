@@ -686,7 +686,7 @@ def verify_answer(question: str, raw_answer: str, packet_facts: Sequence[Mapping
     of two packet durations, or equals one packet value outright. Returns a decision dict; never edits text."""
     values = _answer_values(raw_answer)
     if not values:
-        return {"verified": False, "reason": "no_computed_value_in_reply"}
+        return {"verified": False, "supported": False, "chain_stage": "ASSERTED", "reason": "no_computed_value_in_reply"}
     days = sorted({date.fromtimestamp(float(f["event_at"]), tz=_UTC) if False else datetime.fromtimestamp(float(f["event_at"]), tz=_UTC).date()
                    for f in packet_facts if f.get("event_at") is not None})
     if reference_day is not None:
@@ -705,13 +705,13 @@ def verify_answer(question: str, raw_answer: str, packet_facts: Sequence[Mapping
             per = _UNIT_DAYS[unit]
             for d, label in diffs:
                 if abs(d - value * per) <= _tolerance_days(unit) and d > 0:
-                    return {"verified": True, "rule": "interval_from_two_event_days", "value": text, "operands": label, "days": d}
+                    return {"verified": True, "supported": True, "chain_stage": "SUPPORTED", "rule": "interval_from_two_event_days", "value": text, "operands": label, "days": d}
         elif kind == "min":
             for d, label in dur_diffs:
                 if d > 0 and abs(d - value) <= 1.0:
-                    return {"verified": True, "rule": "duration_difference", "value": text, "operands": label}
+                    return {"verified": True, "supported": True, "chain_stage": "SUPPORTED", "rule": "duration_difference", "value": text, "operands": label}
             for x in durations:
                 if abs(x - value) <= 0.5:
-                    return {"verified": True, "rule": "duration_stated", "value": text, "operands": f"{x:g} min"}
-    return {"verified": False, "reason": "no_derivation_matched", "candidates": [t for _k, _v, t in values][:4],
+                    return {"verified": True, "supported": True, "chain_stage": "SUPPORTED", "rule": "duration_stated", "value": text, "operands": f"{x:g} min"}
+    return {"verified": False, "supported": False, "chain_stage": "ASSERTED", "reason": "no_derivation_matched", "candidates": [t for _k, _v, t in values][:4],
             "event_days": [d.isoformat() for d in days][:8]}
