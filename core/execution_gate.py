@@ -465,11 +465,16 @@ class ExecutionGate:
             "head",
             "tail",
             "wc",
-            "rg",
             "grep",
         }
         if base_cmd in readonly_bases:
             return True
+        if base_cmd in {"sed", "rg"}:
+            # `sed --in-place`/`-Ei`/`w`/`e` and `rg --pre` write files or run programs; the
+            # controller's classifier is the one verdict on them (see `find` below for why).
+            from core.mode_permission_policy import command_is_read_only
+
+            return command_is_read_only(shlex.join(argv))
         if base_cmd == "find":
             # `find` is read-only ONLY when none of its mutating primaries (-delete, -exec,
             # -ok, ...) are present. This used to be unconditionally read-only here, which let
@@ -480,10 +485,10 @@ class ExecutionGate:
             from core.mode_permission_policy import command_is_read_only
 
             return command_is_read_only(shlex.join(argv))
-        if base_cmd == "sed":
-            return "-i" not in argv and not any(str(item or "").startswith("-i") for item in argv)
         if base_cmd == "git":
-            return _git_is_read_only(argv)
+            from core.mode_permission_policy import command_is_read_only
+
+            return _git_is_read_only(argv) and command_is_read_only(shlex.join(argv))
         if base_cmd in {"pytest", "python", "python3", "node", "nodejs", "npm", "pnpm", "yarn", "cargo"}:
             return False
         return False
