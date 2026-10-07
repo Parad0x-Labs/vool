@@ -1188,7 +1188,7 @@ def harvest_execution_records(source_context: dict[str, Any] | None) -> int:
     returned and its ``citations`` are where they came from, and they are placed in the note
     fields `core.claim_support` already reads. No new extraction and no new judgement.
 
-    A record's ``result_text`` -- the tool's own rendered result -- is one more row. Item names
+    A record's ``result_text`` -- the content the tool observed, from its typed payload -- is one more row. Item names
     alone carry no content, so a file read or a text search left a correct answer with nothing
     to be matched against and the gate refused it (measured on the served daemon: a workspace
     search found "The launch date is 14 March", the answer said so, and the turn was refused as
