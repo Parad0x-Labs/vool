@@ -24,8 +24,9 @@ limits as built, and each one is a deliberate trade-off.
    Other lasting facts are left to memory capture.
 7. **Two rule stores until reconciliation.** See `docs/RULES-RECONCILE-20261007.md`. While main's
    user_rules and this module both exist, "forget the rule about X" is caught by the rules lane (D2).
-8. **Short corrections with no subject and no order are not saved.** "Too long.", "Less formal." and
-   "More bullet points please" are read as being about the answer just given. Say what they are about
+8. **A single bare complaint is never learned.** "Too long.", "Less formal." and "More bullet points
+   please" have no subject and no order, so they are read as being about the answer just given. This
+   trades some learning for safety, and it is deliberate. Say what they are about
    ("your answers are too long") or what to do instead ("Too stiff. Loosen up a bit.") to make them
    standing.
 9. **An order with material, or one that produces something, is a task.** Text after a colon or a
