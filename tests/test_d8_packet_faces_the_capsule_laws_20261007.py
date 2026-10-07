@@ -151,3 +151,23 @@ def test_a_dated_operand_ask_keeps_its_packet_rows_when_the_gate_arms(tmp_path, 
     assert "charity run" in _packet(block), block
     assert not any(r.get("reason") == "absence-gate" for r in (ec.get("refused_rows") or [])), ec.get("refused_rows")
 
+
+
+@pytest.mark.parametrize("question,kept,stripped", [
+    ("What did I order at Nobu?", "order", None),                         # an order is the thing asked
+    ("What did Sam bring to the party?", "bring", None),                  # a thing brought is the thing asked
+    ("In what order did I bring up the greenhouse and the beehive?", None, "order"),   # the sequence frame
+    ("How much did I spend on the lamp and the rug together?", None, "together"),     # the aggregate frame
+    ("What did she bring up at the meeting?", None, "bring"),             # the mention idiom
+])
+def test_the_gate_strips_ask_idioms_but_keeps_the_bare_words_as_facets(question, kept, stripped):
+    """Idioms ('bring up', 'in what order', 'together / in total') are the ask's frame; the bare words stay facets."""
+    from core.raw_output_contract import request_content_for_retrieval
+
+    cleaned = cr._FACET_ASK_IDIOM_RE.sub(" ", question)
+    terms = {str(t) for t in cr._query_overlap_terms(request_content_for_retrieval(cleaned))
+             if str(t) not in cr._FACET_FRAME_WORDS and str(t) not in cr._FACET_FRAME_EXTRA}
+    if kept:
+        assert kept in terms, terms
+    if stripped:
+        assert stripped not in terms, terms
