@@ -88,9 +88,15 @@ def _ollama_has_chat_model(base_url: str) -> bool:
 
 
 def _lane_lists_models(data: dict | None) -> bool:
-    """An OpenAI-compatible ``/models`` reply that lists at least one model, by its documented shape."""
+    """An OpenAI-compatible ``/models`` reply that lists at least one model, by its documented shape.
+
+    Every row must name its model by a nonblank id; a blank id names nothing a turn could be sent to,
+    so a listing carrying one reads as malformed, the same as a row with no id.
+    """
     rows = (data or {}).get("data")
-    return isinstance(rows, list) and bool(rows) and all(isinstance(row, dict) and isinstance(row.get("id"), str) for row in rows)
+    return isinstance(rows, list) and bool(rows) and all(
+        isinstance(row, dict) and isinstance(row.get("id"), str) and bool(row["id"].strip()) for row in rows
+    )
 
 
 def _local_lane_endpoints() -> list[str]:
