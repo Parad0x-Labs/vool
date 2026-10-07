@@ -256,7 +256,7 @@ def test_legacy_path_does_not_serve_the_superseded_value(tmp_path) -> None:
 _RETRACT_WRITER = r"""
 import json, os, sys
 sys.path.insert(0, {tree!r})
-os.environ.update(VOOL_HOME={home!r}, VOOL_HOME={home!r},
+os.environ.update(VOOL_HOME={home!r},
                   VOOL_WORKSPACE_ROOT={home_wr!r})
 from core.runtime_paths import configure_runtime_home
 configure_runtime_home({home!r})
@@ -294,7 +294,7 @@ print(json.dumps({{'written': True}}))
 _RETRACT_READER = r"""
 import json, os, sys
 sys.path.insert(0, {tree!r})
-os.environ.update(VOOL_HOME={home!r}, VOOL_HOME={home!r},
+os.environ.update(VOOL_HOME={home!r},
                   VOOL_WORKSPACE_ROOT={home_wr!r}, VOOL_CONTEXT_CAPSULE_V2='1')
 from core.runtime_paths import configure_runtime_home
 configure_runtime_home({home!r})
