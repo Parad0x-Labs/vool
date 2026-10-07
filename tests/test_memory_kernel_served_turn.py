@@ -62,6 +62,7 @@ def _served(tmp_path, *, kernel: bool) -> dict:
 def test_with_the_kernel_off_the_guard_withdraws_both_counts(tmp_path):
     turns = _served(tmp_path, kernel=False)
     for turn in turns.values():
+        assert turn["routes"]["memory_route"]["route"] == "capsule_v2", turn["routes"]
         assert "Evidence receipts" not in turn["admitted_capsule"]
         assert turn["committed"]["canonical_content"].startswith(WITHDRAWN), turn["committed"]
 
@@ -69,6 +70,7 @@ def test_with_the_kernel_off_the_guard_withdraws_both_counts(tmp_path):
 def test_with_the_kernel_on_the_derived_count_ships_and_a_wrong_one_stays_withdrawn(tmp_path):
     turns = _served(tmp_path, kernel=True)
     right, wrong = turns["right"], turns["wrong"]
+    assert right["routes"]["memory_route"] == {"route": "capsule_v2+kernel", "switches": list(SWITCHES)}, right["routes"]
     assert "Evidence receipts" in right["admitted_capsule"]
     assert right["committed"]["canonical_content"].strip() == right["scripted_raw"], right["committed"]
     assert wrong["committed"]["canonical_content"].startswith(WITHDRAWN), wrong["committed"]
