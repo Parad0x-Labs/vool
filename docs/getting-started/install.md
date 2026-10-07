@@ -40,6 +40,8 @@ Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/insta
 powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
+To install a specific release instead of the latest `main`, use the release tag in the script URL and pass it with `--ref v0.7.0-beta` (PowerShell: `-Ref v0.7.0-beta`). The bootstrap accepts a branch name or a release tag, not a commit hash.
+
 The installer prepares the Python environment, checks your hardware, sets up the local
 model, and launches the local services. Allow time and disk space for the initial model
 download. Local model inference works offline after setup; web tools and cloud models need
@@ -63,7 +65,12 @@ Linux artifact exists on any verified channel. If you download the macOS DMG fro
 When a packaged artifact is published, verify it before running:
 
 ```bash
-shasum -a 256 <downloaded-artifact>
+shasum -a 256 <downloaded-artifact>    # macOS
+sha256sum <downloaded-artifact>         # Linux
+```
+
+```powershell
+Get-FileHash -Algorithm SHA256 <downloaded-artifact>
 ```
 
 Compare the result against the checksum published with that release. If they differ,

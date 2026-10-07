@@ -2,7 +2,7 @@
 
 This is the canonical install and quickstart doc.
 
-`main` is the current alpha trunk. Use the default `main` installer path unless you are deliberately reproducing an older checkpoint.
+`main` is the current beta trunk. Use the default `main` installer path, or pin a release tag (below) for a reproducible install.
 
 ## Fast Path
 
@@ -13,11 +13,13 @@ curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/voo
 bash bootstrap_vool.sh
 ```
 
-If you need a reproducible historical install instead of the latest alpha trunk on `main`, pin an exact ref:
+To install a specific release instead of the latest trunk on `main`, pin its tag both in the script URL and in `--ref`. `--ref` takes a branch name or a release tag (`v0.7.0-beta`), not a commit hash:
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.sh && bash "$tmp" --ref 2f17895ede500d85372269cb516083abd09c013c --install-profile ollama-max && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.0-beta --install-profile ollama-max && rm -f "$tmp"
 ```
+
+On Windows the same pin is `-Ref v0.7.0-beta`.
 
 Windows PowerShell:
 
@@ -100,7 +102,7 @@ Manual local shortcut:
 
 ```bash
 git clone https://github.com/Parad0x-Labs/vool.git
-cd vool-local
+cd vool
 bash Install_And_Run_VOOL.sh
 ```
 
@@ -132,7 +134,7 @@ If you already have a verified archive digest, pass it to the bootstrap script w
 
 ```bash
 git clone https://github.com/Parad0x-Labs/vool.git
-cd vool-local
+cd vool
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,runtime]"
@@ -154,12 +156,12 @@ python -m apps.brain_hive_watch_server
 
 ## MLX Inference Lane (Apple Silicon)
 
-Optional high-throughput local inference via MLX. Requires Apple Silicon (M1 or later). Delivers 30+ t/s on a typical M-series chip.
+Optional high-throughput local inference via MLX. Requires Apple Silicon (M1 or later).
 
 Set the following env vars before starting the VOOL server, or add them to your shell profile / `~/.vool_local/config/provider-env.sh`:
 
 ```bash
-# MLX inference lane (optional — Apple Silicon, 30+ t/s)
+# MLX inference lane (optional — Apple Silicon)
 MLX_BASE_URL=http://127.0.0.1:8096/v1
 VOOL_MLX_MODEL=mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit
 VOOL_MLX_CONTEXT_WINDOW=32768
@@ -267,9 +269,9 @@ In chat, use `/dial <name>.null "<task>"`. While dial is off, the CLI prints how
 
 ## Common Notes
 
-- VOOL is alpha. Read [STATUS.md](STATUS.md) before assuming a surface is production-ready.
-- `main` is the current alpha truth; do not keep reading the repo as if the real runtime lives on an unmerged side branch.
-- The strongest current lane is local-first runtime plus Hive/public-web/OpenClaw surfaces.
+- VOOL is beta. Read [STATUS.md](STATUS.md) before assuming a surface is production-ready.
+- `main` is the current beta trunk; do not keep reading the repo as if the real runtime lives on an unmerged side branch.
+- The strongest current lane is the local-first runtime plus the Hive and public-web surfaces.
 - The strongest default install lane is still accurate auto selection from current hardware and configured providers.
 - A configured Kimi lane is now a real first-class supported profile through the shared OpenAI-compatible runtime bootstrap, but it is still optional rather than the default local-first path.
 - Tether and QVAC are still not first-class supported stacks yet.
@@ -279,6 +281,4 @@ In chat, use `/dial <name>.null "<task>"`. While dial is off, the CLI prints how
 ## Troubleshooting
 
 - If install succeeded but the local API is missing, verify `http://127.0.0.1:11435/healthz`.
-- If OpenClaw does not see VOOL, restart the launcher once after install.
-- If OpenClaw shows `gateway token mismatch`, you are almost always pointing the launcher at the wrong OpenClaw home. Export `OPENCLAW_STATE_DIR` or `OPENCLAW_HOME` for the gateway you actually started, then reopen the launcher.
 - If you need the broader maturity picture, read [STATUS.md](STATUS.md).
