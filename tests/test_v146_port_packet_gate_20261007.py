@@ -60,3 +60,52 @@ def test_an_assistant_record_quoting_the_user_keeps_only_the_assistants_words():
     body = "USER: I paid 95 euros for the helmet.\nASSISTANT: Noted, the 110 euro one is better value."
     facts = extract_facts(body, T, "assistant")
     assert all("95" not in f.value for f in facts), [(f.value_type, f.value) for f in facts]
+
+
+# ─── the verbatim turn lane is the last section of the block ───────────────────────────────────
+
+import calendar
+from datetime import datetime, timezone
+
+from core.context_namespace import ensure_chat_namespace
+from core.memory.entries import resolve_memory_access_policy
+from core.runtime_paths import configure_runtime_home
+
+
+def _epoch(y, m, d, hh=9):
+    return float(calendar.timegm(datetime(y, m, d, hh, tzinfo=timezone.utc).timetuple()))
+
+
+@pytest.fixture()
+def home(tmp_path, monkeypatch):
+    import core.embedding_service as es
+
+    profile = tmp_path / "profile"; profile.mkdir()
+    for name in ("NULLA_HOME", "VOOL_HOME"):
+        monkeypatch.setenv(name, str(profile))
+    for name in ("NULLA_CONTEXT_CAPSULE_V2", "VOOL_CONTEXT_CAPSULE_V2", "VOOL_MEMORY_RECEIPTS", "VOOL_EVIDENCE_COMPILER", "VOOL_EVIDENCE_KERNEL"):
+        monkeypatch.setenv(name, "1")
+    configure_runtime_home(profile); es._best_embed_model = lambda: None
+    from storage.migrations import run_migrations
+    run_migrations()
+    yield str(profile)
+    configure_runtime_home(None)
+
+
+def test_the_turn_lane_is_the_last_section_after_the_receipts_packet(home):
+    chat = "chat-lane-order"
+    ensure_chat_namespace(chat, grant_current_receipts=False); policy = resolve_memory_access_policy(chat_id=chat)
+    for i, text in enumerate(["I bought a bike helmet for $95 on 3 March, the shop was busy and the fitting took a while.",
+                              "Today I picked up bike lights for $48 and a bell, the lights are bright enough for the lane home.",
+                              "The commute is forty minutes each way, which is why the lights matter so much to me."]):
+        cr.store_turn(chat, text, "Noted.", access_policy=policy, source_context={"chat_id": chat, "runtime_home": home, "statement_at": _epoch(2025, 3, 3 + i)})
+    cr.reset_retrieval_telemetry()
+    q = "How much did I spend on bike gear altogether?"
+    out = cr.inject_retrieved(chat, q, [{"role": "user", "content": q}], access_policy=policy, source_context={"chat_id": chat, "runtime_home": home})
+    block = "\n".join(str(m.get("content") or "") for m in out if "retrieved_context" in str(m.get("content")))
+    assert "Evidence receipts" in block, block
+    lane = block.find("Evidence turns (whole records")
+    packet = block.find("Evidence receipts")
+    if lane >= 0:
+        assert lane > packet, block
+        assert "This question needs" not in block[lane:], block[lane:]
