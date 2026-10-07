@@ -8993,10 +8993,10 @@
         },
         "side_effecting_command": {
           "actions": [
-            "run_side_effecting_commands"
+            "delete_files"
           ],
           "effects": {
-            "auto": "allow",
+            "auto": "require_approval",
             "bypass_permissions": "allow",
             "manual": "require_approval",
             "plan": "deny",

@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import shlex
 import threading
@@ -1986,7 +1987,198 @@ def revoke_session_bypass_grants(session_id: str) -> int:
 # instead of re-deriving their own copy of this list. A duplicated copy is how `find ... -delete`
 # was once classified as read-only by execution_gate's own logic while this module already knew
 # better (confirmed red-team finding, 2026-08-04).
-FIND_MUTATING_FLAGS = frozenset({"-delete", "-exec", "-execdir", "-ok", "-okdir", "-fls", "-fprint"})
+FIND_MUTATING_FLAGS = frozenset(
+    {"-delete", "-exec", "-execdir", "-ok", "-okdir", "-fls", "-fprint", "-fprint0", "-fprintf"}
+)
+
+# Long options that make a read-only-looking command write a file or run a program. git accepts any
+# unambiguous abbreviation of a long option (`--outp=f` is `--output=f`), so a git option is matched
+# by prefix, not by equality.
+_GIT_WRITING_LONG_OPTIONS = ("output", "open-files-in-pager")
+# `git help` is absent on purpose: `git help -w` starts a browser.
+_GIT_READ_SUBCOMMANDS = frozenset(
+    {
+        "status", "diff", "show", "log", "rev-parse", "grep", "ls-files", "ls-tree", "branch",
+        "blame", "describe", "shortlog", "rev-list", "cat-file", "for-each-ref", "name-rev",
+        "count-objects", "check-ignore", "version",
+    }
+)
+_GIT_BRANCH_MUTATING_FLAGS = frozenset(
+    {
+        "-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
+        "--set-upstream-to", "--unset-upstream", "--edit-description",
+    }
+)
+# ripgrep options that run another program: `--pre` runs a preprocessor on every searched file,
+# `--hostname-bin` runs a binary to name the host. `--pre-glob` only scopes `--pre`.
+_RG_EXECUTING_OPTIONS = ("--pre", "--hostname-bin")
+_SED_SAFE_SHORT_FLAGS = frozenset("nErusz")
+_SED_SAFE_LONG_OPTIONS = frozenset(
+    {
+        "--quiet", "--silent", "--regexp-extended", "--unbuffered", "--null-data", "--separate",
+        "--posix", "--sandbox",
+    }
+)
+_SED_SIMPLE_COMMANDS = frozenset("pPdD=lnNgGhHxzF")
+_SED_ADDRESS = re.compile(r"(?:\d+(?:~\d+)?|\$|/(?:[^/\\\n]|\\.)*/[IM]*)")
+_DELETE_BASES = frozenset({"rm", "rmdir", "unlink", "shred"})
+_PACKAGE_TOOLS = frozenset({"pip", "pip3", "uv", "npm", "pnpm", "yarn", "cargo", "gem", "brew", "apt", "apt-get", "poetry"})
+
+
+def _git_option_writes(token: str, *, subcommand: str) -> bool:
+    """Whether one argument of a read-only git verb makes it write a file or run a program."""
+    if token.startswith("--"):
+        name = token[2:].split("=", 1)[0].lower()
+        return bool(name) and any(option.startswith(name) for option in _GIT_WRITING_LONG_OPTIONS)
+    # `git grep -O[<pager>]` opens matches in a pager it starts through the shell; short options
+    # cluster (`-nO`), so any short cluster carrying O is the pager option.
+    return subcommand == "grep" and token.startswith("-") and "O" in token[1:]
+
+
+def _git_actions(argv: list[str]) -> set[PermissionAction]:
+    sub = str(argv[1] if len(argv) > 1 else "").lower()
+    tail = [str(item) for item in argv[2:]]
+    if sub in _GIT_READ_SUBCOMMANDS and any(_git_option_writes(item, subcommand=sub) for item in tail):
+        # `git diff --output=<file>` writes a file; `git grep -O<cmd>` runs a program.
+        return {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
+    if sub in _GIT_READ_SUBCOMMANDS:
+        if sub == "branch":
+            if any(item in _GIT_BRANCH_MUTATING_FLAGS for item in tail):
+                return {PermissionAction.GIT_RESET_CLEAN}
+            if any(not item.startswith("-") for item in tail):
+                # `git branch <name>` creates a ref and touches no file.
+                return {PermissionAction.MODIFY_FILES}
+        return {PermissionAction.RUN_SAFE_COMMANDS}
+    if sub in {"commit", "revert", "am", "tag"}:
+        if sub == "tag" and not any(not item.startswith("-") for item in tail) and not any(
+            item in {"-d", "--delete", "-f", "--force"} for item in tail
+        ):
+            return {PermissionAction.RUN_SAFE_COMMANDS}  # `git tag` / `git tag -l`: a listing
+        if sub == "tag" and any(item in {"-d", "--delete", "-f", "--force"} for item in tail):
+            return {PermissionAction.GIT_RESET_CLEAN}
+        return {PermissionAction.GIT_COMMIT}
+    if sub == "push":
+        return {PermissionAction.GIT_PUSH}
+    if sub in {"merge", "rebase", "cherry-pick"}:
+        return {PermissionAction.GIT_MERGE_REBASE}
+    if sub == "pull":
+        return {PermissionAction.USE_NETWORK, PermissionAction.GIT_MERGE_REBASE}
+    if sub in {"fetch", "clone", "ls-remote"}:
+        return {PermissionAction.USE_NETWORK}
+    if sub in {"reset", "clean", "checkout", "restore", "stash", "update-ref", "reflog", "worktree", "switch"}:
+        return {PermissionAction.GIT_RESET_CLEAN}
+    if sub == "rm":
+        return {PermissionAction.DELETE_FILES}
+    if sub in {"add", "mv", "apply", "init"}:
+        return {PermissionAction.MODIFY_FILES}
+    if sub in {"config", "remote", "submodule"}:
+        return {PermissionAction.CHANGE_SETTINGS}
+    return {PermissionAction.UNKNOWN_SIDE_EFFECT}
+
+
+def _sed_delimited(text: str, start: int, delimiter: str) -> int:
+    """Index just past the next unescaped `delimiter` at or after `start`, or -1."""
+    index = start
+    while index < len(text):
+        char = text[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == delimiter:
+            return index + 1
+        index += 1
+    return -1
+
+
+def _sed_script_is_read_only(script: str) -> bool:
+    """One sed command, parsed against an allow-list: print/delete/substitute/transliterate only.
+
+    `w`/`W` write files, `e` and the `s///e` flag run a shell, and `r`/`R`/`a`/`i`/`c`/`{` are
+    left out rather than parsed. Anything this does not recognise is not a read.
+    """
+    text = str(script or "").strip()
+    index = 0
+    for _ in range(2):
+        match = _SED_ADDRESS.match(text, index)
+        if not match:
+            break
+        index = match.end()
+        if index < len(text) and text[index] == ",":
+            index += 1
+            if index < len(text) and text[index] in "+~":
+                step = re.match(r"[+~]\d+", text[index:])
+                if not step:
+                    return False
+                index += step.end()
+                break
+            continue
+        break
+    if index < len(text) and text[index] == "!":
+        index += 1
+    rest = text[index:].strip()
+    if not rest:
+        return False
+    command = rest[0]
+    if command in _SED_SIMPLE_COMMANDS and len(rest) == 1:
+        return True
+    if command in "qQ":
+        return bool(re.fullmatch(r"[qQ]\d*", rest))
+    if command in "sy" and len(rest) > 1 and rest[1] not in "\\\n":
+        delimiter = rest[1]
+        end = _sed_delimited(rest, 2, delimiter)
+        end = _sed_delimited(rest, end, delimiter) if end > 0 else -1
+        if end < 0:
+            return False
+        flags = rest[end:].strip()
+        if command == "y":
+            return not flags
+        return bool(re.fullmatch(r"[gpiImM0-9]*", flags))
+    return False
+
+
+def _sed_is_read_only(argv: list[str]) -> bool:
+    scripts: list[str] = []
+    positional: list[str] = []
+    index = 1
+    options_done = False
+    while index < len(argv):
+        token = str(argv[index])
+        index += 1
+        if options_done or not token.startswith("-") or token == "-":
+            positional.append(token)
+            continue
+        if token == "--":
+            options_done = True
+        elif token.startswith("--expression="):
+            scripts.append(token.split("=", 1)[1])
+        elif token == "--expression":
+            if index >= len(argv):
+                return False
+            scripts.append(str(argv[index]))
+            index += 1
+        elif token.startswith("--"):
+            if token not in _SED_SAFE_LONG_OPTIONS:
+                return False  # --in-place in any spelling, --file, anything unrecognised
+        else:
+            cluster = token[1:]
+            for position, flag in enumerate(cluster):
+                if flag == "e":
+                    remainder = cluster[position + 1:]
+                    if remainder:
+                        scripts.append(remainder)
+                    elif index < len(argv):
+                        scripts.append(str(argv[index]))
+                        index += 1
+                    else:
+                        return False
+                    break
+                if flag not in _SED_SAFE_SHORT_FLAGS:
+                    return False  # -i in any cluster (-i, -Ei, -ni.bak), -f script files, ...
+    if not scripts:
+        if not positional:
+            return False
+        scripts.append(positional.pop(0))
+    return all(_sed_script_is_read_only(script) for script in scripts)
 
 
 def _command_actions(command: str) -> set[PermissionAction]:
@@ -2003,32 +2195,37 @@ def _command_actions(command: str) -> set[PermissionAction]:
         return {PermissionAction.UNKNOWN_SIDE_EFFECT}
     base = Path(str(argv[0])).name.lower()
     if base == "git":
-        sub = str(argv[1] if len(argv) > 1 else "").lower()
-        if sub in {"status", "diff", "show", "log", "rev-parse", "grep", "ls-files", "ls-tree", "branch"}:
-            # git branch with any positional target or mutation flag is not a read.
-            tail = [str(item) for item in argv[2:]]
-            if sub != "branch" or all(item.startswith("-") and item not in {"-d", "-D", "-m", "-M", "-c", "-C", "-f", "--force"} for item in tail):
-                return {PermissionAction.RUN_SAFE_COMMANDS}
-        if sub == "commit":
-            return {PermissionAction.GIT_COMMIT}
-        if sub == "push":
-            return {PermissionAction.GIT_PUSH}
-        if sub in {"merge", "rebase", "cherry-pick"}:
-            return {PermissionAction.GIT_MERGE_REBASE}
-        if sub in {"reset", "clean", "checkout", "restore", "stash", "update-ref", "reflog", "worktree"}:
-            return {PermissionAction.GIT_RESET_CLEAN}
-        return {PermissionAction.UNKNOWN_SIDE_EFFECT}
-    if base in {"pip", "pip3", "uv", "npm", "pnpm", "yarn", "cargo", "gem", "brew", "apt", "apt-get"}:
-        lowered = " ".join(str(item).lower() for item in argv[1:])
-        if any(marker in lowered.split() for marker in ("install", "add", "update", "upgrade")):
+        return _git_actions(argv)
+    lowered_args = [str(item).lower() for item in argv[1:]]
+    if base in {"python", "python3"} and lowered_args[:2] == ["-m", "pip"]:
+        base, lowered_args = "pip", lowered_args[2:]
+    if base in _PACKAGE_TOOLS:
+        if any(marker in lowered_args for marker in ("install", "add", "update", "upgrade", "sync", "i", "ci")):
             return {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
+    if base in {"npx", "pnpx"}:
+        # Fetches and runs a package that may not be installed yet.
+        return {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
+    if base in _DELETE_BASES:
+        return {PermissionAction.DELETE_FILES}
+    if base == "mv":
+        return {PermissionAction.MODIFY_FILES, PermissionAction.DELETE_FILES}
     if base == "find" and any(str(item).lower() in FIND_MUTATING_FLAGS for item in argv[1:]):
+        # -delete removes files and -exec/-ok run any program on every match: both can delete.
+        return {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS, PermissionAction.DELETE_FILES}
+    if base == "rg" and any(
+        str(item).startswith(option) for item in argv[1:] for option in _RG_EXECUTING_OPTIONS
+    ):
         return {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
     if base in {"ls", "pwd", "cat", "head", "tail", "wc", "rg", "grep", "find"}:
         return {PermissionAction.RUN_SAFE_COMMANDS}
-    if base == "sed" and not any(str(item).startswith("-i") or str(item) in {"w", "W"} for item in argv[1:]):
+    if base == "sed" and _sed_is_read_only(argv):
         return {PermissionAction.RUN_SAFE_COMMANDS}
     return {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
+
+
+def command_actions(command: str) -> frozenset[PermissionAction]:
+    """Public: the permission actions one sandbox command string resolves to."""
+    return frozenset(_command_actions(command))
 
 
 def command_is_read_only(command: str) -> bool:
