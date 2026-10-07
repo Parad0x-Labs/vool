@@ -8105,6 +8105,7 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
     if evidence_packet is not None:
         telemetry["evidence_compiler"] = dict(getattr(evidence_packet, "telemetry", {}) or {})
         telemetry["evidence_packet_facts"] = list(getattr(evidence_packet, "facts", []) or [])
+        telemetry["evidence_packet_snapshot"] = {"chat_id": str(chat_id or ""), "packet_text": text}
         _kernel_packet_envelope(chat_id, question, evidence_packet, telemetry)
     if not text:
         _set_retrieval_telemetry(telemetry)
@@ -11870,6 +11871,7 @@ def _capsule_v2_inject_retrieved(
             packet_text = _render_packet(evidence_packet)
             telemetry["evidence_compiler"] = dict(evidence_packet.telemetry)
             telemetry["evidence_packet_facts"] = list(evidence_packet.facts)
+            telemetry["evidence_packet_snapshot"] = {"chat_id": str(session_id or ""), "packet_text": packet_text}
             _kernel_packet_envelope(str(session_id or ""), str(query or ""), evidence_packet, telemetry)
         except Exception:
             LOGGER.debug("evidence packet render failed", exc_info=True)
