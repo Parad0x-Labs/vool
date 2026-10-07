@@ -49,9 +49,32 @@ def test_a_well_formed_listing_still_reads_as_it_did(monkeypatch, payload, expec
         ({"data": "yes"}, False),
         ({"data": [1, 2]}, False),
         ({"data": [{"name": "no-id"}]}, False),
+        ({"data": [{"id": ""}]}, False),
+        ({"data": [{"id": "   "}]}, False),
+        ({"data": [{"id": "\t\n"}]}, False),
+        ({"data": [{"id": "local-model"}, {"id": " "}]}, False),
         ({"data": []}, False),
         (None, False),
     ],
 )
 def test_a_local_lane_counts_only_a_listing_of_models(payload, expected):
     assert local_model_presence._lane_lists_models(payload) is expected
+
+
+@pytest.mark.parametrize("model_id", ["", "   ", "\t\n"])
+def test_a_lane_listing_a_blank_model_id_keeps_the_saved_cloud_model(monkeypatch, model_id):
+    # Pack 2b re-audit, 2026-10-07: a local lane whose /models reply named a blank id read as a running
+    # local model, so an Auto turn dropped the owner's saved cloud model and had nothing to answer with.
+    from core import cloud_only_default, local_model_policy, ollama_endpoint
+
+    monkeypatch.setattr(local_model_policy, "local_models_enabled", lambda: True)
+    monkeypatch.setattr(ollama_endpoint, "ollama_base_url", lambda: "http://127.0.0.1:1")
+    monkeypatch.setattr(local_model_presence, "_get_json",
+                        lambda url: {"models": []} if url.endswith("/api/tags") else {"data": [{"id": model_id}]})
+    monkeypatch.setattr(local_model_presence, "_local_lane_endpoints", lambda: ["http://127.0.0.1:2/v1"])
+    monkeypatch.setattr(cloud_only_default, "load",
+                        lambda: {"decision": cloud_only_default.DECISION_USE_CLOUD, "model": "saved-cloud"})
+    monkeypatch.setattr(cloud_only_default, "cloud_model_candidates", lambda: [{"id": "saved-cloud"}])
+    presence = local_model_presence.local_model_presence(refresh=True)
+    assert presence.running is False
+    assert cloud_only_default.default_for_auto_turn(owner_local=True) == "saved-cloud"
