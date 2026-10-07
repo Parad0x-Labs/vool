@@ -1059,6 +1059,8 @@ def run_workspace_audit(
     # that is not there produced a full sweep headed "COMPLETE source coverage · validation PASSED"
     # that never mentioned the file the operator asked about. Answering a question nobody asked,
     # and calling it complete, is worse than saying the file is missing.
+    # Other names in the request that match no file: said in the report, never silently left out.
+    missing_named: list[str] = []
     if not wanted and str(target_path or "").strip():
         asked = str(target_path).strip()
         near = _nearby_path_suggestions(asked, all_paths)
@@ -1138,6 +1140,8 @@ def run_workspace_audit(
             resolved = _match_target_path(extra, all_paths) or _match_target_path_on_disk(extra, workspace_root)
             if resolved and resolved != wanted and resolved not in named:
                 named.append(resolved)
+            elif not resolved and extra not in missing_named:
+                missing_named.append(extra)
         if named:
             scoped = [scoped[0], *named, *[path for path in scoped[1:] if path not in named]]
         audit_scope_paths = tuple(scoped)
@@ -1430,6 +1434,12 @@ def run_workspace_audit(
             # our own evidence, and flagging the second would be the verifier lying about the model.
             "incomplete_files": tuple(incomplete_files),
         }
+    if missing_named:
+        sections += [
+            "",
+            "## Named but not found",
+            *(f"- `{name}` was not found in this project, so it was not read or audited." for name in missing_named),
+        ]
     return "\n".join(sections).strip(), steps
 
 

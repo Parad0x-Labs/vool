@@ -56,3 +56,20 @@ def test_an_audit_naming_three_unrelated_files_reads_all_three(shop: Path):
     sourced = [s["summary"].split(":", 1)[0] for s in steps if str(s.get("label", "")).startswith("read source ")]
     for name in ("pricing.py", "stock.py", "orders.py"):
         assert name in sourced, (name, sourced)
+
+
+def test_a_named_file_that_does_not_exist_is_said_not_silently_dropped(shop: Path):
+    """Independent review of this series, 2026-10-07: "Review pricing.py, missing_module.py and orders.py"
+    audited the two real files and the report never mentioned the third name."""
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    request = "Review pricing.py, missing_module.py and orders.py and report the worst bug in each."
+    report, _steps = run_workspace_audit(
+        str(shop), source_context={"workspace": str(shop)},
+        execute_tool=lambda intent, arguments=None, source_context=None, **k: execute_runtime_tool(
+            intent, arguments or {}, source_context=source_context),
+        emit=lambda *a, **k: None,
+        target_path=audit_target_in(request), extra_target_paths=audit_targets_in(request),
+    )
+    assert "missing_module.py" in audit_targets_in(request)
+    assert "`missing_module.py` was not found in this project" in report, report[-800:]
