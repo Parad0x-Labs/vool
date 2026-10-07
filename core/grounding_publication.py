@@ -72,6 +72,7 @@ from core.grounding_lifecycle import (
     EXIT_REFUSED,
     ORIGIN_BOUND_EVIDENCE,
     ORIGIN_COMPUTED_VALUE,
+    ORIGIN_MEMORY_RECORD,
     ORIGIN_TYPED_OBSERVATION,
     STAGE_BOUND,
     STAGE_PUBLISHED,
@@ -232,6 +233,20 @@ def _support_rows(lifecycle: GroundingLifecycle) -> tuple[list[dict[str, Any]], 
     if computed:
         rows.extend(computed)
         origin = origin or ORIGIN_COMPUTED_VALUE
+    # This chat's own memory records, as the reader received them for this turn. A question about
+    # what someone in this chat said ("When will Tim leave for Ireland?") reads to the current-
+    # information signals like a schedule or price lookup, opens this lifecycle, and retrieves
+    # nothing from the web -- yet its answer is a restatement of the records, and refusing it as
+    # "nothing retrieved supports it" withholds a remembered fact. The rows are matched claim by
+    # claim like any other: what the records state publishes, what they do not is withheld.
+    remembered = [
+        dict(entry)
+        for entry in getattr(lifecycle, "memory_records", ()) or ()
+        if isinstance(entry, dict) and _row_carries_content(entry)
+    ]
+    if remembered:
+        rows.extend(remembered)
+        origin = origin or ORIGIN_MEMORY_RECORD
     return rows, origin
 
 
