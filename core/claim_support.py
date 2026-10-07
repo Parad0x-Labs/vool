@@ -541,7 +541,9 @@ def _entity_candidates(
         r"(?:[A-ZÀ-Þ][\w'&.-]*)(?:[ ]+[A-ZÀ-Þ][\w'&.-]*)*", segment
     ):
         tokens = match.group(0).split()
-        folded_tokens = [_fold(token).strip("'&.-") for token in tokens]
+        # A possessive names the same entity: "James's cooking class" is about James, and a
+        # source that says "James:" or "James signed up" carries it.
+        folded_tokens = [re.sub(r"['\u2019]s$", "", _fold(token).strip("'&.-")).strip("'&.-") for token in tokens]
         kept = [
             (raw, folded)
             for raw, folded in zip(tokens, folded_tokens, strict=True)
