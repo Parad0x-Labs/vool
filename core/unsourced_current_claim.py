@@ -964,6 +964,22 @@ __all__ = [
 ]
 
 
+def _claim_envelope_status(binding: Mapping[str, Any]) -> str:
+    """The claim envelope's status vocabulary (v14.6 item 8): supported | contradicted | qualified | unsupported |
+    not_attempted. 'supported' means every value claim is stated by, or derived from, an occurrence of the user's own
+    records; it never means the statement is true. The receipt chain is ASKED -> DISCOVERED -> ACTIVATED -> DELIVERED ->
+    ASSERTED -> SUPPORTED; there is no USED stage, because a model's use of an occurrence is not observable."""
+    if not binding.get("attempted"):
+        return "not_attempted"
+    if binding.get("all_supported"):
+        return "supported"
+    if binding.get("contradicted"):
+        return "contradicted"
+    if binding.get("qualifiable"):
+        return "qualified"
+    return "unsupported"
+
+
 def _kernel_claim_envelope(session_id: Any, question: Any, reply: Any, binding: dict[str, Any], packet_facts: Any) -> dict[str, Any] | None:
     """Claim envelope (vool.memory.claim.v1, VOOL_EVIDENCE_KERNEL=1): every value claim of the reply with its status
     and the evidence lines it bound to, by digest. Best-effort on the answer path; an unwritten envelope is recorded."""
@@ -982,7 +998,7 @@ def _kernel_claim_envelope(session_id: Any, question: Any, reply: Any, binding: 
         env = issue(kind="vool.memory.claim.v1", session_id=str(session_id or ""), subject_type="claim_binding",
                     subject={"question_digest": keyed_digest(str(question or "")),
                              "reply_digest": keyed_digest(str(reply or "")), "claims": claims},
-                    evidence_refs=refs, status="supported" if binding.get("all_supported") else ("unsupported" if binding.get("attempted") else "not_attempted"),
+                    evidence_refs=refs, status=_claim_envelope_status(binding),
                     reason_codes=[str(binding.get("reason") or ""), f"claims:{len(claims)}", f"packet_facts:{len(list(packet_facts or []))}"], commit=False)
         return {"receipt_id": env.receipt_id, "status": env.status, "assurance": env.assurance}
     except Exception:
