@@ -390,6 +390,28 @@ def _own_speaker_text(text: str, role: str) -> str:
     return "\n".join(k for k in keep if k.strip())
 
 
+#: A question asserts nothing: the value inside "Should I pay 290 euros for a folding kayak?" is not a fact the
+#: speaker stated, and typing it put 290 into the packet as the user's own amount (served turn for "how much did I
+#: pay for the folding kayak", 2026-10-07). Mirrors the capsule's assertion law (a sentence ending in "?" is a
+#: question unless it is a declarative clause with a confirmation tag, "..., right?"); an interrogative head
+#: without terminal punctuation ("should i pay 290 euros for a kayak") is the sloppy form of the same question.
+_TAG_QUESTION_RE = re.compile(
+    r",\s*(?:right|yeah|yes|no|ok|okay|correct|isn'?t it|wasn'?t it|don'?t you think|you know)\s*\?\s*$",
+    re.IGNORECASE)
+_INTERROGATIVE_HEAD_RE = re.compile(
+    r"^\s*(?:should|shall|could|would|can|do|does|did|is|are|was|were|will|have|has|had|am)\s+"
+    r"(?:i|we|you|he|she|they|it|there|this|that|my|the|a|an|anyone|\d)", re.IGNORECASE)
+
+
+def _is_question(sentence: str) -> bool:
+    text = sentence.strip().rstrip("\"\u201d')")
+    if not text:
+        return False
+    if text.endswith("?"):
+        return not _TAG_QUESTION_RE.search(text)
+    return bool(_INTERROGATIVE_HEAD_RE.match(text)) and not text.endswith((".", "!"))
+
+
 def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact]:
     """Typed values a turn asserts, one Fact per (sentence, value): durations, amounts, counts, ages, clock times,
     and dated events (a sentence whose own words date an event, even without another value)."""
@@ -406,6 +428,10 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
     for raw in _SENTENCE_RE.split(text):
         sentence = raw.strip()
         if not sentence:
+            continue
+        if _is_question(sentence):
+            # a question is not an asserted fact: no typed value, no dated event, no state or preference
+            start = text.find(sentence, pos); pos = start + len(sentence) if start >= 0 else pos
             continue
         start = text.find(sentence, pos); pos = start + len(sentence) if start >= 0 else pos
         span = (start, start + len(sentence)) if start >= 0 else (0, 0)
