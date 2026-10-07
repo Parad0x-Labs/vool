@@ -136,3 +136,18 @@ def test_a_dropped_row_recomputes_completeness_and_keeps_derived_lines():
     assert out.telemetry["complete"] is False and "event_date_b" in out.telemetry["missing"]
     assert out.lines[-1].startswith("- This question needs:") and "incomplete: missing event_date_b" in out.lines[-1]
     assert out.telemetry["coverage"]["shown"] == 1
+
+
+@pytest.mark.usefixtures("_hash_backend", "_kernel_on")
+def test_a_dated_operand_ask_keeps_its_packet_rows_when_the_gate_arms(tmp_path, monkeypatch):
+    """The gate's refusal binds single-facet asks only: an interval ask selects its operand by subject, and a gate
+    armed on the ask's own wording ({weeks, participate}) must not empty the packet."""
+    profile = _store(tmp_path, monkeypatch, "run-chat", [
+        (1689408780.0, "Session date: 2023/07/15 (Sat) 08:13\nI just ran the 5K charity run today and finished in 27 minutes, which was a great motivator."),
+    ])
+    block, telemetry = _ask(profile, "run-chat", "How many weeks ago did I participate in the 5K charity run?")
+    ec = telemetry.get("evidence_compiler") or {}
+    assert ec.get("obligation", {}).get("kind") == "interval_ago", ec.get("obligation")
+    assert "charity run" in _packet(block), block
+    assert not any(r.get("reason") == "absence-gate" for r in (ec.get("refused_rows") or [])), ec.get("refused_rows")
+
