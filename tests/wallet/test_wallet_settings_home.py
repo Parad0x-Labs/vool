@@ -57,7 +57,13 @@ def test_served_settings_page_shows_the_wallet_section_with_its_controls(tmp_pat
             # under a local-only profile) skips with the cause, never fails; the repo interpreter executes it
             daemon.stop()
             pytest.skip(f"served daemon could not boot here: {exc}")
-        manager, browser = launch_chromium()
+        # The daemon is already up: if the browser cannot start (pytest.skip/fail are BaseException), stop it here,
+        # or it outlives pytest in its own session.
+        try:
+            manager, browser = launch_chromium()
+        except BaseException:
+            daemon.stop()
+            raise
         try:
             page = browser.new_page()
             page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")
