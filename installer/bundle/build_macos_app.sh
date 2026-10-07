@@ -379,7 +379,7 @@ stage_self_contained() {
       --no-compile-bytecode --quiet \
       ${wheelhouse_args[@]+"${wheelhouse_args[@]}"} \
       pydantic "cryptography>=50.0.0" "anyio>=4.14.2" requests pynacl keyring psutil pyyaml \
-      "starlette>=1.3.1,<2.0" "uvicorn>=0.30,<1.0" solders pywebview "pypdf==6.19.0" "xlrd==2.0.2" "reportlab==5.0.1" "markdown-it-py==4.2.0" \
+      "starlette>=1.3.1,<2.0" "uvicorn>=0.30,<1.0" solders "pywebview==6.2.1" "pypdf==6.19.0" "xlrd==2.0.2" "reportlab==5.0.1" "markdown-it-py==4.2.0" \
       zstandard \
       "eth-abi>=6.0" "eth-utils>=6.0" "eth-account>=0.13" \
     || die "lean dependency install failed"

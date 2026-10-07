@@ -119,10 +119,14 @@ def test_the_lean_list_is_read_from_the_build_script_and_holds_no_flags():
 
 
 def test_the_real_repo_state_is_reported_honestly():
-    """pywebview is genuinely unpinned today. If this ever fails, the hole was closed --
-    update the record rather than loosening the assertion."""
+    """pywebview was unpinned until 2026-10-07, and the bundle's wheel-only resolve then fell back
+    to 3.4 (2021). It is now pinned at 6.2.1 through the `desktop` extra. Its sdist-only dependency
+    proxy-tools is pinned by its sdist hash and supplied as a wheel recorded in built_wheels.json."""
     lock = prov.lock_artifacts()
-    assert "pywebview" not in lock
+    assert lock["pywebview"]["__version__"] == "6.2.1"
+    assert lock["proxy-tools"]["__version__"] == "0.1.0"
+    built = {entry["file"]: entry for entry in prov.built_wheels().values()}
+    assert built["proxy_tools-0.1.0-py3-none-any.whl"]["source_sdist_sha256"] == lock["proxy-tools"]["proxy_tools-0.1.0.tar.gz"]
     for pinned in ("zstandard", "xlrd", "cryptography", "solders"):
         assert pinned in lock
 
