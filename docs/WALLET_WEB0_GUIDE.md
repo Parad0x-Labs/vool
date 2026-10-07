@@ -12,11 +12,11 @@ VOOL rename.
 
 ## Supported chains (honest)
 
-- Solana devnet + the Web0 `null_registrar v2` program: exercised in tests.
-- Solana mainnet-beta: **impossible by construction** in the wallet's allowed-network table —
-  any name containing "mainnet" is refused before the registry is consulted.
-- Other chains (EVM signing helpers exist in `core/wallet/` for verification): not enabled as
-  user-facing payment lanes in this build.
+- Mainnet is the default once Crypto is on: Solana, Robinhood Chain, Base, Ethereum and BNB
+  mainnet rows. See [the wallet guide](guides/wallet.md) for what each lane moves.
+- Test networks (Solana devnet and the EVM testnets) are reachable only in
+  **Settings → Crypto → Developer options**.
+- The Web0 `null_registrar v2` program: exercised in tests.
 
 ## Custody and recovery
 
