@@ -239,6 +239,30 @@ _HEDGE_RE = re.compile(r"\b(?:maybe|perhaps|possibly|probably|i\s+think|i\s+gues
 _QUOTED_SPAN_RE = re.compile(r"\"[^\"]*\"|“[^”]*”|'[^']{3,}'")
 
 
+_HEDGE_CLAUSE_SPLIT_RE = re.compile(r"[,;:]\s+|\s+(?:and|but|while|then|although|though|so)\s+", re.IGNORECASE)
+
+
+def _blank_hedged_clauses(text: str) -> str:
+    """The sentence with every clause that carries a hedge replaced by spaces of the same length."""
+    out = list(text)
+    bounds = [0] + [m.start() for m in _HEDGE_CLAUSE_SPLIT_RE.finditer(text)] + [len(text)]
+    spans = [(bounds[i], bounds[i + 1]) for i in range(len(bounds) - 1)]
+    blank: set[int] = set()
+    for idx, (a, b) in enumerate(spans):
+        clause = text[a:b]
+        if _HEDGE_RE.search(clause):
+            blank.add(idx)
+            # an alternative ("..., or maybe three days ago") hedges the clause it offers an alternative to
+            if re.match(r"[\s,;:]*or\b", clause, re.IGNORECASE) and idx > 0:
+                blank.add(idx - 1)
+    for idx in blank:
+        a, b = spans[idx]
+        for i in range(a, b):
+            if out[i] not in "\n\r":
+                out[i] = " "
+    return "".join(out)
+
+
 def resolve_event_day(sentence: str, statement_day: date | None) -> tuple[date | None, str]:
     """The calendar day a sentence dates its own event to, with its grain (day, week, month, year, explicit).
 
@@ -247,9 +271,17 @@ def resolve_event_day(sentence: str, statement_day: date | None) -> tuple[date |
     text = str(sentence or "")
     found: list[tuple[date, str]] = []
     if _HEDGE_RE.search(text):
-        # a hedged clause ("maybe yesterday ...", "I am not sure", "perhaps") dates nothing: unknown stays unknown
-        # (the capsule's own hedged-back-reference law, now honoured at the receipts; v14.6 port time-leg ids)
-        return None, "hedged"
+        # a hedged CLAUSE ("maybe yesterday ...", "I am not sure", "perhaps") dates nothing: unknown stays unknown
+        # (the capsule's own hedged-back-reference law, honoured at the receipts; v14.6 port time-leg ids). The hedge
+        # is scoped to its clause: "... I went to the optician on 7 February ..., maybe audiobooks will help" keeps
+        # 7 February (the plain clause's own day) while "I think it was 7 February" dates nothing. Hedged clauses
+        # are blanked in place so every span below keeps its position in the sentence.
+        text = _blank_hedged_clauses(text)
+        if not text.strip():
+            return None, "hedged"
+        if not (_DEICTIC_DAY_RE.search(text) or _AGO_RE.search(text) or _LAST_RE.search(text)
+                or _EXPLICIT_DATE_RE.search(text) or _RECENT_RE.search(text)):
+            return None, "hedged"
     if statement_day is not None:
         for m in _DEICTIC_DAY_RE.finditer(text):
             w = m.group("w").lower()
