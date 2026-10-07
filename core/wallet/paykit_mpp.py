@@ -32,6 +32,7 @@ from core.wallet.paykit_x402 import (
     _run,
     _upsert_binding,
     availability,
+    refuse_pilot_lane,
     request_digest,
     require_available,
 )
@@ -161,6 +162,7 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
     # a charge the wallet can take is preferred over a session it cannot; the refusal names the first challenge's reason
     challenge = next((c for c in challenges if str(c.intent) == INTENT_CHARGE), challenges[0])
     terms = _terms_from_challenge(challenge, wallet_network=profile.network, source_context=source_context)
+    refuse_pilot_lane(wallet_id, terms, source_context=source_context)
     cap = config.x402_cap_minor()
     if terms["amount_minor"] > cap:
         raise wallet_fault("wallet_x402_cap_exceeded", authority=AUTHORITY, context={"amount_minor": terms["amount_minor"], "limit": str(cap), "asset": terms["asset"], "reason": "above_automatic_cap"}, source_context=source_context)

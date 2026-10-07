@@ -285,6 +285,15 @@ def fetch_paid(url: str, *, wallet_id: str, method: str = "GET", headers: dict[s
     return park_challenge(answer, url=clean_url, method=clean_method, headers=headers, body=raw_body, wallet_id=wallet_id, source_context=source_context)
 
 
+def refuse_pilot_lane(wallet_id: str, terms: dict[str, Any], *, source_context: dict[str, Any] | None = None) -> None:
+    """A Crypto Pilot wallet, or a row whose native coin moves only through the Pilot lane, pays from its quote sheet as
+    a plain transfer, which a pay-kit resource never sees: such a payment would buy nothing. Refused before any proposal."""
+    from core.wallet import transfers
+
+    if transfers.is_pilot_transfer_parts(wallet_id=wallet_id, network=terms["network"], asset=terms["asset"]):
+        raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "paykit_pilot_lane_not_supported", "network": terms["network"]}, source_context=source_context)
+
+
 def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: dict[str, str] | None, body: bytes, wallet_id: str,
                    source_context: dict[str, Any] | None = None) -> Any:
     """The 402 the owner's request met (``answer``, already received: nothing is sent here) -> ONE capped proposal
@@ -306,6 +315,7 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
             return paykit_mpp.park_challenge(answer, url=clean_url, method=clean_method, headers=headers, body=raw_body, wallet_id=wallet_id, source_context=source_context)
         return x402.X402Outcome(status=x402.OUTCOME_REFUSED, http_status=status, body=answer["body"])
     terms = _terms_from_requirement(requirement, wallet_network=profile.network, source_context=source_context)
+    refuse_pilot_lane(wallet_id, terms, source_context=source_context)
     cap = config.x402_cap_minor()
     if terms["amount_minor"] > cap:
         raise wallet_fault("wallet_x402_cap_exceeded", authority=AUTHORITY, context={"amount_minor": terms["amount_minor"], "limit": str(cap), "asset": terms["asset"], "reason": "above_automatic_cap"}, source_context=source_context)

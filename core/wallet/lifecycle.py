@@ -434,6 +434,9 @@ class PaymentLifecycle:
 
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         if transfers.is_pilot_transfer(proposal) or custody.seal_policy(proposal.wallet_id) == custody.PILOT_SEAL_POLICY:
+            if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
+                # a pay-kit payment is never a plain transfer: no sheet can pay it, so none is named
+                raise self._fault("wallet_network_disabled", proposal, reason="paykit_pilot_lane_not_supported")
             # a Crypto Pilot transfer moves only through the pilot lane (quote, approval sheet, one dispatch), whatever
             # the row's readiness: on a ready row the legacy doors name the sheet, elsewhere they keep the lane stop
             reason = capabilities.REASON_PILOT_TRANSFER_NEEDS_QUOTE_APPROVAL if capabilities.pilot_transfer_ready(spec) else capabilities.REASON_PILOT_LANE_INCOMPLETE
@@ -747,6 +750,9 @@ class PaymentLifecycle:
             raise self._fault("wallet_duplicate_payment", proposal, reason="not_awaiting_approval", status=proposal.state)
         if not transfers.is_pilot_transfer(proposal):
             raise self._fault("wallet_quote_mismatch", proposal, reason="not_a_pilot_transfer")
+        if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
+            # a pay-kit payment reaches its resource only through pay-kit: a plain transfer to its payee buys nothing
+            raise self._fault("wallet_quote_mismatch", proposal, reason="paykit_pilot_lane_not_supported")
         self._require_owns_request(proposal)
         self._require_names_a_request(proposal)
         spec = environment.require_active(proposal.network, source_context=self.source_context)

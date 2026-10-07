@@ -272,6 +272,9 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         raise _fault("wallet_not_found", proposal_id=str(proposal_id)[:64], source_context=source_context)
     if not transfers.is_pilot_transfer(proposal):
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="not_a_pilot_transfer", source_context=source_context)
+    if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
+        # a pay-kit payment reaches its resource only through pay-kit: a plain transfer to its payee buys nothing
+        raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="paykit_pilot_lane_not_supported", source_context=source_context)
     if proposal.state not in transfers.OPEN_PROPOSAL_STATES:
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason=f"proposal_state_{proposal.state}", source_context=source_context)
     spec = environment.require_active(proposal.network, source_context=source_context)
