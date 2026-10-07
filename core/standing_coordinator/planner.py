@@ -99,17 +99,21 @@ _STOP_NOT_DONE = {
 def stop_report_text(payload: dict, statuses: dict[str, str]) -> str:
     """The cap report, from what each stop's receipt says happened.
 
-    Only an applied stop is reported as stopped. Refused, unsupported, missing and failed stops are
-    named with their reason; a stop with no final receipt (in flight, or left by a crash) is named as
-    unknown. Each of those agents may still be running and spending.
+    Only an applied stop is reported as stopped. A stop the team accepted but has not carried out
+    yet is named as pending. Refused, unsupported, missing and failed stops are named with their
+    reason; a stop with no final receipt (in flight, or left by a crash) is named as unknown. Each of
+    those agents may still be running and spending.
     """
     stopped: list[str] = []
+    pending: list[str] = []
     not_done: list[str] = []
     unknown: list[str] = []
     for key, name in dict(payload.get("stops") or {}).items():
         status = statuses.get(key, "")
         if status == "done":
             stopped.append(name)
+        elif status == "pending":
+            pending.append(name)
         elif status in _STOP_NOT_DONE:
             not_done.append(f"{name} ({_STOP_NOT_DONE[status]})")
         else:
@@ -118,6 +122,9 @@ def stop_report_text(payload: dict, statuses: dict[str, str]) -> str:
     if stopped:
         parts.append(f"I stopped {len(stopped)} unfinished agent(s): {', '.join(stopped)}. "
                      "Their work so far is kept and labelled partial.")
+    if pending:
+        parts.append(f"I asked {len(pending)} to stop: {', '.join(pending)}. The stop is not confirmed yet, "
+                     "so they may still be running and spending until they finish their current step.")
     if not_done:
         parts.append(f"I could not stop {len(not_done)}: {'; '.join(not_done)}. They may still be running and spending.")
     if unknown:

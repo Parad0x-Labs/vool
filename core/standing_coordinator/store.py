@@ -74,7 +74,7 @@ CREATE INDEX IF NOT EXISTS decisions_live ON decisions (topic_key, scope, supers
 #: Any scope: a decision the user said holds for every team.
 SCOPE_ALL = "*"
 
-FINAL_STATUSES = frozenset({"done", "refused", "unsupported", "not_found", "failed"})
+FINAL_STATUSES = frozenset({"done", "pending", "refused", "unsupported", "not_found", "failed"})
 
 
 def default_db_path() -> Path:

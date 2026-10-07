@@ -145,15 +145,24 @@ class TeamSnapshot:
 
 @dataclass(frozen=True)
 class PortReceipt:
-    """What a port says an action did. ``applied`` is the only effect that counts as done."""
+    """What a port says an action did. ``applied`` is the only effect that counts as done.
+
+    ``pending`` means the team accepted the request but has not acted on it yet (a council run
+    finishes its current step before it notices a stop). It is not done until a later snapshot
+    shows the effect.
+    """
 
     ok: bool
-    effect: str  # applied | unsupported | refused | not_found
+    effect: str  # applied | pending | unsupported | refused | not_found
     detail: str = ""
 
     @classmethod
     def applied(cls, detail: str = "") -> PortReceipt:
         return cls(True, "applied", detail)
+
+    @classmethod
+    def pending(cls, detail: str = "") -> PortReceipt:
+        return cls(True, "pending", detail)
 
     @classmethod
     def unsupported(cls, detail: str = "") -> PortReceipt:

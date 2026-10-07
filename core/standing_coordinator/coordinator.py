@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 
 REMEMBER_CHOICES = ("no", "team", "always")
 
-_RECEIPT_STATUS = {"applied": "done", "unsupported": "unsupported", "refused": "refused", "not_found": "not_found"}
+_RECEIPT_STATUS = {"applied": "done", "pending": "pending", "unsupported": "unsupported", "refused": "refused",
+                   "not_found": "not_found"}
 
 
 def _receipt_status(receipt: Any) -> str:
@@ -90,6 +91,7 @@ class StandingCoordinator:
             if snapshot is None:
                 taken.extend(self._vanished(watch))
                 continue
+            self._confirm_pending_stops(snapshot)
             session_id = watch.get("session_id") or snapshot.session_id
             retrying = False
             for action in planner.plan(snapshot, watch["policy"], self.store, moment):
@@ -100,6 +102,16 @@ class StandingCoordinator:
                     retrying = retrying or result["status"] == "retry"
                     taken.append(result)
         return {"ok": not errors, "at": moment, "actions": taken, "errors": errors}
+
+    def _confirm_pending_stops(self, snapshot: TeamSnapshot) -> None:
+        """A pending stop becomes done once the team's own snapshot shows that agent ended."""
+        ended = {agent.agent_id: agent.state.value for agent in snapshot.agents if agent.terminal}
+        for row in self.store.actions(snapshot.team_id, kind="stop"):
+            if row["status"] == "pending" and row["agent_id"] in ended:
+                self.store.finish(row["action_key"], "done", **row["detail"], confirmed_by="snapshot",
+                                  state=ended[row["agent_id"]])
+                self.store.append_event(snapshot.team_id, "stop_confirmed", key=row["action_key"],
+                                        agent_id=row["agent_id"], state=ended[row["agent_id"]])
 
     def _vanished(self, watch: dict[str, Any]) -> list[dict[str, Any]]:
         team_id = watch["team_id"]
