@@ -148,3 +148,57 @@ def test_nested_shell_expansions_do_not_swallow_the_package_line():
         "starlette", "uvicorn", "solders", "pywebview", "pypdf", "xlrd", "zstandard",
         "eth-abi", "eth-utils", "eth-account",
     ], names
+
+
+def _built_record(tmp_path, monkeypatch, entries):
+    import json
+    record = tmp_path / "built_wheels.json"
+    record.write_text(json.dumps({"schema": "vool.built_wheels/1", "wheels": entries}))
+    monkeypatch.setattr(prov, "BUILT_WHEELS", record)
+
+
+def test_a_wheel_built_here_and_recorded_by_digest_is_release_grade(tmp_path, monkeypatch):
+    """No published Intel wheel exists for some pins; the one we build is vouched for by its committed record."""
+    wh = tmp_path / "wh"; wh.mkdir()
+    w = _wheel(wh / "demo-1.0-cp311-abi3-macosx_14_0_x86_64.whl", {"demo/__init__.py": b"x = 1\n"})
+    digest = hashlib.sha256(w.read_bytes()).hexdigest()
+    monkeypatch.setattr(prov, "lock_artifacts", lambda: {"demo": {"__version__": "1.0"}})
+    monkeypatch.setattr(prov, "lean_requirements", lambda: ["demo"])
+    _built_record(tmp_path, monkeypatch, [{"file": w.name, "package": "demo", "sha256": digest,
+                                           "source_sdist_sha256": "a" * 64, "target": "x86_64-apple-darwin"}])
+    report = prov.audit(wh)
+    assert report["artifacts"][0]["grade"] == "RELEASE" and report["artifacts"][0]["built_here"]
+    assert report["release_grade"]
+
+
+@pytest.mark.parametrize("change", ["other_digest", "other_file", "other_package", "no_source"])
+def test_a_built_record_that_does_not_name_this_exact_wheel_vouches_for_nothing(tmp_path, monkeypatch, change):
+    wh = tmp_path / "wh"; wh.mkdir()
+    w = _wheel(wh / "demo-1.0-cp311-abi3-macosx_14_0_x86_64.whl", {"demo/__init__.py": b"x = 1\n"})
+    entry = {"file": w.name, "package": "demo", "sha256": hashlib.sha256(w.read_bytes()).hexdigest(),
+             "source_sdist_sha256": "a" * 64}
+    if change == "other_digest":
+        entry["sha256"] = "b" * 64
+    elif change == "other_file":
+        entry["file"] = "demo-1.0-cp311-abi3-macosx_14_0_arm64.whl"
+    elif change == "other_package":
+        entry["package"] = "notdemo"
+    else:
+        entry["source_sdist_sha256"] = ""
+    monkeypatch.setattr(prov, "lock_artifacts", lambda: {"demo": {"__version__": "1.0"}})
+    _built_record(tmp_path, monkeypatch, [entry])
+    assert prov.audit(wh)["artifacts"][0]["grade"] == "DIAGNOSTIC"
+
+
+def test_a_built_record_never_rescues_a_tampered_payload(tmp_path, monkeypatch):
+    wh = tmp_path / "wh"; wh.mkdir()
+    good = _wheel(tmp_path / "good.whl", {"demo/__init__.py": b"x = 1\n"})
+    bad = wh / "demo-1.0-cp311-abi3-macosx_14_0_x86_64.whl"
+    with zipfile.ZipFile(good) as src, zipfile.ZipFile(bad, "w") as dst:
+        for item in src.infolist():
+            data = src.read(item.filename)
+            dst.writestr(item, b"x = 666\n" if item.filename == "demo/__init__.py" else data)
+    monkeypatch.setattr(prov, "lock_artifacts", lambda: {"demo": {"__version__": "1.0"}})
+    _built_record(tmp_path, monkeypatch, [{"file": bad.name, "package": "demo", "sha256": hashlib.sha256(bad.read_bytes()).hexdigest(),
+                                           "source_sdist_sha256": "a" * 64}])
+    assert prov.audit(wh)["artifacts"][0]["grade"] == "REJECTED"
