@@ -632,6 +632,24 @@ def single_clause_recall_question(text: str) -> bool:
     return _first_person_recall_question(raw)
 
 
+_OWN_THING_RE = re.compile(
+    r"\b(?:my|our)\s+(?!own\b)[a-z]|\bwhat\s+(?:i|we)(?:'m|\s+am|'re|\s+are|'ve\s+been|\s+have\s+been)\s+(?:building|working\s+on|making|writing|planning|doing)\b",
+    re.IGNORECASE,
+)
+_SUPPLIED_MATERIAL_RE = re.compile(r"(?::|\n|[\"“'‘`])\s*(?:\S+\s+){7,}\S+")
+
+
+def _asks_about_own_things_without_material(raw: str) -> bool:
+    """Whether a text-task request operates on the speaker's own things and supplies nothing to operate on.
+
+    "Summarize my project" or "Explain what I'm building" carries no text of its own: its object is the user's
+    records, so it is a memory question, not a one-shot text task. Found on a spent benchmark question (2026-10-07):
+    the one-shot route stripped every context message, and the answer described VOOL's own product instead of the
+    user's project. A request that pastes the material ("Summarize my notes: ...") stays a text task.
+    """
+    return bool(_OWN_THING_RE.search(raw)) and not _SUPPLIED_MATERIAL_RE.search(raw)
+
+
 def plain_task_kind(text: str) -> str:
     """Return the plain model task kind for one-shot text tasks.
 
@@ -641,6 +659,10 @@ def plain_task_kind(text: str) -> str:
     """
     raw = " ".join(str(text or "").strip().split())
     if not raw:
+        return ""
+    if (_SUMMARIZE_RE.search(raw) or _SIMPLE_EXPLAIN_RE.search(raw)) and _asks_about_own_things_without_material(raw):
+        # Describing the speaker's own thing is answered from their records. (Translating or rewriting
+        # keeps its kind: those asks bring their text, and without it the model asks for it.)
         return ""
     if is_ordinary_multi_part_plain_task(text) and not _first_person_recall_question(raw):
         return "multi_part_qa"

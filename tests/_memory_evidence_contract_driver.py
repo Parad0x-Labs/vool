@@ -225,6 +225,14 @@ def main() -> int:
         if decision.get("purpose") == "auxiliary_decomposition" and state.get("decomposition"):
             # A turn may script the clause decomposition reply itself (a recorded live reply).
             decision = {**decision, "content": state["decomposition"]}
+        first_system = next((str(m.get("content") or "") for m in (payload or {}).get("messages", [])
+                             if m.get("role") == "system"), "")
+        for prefix, content in state.get("system_replies") or []:
+            # A turn may script the reply to an auxiliary call by its system prompt's opening words
+            # (for instance the memory search-phrase call), as a model would answer it.
+            if first_system.startswith(prefix):
+                decision = {**decision, "content": content}
+                break
         raw = decision["content"]
         calls.append(
             {
@@ -407,6 +415,7 @@ def main() -> int:
         state["finish_reason"] = turn.get("finish_reason", "stop")
         state["reader_require"] = turn.get("reader_require") or []
         state["decomposition"] = turn.get("decomposition") or ""
+        state["system_replies"] = [tuple(pair) for pair in turn.get("system_replies") or []]
         source_context: dict = {
             "surface": str(turn.get("surface") or "openclaw"),
             "platform": str(turn.get("surface") or "openclaw"),
