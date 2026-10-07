@@ -45,7 +45,9 @@ if ([string]::IsNullOrWhiteSpace($RepoOwner)) { $RepoOwner = "Parad0x-Labs" }
 if ([string]::IsNullOrWhiteSpace($RepoName)) { $RepoName = "vool" }
 if ([string]::IsNullOrWhiteSpace($Ref)) { $Ref = "main" }
 if ([string]::IsNullOrWhiteSpace($InstallDir)) { $InstallDir = Resolve-DefaultInstallDir }
-if ([string]::IsNullOrWhiteSpace($ArchiveUrl)) { $ArchiveUrl = "https://github.com/$RepoOwner/$RepoName/archive/refs/heads/$Ref.zip" }
+# A release tag (v0.7.0, 0.7.0, v0.7.0-beta) lives under refs/tags: GitHub answers refs/heads/<tag> with 404.
+$RefIsReleaseTag = $Ref -match '^v?\d+\.\d+\.\d+([.-].*)?$'
+if ([string]::IsNullOrWhiteSpace($ArchiveUrl)) { $ArchiveUrl = if ($RefIsReleaseTag) { "https://github.com/$RepoOwner/$RepoName/archive/refs/tags/$Ref.zip" } else { "https://github.com/$RepoOwner/$RepoName/archive/refs/heads/$Ref.zip" } }
 
 function Write-Info {
     param([string]$Message)
@@ -151,7 +153,7 @@ function Write-BuildMetadata {
     $dirtyState = Resolve-DirtyState
     @{
         ref = $Ref
-        branch = $Ref
+        branch = $(if ($RefIsReleaseTag) { "" } else { $Ref })
         commit = $Commit
         dirty_state = $dirtyState
         source_kind = "archive"
