@@ -317,6 +317,7 @@ class TeamCoordinator:
                         session_id=session_id, model=contract.model, prompt=prompt, mode=contract.mode,
                         turn_id=f"{agent_id}-{uuid.uuid4().hex[:6]}", cancel=cancel,
                         on_response=lambda resp: self._responses.__setitem__(agent_id, resp),
+                        workspace=str(self.workspace),
                     )
                 except Exception:
                     self.budget.settle(reservation, tokens=tokens, usd=usd)

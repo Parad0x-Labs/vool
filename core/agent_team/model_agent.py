@@ -132,7 +132,7 @@ class HttpChatRunner:
         self.base_url = base_url.rstrip("/")
 
     def run(self, *, session_id: str, model: str, prompt: str, mode: str, turn_id: str,
-            cancel: threading.Event, on_response: Callable[[Any], None]) -> TurnResult:
+            cancel: threading.Event, on_response: Callable[[Any], None], workspace: str = "") -> TurnResult:
         from core.council.dispatch import _EVIDENCE_RANK, merged_usage, model_identity_from_event
 
         select_session_model(self.base_url, session_id, model)
@@ -143,6 +143,11 @@ class HttpChatRunner:
             "session_id": session_id, "turn_id": turn_id,
             "mode": "plan" if mode == "read" else "", "autonomy": "",
         }
+        if workspace:
+            # The agent works in the TEAM's folder. Without this the turn runs as a general chat with no
+            # project binding, and VOOL (rightly) refuses to guess a folder to read (measured on the live
+            # comparison, 2026-10-07: every agent answered "this chat is not bound to a project folder").
+            body["workspace"] = workspace
         request = urllib.request.Request(
             self.base_url + "/api/chat", data=json.dumps(body).encode("utf-8"),
             headers={"Content-Type": "application/json"}, method="POST",
@@ -200,39 +205,57 @@ class HttpChatRunner:
 
 def build_prompt(*, display_name: str, objective: str, claims: tuple[str, ...], mode: str,
                  constraints: str, extra: str = "", decision: str = "") -> str:
-    lines = [
-        f"You are the agent \"{display_name}\" in a VOOL team. Do only this task.",
-        f"Task: {objective}",
-    ]
-    if mode == "write":
-        lines.append("You may write only inside: " + ", ".join(f"{c}/" for c in claims))
-    else:
-        lines.append("Read only. Do not change any file.")
-    lines.append("Rules:\n" + constraints)
+    """The agent's brief as ONE sentence.
+
+    VOOL's turn planner splits a message into separate demands at sentence, line and paragraph breaks. A brief
+    written as paragraphs became five asks, each answered or refused on its own, and the file the agent was meant
+    to read was never read (measured on the live comparison, 2026-10-07). So the brief is one sentence: the task,
+    then the report format and the scope as clauses of the same request. Read agents run in PLAN mode, where the
+    server itself denies writes, pushes and spends; write agents also carry the never-do rules and the parent's
+    own constraints, as a clause.
+    """
+    task = " ".join((extra.strip() or objective).split()).rstrip(". ")
+    clauses = [task]
     if decision:
-        lines.append(f"The user decided: {decision}")
-    if extra:
-        lines.append(extra)
-    # FIRST, not last: VOOL trims long replies to the turn's output budget, and a report line at
-    # the end is the first thing a trim removes (measured on the served run, 2026-10-06).
-    lines.append(
-        "Begin your reply with one line `RESULT: {\"status\": \"done|partial|needs_decision|failed\", "
-        "\"summary\": \"<= 3 sentences\", \"changed\": [paths], \"question\": \"only if needs_decision\"}`, "
-        "then any detail."
+        clauses.append(f"given that the user decided {decision.strip().rstrip('.')}")
+    clauses.append(
+        # FIRST line of the reply, not last: VOOL trims long replies to the turn's output budget, and a report
+        # line at the end is the first thing a trim removes (measured on the served run, 2026-10-06).
+        "beginning your reply with one line `RESULT: {\"status\": \"done|partial|needs_decision|failed\", "
+        "\"summary\": \"at most 3 sentences\", \"changed\": [paths], \"question\": \"only if needs_decision\"}`"
     )
-    return "\n\n".join(lines)
+    if mode == "write":
+        rules = "; ".join(line.strip().lstrip("-").strip().removeprefix("Never: ").rstrip(".")
+                          for line in constraints.splitlines() if line.strip())
+        clauses.append("changing files only inside " + ", ".join(f"{c}/" for c in claims)
+                       + (f" and never doing any of these: {rules.replace('. ', '; ')}" if rules else ""))
+    else:
+        clauses.append("changing no file")
+    clauses.append(f"as the agent \"{display_name}\" in a VOOL team")
+    return ", ".join(clauses) + "."
 
 
 def parse_result_line(text: str) -> dict[str, Any]:
+    """The agent's typed report: the `RESULT:` line, or a bare JSON object line carrying `status`.
+
+    VOOL's reply shaping can drop the `RESULT:` label and keep the object (measured on the served run,
+    2026-10-07: replies arrived as `{"status": "done", ...}` on their first line), so the object is
+    accepted with or without its label. Anything else is not a report.
+    """
     for line in str(text or "").splitlines():
+        # A bulleted object is NOT a report: VOOL lists the statements it withheld as unsupported as
+        # bullets ("Withheld from this answer: … - {...}"), and a withheld report must stay withheld.
         stripped = line.strip()
         if stripped.upper().startswith("RESULT:"):
-            try:
-                payload = json.loads(stripped.split(":", 1)[1].strip())
-                if isinstance(payload, dict):
-                    return payload
-            except ValueError:
-                return {}
+            stripped = stripped.split(":", 1)[1].strip()
+        elif not stripped.startswith("{"):
+            continue
+        try:
+            payload = json.loads(stripped)
+        except ValueError:
+            continue
+        if isinstance(payload, dict) and isinstance(payload.get("status"), str):
+            return payload
     return {}
 
 
