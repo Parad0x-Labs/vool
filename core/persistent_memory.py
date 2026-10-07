@@ -478,10 +478,23 @@ def _split_explicit_memory_facts(raw_fact: str) -> list[str]:
 #: A reason the user appends to a forget ("..., it is wrong", "... it was a typo", "...? its wrong", "... lol") is not
 #: part of the named target: left on, it made the whole sentence the keyword, nothing matched, and the reply still
 #: said "Forget applied" (served check 2026-10-07).
+#: The clause needs a real separator (punctuation, a dash, or at least one word of target before a space): "its password",
+#: "this is my old address" and "that's my pin" are whole targets, never a reason tail (review 2026-10-07).
 _FORGET_JUSTIFICATION_TAIL_RE = re.compile(
-    r"\s*[,;:?!]*\s*(?:(?:it|that|this|which)(?:'s|\s+is|\s+was|s)\b.*|because\b.*|since\b.*|as\s+it\b.*|lol|pls|please|thanks)$",
+    r"^(?P<head>.+?)(?:\s*[,;:?!]+\s*|\s+[-\u2013\u2014]\s*|\s+)"
+    r"(?P<tail>(?:it(?:'s|\s+is|\s+was)|that(?:'s|\s+is|\s+was)|this\s+(?:is|was)|which\s+(?:is|was)|its|because|since|as\s+it"
+    r"|lol|pls|please|thanks)\b.*)$",
     re.IGNORECASE,
 )
+
+
+def _without_forget_reason_tail(target: str) -> str:
+    """The target before an appended reason clause; the target itself when the clause would be the whole text."""
+    match = _FORGET_JUSTIFICATION_TAIL_RE.match(target)
+    if match is None:
+        return target
+    head = match.group("head").strip(" .,!?;:")
+    return head or target
 
 
 def _forget_target_without_preservation_clause(raw_target: str) -> str:
@@ -493,7 +506,7 @@ def _forget_target_without_preservation_clause(raw_target: str) -> str:
         target,
         flags=re.IGNORECASE,
     ).strip()
-    return _FORGET_JUSTIFICATION_TAIL_RE.sub("", target).strip(" .,!?;:")
+    return _without_forget_reason_tail(target).strip(" .,!?;:")
 
 
 def _normalize_forget_target(raw_target: str) -> str:
@@ -1812,6 +1825,20 @@ def maybe_handle_memory_command(
             token = _normalize_forget_target(forget.group(1))
         if len(token) < 2:
             return True, "Forget command skipped: provide a clearer keyword."
+        # Already forgotten (review 2026-10-07, crash-heal path): the canonical row is a tombstone, so the forget
+        # removes 0, but the mirror may still carry the plaintext and is healed by this very forget. That outcome
+        # is confirmed as "already forgotten", never reported as a no-match and never as "Forget applied".
+        from core.memory.entries import _text_is_erased
+        from core.memory.files import memory_path
+
+        def _mirror_text() -> str:
+            try:
+                return memory_path().read_text(encoding="utf-8")
+            except OSError:
+                return ""
+
+        mirror_before = _mirror_text().lower()
+        already_erased = _text_is_erased(token) or _text_is_erased(token.rstrip(".!?") + ".")
         try:
             removed = forget_memory(
                 token,
@@ -1840,6 +1867,11 @@ def maybe_handle_memory_command(
             LOGGER.warning("semantic memory forget unavailable: %s", type(exc).__name__)
         total_removed = max(int(removed), int(semantic_removed))
         if total_removed <= 0:
+            mirror_after = _mirror_text().lower()
+            healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
+            if already_erased or healed:
+                return True, ("That was already forgotten; a stale copy of it has now been cleared as well."
+                              if healed else "That was already forgotten.")
             # Never "Forget applied" over nothing removed (served check 2026-10-07: "Forget the storage
             # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
             # turn is not handled here: it is stored as an ordinary retraction and the capsule's
