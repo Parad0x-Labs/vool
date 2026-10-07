@@ -1712,6 +1712,9 @@ def execute_grounded_turn(
                     from core.context_retrieval import get_last_retrieval_telemetry as _telemetry
 
                     _facts = list(_telemetry().get("evidence_packet_facts") or [])
+                    from core.evidence_kernel.revocation import without_revoked as _without_revoked
+
+                    _facts = _without_revoked("", _facts, str(session_id or ""))[1]
                     _ref_day = past_time_clock.day if past_time_clock is not None else None
                     _decision = _kernel_temporal_decision(effective_input, before_past_time_guard, _facts, _ref_day)
                     if _decision is None:

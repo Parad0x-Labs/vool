@@ -2229,7 +2229,57 @@ class VoolMemory:
                     ),
                 )
             self._conn.commit()
+            self._forget_derived_receipts(needle, chat_scope=str(chat_scope or "").strip())
         return len(matched)
+
+    def _forget_derived_receipts(self, needle: str, *, chat_scope: str) -> None:
+        """The memory kernel's receipts are derived from source bodies: the forget law covers them too.
+
+        Every receipt of this chat whose stored text (head sentence, typed facts, change lines) carries the
+        forgotten token is dropped and, when its source body still serves (a clause-salvaged remainder),
+        rebuilt from that body -- so a later statement's change line can no longer name the forgotten value
+        either. Without this, the forgotten value stayed at rest in ``memory_receipts`` and could re-enter the
+        reader's packet (measured on the v14.x port, 2026-10-07). A store without the receipts table is
+        untouched.
+        """
+        with self._lock:
+            try:
+                rows = self._conn.execute(
+                    "SELECT occurrence_id, head_text, facts_json, changes_json, withdraws_json FROM memory_receipts "
+                    "WHERE agent_id = ? AND chat_scope = ?",
+                    (self._agent_id, chat_scope),
+                ).fetchall()
+            except sqlite3.Error:
+                return
+            stale = [
+                str(row[0]) for row in rows
+                if any(text_carries_forget_token(str(value or ""), needle) for value in tuple(row)[1:])
+            ]
+            if not stale:
+                return
+            marks = ", ".join("?" for _ in stale)
+            self._conn.execute(f"DELETE FROM memory_receipts WHERE occurrence_id IN ({marks})", stale)
+            survivors = self._conn.execute(
+                f"SELECT occurrence_id, role, body, statement_at FROM source_occurrences "
+                f"WHERE occurrence_id IN ({marks}) AND status = 'active' AND body != '' "
+                f"ORDER BY COALESCE(statement_at, 0), rowid",
+                stale,
+            ).fetchall()
+            self._conn.commit()
+            if not survivors:
+                return
+            try:
+                from types import SimpleNamespace
+
+                from core.memory_receipts import write_receipt
+            except Exception:
+                return
+            for row in survivors:
+                occurrence = SimpleNamespace(
+                    occurrence_id=str(row["occurrence_id"]), role=str(row["role"] or "user"),
+                    statement_at=row["statement_at"], body=str(row["body"] or ""),
+                )
+                write_receipt(self, occurrence, chat_scope=chat_scope)
 
     def record_revocation(self, token: str, *, chat_id: str) -> str | None:
         """Record a durable forget-law revocation for one chat scope.
