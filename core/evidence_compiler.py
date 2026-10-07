@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Mapping, Sequence
 
-from core.memory_receipts import _stem, _statement_day, match_receipts, question_terms, receipts_for_scope, resolve_event_day
+from core.memory_receipts import _slot as _slot_terms, _stem, _statement_day, match_receipts, question_terms, receipts_for_scope, resolve_event_day
 
 LOGGER = logging.getLogger(__name__)
 _UTC = timezone.utc
@@ -75,6 +75,9 @@ _PREFERENCE_RE = re.compile(r"\b(?:suggest(?:ions?)?|recommend(?:ations?)?|tips?
 _EXISTENCE_RE = re.compile(r"\b(?:did|have|has)\s+(?:i|we)\s+ever\b|\bhave\s+i\s+(?:been|tried|visited|mentioned|told|used|seen|read|watched)\b", re.IGNORECASE)
 _CURRENT_RE = re.compile(r"\b(?:currently|now|these\s+days|at\s+the\s+moment|nowadays|latest|current)\b|\b(?:what|which|how\s+(?:much|many|often|long))\b[^.?]{0,50}\b(?:do|does|am|is|are)\s+(?:i|my|we|our)\b", re.IGNORECASE)
 _WHEN_RE = re.compile(r"\b(?:when|what\s+(?:date|day|time)|which\s+(?:date|day|month|year))\b", re.IGNORECASE)
+# a sequence ask: the order in which several things came up across sessions ("in what order did I bring up X, Y and Z",
+# "walk me through the order in which I mentioned ...", "the timeline of ...", "chronologically")
+_SEQUENCE_RE = re.compile(r"\b(?:the\s+order\s+in\s+which|in\s+(?:what|which)\s+order|what\s+order|the\s+sequence\s+(?:in\s+which|of)|chronolog(?:ical(?:ly)?|y)|(?:the\s+)?timeline\s+of|step\s+by\s+step\s+(?:order|history)|one\s+after\s+the\s+other)\b", re.IGNORECASE)
 
 
 # v14.6 typed completeness (ASTRA Pro hardening item 1): every obligation carries a CLASS that says what complete evidence
@@ -96,6 +99,8 @@ def obligation_class(kind: str, question: str) -> str:
         return "QUOTE_SPEAKER"
     if kind in ("interval_ago", "interval_between", "when"):
         return "PAIR" if kind == "interval_between" else "SINGLE"
+    if kind == "sequence":
+        return "LIST_ALL"   # the whole ordered set, so coverage is required
     if kind == "order":
         # two named candidates ("the lamp or the desk", "X before Y") are an ORDER; "what did I buy first" over an open set is an EXTREMUM
         return "EXTREMUM" if _EXTREMUM_RE.search(q) and not re.search(r"\b(?:or|than|versus|vs\.?)\b|\b(?:before|after)\s+(?:the|my|i)\b", q, re.IGNORECASE) else "ORDER"
@@ -144,10 +149,16 @@ def obligations(question: str) -> Obligation:
 
 def _obligation_kind(question: str) -> Obligation:
     q = str(question or "")
+    if _SEQUENCE_RE.search(q) and re.search(r"\bI\s+(?:brought|mentioned|raised|talked|asked|discussed|came|started|told|said|wrote)\b|\bmy\b", q, re.IGNORECASE):
+        # "walk me through the order in which I mentioned ...": the user's own sequence, even though "you ... mentioned"
+        # also reads as an assistant ask
+        return Obligation("sequence", ["dated_events>=2"], "every dated record of the named things, earliest first, one per line")
     if _ASSISTANT_RE.search(q):
         return Obligation("assistant_output", ["assistant_turn"], "the assistant's own earlier reply")
     if _AGO_RE.search(q):
         return Obligation("interval_ago", ["event_date", "reference_day"], "one dated event counted back from today")
+    if _SEQUENCE_RE.search(q):
+        return Obligation("sequence", ["dated_events>=2"], "every dated record of the named things, earliest first, one per line")
     if _ORDER_RE.search(q):
         return Obligation("order", ["event_date_a", "event_date_b"], "two dated events, ordered")
     if _BETWEEN_RE.search(q):
@@ -190,7 +201,7 @@ def _day(ts: float | None) -> str:
 def _found_operands(ob: Obligation, selected: Sequence[tuple[float, dict[str, Any], dict[str, Any]]]) -> tuple[list[str], list[str]]:
     """(found, missing) operand names for the obligation given the selected (score, receipt, fact) rows."""
     facts = [f for _s, _r, f in selected]
-    dated = [f for f in facts if f.get("event_at") is not None or f.get("value_type") == "event"]
+    dated = [f for f in facts if f.get("event_at") is not None or f.get("value_type") == "event" or (ob.kind == "sequence" and f.get("statement_at") is not None)]
     typed = [f for f in facts if f.get("value_type") not in ("event",)]
     assistant = [r for _s, r, _f in selected if r.get("role") == "assistant"]
     user = [f for _s, r, f in selected if r.get("role") == "user"]
@@ -209,6 +220,10 @@ def _found_operands(ob: Obligation, selected: Sequence[tuple[float, dict[str, An
         # a duration pair (goal time vs finish time) answers a "how long after/by how much" ask too
         if kind == "interval_between" and len([f for f in typed if f.get("value_type") == "duration"]) >= 2:
             found = ["event_date_a", "event_date_b"]
+    elif kind == "sequence":
+        # a mention row is dated by its receipt's statement day; two distinct days make a sequence
+        seq_days = {f.get("event_at") or r.get("statement_at") for _s, r, f in selected if r.get("role") == "user"}
+        found = ["dated_events>=2"] if len({d for d in seq_days if d is not None}) >= 2 else []
     elif kind == "aggregate":
         found = ["typed_values>=2"] if len(typed) >= 2 else []
     elif kind == "preference":
@@ -238,6 +253,8 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
         key = str(fact.get("norm") or "").split("=", 1)[0]
         tag = f"<{key} = {fact.get('value')}>" if not str(fact.get("norm") or "").endswith("|former") else f"<former {key} = {fact.get('value')}>"
         line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  {tag}"
+    elif fact.get("value_type") == "mention":
+        line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:240]}\"  <mention>"
     elif fact.get("value_type") == "preference":
         # a stated preference or constraint is an operand the answer has to respect, not a detail it may drop: set five
         # (v14.4) had three penicillin-allergy lines in the packet and a snack list that ignored them
@@ -534,19 +551,28 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
                     continue
                 seen.add(id(fact)); added += 1
                 new_rows.append((float(score), receipt, {**fact, "via_hop": True, "hop_leg": "semantic" if oid in semantic_ids else "lexical"}))
+            if ob.kind == "sequence" and added == 0 and receipt.get("role") == "user":
+                # a sequence ask is about WHEN each thing came up: a user turn that names one of the asked things but
+                # carries no typed value is still a dated mention; its first sentence naming a question term is the row
+                body = str(getattr(occurrence, "body", "") or getattr(occurrence, "text", "") or "")
+                for sentence in re.split(r"(?<=[.!?])\s+", body):
+                    if set(_slot_terms(sentence)) & qterms_hop:
+                        mention = {"sentence": sentence.strip()[:240], "slot": _slot_terms(sentence), "value_type": "mention", "value": sentence.strip()[:240],
+                                   "norm": "", "event_at": None, "event_grain": "", "via_hop": True, "hop_leg": "semantic" if oid in semantic_ids else "lexical"}
+                        new_rows.append((float(score), receipt, mention)); break
         telemetry["hop_query"] = hop_query
         telemetry["hop_new_facts"] = len(new_rows)
         selected = selected + new_rows
         found, missing = _found_operands(ob, selected)
     # an extremum ask ("first", "latest") is answered from the edge of the dated scope: dated user facts render in time
     # order (earliest or latest first) so a partial view still carries the candidate that matters
-    if ob.cls == "EXTREMUM":
-        earliest = bool(_EARLIEST_RE.search(question))
+    if ob.cls == "EXTREMUM" or ob.kind == "sequence":
+        earliest = bool(_EARLIEST_RE.search(question)) or ob.kind == "sequence"
         def _when(row):
             f = row[2]; r = row[1]
             t = f.get("event_at") if f.get("event_at") is not None else r.get("statement_at")
             return float(t or 0)
-        dated_rows = sorted([row for row in selected if row[1].get("role") == "user" and (row[2].get("event_at") is not None or row[2].get("value_type") == "event")], key=_when, reverse=not earliest)
+        dated_rows = sorted([row for row in selected if row[1].get("role") == "user" and (row[2].get("event_at") is not None or row[2].get("value_type") in ("event", "mention") or ob.kind == "sequence")], key=_when, reverse=not earliest)
         rest = [row for row in selected if not any(row[2] is d[2] for d in dated_rows)]
         selected = dated_rows + rest
     # render within the allowance, best first; one line per (receipt, fact)
@@ -587,6 +613,8 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
     if packet.lines or (ob.needs_coverage and not coverage["exhaustive"]):
         status = ("complete" if not missing else "incomplete: missing " + ", ".join(missing))
         line = f"- This question needs: {', '.join(ob.required)} ({ob.note}). Receipts found: {status}."
+        if ob.kind == "sequence":
+            line += " Answer shape: one line per item, each a short name of one topic or event with the day it first came up, earliest first, nothing bundled."
         if ob.needs_coverage:
             if coverage["exhaustive"]:
                 line += f" Coverage: exhaustive, all {coverage['candidates']} matching records are shown."
