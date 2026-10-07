@@ -877,6 +877,7 @@ def inspect_unsourced_current_claim(
             claim_binding = _binding.as_dict()
             if _binding.all_supported:
                 has_evidence = True
+            claim_binding["kernel_receipt"] = _kernel_claim_envelope(session_id, user_turn_text, answer, claim_binding, _packet_facts)
         except Exception:
             claim_binding = {"attempted": False, "reason": "binder_error"}
         if isinstance(source_context, dict):
@@ -941,3 +942,30 @@ __all__ = [
     "turn_has_current_evidence",
     "unverified_current_answer",
 ]
+
+
+def _kernel_claim_envelope(session_id: Any, question: Any, reply: Any, binding: dict[str, Any], packet_facts: Any) -> dict[str, Any] | None:
+    """Claim envelope (vool.memory.claim.v1, VOOL_EVIDENCE_KERNEL=1): every value claim of the reply with its status
+    and the evidence lines it bound to, by digest. Best-effort on the answer path; an unwritten envelope is recorded."""
+    try:
+        from core.evidence_kernel.receipts import EvidenceRef, kernel_enabled, issue
+    except Exception:
+        return None
+    if not kernel_enabled():
+        return None
+    try:
+        import hashlib as _hashlib
+
+        claims = list(binding.get("claims") or [])
+        refs = []
+        for c in claims:
+            for line in list(c.get("evidence") or [])[:4]:
+                refs.append(EvidenceRef(occurrence_id="", digest=_hashlib.sha256(str(line).encode("utf-8")).hexdigest(), role="user", kind=str(c.get("status") or "")))
+        env = issue(kind="vool.memory.claim.v1", session_id=str(session_id or ""), subject_type="claim_binding",
+                    subject={"question_sha256": _hashlib.sha256(str(question or "").encode("utf-8")).hexdigest(),
+                             "reply_sha256": _hashlib.sha256(str(reply or "").encode("utf-8")).hexdigest(), "claims": claims},
+                    evidence_refs=refs, status="supported" if binding.get("all_supported") else ("unsupported" if binding.get("attempted") else "not_attempted"),
+                    reason_codes=[str(binding.get("reason") or ""), f"claims:{len(claims)}", f"packet_facts:{len(list(packet_facts or []))}"], commit=False)
+        return {"receipt_id": env.receipt_id, "status": env.status, "assurance": env.assurance}
+    except Exception:
+        return {"status": "error"}
