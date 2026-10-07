@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vool"
-version = "0.6.0"
+version = "0.7.0"
 description = "VOOL — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
 readme = "README.md"
 license = "MIT"

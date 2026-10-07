@@ -21,7 +21,7 @@ def test_readme_frontloads_install_and_honest_platform_claims() -> None:
 
     assert "# VOOL" in readme.splitlines()[0]
     assert "local-first personal agent" in readme
-    assert "0.6.0-beta" in early, "current beta version must be stated up front"
+    assert "0.7.0-beta" in early, "current beta version must be stated up front"
     assert "## ⚡ Install" in early or "## Install" in early
     # Source installation is the public path this repository supports; the only GitHub
     # packaged release is a private draft, and the separately operated website download
