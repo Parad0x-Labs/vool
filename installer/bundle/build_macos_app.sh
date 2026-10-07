@@ -1039,13 +1039,9 @@ elif [[ -x /usr/bin/codesign ]]; then
     if [[ "${SELF_CONTAINED}" -eq 1 ]]; then
       bad_macho=0
       seen_macho=0
-      while IFS= read -r -d '' macho; do
-        seen_macho=$((seen_macho + 1))
-        codesign --verify --strict "${macho}" >/dev/null 2>&1 && continue
-        codesign --force --sign - "${macho}" >/dev/null 2>&1 \
-          && codesign --verify --strict "${macho}" >/dev/null 2>&1 \
-          || { say "  invalid signature: ${macho#"${APP}/"}" >&2; bad_macho=$((bad_macho + 1)); }
-      done < <("${SYS_PY:-python3}" - "${APP}/Contents/Resources" <<'MACHO'
+      # The Mach-O lister is read into a variable first: a here-document inside a process
+      # substitution is a parse error ("ambiguous redirect") in bash 3.2, the /bin/bash macOS ships.
+      macho_lister="$(cat <<'MACHO'
 import os, struct, sys
 # Mach-O by magic number (thin 32/64-bit either endianness, or universal with a plausible
 # slice count -- a Java class file shares the universal magic but not the count).
@@ -1061,7 +1057,14 @@ for base, _dirs, files in os.walk(sys.argv[1]):
         if head[:4] in THIN or fat:
             sys.stdout.write(path + "\0")
 MACHO
-)
+)"
+      while IFS= read -r -d '' macho; do
+        seen_macho=$((seen_macho + 1))
+        codesign --verify --strict "${macho}" >/dev/null 2>&1 && continue
+        codesign --force --sign - "${macho}" >/dev/null 2>&1 \
+          && codesign --verify --strict "${macho}" >/dev/null 2>&1 \
+          || { say "  invalid signature: ${macho#"${APP}/"}" >&2; bad_macho=$((bad_macho + 1)); }
+      done < <("${SYS_PY:-python3}" -c "${macho_lister}" "${APP}/Contents/Resources")
       [[ "${seen_macho}" -gt 0 ]] || die "found no Mach-O files under Contents/Resources; the signature check enumerated nothing"
       [[ "${bad_macho}" -eq 0 ]] || die "${bad_macho} Mach-O file(s) in the bundle carry no valid signature; Apple Silicon would refuse to load them"
       codesign --force --sign - "${APP}" >/dev/null 2>&1 \
