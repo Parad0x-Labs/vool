@@ -93,6 +93,21 @@ _TOOL_REACHABLE_MULTIPART_TASK_CLASSES = frozenset({"research", "chat_research"}
 _QUOTE_PAIRS = {'"': '"', "“": "”", "'": "'", "‘": "’"}
 
 
+_INTERROGATIVE_FOCUS_RE = re.compile(r",\s*((?:what|which)\s+.+)$", re.IGNORECASE)
+
+
+def _interrogative_focus_floor(visible: str) -> int:
+    """Where `_INTERROGATIVE_FOCUS_RE` can first match: its `.+` cannot cross a newline, so a match
+    starts after the last inner newline or at the last comma before it. Searching from there finds
+    the same match without re-scanning every earlier line from every earlier comma (quadratic)."""
+    body = visible[:-1] if visible.endswith("\n") else visible
+    last_newline = body.rfind("\n")
+    if last_newline < 0:
+        return 0
+    comma = body.rfind(",", 0, last_newline)
+    return comma if comma >= 0 else last_newline
+
+
 def _is_word_apostrophe(text: str, index: int, char: str) -> bool:
     return bool(
         char in {"'", "’"}
@@ -279,7 +294,7 @@ def requested_answer_field_shape(text: str) -> str:
     # Bind the interrogative after leading contextual adjuncts before TurnIR's
     # connective split. A noun such as "rename" inside "before ... move and rename"
     # is context, not an imperative. A genuinely requested prefix is never discarded.
-    focus = re.search(r",\s*((?:what|which)\s+.+)$", visible, re.IGNORECASE)
+    focus = _INTERROGATIVE_FOCUS_RE.search(visible, _interrogative_focus_floor(visible))
     if focus is not None:
         prefix = visible[:focus.start()]
         context_parts = [part.strip() for part in prefix.split(",") if part.strip()]

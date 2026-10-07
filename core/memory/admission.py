@@ -37,6 +37,7 @@ is still admitted.  An unclosed quotation pair is not recognizable as a quotatio
 """
 from __future__ import annotations
 
+import bisect
 import re
 from dataclasses import dataclass, field
 
@@ -206,6 +207,36 @@ _QUOTE_SPAN_RE = re.compile(
     r"|(?<!\w)\u2018(?P<ssbody>.+?)\u2019(?!\w)",
     re.DOTALL,
 )
+#: Where each quote kind can open and close; used by `_iter_quote_spans`.
+_QUOTE_OPENER_RE = re.compile("(?<!\\w)[\"\u201c'\u2018]")
+_QUOTE_CLOSER_RE = re.compile("[\"\u201d'\u2019](?!\\w)")
+_QUOTE_CLOSER_FOR = {'"': '"', "\u201c": "\u201d", "'": "'", "\u2018": "\u2019"}
+
+
+def _iter_quote_spans(text: str):
+    """The matches `_QUOTE_SPAN_RE.finditer(text)` yields, in linear time.
+
+    finditer re-scans to the end of the text from every opener that has no closer after it, which is
+    quadratic on text with many unclosed quotes. An opener is tried only when a closer of its kind
+    exists at least two characters later; the span is then matched by `_QUOTE_SPAN_RE` itself.
+    """
+    closers: dict[str, list[int]] = {}
+    for closer in _QUOTE_CLOSER_RE.finditer(text):
+        closers.setdefault(closer.group(), []).append(closer.start())
+    position = 0
+    for opener in _QUOTE_OPENER_RE.finditer(text):
+        start = opener.start()
+        if start < position:
+            continue
+        candidates = closers.get(_QUOTE_CLOSER_FOR[opener.group()], [])
+        index = bisect.bisect_left(candidates, start + 2)
+        if index == len(candidates):
+            continue
+        match = _QUOTE_SPAN_RE.match(text, start, candidates[index] + 1)
+        if match is not None:
+            position = match.end()
+            yield match
+
 
 #: VALUE SLOT: a quote whose immediately preceding sentence text ends with a
 #: copula or naming connective occupies the value position of an authored
@@ -525,7 +556,7 @@ def _quote_spans_are_utterances(text: str) -> tuple[str, list[str]]:
     """
     source_spans: list[str] = []
     remove_ranges: list[tuple[int, int]] = []
-    for match in _QUOTE_SPAN_RE.finditer(text):
+    for match in _iter_quote_spans(text):
         body = next(
             group
             for key, group in match.groupdict().items()
