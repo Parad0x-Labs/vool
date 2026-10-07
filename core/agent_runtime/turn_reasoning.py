@@ -1594,11 +1594,23 @@ def execute_grounded_turn(
         from core.model_output_guard import replace_unobserved_live_claims
 
         _split = replace_unobserved_live_claims(response, user_turn_text=effective_input)
-        response = (
-            _split
-            if _split != response
-            else unverified_current_answer(effective_input)
-        )
+        if _split != response:
+            response = _split
+        else:
+            response = unverified_current_answer(effective_input)
+            # A question about someone this chat's records name was answered from those records, not from a
+            # lookup: the withdrawal says the value is not in the records.
+            try:
+                from core.bootstrap_context import admitted_capsule_evidence_text
+                from core.memory_grounding import question_names_someone_in_the_records
+                from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
+
+                if question_names_someone_in_the_records(
+                    effective_input, admitted_capsule_evidence_text(source_context or {}, str(session_id or ""))
+                ):
+                    response = RECORDS_WITHDRAWAL_NOTICE
+            except Exception:
+                pass
 
     if isinstance(source_context, dict):
         from hashlib import sha256
