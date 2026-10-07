@@ -51,6 +51,70 @@ from core.vool_memory import DEFAULT_AGENT_ID, VoolMemory
 
 LOGGER = logging.getLogger(__name__)
 
+
+def _memory_receipts_on() -> bool:
+    """VOOL_MEMORY_RECEIPTS=1 (NULLA_ honoured): write a memory receipt beside every stored occurrence."""
+    try:
+        from core.memory_receipts import enabled as _receipts_enabled
+
+        return _receipts_enabled()
+    except Exception:
+        return False
+
+def _kernel_on() -> bool:
+    """VOOL_EVIDENCE_KERNEL=1: receipt envelopes v2 and commit-or-raise on the turn write (core.evidence_kernel.receipts)."""
+    try:
+        from core.evidence_kernel.receipts import kernel_enabled as _kernel_enabled
+
+        return _kernel_enabled()
+    except Exception:
+        return False
+
+
+class _KernelWriteError(RuntimeError):
+    """A kernel write (receipt or envelope) did not land; store_turn reports the turn as failed."""
+
+
+def _kernel_turn_envelope(chat_id: str, occurrence: Any, body: str, receipt: Mapping[str, Any] | None, lineage: str) -> Any:
+    import hashlib as _hashlib
+
+    from core.evidence_kernel.receipts import EvidenceRef, issue
+
+    facts = list((receipt or {}).get("facts") or [])
+    changes = list((receipt or {}).get("changes") or [])
+    return issue(
+        kind="vool.memory.turn.v1", session_id=str(chat_id or ""), subject_type="memory_receipt",
+        subject={"receipt_id": (receipt or {}).get("receipt_id", ""), "facts": facts, "changes": changes, "withdraws": list((receipt or {}).get("withdraws") or [])},
+        evidence_refs=[EvidenceRef(occurrence_id=str(getattr(occurrence, "occurrence_id", "")), digest=_hashlib.sha256(body.encode("utf-8")).hexdigest(),
+                                   role=str(getattr(occurrence, "role", "")), kind="turn")],
+        status="recorded" if receipt else "recorded_without_receipt",
+        reason_codes=[f"facts:{len(facts)}", f"changes:{len(changes)}"], request_id=str(lineage or ""), turn_id=str(getattr(occurrence, "occurrence_id", "")),
+        parents=[str(c.get("old_receipt") or "") for c in changes if c.get("old_receipt")], commit=True)
+
+
+def _kernel_packet_envelope(chat_id: str, question: str, evidence_packet: Any, telemetry: dict[str, object]) -> None:
+    """Packet envelope (vool.memory.packet.v1), best-effort on the answer path: the obligation, completeness and the
+    facts delivered, by reference. Its status lands in telemetry so an unwritten envelope is visible, never silent."""
+    if evidence_packet is None or not _kernel_on():
+        return
+    try:
+        import hashlib as _hashlib
+
+        from core.evidence_kernel.receipts import EvidenceRef, issue
+
+        facts = list(getattr(evidence_packet, "facts", []) or [])
+        tele = dict(getattr(evidence_packet, "telemetry", {}) or {})
+        refs = [EvidenceRef(occurrence_id=str(f.get("occurrence_id") or ""), digest=_hashlib.sha256(str(f.get("line") or f.get("text") or "").encode("utf-8")).hexdigest(),
+                            role="user", kind=str(f.get("value_type") or f.get("kind") or "fact")) for f in facts if isinstance(f, Mapping)]
+        env = issue(kind="vool.memory.packet.v1", session_id=str(chat_id or ""), subject_type="evidence_packet",
+                    subject={"question_sha256": _hashlib.sha256(str(question or "").encode("utf-8")).hexdigest(), "obligation": tele.get("obligation"), "facts": facts},
+                    evidence_refs=refs, status=str(tele.get("completeness") or "unknown"),
+                    reason_codes=[f"facts:{len(facts)}", f"lines:{tele.get('lines', '')}"], commit=False)
+        telemetry["kernel_packet_receipt"] = {"receipt_id": env.receipt_id, "status": env.status, "assurance": env.assurance}
+    except Exception:
+        telemetry["kernel_packet_receipt"] = {"status": "error"}
+
+
 #: Aliased from the store so there is exactly one definition of the partition id.
 SEMANTIC_MEMORY_AGENT_ID = DEFAULT_AGENT_ID
 _AGENT_ID = SEMANTIC_MEMORY_AGENT_ID  # shared across sessions; session tags enforce isolation
@@ -6603,6 +6667,29 @@ def store_turn(
             # turn already has meaning-level recall (bounded search-time
             # backfill below covers rows written before this existed).
             _occurrence_embed_derivative(mem, occurrence, body)
+            # Memory receipt (VOOL_MEMORY_RECEIPTS=1): the turn's typed facts, event date and the facts it
+            # replaces, written once beside the occurrence (core.memory_receipts). Off: nothing changes.
+            result["occurrence_ids"] = list(occurrence_ids)  # what is on disk so far, kept on a later failure
+            if _memory_receipts_on():
+                try:
+                    from core.memory_receipts import write_receipt as _write_receipt
+
+                    _receipt = _write_receipt(mem, occurrence, chat_scope=policy.chat_id, said=body)
+                except Exception:
+                    if _kernel_on():
+                        # v14.2 kernel: a receipt that did not land is a failed turn write, never a silent gap.
+                        raise _KernelWriteError("receipt_write_error")
+                    LOGGER.debug("memory receipt write failed", exc_info=True)
+                    _receipt = None
+                if _kernel_on():
+                    # Turn envelope (vool.memory.turn.v1): the occurrence by reference and digest, the receipt's
+                    # facts by digest; appended commit-or-raise to the chat's chained ledger.
+                    try:
+                        _env = _kernel_turn_envelope(policy.chat_id, occurrence, body, _receipt, lineage)
+                    except Exception:
+                        raise _KernelWriteError("envelope_write_error")
+                    result.setdefault("turn_envelopes", []).append(_env.receipt_id)  # type: ignore[union-attr]
+                    result["kernel_assurance"] = _env.assurance
         # ── layer 2: semantic index admission (gates unchanged) ────────────
         # Only direct user statements are eligible for semantic indexing;
         # indexing generated text would let an unsupported assistant guess
@@ -6643,6 +6730,17 @@ def store_turn(
         return result
     except (TypeError, ValueError):
         result.update({"status": "failed", "reason": "invalid_context_policy"})
+        update_retrieval_telemetry(
+            memory_store_status=result["status"],
+            memory_store_count=0,
+            memory_store_reason=result["reason"],
+        )
+        return result
+    except _KernelWriteError as exc:
+        # Commit semantics (VOOL_EVIDENCE_KERNEL=1): the turn is NOT reported stored; the ids already on disk stay
+        # in the result so a retry or an audit knows exactly what landed.
+        result.update({"status": "failed", "reason": str(exc)})
+        LOGGER.warning("evidence kernel write failed: %s", exc)
         update_retrieval_telemetry(
             memory_store_status=result["status"],
             memory_store_count=0,
@@ -7123,6 +7221,27 @@ def import_conversation_history(
             )
             result["occurrence_ids"] = list(result["occurrence_ids"]) + [occurrence.occurrence_id]
             result["retained_count"] = int(result["retained_count"]) + 1
+            result["occurrence_ids"] = list(occurrence_ids)  # what is on disk so far, kept on a later failure
+            if _memory_receipts_on():
+                try:
+                    from core.memory_receipts import write_receipt as _write_receipt
+
+                    _receipt = _write_receipt(mem, occurrence, chat_scope=policy.chat_id, said=body)
+                except Exception:
+                    if _kernel_on():
+                        # v14.2 kernel: a receipt that did not land is a failed turn write, never a silent gap.
+                        raise _KernelWriteError("receipt_write_error")
+                    LOGGER.debug("memory receipt write failed", exc_info=True)
+                    _receipt = None
+                if _kernel_on():
+                    # Turn envelope (vool.memory.turn.v1): the occurrence by reference and digest, the receipt's
+                    # facts by digest; appended commit-or-raise to the chat's chained ledger.
+                    try:
+                        _env = _kernel_turn_envelope(policy.chat_id, occurrence, body, _receipt, lineage)
+                    except Exception:
+                        raise _KernelWriteError("envelope_write_error")
+                    result.setdefault("turn_envelopes", []).append(_env.receipt_id)  # type: ignore[union-attr]
+                    result["kernel_assurance"] = _env.assurance
             indexed = 0
             if role == "user":
                 indexed, _redacted = _admit_user_statement_to_index(
@@ -7974,6 +8093,27 @@ def _historical_anchor_candidates(
             keep, reserve_only_ids)
 
 
+def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "") -> list[dict[str, str]]:
+    """v14.2 kernel: when v14's own retrieval delivers nothing, the receipt packet still reaches the reader on its own
+    (a stated preference or a state chain is an operand whether or not a capsule line matched the question)."""
+    try:
+        from core.evidence_compiler import render as _render_packet
+
+        text = _render_packet(evidence_packet) if evidence_packet is not None else ""
+    except Exception:
+        text = ""
+    if evidence_packet is not None:
+        telemetry["evidence_compiler"] = dict(getattr(evidence_packet, "telemetry", {}) or {})
+        telemetry["evidence_packet_facts"] = list(getattr(evidence_packet, "facts", []) or [])
+        _kernel_packet_envelope(chat_id, question, evidence_packet, telemetry)
+    if not text:
+        _set_retrieval_telemetry(telemetry)
+        return transcript
+    telemetry["capsule_mode"] = "packet_only"
+    _set_retrieval_telemetry(telemetry)
+    return _inject_render_block(transcript, "<retrieved_context>\n" + text + "\n</retrieved_context>")
+
+
 def _capsule_v2_inject_retrieved(
     session_id: str | None,
     query: str,
@@ -8819,6 +8959,21 @@ def _capsule_v2_inject_retrieved(
         except Exception:
             LOGGER.debug("whole-turn lane failed", exc_info=True)
             whole_turn_units = []
+        # Evidence compiler (VOOL_EVIDENCE_COMPILER=1, core.evidence_compiler): obligations, receipt
+        # completeness and one targeted hop, read while the store is open; rendered beside the lane.
+        evidence_packet = None
+        try:
+            from core.evidence_compiler import compiler_enabled as _compiler_enabled
+
+            if _compiler_enabled():
+                from core.evidence_compiler import compile_packet as _compile_packet
+
+                evidence_packet = _compile_packet(
+                    mem, str(session_id or ""), query, expansions=search_expansions,
+                    estimate_tokens=estimate_tokens, q_vec=q_vec, q_backend=q_backend)
+        except Exception:
+            LOGGER.debug("evidence compiler failed", exc_info=True)
+            evidence_packet = None
         # The supplement's turns reach the contract with their own chain
         # mates: a later "scratch that about the <subject>" shares no word
         # with the question, so neither leg fetched it, and without it the
@@ -8844,8 +8999,7 @@ def _capsule_v2_inject_retrieved(
     except Exception:
         return transcript
     if not hits and not evidence_hits and not chain_extras:
-        _set_retrieval_telemetry({"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []})
-        return transcript
+        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""))
 
     # ── temporal eligibility (mission memory-quality90, temporal lane) ─────
     # One contract decides which candidates may be PACKED for THIS question:
@@ -9421,8 +9575,7 @@ def _capsule_v2_inject_retrieved(
         return True
 
     if not hits and not evidence_hits:
-        _set_retrieval_telemetry({"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []})
-        return transcript
+        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""))
     context_text = " ".join(m.get("content", "") for m in transcript).lower()
     selected: list[tuple[str, float]] = []
     selected_record_times: list[float | None] = []
@@ -11556,8 +11709,7 @@ def _capsule_v2_inject_retrieved(
             if receipt.get("delivered"):
                 receipt["delivered"] = False
                 receipt["omission_reason"] = "selection_filter"
-        _set_retrieval_telemetry(telemetry)
-        return transcript
+        return _packet_only_injection(transcript, evidence_packet, telemetry, chat_id=str(session_id or ""), question=str(query or ""))
     # Pack separable facts, not one indivisible capsule: presenting the whole
     # distilled block as a single candidate made the packer drop ALL retrieved
     # evidence when the block exceeded the remaining free budget, even though
@@ -11710,6 +11862,23 @@ def _capsule_v2_inject_retrieved(
             render_block = render_block.replace("\n</retrieved_context>", "\n" + lane + "\n</retrieved_context>", 1)
         else:
             render_block = "<retrieved_context>\n" + lane + "\n</retrieved_context>"
+    packet_text = ""
+    if evidence_packet is not None:
+        try:
+            from core.evidence_compiler import render as _render_packet
+
+            packet_text = _render_packet(evidence_packet)
+            telemetry["evidence_compiler"] = dict(evidence_packet.telemetry)
+            telemetry["evidence_packet_facts"] = list(evidence_packet.facts)
+            _kernel_packet_envelope(str(session_id or ""), str(query or ""), evidence_packet, telemetry)
+        except Exception:
+            LOGGER.debug("evidence packet render failed", exc_info=True)
+            packet_text = ""
+    if packet_text:
+        if render_block:
+            render_block = render_block.replace("\n</retrieved_context>", "\n" + packet_text + "\n</retrieved_context>", 1)
+        else:
+            render_block = "<retrieved_context>\n" + packet_text + "\n</retrieved_context>"
     telemetry.update(
         {
             "whole_turn_units": len(whole_turn_units),
