@@ -1,0 +1,138 @@
+ERROR tests/test_device_link_protocol.py
+ERROR tests/test_retrieval_presentation_contract.py::test_fresh_ingestion_exit_restart_delivers_real_content_despite_json_presentation[different_entity-The maple cupboard locker code is L-64. Its recorded colour label is pale amber. These are the complete recorded values for this cupboard.]
+ERROR tests/test_retrieval_presentation_contract.py::test_fresh_ingestion_exit_restart_delivers_real_content_despite_json_presentation[label-The fictional weather-vane station assigned to the willow bench is station P-29. Its inspection label is silver crescent. These are the complete recorded values for this station.]
+ERROR tests/test_retrieval_presentation_contract.py::test_fresh_ingestion_exit_restart_delivers_real_content_despite_json_presentation[station-The fictional weather-vane station assigned to the willow bench is station P-29. Its inspection label is silver crescent. These are the complete recorded values for this station.]
+ERROR tests/test_retrieval_presentation_contract.py::test_presentation_does_not_bypass_real_missing_facet_entity_actor_or_scope[absent_facet]
+ERROR tests/test_retrieval_presentation_contract.py::test_presentation_does_not_bypass_real_missing_facet_entity_actor_or_scope[ungranted]
+ERROR tests/test_retrieval_presentation_contract.py::test_presentation_does_not_bypass_real_missing_facet_entity_actor_or_scope[wrong_entity]
+ERROR tests/test_retrieval_presentation_contract.py::test_presentation_does_not_bypass_real_missing_facet_entity_actor_or_scope[wrong_person]
+FAILED tests/test_a_canonical_asset_keeps_its_obligation_count.py::test_a_fused_segment_is_judged_per_mention[ok what is the the price of xmr, xlm, bch usde and usd1-expected5]
+FAILED tests/test_canonical_obligation_floor.py::test_a_dependent_node_computes_from_its_dependencies_live_values
+FAILED tests/test_canonical_obligation_floor.py::test_the_briefing_carries_the_dependencies_values
+FAILED tests/test_capability_claims_truth.py::test_pay_x402_discloses_the_spend_lane_is_disabled
+FAILED tests/test_capsule_allowance_item_limits.py::test_sentence_group_never_adds_a_co_tenant_value
+FAILED tests/test_capsule_match_strength_eviction_20261002.py::test_enveloped_weak_lines_make_room_for_the_answering_span[200]
+FAILED tests/test_capsule_match_strength_eviction_20261002.py::test_enveloped_weak_lines_make_room_for_the_answering_span[280]
+FAILED tests/test_capsule_match_strength_eviction_20261002.py::test_enveloped_weak_lines_make_room_for_the_answering_span[340]
+FAILED tests/test_capsule_session_order.py::test_a_sitting_reaches_the_reader_together_and_in_spoken_order[What was Ines working on during the glassblowing residency at the harbour studio?]
+FAILED tests/test_capsule_session_order.py::test_a_sitting_reaches_the_reader_together_and_in_spoken_order[Which piece did Ines blow at the harbour studio residency?]
+FAILED tests/test_capsule_session_order.py::test_a_sitting_reaches_the_reader_together_and_in_spoken_order[ines residency piece what was it]
+FAILED tests/test_capsule_session_order.py::test_a_sitting_reaches_the_reader_together_and_in_spoken_order[what was ines working on at the residency]
+FAILED tests/test_conductor_currency_shared_context.py::test_all_seven_clauses_are_served_and_none_reports_nothing_to_act_on
+FAILED tests/test_conductor_currency_shared_context.py::test_every_node_runs_with_the_shared_context_available
+FAILED tests/test_conductor_currency_shared_context.py::test_sabotage_cutting_the_dependency_edge_empties_the_derived_facts_a_node_reads
+FAILED tests/test_conductor_currency_shared_context.py::test_sabotage_reordering_the_general_operations_takes_the_gaps_clause_from_the_right_one
+FAILED tests/test_conductor_currency_shared_context.py::test_the_answer_carries_every_value_the_story_implies
+FAILED tests/test_final_request_evidence_binding.py::test_clock_only_provider_carrier_cannot_authorize_a_past_event
+FAILED tests/test_final_request_evidence_binding.py::test_evidence_is_sealed_to_final_messages_query_and_turn
+FAILED tests/test_memory_shapes_do_not_claim_runtime_lanes.py::test_follow_up_on_a_present_answer_still_transforms_that_answer
+FAILED tests/test_obligation_floor_production_dispatch.py::test_a_fully_served_turn_is_not_refused_by_any_of_the_above
+FAILED tests/test_obligation_floor_production_dispatch.py::test_the_product_seam_ships_the_dependent_value
+FAILED tests/test_post_claim_envelope_product.py::test_the_control_turn_is_claimed_and_fulfilled
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_calendar_word_never_names_a_person[Friday's session at the lake, what did I do there?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_calendar_word_never_names_a_person[What did I fix on Friday?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_calendar_word_never_names_a_person[Which boats did we repaint in March?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_cue_less_record_question_reaches_the_reader_with_both_rules[bertil swiming feelings]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_cue_less_record_question_reaches_the_reader_with_both_rules[lake stuff tamsin set up w cousins]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_cue_less_record_question_reaches_the_reader_with_both_rules[tell me about tamsins lake plans]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_first_person_record_question_gets_no_attribution_rule
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_follow_up_that_names_a_recorded_speaker_in_lower_case_gets_the_rule[and tamsn?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_follow_up_that_names_a_recorded_speaker_in_lower_case_gets_the_rule[and what does bertil say swimming does for him]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_name_opening_with_a_capital_outside_a_to_z_is_a_person[What does sailing make \u0141ucja feel?-<retrieved_context>\nDistilled local facts. Answer from these records.\n- user said: Session date: 8:00 am on 5 May, 2033\n\u0141ucja: Sailing at dawn makes me feel unhurried. (stated: 2033-05-05)\n- user said (stated 2033-05-05): Session date: 8:00 am on 5 May, 2033\n\xd8yvind: I built a cedar dinghy for the fjord race.\n</retrieved_context>]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_name_opening_with_a_capital_outside_a_to_z_is_a_person[When did \xd6mer repaint the boathouse?-<retrieved_context>\nDistilled local facts. Answer from these records.\n- user said: my neighbour baked rye loaves for the autumn fair (stated: 2030-10-02)\n</retrieved_context>]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_name_opening_with_a_capital_outside_a_to_z_is_a_person[Which loaves did S\xe9gol\xe8ne bring to the fair?-<retrieved_context>\nDistilled local facts. Answer from these records.\n- user said: my neighbour baked rye loaves for the autumn fair (stated: 2030-10-02)\n</retrieved_context>]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_name_opening_with_a_capital_outside_a_to_z_is_a_person[\xd8yvind built what for the race-<retrieved_context>\nDistilled local facts. Answer from these records.\n- user said: Session date: 8:00 am on 5 May, 2033\n\u0141ucja: Sailing at dawn makes me feel unhurried. (stated: 2033-05-05)\n- user said (stated 2033-05-05): Session date: 8:00 am on 5 May, 2033\n\xd8yvind: I built a cedar dinghy for the fjord race.\n</retrieved_context>]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_name_opening_with_a_capital_outside_a_to_z_is_a_person[what did \xf8yvind build for the fjord race-<retrieved_context>\nDistilled local facts. Answer from these records.\n- user said: Session date: 8:00 am on 5 May, 2033\n\u0141ucja: Sailing at dawn makes me feel unhurried. (stated: 2033-05-05)\n- user said (stated 2033-05-05): Session date: 8:00 am on 5 May, 2033\n\xd8yvind: I built a cedar dinghy for the fjord race.\n</retrieved_context>]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_pronoun_follow_up_gets_the_linked_rule_but_names_no_person
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_gets_the_linked_records_rule[What cool stuff got fixed at the boathouse on 3 April, 2031?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_gets_the_linked_records_rule[What did I arrange on the lake?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_gets_the_linked_records_rule[Which sessions were set up that week?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_gets_the_linked_records_rule[was the rowing weekly or monthly]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_gets_the_linked_records_rule[what kind of boats were being fixed up at the boatyard]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[Did Tamsin plan anything with her cousins on the lake?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[How does swimming make Bertil feel, by his own account?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[In Bertil's words, swimming leaves him feeling what?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[Tell me what Tamsin organised with her cousins on the water.]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[WHAT DID TAMSIN ARRANGE ON THE LAKE]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[What does swimming do for Bertil's mood, by his own account?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[What feeling does Bertil say he gets from swimming?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[Which lake outings did Tamsin organise for her cousins?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[Which sessions did Tamsin set up with her cousins at the lake?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[acording to bertil what does swiming help him feel]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[bertil swiming feelings]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[bertil swimming feel??]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[how swimming make bertil feel]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[lake stuff tamsin set up w cousins]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[tamsin's cousins + lake, what did they set up]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[tell me about tamsins lake plans]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_record_question_naming_a_person_gets_the_attribution_rule[what did tamsin n cousins arange on lake]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[Describe what happened on 3 April, 2031.-False]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[Explain why Tamsin set up the rowing sessions.-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[I can't remember how swimming makes Bertil feel-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[I wonder what Tamsin arranged on the lake-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[Remember when Bertil fixed up the boats?-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[Summarize what we talked about in our chats.-False]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[Tell me what Bertil said about swimming.-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[let me know what bertil said about the boats-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[recall the boats bertil was fixing-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[remind me wat bertil fixed-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_pointing_at_the_records_asks_them[remind me what tamsin set up on the lake-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_request_that_asks_nothing_gets_no_record_rule[Summarize the plot of a famous play in two sentences.]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_slip_in_a_near_word_speaker_still_names_the_speaker[what did martn fix on the porch]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_slip_in_a_near_word_speaker_still_names_the_speaker[when does casie's choir meet]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_speaker_label_after_an_attribution_colon_is_read
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_speaker_name_with_one_typing_slip_still_names_the_person[berttil swimming feelings]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_speaker_name_with_one_typing_slip_still_names_the_person[how does swimming make bretil feel]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_speaker_name_with_one_typing_slip_still_names_the_person[tasmin lake outings w cousins]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_speaker_name_with_one_typing_slip_still_names_the_person[what did tamsni arrange on the lake]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_speaker_name_with_one_typing_slip_still_names_the_person[what did tamzin set up on the lake]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_speaker_name_with_one_typing_slip_still_names_the_person[what does swiming do for bertl]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_verb_that_is_also_a_noun_opens_a_fragment_before_a_preposition[call with tamsin last week, what did we agree-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_verb_that_is_also_a_noun_opens_a_fragment_before_a_preposition[list of the boats bertil fixed-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_verb_that_is_also_a_noun_opens_a_fragment_before_a_preposition[plan for the lake trip
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_verb_that_is_also_a_noun_opens_a_fragment_before_a_preposition[update on bertil's boat repairs?-True]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_word_one_letter_from_a_speaker_is_not_that_speaker[how did the sands shift after the storm]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_word_one_letter_from_a_speaker_is_not_that_speaker[what goes into a dry martini]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_word_one_letter_from_a_speaker_is_not_that_speaker[when did the lassie get her collar]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_word_sentences_open_with_is_not_a_name[Recently, what did I fix?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_a_word_sentences_open_with_is_not_a_name[Swimming makes me feel what?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_interrogative_word_inside_a_fragment_asks[and how did the boat repairs go]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_interrogative_word_inside_a_fragment_asks[rowing sessions on the lake
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_interrogative_word_inside_a_fragment_asks[swimming makes you feel what]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_interrogative_word_inside_a_fragment_asks[that boat from the regatta, which colour was it]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_interrogative_word_inside_a_fragment_asks[the lake sessions were held where]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_interrogative_word_inside_a_fragment_asks[wat happend at the boathouse on 3 april]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_interrogative_word_inside_a_fragment_asks[whn did the rowing start]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[Bertil wants to take up which sport once the regatta is over? Select the correct answer: (a) Not mentioned in the conversation (b) Fencing.]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[What colour is Bertil's boat? (a) green (b) not explicitly mentioned]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[What did Bertil name his boat? (a) Not mentoined in the chats (b) Heron]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[Which boat replaced Tamsin's sunken kayak? Select the correct answer: (a) a canoe (b) Not mentioned in the conversation.]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[Which lake did Tamsin swim in? 1) Lake Vann 2) isnt mentioned]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[Who repainted the boathouse? (a) Bertil (b) nowhere in the chats]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[Who set up the rowing sessions? 1) Bertil 2) Tamsin 3) It is not mentioned]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[Who taught Tamsin to row? (a) her aunt (b) Not in the records]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[bertil hobby after the regatta a) fencing b) no info]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[bertil's new hobby?? a) fencing b) its not stated]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[tamsin's boat club? a) Heron Club b) not specifed]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[tamsins first boat?? a) a canoe b) dont know]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_offered_not_mentioned_option_gets_only_the_premise_rule[which boat did tamsin get after the kayak sank (a) canoe (b) not mentiond]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_option_that_only_resembles_not_mentioned_keeps_the_open_question_rules[Has Tamsin's course begun? (a) not started yet (b) started in May]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_option_that_only_resembles_not_mentioned_keeps_the_open_question_rules[How is Bertil doing at the club? (a) not mentoring anyone (b) mentoring two rowers]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_option_that_only_resembles_not_mentioned_keeps_the_open_question_rules[Which plan did Bertil pick? (a) no data plan (b) the unlimited plan]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_unseen_capitalised_name_in_unlabelled_records_gets_the_attribution_rule[Okonkwo baked what for the autumn fair]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_unseen_capitalised_name_in_unlabelled_records_gets_the_attribution_rule[S\xe9gol\xe8ne baked rye for the fair, right?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_unseen_capitalised_name_in_unlabelled_records_gets_the_attribution_rule[Saoirse brought which loaves to the fair?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_unseen_capitalised_name_in_unlabelled_records_gets_the_attribution_rule[What did Okonkwo bake for the autumn fair?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_unseen_capitalised_name_in_unlabelled_records_gets_the_attribution_rule[When did Wieslawa's brother repaint the boathouse?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_unseen_capitalised_name_in_unlabelled_records_gets_the_attribution_rule[Which loaves did my neighbour Saoirse bring to the fair?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_an_unseen_capitalised_name_in_unlabelled_records_gets_the_attribution_rule[Wieslawa's brother repainted the boathouse when?]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_options_without_a_not_mentioned_choice_stay_an_open_record_question
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_the_harness_answer_instructions_ask_nothing_by_themselves[Describe a perfect day at the beach.]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_the_harness_answer_instructions_ask_nothing_by_themselves[Thanks!]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_the_harness_answer_instructions_ask_nothing_by_themselves[Write a haiku about the boathouse.]
+FAILED tests/test_reader_contract_attribution_and_linked_records.py::test_the_one_rewrite_repeats_exactly_the_rules_the_first_call_carried
+FAILED tests/test_temporal_capsule_seams_20260929.py::test_capsule_as_of_ask_serves_the_value_that_applied
+FAILED tests/test_temporal_capsule_seams_20260929.py::test_capsule_current_ask_serves_correction_with_true_date_and_ids
+FAILED tests/test_temporal_capsule_seams_20260929.py::test_capsule_window_expiry_and_reversion_pair
+FAILED tests/test_temporal_capsule_seams_20260929.py::test_cross_lane_recency_sensitive_question_keeps_strict_law
+FAILED tests/test_temporal_capsule_seams_20260929.py::test_retraction_survives_a_true_process_restart
