@@ -3866,6 +3866,188 @@ def _lane_admitted_user_text(raw: str) -> str:
     return "\n".join(lines).strip() if content else ""
 
 
+#: Ineligible verdicts that refuse no value of their own: the record's words reach the reader another way.
+_LANE_TOLERATED_VERDICTS = frozenset({"assistant-derivative", "historical-attributed"})
+_LANE_HONOURS_PACK_SELECTION = False  # measured 2026-10-07: the pack leaves fillers unselected by relevance, not by law; the lane ranks them on purpose
+
+
+def _pack_cut_inside_a_sentence(body: str, spans: Sequence[tuple[int, int]]) -> bool:
+    """Whether one of the pack's delivered spans of *body* stops before its sentence does: the text after the span,
+    inside the same sentence, is what the pack chose not to deliver."""
+    ends = sorted({int(end) for _start, end in spans if int(end) > 0})
+    for end in ends:
+        if end >= len(body):
+            continue
+        tail = body[end:]
+        if not tail.strip() or tail.lstrip(" \t").startswith(("\n", "\r")):
+            continue  # the span ends its line: nothing of that sentence was left out
+        sentence_end = len(body)
+        for mark in re.finditer(r"[.!?](?=\s|$)|\n", body[end:]):
+            sentence_end = end + mark.end()
+            break
+        if any(other >= sentence_end for other in ends):
+            continue  # a longer delivered span of the same turn reaches the sentence's end
+        rest = tail.lstrip()
+        if rest[0] in ",;:" or rest[0] in "\u2014\u2013-" or (rest[0].islower() and body[end - 1] not in ".!?"):
+            return True
+    return False
+
+
+def _whole_turn_units_facing_the_laws(
+    units: list[list[Any]], *, verdicts: Any, runtime_home: str | None,
+    refused: list[dict[str, str]] | None = None, considered: Sequence[Any] = (),
+    receipts: Sequence[Mapping[str, Any]] = (), delivered_text: str = "", query: str = "",
+) -> list[list[Any]]:
+    """The ranked units the lane may still render: none whose member a temporal verdict found ineligible this
+    turn (superseded, withdrawn, future-declared, outside the window, stale), and none whose member the store
+    no longer holds as ranked (missing, inactive, integrity mismatch, or a changed speaker, role, scope, body
+    or time). The verdicts are the ones the capsule already made; the store is re-read here because the lane
+    renders after the main pack closed it. A store that cannot be re-opened licenses nothing: every unit is
+    refused rather than served from the ranked copy."""
+    if not units:
+        return []
+    kept: list[list[Any]] = []
+    verdict_map = verdicts if isinstance(verdicts, dict) else {}
+    # The main pack's own decision, whatever its law (temporal contract, hedge, backchannel, ownership, window,
+    # episode, speaker scope, budget): a record the pack read and delivered nothing from is refused here too.
+    # Records the pack never read (the lane's own search legs found them) are the lane's to render.
+    considered_ids = {str(getattr(o, "occurrence_id", "") or "") for o in (considered or ())}
+    considered_ids |= {str(r.get("occurrence_id") or "") for r in (receipts or ())}
+    delivered_ids = {str(r.get("occurrence_id") or "") for r in (receipts or ()) if r.get("delivered")}
+    # A turn the pack cut INSIDE a sentence is decided: the rest of that sentence (a displaced value, "the 18:05 slot
+    # went to the maintenance fleet") was left out on purpose and stays out. A span that ends at a sentence end is the
+    # distilled line, and the lane may still show the whole record beside it.
+    cut_spans: dict[str, list[tuple[int, int]]] = {}
+    for r in receipts or ():
+        span = r.get("span")
+        if r.get("delivered") and isinstance(span, Mapping):
+            try:
+                cut_spans.setdefault(str(r.get("occurrence_id") or ""), []).append((int(span.get("start", 0)), int(span.get("end", 0))))
+            except (TypeError, ValueError):
+                continue
+    # ... and the words the capsule already delivered are not served a second time from a repeated turn of the SAME
+    # speaker; identical words from the other speaker stay (the lane's own law in _whole_turn_already_delivered).
+    try:
+        asked_terms = _query_overlap_terms(str(query or ""))
+    except Exception:  # pragma: no cover - pure helper
+        asked_terms = set()
+    delivered_lines: dict[str, list[str]] = {"user": [], "assistant": []}
+    current_role = ""
+    for line in str(delivered_text or "").splitlines():
+        stripped = line.strip()
+        opened = next((role for role in ("user", "assistant") if stripped.startswith(f"- {role} said")), "")
+        if opened:
+            current_role = opened
+            delivered_lines[opened].append(" ".join(stripped.lower().split()))
+        elif current_role and stripped and not stripped.startswith(("- ", "<", "Evidence turns", "Distilled")):
+            # a delivered record's continuation line (a labelled dialogue turn under its session-date line)
+            delivered_lines[current_role][-1] += " " + " ".join(stripped.lower().split())
+        else:
+            current_role = ""
+    memory = None
+    store_error = ""
+    try:
+        memory = _open_memory_for_runtime(runtime_home)
+    except Exception as exc:  # pragma: no cover - store failure path
+        store_error = type(exc).__name__
+    if memory is None and not store_error:
+        store_error = "store_unavailable"
+    try:
+        for unit in units:
+            reason = ""
+            for occurrence in unit:
+                key = str(getattr(occurrence, "occurrence_id", "") or "")
+                verdict = verdict_map.get(key)
+                if verdict is not None and not getattr(verdict, "eligible", True) \
+                        and str(getattr(verdict, "reason", "") or "") not in _LANE_TOLERATED_VERDICTS:
+                    # An ineligible verdict is a decision the main pack already honoured: superseded, withdrawn,
+                    # future-declared, outside the window, a stale observation, a duplicate of the winner. The lane
+                    # renders whole turns with their values, so none of them may ride here (the pack's own value-free
+                    # prefix ride is its own). An assistant derivative is not a refused value: the lane's law keeps
+                    # identical words from the other speaker.
+                    reason = "temporal:" + str(getattr(verdict, "reason", "") or "")
+                    break
+                body = str(getattr(occurrence, "body", "") or "")
+                body_norm = " ".join(body.lower().split())
+                role = str(getattr(occurrence, "role", "") or "")
+                other = "assistant" if role == "user" else "user"
+                same_words_other_speaker = bool(body_norm) and any(body_norm in line for line in delivered_lines.get(other, ()))
+                if (_LANE_HONOURS_PACK_SELECTION and key in considered_ids and key not in delivered_ids
+                        and len(body) <= _TURN_LANE_UNIT_MAX_CHARS and not same_words_other_speaker
+                        and asked_terms and _query_terms_in_text(body_norm, asked_terms, _stemmed_token_set(body_norm))):
+                    # A short turn ABOUT the ask (it carries an asked term) that the pack read whole and delivered
+                    # nothing from is the pack's refusal: its ownership, speaker-scope, envelope, window and episode
+                    # laws decided there. A turn that shares no asked term was never selected, not refused, and stays
+                    # the lane's to rank; a turn longer than the lane's unit bound is the lane's own region case.
+                    reason = "pack:not_delivered"
+                    break
+                if key in cut_spans and _pack_cut_inside_a_sentence(body, cut_spans[key]):
+                    reason = "pack:bounded_span_delivered"
+                    break
+                if key not in delivered_ids and len(body) <= _TURN_LANE_UNIT_MAX_CHARS:
+                    # The pack's own span laws, applied to a short turn the pack delivered nothing from: a hedged or
+                    # speculative user turn ("we might instead book the 11:15") and a bare acknowledgment or greeting
+                    # ("Haha nice one, cheers.") are refused by the pack's predicates, not by a list of their own.
+                    content = _envelope_masked(body) if "\n" in body else body
+                    speaker_free = re.sub(r"^[A-Z][\w' .-]{0,40}:\s*", "", content.strip())
+                    if role == "user" and _span_is_hedged(speaker_free):
+                        reason = "pack:hedged"
+                        break
+                    if _span_is_acknowledgment(speaker_free):
+                        reason = "pack:acknowledgment"
+                        break
+                    # The pack's speaker-scope law for a labelled dialogue turn: a turn rides only when its own words,
+                    # the speakers' names aside, carry an asked term ("Declan: Haha nice one, cheers." carries none).
+                    label = re.match(r"^([A-Z][\w' .-]{0,40}):\s", content.strip())
+                    if label and asked_terms:
+                        names = {w.lower() for w in label.group(1).split()}
+                        own_terms = {term for term in asked_terms if term.lower() not in names}
+                        words = speaker_free.lower()
+                        if own_terms and not _query_terms_in_text(words, own_terms, _stemmed_token_set(words)):
+                            reason = "pack:speaker_scope"
+                            break
+                if body_norm and key not in delivered_ids and any(body_norm in line for line in delivered_lines.get(role, ())):
+                    reason = "pack:already_delivered"
+                    break
+                if store_error:
+                    reason = "revalidation:" + store_error
+                    break
+                try:
+                    current = memory.occurrence_get(key)
+                except Exception:
+                    current = None
+                if current is None:
+                    reason = "revalidation:missing"
+                    break
+                if str(getattr(current, "status", "active") or "active") != "active":
+                    reason = "revalidation:inactive"
+                    break
+                if str(getattr(current, "body_integrity", "") or "") == "mismatch":
+                    reason = "revalidation:integrity_mismatch"
+                    break
+                if any(str(getattr(current, field, "") or "") != str(getattr(occurrence, field, "") or "")
+                       for field in ("role", "speaker", "chat_scope", "authority", "source_kind")):
+                    reason = "revalidation:identity_changed"
+                    break
+                if any(getattr(current, field, None) != getattr(occurrence, field, None)
+                       for field in ("statement_at", "event_at", "recorded_at")):
+                    reason = "revalidation:temporal_identity_changed"
+                    break
+                if str(getattr(current, "body", "") or "") != str(getattr(occurrence, "body", "") or ""):
+                    reason = "revalidation:body_changed"
+                    break
+            if reason:
+                if refused is not None:
+                    refused.append({"occurrence_id": str(getattr(unit[0], "occurrence_id", "") or ""), "reason": reason})
+                continue
+            kept.append(unit)
+    finally:
+        if memory is not None:
+            with contextlib.suppress(Exception):
+                memory.close()
+    return kept
+
+
 def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
                       max_tokens: int | None = None, assistant_ask: bool = False,
                       owned_only: bool = False, query: str = "",
@@ -12115,6 +12297,19 @@ def _capsule_v2_inject_retrieved(
     # every turn a search leg returns, so it handed such a record back whole after the capsule had refused it. Only
     # the as-of law is applied here; which earlier values ride beside their corrections is the lane's own law.
     whole_turn_units = _whole_turn_units_known_by_as_of(whole_turn_units, query, question_as_of)
+    # The lane faces the capsule's temporal law and the store as it is NOW. Ranked while the store was open, its
+    # units were never adjudicated: a record the temporal owner withdrew ("disregard the storage unit code",
+    # "we had to cancel it") or refused as outside the asked window shipped whole through the lane with its value
+    # (tests/test_retraction_grammar_20261003.py, served check 2026-10-07), and an occurrence deleted or altered
+    # between discovery and render shipped from the ranked copy after the main pack had refused it
+    # (tests/test_requested_source_authority_contract.py). Both refusals are recorded on the telemetry.
+    _lane_refused: list[dict[str, str]] = []
+    whole_turn_units = _whole_turn_units_facing_the_laws(
+        whole_turn_units, verdicts=locals().get("verdicts"), runtime_home=runtime_home, refused=_lane_refused,
+        considered=[occ for occ, _s in (locals().get("evidence_hits") or [])],
+        receipts=locals().get("evidence_receipts") or [], delivered_text=render_block, query=query)
+    if _lane_refused:
+        telemetry["whole_turn_lane_refused"] = _lane_refused
     turn_lines, turn_tokens = ([], 0)
     lane_rendered: list[tuple[Any, str]] = []
     try:
