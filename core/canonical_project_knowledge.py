@@ -16,10 +16,13 @@ _ALLOWLIST = (
     "docs/STATUS.md",
     "docs/RUNTIME_ARCHITECTURE_CONTRACT.md",
 )
+# Names that only ever mean this project. A match marks the turn "canonical grounding required":
+# repository passages are put in front of the model and a "what/who is ..." question is kept off
+# web lookup. Ordinary words and third-party names used to be on this list, so "I named my cat
+# Nulla" ("nulla" is Latin and Italian for "nothing"), "my ice cream started to liquefy", "what is
+# solana?" and "who is Nulla in the Witcher?" were answered as questions about VOOL.
 _ENTITY_RE = re.compile(
-    r"\b(?:vool|nulla|parad0x|web[\s-]?0|openrouter|ollama|"
-    r"dna[\s-]?x402|x402|dark[\s-]?null|liquefy|solana|"
-    r"arweave|openclaw)\b|\.null\b",
+    r"\b(?:vool|nulla[\s-]?local|parad0x|web[\s-]?0|dna[\s-]?x402|x402|dark[\s-]?null|openclaw)\b|\.null\b",
     re.IGNORECASE,
 )
 _PATH_TOKEN_RE = re.compile(

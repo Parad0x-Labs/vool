@@ -3,6 +3,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from core.hive_activity_tracker import looks_like_hive_prompt_control
+from core.hive_command_shape import is_short_hive_clause
+
 _HIVE_MARKERS = ("hive", "hive mind", "brain hive", "public hive")
 _HIVE_TASK_MARKERS = ("task", "tasks", "taks", "work")
 _HIVE_INQUIRY_MARKERS = (
@@ -75,6 +78,12 @@ def recover_hive_runtime_command_input(
         return "show me the open hive tasks"
     if not _contains_phrase_marker(lowered, _HIVE_MARKERS):
         return ""
+    # Rewriting the turn into "show me the open hive tasks" replaces what the user said, so it is
+    # done only for one short clause about the Hive itself. Any sentence carrying "hive" plus a
+    # "task"/"work" word and a "what"/"any" word used to be rewritten -- "we use hive mind tools at
+    # work, any risks?" and "what tasks should I do in my hive this spring?" got the Hive listing.
+    if not is_short_hive_clause(lowered):
+        return ""
     if any(
         marker in lowered
         for marker in (
@@ -114,9 +123,9 @@ def looks_like_hive_prompt_control_command(user_input: str) -> bool:
     lowered = " ".join(str(user_input or "").strip().lower().split())
     if not lowered:
         return False
-    if "ignore hive" in lowered or "ignore it for now" in lowered:
+    if "ignore hive" in lowered:
         return True
-    return "ignore" in lowered and "remind" in lowered
+    return looks_like_hive_prompt_control(lowered) and "remind" in lowered
 
 
 def maybe_handle_hive_bridge_fallback(

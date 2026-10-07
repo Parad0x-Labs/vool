@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 from core import policy_engine
 from core.canonical_project_knowledge import has_canonical_project_entity
+from core.hive_command_shape import is_short_hive_clause, matches_hive_command
 from core.learning import load_procedure_shards, rank_reusable_procedures
 from core.learning_integration import _inert_guidance_line
 from core.orchestration import TaskEnvelopeV1, build_task_envelope
@@ -103,7 +104,9 @@ _GENERAL_ADVISORY_MARKERS = (
     "how do i handle",
 )
 _HIVE_MARKERS = ("hive", "hive mind", "brain hive", "public hive")
-_SEMANTIC_HIVE_FALLBACK_MARKERS = ("task", "tasks", "work", "queue", "open", "available", "online", "anything")
+# Product nouns only. "work", "open", "available", "online" and "anything" next to "hive" are
+# ordinary English ("anything on the hive inspection checklist I should add?").
+_SEMANTIC_HIVE_FALLBACK_MARKERS = ("task", "tasks", "taks", "queue")
 _SEMANTIC_HIVE_PATTERNS = (
     re.compile(r"\b(?:check|show|list|see)\s+(?:the\s+)?(?:hive|hive mind|brain hive|public hive)\b"),
     re.compile(r"\bwhat(?:'s| is)\s+in\s+(?:the\s+)?(?:hive|hive mind|brain hive|public hive)\b"),
@@ -369,12 +372,13 @@ def looks_like_semantic_hive_request(text: str) -> bool:
         )
     ):
         return False
-    if any(pattern.search(lowered) for pattern in _SEMANTIC_HIVE_PATTERNS):
+    # The whole message must be the Hive request. Searched anywhere, these patterns and the
+    # "hive" + "task/work/open/online/anything" fallback claimed ordinary sentences such as
+    # "anything on the hive inspection checklist I should add?" and "we use hive mind tools at
+    # work, any risks?", and the runtime then rewrote them into the Hive task listing.
+    if matches_hive_command(lowered, _SEMANTIC_HIVE_PATTERNS):
         return True
-    return bool(
-        _contains_phrase_marker(lowered, _HIVE_MARKERS)
-        and _contains_phrase_marker(lowered, _SEMANTIC_HIVE_FALLBACK_MARKERS)
-    )
+    return is_short_hive_clause(lowered) and _contains_phrase_marker(lowered, _SEMANTIC_HIVE_FALLBACK_MARKERS)
 
 
 def _is_mailbox_request(text: str) -> bool:

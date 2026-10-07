@@ -177,6 +177,13 @@ def pact_rig(tmp_path, monkeypatch):
     from core.conductor.obligation_ledger import clear_active_set
 
     clear_active_set()
+    # The approval store is process-global: a pending approval another test registered would be
+    # persisted into THIS home's pending_approvals.json and resolved by `run_task_turn` in place
+    # of this turn's own (CI run 37243997742, shard 1: test_notification_hub's approvals ->
+    # 409 evidence_missing here).
+    from core.mode_permission_policy import reset_mode_permission_state
+
+    reset_mode_permission_state()
     from core.semantic.semantic_result_seam import reset_admission
 
     reset_admission()
@@ -225,6 +232,10 @@ def pact_rig(tmp_path, monkeypatch):
         from core.semantic.semantic_admissions import clear_execution_context
 
         clear_execution_context()
+    except Exception:
+        pass
+    try:
+        reset_mode_permission_state()
     except Exception:
         pass
     try:
