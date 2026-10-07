@@ -381,6 +381,10 @@ stage_self_contained() {
   # reproducible, and it silently needs a Rust toolchain. With --no-build the resolver simply
   # picks versions that ship a wheel for the target, which it can: the same dependency set
   # resolves wheel-only for both architectures.
+  # uv evaluates --python-platform against macOS 13.0 unless told the target floor, so a wheel
+  # tagged for this bundle's own minimum (the Intel cryptography 50.0.2 wheel is macosx_14_0)
+  # read as unusable and resolution failed. The floor is the one Info.plist declares.
+  MACOSX_DEPLOYMENT_TARGET="${MACOS_MIN_VERSION}" \
   uv pip install --python "${embedded}" --python-platform "${UV_PLATFORM}" --no-build \
       --no-compile-bytecode --quiet \
       ${wheelhouse_args[@]+"${wheelhouse_args[@]}"} \
