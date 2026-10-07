@@ -87,10 +87,38 @@ def _handle_receipts_show(inp, ctx):
     return HandlerOk(data=row, summary=f"Finalization {inp.finalization_id}")
 
 
+def _verify_kernel_chain(session_id: str) -> dict:
+    """The memory kernel's receipt ledgers (core.evidence_kernel.receipts): every ledger of the session, or every
+    ledger on disk, each envelope valid, chained, and the head naming the last one."""
+    from core.evidence_kernel.receipts import iter_ledger_files, ledger_path, verify_ledger_file
+
+    files = iter_ledger_files()
+    if session_id:
+        # a ledger file is named by its session's digest, the same in every kind directory
+        files = [p for p in files if p.name == ledger_path(p.parent.name, session_id).name]
+    envelopes = 0
+    broken = []
+    for path in files:
+        ok, why = verify_ledger_file(path)
+        if ok:
+            envelopes += sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+        else:
+            broken.append({"ledger": f"{path.parent.name}/{path.name}", "reason": why})
+    return {"ledgers": len(files), "envelopes": envelopes, "broken": broken}
+
+
 def _handle_receipts_verify(inp, ctx):
     from core.honesty_receipt import list_honesty_receipts, verify_honesty_chain
 
     session_id = (inp.session_id or "").strip()
+    kernel = _verify_kernel_chain(session_id)
+    if kernel["broken"]:
+        first = kernel["broken"][0]
+        return HandlerFault(
+            fault_code="fault_validation",
+            summary=f"Memory kernel chain verification failed: {first['ledger']} {first['reason']}",
+            detail={"kernel_chain": kernel},
+        )
     if session_id:
         receipts = list_honesty_receipts(session_id)
         source = f"session:{session_id}"
@@ -100,8 +128,9 @@ def _handle_receipts_verify(inp, ctx):
         latest = _latest_ledger_path()
         if latest is None:
             return HandlerOk(
-                data={"chain_ok": True, "receipt_count": 0, "source": "none"},
-                summary="No honesty ledger exists yet — nothing to verify",
+                data={"chain_ok": True, "receipt_count": 0, "source": "none", "kernel_chain": kernel},
+                summary=(f"No honesty ledger exists yet; memory kernel chain: {kernel['ledgers']} ledgers, "
+                         f"{kernel['envelopes']} envelopes consistent"),
             )
         receipts = json.loads(latest.read_text() or "[]")
         source = str(latest)
@@ -110,7 +139,7 @@ def _handle_receipts_verify(inp, ctx):
         return HandlerFault(
             fault_code="fault_validation",
             summary=f"Honesty chain verification failed: {reason}",
-            detail={"reason": reason, "source": source},
+            detail={"reason": reason, "source": source, "kernel_chain": kernel},
         )
     from core.honesty_receipt import CHAIN_PROVEN_CLAIM, CHAIN_UNPROVEN_CLAIM
 
@@ -125,10 +154,12 @@ def _handle_receipts_verify(inp, ctx):
             "proven": CHAIN_PROVEN_CLAIM,
             "not_proven": CHAIN_UNPROVEN_CLAIM,
             "completeness_proven": False,
+            "kernel_chain": kernel,
         },
         summary=(
             f"{len(receipts)} receipts present are consistent — each valid and correctly "
-            "linked; completeness is not proven"
+            f"linked; completeness is not proven; memory kernel chain: {kernel['ledgers']} ledgers, "
+            f"{kernel['envelopes']} envelopes consistent"
         ),
     )
 
@@ -175,7 +206,7 @@ def register(reg) -> None:
         CommandSpec(
             command_id="receipts.verify",
             group="receipts",
-            description="Verify the honesty receipt chain for a session (latest if omitted)",
+            description="Verify the honesty receipt chain and the memory kernel chain for a session (latest / all if omitted)",
             input_schema=VerifyInput,
             effects="read_only",
             capabilities=frozenset({"honesty_chain.verify"}),
