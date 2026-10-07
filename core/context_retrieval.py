@@ -3813,7 +3813,11 @@ def _lane_admitted_user_text(raw: str) -> str:
         kept.append(line)
     view = _recall_assertion_view("\n".join(kept))
     lines = [" ".join(line.split()) for line in view.splitlines()]
-    return "\n".join(line for line in lines if line).strip()
+    lines = [line for line in lines if line]
+    # A session envelope ("Session date: ...") dates the record's content; alone it is no content.
+    content = [line for line in lines if not _is_envelope_line(_EMBEDDED_ROLE_LINE_RE.sub("", line).strip())
+               and _EMBEDDED_ROLE_LINE_RE.sub("", line).strip()]
+    return "\n".join(lines).strip() if content else ""
 
 
 def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
@@ -9058,7 +9062,13 @@ def _capsule_v2_inject_retrieved(
         mem.close()
     except Exception:
         return transcript
-    if not hits and not evidence_hits and not chain_extras:
+    # The whole-turn lane and the recall supplement search the model-written search phrases beside the question.
+    # A question whose own words match nothing ("Summarize my project" over "I'm building a recipe-sharing app")
+    # is answered when those phrases found the records; returning no_hits here dropped what they found. Only
+    # when the turn HAS search phrases: without them these lanes' loose matches are not evidence the question's
+    # own lanes missed, and an abstaining question must keep abstaining.
+    phrase_lanes_found = bool(search_expansions) and bool(whole_turn_units or recall_supplement)
+    if not hits and not evidence_hits and not chain_extras and not phrase_lanes_found:
         return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""))
 
     # ── temporal eligibility (mission memory-quality90, temporal lane) ─────
@@ -9634,7 +9644,7 @@ def _capsule_v2_inject_retrieved(
             return False
         return True
 
-    if not hits and not evidence_hits:
+    if not hits and not evidence_hits and not phrase_lanes_found:
         return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""))
     context_text = " ".join(m.get("content", "") for m in transcript).lower()
     selected: list[tuple[str, float]] = []
@@ -11766,7 +11776,7 @@ def _capsule_v2_inject_retrieved(
             } if time_leg_window is not None else None),
         }
     )
-    if not distilled:
+    if not distilled and not (phrase_lanes_found and whole_turn_units):
         for receipt in evidence_receipts:
             if receipt.get("delivered"):
                 receipt["delivered"] = False
