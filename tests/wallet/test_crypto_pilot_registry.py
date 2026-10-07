@@ -197,17 +197,21 @@ def test_a_fresh_install_defaults_to_mainnet_and_reading_it_writes_nothing(pilot
     assert _controls() == {} and _profile_rows() == []
 
 
-def test_an_upgraded_test_network_install_keeps_its_context_without_relabelling(pilot_env):
+def test_an_upgraded_test_network_install_defaults_to_mainnet_without_relabelling(pilot_env):
     from core.wallet import custody, environment
 
     key = _sol_key()
     wallet_id = _preexisting_profile("solana-devnet", key)
     before = _profile_rows()
     state = environment.active_environment()
-    assert (state.environment, state.source) == ("testnet", "upgrade_preserved_test_networks")
+    assert (state.environment, state.source) == ("mainnet", "fresh_install_default")
     assert _controls() == {}
     assert _profile_rows() == before
     assert custody.require_wallet(wallet_id).network == "solana-devnet"
+    with pytest.raises(WalletFault) as refused:
+        environment.require_active("solana-devnet")
+    assert refused.value.code == "wallet_environment_inactive"
+    assert _controls() == {}
 
 
 def test_an_upgrade_with_a_mainnet_row_is_not_forced_into_test_networks(pilot_env):

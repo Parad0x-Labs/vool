@@ -225,7 +225,9 @@ _REMINISCENCE_OPENER_RE = re.compile(
     r"^(?:when|how|why|where|who|whom|whether|if|what|which|time\s+(?:we|you|i|they|it)\b)\b",
     re.IGNORECASE,
 )
-_FORGET_RE = re.compile(r"^(?:forget|erase)\s+(.+)$", re.IGNORECASE)
+# "forget it" / "forget about it" is the idiom for "never mind", not an erase command: "forget
+# about it, tell me a joke instead" used to run a memory erase and answer "Forget applied".
+_FORGET_RE = re.compile(r"^(?:forget|erase)\s+(?!(?:about\s+)?it\b)(.+)$", re.IGNORECASE)
 _FORGET_TARGET_RE = re.compile(
     r"^(?:the\s+)?(?:old\s+|previous\s+|exact\s+)?"
     r"(?:identifier|code|marker|private\s+marker|label|port|number|phrase|value|fact|token)\s+"

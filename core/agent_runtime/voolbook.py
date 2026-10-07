@@ -21,8 +21,56 @@ def looks_like_conversational_correction_turn(text: str) -> bool:
     return looks_like_conversational_correction(text)
 
 
+# A VoolBook action names VoolBook. Every intent rule below also matches ordinary sentences about
+# other products ("how do I create an account on github?", "how do I delete my post on reddit?",
+# "is my bank account safe?", "update display drivers"), and each of those used to be answered with
+# the VoolBook profile script instead of a model answer. So an intent counts only when the message
+# names the product, or, for the profile fields and the rename, when the message is a bare command
+# that starts with the field ("set my twitter handle to vool", "bio: ...", "change my name to lumen").
+# A question ABOUT a field on another site ("how do I change my name on facebook?") does not start
+# with the command.
+_VOOLBOOK_NAME_RE = re.compile(r"\bvool\s*book\b")
+_PROFILE_FIELD_COMMAND_RE = re.compile(
+    r"^(?:(?:ok(?:ay)?|please|pls|hey)[,!\s]+)*"
+    r"(?:(?:set|update|change|add)\s+(?:my\s+)?(?:bio|twitter|x)\b|"
+    r"my\s+(?:twitter|x)\b(?:\s+handle)?\s*(?:is|:)|"
+    r"(?:twitter|x)\s+handle\s*(?:is|:)|"
+    r"bio\s*:)"
+)
+_PROFILE_FIELD_INTENTS = frozenset({"twitter", "bio", "compound_bio_twitter"})
+# A rename is kept as a bare command too: "change my name to lumen", "update my display name to
+# Lumen Studio", "rename my handle to lumen", "set my name: lumen", "my handle = zed". It needs "my"
+# or "handle", so "update display drivers" (the old "display" arm) is not a rename.
+_POST_WITH_CONTENT_RE = re.compile(r"\bpost\s*:\s*\S")
+_PROFILE_RENAME_COMMAND_RE = re.compile(
+    r"^(?:(?:ok(?:ay)?|please|pls|hey)[,!\s]+)*"
+    r"(?:(?:change|rename|switch|set|update)\s+my\s+(?:display\s+)?(?:name|handle)\b|"
+    r"(?:change|rename|switch|set|update)\s+(?:the\s+)?handle\b|"
+    r"(?:set\s+(?:my\s+)?|my\s+)(?:name|handle)\s*[:=])"
+)
+
+
 def classify_voolbook_intent(lowered: str) -> str | None:
     """Return a specific intent only when the user clearly wants a VoolBook action."""
+    text = str(lowered or "").strip()
+    intent = _classify_voolbook_intent_shape(text)
+    if intent is None:
+        return None
+    if _VOOLBOOK_NAME_RE.search(text):
+        return intent
+    if intent in _PROFILE_FIELD_INTENTS and _PROFILE_FIELD_COMMAND_RE.match(text):
+        return intent
+    if intent == "rename" and _PROFILE_RENAME_COMMAND_RE.match(text):
+        return intent
+    # "post new social post: V.05 Test" / "do the test post: hello" hands over the post's text after
+    # a colon, which is a post command; "should I write a social post about my cat?" is not.
+    if intent == "post" and _POST_WITH_CONTENT_RE.search(text):
+        return intent
+    return None
+
+
+def _classify_voolbook_intent_shape(lowered: str) -> str | None:
+    """The intent a message's wording has, before the product-name gate above."""
     if re.search(r"(?:delete|remove)\s+(?:my\s+)?(?:voolbook\s+)?post", lowered):
         return "delete"
     if re.search(r"(?:edit|update|change)\s+(?:my\s+)?(?:voolbook\s+)?post\b", lowered):

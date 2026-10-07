@@ -12,14 +12,17 @@ state: capabilities are added lane by lane, and each lane below says exactly wha
 
 ## Network environments
 
-Accounts, balances and receipts belong to one environment and never move between them:
+When Crypto is on, VOOL runs on **Mainnet**: Solana, Robinhood Chain, Base, Ethereum and BNB.
+Normal setup never asks you to pick a network environment.
 
-* **Test networks** — the four long-standing test lanes (Solana Devnet and friends) plus
-  Robinhood Chain Testnet.
-* **Mainnet** — added by the Crypto Pilot: Solana, Base and Ethereum mainnet rows.
+* **Mainnet** — the default for every install, including installs upgraded with older
+  test-network accounts. Every spending cap, approval and receipt applies as described below.
+* **Test networks** — Solana Devnet, Robinhood Chain Testnet and the other test lanes. For
+  developers only: switch in **Settings → Crypto → Developer options**.
 
-Switch deliberately in **Settings → Crypto → Developer options**. A request for a network in
-the other environment is refused with nothing created, proposed or signed.
+Accounts, balances and receipts belong to one environment and never move between them; accounts
+on the other environment stay listed on their own network. A request for a network in the other
+environment is refused with nothing created, proposed or signed.
 
 {% hint style="warning" %}
 Earlier documentation said mainnet was impossible in this build. That was true before the
