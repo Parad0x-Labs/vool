@@ -60,7 +60,13 @@ TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 ASSOCIATED_TOKEN_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 #: ComputeBudget instruction discriminators the payment may carry (SetComputeUnitLimit, SetComputeUnitPrice).
-_COMPUTE_BUDGET_KINDS = frozenset({2, 3})
+_SET_COMPUTE_UNIT_LIMIT = 2
+_SET_COMPUTE_UNIT_PRICE = 3
+_COMPUTE_BUDGET_KINDS = frozenset({_SET_COMPUTE_UNIT_LIMIT, _SET_COMPUTE_UNIT_PRICE})
+_COMPUTE_BUDGET_SIZES = {_SET_COMPUTE_UNIT_LIMIT: 5, _SET_COMPUTE_UNIT_PRICE: 9}
+#: When this wallet pays the fee (an unsponsored MPP charge), the most priority fee the signed message may carry on
+#: top of the base signature fee. pay-kit's own default is 200,000 units at 1 micro-lamport: 0.2 lamports.
+MAX_PAYER_PRIORITY_LAMPORTS = 10
 _SYSTEM_TRANSFER = 2
 _TOKEN_TRANSFER_CHECKED = 12
 
@@ -210,7 +216,7 @@ def existing_outcome(digest: str, *, source_context: dict[str, Any] | None = Non
     from core.wallet import x402
 
     binding = x402.binding_for_digest(digest)
-    if not binding or not binding.get("proposal_id") or int(binding.get("version") or 1) != x402.BINDING_VERSION_PAYKIT:
+    if not binding or not binding.get("proposal_id") or int(binding.get("version") or 1) not in x402.PAYKIT_BINDING_VERSIONS:
         return None
     parked = proposals.get_proposal(binding["proposal_id"])
     if parked is not None and parked.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
@@ -293,6 +299,11 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
     status = int(answer["status"])
     requirement, wire_version = _parse_challenge(answer.get("headers"), answer.get("body"), network=chains.resolve_network(profile.network).network)
     if requirement is None:
+        from core.wallet import paykit_mpp
+
+        if paykit_mpp.solana_challenges(answer.get("headers")):
+            # no x402 offer, but an MPP one: the same request binding, the MPP lane's terms
+            return paykit_mpp.park_challenge(answer, url=clean_url, method=clean_method, headers=headers, body=raw_body, wallet_id=wallet_id, source_context=source_context)
         return x402.X402Outcome(status=x402.OUTCOME_REFUSED, http_status=status, body=answer["body"])
     terms = _terms_from_requirement(requirement, wallet_network=profile.network, source_context=source_context)
     cap = config.x402_cap_minor()
@@ -304,7 +315,7 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
         memo=f"x402 {clean_method} {clean_url}"[:200], idempotency_key=idempotency_key, source_context=source_context, network=terms["network"],
     )
     _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
-                    requirement=requirement, wire_version=wire_version, proposal_id=proposal.proposal_id)
+                    offer={"x402Version": int(wire_version), "requirement": requirement}, version=x402.BINDING_VERSION_PAYKIT, proposal_id=proposal.proposal_id)
     from core.wallet import lifecycle
 
     prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
@@ -313,34 +324,35 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
 
 
 def _upsert_binding(*, request_digest_value: str, url: str, method: str, body: bytes, headers: dict[str, str], terms: dict[str, Any],
-                    requirement: dict[str, Any], wire_version: int, proposal_id: str) -> None:
+                    offer: dict[str, Any], version: int, proposal_id: str) -> None:
+    """Bind one request (method, URL, body, replayable headers) to its parked proposal and the offer it met. The
+    same request re-parked after a dead proposal takes the new offer; ``version`` names the lane (x402 or MPP)."""
     from core.wallet import x402
     from core.wallet.store import connection, dumps, utcnow
 
     now = utcnow()
-    offer = {"x402Version": int(wire_version), "requirement": requirement}
     with connection() as conn:
         conn.execute(
             "INSERT INTO wallet_x402_bindings (binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, state, created_at, updated_at,"
             " version, offer_json, resource_origin, resource_method, sponsored_gas, fee_asset, asset_address, request_body_b64, request_headers_json, fee_payer)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, state = excluded.state, pay_to = excluded.pay_to,"
+            " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, state = excluded.state, pay_to = excluded.pay_to, version = excluded.version,"
             " amount_minor = excluded.amount_minor, asset = excluded.asset, network = excluded.network, offer_json = excluded.offer_json,"
             " fee_payer = excluded.fee_payer, asset_address = excluded.asset_address, request_headers_json = excluded.request_headers_json,"
             " tx_signature = '', resource_status = 0, resource_digest = '',"
             " resource_bytes = 0, updated_at = excluded.updated_at",
             (f"x402b-{uuid.uuid4().hex[:16]}", request_digest_value, url, method, terms["pay_to"], int(terms["amount_minor"]), terms["asset"], terms["network"],
-             proposal_id, x402.BINDING_PAYMENT_REQUIRED, now, now, x402.BINDING_VERSION_PAYKIT, dumps(offer), _origin_of(url), method, 1, terms["asset"],
+             proposal_id, x402.BINDING_PAYMENT_REQUIRED, now, now, int(version), dumps(offer), _origin_of(url), method, 0 if terms.get("payer_pays_fee") else 1, terms["asset"],
              terms["mint"], base64.b64encode(body).decode("ascii"), dumps(headers), terms["fee_payer"]),
         )
 
 
 def binding_for(proposal_id: str) -> dict[str, Any] | None:
-    """The pay-kit binding of this proposal, or None. Another lane's binding is never this lane's."""
+    """The pay-kit binding (x402 or MPP) of this proposal, or None. Another lane's binding is never this lane's."""
     from core.wallet import x402
 
     binding = x402.binding_for_proposal(str(proposal_id))
-    if binding and int(binding.get("version") or 1) == x402.BINDING_VERSION_PAYKIT:
+    if binding and int(binding.get("version") or 1) in x402.PAYKIT_BINDING_VERSIONS:
         return binding
     return None
 
@@ -362,11 +374,15 @@ def _ata(owner: str, mint: str, token_program: str) -> str:
     return str(address)
 
 
-def verify_payment_message(message: bytes, *, payer: str, pay_to: str, amount_minor: int, mint: str, decimals: int, fee_payer: str) -> dict[str, Any]:
+def verify_payment_message(message: bytes, *, payer: str, pay_to: str, amount_minor: int, mint: str, decimals: int, fee_payer: str,
+                           payer_pays_fee: bool = False) -> dict[str, Any]:
     """Prove the bytes pay-kit asks this wallet to sign move EXACTLY the approved amount of the approved asset from
     this wallet to the approved payee, and nothing else: a v0 message with no lookup tables, the resource's fee
     payer first, this wallet signing only as the transfer authority, and no instruction beyond compute-budget
-    settings, one transfer and one memo. Returns the facts it proved; raises ``wallet_signature_invalid`` otherwise."""
+    settings, one transfer and one memo. Returns the facts it proved; raises ``wallet_signature_invalid`` otherwise.
+
+    ``payer_pays_fee`` (an unsponsored MPP charge): this wallet is the fee payer and the only signer, and the
+    priority fee the compute-budget settings would charge it is bounded by :data:`MAX_PAYER_PRIORITY_LAMPORTS`."""
     from solders.message import MessageV0
 
     def refuse(reason: str) -> Exception:
@@ -385,20 +401,32 @@ def verify_payment_message(message: bytes, *, payer: str, pay_to: str, amount_mi
         raise refuse("paykit_message_uses_lookup_tables")
     keys = [str(key) for key in parsed.account_keys]
     required = int(parsed.header.num_required_signatures)
-    if not keys or keys[0] != fee_payer or fee_payer == payer:
-        raise refuse("paykit_fee_payer_not_the_offer")
-    if set(keys[:required]) != {fee_payer, payer}:
-        raise refuse("paykit_unexpected_signers")
+    if payer_pays_fee:
+        if not keys or keys[0] != payer:
+            raise refuse("paykit_fee_payer_not_the_offer")
+        if set(keys[:required]) != {payer}:
+            raise refuse("paykit_unexpected_signers")
+    else:
+        if not keys or keys[0] != fee_payer or fee_payer == payer:
+            raise refuse("paykit_fee_payer_not_the_offer")
+        if set(keys[:required]) != {fee_payer, payer}:
+            raise refuse("paykit_unexpected_signers")
     transfers = 0
     memos = 0
     budget = 0
+    unit_limit = 200_000  # the runtime default when no SetComputeUnitLimit is present
+    unit_price = 0
     for instruction in parsed.instructions:
         program = keys[int(instruction.program_id_index)]
         accounts = [keys[int(i)] for i in bytes(instruction.accounts)]
         body = bytes(instruction.data)
         if program == COMPUTE_BUDGET_PROGRAM:
-            if not body or body[0] not in _COMPUTE_BUDGET_KINDS or accounts:
+            if not body or body[0] not in _COMPUTE_BUDGET_KINDS or accounts or len(body) != _COMPUTE_BUDGET_SIZES[body[0]]:
                 raise refuse("paykit_unexpected_compute_budget_instruction")
+            if body[0] == _SET_COMPUTE_UNIT_LIMIT:
+                unit_limit = int.from_bytes(body[1:5], "little")
+            else:
+                unit_price = int.from_bytes(body[1:9], "little")
             budget += 1
             continue
         if program == MEMO_PROGRAM:
@@ -429,7 +457,11 @@ def verify_payment_message(message: bytes, *, payer: str, pay_to: str, amount_mi
         raise refuse("paykit_unexpected_program")
     if transfers != 1 or memos > 1 or budget > 2:
         raise refuse("paykit_instruction_count_differs")
-    return {"fee_payer": fee_payer, "payer": payer, "pay_to": pay_to, "amount_minor": int(amount_minor), "mint": mint, "message_digest": hashlib.sha256(data).hexdigest()}
+    if payer_pays_fee and unit_limit * unit_price > MAX_PAYER_PRIORITY_LAMPORTS * 1_000_000:
+        # the priority fee is micro-lamports per compute unit, paid by the fee payer: here, this wallet
+        raise refuse("paykit_priority_fee_above_bound")
+    return {"fee_payer": payer if payer_pays_fee else fee_payer, "payer": payer, "pay_to": pay_to, "amount_minor": int(amount_minor), "mint": mint,
+            "payer_pays_fee": bool(payer_pays_fee), "message_digest": hashlib.sha256(data).hexdigest()}
 
 
 class _PublicKeyOnly:
@@ -453,6 +485,7 @@ class GuardedSigner:
         self._terms = dict(terms)
         self.keypair = _PublicKeyOnly(signer.public_key)
         self.signed_message: bytes = b""
+        self.signature: bytes = b""
         self.proof: dict[str, Any] = {}
 
     def sign(self, message: bytes) -> bytes:
@@ -461,7 +494,17 @@ class GuardedSigner:
         self.proof = verify_payment_message(bytes(message), payer=self._signer.public_key, **self._terms)
         signature = bytes(self._signer.sign(bytes(message)))
         self.signed_message = bytes(message)
+        self.signature = signature
         return signature
+
+    # the shape pay-kit's MPP builders call (a solders ``Keypair``'s): the same one guarded signature
+    def pubkey(self) -> Any:
+        return self.keypair.pubkey()
+
+    def sign_message(self, message: bytes) -> Any:
+        from solders.signature import Signature
+
+        return Signature.from_bytes(self.sign(bytes(message)))
 
 
 def _requirement_from_binding(binding: dict[str, Any]) -> tuple[dict[str, Any], int]:
