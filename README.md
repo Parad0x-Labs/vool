@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml"><img src="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-eee8d5" alt="MIT license" /></a>
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.6.0_beta-eee8d5" alt="Version 0.6.0 beta" /></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.0_beta-eee8d5" alt="Version 0.7.0 beta" /></a>
 </p>
 
 **VOOL is a local-first personal agent from Parad0x Labs.** It connects conversation to action: read a project, edit files, run tests, research the web, and carry useful context into the next session.
@@ -42,7 +42,7 @@ Workspace scopes and operating modes control what the agent can do. Choose how e
 
 ## Install
 
-**Current version: 0.6.0-beta.** Start from source with the commands below — this repository publishes no installer release (only a private owner-review draft). A macOS DMG is separately downloadable from the project website; that channel is not built from these release records, so verify its sidecar checksum and see the [release status](docs/trust/release-status.md) page for the authoritative state of artifacts, signing and updates.
+**Current version: 0.7.0-beta.** Start from source with the commands below — this repository publishes no installer release (only a private owner-review draft). A macOS DMG is separately downloadable from the project website; that channel is not built from these release records, so verify its sidecar checksum and see the [release status](docs/trust/release-status.md) page for the authoritative state of artifacts, signing and updates.
 
 ### macOS / Linux
 
