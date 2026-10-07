@@ -252,7 +252,14 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
     elif fact.get("value_type") == "state":
         key = str(fact.get("norm") or "").split("=", 1)[0]
         tag = f"<{key} = {fact.get('value')}>" if not str(fact.get("norm") or "").endswith("|former") else f"<former {key} = {fact.get('value')}>"
-        line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  {tag}"
+        # v14.6 item 9: the value's effective window from the chain: from its statement day until the day the replacing
+        # record was stated ("until" unknown stays unknown; a current value has no until)
+        until = ""
+        if fact.get("replaced_by"):
+            rep = receipts_by_id.get(str(fact.get("replaced_by"))) or {}
+            until = _day(rep.get("statement_at")) if rep.get("statement_at") is not None else "unknown day"
+        window = f" effective from {stated}" + (f" until {until}" if until else ", current") if stated and stated != "undated" else ""
+        line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  {tag}{window}"
     elif fact.get("value_type") == "mention":
         line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:240]}\"  <mention>"
     elif fact.get("value_type") == "preference":

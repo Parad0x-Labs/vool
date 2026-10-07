@@ -55,7 +55,10 @@ def _kernel_temporal_decision(question: str, raw_reply: str, packet_facts: list,
     decision = binding.as_dict()
     decision.update({"execution": "executed", "owner": "core.evidence_kernel.temporal_binder.bind_temporal_claims",
                      "guard_withdrew": True, "packet_facts": len(packet_facts), "text": binding.text,
-                     "verified": binding.restored, "rule": "clause_level_binding"})
+                     "verified": binding.restored, "supported": binding.restored, "rule": "clause_level_binding",
+                     # v14.6 item 8: 'verified' is kept for readers of older receipts; it means SUPPORTED (by an
+                     # occurrence or a derivation over the packet), never that the statement is true
+                     "chain_stage": "SUPPORTED" if binding.restored else "ASSERTED"})
     return decision
 
 
