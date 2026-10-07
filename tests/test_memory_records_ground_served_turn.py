@@ -39,6 +39,10 @@ TURNS = [
     {"id": "ireland", "question": INSTRUCTION + "When will Tim leave for Ireland?",
      "scripted": 'February 2024 — Tim said on 7 January 2024 he was off to Ireland "next month."',
      "reader_require": ["Ireland", "Next month"]},
+    # The reader's draft in the a56209ae paid run: an abbreviated month and a sentence-initial "Around" beside one.
+    {"id": "ireland-abbrev", "question": INSTRUCTION + "When will Tim leave for Ireland?",
+     "scripted": 'Around February 2024 \u2014 on Jan 7, 2024 Tim said he was "off to Ireland next month."',
+     "reader_require": ["Ireland", "Next month"]},
     # A live lookup in the same chat: the records hold nothing about trains, so the draft stays withheld.
     {"id": "train", "question": "When does the next train to Vilnius leave?",
      "scripted": "The next train to Vilnius leaves at 14:05 from platform 3."},
@@ -70,7 +74,7 @@ def _served(tmp_path) -> dict:
 
 def test_record_questions_publish_from_the_live_capsule_and_a_live_lookup_does_not(tmp_path):
     turns = _served(tmp_path)
-    for turn_id, fragment in (("aragorn", "Aragorn"), ("ireland", "Ireland")):
+    for turn_id, fragment in (("aragorn", "Aragorn"), ("ireland", "Ireland"), ("ireland-abbrev", "Ireland")):
         turn = turns[turn_id]
         committed = turn["committed"]
         # The turn really was escalated as current information, so the gate ran on it.

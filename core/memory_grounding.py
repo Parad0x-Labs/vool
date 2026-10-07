@@ -26,15 +26,35 @@ _STRUCTURAL_LINE_RE = re.compile(r"^\s*</?[a-z_]+>\s*$|^\s*(?:distilled local fa
 
 
 def memory_record_rows(evidence_text: Any) -> list[dict[str, str]]:
-    """The admitted evidence as support rows: one row per record line, assistant lines excluded."""
+    """The admitted evidence as support rows: one row per record, assistant records excluded.
 
-    rows: list[dict[str, str]] = []
+    A capsule record is a "- " bullet with the lines under it: "- user said (stated 2024-01-07): Session date:
+    7 January, 2024" then "Tim: ... Next month, I'm off to Ireland". The record's date lives on the bullet and its
+    words on the line below, so the row is the bullet with its continuation lines. A line under an assistant bullet
+    is the assistant's words and is never a row; a line with no bullet above it is a record of its own.
+    """
+
+    rows: list[str] = []
+    open_bullet = False
+    in_assistant = False
     for raw in str(evidence_text or "").splitlines():
         line = raw.strip()
-        if not line or _STRUCTURAL_LINE_RE.search(line) or _ASSISTANT_LINE_RE.search(line):
+        if not line or _STRUCTURAL_LINE_RE.search(line):
+            open_bullet = in_assistant = False
             continue
-        rows.append({"summary": line, "source": "memory_record"})
-    return rows
+        if line.startswith("- ") or _ASSISTANT_LINE_RE.search(line):
+            in_assistant = bool(_ASSISTANT_LINE_RE.search(line))
+            open_bullet = not in_assistant
+            if open_bullet:
+                rows.append(line)
+            continue
+        if in_assistant:
+            continue
+        if open_bullet:
+            rows[-1] = rows[-1] + " " + line
+        else:
+            rows.append(line)
+    return [{"summary": row, "source": "memory_record"} for row in rows]
 
 
 def publish_memory_records_for_turn(source_context: dict[str, Any] | None) -> int:
