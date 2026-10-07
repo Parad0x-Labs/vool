@@ -329,6 +329,9 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
     est = estimate_tokens or (lambda t: max(1, len(t) // 4))
     ob = obligations(question)
     packet = Packet(obligation=ob)
+    from core.memory_receipts import rebuild_missing_receipts
+
+    rebuild_missing_receipts(mem, chat_scope)
     receipts = receipts_for_scope(mem, chat_scope)
     by_id = {r["receipt_id"]: r for r in receipts}
     by_occ = {r["occurrence_id"]: r for r in receipts}
