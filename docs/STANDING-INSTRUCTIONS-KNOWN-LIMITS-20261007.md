@@ -24,3 +24,11 @@ limits as built, and each one is a deliberate trade-off.
    Other lasting facts are left to memory capture.
 7. **Two rule stores until reconciliation.** See `docs/RULES-RECONCILE-20261007.md`. While main's
    user_rules and this module both exist, "forget the rule about X" is caught by the rules lane (D2).
+8. **Short corrections with no subject and no order are not saved.** "Too long.", "Less formal." and
+   "More bullet points please" are read as being about the answer just given. Say what they are about
+   ("your answers are too long") or what to do instead ("Too stiff. Loosen up a bit.") to make them
+   standing.
+9. **An order with material, or one that produces something, is a task.** Text after a colon or a
+   dash, or a quote or paste, makes the order about that text. An object that is a thing to write
+   ("a short email", "a formal reply to the supplier") makes it a request. Neither is saved as a rule
+   unless it uses standing wording ("from now on …").
