@@ -135,7 +135,9 @@ def lock_artifacts() -> dict[str, dict[str, str]]:
         urls = re.findall(r'url = "([^"]+)"', block)
         hashes = re.findall(r'hash = "sha256:([0-9a-f]{64})"', block)
         version = re.search(r'^version = "([^"]+)"', block, re.M)
-        entry = {u.rsplit("/", 1)[-1]: h for u, h in zip(urls, hashes, strict=False)}
+        # No zip(strict=...): the bundle build runs this under macOS's system python3.9, which has no
+        # such keyword. Indexing keeps the same pairing (a missing hash leaves its wheel out).
+        entry = {urls[i].rsplit("/", 1)[-1]: hashes[i] for i in range(min(len(urls), len(hashes)))}
         entry["__version__"] = version.group(1) if version else ""
         out[_norm(m.group(1))] = entry
     return out
