@@ -72,7 +72,10 @@ def question_names_someone_in_the_records(question: Any, evidence_text: Any) -> 
     asked = {re.sub(r"['\u2019]s$", "", name).lower() for name in _ASKED_NAME_RE.findall(lines[-1] if lines else "")}
     if not asked:
         return False
-    text = " ".join(row["summary"] for row in memory_record_rows(evidence_text)).lower()
+    rows = evidence_text if isinstance(evidence_text, (list, tuple)) else memory_record_rows(evidence_text)
+    text = " ".join(
+        str(row.get("withheld_speaker") or row.get("summary") or "") for row in rows if isinstance(row, dict)
+    ).lower()
     return any(re.search(rf"(?<![\w'-]){re.escape(name)}(?![\w-])", text) for name in asked)
 
 
@@ -90,6 +93,14 @@ def publish_memory_records_for_turn(source_context: dict[str, Any] | None) -> in
         from core.grounding_lifecycle import record_memory_records
 
         rows = memory_record_rows(admitted_capsule_evidence_text(source_context))
+        # Withheld markers: the chat holds records about these speakers that the absence gate refused for this
+        # facet. The marker carries the NAME only (summary is the name), so the records refusal can still say
+        # "not mentioned in the records"; it is never a support row (grounding_publication skips withheld rows).
+        from core.context_retrieval import get_last_retrieval_telemetry
+
+        for name in get_last_retrieval_telemetry().get("absence_gate_withheld_speakers") or ():
+            if str(name or "").strip():
+                rows.append({"summary": str(name).strip(), "withheld_speaker": str(name).strip(), "withheld": True})
         return record_memory_records(source_context, entries=rows) if rows else 0
     except Exception:
         return 0
