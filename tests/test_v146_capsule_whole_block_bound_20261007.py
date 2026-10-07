@@ -9,7 +9,13 @@ import pytest
 
 import core.context_retrieval as cr
 from core import context_capsule_v2 as capsule
-from tests.test_capsule_match_strength_eviction_20261002 import HARBOR_DECISIVE, HARBOR_FILLERS, _capsule, _seed, fresh_profile  # noqa: F401
+from tests.test_capsule_match_strength_eviction_20261002 import (
+    HARBOR_DECISIVE,
+    HARBOR_FILLERS,
+    _capsule,
+    _seed,
+    fresh_profile,
+)
 
 HEADER_SLACK_TOKENS = 220   # the distiller header, the turn-lane header and the wrapper lines
 

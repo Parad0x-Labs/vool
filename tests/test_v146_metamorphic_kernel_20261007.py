@@ -3,12 +3,12 @@ on the served store: the packet must carry the same owned facts and the binder m
 change it in the named principled way. No reader call. Contributor: sls_0x."""
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 import core.context_retrieval as cr
 from core.context_namespace import ensure_chat_namespace
-from datetime import date
-
 from core.evidence_kernel.claim_binder import bind_claims
 from core.evidence_kernel.temporal_binder import bind_temporal_claims
 from core.memory.entries import resolve_memory_access_policy

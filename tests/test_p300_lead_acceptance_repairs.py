@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # ── 1. hedge clause-scoping ───────────────────────────────────────────────────
 
 
@@ -135,7 +134,7 @@ def test_hedge_after_a_clause_boundary_still_never_exempts_the_reading() -> None
 
 
 def test_hedge_escape_is_refused_through_the_delivery_seam() -> None:
-    from apps.vool_agent import ChatTurnResult, VoolAgent, ResponseClass
+    from apps.vool_agent import ChatTurnResult, ResponseClass, VoolAgent
     from core.agent_runtime.response import decorate_chat_response
 
     agent = VoolAgent(

@@ -18,13 +18,12 @@ from __future__ import annotations
 import pytest
 
 import core.context_retrieval as cr
-from tests.test_question_date_time_leg_20261002 import (  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import (
     _hash_backend,
     _ingest,
     _profile,
 )
 from tests.test_time_leg_follows_allowance_20261003 import _ts, _wide_capsule
-
 
 # ───────────────────────── anchor rides bind the asked subject ────────────
 

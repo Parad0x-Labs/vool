@@ -16,7 +16,7 @@ case (autographed sports memorabilia).
 """
 from __future__ import annotations
 
-from apps.vool_agent import ChatTurnResult, VoolAgent, ResponseClass
+from apps.vool_agent import ChatTurnResult, ResponseClass, VoolAgent
 from core.agent_runtime.response import (
     _ambiguous_leak_marker_hits,
     _orchestration_fragment_marker_pattern,

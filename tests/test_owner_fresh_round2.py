@@ -4,7 +4,9 @@ Proof level: actual final response seam, supplied admitted capsule, no provider.
 """
 import json
 from pathlib import Path
+
 import pytest
+
 from core.agent_runtime.response import _validate_final_chat_output
 from core.unsourced_current_claim import inspect_unsourced_current_claim
 

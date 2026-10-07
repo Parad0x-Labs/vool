@@ -1,7 +1,9 @@
 """Past assistant-answer packing amid unrelated request-register facts."""
 import pytest
+
 from core.context_retrieval import _query_overlap_terms
-from tests.test_p300_pref_retrieval_repair import pref_env, _ingest, _capsule
+from tests.test_p300_pref_retrieval_repair import _capsule, _ingest, pref_env
+
 
 @pytest.mark.parametrize('question,subject,noise',[
     ('I was thinking about our previous conversation about the Tide Exhibition, and I was wondering if you could remind me what sculpture you said showed the artist evolving?',{'tide','exhibition','sculpture','artist','evolving'}, {'thinking','wondering','remind','conversation'}),

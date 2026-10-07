@@ -1,7 +1,13 @@
 from __future__ import annotations
+
 import pytest
+
 from core import plain_task_routing as routing
-from core.ordinary_chat_response_guard import ordinary_chat_output_policy,inspect_ordinary_chat_output,ordinary_chat_retry_instruction
+from core.ordinary_chat_response_guard import (
+    inspect_ordinary_chat_output,
+    ordinary_chat_output_policy,
+    ordinary_chat_retry_instruction,
+)
 
 ELENA = "How many complete calendar months did I, Elena Ruiz, work on the estuary survey across my two recorded assignments? Give both exact ISO date intervals and the total, without counting Julian's interval."
 RAW = "Elena Ruiz worked from 2024-03-01 through 2024-06-30 inclusive for four complete calendar months, then from 2024-09-01 through 2025-02-28 inclusive for six complete calendar months. The total is 10 complete calendar months. Julian's interval is not counted."

@@ -14,7 +14,7 @@ import pytest
 
 import core.context_retrieval as cr
 from core.evidence_compiler import Packet, filter_packet, obligations
-from tests.test_question_date_time_leg_20261002 import _capsule, _hash_backend, _ingest, _profile  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _capsule, _hash_backend, _ingest, _profile
 
 ON = {"VOOL_EVIDENCE_KERNEL": "1", "VOOL_MEMORY_RECEIPTS": "1", "VOOL_EVIDENCE_COMPILER": "1", "VOOL_EVIDENCE_VERIFY": "1"}
 

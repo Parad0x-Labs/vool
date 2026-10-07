@@ -30,6 +30,7 @@ from core.agent_runtime.turn_reasoning import (
 from core.bootstrap_context import admitted_capsule_evidence_text
 from core.model_output_guard import replace_unsupported_past_time_claims
 
+
 #: Disposable homes live under pytest's per-test tmp tree (the SSD launcher
 #: redirects --basetemp), so the tests carry no machine-local paths.
 def _profile_root(tmp_path: Path) -> Path:

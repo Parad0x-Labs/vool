@@ -1,6 +1,8 @@
 """Conditional procedure amendments preserve explicitly unchanged base steps."""
 from datetime import datetime, timezone
+
 import pytest
+
 from core.temporal_selection import AsOfIntent, TemporalCandidate, apply_temporal_selection
 
 UTC=timezone.utc

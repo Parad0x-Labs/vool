@@ -267,9 +267,8 @@ def requested_answer_field_shape(text: str) -> str:
     Quoted or descriptive object conjunctions do not create requested fields; an
     unknown request grants neither scalar authority nor positive field coordination.
     """
-    from core.turn_ir import ClauseKind, classify_clause_kind, parse_turn_ir
-
     from core.response_constraints import requested_output_item_count
+    from core.turn_ir import ClauseKind, classify_clause_kind, parse_turn_ir
 
     requested_items = requested_output_item_count(text)
     if requested_items is not None and requested_items > 1:
@@ -684,18 +683,18 @@ def is_plain_task(text: str) -> bool:
 
 
 __all__ = [
+    "answer_is_only_runtime_selection_narration",
     "is_ordinary_multi_part_plain_task",
     "is_plain_task",
     "multipart_has_non_plain_request",
     "multipart_task_class_requires_tool_reachability",
-    "answer_is_only_runtime_selection_narration",
     "ordinary_answer_part_indexes",
+    "ordinary_indexed_answer_status",
     "ordinary_multi_part_answer_complete",
     "ordinary_multi_part_answer_status",
-    "ordinary_indexed_answer_status",
-    "scalar_answer_covers_requested_shape",
-    "user_requires_numbered_answers",
     "ordinary_plain_request_count",
     "ordinary_plain_requests",
     "plain_task_kind",
+    "scalar_answer_covers_requested_shape",
+    "user_requires_numbered_answers",
 ]

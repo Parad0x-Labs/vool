@@ -3,7 +3,14 @@ UNSUPPORTED, CONTRADICTED. Only CONTRADICTED removes a claim (the whole-answer w
 AMBIGUOUS ship with the value marked as not found in the records; SUPPORTED is memory-sourced. Contributor: sls_0x."""
 import pytest
 
-from core.evidence_kernel.claim_binder import AMBIGUOUS, CONTRADICTED, SUPPORTED, UNSUPPORTED, bind_claims, qualify_reply
+from core.evidence_kernel.claim_binder import (
+    AMBIGUOUS,
+    CONTRADICTED,
+    SUPPORTED,
+    UNSUPPORTED,
+    bind_claims,
+    qualify_reply,
+)
 
 EVIDENCE = """<retrieved_context>
 - [2025-02-03] user said: I bought a helmet for $95 and a bike computer for $140 last week.

@@ -28,7 +28,7 @@ from core.memory.entries import resolve_memory_access_policy
 from core.temporal_selection import _parallel_subject_facts, slot_signature
 
 try:
-    from tests.test_fresh_acceptance_memrepair2b_20260927 import (  # noqa: F401
+    from tests.test_fresh_acceptance_memrepair2b_20260927 import (
         fresh_profile,
     )
 except ImportError:  # pragma: no cover

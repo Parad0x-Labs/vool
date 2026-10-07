@@ -1,8 +1,10 @@
 """Frozen review of admission revision 3: quoted values and affirmative adoption."""
 import json
+
 from core.context_scope import ContextAccessPolicy
 from core.memory.files import memory_entries_path
 from core.persistent_memory import append_conversation_event, maybe_handle_memory_command
+
 LOCAL={"surface":"cli","platform":"cli"}
 def rows():
     p=memory_entries_path()

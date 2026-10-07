@@ -1,11 +1,16 @@
 """Formatting labels require exact verified source slices and known roles."""
-from types import SimpleNamespace
 from dataclasses import replace
-from tests.test_overnight_source_structure import source_env, _store, _recall
+from types import SimpleNamespace
+
+from tests.test_overnight_source_structure import _recall, _store, source_env
 
 
 def test_unverified_legacy_unknown_and_transformed_sources_keep_old_rendering(source_env):
-    from core.context_retrieval import _open_memory_for_runtime, _reported_source_prefix_receipt, _distill_retrieved_hits
+    from core.context_retrieval import (
+        _distill_retrieved_hits,
+        _open_memory_for_runtime,
+        _reported_source_prefix_receipt,
+    )
     body = "Arlen: The hall has granite pillars. I carried 8 woven baskets."
     text = "I carried 8 woven baskets."
     start = body.index(text)

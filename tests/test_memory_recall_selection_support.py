@@ -1,4 +1,5 @@
-from core.context_retrieval import _distill_retrieved_hits, _recall_support_chunks, _query_overlap_terms
+from core.context_retrieval import _distill_retrieved_hits, _query_overlap_terms, _recall_support_chunks
+
 
 def capsule(q, *records):
     return _distill_retrieved_hits(q, [(r, 1.0) for r in records])[0]

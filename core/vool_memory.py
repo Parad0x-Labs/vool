@@ -2789,11 +2789,11 @@ def _scoped_bm25_scores(
     the unscoped FTS5 leg would have matched it (measured 2026-09-27: a stored
     "Parking: the north lot." fact was unreachable for "Where do guests park?".
     with both retrieval legs)."""
-    from core.porter_stem import stem, recall_words
+    from core.porter_stem import recall_words, stem
 
     documents: list[tuple[str, list[str]]] = []
     for row in rows:
-        text = f"{row['content']!s} {row['keywords']!s}" 
+        text = f"{row['content']!s} {row['keywords']!s}"
         tokens = [stem(token) for token in recall_words(text)]
         documents.append((str(row["node_id"]), tokens))
     if not documents:

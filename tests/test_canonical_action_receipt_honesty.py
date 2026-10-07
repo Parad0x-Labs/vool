@@ -1,8 +1,9 @@
 """A real canonical tool receipt remains action authority after normal finality."""
+import uuid
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
-import uuid
+
 import pytest
 
 from core.agent_runtime import orchestrator

@@ -1,6 +1,8 @@
 """Structured collection selection keeps requested headings and later facets."""
 import pytest
+
 from core.context_retrieval import _evidence_clause_windows, _structured_source_windows
+
 
 def test_more_specific_collection_heading_wins_over_generic_shared_noun():
     body="Desk equipment kit:\n- stapler\n- ruler\n\nBotanical survey equipment kit:\n- specimen sleeve\n- hand lens\n- grid card\n- plant press\n- label spool"

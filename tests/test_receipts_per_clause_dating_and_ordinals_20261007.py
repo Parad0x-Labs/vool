@@ -12,7 +12,7 @@ import pytest
 
 import core.context_retrieval as cr
 from core.context_namespace import ensure_chat_namespace
-from core.evidence_compiler import Obligation, derived_lines, _operand_sides
+from core.evidence_compiler import Obligation, _operand_sides, derived_lines
 from core.memory.entries import resolve_memory_access_policy
 from core.memory_receipts import extract_facts
 from core.runtime_paths import configure_runtime_home

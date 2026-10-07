@@ -71,8 +71,8 @@ def main() -> int:
     from storage.migrations import run_migrations
     run_migrations()
     import core.web.api.runtime as runtime_api
-    from storage.dialogue_memory import recent_dialogue_turns
     from core.persistent_memory import recent_conversation_events
+    from storage.dialogue_memory import recent_dialogue_turns
     original = runtime_api.run_agent
     receipts: list[dict] = []
 

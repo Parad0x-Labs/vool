@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import pytest
-from core import context_retrieval as cr, temporal_selection
-from tests.test_requested_source_authority_contract import source_home, _capsule
+
+from core import context_retrieval as cr
+from core import temporal_selection
 from tests.test_recall_evidence_merge_law_20260929 import _live
+from tests.test_requested_source_authority_contract import _capsule, source_home
 
 BODY = ("I run the Alder-31 ticket-folding batch. The ordinary procedure is ordered: "
         "first cut three cards, then stamp A31 on their backs, then soak the cards for "

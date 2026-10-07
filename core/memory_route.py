@@ -27,8 +27,8 @@ def memory_route(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     env_map = os.environ if env is None else env
     from core.evidence_compiler import compiler_enabled, hop_enabled, verify_enabled
     from core.evidence_kernel.receipts import kernel_enabled
-    from core.memory_receipts import enabled as receipts_enabled
     from core.local_ollama_inventory import env_flag_enabled
+    from core.memory_receipts import enabled as receipts_enabled
 
     if not env_flag_enabled(env_map, "VOOL_CONTEXT_CAPSULE_V2", default=False):
         return {"route": "legacy_semantic", "switches": []}

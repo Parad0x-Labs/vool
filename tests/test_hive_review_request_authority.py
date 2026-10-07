@@ -1,8 +1,11 @@
 """Only direct review commands authorize moderation. Contributor: sls_0x."""
 from __future__ import annotations
+
 from types import SimpleNamespace
 from unittest.mock import Mock
+
 import pytest
+
 from core.agent_runtime import hive_followups as hive
 
 ORIGINAL = 'What is my March 10 approved record for Harbor Lantern? Return only the JSON object exactly as I saved it.'

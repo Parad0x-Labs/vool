@@ -1,11 +1,14 @@
 """Canonical dialogue, client cancellation and API request IDs do not mix."""
 from copy import deepcopy
 from datetime import date
+
 import pytest
 
 from core.bootstrap_context import (
-    seal_request_evidence, admitted_request_evidence_texts,
-    admitted_request_reference_clock, finalize_request_evidence,
+    admitted_request_evidence_texts,
+    admitted_request_reference_clock,
+    finalize_request_evidence,
+    seal_request_evidence,
 )
 
 QUESTION = "How many months ago did I attend the photography workshop?"
@@ -136,8 +139,8 @@ def test_legacy_receipt_cannot_gain_client_request_authority():
 
 def test_actual_adapter_and_temporal_guard_share_final_request_and_reference_clock(monkeypatch):
     from adapters.base_adapter import ModelRequest
-    from core.bootstrap_context import _evidence_digest
     from core.agent_runtime.turn_reasoning import _past_time_guard_evidence, _past_time_guard_reference_clock
+    from core.bootstrap_context import _evidence_digest
     from core.model_output_guard import replace_unsupported_past_time_claims
     from tests.test_provider_request_evidence_binding import _adapter
     context, messages = seal()

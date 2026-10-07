@@ -1,7 +1,8 @@
 """Elapsed-time development: both source-dated endpoints, no synthetic dates."""
 import pytest
-from core.context_retrieval import _query_shape, _multi_record_eligible
-from tests.test_overnight_source_structure import source_env, _store, _recall
+
+from core.context_retrieval import _multi_record_eligible, _query_shape
+from tests.test_overnight_source_structure import _recall, _store, source_env
 
 
 @pytest.mark.parametrize("question", [

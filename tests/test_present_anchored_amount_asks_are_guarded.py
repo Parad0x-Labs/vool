@@ -33,7 +33,6 @@ from core.unsourced_current_claim import (
     unverified_current_answer,
 )
 
-
 # ---------------------------------------------------------------------------------------------
 # The original failure, reproduced at its owners
 # ---------------------------------------------------------------------------------------------

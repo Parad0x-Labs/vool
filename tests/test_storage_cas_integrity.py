@@ -35,7 +35,7 @@ def cas_root(tmp_path, monkeypatch):
     return root
 
 
-def _chunk_path(root, data: bytes) -> "object":
+def _chunk_path(root, data: bytes) -> object:
     digest = hashlib.sha256(data).hexdigest()
     return root / digest[:2] / digest[2:4] / digest
 

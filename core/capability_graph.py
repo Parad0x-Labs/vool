@@ -95,7 +95,7 @@ It provides a FILTERED VIEW used when a capability requirement is known.
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -1665,10 +1665,10 @@ __all__ = [
     "bootstrap_from_registry",
     "build_implementation_from_contract",
     "build_legacy_mapping",
-    "capability_hint_from_task_class",
     "capabilities_for_skill",
     "capabilities_in_family",
     "capability_for_intent",
+    "capability_hint_from_task_class",
     "discover",
     "ensure_registry_bootstrap",
     "family_for_capability",

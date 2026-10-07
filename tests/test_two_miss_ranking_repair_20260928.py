@@ -162,6 +162,7 @@ def _probe_capsule(main, focus, query):
     selection, distillation and packing code executes.
     """
     from unittest.mock import patch
+
     from core.context_capsule_v2 import resolve_budget
     BE = "ollama:nomic-embed-text#retrieval-mrl384-v1"
     chat = "contract-probe"

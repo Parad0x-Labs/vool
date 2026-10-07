@@ -1,7 +1,9 @@
 """Receipt-offset development proofs; no whitespace normalization of evidence."""
 import pytest
+
 from core.context_retrieval import _evidence_clause_windows
-from tests.test_overnight_source_structure import source_env,_store,_recall
+from tests.test_overnight_source_structure import _recall, _store, source_env
+
 
 @pytest.mark.parametrize("body,question", [
     ("Overview of calibration.\n\n  | Tool | Pressure (kPa) | \n | --- | --- |\n | Elder | 82-97 |  \n", "From our previous chat, what pressure did the chart list for Elder?"),

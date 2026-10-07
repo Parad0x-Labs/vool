@@ -9,7 +9,6 @@ import pytest
 
 from core.context_retrieval import _evidence_clause_windows
 
-
 LIST_BODY = (
     "Our previous chat about the Copper Observatory expedition covered the party.\n"
     "The Copper Observatory expedition lets the party face a collector first.\n"
@@ -57,9 +56,9 @@ def test_table_lookup_keeps_answer_row_and_column_labels():
 
 @pytest.fixture()
 def source_env(tmp_path, monkeypatch):
+    import core.embedding_service as embeddings
     from core import runtime_paths
     from storage.migrations import run_migrations
-    import core.embedding_service as embeddings
 
     home = tmp_path / "source-world"
     home.mkdir()
@@ -79,8 +78,8 @@ def source_env(tmp_path, monkeypatch):
 
 def _store(home, chat, user, assistant, stated=1700000000):
     from core.context_namespace import ensure_chat_namespace
-    from core.memory.entries import resolve_memory_access_policy
     from core.context_retrieval import store_turn
+    from core.memory.entries import resolve_memory_access_policy
 
     ensure_chat_namespace(chat, grant_current_receipts=False)
     policy = resolve_memory_access_policy(chat_id=chat)

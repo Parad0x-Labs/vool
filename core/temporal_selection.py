@@ -55,20 +55,21 @@ deletion, and grants stay with their owning seams.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 __all__ = [
     "AsOfIntent",
-    "TemporalCandidate",
     "EligibilityVerdict",
-    "resolve_question_as_of",
     "QuestionDateWindow",
-    "question_date_window",
-    "relative_reference_day",
+    "TemporalCandidate",
     "apply_temporal_selection",
     "effective_time",
+    "question_date_window",
+    "relative_reference_day",
+    "resolve_question_as_of",
     "slot_signature",
     "value_tokens",
 ]
@@ -598,9 +599,7 @@ def self_dated_day(body: str, statement_at: float | None) -> date | None:
                 continue
             year = stated.year
             # "last March" said in May is this year's March; said in February it is last year's
-            if date(year, month, 1) > stated.replace(day=1):
-                year -= 1
-            elif m.group("lead").lower() == "last" and month == stated.month:
+            if date(year, month, 1) > stated.replace(day=1) or (m.group("lead").lower() == "last" and month == stated.month):
                 year -= 1
             found.add(date(year, month, 1))
     if len(found) != 1:
@@ -767,7 +766,7 @@ def declared_effective_date(
     year_hint: int | None = None,
     *,
     statement_at: float | None = None,
-) -> "date | None":
+) -> date | None:
     """The record's own single effective date, when its text declares one
     and no explicit window already governs it. An EXPLICIT year in the text
     is the speaker's own dating and wins. A yearless phrase resolves

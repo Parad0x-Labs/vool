@@ -1,5 +1,5 @@
 """Structured assistant history is state of the selected relation, not its prose."""
-from tests.test_overnight_source_structure import source_env, _store, _recall, TABLE_BODY, TABLE_ASK
+from tests.test_overnight_source_structure import TABLE_ASK, TABLE_BODY, _recall, _store, source_env
 
 
 def test_unrelated_retraction_sharing_intro_cannot_withdraw_roster(source_env):

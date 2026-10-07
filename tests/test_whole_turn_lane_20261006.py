@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 import core.context_retrieval as cr
-from tests.test_question_date_time_leg_20261002 import _hash_backend, _profile  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _hash_backend, _profile
 from tests.test_time_leg_follows_allowance_20261003 import _wide_capsule
 
 _CABIN_LIST = (
@@ -38,10 +38,11 @@ _FILLER = [
 
 
 def _ingest_pairs(profile: Path, chat: str, sessions: list[list[tuple[str, str]]]) -> None:
+    from datetime import datetime, timezone
+
     from core.context_namespace import ensure_chat_namespace
     from core.memory.entries import resolve_memory_access_policy
     from core.persistent_memory import append_conversation_event
-    from datetime import datetime, timezone
 
     ensure_chat_namespace(chat, grant_current_receipts=False)
     policy = resolve_memory_access_policy(chat_id=chat)

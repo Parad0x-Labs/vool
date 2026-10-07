@@ -11,8 +11,8 @@ from core import policy_engine
 from core.bootstrap_context import canonical_runtime_transcript
 from core.context_history_authority import (
     AUTHORITATIVE_CORRECTIONS_PREFIX,
-    HISTORY_MAX_CHARS,
     EXPANDED_HISTORY_MESSAGES,
+    HISTORY_MAX_CHARS,
     RECALL_HISTORY_MESSAGES,
     enforce_history_budget,
     history_authority_for_source,

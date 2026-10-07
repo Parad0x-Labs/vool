@@ -19,8 +19,8 @@ import pytest
 from core.context_namespace import ensure_chat_namespace
 from core.context_retrieval import inject_retrieved, store_turn
 from core.memory.entries import resolve_memory_access_policy
-from core.vool_memory import VoolMemory
 from core.runtime_paths import configure_runtime_home
+from core.vool_memory import VoolMemory
 
 MULTI_FACT = (
     "Please remember the observatory open-day notes:\n"

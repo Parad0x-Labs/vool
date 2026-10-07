@@ -130,7 +130,12 @@ def test_echo_demotion_respects_requested_subject_without_restoring_dead_slot(as
 
 @pytest.mark.parametrize("mutation", ["delete", "corrupt", "revoke_grant", "archive_namespace", "change_speaker", "change_event_time"])
 def test_requested_source_revalidates_lifecycle_between_discovery_and_hydration(source_home, monkeypatch, mutation):
-    from core.context_namespace import ensure_chat_namespace, grant_context_import, revoke_context_import, set_chat_namespace_state
+    from core.context_namespace import (
+        ensure_chat_namespace,
+        grant_context_import,
+        revoke_context_import,
+        set_chat_namespace_state,
+    )
     from core.vool_memory import VoolMemory
     body = "Ceramic archive inspection checklist:\n1. Confirm the blue storage label.\n2. Retain the red witness seal.\n3. Return the steel gauge to its pouch."
     _live(source_home, "archive-source", [("user", "Provide a ceramic archive inspection checklist."), ("assistant", body)])

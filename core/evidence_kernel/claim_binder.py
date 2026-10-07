@@ -28,8 +28,9 @@ from __future__ import annotations
 
 import itertools
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 _MONEY_RE = re.compile(r"(?:(?P<cur>[$€£])\s?(?P<v>\d[\d,]*(?:\.\d+)?)|(?P<v2>\d[\d,]*(?:\.\d+)?)\s*(?P<cur2>dollars|euros|pounds|usd|eur|gbp|bucks))", re.IGNORECASE)
 _NUMBER_RE = re.compile(r"(?<![\d.,$€£])(?P<v>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?![\d,]*\s*(?:am|pm|:))")
@@ -65,9 +66,9 @@ _PAST_TENSE_RE = re.compile(r"\b(?:held|was|were|had|used\s+to|reached|hit|measu
 _STOP = {"what", "which", "who", "how", "much", "many", "long", "is", "are", "was", "were", "the", "a", "an", "my", "me", "i", "of", "in", "on", "at", "for", "to", "did", "do", "does",
          "have", "has", "had", "current", "currently", "now", "far", "so", "and", "or", "with", "from", "by", "this", "that", "it", "its", "your", "you", "we", "our", "today", "year",
          "spend", "spent", "pay", "paid", "cost", "buy", "bought", "together", "total", "all", "most", "least", "expensive", "cheap", "cheapest", "between", "about", "there", "been",
-         "got", "get", "picked", "purchased", "went", "said", "just", "recently", "also", "even", "week", "today", "yesterday", "new", "some", "then", "ago", "last", "finally",
+         "got", "get", "picked", "purchased", "went", "said", "just", "recently", "also", "even", "week", "yesterday", "new", "some", "then", "ago", "last", "finally",
          "way", "really", "pretty", "quite", "very", "more", "after", "before", "when", "where", "since", "into", "out", "up", "down", "off", "over", "still", "yet", "too", "again",
-         "items", "item", "things", "thing", "stuff", "gear", "one", "ones", "which", "first", "second", "third", "earlier", "later", "ever", "far", "much", "many"}
+         "items", "item", "things", "thing", "stuff", "gear", "one", "ones", "first", "second", "third", "earlier", "later", "ever"}
 
 
 @dataclass
@@ -298,7 +299,7 @@ class BindingResult:
                 "qualifiable": self.qualifiable, "states": self.states(), "claims": [c.as_dict() for c in self.claims]}
 
 
-def qualify_reply(reply: Any, result: "BindingResult") -> str:
+def qualify_reply(reply: Any, result: BindingResult) -> str:
     """The reply with its not-supported values named as not found in the records; the text itself is not rewritten."""
     text = str(reply or "").rstrip()
     if not result.qualifiable:

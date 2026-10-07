@@ -2,10 +2,12 @@
 import datetime as dt
 import json
 from pathlib import Path
+
 import pytest
+
 from core.agent_runtime.response import _validate_final_chat_output
 from core.unsourced_current_claim import inspect_unsourced_current_claim
-from tests.test_final_repair_fresh_acceptance import isolate_telemetry, context_for, pottery_home
+from tests.test_final_repair_fresh_acceptance import context_for, isolate_telemetry, pottery_home
 
 CASES=json.loads(Path(__file__).with_name('final_repair_fresh2_cases.json').read_text())
 
@@ -41,8 +43,8 @@ def photo_home(monkeypatch,request):
 
 def prepare_photo(home,foreign=False):
     from core.context_namespace import ensure_chat_namespace
-    from core.memory.entries import resolve_memory_access_policy
     from core.context_retrieval import store_turn
+    from core.memory.entries import resolve_memory_access_policy
     for name in ['photo-walks','photo-neighbour']:ensure_chat_namespace(name,grant_current_receipts=False)
     chat='photo-neighbour' if foreign else 'photo-walks'
     turns=[(PHOTO_USER,'Noted — compact tripod and neck strap.'),

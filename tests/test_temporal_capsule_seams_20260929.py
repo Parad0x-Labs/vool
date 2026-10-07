@@ -82,8 +82,8 @@ def _ingest_live(profile: Path, chat: str, turns: list[dict]) -> None:
 
 
 def _capsule(profile: Path, chat: str, question: str, *, as_of=None, mode="v2"):
-    from core.context_retrieval import inject_retrieved
     from core.context_namespace import ensure_chat_namespace
+    from core.context_retrieval import inject_retrieved
     from core.memory.entries import resolve_memory_access_policy
 
     ensure_chat_namespace(chat, grant_current_receipts=False)

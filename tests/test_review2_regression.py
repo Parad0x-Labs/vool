@@ -1,8 +1,10 @@
 """Independent frozen tests for profile admission revision 2."""
 import json
+
 from core.context_scope import ContextAccessPolicy
-from core.memory.files import user_heuristics_path, memory_entries_path
+from core.memory.files import memory_entries_path, user_heuristics_path
 from core.persistent_memory import append_conversation_event, maybe_handle_memory_command
+
 LOCAL={"surface":"cli","platform":"cli"}
 def rows(path):
     return [json.loads(s) for s in path.read_text().splitlines() if s.strip()] if path.exists() else []

@@ -639,7 +639,7 @@ _RECORD_SPEAKER_LABEL_RE = re.compile(
 )
 # Role and heading labels that name no person.
 _NON_PERSON_LABELS = frozenset({
-    "user", "assistant", "system", "vool", "vool", "human", "ai", "bot", "note", "notes",
+    "user", "assistant", "system", "vool", "human", "ai", "bot", "note", "notes",
     "update", "correction", "summary", "question", "answer", "re", "subject", "warning",
 })
 # Words that open sentences without naming anyone; a capitalised word opening a sentence names a
@@ -1254,7 +1254,7 @@ def inspect_ordinary_chat_output(
     required_parts = int(policy.get("independent_request_parts") or numbered_parts)
     completeness_status = None
     if required_parts >= 2:
-        from core.plain_task_routing import ordinary_multi_part_answer_status, ordinary_indexed_answer_status
+        from core.plain_task_routing import ordinary_indexed_answer_status, ordinary_multi_part_answer_status
 
         # The original request supplies the shared shape authority. The final display
         # backstop uses the same server-derived count when request text is not retained.

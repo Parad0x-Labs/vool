@@ -8,8 +8,9 @@ Contributor: sls_0x."""
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 _ABSENCE_CONCLUSION_RE = re.compile(r"\b(?:never|no\s+(?:record|mention|note|sign|trace)\b|not\s+(?:mentioned|recorded|noted)|nothing\s+(?:in|about|on)\b|(?:didn'?t|did\s+not|haven'?t|have\s+not|hadn'?t)\s+(?:ever\s+)?(?:mention|say|tell|record|note|talk)|at\s+no\s+point|there\s+is\s+no\b|i\s+(?:can'?t|cannot|couldn'?t)\s+find\s+any)\b", re.IGNORECASE)
 _EXTREMUM_CONCLUSION_RE = re.compile(r"\b(?:first|earliest|oldest|very\s+first|latest|last|most\s+recent(?:ly)?|newest|final)\b", re.IGNORECASE)

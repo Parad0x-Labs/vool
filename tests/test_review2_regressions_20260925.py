@@ -10,6 +10,7 @@ a value quoted in a later unrelated record donated that record's date.
 """Frozen independent review: fallback serialization and source ownership."""
 from core import context_retrieval as cr
 
+
 def test_fallback_contains_only_source_text():
     out, tel = cr._distill_retrieved_hits("Summarize", [("Orchard trees survived winter.", 0.987654)])
     assert tel["selected_facts"] == ["- retrieved fact: Orchard trees survived winter."], out

@@ -241,8 +241,8 @@ def pref_env(tmp_path, monkeypatch):
 
 def _ingest(home, chat: str, sessions) -> None:
     from core.context_namespace import ensure_chat_namespace
-    from core.memory.entries import resolve_memory_access_policy
     from core.context_retrieval import store_turn
+    from core.memory.entries import resolve_memory_access_policy
 
     ensure_chat_namespace(chat, grant_current_receipts=False)
     policy = resolve_memory_access_policy(chat_id=chat)

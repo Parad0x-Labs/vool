@@ -1,16 +1,19 @@
 """Requested answer shape survives the actual routing and presentation owners."""
 from __future__ import annotations
+
 import json
 from types import SimpleNamespace
 from unittest import mock
+
 import pytest
+
 from apps.vool_agent import ChatTurnResult, ResponseClass
 from core.agent_runtime import memory_runtime, response
 from core.agent_runtime.runtime_checkpoint_lane_policy import model_routing_profile
 from core.model_output_contracts import validate_contract
 from core.prompt_normalizer import normalize_prompt
 from core.raw_output_contract import parse_raw_output_contract
-from core.reasoning_engine import explicit_planner_style_requested, build_plan
+from core.reasoning_engine import build_plan, explicit_planner_style_requested
 from core.runtime_task_outcome import terminal_fulfillment_outcome
 from core.task_router import classify
 
@@ -114,8 +117,8 @@ def test_internal_tool_payload_is_still_refused_even_under_json_only(make_agent)
 
 
 def _grounded_final(make_agent, context_result_factory, raw):
-    from tests.test_agent_runtime_turn_reasoning import _configure_grounded_turn_agent
     from core.memory_first_router import ModelExecutionDecision
+    from tests.test_agent_runtime_turn_reasoning import _configure_grounded_turn_agent
     agent=make_agent()
     task,classification,interpreted,persona=_configure_grounded_turn_agent(agent,context_result=context_result_factory(retrieval_confidence_score=.9))
     prompt="Give me a new step-by-step ceramic kiln preparation plan."

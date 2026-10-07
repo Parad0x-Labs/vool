@@ -22,7 +22,6 @@ import pytest
 
 from core.kernel.paged_memory import ContextUndercovered, PagedSession, recall_handles
 
-
 # Fresh fixtures — bakery/observatory domain, deliberately unlike the law-file
 # and audit wording: new facts, new expected values.
 BAKERY_ORDER = (

@@ -115,11 +115,12 @@ def test_summary_survives_the_combined_history_and_capsule_budget(monkeypatch):
 
 
 def test_clock_only_provider_carrier_cannot_authorize_a_past_event(monkeypatch):
-    from datetime import datetime, timezone
     from copy import deepcopy
+    from datetime import datetime, timezone
+
     from adapters.base_adapter import ModelRequest
-    from tests.test_provider_request_evidence_binding import _adapter
     from core.model_output_guard import stated_past_time_claims
+    from tests.test_provider_request_evidence_binding import _adapter
 
     class FixtureDateTime(datetime):
         @classmethod

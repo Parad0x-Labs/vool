@@ -1,15 +1,19 @@
 """Fresh independent review cases, frozen before execution; no product edits."""
-import json,time
+import json
+import time
 from dataclasses import replace
 from pathlib import Path
+
 import pytest
-from core.persistent_memory import append_conversation_event
-from core.memory.files import user_heuristics_path
+
 import core.context_retrieval as cr
-from core.vool_memory import VoolMemory
-from core.context_namespace import ensure_chat_namespace
-from core.context_capsule_v2 import resolve_budget,estimate_tokens
+from core.context_capsule_v2 import estimate_tokens, resolve_budget
 from core.context_history_authority import enforce_history_budget
+from core.context_namespace import ensure_chat_namespace
+from core.memory.files import user_heuristics_path
+from core.persistent_memory import append_conversation_event
+from core.vool_memory import VoolMemory
+
 
 def _signals(text):
     append_conversation_event(session_id="review-profile",user_input=text,assistant_output="Acknowledged.",source_context={"surface":"cli","platform":"cli"})

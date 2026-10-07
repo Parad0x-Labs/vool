@@ -31,7 +31,7 @@ from core.memory.entries import resolve_memory_access_policy
 from core.vool_memory import VoolMemory
 
 try:
-    from tests.test_fresh_acceptance_memrepair2b_20260927 import (  # noqa: F401
+    from tests.test_fresh_acceptance_memrepair2b_20260927 import (
         fresh_profile,
     )
 except ImportError:  # pragma: no cover
@@ -60,7 +60,7 @@ def test_upsert_roundtrip_and_semantic_search(fresh_profile):
     try:
         occ = _record(mem, "chat-a", "The winter mooring is buoy 7 off the north wall.")
         digest = hashlib.sha256(
-            "The winter mooring is buoy 7 off the north wall.".encode()).hexdigest()
+            b"The winter mooring is buoy 7 off the north wall.").hexdigest()
         assert mem.occurrence_embedding_upsert(
             occ.occurrence_id, backend="ollama:toy#v1",
             vector=[1.0, 0.0, 0.0], body_sha256=digest)
@@ -82,7 +82,7 @@ def test_foreign_backend_rows_invisible(fresh_profile):
     mem = _mem(home)
     try:
         occ = _record(mem, "chat-b", "Charter parties sign at the harbour office.")
-        digest = hashlib.sha256("Charter parties sign at the harbour office.".encode()).hexdigest()
+        digest = hashlib.sha256(b"Charter parties sign at the harbour office.").hexdigest()
         mem.occurrence_embedding_upsert(
             occ.occurrence_id, backend="ollama:other#v9",
             vector=[1.0, 1.0], body_sha256=digest)
@@ -106,7 +106,7 @@ def test_stale_body_sha256_counts_as_missing(fresh_profile):
         missing = mem.occurrence_embeddings_missing(
             chat_scope="chat-c", backend="ollama:toy#v1", limit=8)
         assert (occ.occurrence_id, "First wording of the fact.") in missing, missing
-        fresh_digest = hashlib.sha256("First wording of the fact.".encode()).hexdigest()
+        fresh_digest = hashlib.sha256(b"First wording of the fact.").hexdigest()
         mem.occurrence_embedding_upsert(
             occ.occurrence_id, backend="ollama:toy#v1",
             vector=[1.0], body_sha256=fresh_digest)
@@ -122,7 +122,7 @@ def test_deletion_clears_semantic_derivative(fresh_profile):
     try:
         occ = _record(mem, "chat-d", "The gate code is 4711 until further notice.")
         digest = hashlib.sha256(
-            "The gate code is 4711 until further notice.".encode()).hexdigest()
+            b"The gate code is 4711 until further notice.").hexdigest()
         mem.occurrence_embedding_upsert(
             occ.occurrence_id, backend="ollama:toy#v1",
             vector=[1.0, 0.0], body_sha256=digest)

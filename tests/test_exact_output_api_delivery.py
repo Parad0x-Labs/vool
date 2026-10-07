@@ -1,9 +1,13 @@
 """Exact deliverables retain their content while provenance travels separately."""
 from __future__ import annotations
+
 from unittest import mock
+
 import pytest
+
 from core.raw_output_contract import parse_raw_output_contract
 from core.web.api import runtime as api
+
 
 @pytest.mark.parametrize("directive",[
     "Return the complete saved lab dispatch manifest exactly as stored. Do not add a heading, footer, attribution or any other text.",

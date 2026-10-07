@@ -172,11 +172,11 @@ def turn_is_owner_authored(source_context: Any) -> bool:
 
 __all__ = [
     "OWNER_LOCAL_KEY",
-    "TURN_AUTHOR_KEY",
-    "turn_author_from_request",
-    "turn_is_owner_authored",
     "RESERVED_TRUST_KEYS",
+    "TURN_AUTHOR_KEY",
     "is_loopback_host",
     "request_is_owner_local",
     "strip_reserved_trust_keys",
+    "turn_author_from_request",
+    "turn_is_owner_authored",
 ]

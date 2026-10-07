@@ -29,7 +29,7 @@ from core.temporal_selection import (
     apply_temporal_selection,
     resolve_question_as_of,
 )
-from tests.test_requested_source_authority_contract import _capsule, source_home  # noqa: F401
+from tests.test_requested_source_authority_contract import _capsule, source_home
 
 UTC = timezone.utc
 NOW = datetime(2026, 9, 1, tzinfo=UTC)

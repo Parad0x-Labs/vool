@@ -220,7 +220,7 @@ def _deliver(question: str, raw_reply: str, source_context: dict, chat: str) -> 
             session_id=chat,
         ),
     )
-    from apps.vool_agent import ChatTurnResult, VoolAgent, ResponseClass
+    from apps.vool_agent import ChatTurnResult, ResponseClass, VoolAgent
 
     agent = VoolAgent(
         backend_name="journey-backend", device="p300-lead", persona_id="default"

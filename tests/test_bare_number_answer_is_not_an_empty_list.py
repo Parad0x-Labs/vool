@@ -4,7 +4,6 @@ import pytest
 
 from core.incomplete_answer import inspect_answer_completeness
 
-
 COUNT_ASKS = ["How many items were in the list of beginner woodworking projects you gave me?", "how many pepper plants do i have now",
               "What number did I draw in the raffle?", "How old is my cousin Greta?", "Which position did I finish in the 10K?"]
 

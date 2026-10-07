@@ -1,5 +1,5 @@
 """Development repro: metadata is provenance, never statement identity."""
-from tests.test_overnight_source_structure import source_env, _store, _recall, TABLE_BODY, TABLE_ASK
+from tests.test_overnight_source_structure import TABLE_ASK, TABLE_BODY, _recall, _store, source_env
 
 
 def test_unrelated_correction_cannot_supersede_dated_roster(source_env):

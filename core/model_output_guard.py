@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import bisect
-import json
-import re
 import functools
 import hashlib
+import json
+import re
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
-from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import Any
 
 # --- Model-output hygiene: foreign tool-call vocabulary + synthesis integrity ------------------
@@ -1861,8 +1861,8 @@ _PAST_CLOCK_TIME_RE = re.compile(
 # Bounded English cardinal quantities: zero through 999, plus nonnegative
 # decimal digits. Larger/fractional number-word forms are detected but cannot
 # silently receive numerical verification. This is not a multilingual parser.
-_NUMBER_SMALL = dict(zip("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split(), range(20)))
-_NUMBER_TENS = dict(zip("twenty thirty forty fifty sixty seventy eighty ninety".split(), range(20, 100, 10)))
+_NUMBER_SMALL = dict(zip(["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"], range(20)))
+_NUMBER_TENS = dict(zip(["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"], range(20, 100, 10)))
 _NUMBER_WORD_PATTERN = "|".join((*_NUMBER_SMALL, *_NUMBER_TENS, "hundred", "thousand", "million", "billion", "and", "point", "half", "quarter"))
 # "and" and "point" join the parts of one number ("one hundred and two", "two point five"); a
 # quantity cannot START with them. Allowing it read "three days and two nights" as the
@@ -4565,7 +4565,7 @@ _CLOCK_SOURCE_PRECEDES_RE = re.compile(
 _EVENT_CAPABLE_RECORD_NOUNS = frozenset({"session", "chat", "exchange", "call", "post", "update", "talk", "discussion"})
 _RECORD_NOUN_BASES = frozenset({"conversation", "convo", "session", "chat", "message", "msg", "text", "email", "exchange",
                                 "call", "entry", "note", "record", "post", "update", "talk", "reply", "discussion"})
-_NOUN_PHRASE_DETERMINERS = frozenset("the a an this that these those her his their my your our its".split())
+_NOUN_PHRASE_DETERMINERS = frozenset(["the", "a", "an", "this", "that", "these", "those", "her", "his", "their", "my", "your", "our", "its"])
 #: Words that may stand inside a record's noun phrase without making it an event: the conversation's
 #: time words and record kinds ("her last message", "that day's chat", "a text message", "the morning
 #: session"); a number, clock, month or date ("the 6:55 pm conversation", "her 12 May note") is one too,
@@ -4577,15 +4577,13 @@ _RECORD_NOUN_NEUTRAL_WORDS = frozenset((
     "logged dated timestamped stamped am pm a.m. p.m. a.m p.m o'clock o’clock " + " ".join(_WEEKDAYS)).split())
 #: Words that end a noun phrase when read backwards from its noun (a preposition, conjunction or
 #: pronoun): "per the 9:12 chat", "said in 6:55 pm messages", "she mentioned it 6:55 pm chat".
-_NOUN_PHRASE_BOUNDARY_WORDS = frozenset((
-    "before after b4 bfr preceding following since until till than per from by in during at on through via within "
-    "to of with about for into and or but so then i we you he she they it me us him them").split())
+_NOUN_PHRASE_BOUNDARY_WORDS = frozenset(["before", "after", "b4", "bfr", "preceding", "following", "since", "until", "till", "than", "per", "from", "by", "in", "during", "at", "on", "through", "via", "within", "to", "of", "with", "about", "for", "into", "and", "or", "but", "so", "then", "i", "we", "you", "he", "she", "they", "it", "me", "us", "him", "them"])
 #: Words that relate a time to a cited record ("the night before the 6:55 pm conversation", "per the 9:12
 #: chat", "two days ahead of the 12 May message", "according to the session on 4 May").
-_RECORD_RELATION_WORDS = frozenset("before after b4 bfr preceding following since until till than per from by".split())
+_RECORD_RELATION_WORDS = frozenset(["before", "after", "b4", "bfr", "preceding", "following", "since", "until", "till", "than", "per", "from", "by"])
 _RECORD_RELATION_PAIRS = frozenset({("prior", "to"), ("ahead", "of"), ("according", "to"), ("as", "of"), ("up", "to")})
 #: ... and words that place a report inside it ("she mentioned it in the 6:55 pm session").
-_RECORD_REPORTED_IN_WORDS = frozenset("in during at on through via within".split())
+_RECORD_REPORTED_IN_WORDS = frozenset(["in", "during", "at", "on", "through", "via", "within"])
 _CLOCK_REPORT_VERB = rf"(?:{_REPORT_VERB}|says|tells|writes|mentions|asked|asks|sent|texted|replied)"
 _CLOCK_REPORT_VERB_RE = re.compile(rf"\b{_CLOCK_REPORT_VERB}\b", re.I)
 #: The verb a cited record reports with ("the 6:55 pm chat says ...", "her 12 May note shows ...").
@@ -4599,7 +4597,7 @@ _CLOCK_REPORT_PRECEDES_RE = re.compile(
     # may be what was said, so the object is required there.
     rf"|\b(?P<bare_verb>{_CLOCK_REPORT_VERB})\s+(?:it|this|that|so)\s+$", re.I)
 #: The words a report's object may be made of besides a speaker's name.
-_REPORT_OBJECT_WORDS = frozenset("this that it me us you him her them about back again also down so first to with".split())
+_REPORT_OBJECT_WORDS = frozenset(["this", "that", "it", "me", "us", "you", "him", "her", "them", "about", "back", "again", "also", "down", "so", "first", "to", "with"])
 _CLOCK_REPORTER_FOLLOWS_RE = re.compile(
     r"\s*[,(\u2014\u2013-]?\s*(?:(?:that\s+is|i\.e\.)\s*,?\s*)?(?P<when>when\s+)?"
     r"(?:(?:the|her|his|their|my|your|our)\s+)?[A-Za-z][\w'’-]*\s+(?:(?:[a-z]+ly|just|first|also)\s+)?"
@@ -4611,12 +4609,10 @@ _ADDRESSEE_REPORT_VERBS = frozenset({"told", "tells", "texted", "messaged", "ask
 _PARTNER_PRONOUNS = frozenset({"him", "her", "them", "me", "you", "us"})
 #: Words after "her" that keep it an object pronoun ("told her at 9", "with her about it"); any other
 #: word makes it a third party's possessive ("told her sister", "a call with her mother").
-_PRONOUN_OBJECT_FOLLOWERS = frozenset((
-    "at on in about that this it so and but or when before after yesterday today then again too also back by "
-    "around during while because the").split())
+_PRONOUN_OBJECT_FOLLOWERS = frozenset(["at", "on", "in", "about", "that", "this", "it", "so", "and", "but", "or", "when", "before", "after", "yesterday", "today", "then", "again", "too", "also", "back", "by", "around", "during", "while", "because", "the"])
 #: What a report verb's object may open with when it is what was reported, not whom it addressed.
 _REPORTED_CONTENT_OPENERS = frozenset(
-    "that about it this so of how what when why where if whether everything nothing something".split())
+    ["that", "about", "it", "this", "so", "of", "how", "what", "when", "why", "where", "if", "whether", "everything", "nothing", "something"])
 
 
 def _record_speakers(spans) -> frozenset[str]:
@@ -4914,9 +4910,7 @@ def _date_cites_a_record(clause: str, start: int, end: int, *, speakers=frozense
 _ORDINAL_DAY_RE = re.compile(
     rf"\b(?:on|by|since|from|until|till|before|after)\s+the\s+(?P<day>\d{{1,2}})(?:st|nd|rd|th)\b"
     rf"(?!\s*(?:of\s+)?(?:{_PAST_MONTH_WORDS})\b)", re.I)
-_ORDINAL_DAY_FOLLOWERS = frozenset((
-    "and but so when at in with for to i we he she they it my our his her their the a an this that after before "
-    "because then too as already which who while if or since until last").split())
+_ORDINAL_DAY_FOLLOWERS = frozenset(["and", "but", "so", "when", "at", "in", "with", "for", "to", "i", "we", "he", "she", "they", "it", "my", "our", "his", "her", "their", "the", "a", "an", "this", "that", "after", "before", "because", "then", "too", "as", "already", "which", "who", "while", "if", "or", "since", "until", "last"])
 
 
 def _ordinal_days(text: str, statement) -> set:

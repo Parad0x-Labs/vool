@@ -1,8 +1,10 @@
 """Shape descriptions never gain literal or runtime-credential authority."""
 from types import SimpleNamespace
+
 import pytest
-from core.web.api.response_control import exact_response_target,apply_exact_response_control
-from core.runtime_lane_truth import runtime_lane_question,FACET_KEY,FACET_PROVIDER
+
+from core.runtime_lane_truth import FACET_KEY, FACET_PROVIDER, runtime_lane_question
+from core.web.api.response_control import apply_exact_response_control, exact_response_target
 
 JSON_REQUESTS=[
     'Return exactly one valid JSON object with the sole key "station" and its recorded string value for the willow bench. Do not include prose or Markdown.',
@@ -81,7 +83,7 @@ def test_full_router_rederivation_keeps_requested_output_mode(prompt,monkeypatch
 
 @pytest.mark.parametrize('raw',['The station code is P-29.','{"station": "P-29"','["P-29"]'])
 def test_explicit_single_json_object_rejects_invalid_or_wrong_container(raw):
-    from core.raw_output_contract import parse_raw_output_contract,apply_raw_output_contract
+    from core.raw_output_contract import apply_raw_output_contract, parse_raw_output_contract
     contract=parse_raw_output_contract(JSON_OBJECT_PROMPT)
     assert contract is not None
     application=apply_raw_output_contract(raw,contract)
@@ -89,7 +91,11 @@ def test_explicit_single_json_object_rejects_invalid_or_wrong_container(raw):
     assert any(v in application.violations for v in ('invalid_json','json_not_object'))
 
 def test_valid_user_json_object_preserves_exact_source_bytes():
-    from core.raw_output_contract import parse_raw_output_contract,apply_raw_output_contract,raw_output_contract_from_metadata
+    from core.raw_output_contract import (
+        apply_raw_output_contract,
+        parse_raw_output_contract,
+        raw_output_contract_from_metadata,
+    )
     contract=parse_raw_output_contract(JSON_OBJECT_PROMPT)
     assert contract is not None and getattr(contract,'json_required',False)
     assert getattr(contract,'json_object',False)
@@ -99,7 +105,7 @@ def test_valid_user_json_object_preserves_exact_source_bytes():
     assert app.compliant and app.text==raw
 
 def test_json_only_accepts_valid_array_without_reinterpreting_plan_fields():
-    from core.raw_output_contract import parse_raw_output_contract,apply_raw_output_contract
+    from core.raw_output_contract import apply_raw_output_contract, parse_raw_output_contract
     contract=parse_raw_output_contract('Output JSON only.')
     assert contract is not None
     assert apply_raw_output_contract('["saved", "values"]',contract).compliant

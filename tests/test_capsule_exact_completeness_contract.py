@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import pytest
+
 from core import context_retrieval as cr
 
 CHAT = "scalar-completeness"
@@ -58,8 +59,8 @@ def test_multi_field_recall_keeps_exact_current_session_filter_authority():
 
 
 def test_post_model_api_preserves_complete_answer_instead_of_partial_override(monkeypatch, tmp_path):
-    from tests.test_capsule_override_safety import _FakeAgent
     from core.web.api.runtime import RuntimeServices, run_agent
+    from tests.test_capsule_override_safety import _FakeAgent
 
     class CompleteAgent(_FakeAgent):
         def run_once(self, user_text, **kwargs):

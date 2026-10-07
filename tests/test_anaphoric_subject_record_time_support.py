@@ -109,7 +109,7 @@ def test_no_record_at_all_still_withdraws():
 
 # --- semantic family (CLAUDE.md 6b.2) ------------------------------------------------------------
 
-import pytest  # noqa: E402
+import pytest
 
 FAMILY = [
     # (question, speaker turn, answer, supported date)

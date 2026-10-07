@@ -304,15 +304,7 @@ _STATEMENT_DATE_RE = re.compile(r"(\d{4})[-/](\d{2})[-/](\d{2})")
 #: record vocabulary itself, unit words, and function words. Anything else
 #: (a game name, a mountain, an instrument) is subject-bearing.
 _GENERIC_RECORD_TOKENS = frozenset(
-    """
-    best worst highest lowest most fewest least longest shortest largest smallest biggest
-    greatest quickest fastest slowest heaviest lightest top record records maximum minimum
-    personal score scores point points goal goals run runs set sets game games time times
-    total totals count counts level levels your yours current currently now present latest
-    earlier previous prior just only been have has had having with from this that these
-    those said told noted mentioned minutes minute hours hour seconds days weeks months
-    years
-    """.split()
+    ["best", "worst", "highest", "lowest", "most", "fewest", "least", "longest", "shortest", "largest", "smallest", "biggest", "greatest", "quickest", "fastest", "slowest", "heaviest", "lightest", "top", "record", "records", "maximum", "minimum", "personal", "score", "scores", "point", "points", "goal", "goals", "run", "runs", "set", "sets", "game", "games", "time", "times", "total", "totals", "count", "counts", "level", "levels", "your", "yours", "current", "currently", "now", "present", "latest", "earlier", "previous", "prior", "just", "only", "been", "have", "has", "had", "having", "with", "from", "this", "that", "these", "those", "said", "told", "noted", "mentioned", "minutes", "minute", "hours", "hour", "seconds", "days", "weeks", "months", "years"]
 )
 _RECORD_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 #: Negation scope inside a fact line: a value is NEGATED evidence when a negation
@@ -410,7 +402,7 @@ def _distinctive_subject_tokens(text: str) -> set[str]:
     subject identity (owner-review R01: a winch-lift record in kilograms must not
     bind to a clay-haul claim)."""
 
-    from core.temporal_selection import slot_signature, _stem
+    from core.temporal_selection import _stem, slot_signature
 
     bare = _bare_statement_text(str(text or ""))
     # Subject identity precedes this assertion's value, not arbitrary prose
@@ -475,13 +467,15 @@ def _record_assertions(admitted_evidence: Any) -> list[dict[str, Any]]:
     record assertion or its immediate anaphoric continuation contributes values.
     Incidental mentions in a following sentence cannot become record entries.
     """
-    from core.temporal_selection import carries_undo_marker
-    from core.memory.admission import (
-        classify_user_text, _FIRST_PERSON_POSSESSIVE_RE,
-        _THIRD_PERSON_POSSESSIVE_RE, _normalize_possessive_typography,
-        _quote_occupies_value_slot,
-    )
     from core.context_retrieval import _user_owned_statement_body
+    from core.memory.admission import (
+        _FIRST_PERSON_POSSESSIVE_RE,
+        _THIRD_PERSON_POSSESSIVE_RE,
+        _normalize_possessive_typography,
+        _quote_occupies_value_slot,
+        classify_user_text,
+    )
+    from core.temporal_selection import carries_undo_marker
 
     assertions: list[dict[str, Any]] = []
     for line_index, line in enumerate(_capsule_fact_lines(admitted_evidence)):
@@ -871,7 +865,6 @@ def inspect_unsourced_current_claim(
             from core.bootstrap_context import admitted_capsule_evidence_text as _admitted_text
             from core.evidence_kernel.claim_binder import bind_claims as _bind_claims
             from core.evidence_kernel.claim_binder import qualify_reply as _qualify_reply
-
             from core.evidence_kernel.revocation import without_revoked as _without_revoked
             from core.evidence_kernel.snapshot import packet_facts_for as _packet_facts_for
 
@@ -950,6 +943,7 @@ def unverified_current_answer(request_text: Any = "") -> str:
 
 
 __all__ = [
+    "RECORDS_WITHDRAWAL_NOTICE",
     "CurrentClaimVerdict",
     "answer_asserts_a_measured_value",
     "answer_attributes_a_source",
@@ -960,7 +954,6 @@ __all__ = [
     "reply_match_is_user_supplied",
     "turn_has_current_evidence",
     "unverified_current_answer",
-    "RECORDS_WITHDRAWAL_NOTICE",
 ]
 
 

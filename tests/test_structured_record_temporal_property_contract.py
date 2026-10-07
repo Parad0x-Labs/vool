@@ -1,5 +1,6 @@
 """Reported structured properties retain source ownership without event authority."""
 import pytest
+
 from core.model_output_guard import replace_unsupported_past_time_claims
 
 QUESTION = "For my March 3 working brief, before the review changed it, what were Harbor Lantern's venue, date, coordinator, and check-in time? Give the date as YYYY-MM-DD."

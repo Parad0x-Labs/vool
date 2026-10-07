@@ -22,7 +22,7 @@ from core.memory.entries import resolve_memory_access_policy
 from core.runtime_paths import configure_runtime_home
 from core.secret_redaction import contains_secret, redact_secrets
 
-LIST_WORDS = "quartz willow beacon thistle mortar cedar raven pellet".split()
+LIST_WORDS = ["quartz", "willow", "beacon", "thistle", "mortar", "cedar", "raven", "pellet"]
 LIST = " ".join(LIST_WORDS)
 PUBLIC_AID = "brave sailors fear no wet quay"
 

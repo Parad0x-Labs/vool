@@ -29,7 +29,7 @@ os.environ["VOOL_CONTEXT_CAPSULE_V2"] = "1"
 
 @pytest.fixture()
 def env(tmp_path, monkeypatch):
-    from core.runtime_paths import configure_runtime_home, active_vool_home
+    from core.runtime_paths import active_vool_home, configure_runtime_home
 
     home = tmp_path / "vool-home"
     home.mkdir(parents=True, exist_ok=True)

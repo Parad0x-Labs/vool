@@ -1,6 +1,15 @@
 """Output presentation is not a missing retained attribute. Contributor: sls_0x."""
 from __future__ import annotations
-import argparse, hashlib, json, os, re, subprocess, sys, time, uuid
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import uuid
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -34,7 +43,9 @@ def _child():
     assert home != root and home.is_relative_to(root)
     os.environ.update(VOOL_HOME=str(home), VOOL_REGISTER_INSTALLED_OLLAMA_MODELS='0')
     sys.path.insert(0, str(REPO))
-    import requests, urllib.request
+    import urllib.request
+
+    import requests
     def deny(*args, **kwargs):
         raise RuntimeError('Offline source-presentation proof: network disabled')
     requests.sessions.Session.request = deny
@@ -45,7 +56,8 @@ def _child():
     configure_default_db_path(home / 'data/vool_web0_v2.db')
     from storage.migrations import run_migrations
     run_migrations()
-    from core import context_retrieval as cr, embedding_service
+    from core import context_retrieval as cr
+    from core import embedding_service
     embedding_service._best_embed_model = lambda: None
     from core.context_namespace import ensure_chat_namespace
     from core.memory.entries import resolve_memory_access_policy
@@ -86,6 +98,7 @@ if __name__ == '__main__':
     raise SystemExit(0)
 
 import pytest
+
 from tests._restart_child_env import scrub_child_env
 
 

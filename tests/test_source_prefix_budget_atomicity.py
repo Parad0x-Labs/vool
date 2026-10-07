@@ -1,6 +1,7 @@
 """Exposed SB07 is regression evidence: no prefix-erasing budget fallback."""
 from dataclasses import replace
-from tests.test_overnight_source_structure import source_env, _recall
+
+from tests.test_overnight_source_structure import _recall, source_env
 
 BODY = 'Mirellanthia: The clock repair meeting was uneventful. I calibrated the escapement gauge to 0.57 mm before sealing the wooden chronometer case.'
 ASK = 'What calibration did the escapement gauge use?'
@@ -10,8 +11,8 @@ PREFIX = 'Mirellanthia:'
 
 def test_bound_source_is_not_downgraded_to_naked_anchor_under_character_budget(source_env, monkeypatch):
     from core import context_retrieval as cr
-    from core.context_namespace import ensure_chat_namespace
     from core.context_capsule_v2 import estimate_tokens, resolve_budget
+    from core.context_namespace import ensure_chat_namespace
     from core.memory.entries import resolve_memory_access_policy
     chat = "bound-source-budget"
     ensure_chat_namespace(chat, grant_current_receipts=False)

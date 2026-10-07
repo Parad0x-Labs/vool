@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 import core.context_retrieval as cr
-from tests.test_question_date_time_leg_20261002 import _capsule, _hash_backend, _ingest, _profile, _ts  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _capsule, _hash_backend, _ingest, _profile, _ts
 
 QUESTION = "What did I plant along the south fence of the allotment in March 2025?"
 STORY = "Back in March I planted the new raspberry canes along the south fence of the allotment, the variety is Glen Ample."

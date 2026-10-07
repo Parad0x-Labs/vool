@@ -16,9 +16,9 @@ import pytest
 
 from tests._served_skill_rig import PROVIDER_MANIFEST_ID, ProviderState, ServedDaemon, make_provider_server
 from tests.test_presentation_served_turns import (
-    RETRY_MARKER,
     _PROSE_WITH_TABLE_SHAPE,
     _REPAIRED_TABLE,
+    RETRY_MARKER,
     _read_daemon_manifest,
     _register_daemon_manifest,
     _selection_of,

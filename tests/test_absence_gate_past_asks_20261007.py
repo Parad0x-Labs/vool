@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 import core.context_retrieval as cr
-from tests.test_question_date_time_leg_20261002 import _hash_backend  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _hash_backend
 
 LOCKER = ("The swimming pool locker on the lower corridor is locker 214. Its key fob colour is lime "
           "green. Those are all the details I keep for that locker.")

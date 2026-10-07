@@ -1,7 +1,9 @@
 import json
 from types import SimpleNamespace
-from core import embedding_service as es
+
 from core import context_retrieval as cr
+from core import embedding_service as es
+
 
 def test_nomic_wire_tasks_and_space_identity(monkeypatch):
     payloads=[]

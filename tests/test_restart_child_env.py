@@ -27,7 +27,7 @@ FAKE_SECRETS = {
 
 
 def test_pin_list_covers_the_seven_isolation_variables():
-    assert ISOLATION_PINS == set(PIN_VALUES)
+    assert set(PIN_VALUES) == ISOLATION_PINS
 
 
 def test_fake_secrets_are_dropped_and_ordinary_variables_kept():
