@@ -336,7 +336,8 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
 def _upsert_binding(*, request_digest_value: str, url: str, method: str, body: bytes, headers: dict[str, str], terms: dict[str, Any],
                     offer: dict[str, Any], version: int, proposal_id: str) -> None:
     """Bind one request (method, URL, body, replayable headers) to its parked proposal and the offer it met. The
-    same request re-parked after a dead proposal takes the new offer; ``version`` names the lane (x402 or MPP)."""
+    same request re-parked after a dead proposal takes the new offer whole, its fee facts included (the MPP lane then
+    sets the fee this wallet pays, if any); ``version`` names the lane (x402 or MPP)."""
     from core.wallet import x402
     from core.wallet.store import connection, dumps, utcnow
 
@@ -349,6 +350,7 @@ def _upsert_binding(*, request_digest_value: str, url: str, method: str, body: b
             " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, state = excluded.state, pay_to = excluded.pay_to, version = excluded.version,"
             " amount_minor = excluded.amount_minor, asset = excluded.asset, network = excluded.network, offer_json = excluded.offer_json,"
             " fee_payer = excluded.fee_payer, asset_address = excluded.asset_address, request_headers_json = excluded.request_headers_json,"
+            " sponsored_gas = excluded.sponsored_gas, fee_asset = excluded.fee_asset, max_network_fee_minor = 0, max_facilitator_fee_minor = 0,"
             " tx_signature = '', resource_status = 0, resource_digest = '',"
             " resource_bytes = 0, updated_at = excluded.updated_at",
             (f"x402b-{uuid.uuid4().hex[:16]}", request_digest_value, url, method, terms["pay_to"], int(terms["amount_minor"]), terms["asset"], terms["network"],
