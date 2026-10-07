@@ -195,6 +195,21 @@ def built_wheels() -> dict[str, dict]:
     return out
 
 
+def _recorded_wheelhouse(wheelhouse: Path) -> str:
+    """The wheelhouse as the shipped record names it: relative to the build root, never absolute.
+
+    This record is copied into the app (Contents/Resources/app/config/dependency-provenance.json), so an
+    absolute path shipped the builder's own disk layout to every user (release dry run, 2026-10-07). A
+    wheelhouse outside the build root is named by its directory name alone; the artifacts themselves
+    are identified by their digests, never by where they sat.
+    """
+    resolved = Path(wheelhouse).resolve()
+    try:
+        return resolved.relative_to(REPO).as_posix()
+    except ValueError:
+        return f"<outside the build root>/{resolved.name}"
+
+
 def audit(wheelhouse: Path) -> dict:
     lock = lock_artifacts()
     built = built_wheels()
@@ -234,7 +249,7 @@ def audit(wheelhouse: Path) -> dict:
     unpinned = [n for n in lean if _norm(n) not in lock]
     return {
         "schema": "vool.bundle_dependency_provenance/1",
-        "wheelhouse": str(wheelhouse),
+        "wheelhouse": _recorded_wheelhouse(wheelhouse),
         "lean_requirements": lean,
         "lean_requirements_absent_from_uv_lock": unpinned,
         "artifacts": entries,
