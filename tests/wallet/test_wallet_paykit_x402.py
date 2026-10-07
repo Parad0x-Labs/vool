@@ -420,6 +420,31 @@ def test_a_payment_that_failed_on_chain_releases_the_hold(env):
     assert paykit_x402.delivered_body(parked.proposal_id) is None
 
 
+@pytest.mark.parametrize("paid_answer", ["status:304", "status:300", "redirect", "oversize", "drop"])
+def test_a_paid_request_that_left_keeps_the_hold_whatever_the_answer(env, paid_answer):
+    """The payment lands, then the resource answers oddly (a bare 3xx, a redirect, an oversize body) or not at all.
+    The request left with the payment, so the outcome is unknown: the hold stays, nothing is recorded as failed, no
+    redirect is followed, and the same request is never paid again."""
+    from core.wallet import limits, proposals, receipts
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    with ScriptedPayKitResource(env["rpc"], paid_answer=paid_answer) as resource:
+        parked = _park(resource, profile)
+        with pytest.raises(WalletFault) as exc:
+            _approve(parked.proposal_id)
+        assert exc.value.code == "wallet_broadcast_failed" and exc.value.context["reason"].startswith("submit_unknown:")
+        assert len(resource.landed) == 1 and len(resource.paid_requests) == 1
+        assert proposals.get_proposal(parked.proposal_id).state == proposals.STATE_BROADCAST
+        assert limits.reservation_state(parked.proposal_id) == "reserved", "a payment that may have landed is never released"
+        states = [r.get("state") for r in receipts.list_receipts() if r.get("proposal_id") == parked.proposal_id]
+        assert states and proposals.STATE_FAILED not in states
+        with pytest.raises(WalletFault) as again:
+            _park(resource, profile)
+        assert again.value.context["reason"] == "paykit_request_already_paid"
+        assert len(resource.landed) == 1 and len(resource.requests) == 2, "no second payment and no redirect followed"
+
+
 # --- the optional dependency and the legacy lane --------------------------------------------------------------------
 
 def test_without_paykit_the_lane_refuses_before_sending_anything(env, monkeypatch):
