@@ -321,6 +321,8 @@ def test_a_paid_request_is_never_paid_or_sent_again(env):
         with pytest.raises(WalletFault) as approve_again:
             _approve(parked.proposal_id)
         assert approve_again.value.code == "wallet_duplicate_payment"
+        handed = x402.retry_paid_resource(parked.proposal_id)
+        assert handed.status == x402.OUTCOME_DELIVERED and handed.body == PAID_BODY, "a retry hands back the delivered body"
         with pytest.raises(WalletFault) as retry:
             x402.retry_paid_resource(parked.proposal_id)
         assert retry.value.context["reason"] == "paykit_delivery_happens_at_approval"
@@ -329,7 +331,42 @@ def test_a_paid_request_is_never_paid_or_sent_again(env):
             _park(resource, profile)
         assert same_again.value.context["reason"] == "paykit_request_already_paid"
         assert len(resource.requests) == sent, "the paid request is refused before it is sent"
-        assert len(resource.paid_requests) == 1 and len(env["rpc"].transactions) == 1
+        assert len(resource.paid_requests) == 1 and len(env["rpc"].transactions) == 1, "nothing was sent again"
+
+
+# --- the ordinary x402 door -------------------------------------------------------------------------------------------
+
+def test_the_ordinary_x402_door_hands_a_canonical_solana_offer_to_paykit(env):
+    """The agent tool and the wallet API both call x402.fetch_paid_resource: a canonical Solana offer it meets is
+    parked on the pay-kit lane from the 402 already received, and paid only on approval."""
+    from core.wallet import proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        parked = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert parked.status == x402.OUTCOME_PAYMENT_REQUIRED
+        assert proposals.get_proposal(parked.proposal_id).origin == proposals.ORIGIN_X402_PAYKIT
+        again = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert again.proposal_id == parked.proposal_id and len(resource.requests) == 1, "a parked request is not sent again"
+        receipt = _approve(parked.proposal_id)
+        assert receipt.state == proposals.STATE_CONFIRMED
+        assert [r["method"] for r in resource.paid_requests] == ["GET"]
+        assert x402.retry_paid_resource(parked.proposal_id).body == PAID_BODY
+        with pytest.raises(WalletFault) as paid:
+            x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert paid.value.context["reason"] == "paykit_request_already_paid"
+        assert len(resource.paid_requests) == 1
+
+
+def test_vools_own_v1_solana_offer_stays_on_its_lane_with_paykit_installed(env):
+    from core.wallet import proposals, x402
+    from tests.wallet._rig import ScriptedX402Resource
+
+    profile = _pocket()
+    with ScriptedX402Resource(env["rpc"]) as resource:
+        parked = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert proposals.get_proposal(parked.proposal_id).origin == proposals.ORIGIN_X402
 
 
 # --- settlement is the chain's word -----------------------------------------------------------------------------------

@@ -556,13 +556,21 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
 
     This lane binds and replays a request by method and URL only, so a request body cannot ride it: one is refused
     typed before anything is sent, never silently dropped. A request with a body pays through the pay-kit lane
-    (:func:`core.wallet.paykit_x402.fetch_paid`), whose binding carries the body."""
+    (:func:`core.wallet.paykit_x402.fetch_paid`), whose binding carries the body.
+
+    With the optional ``pay`` extra installed, a canonical Solana offer (one naming the resource's fee payer) that
+    this request meets is handed to the pay-kit lane, from the 402 already received: nothing is sent twice."""
     custody.require_enabled(source_context=source_context)
     if body:
         raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "request_body_needs_paykit_lane"}, source_context=source_context)
     clean_url = str(url or "").strip()
     if not _target_allowed(clean_url):
         raise wallet_fault("wallet_network_disabled", authority=AUTHORITY, context={"reason": "x402_target_not_public", "host": urlsplit(clean_url).hostname or ""}, source_context=source_context)
+    from core.wallet import paykit_x402
+
+    paykit_already = paykit_x402.existing_outcome(paykit_x402.request_digest(str(method or "GET").upper(), clean_url, b""), source_context=source_context)
+    if paykit_already is not None:
+        return paykit_already
     digest = _request_digest(method, clean_url)
     bound = _bound_outcome(binding_for_digest(digest), timeout=timeout, source_context=source_context)
     if bound is not None:
@@ -573,6 +581,10 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     response_headers = answer["headers"]
     if status != PAYMENT_REQUIRED:
         return X402Outcome(status=OUTCOME_DELIVERED if status < 400 else OUTCOME_REFUSED, http_status=status, body=body)
+    if paykit_x402.claims_challenge(response_headers, body, wallet_id=wallet_id):
+        # a canonical Solana offer (the resource's fee payer settles it): pay-kit builds it, this wallet approves and
+        # signs it. Only with the optional `pay` extra; VOOL's own v1 Solana offers name no fee payer and stay here.
+        return paykit_x402.park_challenge(answer, url=clean_url, method=method, headers=headers, body=b"", wallet_id=wallet_id, source_context=source_context)
     # a v2 challenge is parsed ONLY by the v2 parser: never silently downgraded to v1
     from core.wallet import x402_v2
 
@@ -748,7 +760,14 @@ def retry_paid_resource(proposal_id: str, *, source_context: dict[str, Any] | No
         raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "v2_delivery_happens_at_submission"}, source_context=source_context)
     if int(binding.get("version") or 1) == BINDING_VERSION_PAYKIT:
         # the pay-kit lane delivers exactly once, at approval: its signed payment is a one-shot instrument the
-        # resource settles, so a retry here would replay it (or, worse, re-send it with another request)
+        # resource settles, so a retry here would replay it (or, worse, re-send it with another request). A retry
+        # hands back the body that approval delivered, once, and sends nothing.
+        from core.wallet import paykit_x402
+
+        delivered = paykit_x402.delivered_body(proposal.proposal_id)
+        if delivered is not None:
+            return X402Outcome(status=OUTCOME_DELIVERED, http_status=int(binding.get("resource_status") or 200), body=delivered, proposal_id=proposal.proposal_id,
+                               binding_id=str(binding.get("binding_id") or ""), tx_signature=proposal.tx_signature)
         raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "paykit_delivery_happens_at_approval"}, source_context=source_context)
     if not proposal.tx_signature or proposal.state not in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
         raise wallet_fault("wallet_approval_rejected", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "payment_not_confirmed", "status": proposal.state}, source_context=source_context)
