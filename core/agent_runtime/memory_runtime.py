@@ -182,6 +182,11 @@ def chat_surface_honest_degraded_response(
         )
 
     if source == "no_provider_available":
+        from core.cloud_only_default import no_route_hint
+
+        hint = no_route_hint()
+        if hint:
+            return f"I couldn't get a live model response in this run: {hint}"
         return (
             "I couldn't get a live model response in this run, so I'm not going to recycle cached or remembered "
             "text as if it were fresh."

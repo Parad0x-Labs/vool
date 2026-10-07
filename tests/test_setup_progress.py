@@ -24,6 +24,10 @@ def home(tmp_path, monkeypatch) -> Path:
     monkeypatch.setenv("VOOL_KEY_STORAGE_MODE", "file")
     monkeypatch.delenv("VOOL_KEYCHAIN_ALLOWED", raising=False)
     monkeypatch.delenv("VOOL_WORKSPACE_ROOT", raising=False)
+    # These homes model a machine whose local model answers; the no-local-model path has its
+    # own tests (tests/test_cloud_only_path.py). Without this the result would depend on
+    # whether the test machine happens to run Ollama.
+    monkeypatch.setattr("core.local_model_presence.local_model_running", lambda **_: True)
     from core.runtime_paths import configure_runtime_home
 
     configure_runtime_home(home)
