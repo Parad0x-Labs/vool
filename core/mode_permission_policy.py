@@ -2027,7 +2027,8 @@ def _git_branch_option_mutates(token: str) -> bool:
     """Whether one `git branch` option changes a ref or the config, resolved as git resolves it.
 
     An abbreviation that could name a mutating option counts as mutating: git refuses an ambiguous
-    one, so treating it as a write costs nothing, and an unknown option is never a provable read.
+    one, so treating it as a write costs nothing, and an unknown long option is never a provable read.
+    An unknown short flag is left to git, which rejects it before touching anything.
     """
     if token.startswith("--"):
         name = token[2:].split("=", 1)[0].lower()
