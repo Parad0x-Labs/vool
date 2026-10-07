@@ -90,6 +90,19 @@ def _validated_target(url: str, *, spec: chains.ChainIdentity | None = None, pub
     return origin, addresses
 
 
+#: The reasons ``_validated_target`` refuses a hop with: each fires before that hop's socket opens. ``fetch`` validates
+#: the first hop before anything is sent, so on a fetch that never follows a redirect (``payment_redirect="refuse"`` at
+#: a payment-carrying first hop) one of these means nothing left this machine. Any other fault may come after it did.
+PRE_SOCKET_REFUSALS = frozenset({"scheme_or_host_invalid", "private_namespace", "dns_no_addresses", "non_global_address", "insecure_transport", "loopback_not_enabled"})
+
+
+def refused_before_sending(exc: Exception) -> bool:
+    """True for a refusal ``_validated_target`` raised (before that hop's socket opened). Conclusive that nothing was
+    sent only when the fetch follows no redirect, as above."""
+    reason = str(getattr(exc, "context", {}).get("reason") or "")
+    return getattr(exc, "code", "") in {"wallet_outbound_refused", "wallet_network_disabled"} and (reason in PRE_SOCKET_REFUSALS or reason.startswith("dns_failure:"))
+
+
 def validate_target(url: str, *, spec: chains.ChainIdentity | None = None, public_only: bool = True) -> str:
     """Validate a target for display/policy checks; fetch retains the approved DNS answer."""
     return _validated_target(url, spec=spec, public_only=public_only)[0]

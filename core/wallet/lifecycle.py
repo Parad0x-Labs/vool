@@ -58,8 +58,8 @@ EFFECT_CLASS = EFFECT_CLASS_TRANSACTION
 #: Refused approvals tolerated per proposal before it locks; the same order as a phone's PIN screen.
 MAX_APPROVAL_ATTEMPTS = 5
 ZERO_SIGNATURE = bytes(64)
-#: outbound refusals raised AFTER the payment-bearing request left: these prove nothing
-#: about non-settlement, so the submission is UNKNOWN (held, never blind-retried)
+
+
 class RpcRejected(RuntimeError):
     """The RPC answered a WELL-FORMED JSON-RPC error to OUR request id: the node parsed the call and refused it.
 
@@ -153,7 +153,6 @@ def classify_broadcast_failure(exc: BaseException) -> BroadcastFate:
     return BroadcastFate(False, type(reason).__name__)
 
 
-_POST_DISPATCH_REFUSALS = frozenset({"payment_hop_redirected", "response_over_byte_limit", "redirect_refused_302", "redirect_refused_301", "redirect_refused_303", "redirect_refused_307", "redirect_refused_308", "too_many_redirects"})
 _CONFIRM_BUDGET_SECONDS = 20.0
 _CONFIRM_POLL_SECONDS = 0.25
 
@@ -1727,13 +1726,12 @@ class PaymentLifecycle:
             )
         except WalletFault as exc:
             reason = f"submit_refused:{exc.code}"
-            post_dispatch = exc.code == "wallet_outbound_refused" and str(exc.context.get("reason") or "") in _POST_DISPATCH_REFUSALS
-            if post_dispatch:
-                # the refusal happened AFTER the payment material left this machine (the
-                # origin answered our payment-bearing request with a redirect, or its paid
-                # body exceeded the byte cap): the authorization may settle with no local
-                # receipt, so this is UNKNOWN — the hold stays, nothing releases, no retry.
-                reason = f"submit_unknown:{exc.context.get('reason')}"
+            if not outbound.refused_before_sending(exc):
+                # anything but a refusal of the target itself happened AFTER the payment
+                # material left this machine (a redirect, any other 3xx, an oversize paid
+                # body): the authorization may settle with no local receipt, so this is
+                # UNKNOWN — the hold stays, nothing releases, no retry.
+                reason = f"submit_unknown:{exc.context.get('reason') or exc.code}"
                 proposals.transition(proposal.proposal_id, proposals.STATE_BROADCAST, detail={"reason": reason, "settlement": "submitted_unknown"}, tx_signature="")
                 self._close_effect(effect, ok=False, reason=reason)
                 receipts.record_receipt(proposal, state=proposals.STATE_BROADCAST, extra={"settlement": "submitted_unknown"})

@@ -29,6 +29,29 @@ def _send_raw(handler: BaseHTTPRequestHandler, status: int, body: bytes, headers
     handler.wfile.write(body)
 
 
+def _answer_oddly(handler: BaseHTTPRequestHandler, how: str) -> None:
+    """Answer a paid request whose payment already settled the way ``how`` names: 'status:<code>' a bare status (no
+    headers, no body), 'redirect' a 302 to another path on the same origin, 'oversize' a body over the wallet's byte
+    limit, 'drop' closes the connection without answering."""
+    if how == "drop":
+        handler.close_connection = True
+        return
+    if how == "redirect":
+        status, headers, body = 302, {"Location": "/paid/v2/elsewhere"}, b""
+    elif how == "oversize":
+        from core.wallet.outbound import MAX_RESPONSE_BYTES
+
+        status, headers, body = 200, {"Content-Type": "text/plain"}, b"x" * (MAX_RESPONSE_BYTES + 1024)
+    elif how.startswith("status:"):
+        status, headers, body = int(how.split(":", 1)[1]), {}, b""
+    else:
+        raise ValueError(f"unknown paid answer {how!r}")
+    try:
+        _send_raw(handler, status, body, headers)
+    except OSError:  # the wallet stops reading at its byte limit
+        pass
+
+
 def _send_json(handler: BaseHTTPRequestHandler, payload: dict[str, Any], status: int = 200) -> None:
     _send_raw(handler, status, json.dumps(payload).encode(), {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"})
 
@@ -181,9 +204,10 @@ class X402V2Resource:
     (base64 JSON PaymentRequired, mirrored in the body) and a paid 200 carrying `PAYMENT-RESPONSE`.
     Payment counts as settled only when the payload's signature is in `settled_signatures` (the TEST
     adds it after driving the facilitator settle, standing in for server-side settlement); `refuse_next`
-    makes the next settled delivery answer 500."""
+    makes the next settled delivery answer 500; `paid_answer` (see `_answer_oddly`) makes every settled paid
+    request answer that way instead of delivering, counted in `unanswered`."""
 
-    def __init__(self, facilitator: FacilitatorSimulator, *, network: str = "eip155:84532", asset: str = "0x036CbD53842c5426634e7929541eC2318f3dCF7e", pay_to: str = "0x209693Bc6afc0C5328bA36FaF03C514EF312287C", amount_minor: int = 10000, eip712_name: str = "USDC", eip712_version: str = "2", method: str = "GET", rpc: ScriptedEvmRpc | None = None) -> None:
+    def __init__(self, facilitator: FacilitatorSimulator, *, network: str = "eip155:84532", asset: str = "0x036CbD53842c5426634e7929541eC2318f3dCF7e", pay_to: str = "0x209693Bc6afc0C5328bA36FaF03C514EF312287C", amount_minor: int = 10000, eip712_name: str = "USDC", eip712_version: str = "2", method: str = "GET", rpc: ScriptedEvmRpc | None = None, paid_answer: str = "") -> None:
         self.facilitator = facilitator
         self.network = network
         self.asset = asset
@@ -196,6 +220,8 @@ class X402V2Resource:
         self.settled_signatures: set[str] = set()
         self.settlement_tx = ""
         self.refuse_next = False
+        self.paid_answer = paid_answer
+        self.unanswered: list[str] = []
         self.deliveries: list[dict[str, Any]] = []
         self.settlements: list[dict[str, Any]] = []
         self.last_settle_error = ""
@@ -233,6 +259,10 @@ class X402V2Resource:
                     settled = resource._settle_via_facilitator(payload, signature, payer)
                 if not settled:
                     return self._challenge()
+                if resource.paid_answer:
+                    with resource._lock:
+                        resource.unanswered.append(signature)
+                    return _answer_oddly(self, resource.paid_answer)
                 if refuse:
                     with resource._lock:
                         resource.refuse_next = False
