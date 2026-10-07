@@ -29,6 +29,7 @@ import re
 import pytest
 
 import core.context_retrieval as cr
+from core.evidence_compiler import PACKET_HEADER
 from tests.test_question_date_time_leg_20261002 import (
     _hash_backend,
     _ingest,
@@ -112,10 +113,20 @@ def test_items_spread_over_sessions_all_reach_the_capsule(tmp_path, question):
     assert not missing, (missing, telemetry.get("recall_supplement"), capsule)
 
 
+def _pack(capsule: str) -> str:
+    """The capsule's pack: everything before the blocks rendered after it under their own headers, the
+    evidence receipts packet (memory receipts and the evidence compiler, 2026-10-06) and the whole-turn
+    lane ("deliver whole turns of both speakers beside the memory capsule", 2026-10-06). Neither is part
+    of the pack the supplement fills."""
+    for header in (PACKET_HEADER, cr._TURN_LANE_HEADER):
+        capsule = capsule.split("\n" + header, 1)[0]
+    return capsule
+
+
 def _records(capsule: str) -> list[str]:
-    """Capsule records: a line opening with "- " and its continuation lines."""
+    """Pack records: a line opening with "- " and its continuation lines, up to the whole-turn lane."""
     records: list[str] = []
-    for line in capsule.splitlines():
+    for line in _pack(capsule).splitlines():
         if line.startswith("- "):
             records.append(line)
         elif records and not line.startswith("</retrieved_context>"):
@@ -146,13 +157,14 @@ def test_a_misspelt_content_word_on_the_lexical_lane(tmp_path):
 ])
 def test_the_supplement_is_what_delivers_the_missed_items(tmp_path, monkeypatch, question):
     """The items the pool's own lanes leave out are delivered by the supplement, as attributed
-    supplement receipts (the seam), and without it they are missing."""
+    supplement receipts (the seam), and without it they are missing from the pack. The whole-turn lane
+    rendered after the pack may carry them too; it is a separate lane and is not what this pins."""
     store = _garden_store()
     profile = _home_with(tmp_path, "garden", store)
     with monkeypatch.context() as patch:
         _supplement_disabled(patch)
         without, _ = _wide_capsule(profile, "garden", question, target_tokens=2048)
-    assert not all(answer in without for answer in _ANSWERS), without
+    assert not all(answer in _pack(without) for answer in _ANSWERS), without
     capsule, telemetry = _wide_capsule(profile, "garden", question, target_tokens=2048)
     assert all(answer in capsule for answer in _ANSWERS), capsule
     supplement_lines = [str(ref.get("line")) for ref in telemetry.get("evidence_refs") or []
