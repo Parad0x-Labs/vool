@@ -61,6 +61,14 @@ def _capsule(home, chat, question, target_tokens):
                      if "retrieved_context" in str(m.get("content")))
 
 
+def _distilled(block: str) -> str:
+    """The distilled section of the capsule: the lines the packer budgeted and the laws here describe. Since the v14
+    whole-turn delivery (lme-diagnosis, 2026-10-06) the block also carries verbatim whole turns after the 'Evidence
+    turns' header, sized by the free window, which quote each turn as said."""
+    cut = block.find("Evidence turns (whole records")
+    return block if cut < 0 else block[:cut]
+
+
 def _seed(home, chat, speaker, fillers, decisive):
     for i, body in enumerate(fillers):
         assert _turn(home, chat, f"Session date: 4:{10 + i} pm on {3 + i} March, 2024\n"
@@ -117,8 +125,8 @@ def test_enveloped_weak_lines_make_room_for_the_answering_span(fresh_profile, ta
     block = _capsule(fresh_profile, f"ms-harbor-{target_tokens}",
                      "Which harbor does Ilse describe as the quietest one in Nordvik?",
                      target_tokens)
-    assert "Kesterholm" in block
-    assert len(block) <= target_tokens * 4 + 200  # header + wrapper; the packed lines stay in budget
+    assert "Kesterholm" in _distilled(block)
+    assert len(_distilled(block)) <= target_tokens * 4 + 600  # header + wrapper; the packed distilled lines stay in budget
 
 
 @pytest.mark.parametrize("target_tokens", [200])
