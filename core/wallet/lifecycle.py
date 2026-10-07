@@ -155,6 +155,7 @@ def classify_broadcast_failure(exc: BaseException) -> BroadcastFate:
     return BroadcastFate(False, type(reason).__name__)
 
 
+_POST_DISPATCH_REFUSALS = frozenset({"payment_hop_redirected", "response_over_byte_limit", "redirect_refused_302", "redirect_refused_301", "redirect_refused_303", "redirect_refused_307", "redirect_refused_308", "too_many_redirects"})
 _CONFIRM_BUDGET_SECONDS = 20.0
 _CONFIRM_POLL_SECONDS = 0.25
 
@@ -272,8 +273,9 @@ def _build_message(proposal: proposals.TransactionProposal, payer_pubkey: str, b
     if proposal.asset != "SOL":
         from core.wallet import svm_tokens
 
-        if str(proposal.origin) in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE) and svm_tokens.is_token_transfer(proposal.network, proposal.asset):
-            # a UsePod x402 token payment, or a DNA fee collection to the treasury: one TransferChecked between the two associated token accounts
+        if str(proposal.origin) in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE, proposals.ORIGIN_X402_PAYKIT) and svm_tokens.is_token_transfer(proposal.network, proposal.asset):
+            # a UsePod x402 token payment, a DNA fee collection to the treasury, or (as the simulation's stand-in for the
+            # pay-kit lane's own message) an x402 token payment: one TransferChecked between the two associated token accounts
             return svm_tokens.build_transfer_message(
                 payer=payer_pubkey, recipient_owner=proposal.destination, asset=svm_tokens.token_asset(proposal.network, proposal.asset),
                 amount_minor=int(proposal.amount_minor), blockhash=blockhash,
@@ -492,7 +494,7 @@ class PaymentLifecycle:
             else:
                 from core.wallet import svm_tokens
 
-                if str(proposal.origin) in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE) and svm_tokens.is_token_transfer(spec.network, proposal.asset):
+                if str(proposal.origin) in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE, proposals.ORIGIN_X402_PAYKIT) and svm_tokens.is_token_transfer(spec.network, proposal.asset):
                     try:
                         _refuse_unpayable_token(rpc, spec, proposal, profile.public_key, source_context=self.source_context)
                     except WalletFault as exc:
@@ -635,6 +637,13 @@ class PaymentLifecycle:
             if attempts >= MAX_APPROVAL_ATTEMPTS:
                 raise self._fault("wallet_approval_rejected", proposal, method=decision.method, reason="approval_attempts_exhausted", status=str(attempts))
             raise self._fault("wallet_approval_rejected", proposal, method=decision.method, reason=shown, status=str(attempts))
+        from core.wallet import paykit_x402
+
+        paykit_binding = paykit_x402.binding_for(proposal.proposal_id)
+        if paykit_binding is not None or str(proposal.origin) == proposals.ORIGIN_X402_PAYKIT:
+            # the canonical Solana x402 payment: pay-kit builds it, the resource's fee payer settles it. This wallet never
+            # broadcasts a transfer of its own for it, so it never reaches the message below.
+            return self._execute_paykit(proposal, profile, paykit_binding, decision=decision, device_signer=device_signer, rpc=rpc)
         message = self._message_for(proposal, profile.public_key, rpc=rpc)
         proposal, effects = self._claim(proposal, profile, method=decision.method, payer_message=message, fee_minor=max(_reserved_fee_for(challenge.binding_view()), _svm_fee_for(proposal)), chain=spec_network(proposal.network))
         try:
@@ -1385,6 +1394,9 @@ class PaymentLifecycle:
         holds nothing against the spend limits (:meth:`_require_held` ends it instead)."""
         proposal = self._load(proposal_id)
         self._require_signable_row(proposal)
+        if str(proposal.origin) == proposals.ORIGIN_X402_PAYKIT:
+            # an external wallet would sign a plain transfer this wallet then broadcasts: never the pay-kit payment
+            raise self._fault("wallet_signing_unavailable", proposal, reason="paykit_external_signer_not_supported")
         if proposal.state == proposals.STATE_AWAITING_SIGNATURE and not proposal.tx_signature:
             record = external_signing.open_request_for_proposal(proposal.proposal_id)
             if record is not None and not external_signing.is_expired(record):
@@ -1687,6 +1699,12 @@ class PaymentLifecycle:
         decimals = asset.decimals
         human = _human_amount(proposal.amount_minor, decimals)
         binding = v2_binding_for(proposal.proposal_id) or {}
+        if not binding and str(proposal.origin) == proposals.ORIGIN_X402_PAYKIT:
+            # the pay-kit lane: the approval binds the resource origin and the caller's method, and its fee is the
+            # resource's (sponsored), never this wallet's
+            from core.wallet import paykit_x402
+
+            binding = paykit_x402.binding_for(proposal.proposal_id) or {}
         facilitator_fee = _minor(binding.get("max_facilitator_fee_minor"))
         network_fee = _minor(binding.get("max_network_fee_minor"))
         sponsored = bool(binding.get("sponsored_gas"))
@@ -1872,6 +1890,137 @@ class PaymentLifecycle:
         self._close_effect(effect, ok=final_state == proposals.STATE_CONFIRMED, reason=final_state)
         receipt = receipts.record_receipt(proposal, state=final_state, tx_signature=tx_hash, extra={"x402_v2": {"resource_status": answer["status"], "settlement": settled_state, "verified_terms": verified, "resource_digest": redaction.publish_identifier(hashlib.sha256(answer["body"]).hexdigest()), "resource_bytes": len(answer["body"]), "settlement_delivered": final_state == proposals.STATE_CONFIRMED}})
         receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=final_state == proposals.STATE_CONFIRMED, status=final_state, tx_signature=tx_hash)
+        return receipt
+
+    # -- the pay-kit lane: claim -> pay-kit builds -> guarded signature -> ONE delivery -> chain-proven settlement ------
+    def _execute_paykit(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, binding: dict[str, Any] | None, *,
+                        decision: Any, device_signer: Any, rpc: RpcClient | None) -> receipts.WalletReceipt:
+        """An approved pay-kit proposal, exactly once. Before the claim: the binding, pay-kit and the proven endpoint
+        exist. After it: pay-kit builds the payment and this wallet signs only through the guard (the approved payee,
+        amount and asset, nothing else); the STORED request goes once to the challenged origin; settlement is the
+        chain's word, never the resource's. A refusal before the request leaves releases the hold; anything after it
+        that the chain does not prove keeps the hold as unknown."""
+        from core.wallet import paykit_x402
+        from core.wallet import x402 as wallet_x402
+
+        if binding is None:
+            raise self._fault("wallet_signing_unavailable", proposal, reason="paykit_binding_missing")
+        paykit_x402.require_available(source_context=self.source_context)
+        if profile.mode != custody.MODE_POCKET_SEALED:
+            raise self._fault("wallet_signing_unavailable", proposal, reason="paykit_external_signer_not_supported")
+        if rpc is None:
+            rpc = self._prove_before_claim(proposal)
+        terms = paykit_x402.terms_for(binding, proposal)
+        try:
+            blockhash = rpc.latest_blockhash()
+        except Exception as exc:
+            raise self._fault("wallet_quote_unavailable", proposal, reason=f"blockhash_unavailable:{type(exc).__name__}") from None
+        terms_digest = hashlib.sha256(json.dumps({**terms, "request_digest": str(binding.get("request_digest") or "")}, sort_keys=True).encode("utf-8")).hexdigest()
+        self._require_not_frozen(proposal, door="paykit_claim")
+        proposal, effects = self._claim(proposal, profile, method=decision.method, message_digest=terms_digest, fee_minor=0, chain=spec_network(proposal.network))
+        try:
+            signer = device_signer or signers.signer_for(profile, pin=decision.pin_unlock or None, proposal_id=proposal.proposal_id)
+            guarded = paykit_x402.GuardedSigner(signer, terms=terms)
+            self._begin_attempt(effects["sign"])  # consume immediately BEFORE the signing execution
+            header_name, header_value = paykit_x402.build_payment_header(binding, guarded, blockhash=blockhash)
+            if not guarded.signed_message:
+                raise wallet_fault("wallet_signature_invalid", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "paykit_built_without_signing"}, source_context=self.source_context)
+        except WalletFault as exc:
+            self._close_effect(effects["sign"], ok=False, reason=exc.code)
+            self._abort_before_broadcast(proposal, {"transaction": effects["transaction"]}, state=proposals.STATE_FAILED, fault_code=exc.code, reason=str(exc.context.get("reason") or exc.code))
+            raise self._fault(exc.code, proposal, reason=str(exc.context.get("reason") or exc.code)) from None
+        except Exception as exc:  # pay-kit refused to build: nothing was signed or sent
+            reason = f"paykit_build_failed:{type(exc).__name__}"
+            self._close_effect(effects["sign"], ok=False, reason=reason)
+            self._abort_before_broadcast(proposal, {"transaction": effects["transaction"]}, state=proposals.STATE_FAILED, fault_code="wallet_signing_unavailable", reason=reason)
+            raise self._fault("wallet_signing_unavailable", proposal, reason=reason) from None
+        self._close_effect(effects["sign"], ok=True, reason="signed")
+        effect = effects["transaction"]
+        if limits.is_frozen():
+            # the brake landed between the signature and the request: the signed payment never leaves, the hold goes.
+            # It ends while the payment is still the approved one this approval claimed, before it is marked signed.
+            self._abort_before_broadcast(proposal, {"transaction": effect}, state=proposals.STATE_FAILED, fault_code="wallet_limit_exceeded", reason="panic_freeze_blocks_paykit_delivery")
+            raise self._fault("wallet_limit_exceeded", proposal, limit="frozen", reason="panic_freeze_blocks_paykit_delivery")
+        signed = proposals.transition(proposal.proposal_id, proposals.STATE_SIGNED, detail={"signer": profile.mode, "paykit_message_digest": guarded.proof.get("message_digest", "")})
+        proposal = signed or self._load(proposal.proposal_id)
+        url = str(binding.get("url") or "")
+        method = str(binding.get("method") or "GET")
+        try:
+            stored_headers = json.loads(str(binding.get("request_headers_json") or "{}"))
+        except ValueError:
+            stored_headers = {}
+        request_body = base64.b64decode(str(binding.get("request_body_b64") or ""))
+        base = self._base(proposal)
+        receipts.journal_intended({**base, "state": proposals.STATE_SIGNED}, source_context=self.source_context)
+        self._begin_attempt(effect)
+        try:
+            answer = outbound.fetch(
+                url, method=method, headers={**{str(k): str(v) for k, v in dict(stored_headers).items()}, "Accept": str(dict(stored_headers).get("accept") or "*/*")},
+                body=request_body or None, payment_headers={header_name: header_value}, payment_origin=wallet_x402._origin_of(url), payment_redirect="refuse", timeout=20.0,
+            )
+        except WalletFault as exc:
+            post_dispatch = exc.code == "wallet_outbound_refused" and str(exc.context.get("reason") or "") in _POST_DISPATCH_REFUSALS
+            if post_dispatch:
+                reason = f"submit_unknown:{exc.context.get('reason')}"
+                proposals.transition(proposal.proposal_id, proposals.STATE_BROADCAST, detail={"reason": reason, "settlement": "submitted_unknown"}, tx_signature="")
+                self._close_effect(effect, ok=False, reason=reason)
+                receipts.record_receipt(proposal, state=proposals.STATE_BROADCAST, extra={"settlement": "submitted_unknown"})
+                raise self._fault("wallet_broadcast_failed", proposal, reason=reason) from None
+            reason = f"submit_refused:{exc.code}"
+            limits.release_spend(proposal.proposal_id)
+            reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=reason, source="mechanical")
+            proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail={"reason": reason}, fault_code=exc.code if exc.code == "wallet_outbound_refused" else "wallet_broadcast_failed")
+            self._close_effect(effect, ok=False, reason=reason)
+            receipts.record_receipt(proposal, state=proposals.STATE_FAILED, fault_code=exc.code)
+            receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=False, status="failed")
+            raise self._fault("wallet_broadcast_failed", proposal, reason=reason) from None
+        except Exception as exc:  # transport UNKNOWN: the signed payment may have arrived; never blind-retry
+            reason = f"submit_unknown:{type(exc).__name__}"
+            proposals.transition(proposal.proposal_id, proposals.STATE_BROADCAST, detail={"reason": reason, "settlement": "submitted_unknown"}, tx_signature="")
+            self._close_effect(effect, ok=False, reason=reason)
+            receipts.record_receipt(proposal, state=proposals.STATE_BROADCAST, extra={"settlement": "submitted_unknown"})
+            raise self._fault("wallet_broadcast_failed", proposal, reason=reason) from None
+        status = int(answer["status"])
+        body = bytes(answer["body"] or b"")
+        claim = paykit_x402.settlement_claim(answer.get("headers"))
+        claimed_tx = str(claim.get("transaction") or "")
+        settlement = paykit_x402.verify_settlement_on_chain(rpc, claimed_tx, signed_message=guarded.signed_message, payer=profile.public_key)
+        # only a transaction the chain proved is OURS goes on the proposal: an unproven id the resource named is never
+        # evidence (reconciliation would otherwise confirm the payment on whatever transaction it pointed at)
+        tx_signature = claimed_tx if settlement in ("settled", "failed") else ""
+        resource_digest = redaction.publish_identifier(hashlib.sha256(body).hexdigest())
+        delivered = settlement == "settled" and status < 400
+        if settlement == "settled":
+            limits.settle_spend(proposal.proposal_id)
+            proposals.transition(proposal.proposal_id, proposals.STATE_BROADCAST, detail={"settlement": "submitted", "resource_status": status}, tx_signature=tx_signature)
+            proposals.transition(proposal.proposal_id, proposals.STATE_CONFIRMED, detail={"tx_signature": tx_signature, "settlement": settlement}, tx_signature=tx_signature)
+            reconciliation.resolve_payment_effect(proposal.proposal_id, applied=True, evidence=tx_signature, source="provider")
+            final_state = proposals.STATE_CONFIRMED
+        elif settlement == "failed":
+            # the chain holds OUR signed message under that signature and it failed: nothing moved
+            limits.release_spend(proposal.proposal_id)
+            reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=tx_signature, source="provider")
+            proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail={"settlement": settlement, "resource_status": status}, tx_signature=tx_signature, fault_code="wallet_broadcast_failed")
+            final_state = proposals.STATE_FAILED
+        else:
+            # no chain proof either way: the signed payment left this machine, so the hold stays and nothing retries
+            proposals.transition(proposal.proposal_id, proposals.STATE_BROADCAST, detail={"settlement": "submitted_unknown", "resource_status": status}, tx_signature=tx_signature)
+            final_state = proposals.STATE_BROADCAST
+        wallet_x402._update_binding(
+            str(binding.get("request_digest") or ""), state=wallet_x402.BINDING_DELIVERED if delivered else wallet_x402.BINDING_PAID,
+            tx_signature=tx_signature, resource_status=status, resource_digest=resource_digest, resource_bytes=len(body),
+        )
+        if delivered:
+            paykit_x402._DELIVERED_BODIES[proposal.proposal_id] = body
+        receipts.journal_terminal({**base, "state": final_state, "tx_signature": redaction.publish_identifier(tx_signature) if tx_signature else ""}, source_context=self.source_context)
+        self._close_effect(effect, ok=final_state == proposals.STATE_CONFIRMED, reason=final_state)
+        proposal = self._load(proposal.proposal_id)
+        receipt = receipts.record_receipt(proposal, state=final_state, tx_signature=tx_signature, extra={"x402_paykit": {
+            "request_digest": str(binding.get("request_digest") or ""), "url": url, "method": method, "resource_status": status,
+            "resource_digest": resource_digest, "resource_bytes": len(body), "settlement": settlement, "delivered": delivered,
+            "claimed_transaction_unproven": bool(claimed_tx and not tx_signature),
+        }})
+        receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=final_state == proposals.STATE_CONFIRMED, status=final_state, tx_signature=tx_signature)
         return receipt
 
     def _verify_evm_settlement(self, spec: chains.ChainIdentity, proposal: proposals.TransactionProposal, binding: dict[str, Any], tx_hash: str, *, payer: str = "") -> tuple[str, bool]:

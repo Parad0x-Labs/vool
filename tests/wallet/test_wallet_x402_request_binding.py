@@ -2,9 +2,12 @@
 
 The v1/v2 lane replays a request by method and URL only, so a request body is refused before anything is sent (it
 pays through the pay-kit lane instead), and a v2 offer is bound to the method the caller used: an offer naming another
-method is refused, and one naming none never falls back to GET.
+method is refused, and one naming none never falls back to GET. The pay-kit lane, when its optional extra is not
+installed, reports itself unavailable and refuses before any request leaves.
 """
 from __future__ import annotations
+
+import sys
 
 import pytest
 
@@ -82,3 +85,21 @@ def test_a_v2_offer_is_bound_to_the_callers_method_never_a_silent_get(wallet_env
         engine = wallet_x402.lifecycle_default_engine()
         challenge = engine._challenge_for(proposals.get_proposal(outcome.proposal_id), custody.get_wallet(profile.wallet_id))
         assert challenge.resource_method == "POST"
+
+
+def test_without_the_pay_extra_the_paykit_lane_is_unavailable_and_sends_nothing(wallet_env, monkeypatch):
+    from core.wallet import paykit_x402, proposals
+
+    # the same whether or not the extra is installed here: a None entry makes the import fail as a missing package
+    monkeypatch.setitem(sys.modules, "solana_pay_kit.protocols.x402.client.exact.payment", None)
+    available, reason = paykit_x402.availability()
+    assert available is False and reason in {"paykit_not_installed", "python_below_3_11"}
+    sent: list[str] = []
+    from core.wallet import outbound
+
+    monkeypatch.setattr(outbound, "fetch", lambda *a, **k: sent.append("request") or (_ for _ in ()).throw(AssertionError("sent")))
+    with pytest.raises(WalletFault) as refused:
+        paykit_x402.fetch_paid("https://api.example.test/paid", wallet_id="any", method="POST", body=b"{}")
+    assert refused.value.code == "wallet_dependency_unavailable"
+    assert sent == []
+    assert proposals.list_proposals() == []

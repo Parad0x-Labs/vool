@@ -64,6 +64,14 @@ evm = [
     "eth-utils>=6.0",
     "eth-account>=0.13",
 ]
+# x402 payments on Solana through Solana pay-kit (core/wallet/paykit_x402.py): pay-kit parses the 402 and builds
+# the payment; the wallet keeps the cap, the approval, the signature and the receipt. OPTIONAL: without it (or
+# below Python 3.11, pay-kit's floor) that lane reports wallet_dependency_unavailable and nothing else changes.
+# Pinned to the release the lane was tested against. Installing it also installs `solana`, which caps solders
+# below 0.27 (the base install resolves a newer solders).
+pay = [
+    "solana-pay-kit==0.10.0; python_version >= '3.11'",
+]
 models = [
     "sentence-transformers>=2.2",
     "openai>=1.0",

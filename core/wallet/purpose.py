@@ -102,7 +102,7 @@ def _service(proposal: Any) -> dict[str, Any]:
         description = ""
     version = int(binding.get("version") or 1)
     view = _base(KIND_SERVICE, headline=f"Pay {provider} for {method} {url}" if url else f"Pay {provider} for a resource",
-                 mechanism_label=f"{MECHANISM_X402} v{version}", beneficiary=str(binding.get("pay_to") or proposal.destination), charge_scope=CHARGE_ONE_RESPONSE)
+                 mechanism_label=f"{MECHANISM_X402} (Solana pay-kit)" if version == 3 else f"{MECHANISM_X402} v{version}", beneficiary=str(binding.get("pay_to") or proposal.destination), charge_scope=CHARGE_ONE_RESPONSE)
     view.update({"provider": provider, "provider_source": "the resource's own origin (not a verified merchant identity)", "resource": url,
                  "resource_method": method, "description": description, "description_source": "the provider's own description (untrusted)" if description else ""})
     return view
@@ -137,7 +137,7 @@ def purpose_for(proposal: Any) -> dict[str, Any]:
     origin = str(getattr(proposal, "origin", "") or "")
     if origin in _DIRECT_ORIGINS:
         return _direct(proposal)
-    if origin == proposals.ORIGIN_X402:
+    if origin in (proposals.ORIGIN_X402, proposals.ORIGIN_X402_PAYKIT):
         return _service(proposal)
     if origin == proposals.ORIGIN_USEPOD:
         return _usepod_payment(proposal)
