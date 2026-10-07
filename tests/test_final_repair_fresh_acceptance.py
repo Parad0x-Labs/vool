@@ -40,7 +40,14 @@ def test_fresh_guard_delivery(case):
 def test_fresh_earlier_record_guard(case):
     verdict=inspect_unsourced_current_claim(answer=case['reply'],requires_current=True,
         user_turn_text=case['question'],source_context=context_for(case))
-    assert verdict.unsupported is (not case['keep']), verdict.as_dict()
+    if case['keep']:
+        assert verdict.unsupported is False and not verdict.qualify_only, verdict.as_dict()
+    else:
+        # v14.6 item 2 (c9e5e50e): an unrecorded measured value is no longer withdrawn whole at the verdict, it is
+        # qualified; what the user sees is guarded on the delivery path: the value never reaches them as a plain fact
+        assert verdict.unsupported or verdict.qualify_only, verdict.as_dict()
+        delivered = _validate_final_chat_output(case['reply'], source_context=context_for(case))
+        assert case['value'] not in delivered, delivered
 
 POTTERY_TOPIC={'sunset','evening','pottery','sessions','canvas','apron','wire','cutter','sponge','tote','pack','carry','class','clay','glaze'}
 POTTERY_USER='For my sunset pottery sessions I always pack my canvas apron and the wire cutter, plus a sponge in my tote.'
