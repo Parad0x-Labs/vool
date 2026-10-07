@@ -13,6 +13,8 @@ recovery phrases and prose tails after the label keep their prior behaviour.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import core.context_retrieval as cr
 from core.context_namespace import ensure_chat_namespace
 from core.memory.entries import resolve_memory_access_policy
@@ -240,11 +242,20 @@ def test_prose_tail_after_label_untouched() -> None:
 # --- the native store path: admission + honest write status -------------------
 
 class _FakeMemory:
+    """The memory store as `store_turn` uses it. Since 0446c715 (2026-09-29, "retain both roles as source
+    evidence") every turn is first written as a source occurrence, then indexed; the fake records both, so
+    the redaction is checked on the source evidence as well as on the semantic derivative."""
+
     def __init__(self):
         self.stored: list[str] = []
+        self.occurrences: list[str] = []
+
+    def occurrence_store(self, *, body, **_kwargs):
+        self.occurrences.append(body)
+        return SimpleNamespace(occurrence_id=f"occ-{len(self.occurrences)}")
 
     def node_store(self, *, content, keywords, tags, context_description, embedding,
-                   embedding_backend="", lineage_request_id=""):
+                   embedding_backend="", lineage_request_id="", **_kwargs):
         self.stored.append(content)
 
     def close(self):
@@ -267,9 +278,13 @@ def test_store_turn_masks_phrase_before_persist_and_reports_redaction(monkeypatc
     )
 
     assert fake.stored, "the masked record should still be persisted"
+    assert fake.occurrences, "the turn should still be retained as source evidence"
     for content in fake.stored:
         assert _PHRASE not in content, "phrase must not reach the semantic store"
         assert "[redacted]" in content
+    for body in fake.occurrences:
+        assert _PHRASE not in body, "phrase must not reach the source evidence"
+    assert any("[redacted]" in body for body in fake.occurrences), fake.occurrences
     # A redacted write must not read as the sensitive request being saved as stated.
     assert result["secret_redacted"] is True
     assert result["reason"] == "eligible_user_content_secret_redacted"
