@@ -5,6 +5,10 @@ branch adds `core/standing_instructions.py`. The port does not carry user_rules,
 lands on main both features will exist. Commits were read from main's history and nothing there was
 changed.
 
+Where the commits live: 3367bf5 and 32094c6 are on the local branches `rules-owner-20261005` and
+`fix/claim-without-tool-honesty` in the rules-audit clone (and its learning-loop copy). They are
+not on GitHub main. GitHub main is 9adff83, their parent, and GitHub has neither branch.
+
 ## What each stores, and where
 
 | | user rules (3367bf5, 32094c6) | standing instructions (this branch) |
@@ -47,10 +51,10 @@ become an intake into it.** The reasons:
 ## Proposed shape after landing
 
 1. One store, `user_rules`. A standing instruction with a project binding is saved as a
-   `scope='project'` row. A folder-only workspace has no user_rules equivalent today: `chat` is too
-   narrow, because the instruction must reach new chats, and `global` is too wide, because it would
-   leak into other workspaces. That case needs a decision: either add a fourth `workspace` scope
-   keyed by the folder, or require a project binding before saving.
+   `scope='project'` row. **Chosen default for folder-only workspaces:** add a fourth scope,
+   `workspace`, keyed by the folder's realpath. That is the same key `standing_instructions.workspace_key`
+   uses today. `chat` would be too narrow and `global` would leak across workspaces. The choice is
+   reversible.
 2. One prompt block. Wire `rules_prompt_block` into the prompt at the place `standing_block` uses now
    (after runtime truth, the plain-task profile included), and drop `standing_block`'s own header so
    the model sees one list.
@@ -70,6 +74,16 @@ become an intake into it.** The reasons:
   receipt.
 - After migration, "what are my rules?" lists both origins in one numbered list, and "remove rule N"
   works on either.
+
+## Defects to fix during reconciliation
+
+- **D1: on main, `rules_prompt_block` has no runtime caller.** A rule that bans no word is saved and
+  listed, and then has no effect. Fix: render the block in the prompt (item 2 above).
+- **D2: "forget the rule about X" is caught by the rules lane.** A standing instruction on that topic
+  survives the take-back. Fix: once there is one store (item 1), the lane's `remove_about` reaches
+  migrated and new standing rows too.
+
+Implementation is on hold until the landing plan puts main's user_rules and the port in one tree.
 
 ## Collisions that exist today if both land unchanged
 
