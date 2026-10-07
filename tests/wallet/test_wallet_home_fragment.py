@@ -411,6 +411,18 @@ def test_expired_quote_does_not_retain_approval(browser):
     assert not errors
 
 
+# Holds every /api/wallet/status answer 500ms in the page (longer than the old fixed 200ms wait),
+# the way a loaded runner delivers it late. The answer itself is unchanged.
+_LATE_STATUS_JS = """() => {
+  const real = window.fetch;
+  window.fetch = (input, init) => {
+    const answer = real(input, init);
+    if (!String(input).includes("/api/wallet/status")) return answer;
+    return answer.then((r) => new Promise((done) => setTimeout(() => done(r), 500)));
+  };
+}"""
+
+
 def test_disable_while_open_closes_panel_and_removes_entry(browser):
     pocket = _account("w-pocket", SOL, "pocket_sealed", POCKET_KEY)
     facts = Facts(_status(enabled=True, accounts=[pocket]))
@@ -418,8 +430,12 @@ def test_disable_while_open_closes_panel_and_removes_entry(browser):
     _open_panel(page)
     page.wait_for_selector("#vwHomeSend")
     facts.status = _status(enabled=False, accounts=[])
+    # The panel closes when the disabled status LANDS, not within a fixed wait. A loaded CI
+    # runner answered later than the old 200ms sleep and failed while the page was correct, so
+    # the status answer is held back longer than that sleep and the proof waits for the close.
+    page.evaluate(_LATE_STATUS_JS)
     page.evaluate("window.VoolWallet.refresh()")
-    page.wait_for_timeout(200)
+    page.wait_for_selector("#vwHomeOverlay", state="detached", timeout=10000)
     assert page.locator("#vwHomeOverlay").count() == 0, "a disable closes the open panel: no executable Send controls remain"
     assert _entry(page).count() == 0
     assert page.locator("#nToast").count() in (0, 1)
