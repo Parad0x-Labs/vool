@@ -11,6 +11,12 @@ from typing import Any
 
 import pytest
 
+#: Third-party pytest plugins this child never loads, whatever is installed. addopts is cleared
+#: here, so the repository's own ``-p no:`` entries do not reach this run. anchorpy (installed by
+#: the optional ``pay`` extra, through Solana pay-kit) registers a plugin that stops pytest at
+#: startup unless pytest-asyncio and pytest-xprocess are installed; VOOL uses none of it.
+BLOCKED_PLUGIN_ARGS = ("-p", "no:pytest_anchorpy")
+
 #: Outcome categories mirror pytest's terminal summary. ``executed_total`` counts every test that
 #: reached a verdict (passed, failed, errored, xfailed, xpassed); only a skip never executed, so
 #: a green shard whose collected tests were all skipped reports executed_total == 0.
@@ -139,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     for variable in ("PYTEST_ADDOPTS", "PYTEST_DISABLE_PLUGIN_AUTOLOAD", "PYTEST_PLUGINS"):
         os.environ.pop(variable, None)
     plugin = _ExecutionPlugin(output_path=Path(args.output))
-    return int(pytest.main(["-o", "addopts=", *pytest_args], plugins=[plugin]))
+    return int(pytest.main(["-o", "addopts=", *BLOCKED_PLUGIN_ARGS, *pytest_args], plugins=[plugin]))
 
 
 if __name__ == "__main__":
