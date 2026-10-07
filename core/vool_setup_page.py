@@ -207,6 +207,7 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 .choice b { display:block; font-size:15px; margin-bottom:2px; }
 .choice span { color:var(--muted); font-size:13px; }
 .choice[aria-pressed="true"] { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+.cloud-default { margin:0 0 12px; }
 .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .inp { background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:9px 11px; font:inherit; font-size:15px; min-width:220px; flex:1 1 220px; }
 .inp:focus { outline:none; border-color:var(--accent); }
@@ -437,8 +438,52 @@ function controlThinking(host, step) {
   });
   online.addEventListener('click', () => openSettings('keys'));
   row.appendChild(local); row.appendChild(online);
+  const cloud = view.snap && view.snap.cloud_default;
+  if (cloud && cloud.local_model_running === false) controlCloudDefault(host, cloud);
   host.appendChild(row);
   host.appendChild(el('p', 'hint', T('setup.thinking.hint', 'You can switch between the two whenever you like.')));
+}
+// No local model answers on this computer (no Ollama, or local models off). Auto stays opt-in:
+// the owner names the cloud model once, and Auto uses it only while no local model runs.
+function controlCloudDefault(host, cloud) {
+  const box = el('div', 'cloud-default'); box.id = 'cloudDefault';
+  box.appendChild(el('p', null, T('setup.thinking.no_local', 'No local model is running on this computer, so “On my Mac” cannot answer yet.')));
+  const candidates = Array.isArray(cloud.candidates) ? cloud.candidates : [];
+  if (!candidates.length) {
+    box.appendChild(el('p', 'hint', T('setup.thinking.no_cloud', 'Add a cloud key with “Online, with a key”, or start a local model.')));
+    host.appendChild(box);
+    return;
+  }
+  if (cloud.decision === 'use_cloud' && cloud.model) {
+    box.appendChild(el('p', 'hint', fmt(T('setup.thinking.cloud_saved', 'Auto answers with {model} while no local model runs.'), { model: cloud.model })));
+  }
+  const row = el('div', 'inline');
+  const pick = document.createElement('select');
+  pick.className = 'inp'; pick.id = 'cloudModel';
+  pick.setAttribute('aria-label', T('setup.thinking.cloud_aria', 'Cloud model for Auto'));
+  candidates.forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = c.id; opt.textContent = c.label && c.provider ? (c.label + ' (' + c.provider + ')') : c.id;
+    if (c.id === cloud.model) opt.selected = true;
+    pick.appendChild(opt);
+  });
+  const use = el('button', 'btn primary', T('setup.thinking.cloud_use', 'Use this model')); use.type = 'button'; use.id = 'useCloud';
+  const later = el('button', 'btn', T('setup.thinking.cloud_not_now', 'Not now')); later.type = 'button'; later.id = 'cloudNotNow';
+  const save = async (body, btn, saved) => {
+    btn.disabled = true;
+    const res = await postJSON('/api/onboarding/cloud-default', body);
+    btn.disabled = false;
+    if (!res.ok) { fail(host, fmt(T('setup.status.not_saved', 'Not saved — {reason}'), { reason: ((res.json && (res.json.error || res.json.detail)) || ('HTTP ' + res.status)) })); return; }
+    await refresh();
+    live(current().done ? saved : T('setup.status.not_confirmed', 'Not confirmed yet.'));
+  };
+  use.addEventListener('click', () => save({ decision: 'use_cloud', model: pick.value }, use,
+    T('setup.status.saved_cloud', 'Saved: Auto uses your cloud model while no local model runs.')));
+  later.addEventListener('click', () => save({ decision: 'not_now' }, later,
+    T('setup.status.saved_cloud_not_now', 'Saved: Auto will not use a cloud model. Pick one in the model selector when you want.')));
+  row.appendChild(pick); row.appendChild(use); row.appendChild(later);
+  box.appendChild(row);
+  host.appendChild(box);
 }
 
 function controlFolder(host, step) {
