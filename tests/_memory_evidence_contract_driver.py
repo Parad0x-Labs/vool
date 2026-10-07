@@ -499,7 +499,7 @@ def main() -> int:
                 "model_execution_decision": result.get("model_execution_decision"),
                 "diagnostic_decisions": {key: result_context.get(key) for key in (
                     "past_time_support_decision", "execution_requirements", "current_information_required",
-                    "requested_answer_contract", "raw_output_contract", "claim_conviction")},
+                    "requested_answer_contract", "raw_output_contract", "claim_conviction", "evidence_verification")},
                 "diagnostic_capture_status": "null means absent from returned runtime context; not reconstructed",
 
                 "routes": {
