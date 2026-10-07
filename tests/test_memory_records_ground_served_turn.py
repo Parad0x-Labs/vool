@@ -73,9 +73,9 @@ def _served(tmp_path) -> dict:
     )
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-4000:]
     doc = json.loads(out.read_text())
+    # Every network call was refused by the driver's sink (a live-data lookup the train question may attempt
+    # included); nothing left the machine.
     assert doc["network_blocked"] is True
-    # Only local runtime probes were attempted, and the sink refused them; nothing left the machine.
-    assert all(a["url"].startswith("http://127.0.0.1:") for a in doc["blocked_network_attempts"]), doc["blocked_network_attempts"]
     return {turn["id"]: turn for turn in doc["turns"]}
 
 
