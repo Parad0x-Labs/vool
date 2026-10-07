@@ -475,15 +475,25 @@ def _split_explicit_memory_facts(raw_fact: str) -> list[str]:
     return facts
 
 
+#: A reason the user appends to a forget ("..., it is wrong", "... it was a typo", "...? its wrong", "... lol") is not
+#: part of the named target: left on, it made the whole sentence the keyword, nothing matched, and the reply still
+#: said "Forget applied" (served check 2026-10-07).
+_FORGET_JUSTIFICATION_TAIL_RE = re.compile(
+    r"\s*[,;:?!]*\s*(?:(?:it|that|this|which)(?:'s|\s+is|\s+was|s)\b.*|because\b.*|since\b.*|as\s+it\b.*|lol|pls|please|thanks)$",
+    re.IGNORECASE,
+)
+
+
 def _forget_target_without_preservation_clause(raw_target: str) -> str:
-    """Remove a trailing keep-clause without changing the named forget target."""
+    """Remove a trailing keep-clause or reason clause without changing the named forget target."""
     target = " ".join(str(raw_target or "").strip().strip(".!?").split())
-    return re.sub(
+    target = re.sub(
         r",?\s+but\s+keep\b.*$",
         "",
         target,
         flags=re.IGNORECASE,
     ).strip()
+    return _FORGET_JUSTIFICATION_TAIL_RE.sub("", target).strip(" .,!?;:")
 
 
 def _normalize_forget_target(raw_target: str) -> str:
@@ -523,6 +533,10 @@ def _referential_forget_token(
             for token in row.get("keywords") or []
         }
     ]
+    if not rows:
+        # Nothing stored under that name: the referential reading resolves nothing, so the keyword
+        # path decides (and says so when it removes nothing). "More than one" was never true here.
+        return False, ""
     if len(rows) != 1:
         return True, ""
     return True, _memory_recall_value(str(rows[0].get("text") or ""))
@@ -1825,6 +1839,13 @@ def maybe_handle_memory_command(
         except Exception as exc:
             LOGGER.warning("semantic memory forget unavailable: %s", type(exc).__name__)
         total_removed = max(int(removed), int(semantic_removed))
+        if total_removed <= 0:
+            # Never "Forget applied" over nothing removed (served check 2026-10-07: "Forget the storage
+            # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
+            # turn is not handled here: it is stored as an ordinary retraction and the capsule's
+            # temporal law withdraws the record it names on the next recall.
+            LOGGER.info("forget matched no stored memory; the turn is kept as a retraction")
+            return False, ""
         return True, f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}."
 
     return False, ""
