@@ -57,8 +57,10 @@ _DEFAULT_MONTHLY_USD = 25.00
 
 _POLICY_PREFIX = "model_orchestration.paid_call"
 _TERMINAL_PAID_GENERATION_ROLES = frozenset(
-    {"answer_generation", "conductor_generation"}
+    {"answer_generation", "conductor_generation", "audit_step"}
 )
+# Roles whose reservations this module emits spend receipts for. The conductor has its own owner.
+_RECEIPT_ROLES = frozenset({"answer_generation", "audit_step"})
 
 
 def _positive_policy_float(key: str, default: float) -> float:
@@ -719,14 +721,14 @@ def _emit_answer_spend_receipt(
     reason: str = "",
     provider_id: str = "",
 ) -> None:
-    """Emit spend evidence only for the ordinary answer role this seam owns.
+    """Emit spend evidence only for the roles this seam owns: ordinary answers and paid audit steps.
 
     Conductor generation already has a stricter one-call scope and emits the same schema from that
     scope. Keeping its existing owner avoids duplicate receipts while putting ordinary generation
     beside it under the shared event contract.
     """
     role = str(call_role or "").strip().lower()
-    if role != "answer_generation" or not isinstance(source_context, dict):
+    if role not in _RECEIPT_ROLES or not isinstance(source_context, dict):
         return
     reservation = getattr(authorization, "reservation", None)
     escalation = getattr(authorization, "escalation", None)
@@ -795,7 +797,7 @@ def _terminalize_paid_generation_orchestration(
     role = str(call_role or "").strip().lower()
     if role not in _TERMINAL_PAID_GENERATION_ROLES:
         return
-    generation_kind = "conductor" if role == "conductor_generation" else "answer"
+    generation_kind = {"conductor_generation": "conductor", "audit_step": "audit"}.get(role, "answer")
     escalation = getattr(authorization, "escalation", None)
     run_id = str(getattr(escalation, "run_id", "") or "")
     paid_model = str(getattr(escalation, "model_id", "") or "")
