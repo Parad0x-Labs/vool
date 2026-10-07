@@ -7135,6 +7135,11 @@ def _dispatch_post_inner(
             "workspace_binding": workspace_binding,
             "request_id": str(request_id or "").strip(),
         }
+        # Who wrote this message: an agent team's agent session declares "agent", and its brief must
+        # never become the owner's memory (core.request_trust.turn_is_owner_authored).
+        from core.request_trust import TURN_AUTHOR_KEY, turn_author_from_request
+
+        source_context[TURN_AUTHOR_KEY] = turn_author_from_request(body, inbound_source_context)
         source_context["chat_id"] = context_namespace.chat_id
         if context_namespace.project_id:
             source_context["_trusted_project_id"] = context_namespace.project_id

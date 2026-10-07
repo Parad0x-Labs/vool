@@ -2033,8 +2033,12 @@ def schedule_memory_extraction(
 ) -> None:
     if not _memory_capture_allowed(source_context):
         return
-    from core.request_trust import request_is_owner_local
+    from core.request_trust import request_is_owner_local, turn_is_owner_authored
 
+    if not turn_is_owner_authored(source_context):
+        # An agent's turn (an agent team's brief and its reply) is not the owner speaking: measured on the
+        # live agent-team run (2026-10-07), an agent brief's reply format was stored as the owner's preference.
+        return
     if not request_is_owner_local(source_context):
         # This legacy extractor writes user-profile blocks. Until those blocks
         # carry per-user provenance, only the trusted private desktop owner may
