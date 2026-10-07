@@ -1,9 +1,9 @@
 """The wallet-owned network environment: Mainnet or Test networks.
 
 One preference, owned beneath ``core.wallet`` and never a generic user preference: which environment's
-rows the product operates on. Crypto stays off by default; once it is on, a fresh installation operates
-on Mainnet. An installation upgraded from a build whose wallet data lives only on test rows keeps
-operating on Test networks until the owner chooses otherwise. Reading the environment never writes.
+rows the product operates on. Crypto stays off by default; once it is on, the product operates on Mainnet
+unless the owner chose Test networks in Settings -> Crypto -> Developer options. Existing test-network data
+never derives a default: it stays listed on its own rows. Reading the environment never writes.
 
 The environment gates NEW effects only (account registration, proposals, quotes, approvals, signing).
 It never migrates, relabels or hides an account, a balance, a hold or a receipt: every row keeps its own
@@ -34,13 +34,8 @@ _CONTROL_KEY = "network_environment"
 
 SOURCE_OVERRIDE = "operator_override"
 SOURCE_STORED = "stored"
-SOURCE_UPGRADE = "upgrade_preserved_test_networks"
 SOURCE_FRESH = "fresh_install_default"
-_DERIVED_SOURCES = (SOURCE_UPGRADE, SOURCE_FRESH)
-
-#: Tables whose rows carry the network an existing piece of wallet data lives on.
-_DATA_TABLES = ("wallet_profiles", "wallet_proposals", "wallet_receipts")
-
+_DERIVED_SOURCES = (SOURCE_FRESH,)
 
 @dataclass(frozen=True)
 class EnvironmentState:
@@ -68,31 +63,14 @@ def _stored(conn: Any) -> tuple[str, str]:
     return (value, str(row[1] or "")) if value in ENVIRONMENTS else ("", "")
 
 
-def _environments_of_existing_data(conn: Any) -> set[str]:
-    from core.wallet import chains
-
-    names: set[str] = set()
-    for table in _DATA_TABLES:
-        names.update(str(row[0]) for row in conn.execute(f"SELECT DISTINCT network FROM {table}").fetchall())
-    found: set[str] = set()
-    for name in names:
-        try:
-            found.add(chains.resolve_network(name).environment)
-        except Exception:
-            continue
-    return found
-
-
 def _resolve(conn: Any) -> EnvironmentState:
-    """The one derivation: the operator override, then the stored choice, then the default derived from existing data."""
+    """The one derivation: the operator override, then the stored choice, then Mainnet."""
     override = _override()
     if override:
         return EnvironmentState(override, SOURCE_OVERRIDE)
     stored, changed_at = _stored(conn)
     if stored:
         return EnvironmentState(stored, SOURCE_STORED, changed_at)
-    if _environments_of_existing_data(conn) == {ENVIRONMENT_TESTNET}:
-        return EnvironmentState(ENVIRONMENT_TESTNET, SOURCE_UPGRADE)
     return EnvironmentState(ENVIRONMENT_MAINNET, SOURCE_FRESH)
 
 
@@ -205,7 +183,6 @@ __all__ = [
     "SOURCE_FRESH",
     "SOURCE_OVERRIDE",
     "SOURCE_STORED",
-    "SOURCE_UPGRADE",
     "EnvironmentState",
     "active_environment",
     "is_active",

@@ -10,14 +10,14 @@ from core.wallet import chains, config, custody, limits, proposals, receipts
 from core.wallet.redaction import redact_wallet_record
 
 #: Soft warnings the surface shows beside the custody line. Operator decision (2026-09-07): the absence
-#: of an independent external security audit is stated, never used as a gate -- users test on devnets or
-#: mainnets at their own pace. One authority; every renderer reads this list from the status payload.
+#: of an independent external security audit is stated, never used as a gate -- users start with small
+#: amounts at their own pace. One authority; every renderer reads this list from the status payload.
 SOFT_WARNINGS: tuple[dict[str, str], ...] = (
     {
         "code": "no_external_audit",
         "text": (
             "Soft warning: this wallet and payment code has not been audited by an external party. "
-            "Start on a devnet or testnet, and use small amounts first on any mainnet."
+            "Start with small amounts."
         ),
     },
 )
@@ -205,7 +205,6 @@ def crypto_pilot_status() -> dict[str, Any]:
     source_labels = {
         environment.SOURCE_OVERRIDE: "set by the operator environment (Test networks only; a process can never choose Mainnet)",
         environment.SOURCE_STORED: "chosen in Settings",
-        environment.SOURCE_UPGRADE: "kept from an upgrade: existing test-network data",
         environment.SOURCE_FRESH: "the fresh-install default",
     }
     return {
