@@ -1,7 +1,7 @@
 """Exposed-corpus regression repairs (2026-09-30 handoff continuation).
 
 The 208 exposed-corpus run on ef8fd744 surfaced five pass→fail vs the
-goblin baseline; diagnosis attributed them to owners repaired here:
+earlier baseline; diagnosis attributed them to owners repaired here:
 
 1. Parallel weekday-named subjects ("the Monday ferry" vs "the Thursday
    ferry", "weekday/weekend inspection slot") collapsed under recency
