@@ -535,21 +535,6 @@ def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: 
             else:
                 refused = {"op": "refused_record", "reason": why if cur is None else "superseded_by_current_record",
                            "current": cur.as_dict() if cur is not None else None, "records": [r.as_dict() for r in same_value][:4]}
-        pool = money if kind == "money" else (numbers + money)
-        if d is None and refused is not None and refused.get("reason") == "superseded_by_current_record":
-            # a value the subject's current record superseded is CONTRADICTED; an arithmetic coincidence in the pool (a
-            # sum, a count, a day count under a non-day unit) does not rescue it. A claim that names days or weeks may
-            # still be a day count between two stated days.
-            if kind != "money" and days and re.search(r"\b(?:days?|weeks?)\b", text, re.IGNORECASE):
-                d = _date_derivation(value, text, days)
-            if d is None:
-                out.append(ClaimBinding(value, text, kind, "unsupported", [], refused)); continue
-        if d is None:
-            d = _derive(value, pool)
-            if d is not None and d["op"] == "stated":
-                d = None  # a stated match the record law refused above is not rescued by the pool
-        if d is None and kind != "money" and days:
-            d = _date_derivation(value, text, days)
         if d is None and len(claims) == 1 and not _AGGREGATE_ASK_RE.search(q) and (_CURRENT_FRAME_RE.search(q) or _record_modifier_re().search(q)):
             # a single-value record ask ("my current longest ...", "my highest ...") is answered by the asked subject's own
             # current record: a reply value that differs from it is CONTRADICTED, whether the value is invented (S13), the
@@ -565,6 +550,21 @@ def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: 
                 refused = dict(refused or {"op": "refused_record", "reason": "subject_current_record_differs", "records": [r.as_dict() for r in subject][:4]})
                 refused["contradicted_by"] = cur_s.as_dict()
                 out.append(ClaimBinding(value, text, kind, "unsupported", [], refused)); continue
+        pool = money if kind == "money" else (numbers + money)
+        if d is None and refused is not None and refused.get("reason") == "superseded_by_current_record":
+            # a value the subject's current record superseded is CONTRADICTED; an arithmetic coincidence in the pool (a
+            # sum, a count, a day count under a non-day unit) does not rescue it. A claim that names days or weeks may
+            # still be a day count between two stated days.
+            if kind != "money" and days and re.search(r"\b(?:days?|weeks?)\b", text, re.IGNORECASE):
+                d = _date_derivation(value, text, days)
+            if d is None:
+                out.append(ClaimBinding(value, text, kind, "unsupported", [], refused)); continue
+        if d is None:
+            d = _derive(value, pool)
+            if d is not None and d["op"] == "stated":
+                d = None  # a stated match the record law refused above is not rescued by the pool
+        if d is None and kind != "money" and days:
+            d = _date_derivation(value, text, days)
         if d is None and kind != "money":
             # a count may be the number of user-owned lines that each state a money amount (three items bought)
             if _close(value, float(len({line for _v, line in money}))) and money:
