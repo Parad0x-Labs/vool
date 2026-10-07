@@ -492,6 +492,28 @@ def _object_is_how_answers_look(sentence: str) -> bool:
     return not continuation or bool(_FORMAT_CONTINUATION_RE.match(continuation)) or _about_presentation(continuation)
 
 
+# A bare correction ("Too long.", "Less formal.", "ugh too stiff") names no subject and no order: it is about the
+# answer just given, and saved it would reach a new chat as a line nothing in that chat explains.
+_FRAGMENT_RE = re.compile(
+    r"^(?:(?:no|nope|ugh|hmm|meh|ok(?:ay)?)[,.!\s]+)*(?:(?:way|much|far|a\s+bit|a\s+little|bit|even|slightly)\s+)?"
+    r"(?P<head>too|less|more|[a-z]{3,}er)(?P<tail>(?:\s+[a-z'-]+){0,3})[.!]*$", re.IGNORECASE)
+
+
+def _is_fragment(text: str) -> bool:
+    """"Too long.", "Less formal.", "Shorter." -- but not "Answer in bullet points." or "Never use tables.": a word
+    ending in -er opens a fragment only when it is the comparative of a presentation word ("shorter", "warmer")."""
+    match = _FRAGMENT_RE.match(str(text or "").strip())
+    if match is None:
+        return False
+    head = match.group("head").lower()
+    if head in {"too", "less", "more"}:
+        return True
+    base = head[:-2]
+    candidates = {base, base + "e", base[:-1] if len(base) > 2 and base[-1] == base[-2] else base,
+                  base[:-1] + "y" if base.endswith("i") else base}
+    return not match.group("tail").strip() and any(_facets(word) or _PRESENTATION_RE.search(word) for word in candidates)
+
+
 def _plain_kind(sentence: str) -> str:
     """"workflow" / "plain" for a rule said without trigger words, "context" for a reason about the owner, else ""."""
     s = sentence.strip()
@@ -560,6 +582,7 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
                 and not _is_standing(previous) and not _QUESTION_RE.search(previous):
             sentence = f"{previous} {sentence}"
         saves.append(sentence)
+    saves = [save for save in saves if not _is_fragment(save)]
     saves.extend(fact for fact in _lasting_facts(sentences) if fact not in saves)
     if not saves and not take_backs and not _supplies_material(str(user_input or ""), text):
         kinds = [_plain_kind(sentence) for sentence in sentences]
@@ -568,7 +591,8 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
                 if kind == "context":
                     continue
                 previous = sentences[index - 1] if index > 0 and kinds[index - 1] == "context" else ""
-                saves.append(f"{previous} {sentence}" if previous else sentence)
+                if not _is_fragment(sentence):
+                    saves.append(f"{previous} {sentence}" if previous else sentence)
     return saves, take_backs
 
 
