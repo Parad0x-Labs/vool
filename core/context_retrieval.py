@@ -3836,7 +3836,8 @@ def _lane_admitted_user_text(raw: str) -> str:
 def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
                       max_tokens: int | None = None, assistant_ask: bool = False,
                       owned_only: bool = False, query: str = "",
-                      expansions: Sequence[str] = ()) -> tuple[list[str], int]:
+                      expansions: Sequence[str] = (),
+                      rendered: list[tuple[Any, str]] | None = None) -> tuple[list[str], int]:
     """Capsule-format lines for the ranked units within *max_tokens*: one '- <role> said (stated
     <date>): <turn>' line per turn ('recorded <date>' when only the ingestion time is known; no date
     with neither), the format every answer check already reads. A turn longer than its bound keeps
@@ -3846,7 +3847,8 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
     With *owned_only* (personal advice asks, _advice_requires_owned_context) a user turn contributes
     only its authored prose, by the same admission classifier the capsule's ownership law uses:
     quoted, pasted or disowned third-party material never rides a "user said" line, and a turn that is
-    mostly quotation is skipped. Returns the lines and their token cost."""
+    mostly quotation is skipped. Returns the lines and their token cost; *rendered*, when given, receives
+    each (occurrence, line) the lane actually delivered, for its evidence receipts."""
     from core.secret_redaction import redact_secrets
 
     max_tokens = _TURN_LANE_MAX_TOKENS if max_tokens is None else max_tokens
@@ -3855,6 +3857,7 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
     delivered = _whole_turn_delivered_records(delivered_text)
     for unit in units:
         unit_lines = []
+        unit_rendered: list[tuple[Any, str]] = []
         for occurrence in unit:
             is_assistant = str(getattr(occurrence, "role", "") or "") == "assistant"
             raw = str(getattr(occurrence, "body", "") or "")
@@ -3884,6 +3887,7 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
             time_label = _whole_turn_time_label(occurrence)
             label = f"- {role} said ({time_label}): " if time_label else f"- {role} said: "
             unit_lines.append(label + body)
+            unit_rendered.append((occurrence, label + body))
         if not unit_lines:
             continue
         cost = estimate_tokens("\n".join(unit_lines))
@@ -3891,6 +3895,8 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
             continue
         lines.extend(unit_lines)
         used += cost
+        if rendered is not None:
+            rendered.extend(unit_rendered)
     return lines, used
 
 
@@ -12068,6 +12074,7 @@ def _capsule_v2_inject_retrieved(
             for occurrence in unit)
     ]
     turn_lines, turn_tokens = ([], 0)
+    lane_rendered: list[tuple[Any, str]] = []
     try:
         # Rendered the same whether or not the opt-in sitting order is on. KNOWN CONFLICT (open): with
         # VOOL_CAPSULE_SITTING_ORDER on, a sitting's whole turns in this block sit apart from that
@@ -12080,7 +12087,7 @@ def _capsule_v2_inject_retrieved(
         except Exception:
             pass
         turn_lines, turn_tokens = _whole_turn_lines(
-            whole_turn_units, delivered_text=render_block, max_tokens=_lane_cap,
+            whole_turn_units, delivered_text=render_block, max_tokens=_lane_cap, rendered=lane_rendered,
             assistant_ask=_query_requests_assistant_output(query),
             owned_only=_advice_requires_owned_context(query),
             # a turn longer than its bound keeps the region this question (and its search
@@ -12145,6 +12152,24 @@ def _capsule_v2_inject_retrieved(
         if receipt.get("delivered") and _receipt_packing_line(receipt) not in included:
             receipt["delivered"] = False
             receipt["omission_reason"] = "final_pack"
+    if turn_lines:
+        # The lane has its own budget, so it can deliver a turn the final pack kept no line of; every turn it
+        # rendered is delivered evidence and gets its own receipt, the exact lane line the reader received
+        # (tests/test_lane_delivered_turns_carry_receipts.py).
+        for _occurrence, _lane_line in lane_rendered:
+            evidence_receipts.append({
+                "occurrence_id": str(getattr(_occurrence, "occurrence_id", "") or ""),
+                "role": "assistant" if str(getattr(_occurrence, "role", "") or "") == "assistant" else "user",
+                "authority": str(getattr(_occurrence, "authority", "") or ""),
+                "chat_scope": str(getattr(_occurrence, "chat_scope", "") or ""),
+                "recorded_at": getattr(_occurrence, "recorded_at", None),
+                "statement_at": getattr(_occurrence, "statement_at", None),
+                "span": None,
+                "line": _lane_line,
+                "delivered": True,
+                "delivery_stage": "whole_turn_lane",
+                "lane": "whole_turn",
+            })
     telemetry["selected_facts"] = final_lines
     telemetry["selected_facts_count"] = len(final_lines)
     telemetry["evidence_refs"] = evidence_receipts

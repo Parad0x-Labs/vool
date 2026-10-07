@@ -95,11 +95,17 @@ def test_delivery_receipts_and_selected_facts_follow_final_pack(fresh_profile, m
                        dropped_budget=packed.dropped_budget+packed.chosen)
 
     monkeypatch.setattr(cr, "pack_context", drop_final_pack)
-    assert not _capsule(fresh_profile, chat, "Where does the ceramics society meet?")
+    capsule = _capsule(fresh_profile, chat, "Where does the ceramics society meet?")
+    # The final pack kept no line, so no distilled section rides; only the whole-turn lane, which has its own
+    # budget (the free window), may deliver the turn, and then its own receipt says so
+    # (tests/test_lane_delivered_turns_carry_receipts.py).
+    assert cr._CAPSULE_FACTS_HEADER not in capsule, capsule
     telemetry = cr.get_last_retrieval_telemetry()
     assert not telemetry["selected_facts"]
-    assert not cr.admitted_evidence_records(telemetry)
-    rejected = [r for r in telemetry["evidence_refs"] if r.get("line")]
+    assert all(r.line.startswith("- ") and r.line in capsule.split(cr._TURN_LANE_HEADER, 1)[-1]
+               for r in cr.admitted_evidence_records(telemetry))
+    assert len(cr.admitted_evidence_records(telemetry)) == telemetry["whole_turn_lines"]
+    rejected = [r for r in telemetry["evidence_refs"] if r.get("line") and r.get("lane") != "whole_turn"]
     assert rejected
     assert all(not r["delivered"] and r["omission_reason"] == "final_pack" for r in rejected)
 
