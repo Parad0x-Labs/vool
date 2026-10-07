@@ -98,6 +98,34 @@ _STOPWORDS = frozenset(
 )
 
 
+# A setting that holds ONE value at a time. A new instruction on one of these replaces the old one on the same
+# setting ("keep it short" after "give me long answers"); every other instruction stays. A list of separate yes/no
+# habits (tables, bullets, emojis, a closing line) is one setting per habit, so "never use tables" and "use bullet
+# points" never displace each other.
+_FACETS: tuple[tuple[str, re.Pattern[str]], ...] = tuple((name, re.compile(pattern, re.IGNORECASE)) for name, pattern in (
+    ("length", r"\b(?:short(?:er)?|brief(?:er)?|concise|long(?:er)?|lengthy|detailed|verbose|terse|length|"
+               r"(?:one|two|three|four|five|six|\d+)(?:\s+or\s+\w+)?\s+(?:sentences|paragraphs|lines|words))\b"),
+    ("language", r"\b(?:english|german|french|spanish|lithuanian|italian|polish|dutch|russian|ukrainian|portuguese|"
+                 r"swedish|norwegian|danish|finnish|latvian|estonian|japanese|chinese|korean|language)\b"),
+    ("temperature_unit", r"\b(?:celsius|fahrenheit|kelvin|temperatures?)\b"),
+    ("distance_unit", r"\b(?:kilomet(?:er|re)s?|km|miles?|met(?:er|re)s|feet|yards|distances?)\b"),
+    ("weight_unit", r"\b(?:kilo(?:gram)?s?|kg|pounds|lbs?|ounces|grams|weights?)\b"),
+    ("unit_system", r"\b(?:metric|imperial)\b"),
+    ("date_format", r"\b(?:dates?|iso|dd/mm(?:/yyyy)?|mm/dd(?:/yyyy)?|yyyy-mm-dd)\b"),
+    ("time_format", r"\b(?:24[- ]hour|12[- ]hour|am/pm)\b"),
+    ("tone", r"\b(?:tone|formal|informal|casual|friendly|polite|blunt|stiff|warm|playful|professional|chatty)\b"),
+    ("emoji", r"\b(?:emojis?|emoticons?)\b"),
+    ("tables", r"\btables?\b"),
+    ("bullets", r"\bbullet(?:s|\s+points?)?\b"),
+    ("headings", r"\bheadings?\b"),
+    ("closing", r"\b(?:end|finish|close|sign\s+off)\s+(?:\w+\s+){0,3}with\b"),
+))
+
+
+def _facets(text: str) -> frozenset[str]:
+    return frozenset(name for name, pattern in _FACETS if pattern.search(str(text or "")))
+
+
 @dataclass(frozen=True)
 class Instruction:
     instruction_id: str
@@ -181,6 +209,13 @@ def _add(principal: str, workspace: str, text: str, session_id: str) -> Instruct
                 return None
         row = {"id": f"si-{uuid.uuid4().hex[:12]}", "principal": principal, "workspace": workspace, "text": clean,
                "topic": list(topic), "created_at": time.time(), "session_id": session_id, "status": "active"}
+        settings = _facets(clean)
+        for other in rows:
+            if (settings and other.get("principal") == principal and other.get("workspace") == workspace
+                    and other.get("status") == "active" and settings & _facets(str(other.get("text", "")))):
+                other["status"] = "superseded"
+                other["superseded_by"] = row["id"]
+                other["superseded_at"] = row["created_at"]
         rows.append(row)
         mine = [r for r in rows if r.get("principal") == principal and r.get("workspace") == workspace
                 and r.get("status") == "active"]
@@ -254,9 +289,19 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
     saves: list[str] = []
     take_backs: list[str] = []
     for index, sentence in enumerate(sentences):
-        if _TAKE_BACK_RE.search(sentence) and not _STANDING_RE.search(sentence) and not _QUESTION_RE.search(sentence):
-            take_backs.append(sentence)
-            continue
+        if _TAKE_BACK_RE.search(sentence) and not _QUESTION_RE.search(sentence):
+            marker = _STANDING_RE.search(sentence)
+            if marker is None:
+                take_backs.append(sentence)
+                continue
+            # "Drop the X, and from now on Y": the clause before the standing words takes X back, and the rest is
+            # the new instruction. Only the instruction half is saved, so a later take-back of X cannot remove it.
+            before = sentence[:marker.start()]
+            after = sentence[marker.start():].strip()
+            if _TAKE_BACK_RE.search(before) and _is_standing(after):
+                take_backs.append(before.strip(" ,;-"))
+                saves.append(after[:1].upper() + after[1:])
+                continue
         if not _is_standing(sentence):
             continue
         # A lesson often arrives with its reason first ("I live in Canada. Always give me Celsius."): the reason
