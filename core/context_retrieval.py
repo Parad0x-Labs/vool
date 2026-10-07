@@ -8246,7 +8246,7 @@ def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts
     return refused
 
 
-def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "", refused: dict[str, str] | None = None) -> list[dict[str, str]]:
+def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "", refused: dict[str, str] | None = None, budget_tokens: int | None = None) -> list[dict[str, str]]:
     """v14.2 kernel: when v14's own retrieval delivers nothing, the receipt packet still reaches the reader on its own
     (a stated preference or a state chain is an operand whether or not a capsule line matched the question)."""
     try:
@@ -8276,6 +8276,13 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
         _complete = False
     if not _complete:
         telemetry["capsule_mode"] = "packet_withheld_incomplete"
+        _set_retrieval_telemetry(telemetry)
+        return transcript
+    if budget_tokens is not None and estimate_tokens(text) > max(0, int(budget_tokens)):
+        # The packet obeys the memory budget like every capsule section: a 4k local window must not receive a block
+        # larger than its allowance (tests/test_source_prefix_binding.py::test_added_prefix_is_in_atomic_fact_budget).
+        telemetry["capsule_mode"] = "packet_withheld_budget"
+        telemetry["evidence_packet_withheld"] = "budget"
         _set_retrieval_telemetry(telemetry)
         return transcript
     telemetry["capsule_mode"] = "packet_only"
@@ -9176,7 +9183,7 @@ def _capsule_v2_inject_retrieved(
     # own lanes missed, and an abstaining question must keep abstaining.
     phrase_lanes_found = bool(search_expansions) and bool(whole_turn_units or recall_supplement)
     if not hits and not evidence_hits and not chain_extras and not phrase_lanes_found:
-        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""))
+        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens))
 
     # ── temporal eligibility (mission memory-quality90, temporal lane) ─────
     # One contract decides which candidates may be PACKED for THIS question:
@@ -9769,7 +9776,7 @@ def _capsule_v2_inject_retrieved(
         return True
 
     if not hits and not evidence_hits and not phrase_lanes_found:
-        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""),
+        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
                                       refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")))
     context_text = " ".join(m.get("content", "") for m in transcript).lower()
     selected: list[tuple[str, float]] = []
@@ -11908,7 +11915,8 @@ def _capsule_v2_inject_retrieved(
                 receipt["delivered"] = False
                 receipt["omission_reason"] = "selection_filter"
         return _packet_only_injection(transcript, evidence_packet, telemetry, chat_id=str(session_id or ""), question=str(query or ""),
-                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")))
+                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")),
+                                      budget_tokens=int(budget.free_tokens))
     # Pack separable facts, not one indivisible capsule: presenting the whole
     # distilled block as a single candidate made the packer drop ALL retrieved
     # evidence when the block exceeded the remaining free budget, even though
@@ -12095,6 +12103,19 @@ def _capsule_v2_inject_retrieved(
             _kernel_packet_envelope(str(session_id or ""), str(query or ""), evidence_packet, telemetry)
         except Exception:
             LOGGER.debug("evidence packet render failed", exc_info=True)
+            packet_text = ""
+    if packet_text:
+        # The packet obeys the memory window: it rides only in the free window the packed lines and the lane left,
+        # never past it (kernel on, a full capsule plus the packet passed the free window;
+        # tests/test_complete_collection_delivery_policy.py, tests/test_source_prefix_binding.py). It is bounded by the
+        # free window, not the caller's softer evidence target, so the typed-completeness packet still rides over a
+        # full target (v0.7.1: reserve its tokens before packing, and size the budget from the model's real window).
+        try:
+            _packet_room = int(budget.free_tokens) - int(packed.tokens_used) - int(turn_tokens or 0)
+        except Exception:
+            _packet_room = 0
+        if estimate_tokens(packet_text) > max(0, _packet_room):
+            telemetry["evidence_packet_withheld"] = "budget"
             packet_text = ""
     if packet_text:
         if render_block:
