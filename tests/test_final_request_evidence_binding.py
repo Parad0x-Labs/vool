@@ -64,8 +64,8 @@ def test_evidence_is_sealed_to_final_messages_query_and_turn(monkeypatch):
     assert record["evidence_texts"] == [CAPSULE]
     clock = bc.admitted_request_reference_clock(context, "bound-chat", question=QUESTION)
     assert clock is not None
-    assert record["reference_clock"]["text"] in request.messages[0].content
-    assert request.messages[0].content not in record["evidence_texts"]
+    assert record["reference_clock"]["text"] in "\n".join(str(m.content or "") for m in request.messages if getattr(m, "role", None) == "system")
+    assert "\n".join(str(m.content or "") for m in request.messages if getattr(m, "role", None) == "system") not in record["evidence_texts"]
     assert bc.admitted_request_evidence_texts(context, "bound-chat", question=QUESTION) == (CAPSULE,)
     assert bc.admitted_capsule_evidence_text(context, "bound-chat", question=QUESTION) == CAPSULE
     assert not bc.admitted_capsule_evidence_text(context, "bound-chat", question="When did the ferry leave?")
@@ -144,7 +144,7 @@ def test_clock_only_provider_carrier_cannot_authorize_a_past_event(monkeypatch):
     clock = bc.admitted_request_reference_clock(context, "bound-chat", question=QUESTION)
     assert clock is not None and clock.day.isoformat() == "2024-02-01"
     assert clock.request_sha256 == bc._evidence_digest(payload["messages"])
-    assert record["reference_clock"]["text"] in payload["messages"][0]["content"]
+    assert any(record["reference_clock"]["text"] in str(m.get("content") or "") for m in payload["messages"] if m.get("role") == "system")  # the clock carrier (ae264ad6)
     evidence = bc.admitted_request_evidence_texts(context, "bound-chat", question=QUESTION)
     assert evidence == ()
     assert stated_past_time_claims("The crossing lasted 11 days.", question=QUESTION,
