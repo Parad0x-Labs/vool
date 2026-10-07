@@ -1,7 +1,8 @@
 """The wallet surface carries one soft warning: no independent external security audit yet.
 
 Operator decision (2026-09-07): mainnet use is the product's stance and the absence of an external audit
-is stated as a soft warning, never a gate; users test on devnets or mainnets at their own pace. The
+is stated as a soft warning, never a gate; users start with small amounts at their own pace. Normal
+setup never sends people to a devnet: test networks live only in Developer options. The
 warning rides the same public-safe status payload the surface already polls, so every renderer
 (fragment, Settings, API consumers) reads one authority.
 """
@@ -29,7 +30,8 @@ def test_status_carries_the_external_audit_soft_warning() -> None:
     assert "no_external_audit" in codes, status.get("soft_warnings")
     text = next(item["text"] for item in status["soft_warnings"] if item["code"] == "no_external_audit")
     assert "external" in text.lower() and "audit" in text.lower()
-    assert re.search(r"devnet|testnet", text, re.IGNORECASE), text
+    assert "small amounts" in text.lower(), text
+    assert not re.search(r"devnet|testnet", text, re.IGNORECASE), text
     assert [dict(w) for w in SOFT_WARNINGS] == status["soft_warnings"]
 
 
