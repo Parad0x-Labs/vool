@@ -24,7 +24,7 @@ def test_a_plain_clause_still_dates_its_event():
 
 
 def test_a_record_dated_after_the_asked_day_is_not_near_it():
-    before = {"receipt_id": "r:1", "role": "user", "statement_at": 1675245600.0, "facts": [{"slot": ["glaze", "mug", "celadon"], "value_type": "state", "norm": "glaze=celadon", "event_at": 1675245600.0, "sentence": "The studio glaze for the mugs is celadon."}]}
+    before = {"receipt_id": "r:1", "role": "user", "statement_at": 1678060800.0, "facts": [{"slot": ["glaze", "mug", "celadon"], "value_type": "state", "norm": "glaze=celadon", "event_at": 1678060800.0, "sentence": "The studio glaze for the mugs is celadon."}]}
     after = {"receipt_id": "r:2", "role": "user", "statement_at": 1678356000.0, "facts": [{"slot": ["glaze", "mug", "tenmoku"], "value_type": "state", "norm": "glaze=tenmoku", "event_at": 1678356000.0, "sentence": "Correction: the studio glaze for the mugs is now tenmoku."}]}
     q = "What was the studio glaze for the mugs on March 8, 2023?"
     plain = {r["receipt_id"]: s for s, r, f in match_receipts([before, after], q)}
