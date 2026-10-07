@@ -77,18 +77,72 @@ _CURRENT_RE = re.compile(r"\b(?:currently|now|these\s+days|at\s+the\s+moment|now
 _WHEN_RE = re.compile(r"\b(?:when|what\s+(?:date|day|time)|which\s+(?:date|day|month|year))\b", re.IGNORECASE)
 
 
+# v14.6 typed completeness (ASTRA Pro hardening item 1): every obligation carries a CLASS that says what complete evidence
+# is. Operand presence in a top-k view can prove EXISTS, PAIR, ORDER, SINGLE and QUOTE_SPEAKER; ABSENCE, EXTREMUM, LIST_ALL,
+# CURRENT_STATE and AGGREGATE also need COVERAGE: the scoped candidate set (every receipt sharing a subject term with the
+# question) must have been shown in full, or the packet says "coverage: partial" and the question is incomplete.
+_COVERAGE_CLASSES = frozenset({"ABSENCE", "EXTREMUM", "LIST_ALL", "CURRENT_STATE", "AGGREGATE"})
+_EXTREMUM_RE = re.compile(r"\b(?:first|earliest|oldest|very\s+first|latest|last|most\s+recent(?:ly)?|newest|final)\b", re.IGNORECASE)
+_PAST_EVENT_VERB_RE = re.compile(r"\b(?:bought|purchased|picked\s+up|got|did|went|visited|read|watched|took|made|started|finished|tried|saw|had|ate|ran|booked|ordered|attended|joined|moved)\b", re.IGNORECASE)
+_TWO_EVENT_ORDER_RE = re.compile(r"\b(?:come|came|happen|happened|was|were|is|occur|occurred)\s+(?:before|after)\b|\b(?:before|after)\s+or\s+(?:before|after)\b", re.IGNORECASE)
+_EARLIEST_RE = re.compile(r"\b(?:first|earliest|oldest|very\s+first)\b", re.IGNORECASE)
+_ABSENCE_RE = re.compile(r"\b(?:never|have\s+i\s+(?:not|n't)|haven'?t\s+i|did\s+i\s+(?:not|n't)|didn'?t\s+i|any\s+(?:mention|record|time)\s+of|is\s+there\s+any|at\s+any\s+point|at\s+all)\b", re.IGNORECASE)
+_LIST_ALL_RE = re.compile(r"\b(?:all|every|each|list\s+(?:all|every|the)|which\s+(?:ones?|of\s+them)|how\s+many\s+(?:different|distinct)|everything)\b", re.IGNORECASE)
+
+
+def obligation_class(kind: str, question: str) -> str:
+    q = str(question or "")
+    if kind == "assistant_output":
+        return "QUOTE_SPEAKER"
+    if kind in ("interval_ago", "interval_between", "when"):
+        return "PAIR" if kind == "interval_between" else "SINGLE"
+    if kind == "order":
+        # two named candidates ("the lamp or the desk", "X before Y") are an ORDER; "what did I buy first" over an open set is an EXTREMUM
+        return "EXTREMUM" if _EXTREMUM_RE.search(q) and not re.search(r"\b(?:or|than|versus|vs\.?)\b|\b(?:before|after)\s+(?:the|my|i)\b", q, re.IGNORECASE) else "ORDER"
+    if kind == "existence":
+        return "ABSENCE" if _ABSENCE_RE.search(q) else "EXISTS"
+    if _EXTREMUM_RE.search(q) and _PAST_EVENT_VERB_RE.search(q):
+        return "EXTREMUM"   # "the latest camera I picked up": the edge of an event scope, not the current value of a slot
+    if _TWO_EVENT_ORDER_RE.search(q):
+        return "ORDER"
+    if kind == "current_value":
+        return "CURRENT_STATE"
+    if kind == "aggregate":
+        return "AGGREGATE"
+    if kind == "preference":
+        return "LIST_ALL"  # every stated preference on the subject, not one semantic match
+    if _EXTREMUM_RE.search(q):
+        return "EXTREMUM"
+    if _ABSENCE_RE.search(q):
+        return "ABSENCE"
+    if _LIST_ALL_RE.search(q):
+        return "LIST_ALL"
+    return "SINGLE"
+
+
 @dataclass
 class Obligation:
     kind: str
     required: list[str]
     note: str = ""
+    cls: str = "SINGLE"          # EXISTS, ABSENCE, PAIR, ORDER, EXTREMUM, CURRENT_STATE, LIST_ALL, QUOTE_SPEAKER, AGGREGATE, SINGLE
+
+    @property
+    def needs_coverage(self) -> bool:
+        return self.cls in _COVERAGE_CLASSES
 
     def as_dict(self) -> dict[str, Any]:
-        return {"kind": self.kind, "required": list(self.required), "note": self.note}
+        return {"kind": self.kind, "required": list(self.required), "note": self.note, "class": self.cls, "needs_coverage": self.needs_coverage}
 
 
 def obligations(question: str) -> Obligation:
-    """What typed evidence an answer to *question* needs (closed classes; the first match wins)."""
+    """What typed evidence an answer to *question* needs (closed kinds; the first match wins), with its completeness class."""
+    ob = _obligation_kind(question)
+    ob.cls = obligation_class(ob.kind, question)
+    return ob
+
+
+def _obligation_kind(question: str) -> Obligation:
     q = str(question or "")
     if _ASSISTANT_RE.search(q):
         return Obligation("assistant_output", ["assistant_turn"], "the assistant's own earlier reply")
@@ -320,6 +374,31 @@ def question_state_key(question: str) -> str:
     return ""
 
 
+def scoped_coverage(receipts: Sequence[Mapping[str, Any]], question: str, shown_facts: Sequence[Mapping[str, Any]], *,
+                    extra_terms: Sequence[str] = (), state_key: str = "") -> dict[str, Any]:
+    """How much of the scoped candidate set the packet shows. Candidates: every user fact in the chat whose slot shares a
+    content term with the question (or the state facts of the asked state key). Exhaustive when every candidate is in the
+    packet; a chat with no candidate at all is exhaustive too (there is nothing unseen), so a clean refusal stays clean."""
+    terms = set(question_terms(question)) | {_stem(t) for t in extra_terms if t}
+    shown = {(str(f.get("receipt_id")), str(f.get("sentence") or f.get("value"))) for f in shown_facts}
+    candidates = 0; seen = 0; unseen_ids: list[str] = []
+    for r in receipts:
+        if r.get("role") != "user":
+            continue
+        for f in r.get("facts") or []:
+            slot = set(f.get("slot") or [])
+            is_state = bool(state_key) and f.get("value_type") == "state" and str(f.get("norm") or "").split("=", 1)[0] == state_key
+            if not (slot & terms) and not is_state:
+                continue
+            candidates += 1
+            key = (str(r.get("receipt_id")), str(f.get("sentence") or f.get("value")))
+            if key in shown:
+                seen += 1
+            elif len(unseen_ids) < 8:
+                unseen_ids.append(str(r.get("receipt_id")))
+    return {"candidates": candidates, "shown": seen, "exhaustive": seen >= candidates, "unseen_receipts": unseen_ids}
+
+
 def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequence[str] = (),
                    estimate_tokens: Callable[[str], int] | None = None, allow_hop: bool = True,
                    max_tokens: int = PACKET_MAX_TOKENS, max_lines: int = PACKET_MAX_LINES,
@@ -459,7 +538,17 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
         telemetry["hop_new_facts"] = len(new_rows)
         selected = selected + new_rows
         found, missing = _found_operands(ob, selected)
-    telemetry.update({"found": list(found), "missing": list(missing), "complete": not missing})
+    # an extremum ask ("first", "latest") is answered from the edge of the dated scope: dated user facts render in time
+    # order (earliest or latest first) so a partial view still carries the candidate that matters
+    if ob.cls == "EXTREMUM":
+        earliest = bool(_EARLIEST_RE.search(question))
+        def _when(row):
+            f = row[2]; r = row[1]
+            t = f.get("event_at") if f.get("event_at") is not None else r.get("statement_at")
+            return float(t or 0)
+        dated_rows = sorted([row for row in selected if row[1].get("role") == "user" and (row[2].get("event_at") is not None or row[2].get("value_type") == "event")], key=_when, reverse=not earliest)
+        rest = [row for row in selected if not any(row[2] is d[2] for d in dated_rows)]
+        selected = dated_rows + rest
     # render within the allowance, best first; one line per (receipt, fact)
     used = 0
     seen_sentences: set[tuple[str, str]] = set()
@@ -491,8 +580,23 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
             if used + cost <= max_tokens + 120:
                 packet.lines.append(line)
                 used += cost
-        status = "complete" if not missing else "incomplete: missing " + ", ".join(missing)
-        packet.lines.append(f"- This question needs: {', '.join(ob.required)} ({ob.note}). Receipts found: {status}.")
+    # coverage: of every receipt fact in this chat that shares a subject term with the question (the scoped candidate
+    # set), how many are in the packet. A class that needs coverage is complete only when the scope is exhausted.
+    coverage = scoped_coverage(receipts, question, packet.facts, extra_terms=extra, state_key=state_key)
+    complete = (not missing) and (coverage["exhaustive"] if ob.needs_coverage else True)
+    if packet.lines or (ob.needs_coverage and not coverage["exhaustive"]):
+        status = ("complete" if not missing else "incomplete: missing " + ", ".join(missing))
+        line = f"- This question needs: {', '.join(ob.required)} ({ob.note}). Receipts found: {status}."
+        if ob.needs_coverage:
+            if coverage["exhaustive"]:
+                line += f" Coverage: exhaustive, all {coverage['candidates']} matching records are shown."
+            else:
+                line += (f" Coverage: partial, {coverage['shown']} of {coverage['candidates']} matching records shown; "
+                         + {"ABSENCE": "do not conclude that something was never said", "EXTREMUM": "do not conclude which was first or latest",
+                            "LIST_ALL": "do not present the list as complete", "CURRENT_STATE": "do not conclude that no later change exists",
+                            "AGGREGATE": "do not total or average as if every record were here"}[ob.cls] + ".")
+        packet.lines.append(line)
+    telemetry.update({"found": list(found), "missing": list(missing), "complete": complete, "obligation_class": ob.cls, "coverage": coverage})
     telemetry["derived_lines"] = derived
     telemetry["target_day"] = target_day.isoformat() if target_day else None
     packet.tokens = used + (est(PACKET_HEADER) if packet.lines else 0)
