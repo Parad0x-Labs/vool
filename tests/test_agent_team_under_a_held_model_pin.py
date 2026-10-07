@@ -42,7 +42,7 @@ def served_handler(tmp_path, monkeypatch):
         def log_message(self, *_args):
             pass
 
-        def do_POST(self):  # noqa: N802
+        def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             res = dispatch_post(path=self.path, body=body, headers={"content-type": "application/json"},
                                 runtime=RuntimeServices(display_name="N"), model_name="vool",
