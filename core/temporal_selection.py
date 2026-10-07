@@ -537,6 +537,78 @@ def relative_reference_day(body: str, statement_at: float | None) -> date | None
     return stated - timedelta(days=offsets.pop())
 
 
+#: A later-stated record's own month-level or explicit back-reference: "back in
+#: March", "last March", "in early March", "on March 3rd", "earlier this year
+#: in March". Retrospective only: "from March" / "starting March" are forward
+#: declarations (declared_effective_date's law) and date nothing back.
+_SELF_DATED_MONTH_RE = re.compile(
+    rf"\b(?P<lead>back\s+in|last|in\s+(?:early|mid|late)|earlier\s+this\s+year,?\s+in|in)\s+(?:the\s+)?"
+    rf"(?P<month>{_MONTH_RE})\b\.?(?:,?\s+(?P<year>(?:19|20)\d{{2}}))?(?!\s*\d)",
+    re.IGNORECASE,
+)
+_SELF_DATED_DAY_RE = re.compile(
+    rf"\b(?:on|back\s+on)\s+(?:(?P<mon1>{_MONTH_RE})\.?\s+(?P<d1>\d{{1,2}})(?:st|nd|rd|th)?"
+    rf"|(?P<d2>\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?P<mon2>{_MONTH_RE}))\b(?:,?\s+(?P<year>(?:19|20)\d{{2}}))?",
+    re.IGNORECASE,
+)
+_SELF_DATED_NEGATION_RE = re.compile(
+    rf"\b(?:not|never|wasn't|was\s+not|weren't|didn't|did\s+not|isn't|hasn't)\b[^.?!]{{0,30}}?"
+    rf"\b(?:back\s+in|last|in|on)\s+(?:early\s+|mid\s+|late\s+|the\s+)?(?:{_MONTH_RE})\b",
+    re.IGNORECASE,
+)
+
+
+def self_dated_day(body: str, statement_at: float | None) -> date | None:
+    """The calendar day a record's OWN words date its content to, when the
+    record was stated later: the day-level back-references of
+    ``relative_reference_day`` ("yesterday", "N days ago"), an explicit day
+    ("on March 3rd"), or a month ("back in March", "last March", "in early
+    March": the month's first day, the conservative anchor inside it). A
+    hedged or negated back-reference dates nothing, a forward declaration
+    ("from March") dates nothing back, and two different months are
+    ambiguous: None, never a guess. Read by the as-of law, so a turn retold
+    later is evidence for its own period in the record section (the occurrence
+    time leg reads only a few days around the window and never sees it)."""
+    if statement_at is None:
+        return None
+    text = str(body or "")
+    if _is_hedged(text) or _SELF_DATED_NEGATION_RE.search(text):
+        return None
+    day = relative_reference_day(text, statement_at)
+    if day is not None:
+        return day
+    stated = datetime.fromtimestamp(float(statement_at), tz=_UTC).date()
+    found: set[date] = set()
+    for m in _SELF_DATED_DAY_RE.finditer(text):
+        month = _MONTHS[(m.group("mon1") or m.group("mon2")).lower()]
+        dnum = int(m.group("d1") or m.group("d2"))
+        year = int(m.group("year")) if m.group("year") else stated.year
+        try:
+            cand = date(year, month, dnum)
+        except ValueError:
+            continue
+        if not m.group("year") and cand > stated:
+            cand = cand.replace(year=year - 1)
+        found.add(cand)
+    if not found:
+        for m in _SELF_DATED_MONTH_RE.finditer(text):
+            month = _MONTHS[m.group("month").lower()]
+            if m.group("year"):
+                found.add(date(int(m.group("year")), month, 1))
+                continue
+            year = stated.year
+            # "last March" said in May is this year's March; said in February it is last year's
+            if date(year, month, 1) > stated.replace(day=1):
+                year -= 1
+            elif m.group("lead").lower() == "last" and month == stated.month:
+                year -= 1
+            found.add(date(year, month, 1))
+    if len(found) != 1:
+        return None
+    day = found.pop()
+    return day if day <= stated else None
+
+
 #: Ordinal asks: the question names WHICH occurrence of a repeated subject
 #: it wants ("when did I first put it on record", "the last time I logged").
 #: Closed class; decides earliest/latest selection for that slot.
@@ -2614,12 +2686,19 @@ def apply_temporal_selection(
             if as_of_end is not None:
                 state = state_time(cand)
                 if state is not None and state > as_of_end.timestamp():
-                    verdicts[cand.key] = EligibilityVerdict(
-                        key=cand.key, eligible=False,
-                        reason="future-relative-to-as-of", slot=slot_id,
-                        effective_time=eff,
-                    )
-                    continue
+                    # A later-stated record whose own words date its content back onto the asked period
+                    # ("Back in March I planted ...", stated in May) is evidence for that period, not a
+                    # future statement; one that does not date itself back stays refused.
+                    self_dated = self_dated_day(cand.body, cand.statement_at)
+                    if (self_dated is None
+                            or datetime(self_dated.year, self_dated.month, self_dated.day,
+                                        tzinfo=_UTC).timestamp() > as_of_end.timestamp()):
+                        verdicts[cand.key] = EligibilityVerdict(
+                            key=cand.key, eligible=False,
+                            reason="future-relative-to-as-of", slot=slot_id,
+                            effective_time=eff,
+                        )
+                        continue
                 if win_end is not None:
                     win_end_dt = datetime.combine(win_end, time.max, tzinfo=_UTC)
                     if win_end_dt < as_of_start:
