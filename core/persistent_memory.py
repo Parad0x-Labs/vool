@@ -480,23 +480,47 @@ def _split_explicit_memory_facts(raw_fact: str) -> list[str]:
 #: A reason the user appends to a forget ("..., it is wrong", "... it was a typo", "...? its wrong", "... lol") is not
 #: part of the named target: left on, it made the whole sentence the keyword, nothing matched, and the reply still
 #: said "Forget applied" (served check 2026-10-07).
-#: The clause needs a real separator (punctuation, a dash, or at least one word of target before a space): "its password",
-#: "this is my old address" and "that's my pin" are whole targets, never a reason tail (review 2026-10-07).
-_FORGET_JUSTIFICATION_TAIL_RE = re.compile(
-    r"^(?P<head>.+?)(?:\s*[,;:?!]+\s*|\s+[-\u2013\u2014]\s*|\s+)"
-    r"(?P<tail>(?:it(?:'s|\s+is|\s+was)|that(?:'s|\s+is|\s+was)|this\s+(?:is|was)|which\s+(?:is|was)|its|because|since|as\s+it"
-    r"|lol|pls|please|thanks)\b.*)$",
-    re.IGNORECASE,
-)
+#: A reason or courtesy the user appends to a forget is not part of the named target (review 2026-10-07, twice):
+#: a courtesy word counts only at the very end of the text; a clause word counts only after punctuation or a dash,
+#: or after a head of two or more content words; and a head that keeps no content word is no target at all
+#: (measured: "Forget my Thanks Giving plans" stripped to "my" and the keyword path removed every entry with "my").
+_FORGET_COURTESY_TAIL_RE = re.compile(r"^(?P<head>.+?)[\s,;:!?.]*\b(?:thanks|thank\s+you|please|pls|lol)[\s.!?]*$", re.IGNORECASE)
+_FORGET_CLAUSE_WORDS = (r"(?:it(?:'s|\s+is|\s+was)|that(?:'s|\s+is|\s+was)|this\s+(?:is|was)|which\s+(?:is|was)|its|because|since"
+                        r"|as\s+it)")
+_FORGET_CLAUSE_AFTER_PUNCT_RE = re.compile(r"^(?P<head>.+?)(?:\s*[,;:?!]+\s*|\s+[-\u2013\u2014]\s*)" + _FORGET_CLAUSE_WORDS + r"\b.*$",
+                                           re.IGNORECASE)
+_FORGET_CLAUSE_AFTER_WORDS_RE = re.compile(r"^(?P<head>.+?)\s+" + _FORGET_CLAUSE_WORDS + r"\b.*$", re.IGNORECASE)
+_FORGET_TARGET_STOPWORDS = frozenset({
+    "my", "our", "your", "his", "her", "their", "its", "the", "a", "an", "this", "that", "these", "those", "old",
+    "new", "previous", "exact", "current", "of", "for", "to", "in", "on", "at", "and", "or", "about", "from", "with",
+    "i", "you", "we", "it", "is", "was", "be", "gave", "told",
+})
+
+
+def _forget_content_words(text: str) -> list[str]:
+    return [w for w in re.findall(r"[A-Za-z0-9][\w'\-]*", str(text or "")) if w.lower() not in _FORGET_TARGET_STOPWORDS]
 
 
 def _without_forget_reason_tail(target: str) -> str:
-    """The target before an appended reason clause; the target itself when the clause would be the whole text."""
-    match = _FORGET_JUSTIFICATION_TAIL_RE.match(target)
-    if match is None:
+    """The target before an appended courtesy or reason clause; the target itself when the strip would leave no
+    content word or would shorten the target's own first content word."""
+    original_words = _forget_content_words(target)
+    candidate = target
+    courtesy = _FORGET_COURTESY_TAIL_RE.match(candidate)
+    if courtesy is not None:
+        candidate = courtesy.group("head")
+    clause = _FORGET_CLAUSE_AFTER_PUNCT_RE.match(candidate)
+    if clause is None:
+        clause = _FORGET_CLAUSE_AFTER_WORDS_RE.match(candidate)
+        if clause is not None and len(_forget_content_words(clause.group("head"))) < 2:
+            clause = None
+    if clause is not None:
+        candidate = clause.group("head")
+    head = candidate.strip(" .,!?;:-")
+    head_words = _forget_content_words(head)
+    if not head_words or (original_words and head_words[0].lower() != original_words[0].lower()):
         return target
-    head = match.group("head").strip(" .,!?;:")
-    return head or target
+    return head
 
 
 def _forget_target_without_preservation_clause(raw_target: str) -> str:

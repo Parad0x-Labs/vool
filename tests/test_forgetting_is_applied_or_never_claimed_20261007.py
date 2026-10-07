@@ -174,3 +174,41 @@ def test_a_second_forget_of_an_erased_fact_is_confirmed_as_already_forgotten(tmp
     # a keyword that matches nothing stored and no tombstone text still falls through (a retraction turn)
     handled, reply = maybe_handle_memory_command("Forget QX-9999", session_id=chat, access_policy=policy, source_context=ctx)
     assert not handled and reply == "", (handled, reply)
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("my Thanks Giving plans", "my Thanks Giving plans"),       # a courtesy word inside the target is not a tail
+    ("my pin please", "my pin"),                                  # a courtesy word at the very end is
+    ("my pin because it changed", "my pin because it changed"),  # a clause after one content word, no punctuation: kept whole
+    ("my pin, please", "my pin"),
+])
+def test_courtesy_and_clause_words_strip_only_where_the_review_allows(text, expected):
+    from core.persistent_memory import _normalize_forget_target
+
+    assert _normalize_forget_target(text) == expected
+
+
+def test_a_forget_naming_a_phrase_never_deletes_every_entry_sharing_a_stopword(tmp_path):
+    """Review 2026-10-07 (release checks): "Forget my Thanks Giving plans" stripped to "my" on 643f8fbe and the keyword
+    path removed all four entries. The three unrelated facts must survive, and the reply must not claim them."""
+    from core.context_namespace import ensure_chat_namespace
+    from core.memory.entries import list_memory_entries, resolve_memory_access_policy
+    from core.persistent_memory import maybe_handle_memory_command
+    from core.runtime_paths import configure_runtime_home
+
+    profile = _profile(tmp_path)
+    configure_runtime_home(profile)
+    chat = "forgetting-broad"
+    ensure_chat_namespace(chat, grant_current_receipts=False)
+    policy = resolve_memory_access_policy(chat_id=chat)
+    ctx = {"surface": "api", "platform": "api", "chat_id": chat, "runtime_home": str(profile)}
+    for fact in ("My dog is called Rex.", "My car is a red Volvo.", "My sister lives in Kaunas.",
+                 "Thanks Giving is at my aunt's house this year."):
+        handled, reply = maybe_handle_memory_command(f"Remember that {fact}", session_id=chat, access_policy=policy, source_context=ctx)
+        assert handled, reply
+    before = [str(r.get("text") or "") for r in list_memory_entries(access_policy=policy, limit=20)]
+    assert len(before) == 4, before
+    handled, reply = maybe_handle_memory_command("Forget my Thanks Giving plans", session_id=chat, access_policy=policy, source_context=ctx)
+    after = [str(r.get("text") or "") for r in list_memory_entries(access_policy=policy, limit=20)]
+    assert any("Rex" in t for t in after) and any("Volvo" in t for t in after) and any("Kaunas" in t for t in after), (reply, after)
+    assert "Removed 4" not in reply and "Removed 3" not in reply, reply
