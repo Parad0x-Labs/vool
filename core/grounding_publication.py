@@ -92,6 +92,13 @@ _REFUSAL_LEAD = (
     "this turn actually retrieved supports the answer that was written."
 )
 
+#: The same refusal for a turn whose only support was this chat's own records: the answer was checked against what
+#: the user's conversations hold, not against a live lookup, so the notice says so instead of "current information".
+_RECORDS_REFUSAL_LEAD = (
+    "That is not mentioned in the records I have from our conversations, so I can't publish the answer that was "
+    "written."
+)
+
 _RE_PRESENTATION_REFUSAL_LEAD = (
     "I can't publish this re-presentation: it restates statements the previous answer had "
     "withheld, and the previous answer's published support does not cover them."
@@ -705,6 +712,8 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
         # and the reformatted bytes restated only what that answer had withheld.
         lead = _RE_PRESENTATION_REFUSAL_LEAD
         return lead if not subject else f'{lead} (request: "{subject[:160]}")'
+    if _records_only_support(lifecycle):
+        return _RECORDS_REFUSAL_LEAD if not subject else f'{_RECORDS_REFUSAL_LEAD} (request: "{subject[:160]}")'
     parts = [_REFUSAL_LEAD if not subject else f'{_REFUSAL_LEAD} (request: "{subject[:160]}")']
     explanation = _STAGE_EXPLANATION.get(failed_stage or "")
     if explanation:
@@ -713,6 +722,26 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
     if report:
         parts.append(report)
     return "\n\n".join(parts)
+
+
+def _records_only_support(lifecycle: GroundingLifecycle) -> bool:
+    """The turn's support was this chat's memory records and nothing a lookup returned, and the question asks about
+    someone those records name (a live ask in a chat that happens to have records keeps the live notice)."""
+
+    records = tuple(getattr(lifecycle, "memory_records", ()) or ())
+    if not records or (
+        lifecycle.bound_notes
+        or lifecycle.retrieved_notes
+        or lifecycle.typed_observations
+        or lifecycle.computed_values
+        or lifecycle.retrieved_source_count
+    ):
+        return False
+    from core.memory_grounding import question_names_someone_in_the_records
+
+    return question_names_someone_in_the_records(
+        lifecycle.request_text, "\n".join(str(row.get("summary") or "") for row in records if isinstance(row, dict))
+    )
 
 
 def already_gated(content: str) -> bool:

@@ -57,6 +57,25 @@ def memory_record_rows(evidence_text: Any) -> list[dict[str, str]]:
     return [{"summary": row, "source": "memory_record"} for row in rows]
 
 
+_ASKED_NAME_RE = re.compile(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-z][\w'-]*)\b")
+
+
+def question_names_someone_in_the_records(question: Any, evidence_text: Any) -> bool:
+    """Whether the question asks about a named person or thing that this chat's own records name.
+
+    "How much does James pay per dance class?" over records where James speaks is a question about the records; "When
+    does the next train to Vilnius leave?" over records that never name Vilnius is not. Only names inside the question
+    (not its first word) count, and only against record rows, never assistant lines.
+    """
+
+    lines = [line for line in str(question or "").splitlines() if line.strip()]
+    asked = {re.sub(r"['\u2019]s$", "", name).lower() for name in _ASKED_NAME_RE.findall(lines[-1] if lines else "")}
+    if not asked:
+        return False
+    text = " ".join(row["summary"] for row in memory_record_rows(evidence_text)).lower()
+    return any(re.search(rf"(?<![\w'-]){re.escape(name)}(?![\w-])", text) for name in asked)
+
+
 def publish_memory_records_for_turn(source_context: dict[str, Any] | None) -> int:
     """Record this turn's admitted memory evidence on its grounding lifecycle. Returns rows added.
 
@@ -76,4 +95,4 @@ def publish_memory_records_for_turn(source_context: dict[str, Any] | None) -> in
         return 0
 
 
-__all__ = ["memory_record_rows", "publish_memory_records_for_turn"]
+__all__ = ["memory_record_rows", "publish_memory_records_for_turn", "question_names_someone_in_the_records"]

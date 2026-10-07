@@ -28,6 +28,8 @@ SEED = [
     {"chat": CHAT, "stated": "2023-08-03", "assistant": "", "user": "Session date: 3 August, 2023\nJohn: I also started a reading club at work, we meet on Thursdays."},
     {"chat": CHAT, "stated": "2024-01-05", "assistant": "", "user": "Session date: 5 January, 2024\nTim: I've been practicing basketball every morning before class."},
     {"chat": CHAT, "stated": "2024-01-07", "assistant": "", "user": "Session date: 7 January, 2024\nTim: Great news - I'm finally in the study abroad program I applied for! Next month, I'm off to Ireland for a semester."},
+    {"chat": CHAT, "stated": "2022-05-01", "assistant": "", "user": "Session date: 1 May, 2022\nJames: Yes, two days ago I signed up for a cooking class. I never liked cooking, but I wanted to learn something new."},
+    {"chat": CHAT, "stated": "2022-05-01", "assistant": "", "user": "Session date: 1 May, 2022\nJames: At only $10 per class, it's very cheap! Also, I made meringue there."},
 ]
 INSTRUCTION = (
     "Answer using the imported prior conversations. You may derive only answers supported by those records. "
@@ -43,6 +45,11 @@ TURNS = [
     {"id": "ireland-abbrev", "question": INSTRUCTION + "When will Tim leave for Ireland?",
      "scripted": 'Around February 2024 \u2014 on Jan 7, 2024 Tim said he was "off to Ireland next month."',
      "reader_require": ["Ireland", "Next month"]},
+    # A trap: James's $10 was for a cooking class. The draft declines but quotes the $10; whatever the guards keep or
+    # withdraw, the turn must not publish a dance-class price, and a refusal must name the records, not a live lookup.
+    {"id": "dance", "question": INSTRUCTION + "How much does James pay per dance class?",
+     "scripted": "(b) Not mentioned \u2014 the $10 per class was for his cooking class, not dance.",
+     "reader_require": ["$10 per class"]},
     # A live lookup in the same chat: the records hold nothing about trains, so the draft stays withheld.
     {"id": "train", "question": "When does the next train to Vilnius leave?",
      "scripted": "The next train to Vilnius leaves at 14:05 from platform 3."},
@@ -86,7 +93,13 @@ def test_record_questions_publish_from_the_live_capsule_and_a_live_lookup_does_n
         assert committed["grounding_publication"]["support_origin"] == "memory_record", committed
         assert committed["canonical_content"].strip() == turn["scripted_raw"], committed
 
+    dance = turns["dance"]["committed"]
+    assert dance["grounding_stages"]["required"] is True, dance
+    assert dance["canonical_content"].startswith("That is not mentioned in the records I have from our conversations"), dance
+    assert "current information" not in dance["canonical_content"], dance
+
     train = turns["train"]["committed"]
     assert train["grounding_stages"]["required"] is True, train
+    assert "records I have from our conversations" not in train["canonical_content"], train
     assert train["grounding_publication"]["state"] in {"refused", "failed"}, train
     assert "14:05" not in train["canonical_content"], train
