@@ -4,6 +4,7 @@ import contextlib
 import os
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -108,6 +109,100 @@ def _backend_usable(name: str, probe_argv: list[str]) -> bool:
     return usable
 
 
+#: Seatbelt's launcher, by absolute path. It used to be found with `shutil.which`, which walks
+#: the PATH this process inherited: any writable directory early on that PATH could hold a
+#: `sandbox-exec` that ignores its profile and runs the job bare, while every receipt still
+#: said "confined". The binary is only trusted when it and its directory are root-owned and
+#: not group- or world-writable (`_trusted_sandbox_exec`).
+_SANDBOX_EXEC = "/usr/bin/sandbox-exec"
+
+#: Mach services a confined toolchain may look up, on top of Apple's own `system.sb` baseline
+#: (logging, directory lookups, notifications). Everything else is denied: the keychain
+#: (`com.apple.SecurityServer`), LaunchServices (`open -a`), Apple Events (`osascript`
+#: driving another app), the pasteboard, the window server and launchd job submission all
+#: answer over Mach, and `(allow default)` handed every one of them to the job.
+_SEATBELT_TOOLCHAIN_MACH_SERVICES: tuple[str, ...] = (
+    "com.apple.system.opendirectoryd.libinfo",
+    "com.apple.system.opendirectoryd.membership",
+    "com.apple.system.notification_center",
+    "com.apple.system.logger",
+    "com.apple.logd",
+    "com.apple.diagnosticd",
+    "com.apple.SystemConfiguration.configd",
+)
+
+#: Added only when the policy trusts the job with the network: name resolution and TLS trust
+#: evaluation. Never the keychain daemon.
+_SEATBELT_NETWORK_MACH_SERVICES: tuple[str, ...] = (
+    "com.apple.dnssd.service",
+    "com.apple.mDNSResponder",
+    "com.apple.trustd",
+    "com.apple.trustd.agent",
+    "com.apple.ocspd",
+)
+
+#: Any path component spelled `.git`, in any letter case: macOS volumes are case-insensitive
+#: by default, so `.GIT/config` IS `.git/config`. Matching the component rather than the
+#: existing `.git` entries also covers a `.git` the job would CREATE (a new repository root,
+#: or a `.git` file redirecting `gitdir:`), which VOOL's own git tools would then read.
+_SEATBELT_GIT_METADATA_FILTER = '(regex #"/\\.[Gg][Ii][Tt]$" #"/\\.[Gg][Ii][Tt]/")'
+
+
+def _trusted_sandbox_exec() -> str | None:
+    """`_SANDBOX_EXEC` when it can be trusted to apply the profile, else None (and the job is
+    refused). A symlink, a non-root owner, or a group/world-writable file or directory means
+    someone other than the system can swap what runs, so it is not used."""
+    path = Path(_SANDBOX_EXEC)
+    try:
+        binary = os.lstat(path)
+        directory = os.lstat(path.parent)
+    except OSError:
+        return None
+    if not stat.S_ISREG(binary.st_mode) or not stat.S_ISDIR(directory.st_mode):
+        return None
+    for entry in (binary, directory):
+        if entry.st_uid != 0 or entry.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+            return None
+    return str(path)
+
+
+def _seatbelt_baseline(*, deny_network: bool) -> str:
+    """The root-independent head of every job profile: deny by default, then only what a
+    toolchain (python, pytest, node, npm, cargo, git) needs to start and run.
+
+    It replaces `(allow default)`. That form denied a few things and allowed every operation
+    nobody listed: Apple Events to other apps, signals to the operator's processes, keychain
+    and LaunchServices lookups, preference reads through cfprefsd, and hard-link creation (a
+    job could link an outside file into its workspace and then write through it).
+
+    Processes may only signal and inspect processes inside the same sandbox. File READS stay
+    open here and are narrowed by the layers `_macos_confined_profile` appends, which is the
+    same read model as before; file WRITES are denied here and re-granted per root there.
+    """
+    services = _SEATBELT_TOOLCHAIN_MACH_SERVICES
+    if not deny_network:
+        services = (*services, *_SEATBELT_NETWORK_MACH_SERVICES)
+    mach = " ".join(f'(global-name "{name}")' for name in services)
+    return (
+        "(version 1)"
+        "(deny default)"
+        '(import "system.sb")'
+        "(allow process-fork)"
+        "(allow process-exec*)"
+        "(allow process-info* (target same-sandbox))"
+        "(allow signal (target same-sandbox))"
+        "(allow sysctl-read)"
+        "(allow file-ioctl)"
+        "(allow pseudo-tty)"
+        "(allow ipc-posix-sem)"
+        "(allow ipc-posix-shm)"
+        "(allow system-socket)"
+        f"(allow mach-lookup {mach})"
+        "(allow file-read*)"
+        f"{'(deny network*)' if deny_network else '(allow network*)'}"
+    )
+
+
 def _seatbelt_subpath_literal(path: Path) -> str:
     # Seatbelt string literals are double-quoted; escape embedded quotes/backslashes.
     escaped = str(path).replace("\\", "\\\\").replace('"', '\\"')
@@ -194,6 +289,11 @@ def _macos_confined_profile(
     """Build a Seatbelt profile that confines file *writes* to the allowed workspace roots, and
     (when `deny_network` is true) also denies all network egress.
 
+    It opens with `_seatbelt_baseline` (deny by default) and closes with a write deny on every
+    `.git` path, so a job can read a repository's history but never plant a hook, a
+    `core.fsmonitor` command or a `gitdir:` redirect that git would later run outside the
+    sandbox, VOOL's own unsandboxed git tools included.
+
     Reads stay permitted so interpreters/tooling can load their stdlib and
     dylibs without bespoke allow-lists, EXCEPT for a deny-list of secret dirs
     (SSH/cloud/GPG credentials and VOOL's own key home) that the kernel blocks
@@ -221,7 +321,6 @@ def _macos_confined_profile(
     allow_clauses = "".join(_seatbelt_subpath_literal(p) for p in write_roots)
     # /dev is needed for normal stdio (e.g. /dev/null, /dev/urandom).
     allow_clauses += '(subpath "/dev")'
-    network_clause = "(deny network*)" if deny_network else ""
 
     # READ confinement, in three layers, and the ORDER is the policy (Seatbelt is
     # last-match-wins):
@@ -266,15 +365,15 @@ def _macos_confined_profile(
     # allowed or read-back root contains them (core.runtime_state_protection).
     protection_clause = _runtime_protection_clauses(tuple(write_roots))
     return (
-        "(version 1)"
-        "(allow default)"
-        f"{network_clause}"
+        f"{_seatbelt_baseline(deny_network=deny_network)}"
         "(deny file-write*)"
         f"(allow file-write* {allow_clauses})"
         f"{private_deny_clause}"
         f"{read_back_clause}"
         f"{secret_deny_clause}"
         f"{protection_clause}"
+        # LAST of all: no root grant above, however broad, makes repository metadata writable.
+        f"(deny file-write* {_SEATBELT_GIT_METADATA_FILTER})"
     )
 
 
@@ -728,15 +827,18 @@ class JobRunner:
     ) -> list[str] | None:
         if sys.platform != "darwin":
             return None
-        sandbox_exec = shutil.which("sandbox-exec")
+        sandbox_exec = _trusted_sandbox_exec()
         if not sandbox_exec:
             return None
-        # Minimal root-independent profile: does Seatbelt run here at all. Probing with the real
-        # profile would key a cached verdict to one call's roots. Network-independent -- whether
-        # sandbox-exec runs at all doesn't depend on which clauses the real profile will carry.
+        # The root-independent baseline every real profile starts with: does Seatbelt run here
+        # at all, AND does this macOS accept every operation the baseline names. An older
+        # release that rejects one fails the probe and the job is refused, never run with a
+        # weaker profile. Probing with the real profile would key a cached verdict to one
+        # call's roots. The probe runs bare `true`, like the bwrap probe below: callers that
+        # intercept process launches recognise a backend probe by that argv.
         if not _backend_usable(
             "sandbox-exec",
-            [sandbox_exec, "-p", "(version 1)(allow default)(deny network*)", "--", "true"],
+            [sandbox_exec, "-p", _seatbelt_baseline(deny_network=True), "--", "true"],
         ):
             return None
         # An explicitly selected executable may live in a private tool directory.

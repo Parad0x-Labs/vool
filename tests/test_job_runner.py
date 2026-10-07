@@ -38,7 +38,7 @@ class JobRunnerTests(unittest.TestCase):
             )
             with patch("sandbox.job_runner.os.name", "posix"), patch("sandbox.job_runner.sys.platform", "darwin"), patch(
                 "sandbox.job_runner.shutil.which", return_value=None
-            ):
+            ), patch("sandbox.job_runner._trusted_sandbox_exec", return_value=None):
                 with self.assertRaises(ValueError):
                     runner.run(["python3", "-c", "print('safe')"])
 
@@ -53,7 +53,7 @@ class JobRunnerTests(unittest.TestCase):
             )
             with patch("sandbox.job_runner.os.name", "posix"), patch("sandbox.job_runner.sys.platform", "darwin"), patch(
                 "sandbox.job_runner.shutil.which", return_value=None
-            ):
+            ), patch("sandbox.job_runner._trusted_sandbox_exec", return_value=None):
                 with self.assertRaises(ValueError):
                     runner.run(["python3", "-c", "print('safe')"])
 
@@ -113,16 +113,15 @@ class JobRunnerTests(unittest.TestCase):
                 )
             )
 
-            def _which(cmd: str) -> str | None:
-                return "/usr/bin/sandbox-exec" if cmd == "sandbox-exec" else None
-
             # Stubbed for the same reason as the bwrap/unshare cases, and this one was missed at
             # first: it passed on a Mac for the WRONG reason. `sys.platform` is faked to "darwin"
             # but the probe ran the REAL /usr/bin/sandbox-exec, which exists there and succeeds --
             # so the test looked green locally and failed on Linux CI, where that path is absent.
             # A test that pins prefix construction must not depend on the host owning the binary.
             with patch("sandbox.job_runner.sys.platform", "darwin"), patch(
-                "sandbox.job_runner.shutil.which", side_effect=_which
+                "sandbox.job_runner.shutil.which", return_value=None
+            ), patch(
+                "sandbox.job_runner._trusted_sandbox_exec", return_value="/usr/bin/sandbox-exec"
             ), patch("sandbox.job_runner._backend_usable", return_value=True):
                 argv = runner._with_network_isolation(["python3", "-c", "print('x')"])
                 self.assertEqual(argv[0], "/usr/bin/sandbox-exec")

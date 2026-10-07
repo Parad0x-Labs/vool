@@ -21,22 +21,66 @@ comparison ANVIL asked for. The JobRunner-level unit proof and its mutation test
 """
 from __future__ import annotations
 
+import os
+import pwd
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from core.runtime_execution_tools import execute_runtime_tool
 
 _SKIP_REASON = "Kernel-enforced sandboxing (sandbox-exec) is macOS-only; this proof needs a real backend, not a mock."
 
+# The operator's real home, from the account database rather than $HOME, so no fixture can hide it.
+_REAL_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+
+
+def _context(workspace_dir: str) -> dict:
+    """Auto mode, explicitly. Without a mode the execution gate defaults to Manual and refuses every
+    command for approval before any sandbox runs (core/execution_gate.py), so a denied escape write
+    proved nothing about confinement: these tests passed vacuously (Pack 2b review, 2026-10-07)."""
+    return {"workspace": workspace_dir, "operating_mode": "auto"}
+
+
+def _ran(result) -> bool:
+    """The command reached the sandbox: the gate did not refuse it for approval."""
+    return result is not None and result.status != "user_action_required"
+
 
 @unittest.skipUnless(sys.platform == "darwin", _SKIP_REASON)
 class RunTestsFilesystemConfinementTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Escape canaries go to Desktop/Documents of a FAKE home under a temp dir, never the
+        # operator's: in Auto mode these commands really run, so a confinement regression would
+        # otherwise write into the real ~/Desktop.
+        fake = tempfile.TemporaryDirectory()
+        self.addCleanup(fake.cleanup)
+        self.fake_home = Path(fake.name).resolve()
+        for name in ("Desktop", "Documents", ".cache", ".config", ".local/share"):
+            (self.fake_home / name).mkdir(parents=True, exist_ok=True)
+        env = mock.patch.dict(os.environ, {
+            "HOME": str(self.fake_home),
+            "XDG_CACHE_HOME": str(self.fake_home / ".cache"),
+            "XDG_CONFIG_HOME": str(self.fake_home / ".config"),
+            "XDG_DATA_HOME": str(self.fake_home / ".local" / "share"),
+        })
+        env.start()
+        self.addCleanup(env.stop)
+        self.assertEqual(Path.home().resolve(), self.fake_home)
+
+    def _canary(self, folder: str, name: str) -> Path:
+        canary = Path.home() / folder / name
+        self.assertFalse(canary.resolve().is_relative_to(_REAL_HOME),
+                         f"canary {canary} resolves under the real home; refusing to run an escape probe there")
+        self.addCleanup(lambda: canary.unlink(missing_ok=True))
+        return canary
+
     def test_run_tests_denies_a_tmp_escape_write_from_inside_the_generated_test(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as outside:
             canary = Path(outside) / "vool_run_tests_escape_probe.txt"
-            source_context = {"workspace": workspace_dir}
+            source_context = _context(workspace_dir)
 
             written = execute_runtime_tool(
                 "workspace.write_file",
@@ -53,7 +97,7 @@ class RunTestsFilesystemConfinementTests(unittest.TestCase):
             self.assertTrue(written is not None and written.ok, written.response_text if written else None)
 
             result = execute_runtime_tool("workspace.run_tests", {}, source_context=source_context)
-            self.assertIsNotNone(result)
+            self.assertTrue(_ran(result), result.response_text if result else None)
             # The command RUNS (this is not a refusal to execute) -- the escape write inside it
             # is what gets denied, which surfaces as the generated test itself failing.
             self.assertFalse(
@@ -68,37 +112,35 @@ class RunTestsFilesystemConfinementTests(unittest.TestCase):
         the SAME `_run_validation` -> `_trusted_local_only=True` -> `_run_command` path with an
         explicit write attempt, matching ANVIL's literal ~/Desktop/outside-probe scenario."""
         with tempfile.TemporaryDirectory() as workspace_dir:
-            canary = Path.home() / "Desktop" / "vool_run_lint_escape_probe.txt"
-            self.addCleanup(lambda: canary.unlink(missing_ok=True))
-            source_context = {"workspace": workspace_dir}
+            canary = self._canary("Desktop", "vool_run_lint_escape_probe.txt")
+            source_context = _context(workspace_dir)
 
             result = execute_runtime_tool(
                 "workspace.run_lint",
                 {"command": f"{sys.executable} -c \"open({str(canary)!r}, 'w').write('x')\""},
                 source_context=source_context,
             )
-            self.assertIsNotNone(result)
+            self.assertTrue(_ran(result), result.response_text if result else None)
             self.assertFalse(canary.exists(), "the ~/Desktop escape write must be denied")
 
     def test_run_formatter_denies_a_documents_escape_write_via_a_substituted_command(self) -> None:
         with tempfile.TemporaryDirectory() as workspace_dir:
-            canary = Path.home() / "Documents" / "vool_run_formatter_escape_probe.txt"
-            self.addCleanup(lambda: canary.unlink(missing_ok=True))
-            source_context = {"workspace": workspace_dir}
+            canary = self._canary("Documents", "vool_run_formatter_escape_probe.txt")
+            source_context = _context(workspace_dir)
 
             result = execute_runtime_tool(
                 "workspace.run_formatter",
                 {"command": f"{sys.executable} -c \"open({str(canary)!r}, 'w').write('x')\""},
                 source_context=source_context,
             )
-            self.assertIsNotNone(result)
+            self.assertTrue(_ran(result), result.response_text if result else None)
             self.assertFalse(canary.exists(), "the ~/Documents escape write must be denied")
 
     def test_in_workspace_writes_still_succeed_under_all_three_validation_tools(self) -> None:
         """Filesystem confinement holding must not mean the tools stop working -- an in-workspace
         write under the identical relaxed-network policy still succeeds for each of them."""
         with tempfile.TemporaryDirectory() as workspace_dir:
-            source_context = {"workspace": workspace_dir}
+            source_context = _context(workspace_dir)
             for intent, filename in (
                 ("workspace.run_tests", "run_tests_ok.txt"),
                 ("workspace.run_lint", "run_lint_ok.txt"),
@@ -110,7 +152,7 @@ class RunTestsFilesystemConfinementTests(unittest.TestCase):
                     {"command": f"{sys.executable} -c \"open({str(target)!r}, 'w').write('ok')\""},
                     source_context=source_context,
                 )
-                self.assertIsNotNone(result)
+                self.assertTrue(_ran(result), result.response_text if result else None)
                 self.assertTrue(target.exists(), f"{intent} should still be able to write inside the workspace")
 
     def test_sandbox_run_command_control_denies_the_identical_escape(self) -> None:
@@ -118,14 +160,14 @@ class RunTestsFilesystemConfinementTests(unittest.TestCase):
         direct comparison against the three validation tools above."""
         with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as outside:
             canary = Path(outside) / "vool_sandbox_run_command_escape_probe.txt"
-            source_context = {"workspace": workspace_dir}
+            source_context = _context(workspace_dir)
 
             result = execute_runtime_tool(
                 "sandbox.run_command",
                 {"command": f"{sys.executable} -c \"open({str(canary)!r}, 'w').write('x')\""},
                 source_context=source_context,
             )
-            self.assertIsNotNone(result)
+            self.assertTrue(_ran(result), result.response_text if result else None)
             self.assertFalse(canary.exists())
 
 
