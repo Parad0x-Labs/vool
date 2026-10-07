@@ -77,7 +77,7 @@ become an intake into it.** The reasons:
 
 ## Defects to fix during reconciliation
 
-- **D1: on main, `rules_prompt_block` has no runtime caller.** A rule that bans no word is saved and
+- **D1: at 32094c6, `rules_prompt_block` has no runtime caller.** A rule that bans no word is saved and
   listed, and then has no effect. Fix: render the block in the prompt (item 2 above).
 - **D2: "forget the rule about X" is caught by the rules lane.** A standing instruction on that topic
   survives the take-back. Fix: once there is one store (item 1), the lane's `remove_about` reaches
