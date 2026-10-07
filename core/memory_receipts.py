@@ -786,7 +786,11 @@ def head_text(receipt: dict[str, Any]) -> str:
     else:
         lines.append("FACTS  none typed")
     for c in receipt.get("changes") or []:
-        lines.append(f"CHANGE [{' '.join(c['slot'][:6])}] \"{c['old_value']}\" ({c['old_occurrence'][:12]}, {day(c.get('old_statement_at'))}) -> \"{c['new_value']}\"   {c['kind']}")
+        # A change stated in the turn itself ("I switched from X to Y") with no earlier record of X has no old
+        # occurrence; slicing that None failed the receipt write, and the rebuild on read hit it every time
+        # (tests/test_a_change_with_no_earlier_record_gets_its_receipt.py).
+        old_ref = str(c.get("old_occurrence") or "no earlier record")[:12]
+        lines.append(f"CHANGE [{' '.join(c['slot'][:6])}] \"{c['old_value']}\" ({old_ref}, {day(c.get('old_statement_at'))}) -> \"{c['new_value']}\"   {c['kind']}")
     for w in receipt.get("withdraws") or []:
         lines.append(f"WITHDRAWS \"{w['marker']}\"")
     return "\n".join(lines)
