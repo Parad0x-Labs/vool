@@ -40,6 +40,8 @@ REFUSE = {
     "s5": "wat were the openning hours for the pool locker lower corridor",
     # "who" IS the asked facet here, and the chat never retained the sharing or the cousin: still refused
     "who_facet": "Who did I say shares the swimming pool locker on the lower corridor with my cousin?",
+    # an embedded interrogative heads the ask too: the actor is the asked facet, never retained here
+    "who_embedded": "Tell me who I said installed the swimming pool locker on the lower corridor.",
 }
 
 # the same past frames over a facet the chat DID retain: served
