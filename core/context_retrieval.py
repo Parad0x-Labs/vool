@@ -4798,6 +4798,23 @@ _FACET_FRAME_EXTRA = frozenset({
     "items", "object", "note", "notes",
 })
 
+#: The time-frame vocabulary of a PAST ask ("when did it first come up",
+#: "what was it originally", "ever ... before") names when the ask looks,
+#: never the facet it looks for. It is removed from the absence gate's
+#: discriminators only when the question's scope reads PAST, so a history
+#: ask whose only unretained words are its own frame is not read as an ask
+#: about an absent facet, and the gate can stay armed on past-tense asks
+#: (measured 2026-10-07: with the gate disarmed for every PAST scope, "what
+#: did I say the opening hours ... were" served the booth record whole).
+_FACET_PAST_FRAME_WORDS = frozenset({
+    "first", "earliest", "originally", "initially", "formerly",
+    "previously", "earlier", "before", "prior", "ago", "ever", "once",
+    "then", "time", "times", "point", "up", "later", "afterwards",
+    "since", "until", "past", "history", "last", "latest", "recent",
+    "recently", "old", "older", "former", "begin", "began", "beginning",
+    "started", "end", "ended",
+})
+
 #: Asked-attribute words whose ANSWER SHAPE a pooled body already carries
 #: are not "absent facets": a "what times" ask is answered by clock values,
 #: a "percentages" ask by percent values, a "pieces/count" ask by numerals
@@ -9564,6 +9581,8 @@ def _capsule_v2_inject_retrieved(
         str(t) for t in _query_overlap_terms(_fp_content_query)
         if str(t) not in _FACET_FRAME_WORDS
         and str(t) not in _FACET_FRAME_EXTRA
+        # a PAST ask's time-frame words name when it looks, not its facet
+        and not (_fp_scope.asks_past and str(t) in _FACET_PAST_FRAME_WORDS)
         # a pre-colon lead-in is channel/meta instruction, not asked facet
         # (measured: "Read-side only: what is the crane slot booking
         # reference?" read {read, side, only} as absent discriminators and
@@ -9577,8 +9596,10 @@ def _capsule_v2_inject_retrieved(
     if (len(_fp_discriminators) >= 2
             and _query_shape(query) == "single"
             and not _query_is_count_shaped(query)
-            and not _AS_OF_QUERY_RE.search(str(query or ""))
-            and not (_fp_scope.past_only or _fp_scope.asks_past)):
+            and not _AS_OF_QUERY_RE.search(str(query or ""))):
+        # A PAST ask faces the gate too: absence means never retained
+        # anywhere the caller may read, which no temporal law repairs; its
+        # frame words are filtered above. As-of asks keep the as-of law.
         # The blank is EVERY RETAINED record the temporal pass saw —
         # eligible or not. A displaced reading ("the morning log says the
         # water temperature was 27") still PROVES the asked attribute exists
