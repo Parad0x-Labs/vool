@@ -430,6 +430,19 @@ def _format_is_the_request(sentence: str) -> bool:
     return len(words) <= 1
 
 
+# Text after a colon or a dash ("Translate into Spanish: …", "translate to german - …") is the material the order
+# works on.
+_INTRODUCES_MATERIAL_RE = re.compile(r":\s*\S|\s(?:-{1,2}|\u2013|\u2014)\s+\S")
+
+
+def _supplies_material(raw: str, authored: str) -> bool:
+    """Whether the turn hands VOOL something to work on: a quote or paste (cut from the authored text) or text the
+    order introduces. An order that comes with its material is about that material, never a standing rule."""
+    if len(" ".join(raw.split())) > len(" ".join(authored.split())) + 3:
+        return True
+    return bool(_INTRODUCES_MATERIAL_RE.search(authored))
+
+
 def _plain_kind(sentence: str) -> str:
     """"workflow" / "plain" for a rule said without trigger words, "context" for a reason about the owner, else ""."""
     s = sentence.strip()
@@ -499,7 +512,7 @@ def read_turn(user_input: str) -> tuple[list[str], list[str]]:
             sentence = f"{previous} {sentence}"
         saves.append(sentence)
     saves.extend(fact for fact in _lasting_facts(sentences) if fact not in saves)
-    if not saves and not take_backs:
+    if not saves and not take_backs and not _supplies_material(str(user_input or ""), text):
         kinds = [_plain_kind(sentence) for sentence in sentences]
         if all(kinds) and any(kind in ("plain", "workflow") for kind in kinds):
             for index, (sentence, kind) in enumerate(zip(sentences, kinds, strict=True)):
