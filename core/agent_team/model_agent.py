@@ -161,7 +161,21 @@ class HttpChatRunner:
         cost_blocks: list[dict[str, Any]] = []
         model_actual: str | None = None
         evidence = "unknown"
-        response_cm = urllib.request.urlopen(request, timeout=TURN_TIMEOUT_SECONDS)
+        try:
+            response_cm = urllib.request.urlopen(request, timeout=TURN_TIMEOUT_SECONDS)
+        except urllib.error.HTTPError as exc:
+            # The server refused the turn before it ran (for example a council owns the global model pin).
+            # That is a refusal with a reason the operator can act on, not an opaque transport fault.
+            try:
+                refusal = json.loads(exc.read().decode("utf-8") or "{}")
+            except (ValueError, OSError):
+                refusal = {}
+            code = str(refusal.get("error") or refusal.get("code") or exc.code)
+            if code == "council_model_pin_active":
+                raise ModelAgentRefused(
+                    "a council holds VOOL's model pin, so the agent's turn was refused before any model ran; "
+                    "start the agent again when the council finishes") from None
+            raise ModelAgentRefused(f"the chat turn was refused ({exc.code} {code})") from None
         on_response(response_cm)
         with response_cm as response:
             status = getattr(response, "status", 200)
