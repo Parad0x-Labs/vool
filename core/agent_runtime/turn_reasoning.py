@@ -1625,6 +1625,12 @@ def execute_grounded_turn(
                     response = RECORDS_WITHDRAWAL_NOTICE
             except Exception:
                 pass
+    elif _current_claim.qualify_only:
+        # v14.6 (ASTRA item 2): the binder found no CONTRADICTED claim; UNSUPPORTED and AMBIGUOUS values ship marked as
+        # not found in the records instead of the whole answer being withdrawn. Only a contradiction removes a claim.
+        _qualified = str((_current_claim.claim_binding or {}).get("qualified_text") or "")
+        if _qualified:
+            response = _qualified
 
     if isinstance(source_context, dict):
         from hashlib import sha256

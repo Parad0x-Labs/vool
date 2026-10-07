@@ -43,7 +43,9 @@ _FIRST_PERSON_RE = re.compile(r"\b(?:i|i've|i'd|i'm|my|me|mine|we|our|we've)\b",
 _LIVE_WORLD_RE = re.compile(r"\b(?:exchange rate|stock|share price|bitcoin|btc|eth\b|ethereum|crypto|gold price|silver price|oil price|market price|the market|weather|temperature|forecast|right now outside|today's rate|quote for|live price|spot price)\b", re.IGNORECASE)
 _FIRST_PERSON_OR_ADVICE_RE = re.compile(r"\b(?:i|i've|i'd|i'm|my|me|mine|we|our|we've|suggest|recommend|should i|ideas?|tips?)\b", re.IGNORECASE)
 _ISO_DAY_RE = re.compile(r"\b((?:19|20)\d{2})-(\d{2})-(\d{2})\b")
-_DATE_LIKE_RE = re.compile(r"\b(?:19|20)\d{2}(?:-\d{2}-\d{2})?\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b")
+_MONTH_NAME = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+# a day of the month beside a month name ("1 April", "April 1") is a date, not a value claim
+_DATE_LIKE_RE = re.compile(rf"\b(?:19|20)\d{{2}}(?:-\d{{2}}-\d{{2}})?\b|\b\d{{1,2}}(?:st|nd|rd|th)\b|\b\d{{1,2}}[:.]\d{{2}}\b|\b\d{{1,2}}/\d{{1,2}}(?:/\d{{2,4}})?\b|\b\d{{1,2}}\s+{_MONTH_NAME}\b|\b{_MONTH_NAME}\s+\d{{1,2}}\b", re.IGNORECASE)
 _ASSISTANT_ASK_RE = re.compile(r"\byou\s+(?:said|told|mentioned|recommended|suggested|gave|listed|advised|wrote|shared|proposed)\b|\b(?:your|the)\s+(?:earlier\s+|previous\s+)?(?:reply|answer|suggestion|recommendation|list)\b|\bdid\s+you\s+(?:say|tell|mention|recommend|suggest|give|list)\b", re.IGNORECASE)
 _ASSISTANT_LINE_RE = re.compile(r"^\s*-\s*\[?(?:\d{4}-\d{2}-\d{2}\]\s*)?assistant (?:said|listed)(?:\s*\([^)]*\))?:\s*(?P<body>.*)$", re.IGNORECASE)
 _STATED_SUFFIX_RE = re.compile(r"\(stated:[^)]*?(?P<d>\d{4}[-/]\d{2}[-/]\d{2})[^)]*\)?\s*$")
@@ -229,6 +231,24 @@ def assistant_lines(evidence_text: Any, packet_facts: Sequence[Mapping[str, Any]
     return lines
 
 
+# v14.6 (ASTRA Pro hardening item 2): four claim states. SUPPORTED: stated by the current record of the subject, or
+# derived from records. CONTRADICTED: the subject's current record states a different value (the reply's value is a
+# superseded one). AMBIGUOUS: a record carries the value but the record law cannot bind it (not about the asked subject,
+# conflicting records on the latest date, no usable record). UNSUPPORTED: no record carries the value and nothing
+# derives it. Only CONTRADICTED removes a claim; UNSUPPORTED and AMBIGUOUS are not stated as fact (qualified).
+SUPPORTED, AMBIGUOUS, UNSUPPORTED, CONTRADICTED = "SUPPORTED", "AMBIGUOUS", "UNSUPPORTED", "CONTRADICTED"
+
+
+def claim_state(status: str, refused: Mapping[str, Any] | None) -> str:
+    if status in ("stated", "derived"):
+        return SUPPORTED
+    if refused:
+        if refused.get("reason") == "superseded_by_current_record":
+            return CONTRADICTED
+        return AMBIGUOUS
+    return UNSUPPORTED
+
+
 @dataclass
 class ClaimBinding:
     value: float
@@ -238,8 +258,12 @@ class ClaimBinding:
     evidence: list[str] = field(default_factory=list)   # the evidence lines (clipped) the claim binds to
     derivation: dict[str, Any] | None = None
 
+    @property
+    def state(self) -> str:
+        return claim_state(self.status, self.derivation if self.status == "unsupported" else None)
+
     def as_dict(self) -> dict[str, Any]:
-        return {"value": self.value, "text": self.text, "kind": self.kind, "status": self.status, "evidence": list(self.evidence), "derivation": self.derivation}
+        return {"value": self.value, "text": self.text, "kind": self.kind, "status": self.status, "state": self.state, "evidence": list(self.evidence), "derivation": self.derivation}
 
 
 @dataclass
@@ -250,10 +274,41 @@ class BindingResult:
 
     @property
     def all_supported(self) -> bool:
-        return self.attempted and bool(self.claims) and all(c.status != "unsupported" for c in self.claims)
+        return self.attempted and bool(self.claims) and all(c.state == SUPPORTED for c in self.claims)
+
+    @property
+    def contradicted(self) -> bool:
+        return self.attempted and any(c.state == CONTRADICTED for c in self.claims)
+
+    @property
+    def qualifiable(self) -> bool:
+        """Bound, nothing contradicted, not everything supported: the reply ships with its unsupported or ambiguous
+        values marked as not found in the records, instead of being withdrawn whole."""
+        return self.attempted and bool(self.claims) and not self.contradicted and not self.all_supported
+
+    def states(self) -> dict[str, int]:
+        out = {SUPPORTED: 0, AMBIGUOUS: 0, UNSUPPORTED: 0, CONTRADICTED: 0}
+        for c in self.claims:
+            out[c.state] += 1
+        return out
 
     def as_dict(self) -> dict[str, Any]:
-        return {"attempted": self.attempted, "reason": self.reason, "all_supported": self.all_supported, "claims": [c.as_dict() for c in self.claims]}
+        return {"attempted": self.attempted, "reason": self.reason, "all_supported": self.all_supported, "contradicted": self.contradicted,
+                "qualifiable": self.qualifiable, "states": self.states(), "claims": [c.as_dict() for c in self.claims]}
+
+
+def qualify_reply(reply: Any, result: "BindingResult") -> str:
+    """The reply with its not-supported values named as not found in the records; the text itself is not rewritten."""
+    text = str(reply or "").rstrip()
+    if not result.qualifiable:
+        return text
+    marks = []
+    for c in result.claims:
+        if c.state in (UNSUPPORTED, AMBIGUOUS) and c.text not in marks:
+            marks.append(c.text)
+    if not marks:
+        return text
+    return text + f" (Not found in your records: {', '.join(marks)}; stated without a record.)"
 
 
 def _num(text: str) -> float | None:
@@ -480,6 +535,14 @@ def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: 
                 refused = {"op": "refused_record", "reason": why if cur is None else "superseded_by_current_record",
                            "current": cur.as_dict() if cur is not None else None, "records": [r.as_dict() for r in same_value][:4]}
         pool = money if kind == "money" else (numbers + money)
+        if d is None and refused is not None and refused.get("reason") == "superseded_by_current_record":
+            # a value the subject's current record superseded is CONTRADICTED; an arithmetic coincidence in the pool (a
+            # sum, a count, a day count under a non-day unit) does not rescue it. A claim that names days or weeks may
+            # still be a day count between two stated days.
+            if kind != "money" and days and re.search(r"\b(?:days?|weeks?)\b", text, re.IGNORECASE):
+                d = _date_derivation(value, text, days)
+            if d is None:
+                out.append(ClaimBinding(value, text, kind, "unsupported", [], refused)); continue
         if d is None:
             d = _derive(value, pool)
             if d is not None and d["op"] == "stated":

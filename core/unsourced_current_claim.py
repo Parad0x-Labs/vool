@@ -658,12 +658,20 @@ class CurrentClaimVerdict:
     claim_binding: dict[str, Any] | None = None
 
     @property
+    def qualify_only(self) -> bool:
+        """v14.6: the binder bound the reply's values to the user's records and found none contradicted, but not all
+        supported. The reply is not withdrawn; its unsupported or ambiguous values are marked (qualify_reply)."""
+        b = self.claim_binding or {}
+        return bool(self.requires_current and not self.has_evidence and not self.declined_live_claims and b.get("attempted") and b.get("qualifiable"))
+
+    @property
     def unsupported(self) -> bool:
         return (
             self.requires_current
             and not self.has_evidence
             and (self.asserts_measured_value or self.attributes_source)
             and not self.declined_live_claims
+            and not self.qualify_only
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -674,6 +682,7 @@ class CurrentClaimVerdict:
             "attributes_source": self.attributes_source,
             "declined_live_claims": self.declined_live_claims,
             "unsupported": self.unsupported,
+            "qualify_only": self.qualify_only,
             "claim_binding": self.claim_binding,
         }
 
@@ -861,6 +870,7 @@ def inspect_unsourced_current_claim(
         try:
             from core.bootstrap_context import admitted_capsule_evidence_text as _admitted_text
             from core.evidence_kernel.claim_binder import bind_claims as _bind_claims
+            from core.evidence_kernel.claim_binder import qualify_reply as _qualify_reply
 
             from core.evidence_kernel.revocation import without_revoked as _without_revoked
             from core.evidence_kernel.snapshot import packet_facts_for as _packet_facts_for
@@ -877,6 +887,8 @@ def inspect_unsourced_current_claim(
             claim_binding = _binding.as_dict()
             if _binding.all_supported:
                 has_evidence = True
+            elif _binding.qualifiable:
+                claim_binding["qualified_text"] = _qualify_reply(answer, _binding)
             claim_binding["kernel_receipt"] = _kernel_claim_envelope(session_id, user_turn_text, answer, claim_binding, _packet_facts)
         except Exception:
             claim_binding = {"attempted": False, "reason": "binder_error"}
