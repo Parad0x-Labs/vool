@@ -436,9 +436,11 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
             add("count", m.group(0), f"{n:g} {_stem(noun)}", at=m.start())
         if role == "user":
             plain = re.sub(r"[*_`]+", "", sentence)  # markdown emphasis never splits a phrase
-            if _PREFERENCE_RE.search(plain) and not _PREFERENCE_ACK_RE.search(plain) and len(sentence) <= 400:
+            if _PREFERENCE_RE.search(plain) and not _PREFERENCE_ACK_RE.search(plain) and len(sentence) <= 400 and not third_party_statement(plain):
                 add("preference", plain[:300], norm_preference(plain))
             m = _STATE_RE.search(plain)
+            if m and third_party_statement(plain[: m.start()] + plain[m.start(): m.end()]):
+                m = None   # "my coach drives a Fiat": the coach's state, not the user's
             if m:
                 key, obj = state_key_and_object(m, plain)
                 if key and obj:
@@ -468,6 +470,30 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
         elif event_at is not None and not any(f.sentence == sentence for f in facts):
             add("event", sentence[:120], event_day.isoformat())
     return facts
+
+
+# v14.6 (ASTRA Pro hardening item 4): a preference or state the USER reports about someone else ("my sister said she is
+# allergic to nuts", "he prefers the night train", "my coach drives a Fiat") is that person's, not the user's. A sentence
+# whose subject is a third person and which carries no first-person owner in the same clause yields no owned fact; a
+# first-person clause beside the third-party one ("..., and so am I", "like my coach, I drive ...") still owns its fact.
+_THIRD_PARTY_SUBJECT_RE = re.compile(
+    r"\b(?:he|she|they|him|her|them|his|hers|theirs|(?:my|our)\s+(?:sister|brother|mother|father|mum|mom|dad|parents?|wife|husband|partner|"
+    r"son|daughter|kids?|children|friends?|coach|boss|colleagues?|co-?workers?|neighbou?rs?|cousins?|aunt|uncle|grandm\w*|grandf\w*|teacher|doctor|roommate|flatmate)"
+    r"|[A-Z][a-z]+)\s+(?:said|says|told|tells|is|was|are|has|have|prefers?|likes?|loves?|hates?|avoids?|drives?|lives?|works?|eats?|can'?t|cannot|never|always|doesn'?t|don'?t|wrote|writes|mentioned)\b",
+)
+_FIRST_PERSON_CLAUSE_RE = re.compile(r"\b(?:i|i'm|i’m|i've|i’ve|i'd|i’d|we|we're|we’re|me|myself|so\s+(?:am|do|did|have)\s+i)\b", re.IGNORECASE)
+
+
+def third_party_statement(plain: str) -> bool:
+    """True when the sentence reports someone else's state or preference and no clause of it is the user's own."""
+    text = str(plain or "")
+    if not _THIRD_PARTY_SUBJECT_RE.search(text):
+        return False
+    clauses = re.split(r",\s*(?:and|but|so|while|whereas)\s+|;\s+|\s+(?:and|but|whereas|while)\s+(?=i\b|we\b|so\s+(?:am|do)\s+i)", text, flags=re.IGNORECASE)
+    for clause in clauses:
+        if _FIRST_PERSON_CLAUSE_RE.search(clause) and not _THIRD_PARTY_SUBJECT_RE.search(clause):
+            return False   # one clause is the user's own
+    return True
 
 
 def norm_preference(sentence: str) -> str:
