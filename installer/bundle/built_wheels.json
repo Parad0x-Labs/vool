@@ -1,5 +1,21 @@
 {
   "schema": "vool.built_wheels/1",
   "note": "Wheels built here because no published wheel exists for the target. Filled from the build record after sls runs INTEL-CRYPTO-WHEEL-PASTE.txt; an artifact is accepted only by its sha256.",
-  "wheels": []
+  "wheels": [
+    {
+      "file": "cryptography-50.0.2-cp311-abi3-macosx_14_0_x86_64.whl",
+      "package": "cryptography",
+      "version": "50.0.2",
+      "sha256": "9026ea5fd6ef5f7ccd05a99a0fbf72bd2e711d07f1931a4b88667fafe3632c68",
+      "target": "x86_64-apple-darwin",
+      "macos_min": "14.0",
+      "source_sdist": "cryptography-50.0.2.tar.gz",
+      "source_sdist_sha256": "7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5",
+      "openssl": "4.0.3 (static)",
+      "openssl_tarball_sha256": "325b5c806167c13b40b1ffeadfe0248197c00eccc4cf123ec1e28d2d2fd216d9",
+      "built_with": "CPython 3.11 x86_64 under Rosetta, maturin 1.15.0, rustc 1.93.1 target x86_64-apple-darwin",
+      "built_on": "2026-10-07",
+      "checks": "single wheel tagged cp311-abi3-macosx_14_0_x86_64; _rust.abi3.so x86_64 only; no libssl/libcrypto dylib; imports as 50.0.2 with OpenSSL 4.0.3 on x86_64"
+    }
+  ]
 }
