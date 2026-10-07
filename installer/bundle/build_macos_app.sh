@@ -320,6 +320,12 @@ stage_self_contained() {
   dist_root="$(cd "$(dirname "${pybin}")/.." && pwd)"
   [[ ! -f "${dist_root}/pyvenv.cfg" ]] \
     || die "uv resolved CPython ${PY_VERSION} to a virtual environment (${dist_root}); a venv shell carries no standard library and cannot be embedded"
+  # uv 0.8+ puts its managed interpreters on PATH as symlinks in ~/.local/bin, and `uv python
+  # find` reports that link. Its directory is not the distribution, so the stdlib check below
+  # refused every build on a machine with uv's links. Resolve the link to the distribution it
+  # names; the venv check above has already run on the reported path.
+  pybin="$(/usr/bin/python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "${pybin}")"
+  dist_root="$(cd "$(dirname "${pybin}")/.." && pwd)"
   compgen -G "${dist_root}/lib/python*/os.py" >/dev/null \
     || die "no standard library under ${dist_root}; refusing to embed an interpreter that resolves its stdlib elsewhere"
   rm -rf "${res}/python"; mkdir -p "${res}/python"
