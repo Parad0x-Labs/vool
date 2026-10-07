@@ -94,7 +94,15 @@ def cloud_key_present() -> bool:
 
 def thinking_done() -> bool:
     from core import first_run
+    from core.local_model_presence import local_model_running
 
+    if not local_model_running():
+        # Nothing local can answer here (no Ollama, or local models off). A pasted key or a
+        # "Local only" choice used to tick this step while Auto kept refusing every turn; here
+        # the step is done only once the owner answered the cloud-only question in setup.
+        from core import cloud_only_default
+
+        return bool(cloud_only_default.load()["decision"])
     state = str(first_run.load().get("state") or "")
     if state in {first_run.STATE_LOCAL_ONLY_DONE, first_run.STATE_CONNECTED_DONE}:
         return True
@@ -225,7 +233,18 @@ def snapshot(locale: str = "en") -> dict[str, Any]:
         # the stored value, shown by the page only when the permissions step is DONE (a default
         # with no provenance is not presented as a choice)
         "autonomy_mode": autonomy_mode,
+        "cloud_default": _cloud_default_snapshot(),
     }
+
+
+def _cloud_default_snapshot() -> dict[str, Any]:
+    """What the "thinking" step needs on a machine where no local model runs (read-only)."""
+    try:
+        from core import cloud_only_default
+
+        return cloud_only_default.snapshot()
+    except Exception as exc:  # reported, never hidden, never breaking the page
+        return {"check_failed": type(exc).__name__, "local_model_running": None, "candidates": []}
 
 
 def step_spec(step_id: str) -> StepSpec | None:

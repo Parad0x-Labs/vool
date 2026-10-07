@@ -7145,6 +7145,15 @@ def _dispatch_post_inner(
         if context_namespace.project_id:
             source_context["_trusted_project_id"] = context_namespace.project_id
         requested_model = str(model or "").strip()
+        # Cloud-only machines: an owner-local Auto turn takes the cloud model the owner saved in
+        # setup, but only while no local model is reachable (core.cloud_only_default).
+        from core.cloud_only_default import resolve_auto_turn_model
+
+        requested_model, cloud_only_default_applied = resolve_auto_turn_model(
+            requested_model,
+            auto_aliases={"", str(model_name or "").strip(), f"{str(model_name or '').strip()}:latest"},
+            owner_local=owner_local,
+        )
         if requested_model and requested_model not in {str(model_name or "").strip(), f"{str(model_name or '').strip()}:latest"}:
             source_context["requested_model"] = requested_model
             # Advisory only, and only ever loosening: "sticky" tells the router this concrete id
@@ -7154,6 +7163,10 @@ def _dispatch_post_inner(
             model_selection = str(body.get("model_selection") or "").strip().lower()
             if model_selection in {"sticky", "pin", "auto"}:
                 source_context["model_selection"] = model_selection
+            if cloud_only_default_applied:
+                # The owner named this model in setup: it is a pin, not Auto's guess.
+                source_context["model_selection"] = "pin"
+                source_context["cloud_only_default_applied"] = True
         # Bind the Auto lane for this turn BEFORE any routing runs. The flag is stamped into
         # `source_context`, which is what survives the shallow copies and the thread-pool hops the
         # provider calls take — see `core.auto_local_only_mode`. Stamped server-side from the

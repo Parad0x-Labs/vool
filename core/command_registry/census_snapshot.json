@@ -2293,7 +2293,7 @@
     "http:POST:/api/onboarding/*": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/onboarding/*",
-      "note": "legacy surface forwards through execute_command; typed family: first_run.choice.local_only, first_run.pact.advance, first_run.pact.begin, first_run.pact.boundary.set, first_run.pact.denial.claim, first_run.pact.facts.forget, first_run.pact.facts.set, first_run.pact.hide, first_run.pact.name, first_run.pact.reset, first_run.pact.skip, first_run.pact.task.claim, onboarding.choice, onboarding.reset",
+      "note": "legacy surface forwards through execute_command; typed family: first_run.choice.local_only, first_run.pact.advance, first_run.pact.begin, first_run.pact.boundary.set, first_run.pact.denial.claim, first_run.pact.facts.forget, first_run.pact.facts.set, first_run.pact.hide, first_run.pact.name, first_run.pact.reset, first_run.pact.skip, first_run.pact.task.claim, onboarding.choice, onboarding.cloud_default.clear, onboarding.cloud_default.set, onboarding.reset",
       "registry_command_id": "first_run.choice.local_only",
       "surface": "http"
     },

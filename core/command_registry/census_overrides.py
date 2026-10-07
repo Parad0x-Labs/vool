@@ -388,6 +388,8 @@ _ADAPTER_FAMILIES: dict[str, tuple[str, ...]] = {
         "first_run.pact.skip",
         "first_run.pact.task.claim",
         "onboarding.choice",
+        "onboarding.cloud_default.clear",
+        "onboarding.cloud_default.set",
         "onboarding.reset",
     ),
     "http:POST:/api/intake/*": (
