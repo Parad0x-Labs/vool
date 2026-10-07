@@ -209,6 +209,12 @@
       "context": "Shown when the failure classified as 'wallet_outbound_refused' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
+      "key": "fault.wallet_paykit_unavailable.message",
+      "english": "This build cannot pay Solana x402 or MPP offers: the optional pay extra (Solana pay-kit, Python 3.11 or newer) is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_paykit_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
       "key": "fault.wallet_pin_invalid.message",
       "english": "The PIN did not meet the policy or did not unlock the wallet, so nothing was signed. Check the PIN and try again.",
       "parameters": [],

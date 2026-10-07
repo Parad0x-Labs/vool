@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "2つの入力が一致しなかったため、何も作成されていません。同じPINまたはパスワードを2回入力してもう一度お試しください。",
     "fault.wallet_dependency_unavailable.action": "EVMレーンを有効にするにはEVM拡張（eth-abi、eth-utils、eth-account）を導入してください。他のウォレット機能はそれなしで動作します。",
     "fault.wallet_dependency_unavailable.message": "このビルドはEVM署名やABIエンコードができません：Ethereumライブラリがこのマシンにインストールされていません。署名も送信もされていません。Solana、カストディ、支出天井には影響しません。ライブラリ導入後にもう一度お試しください。",
+    "fault.wallet_paykit_unavailable.action": "pay-kitでの支払いを有効にするには、Python 3.11以降でVOOLのオプションpay拡張を導入してください。いずれの場合もウォレットは自身の署名者、支出天井、承認を保ちます。",
+    "fault.wallet_paykit_unavailable.message": "このビルドはSolanaのx402やMPPのオファーを支払えません：オプションのpay拡張（Solana pay-kit、Python 3.11以降）がこのマシンにインストールされていません。署名も送信もされていません。他のウォレット機能はそれなしで動作します。導入後にもう一度お試しください。",
     "fault.wallet_disabled.action": "このインストールで支払いが必要な場合のみ、ウォレットを明示的に有効化（VOOL_WALLET_ENABLED=1）してください。",
     "fault.wallet_disabled.message": "ウォレットがオフのため、支払いは提案も送信もされていません。まず有効化してから再試行してください。",
     "fault.wallet_duplicate_payment.action": "既存提案のレシートを確認してください。本当に新しい支払いには新しい冪等キーを使ってください。",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "音を試聴",
     "vns.sound.blocked": "音を再生できません。通知はベルに残ります。"
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "Две записи не совпали, поэтому ничего не создано. Введите одинаковый PIN или пароль дважды и повторите.",
     "fault.wallet_dependency_unavailable.action": "Установите EVM-дополнения (eth-abi, eth-utils, eth-account) для каналов EVM; все прочие функции кошелька работают без них.",
     "fault.wallet_dependency_unavailable.message": "Эта сборка не умеет подписывать EVM и кодировать ABI: библиотеки Ethereum не установлены на этой машине. Ничего не подписано и не отправлено. Solana, хранение и лимиты трат не затронуты; после установки библиотек повторите.",
+    "fault.wallet_paykit_unavailable.action": "Установите необязательное дополнение pay для VOOL на Python 3.11 или новее, чтобы включить платежи pay-kit; кошелёк в любом случае сохраняет свой подписант, лимиты трат и подтверждение.",
+    "fault.wallet_paykit_unavailable.message": "Эта сборка не умеет оплачивать предложения x402 и MPP в Solana: необязательное дополнение pay (Solana pay-kit, Python 3.11 или новее) не установлено на этой машине. Ничего не подписано и не отправлено. Все прочие функции кошелька работают без него; после установки повторите.",
     "fault.wallet_disabled.action": "Включите кошелёк явно (VOOL_WALLET_ENABLED=1), только если платежи нужны в этой установке.",
     "fault.wallet_disabled.message": "Кошелёк выключен, поэтому платёж не предложен и не отправлен. Сначала включите его, затем повторите.",
     "fault.wallet_duplicate_payment.action": "Проверьте квитанцию существующего предложения; для действительно нового платежа используйте новый ключ идемпотентности.",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "Прослушать звук",
     "vns.sound.blocked": "Воспроизведение звука недоступно. Уведомления остаются в меню колокольчика."
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

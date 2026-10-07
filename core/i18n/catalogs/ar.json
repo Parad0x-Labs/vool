@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "لم يتطابق الإدخالان، فلم يُنشأ شيء. أدخل رمز PIN أو كلمة المرور نفسها مرتين ثم أعد المحاولة.",
     "fault.wallet_dependency_unavailable.action": "ثبّت إضافات EVM (eth-abi، eth-utils، eth-account) لتمكين مسارات EVM؛ كل وظائف المحفظة الأخرى تعمل بدونها.",
     "fault.wallet_dependency_unavailable.message": "لا يستطيع هذا الإصدار التوقيع بـ EVM أو ترميز ABI: مكتبات Ethereum غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. سولانا والحفظة وحدود الإنفاق غير متأثرة؛ بعد تثبيت المكتبات أعد المحاولة.",
+    "fault.wallet_paykit_unavailable.action": "ثبّت الإضافة الاختيارية pay لـ VOOL على Python 3.11 أو أحدث لتمكين مدفوعات pay-kit؛ تحتفظ المحفظة بموقّعها وحدود إنفاقها وموافقتها في كل الأحوال.",
+    "fault.wallet_paykit_unavailable.message": "لا يستطيع هذا الإصدار دفع عروض x402 أو MPP على Solana: الإضافة الاختيارية pay (Solana pay-kit، Python 3.11 أو أحدث) غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. كل وظائف المحفظة الأخرى تعمل بدونها؛ بعد تثبيتها أعد المحاولة.",
     "fault.wallet_disabled.action": "فعّل المحفظة صراحةً (VOOL_WALLET_ENABLED=1) فقط إن كانت المدفوعات مرغوبة في هذه التثبيتة.",
     "fault.wallet_disabled.message": "المحفظة مطفأة، فلم يُقترح أو يُرسل أي دفع. فعّلها أولًا ثم أعد المحاولة.",
     "fault.wallet_duplicate_payment.action": "تحقق من إيصال المقترح القائم؛ استخدم مفتاح تكرار جديد لدفعة جديدة حقًا.",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "معاينة الصوت",
     "vns.sound.blocked": "تشغيل الصوت غير متاح. تبقى الإشعارات في قائمة الجرس."
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

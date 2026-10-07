@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "Два записи не збіглися, тому нічого не створено. Введіть той самий PIN або пароль двічі і повторіть.",
     "fault.wallet_dependency_unavailable.action": "Встановіть EVM-додатки (eth-abi, eth-utils, eth-account) для каналів EVM; усі інші функції гаманця працюють без них.",
     "fault.wallet_dependency_unavailable.message": "Ця збірка не вміє підписувати EVM і кодувати ABI: бібліотеки Ethereum не встановлені на цій машині. Нічого не підписано і не надіслано. Solana, зберігання і межі витрат не зачеплені; після встановлення бібліотек повторіть.",
+    "fault.wallet_paykit_unavailable.action": "Встановіть необов'язковий додаток pay для VOOL на Python 3.11 або новішому, щоб увімкнути платежі pay-kit; гаманець у будь-якому разі зберігає власного підписувача, межі витрат і підтвердження.",
+    "fault.wallet_paykit_unavailable.message": "Ця збірка не вміє оплачувати пропозиції x402 і MPP у Solana: необов'язковий додаток pay (Solana pay-kit, Python 3.11 або новіший) не встановлено на цій машині. Нічого не підписано і не надіслано. Усі інші функції гаманця працюють без нього; після встановлення повторіть.",
     "fault.wallet_disabled.action": "Увімкніть гаманець явно (VOOL_WALLET_ENABLED=1), лише якщо платежі бажані на цій установці.",
     "fault.wallet_disabled.message": "Гаманець вимкнено, тому платіж не запропоновано і не надіслано. Спершу ввімкніть його, потім повторіть.",
     "fault.wallet_duplicate_payment.action": "Перевірте квитанцію наявної пропозиції; для справді нового платежу візьміть новий ключ ідемпотентності.",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "Прослухати звук",
     "vns.sound.blocked": "Відтворення звуку недоступне. Сповіщення залишаються в меню дзвіночка."
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

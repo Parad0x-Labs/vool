@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "Die beiden Eingaben stimmten nicht überein, daher wurde nichts erstellt. Gib zweimal dieselbe PIN oder dasselbe Passwort ein und versuche es erneut.",
     "fault.wallet_dependency_unavailable.action": "Installiere die EVM-Erweiterungen (eth-abi, eth-utils, eth-account) für die EVM-Spalten; jede andere Wallet-Funktion läuft ohne sie.",
     "fault.wallet_dependency_unavailable.message": "Dieser Build kann EVM-Signaturen oder ABI-Kodierung nicht durchführen: Die Ethereum-Bibliotheken sind auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Solana, Verwahrung und Ausgabengrenzen sind nicht betroffen; nach Installation der Bibliotheken versuche es erneut.",
+    "fault.wallet_paykit_unavailable.action": "Installiere die optionale Erweiterung pay von VOOL unter Python 3.11 oder neuer, um pay-kit-Zahlungen zu aktivieren; die Wallet behält in jedem Fall ihren eigenen Signierer, ihre Ausgabengrenzen und ihre Freigabe.",
+    "fault.wallet_paykit_unavailable.message": "Dieser Build kann keine Solana-Angebote über x402 oder MPP bezahlen: Die optionale Erweiterung pay (Solana pay-kit, Python 3.11 oder neuer) ist auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Jede andere Wallet-Funktion läuft ohne sie; nach der Installation versuche es erneut.",
     "fault.wallet_disabled.action": "Aktiviere die Wallet ausdrücklich (VOOL_WALLET_ENABLED=1), nur wenn Zahlungen auf dieser Installation gewollt sind.",
     "fault.wallet_disabled.message": "Das Wallet ist ausgeschaltet, daher wurde keine Zahlung vorgeschlagen oder gesendet. Aktiviere es zuerst und versuche es dann erneut.",
     "fault.wallet_duplicate_payment.action": "Prüfe den Beleg des bestehenden Antrags; nutze für eine wirklich neue Zahlung einen neuen Idempotenz-Schlüssel.",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "Ton anhören",
     "vns.sound.blocked": "Die Tonwiedergabe ist nicht verfügbar. Benachrichtigungen bleiben im Glockenmenü."
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
