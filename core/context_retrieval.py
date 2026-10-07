@@ -6676,20 +6676,25 @@ def store_turn(
 
                     _receipt = _write_receipt(mem, occurrence, chat_scope=policy.chat_id, said=body)
                 except Exception:
-                    if _kernel_on():
-                        # v14.2 kernel: a receipt that did not land is a failed turn write, never a silent gap.
-                        raise _KernelWriteError("receipt_write_error")
-                    LOGGER.debug("memory receipt write failed", exc_info=True)
-                    _receipt = None
-                if _kernel_on():
+                    # The occurrence above is the canonical memory and is already written; the receipt is an
+                    # index over it. A failed index write is reported, never swallowed, and never aborts the
+                    # rest of the turn's canonical writes: the next read of the chat rebuilds the missing
+                    # receipt (core.memory_receipts.rebuild_missing_receipts).
+                    LOGGER.warning("memory receipt write failed; rebuilt on next read", exc_info=True)
+                    result.setdefault("index_failures", []).append("receipt_write_error")
+                    _receipt = False  # no envelope may attest a receipt that did not land
+                if _kernel_on() and _receipt is not False:
                     # Turn envelope (vool.memory.turn.v1): the occurrence by reference and digest, the receipt's
-                    # facts by digest; appended commit-or-raise to the chat's chained ledger.
+                    # facts by digest; appended to the chat's chained ledger. A failed append is reported and the
+                    # turn's assurance drops; the canonical writes go on.
                     try:
                         _env = _kernel_turn_envelope(policy.chat_id, occurrence, body, _receipt, lineage)
                     except Exception:
-                        raise _KernelWriteError("envelope_write_error")
-                    result.setdefault("turn_envelopes", []).append(_env.receipt_id)  # type: ignore[union-attr]
-                    result["kernel_assurance"] = _env.assurance
+                        LOGGER.warning("evidence kernel turn envelope write failed", exc_info=True)
+                        result.setdefault("index_failures", []).append("envelope_write_error")
+                    else:
+                        result.setdefault("turn_envelopes", []).append(_env.receipt_id)  # type: ignore[union-attr]
+                        result["kernel_assurance"] = _env.assurance
         # ── layer 2: semantic index admission (gates unchanged) ────────────
         # Only direct user statements are eligible for semantic indexing;
         # indexing generated text would let an unsupported assistant guess
@@ -6722,6 +6727,11 @@ def store_turn(
             )
         elif occurrence_ids:
             result.update({"status": "retained", "reason": "source_evidence_retained"})
+        if result.get("index_failures") and _kernel_on():
+            # Every canonical write of the turn landed; an index over it did not. Under the kernel's commit
+            # semantics the turn reports the failure (the memory itself is on disk and the index rebuilds on
+            # the next read). Kernel off: the failure is logged and listed in index_failures, status unchanged.
+            result.update({"status": "failed", "reason": str(result["index_failures"][0])})
         update_retrieval_telemetry(
             memory_store_status=result["status"],
             memory_store_count=result["stored_count"],
@@ -7221,27 +7231,31 @@ def import_conversation_history(
             )
             result["occurrence_ids"] = list(result["occurrence_ids"]) + [occurrence.occurrence_id]
             result["retained_count"] = int(result["retained_count"]) + 1
-            result["occurrence_ids"] = list(occurrence_ids)  # what is on disk so far, kept on a later failure
             if _memory_receipts_on():
                 try:
                     from core.memory_receipts import write_receipt as _write_receipt
 
                     _receipt = _write_receipt(mem, occurrence, chat_scope=policy.chat_id, said=body)
                 except Exception:
-                    if _kernel_on():
-                        # v14.2 kernel: a receipt that did not land is a failed turn write, never a silent gap.
-                        raise _KernelWriteError("receipt_write_error")
-                    LOGGER.debug("memory receipt write failed", exc_info=True)
-                    _receipt = None
-                if _kernel_on():
+                    # The occurrence above is the canonical memory and is already written; the receipt is an
+                    # index over it. A failed index write is reported, never swallowed, and never aborts the
+                    # rest of the turn's canonical writes: the next read of the chat rebuilds the missing
+                    # receipt (core.memory_receipts.rebuild_missing_receipts).
+                    LOGGER.warning("memory receipt write failed; rebuilt on next read", exc_info=True)
+                    result.setdefault("index_failures", []).append("receipt_write_error")
+                    _receipt = False  # no envelope may attest a receipt that did not land
+                if _kernel_on() and _receipt is not False:
                     # Turn envelope (vool.memory.turn.v1): the occurrence by reference and digest, the receipt's
-                    # facts by digest; appended commit-or-raise to the chat's chained ledger.
+                    # facts by digest; appended to the chat's chained ledger. A failed append is reported and the
+                    # turn's assurance drops; the canonical writes go on.
                     try:
-                        _env = _kernel_turn_envelope(policy.chat_id, occurrence, body, _receipt, lineage)
+                        _env = _kernel_turn_envelope(policy.chat_id, occurrence, body, _receipt, str(result["trace_id"]))
                     except Exception:
-                        raise _KernelWriteError("envelope_write_error")
-                    result.setdefault("turn_envelopes", []).append(_env.receipt_id)  # type: ignore[union-attr]
-                    result["kernel_assurance"] = _env.assurance
+                        LOGGER.warning("evidence kernel turn envelope write failed", exc_info=True)
+                        result.setdefault("index_failures", []).append("envelope_write_error")
+                    else:
+                        result.setdefault("turn_envelopes", []).append(_env.receipt_id)  # type: ignore[union-attr]
+                        result["kernel_assurance"] = _env.assurance
             indexed = 0
             if role == "user":
                 indexed, _redacted = _admit_user_statement_to_index(
@@ -7262,6 +7276,9 @@ def import_conversation_history(
         result["per_record"] = per_record
         result["status"] = "imported"
         result["reason"] = "records_retained"
+        if result.get("index_failures"):
+            # Every record landed; an index over some did not. Reported; the index rebuilds on the next read.
+            result["reason"] = "records_retained_index_pending"
         return result
     except (TypeError, ValueError):
         result["reason"] = "invalid_context_policy"
