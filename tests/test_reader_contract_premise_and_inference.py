@@ -65,6 +65,19 @@ PREMISE_RULE_MARKERS = (
 )
 
 
+
+def _served_system(request) -> str:
+    """The served rule text: the leading system message plus the 'Context for this turn:' system message that ae264ad6
+    (2026-10-06) added so the leading message stays byte-stable across turns."""
+    msgs = list(getattr(request, "messages", []) or [])
+    def _content(m):
+        return str((m.get("content") if isinstance(m, dict) else getattr(m, "content", "")) or "")
+    def _role(m):
+        return (m.get("role") if isinstance(m, dict) else getattr(m, "role", None))
+    parts = [_content(msgs[0])] if msgs else []
+    parts += [_content(m) for m in msgs[1:] if _role(m) == "system" and _content(m).startswith("Context for this turn:")]
+    return "\n".join(parts)
+
 def _policy(text: str, *, output_mode: str = "plain_text") -> dict:
     return guard.ordinary_chat_output_policy(
         prompt_profile="chat_minimal", output_mode=output_mode, user_text=text
@@ -98,8 +111,9 @@ def test_a_non_chat_output_mode_takes_no_premise_rule() -> None:
 def test_the_reader_system_prompt_states_the_premise_rule_before_the_first_call() -> None:
     turn = READER_PREFIX + NOT_MENTIONED_OPTION_TURNS[0]
     request = _reader_request(turn)
-    primary = _system_messages(request)[0]
-    assert primary.startswith("BASE SYSTEM\n\nAnswer format for this request:")
+    primary = "\n".join(_system_messages(request))   # the leading message plus the turn-directives message
+    # ae264ad6: the rule follows the base prompt in the turn-directives system message; the served text starts with the base
+    assert primary.startswith("BASE SYSTEM") and "Answer format for this request:" in primary, primary
     for marker in PREMISE_RULE_MARKERS:
         assert marker in primary, marker
     # The short-answer contract the same turn asks for is still there, and still leads.
@@ -145,7 +159,11 @@ STIPULATED_MARKER = "User-stipulated assumptions"
 
 
 def _system_text(request) -> str:
-    return request.as_openai_messages()[0]["content"]
+    """The served rule text: the leading system message plus the 'Context for this turn:' system message that ae264ad6
+    (2026-10-06) added so the leading message stays byte-stable across turns."""
+    msgs = request.as_openai_messages()
+    parts = [str(msgs[0]["content"])] + [str(m["content"]) for m in msgs[1:] if m.get("role") == "system" and str(m.get("content") or "").startswith("Context for this turn:")]
+    return "\n".join(parts)
 
 
 def _segment_names(request) -> list[str]:
