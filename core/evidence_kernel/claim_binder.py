@@ -50,7 +50,9 @@ _STATED_SUFFIX_RE = re.compile(r"\(stated:[^)]*?(?P<d>\d{4}[-/]\d{2}[-/]\d{2})[^
 _CURRENT_FRAME_RE = re.compile(r"\b(?:current(?:ly)?|right\s+now|at\s+the\s+moment|as\s+of\s+(?:now|today)|these\s+days|nowadays)\b|\bnow\b", re.IGNORECASE)
 _RECORD_MODIFIER_FALLBACK_RE = re.compile(r"\b(?:highest|lowest|best|worst|most|fewest|least|longest|shortest|largest|smallest|biggest|greatest|quickest|fastest|slowest|heaviest|lightest|top|record|personal\s+best|maximum|minimum)\b|\b(?!interest\b|earnest\b|request\b|harvest\b|contest\b|honest\b|forest\b|priest\b)[a-z]{3,}est\b", re.IGNORECASE)
 _WHOLE_TURN_QUOTE_RE = re.compile(r"[\"“](?P<inner>.*?)[\"”](?P<tail>(?:\s|<[^>]*>|\([^)]*\)|\[[^\]]*\])*)", re.DOTALL)
-_QUOTE_RE = re.compile(r"\"[^\"]+\"|“[^”]+”|'[^']{3,}'|‘[^’]+’|\b(?:says?|said|quotes?|writes?|wrote|reads?|states?|claims?)\s*:\s*.+$", re.IGNORECASE)
+_QUOTE_RE = re.compile(r"\"[^\"]+\"|“[^”]+”|(?<![A-Za-z0-9])'[^']{3,}?'(?![A-Za-z0-9])|‘[^’]+’|\b(?:says?|said|quotes?|writes?|wrote|reads?|states?|claims?)\s*:\s*.+$", re.IGNORECASE)
+# the single-quote arm needs a quote mark that is not inside a word on either side: the apostrophes of "I've" and
+# "I'm" in one sentence are not a quotation (measured 2026-10-07: a $79 record read as quoted, a correct average withdrawn)
 _CLAUSE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])|;\s+|,\s+(?=(?:my|not|but|and|it|the|while|whereas)\b)|\s+(?:but|whereas|while)\s+|\s+and\s+(?=my\b)", re.IGNORECASE)
 _NEGATION_BEFORE_RE = re.compile(r"\b(?:not|isn['’ʼ]?t|wasn['’ʼ]?t|aren['’ʼ]?t|weren['’ʼ]?t|no\s+longer|never|rather\s+than|instead\s+of)\s*(?:\w+\s+){0,2}$", re.IGNORECASE)
 _MISTAKE_RE = re.compile(r"\b(?:mistake|error|typo|wrong|incorrect|misread|mis-?typed|scratch\s+that|ignore\s+that)\b", re.IGNORECASE)
