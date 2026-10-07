@@ -137,27 +137,39 @@ def answer(session_id: str, agent: str, decision: str) -> dict[str, Any]:
 
 
 def recover_all() -> list[dict[str, Any]]:
-    """At server boot: re-open every team that still had live agents."""
-    out = []
-    for path in sorted(teams_root().glob("*/team.sqlite3")):
-        registry = Registry(path.parent)
+    """At server boot: re-open every team that still had live agents.
+
+    Writes nothing when no team was ever started (the teams folder is not created here), and one team
+    that cannot be read is reported and skipped, never allowed to stop the recovery of the others.
+    """
+    from core.runtime_paths import active_data_dir
+
+    root = active_data_dir() / "agent_teams"
+    if not root.is_dir():
+        return []
+    out: list[dict[str, Any]] = []
+    for path in sorted(root.glob("*/team.sqlite3")):
         try:
-            live = registry.agents((*LIVE_STATES, "launching"))
-        finally:
-            registry.close()
-        if not live:
-            continue
-        with _LOCK:
-            if path.parent.name in _TEAMS:
-                continue
+            registry = Registry(path.parent)
             try:
-                session_id = (path.parent / "session.txt").read_text().strip()
-            except OSError:
-                session_id = ""
-            team = TeamCoordinator(path.parent, on_alert=_notifier(session_id))
-            team.start_loop()
-            _TEAMS[path.parent.name] = team
-        out.append({"team": path.parent.name, **team.recovered})
+                live = registry.agents((*LIVE_STATES, "launching"))
+            finally:
+                registry.close()
+            if not live:
+                continue
+            with _LOCK:
+                if path.parent.name in _TEAMS:
+                    continue
+                try:
+                    session_id = (path.parent / "session.txt").read_text().strip()
+                except OSError:
+                    session_id = ""
+                team = TeamCoordinator(path.parent, on_alert=_notifier(session_id))
+                team.start_loop()
+                _TEAMS[path.parent.name] = team
+            out.append({"team": path.parent.name, **team.recovered})
+        except Exception as exc:  # one unreadable team never costs the others
+            out.append({"team": path.parent.name, "error": f"{type(exc).__name__}: {exc}"})
     return out
 
 
