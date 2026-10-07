@@ -43,7 +43,8 @@ def _store(tmp_path: Path, chat: str, monkeypatch: pytest.MonkeyPatch) -> Path:
     # monkeypatch, so no later test (or the sandboxed child another test starts) inherits this home
     for name in ("NULLA_HOME", "VOOL_HOME"):
         monkeypatch.setenv(name, str(profile))
-    monkeypatch.setenv("NULLA_WORKSPACE_ROOT", str(profile / "workspace"))
+    for name in ("NULLA_WORKSPACE_ROOT", "VOOL_WORKSPACE_ROOT"):
+        monkeypatch.setenv(name, str(profile / "workspace"))
     ensure_chat_namespace(chat, grant_current_receipts=False)
     # Each reply adds advice of its own and shares a word with the asks, so the capsule has one
     # harmless line to deliver even when the gate drops both records: that opens the lane beside it.
@@ -63,7 +64,7 @@ def _capsule(profile: Path, chat: str, question: str) -> tuple[str, dict]:
     messages = cr.inject_retrieved(chat, question, [{"role": "user", "content": question}],
                                    access_policy=resolve_memory_access_policy(chat_id=chat),
                                    source_context={"runtime_home": str(profile), "chat_id": chat},
-                                   env={"NULLA_CONTEXT_CAPSULE_V2": "1"})
+                                   env={"NULLA_CONTEXT_CAPSULE_V2": "1", "VOOL_CONTEXT_CAPSULE_V2": "1"})
     capsule = "\n".join(m["content"] for m in messages if m["role"] == "system")
     return capsule, cr.get_last_retrieval_telemetry()
 
