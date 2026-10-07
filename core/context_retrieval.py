@@ -11868,8 +11868,15 @@ def _capsule_v2_inject_retrieved(
         # Rendered the same whether or not the opt-in sitting order is on. KNOWN CONFLICT (open): with
         # VOOL_CAPSULE_SITTING_ORDER on, a sitting's whole turns in this block sit apart from that
         # sitting's capsule lines (tests/test_capsule_session_order.py, 4 cases).
+        # v14.6: the lane is bounded by the free window the budget was resolved from as well as by its own cap, so
+        # a tight caller window is never overrun by verbatim turns (tests/test_v146_capsule_whole_block_bound_20261007.py)
+        _lane_cap = _TURN_LANE_MAX_TOKENS
+        try:
+            _lane_cap = max(0, min(_TURN_LANE_MAX_TOKENS, int(budget.free_tokens)))
+        except Exception:
+            pass
         turn_lines, turn_tokens = _whole_turn_lines(
-            whole_turn_units, delivered_text=render_block,
+            whole_turn_units, delivered_text=render_block, max_tokens=_lane_cap,
             assistant_ask=_query_requests_assistant_output(query),
             owned_only=_advice_requires_owned_context(query),
             # a turn longer than its bound keeps the region this question (and its search
