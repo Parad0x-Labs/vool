@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime exceptions for the embedded Python interpreter and the app bundle.
+  Applied by sign_macos_release.sh to VOOL.app and Contents/Resources/python/bin/python3*,
+  nothing else. Every other Mach-O in the bundle signs with the hardened runtime and no
+  exceptions.
+
+  allow-unsigned-executable-memory: ctypes/cffi callbacks (libffi closures) need writable then
+    executable pages; without it those callbacks crash under the hardened runtime.
+  disable-library-validation: the interpreter loads extension modules. Every module shipped in
+    the bundle carries our Team ID, but a module installed later by the user (an optional
+    dependency for a skill) would not, and library validation would kill the process on import
+    instead of failing the import. Drop this key only after proving no runtime path loads
+    out-of-bundle native code.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>

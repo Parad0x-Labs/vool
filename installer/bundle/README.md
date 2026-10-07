@@ -155,18 +155,17 @@ exactly as before.
 The `.exe` is **unsigned** unless compiled on a machine with a code-signing certificate; unsigned
 installers trigger SmartScreen until signed (OV/EV cert).
 
-The macOS `.app`/`.dmg` is likewise **unsigned and un-notarized**. It runs when built locally, but a
-DMG *downloaded* from the internet carries the quarantine flag and Gatekeeper blocks it ("Apple
-cannot check it for malicious software") until it is signed with a **Developer ID Application**
-certificate and notarized:
+A default macOS build is **ad-hoc signed and not notarized**: it runs where it was built, but a
+DMG *downloaded* from the internet is blocked by Gatekeeper ("Apple cannot check it for malicious
+software") until the user picks **Open Anyway** in System Settings > Privacy & Security.
+`--release-dir <dir>` publishes such a build under its versioned name and fails if any Mach-O
+in it lacks a valid signature (Apple Silicon will not run unsigned code).
 
-```bash
-codesign --deep --force --options runtime \
-  --sign "Developer ID Application: <NAME> (<TEAMID>)" dist/VOOL.app
-xcrun notarytool submit dist/VOOL.dmg \
-  --apple-id <APPLE-ID> --team-id <TEAMID> --password <APP-SPECIFIC-PASSWORD> --wait
-xcrun stapler staple dist/VOOL.dmg
-```
-
-Both steps need an Apple Developer account. Until then, keep it to internal testing or ship
-right-click → Open instructions.
+Notarized releases are built with `--release-sign <release-dir>` (`--self-contained` and a clean tree only).
+`sign_macos_release.sh` then signs every Mach-O inside out with the owner's **Developer ID
+Application** identity, the hardened runtime and a secure timestamp (entitlements in
+`VOOL.entitlements`), notarizes and staples the app and the DMG, and writes a signing receipt.
+It refuses before the build starts when a credential is missing, and never uses
+`codesign --deep` to sign. Credentials, environment variables and the Linux/OpenPGP sealing step
+(`python -m installer.release_sign`) are in
+[Preparing 0.7: Signed releases](../../docs/releases/0.7-readiness.md#signed-releases).
