@@ -201,8 +201,15 @@ def test_m1_conversational_first_person_fact_stored_and_recalled(fresh_profile):
 
 
 def test_m2_filler_and_question_only_utterances_stay_unstored(fresh_profile):
-    assert _store(fresh_profile, "chat-m2", M_FILLER).get("status") == "skipped"
-    assert _store(fresh_profile, "chat-m2", M_QUESTION_ONLY).get("status") == "skipped"
+    # Since "retain both roles as source evidence" (2026-09-29), every turn is kept verbatim as layer-1
+    # source evidence and reports "retained"; the admission gates decide only semantic INDEXING. Filler
+    # and a bare question must still never be indexed (stored_count 0).
+    for text in (M_FILLER, M_QUESTION_ONLY):
+        result = _store(fresh_profile, "chat-m2", text)
+        assert result.get("status") == "retained"
+        assert result.get("reason") == "source_evidence_retained"
+        assert result.get("stored_count") == 0
+        assert result.get("occurrence_ids")
 
 
 def test_m3_secret_redaction_applies_to_newly_admitted_utters(fresh_profile):
