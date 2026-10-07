@@ -101,6 +101,40 @@ def test_the_approval_shows_the_fee_an_unsponsored_charge_costs_this_wallet(env)
     assert challenge.max_network_fee_minor == paykit_mpp.payer_fee_minor(proposal) > 0
 
 
+@pytest.mark.parametrize("order", ["sponsored-then-unsponsored", "unsponsored-then-sponsored"])
+def test_a_request_parked_again_binds_the_fee_facts_of_its_new_offer(env, order):
+    """The same request meets one offer, that proposal dies (approval attempts exhausted), then it meets another offer
+    with the other fee arrangement: the approval binds the new offer's fee, never the old one's."""
+    from core.wallet import custody, lifecycle, outbound, paykit_mpp, paykit_x402, proposals, x402
+    from core.wallet.errors import WalletFault
+    from tests.wallet._rig_paykit import ScriptedPayKitResource
+
+    profile = _pocket()
+    sponsored_first = order == "sponsored-then-unsponsored"
+    with ScriptedPayKitResource(env["rpc"]) as sponsored, ScriptedMppResource(env["rpc"], sponsored=False) as unsponsored:
+        first_offer, second_offer = (sponsored, unsponsored) if sponsored_first else (unsponsored, sponsored)
+        url = first_offer.url
+        first = paykit_x402.park_challenge(outbound.fetch(url), url=url, method="GET", headers=None, body=b"", wallet_id=profile.wallet_id)
+        for _ in range(lifecycle.MAX_APPROVAL_ATTEMPTS):
+            with pytest.raises(WalletFault):
+                _approve(first.proposal_id, pin="000000")
+        assert proposals.get_proposal(first.proposal_id).state == proposals.STATE_REJECTED
+        second = paykit_x402.park_challenge(outbound.fetch(second_offer.url), url=url, method="GET", headers=None, body=b"", wallet_id=profile.wallet_id)
+        proposal = proposals.get_proposal(second.proposal_id)
+        assert second.proposal_id != first.proposal_id and proposal.state == proposals.STATE_PENDING_APPROVAL
+        challenge = lifecycle.default_lifecycle()._challenge_for(proposal, custody.get_wallet(profile.wallet_id))
+        binding = x402.binding_for_proposal(second.proposal_id)
+    if sponsored_first:
+        fee = paykit_mpp.payer_fee_minor(proposal)
+        assert challenge.sponsored_gas is False and binding["sponsored_gas"] == 0 and binding["fee_payer"] == ""
+        assert challenge.max_network_fee_minor == fee > 0 and challenge.max_total_minor == proposal.amount_minor + fee
+    else:
+        assert challenge.sponsored_gas is True and binding["sponsored_gas"] == 1 and binding["fee_payer"]
+        assert challenge.max_network_fee_minor == 0 and binding["max_network_fee_minor"] == 0
+        assert challenge.max_total_minor == proposal.amount_minor
+    assert challenge.fee_asset == "SOL"
+
+
 # --- guard: no payment without approval --------------------------------------------------------------------------
 
 def test_nothing_is_signed_or_sent_before_the_owner_approves(env):
