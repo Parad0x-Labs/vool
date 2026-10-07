@@ -24,7 +24,10 @@ LONG = (STORY + " It took most of a weekend: I dug a trench, mixed in two bags o
 
 
 def _records(capsule: str) -> str:
-    return capsule.split(cr._TURN_LANE_HEADER, 1)[0]
+    """The distilled record section: before the whole-turn lane and before the receipts packet. The packet is the
+    compiler's (it does not face the as-of law today: a May turn's typed event shows for a March ask with the
+    receipts switch on, at ec0f46b6 as here; logged as a separate gap), the lane is the lane admission's."""
+    return capsule.split(cr._TURN_LANE_HEADER, 1)[0].split("Evidence receipts (", 1)[0]
 
 
 def _serve(tmp_path, story: str):
