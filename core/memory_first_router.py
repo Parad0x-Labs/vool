@@ -2162,8 +2162,8 @@ class MemoryFirstRouter:
                 (
                     index
                     for index, message in enumerate(internal_request.messages)
-                    if message.role == "system"
-                    and bool((message.metadata or {}).get(TURN_DIRECTIVES_METADATA_KEY))
+                    if getattr(message, "role", None) == "system"
+                    and bool((getattr(message, "metadata", None) or {}).get(TURN_DIRECTIVES_METADATA_KEY))
                 ),
                 None,
             )

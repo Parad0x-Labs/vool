@@ -211,8 +211,19 @@ def _reader_request(
     return request, wire
 
 
+_TURN_CONTEXT_PREFIX = "Context for this turn:"
+
+
+def _turn_directive_messages(request) -> list[dict]:
+    # ae264ad6 (2026-10-06): the per-turn rules travel in a second system message ("Context for this turn: ...") placed
+    # after the records and before the user's turn, so the leading system message stays byte-stable across turns
+    return [dict(m) for m in request.messages[1:] if m.get("role") == "system" and str(m.get("content") or "").startswith(_TURN_CONTEXT_PREFIX)]
+
+
 def _primary(request) -> str:
-    return str(request.messages[0]["content"])
+    """The served rule text: the leading system message plus the turn-directives system message."""
+    parts = [str(request.messages[0]["content"])] + [str(m["content"]) for m in _turn_directive_messages(request)]
+    return "\n".join(parts)
 
 
 def _policy(request) -> dict:
@@ -233,9 +244,13 @@ def _assert_lane(request, *, attribution: bool, linked: bool, premise: bool) -> 
 
 
 def _assert_records_and_turn_untouched(request, wire) -> None:
-    """The rules live in the first system message only; every other message is byte-identical."""
-    assert [dict(m) for m in request.messages[1:]] == [dict(m) for m in wire[1:]]
-    assert _primary(request).startswith("BASE SYSTEM")
+    """The rules live in the leading system message and in exactly one turn-directives system message (ae264ad6);
+    the records and the user's turn are byte-identical and the leading message is the base prompt."""
+    directives = _turn_directive_messages(request)
+    assert len(directives) <= 1, directives
+    others = [dict(m) for m in request.messages[1:] if dict(m) not in directives]
+    assert others == [dict(m) for m in wire[1:]]
+    assert str(request.messages[0]["content"]).startswith("BASE SYSTEM")
 
 
 # --- P1: a question over records that names a person gets the attribution rule -----------------
