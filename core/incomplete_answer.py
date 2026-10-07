@@ -76,6 +76,14 @@ _LIST_MARKER_RE = re.compile(
 # space or line start in front so a decimal ("3.5 kg") and a version ("v1.2") are not markers.
 _INLINE_MARKER_RE = re.compile(r"(?:(?<=\s)|^)(?:\(?\d{1,3}[.)]|[-*•‣▪▫◦])\s+\S")
 _WORD_RE = re.compile(r"\b[\w'-]+\b", re.UNICODE)
+# One line that is only a number with a period: an answer ("10."), never a list with nothing under it.
+_BARE_NUMBER_ANSWER_RE = re.compile(r"\s*\(?\d{1,3}[.)]?\s*")
+# A question a bare number answers: a count, a quantity, an age, a position or a number.
+_COUNT_OR_ORDINAL_ASK_RE = re.compile(
+    r"\bhow\s+(?:many|much|old|long|often|far|tall|heavy|big)\b|\b(?:what|which)\s+(?:number|position|rank|place|year|age|count|total|score|percentage)\b"
+    r"|\bnumber\s+of\b|\bcount\s+of\b|\bhow\s+many\s+times\b",
+    re.IGNORECASE,
+)
 _TERMINAL_PUNCTUATION = frozenset(".!?:;\"'`)]}»”’…")
 
 # Words a sentence cannot end on. Same intent as `response_constraints._DANGLING_CONNECTORS`,
@@ -302,18 +310,27 @@ def _table_truncation_reasons(text: str) -> list[str]:
     return []
 
 
-def inspect_answer_completeness(text: str) -> AnswerCompleteness:
-    """Whether `text` has the shape of an answer that was cut off before it finished."""
+def inspect_answer_completeness(text: str, *, question: str | None = None) -> AnswerCompleteness:
+    """Whether `text` has the shape of an answer that was cut off before it finished.
+
+    ``question`` is the user's turn when the caller has it. A reply that is one number with a period ("10.") is a
+    cut-off enumeration by default (QA-050-017: the literal "1." reached the user), but when the question asked for
+    a count, a quantity or an ordinal it is the answer (measured 2026-10-07: "10." answering "how many items were
+    in the list" was replaced by a truncation notice)."""
 
     if not _visible(text):
         return AnswerCompleteness(incomplete=True, reasons=(_EMPTY_ANSWER,), has_content=False)
+
+    if _BARE_NUMBER_ANSWER_RE.fullmatch(str(text or "")) and question and _COUNT_OR_ORDINAL_ASK_RE.search(str(question)):
+        return AnswerCompleteness(incomplete=False, reasons=(), has_content=True)
 
     lines = _lines(text)
     markers = [line for line in lines if line.is_marker]
     reasons: list[str] = []
 
     if markers and not any(line.content for line in lines):
-        # Every line is a marker and not one of them carries anything: "1.", "1.\n2.\n3.", "-\n-".
+        # Every line is a marker and not one of them carries anything: "1.\n2.\n3.", "-\n-". A single "10." is a
+        # number answering a count question ("how many items were in the list"), not an empty enumeration.
         return AnswerCompleteness(
             incomplete=True,
             reasons=(_ENUMERATION_WITHOUT_CONTENT,),

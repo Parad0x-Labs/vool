@@ -413,6 +413,12 @@ def _is_recorded_deterministic_render(
     return str(recorded.get("render") or "") == str(text or "") != ""
 
 
+def _last_user_text(source_context: dict[str, object] | None) -> str:
+    """The user's current turn as the final backstop can see it: the last user entry of the conversation history."""
+    history = list((source_context or {}).get("conversation_history") or [])
+    return next((str(item.get("content") or "") for item in reversed(history) if isinstance(item, dict) and item.get("role") == "user"), "")
+
+
 def _validate_final_chat_output(
     text: str,
     *,
@@ -610,7 +616,7 @@ def _validate_final_chat_output(
     # answer with nothing in it is replaced; one that is real but unfinished keeps every word it
     # has and says its state out loud, because deleting most of an answer to report the rest is
     # missing helps nobody.
-    completeness = inspect_answer_completeness(final_text)
+    completeness = inspect_answer_completeness(final_text, question=_last_user_text(source_context))
     if raw_contract is not None:
         # A runtime-authored apology or partial-answer notice is still extra text.  Under this
         # explicit contract, reject an unusable draft and otherwise preserve only its deliverable.
