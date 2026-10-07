@@ -225,6 +225,28 @@ def memory_hit_decision(*, output_text: str = "", trust_score: float = 0.82) -> 
 
 
 @pytest.fixture(autouse=True)
+def product_runtime_defaults_stay_in_their_test():
+    """Undo, after every test, the product defaults an in-process entry point wrote into the environment.
+
+    Every entry point (`vool_cli.main`, the API server, the chat app, the agent, the daemon) calls
+    `apply_product_runtime_defaults()`, which sets the memory switches in `os.environ` for the process it
+    starts. A test that calls such a `main` in-process (tests/test_bug_report_api.py runs `vool_cli.main`)
+    left those switches on for every later test in the session, so memory tests passed alone and failed in a
+    sweep. The process-wide default must end with the test that applied it.
+    """
+    from core.runtime_provider_defaults import _PRODUCT_RUNTIME_ENV_DEFAULTS
+
+    names = [name for name, _value in _PRODUCT_RUNTIME_ENV_DEFAULTS]
+    before = {name: os.environ.get(name) for name in names}
+    yield
+    for name, value in before.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
+@pytest.fixture(autouse=True)
 def unpatched_subprocess_popen() -> None:
     """Restore the stock `subprocess.Popen.__init__` before every test.
 
