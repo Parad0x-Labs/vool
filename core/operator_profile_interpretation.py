@@ -90,6 +90,15 @@ _NAME_IMPERATIVE_RE = re.compile(r"^(?:you\s+(?:can|may|should)\s+)?(?:call|addr
 _NAME_DECLARATION_RE = re.compile(r"^(?:my\s+name(?:'s|\s+is)|i\s+go\s+by|i\s+prefer\s+to\s+be\s+called|(?:set|change|update)\s+my\s+name\s+to)\s+(?P<v>.+)$", re.IGNORECASE)
 _NAME_WEAK_RE = re.compile(r"^(?i:i'?m|i\s+am|this\s+is|it'?s)\s+(?P<v>[A-Z][A-Za-z'\-]{1,30})$")
 _NAME_FORGET_RE = re.compile(r"^(?:forget|clear|drop|delete)\s+my\s+name\b|^stop\s+calling\s+me\b|^don'?t\s+(?:call|address)\s+me\s+(?:that|by\s+(?:my|any)\s+name|anything)\b", re.IGNORECASE)
+# "Calling me Skipper got old", "no more nicknames", "enough with the nickname": the owner is dropping the name
+# they are addressed by. It needs both halves -- the address frame AND a drop -- so "my cat's nickname is
+# Skipper" and "call me Skipper" forget nothing.
+_NAME_FRAME_RE = re.compile(r"\b(?:call(?:ing|ed)?\s+me|being\s+called|nick\s*names?|address(?:ing|ed)?\s+me)\b", re.IGNORECASE)
+_NAME_DROP_RE = re.compile(
+    r"\b(?:got|gets|getting|gotten|is|are)\s+(?:old|stale|annoying|tiresome)\b|\bno\s+more\b|"
+    r"\benough\s+(?:with|of)\b|\b(?:tired|sick)\s+of\b|\b(?:stop|drop|ditch|lose|quit)\b",
+    re.IGNORECASE,
+)
 _FORGET_ALL_RE = re.compile(r"^(?:forget|clear|delete|erase|wipe)\s+(?:everything|all|what)\s+(?:you\s+)?(?:know|remember|have|saved|stored)?\s*(?:about\s+me)?(?:\s+everything)?$|^forget\s+(?:my\s+)?(?:whole\s+)?profile$", re.IGNORECASE)
 _FORGET_CATEGORY_RE = re.compile(r"^(?:forget|clear|drop|delete|remove)\s+my\s+(?P<c>signature|email\s+signature|language|timezone|time\s*zone|locale|default\s+(?:email|inbox|mail)\s*(?:account)?|default\s+(?:social|x|twitter)\s*(?:account)?|(?:response|answer|reply)\s+(?:style|preference|preferences)|formatting(?:\s+preference)?)\b", re.IGNORECASE)
 
@@ -243,7 +252,7 @@ def _frame(clause: str, normalized: str, *, explicit: bool, attached_task: bool)
         return ProfileProposal("*", "", "explicit", action="show", clause=clause)
     if _FORGET_ALL_RE.match(body):
         return ProfileProposal("*", "", "explicit", action="forget", clause=clause)
-    if _NAME_FORGET_RE.match(body):
+    if _NAME_FORGET_RE.match(body) or (_NAME_FRAME_RE.search(normalized) and _NAME_DROP_RE.search(normalized)):
         return ProfileProposal("preferred_name", "", "explicit", action="forget", clause=clause)
     forget_cat = _FORGET_CATEGORY_RE.match(body)
     if forget_cat:
