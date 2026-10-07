@@ -180,7 +180,9 @@ def packet_operands(packet_facts: Sequence[Mapping[str, Any]], reference_day: da
     return ops
 
 
-_SESSION_FRAME_RE = re.compile(r"\b(?:session|as\s+of|said|told|mentioned|wrote|noted|chat|conversation|on\s+your|you\s+(?:said|told|mentioned))\b[^.]{0,40}$", re.IGNORECASE)
+# the reply frames a date as the day a thing was SAID (a session, "as of", "stated", "recorded", "first mentioned"), so a
+# record's statement day supports it; "by 6 April" or "on 6 April" frame an event and need an event-grade day
+_SESSION_FRAME_RE = re.compile(r"\b(?:session|as\s+of|said|told|mentioned|wrote|noted|stated|recorded|logged|reported|chat|conversation|on\s+your|you\s+(?:said|told|mentioned|stated|noted))\b[^.]{0,40}$", re.IGNORECASE)
 
 
 def _bind_value(v: TValue, ops: Operands, reply_days: dict[date, str], *, before: str = "") -> None:
