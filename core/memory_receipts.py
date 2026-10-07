@@ -237,7 +237,9 @@ _HEDGE_RE = re.compile(r"\b(?:maybe|perhaps|possibly|probably|i\s+think|i\s+gues
 _QUOTED_SPAN_RE = re.compile(r"\"[^\"]*\"|“[^”]*”|'[^']{3,}'")
 
 
-_HEDGE_CLAUSE_SPLIT_RE = re.compile(r"[,;:]\s+|\s+(?:and|but|while|then|although|though|so)\s+", re.IGNORECASE)
+# Whitespace-led boundaries start at the first space of a run (`(?<!\s)`, or `(?<![\s,])` after an
+# optional comma): retrying from every later space of a long run made finditer/split quadratic.
+_HEDGE_CLAUSE_SPLIT_RE = re.compile(r"[,;:]\s+|(?<!\s)\s+(?:and|but|while|then|although|though|so)\s+", re.IGNORECASE)
 
 
 def _blank_hedged_clauses(text: str) -> str:
@@ -381,7 +383,7 @@ def _slot(sentence: str) -> list[str]:
     return sorted(t for t in sig if t not in _STOP and len(t) > 1)
 
 
-_CLAUSE_BOUNDARY_RE = re.compile(r",?\s+(?:and|but|while|then|after which|before that)\s+(?=(?:i|we|my|then|just|also|afterwards?|recently|yesterday|last)\b)|;\s+", re.IGNORECASE)
+_CLAUSE_BOUNDARY_RE = re.compile(r"(?:,|(?<![\s,]))\s+(?:and|but|while|then|after which|before that)\s+(?=(?:i|we|my|then|just|also|afterwards?|recently|yesterday|last)\b)|;\s+", re.IGNORECASE)
 
 
 def _clause_event_days(sentence: str, statement_day: date | None) -> list[tuple[int, int, date | None, str]]:
@@ -604,7 +606,7 @@ def third_party_statement(plain: str) -> bool:
     text = str(plain or "")
     if not _THIRD_PARTY_SUBJECT_RE.search(text):
         return False
-    clauses = re.split(r",\s*(?:and|but|so|while|whereas)\s+|;\s+|\s+(?:and|but|whereas|while)\s+(?=i\b|we\b|so\s+(?:am|do)\s+i)", text, flags=re.IGNORECASE)
+    clauses = re.split(r",\s*(?:and|but|so|while|whereas)\s+|;\s+|(?<!\s)\s+(?:and|but|whereas|while)\s+(?=i\b|we\b|so\s+(?:am|do)\s+i)", text, flags=re.IGNORECASE)
     for clause in clauses:
         if _FIRST_PERSON_CLAUSE_RE.search(clause) and not _THIRD_PARTY_SUBJECT_RE.search(clause):
             return False   # one clause is the user's own

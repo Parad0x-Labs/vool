@@ -184,7 +184,9 @@ _REPORTED_ACTION_BLOCK_RE = re.compile(
 )
 _ACTION_CLAUSE_BREAK_RE = re.compile(
     r",\s*(?:(?:and\s+)?then|and|but|also|next)?\s*"
-    r"|\s+\b(?:and(?:\s+then)?|then|but)\b\s+",
+    # A whitespace break starts at the first space of its run: retrying from every later space
+    # of a long run made finditer quadratic.
+    r"|(?<!\s)\s+\b(?:and(?:\s+then)?|then|but)\b\s+",
     re.IGNORECASE,
 )
 _ACTION_DESCRIPTION_RE = re.compile(
