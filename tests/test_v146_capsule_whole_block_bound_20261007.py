@@ -1,5 +1,6 @@
 """v14.6 triage (coordinator, 2026-10-07): the capsule's distilled laws now read the distilled section, so the whole
-block needs a bound of its own. The verbatim whole-turn lane (ddb2d4e5) is sized by its own cap and never beyond the
+block needs a bound of its own. The block is header + distilled lines (the evidence target) + the receipts packet (its
+own cap, reported as packet_tokens) + the verbatim whole-turn lane (its cap and the free window) + the wrapper. The verbatim whole-turn lane (ddb2d4e5) is sized by its own cap and never beyond the
 free window the budget was resolved from, and the whole block (header, distilled lines, turn lane, wrapper) stays
 within the evidence target plus the turn lane plus the header. Served store, no model call. Contributor: sls_0x."""
 from __future__ import annotations
@@ -25,7 +26,8 @@ def test_the_whole_block_never_exceeds_its_target_plus_the_capped_turn_lane(fres
     assert turn_tokens <= cr._TURN_LANE_MAX_TOKENS, tel
     assert turn_tokens <= int(budget["free_tokens"]), tel
     whole = capsule.estimate_tokens(block)
-    assert whole <= int(budget["resolved_target_tokens"]) + turn_tokens + HEADER_SLACK_TOKENS, (whole, budget, turn_tokens)
+    packet_tokens = int((tel.get("evidence_compiler") or {}).get("packet_tokens") or 0)   # the receipts packet, its own cap
+    assert whole <= int(budget["resolved_target_tokens"]) + turn_tokens + packet_tokens + HEADER_SLACK_TOKENS, (whole, budget, turn_tokens, packet_tokens)
 
 
 def test_the_turn_lane_reports_its_size(fresh_profile):
@@ -57,4 +59,5 @@ def test_a_tight_free_window_bounds_the_turn_lane(fresh_profile):
     assert free < 1000, tel["evidence_budget"]          # the window really is tight
     assert int(tel.get("whole_turn_tokens") or 0) <= free, tel
     block = "\n".join(str(m.get("content") or "") for m in out if "retrieved_context" in str(m.get("content")))
-    assert capsule.estimate_tokens(block) <= free + int(tel["evidence_budget"]["resolved_target_tokens"]) + HEADER_SLACK_TOKENS
+    packet_tokens = int((tel.get("evidence_compiler") or {}).get("packet_tokens") or 0)
+    assert capsule.estimate_tokens(block) <= free + int(tel["evidence_budget"]["resolved_target_tokens"]) + packet_tokens + HEADER_SLACK_TOKENS

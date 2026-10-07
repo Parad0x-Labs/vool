@@ -122,6 +122,15 @@ _DURATION_WORDS_RE = re.compile(
 _AMOUNT_RE = re.compile(r"(?:\$|€|£)\s?(?P<v>\d[\d,]*(?:\.\d+)?)(?:\s?(?:k|K|million|m)\b)?|\b(?P<v2>\d[\d,]*(?:\.\d+)?)\s+(?:dollars|euros|pounds|bucks|usd|eur|gbp)\b", re.IGNORECASE)
 _CLOCK_RE = re.compile(r"\b(?P<h>\d{1,2})(?::(?P<m>[0-5]\d))?\s?(?P<ap>am|pm|a\.m\.|p\.m\.)\b", re.IGNORECASE)
 _AGE_RE = re.compile(r"\b(?:i(?:'m| am)|turned|turning|i was|is|was|he's|she's|they're)\s+(?P<n>\d{1,3})(?:\s+years?\s+old)?\b|\b(?P<n2>\d{1,3})\s+years?\s+old\b|\b(?:my|her|his|their)\s+(?P<who>\w+)\s+is\s+(?P<n3>\d{1,3})\b", re.IGNORECASE)
+#: v14.6 (item 6 metamorphic family "duration-record"): a measured quantity with a physical unit is a typed fact of its own,
+#: so "my longest tunnel route is now 31 km" becomes a record the record law can supersede; before, "is 26 km" was typed as
+#: an AGE ("is 26") and the correction carried no fact at all.
+_MEASURE_UNITS = {"km": "km", "kilometre": "km", "kilometres": "km", "kilometer": "km", "kilometers": "km", "m": "m", "metre": "m", "metres": "m", "meter": "m", "meters": "m",
+                  "cm": "cm", "centimetre": "cm", "centimetres": "cm", "centimeter": "cm", "centimeters": "cm", "mm": "mm", "mi": "mi", "mile": "mi", "miles": "mi",
+                  "kg": "kg", "kilogram": "kg", "kilograms": "kg", "g": "g", "gram": "g", "grams": "g", "lb": "lb", "lbs": "lb", "oz": "oz", "ounce": "oz", "ounces": "oz",
+                  "l": "l", "litre": "l", "litres": "l", "liter": "l", "liters": "l", "ml": "ml", "millilitre": "ml", "millilitres": "ml", "kwh": "kwh", "mph": "mph", "kph": "kph", "km/h": "kph"}
+_MEASURE_RE = re.compile(r"\b(?P<n>\d+(?:[.,]\d+)?|" + "|".join(k for k in _NUMBER_WORDS if k not in ("a", "an", "half")) + r")\s?(?P<u>" + "|".join(sorted((re.escape(u) for u in _MEASURE_UNITS), key=len, reverse=True)) + r")\b(?!\s*(?:ago|old))", re.IGNORECASE)
+_PAST_MEASURE_RE = re.compile(r"\b(?:pegged|logged|recorded|measured|read|held|was|were|stood\s+at|clocked|came\s+in\s+at|showed|reported|used\s+to\s+be)\b|\b(?:the|that|last|this)\s+(?:\w+\s+)?(?:log|report|survey|reading|audit|census|inspection|entry)\b", re.IGNORECASE)
 _COUNT_RE = re.compile(rf"\b(?P<n>\d+|{'|'.join(k for k in _NUMBER_WORDS if k not in ('a', 'an', 'half'))})\s+(?:new\s+|more\s+|different\s+|other\s+)?(?P<noun>[a-z][a-z\-]{{2,}})\b(?!\s+ago)(?!\s*(?:am|pm|:))", re.IGNORECASE)
 _LIST_ITEM_RE = re.compile(r"(?m)^\s*(?:(?P<n>\d{1,2})[.)]|[-*•])\s+(?P<item>\S[^\n]*)")
 #: Preferences the user states about themselves (closed cues): diet, allergies, likes and dislikes, style, travel mode.
@@ -420,7 +429,18 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
         for m in _CLOCK_RE.finditer(sentence):
             h = int(m.group("h")) % 12 + (12 if m.group("ap").lower().startswith("p") else 0)
             add("clock", m.group(0), f"{h:02d}:{int(m.group('m') or 0):02d}", at=m.start())
+        for m in _MEASURE_RE.finditer(sentence):
+            n = _number(m.group("n"))
+            if n is None:
+                continue
+            unit = _MEASURE_UNITS.get(m.group("u").lower().replace(" ", ""), m.group("u").lower())
+            # a reading a log or a report pegged, or a past-tense reading ("held", "was", "stood at"), is a PAST measure:
+            # it answers "what was" and never "what is right now" (the live-reading law of the current-observation contract)
+            past = bool(_PAST_MEASURE_RE.search(sentence[: m.start()]))
+            add("measure", m.group(0), f"{n:g} {unit}" + ("|past" if past else ""), at=m.start())
         for m in _AGE_RE.finditer(sentence):
+            if _MEASURE_RE.match(sentence, m.start("n")) if m.group("n") else False:
+                continue   # "is 26 km" is a measure, not an age
             n = m.group("n") or m.group("n2") or m.group("n3")
             if n and 0 < int(n) < 120:
                 add("age", m.group(0), n, at=m.start())
@@ -562,7 +582,7 @@ def _same_head(fact: Fact, old: Mapping[str, Any]) -> bool:
     return len(a & b) >= min(2, len(a), len(b))
 
 
-def find_changes(new_facts: Sequence[Fact], earlier: Sequence[dict[str, Any]], *, role: str) -> list[dict[str, Any]]:
+def find_changes(new_facts: Sequence[Fact], earlier: Sequence[dict[str, Any]], *, role: str, statement_at: float | None = None) -> list[dict[str, Any]]:
     """Facts of earlier receipts this turn replaces: same role, same value kind, overlapping slot, disjoint values
     (the temporal contract's conflict law, re-checked on the sentences). Assistant turns replace nothing."""
     if role != "user":
@@ -602,6 +622,11 @@ def find_changes(new_facts: Sequence[Fact], earlier: Sequence[dict[str, Any]], *
                      and not str(f.get("norm") or "").endswith("|former")]
             if cands:
                 r, old = max(cands, key=lambda x: x[0].get("statement_at") or 0)
+                if statement_at is not None and r.get("statement_at") is not None and float(statement_at) < float(r["statement_at"]):
+                    # v14.6 (item 6 "reorder-turns"): statement days decide, not write order. A value stated EARLIER
+                    # than the slot's current record is a former state of that slot; it replaces nothing.
+                    fact.norm = fact.norm + "|former"
+                    continue
                 changes.append({"slot": [key], "old_occurrence": r["occurrence_id"], "old_receipt": r["receipt_id"], "old_value": old.get("value"),
                                 "old_statement_at": r.get("statement_at"), "new_value": fact.value, "value_type": "state", "kind": "replaced",
                                 "rule": "same-state-key-newer-statement", "slot_overlap": 1.0})
@@ -621,7 +646,7 @@ def find_changes(new_facts: Sequence[Fact], earlier: Sequence[dict[str, Any]], *
                     continue
                 # v14.3: the words right around the two values must name the same thing ("a bike helmet for $95" and
                 # "a bike computer for $165" share a sentence shape and "bike", not a subject; set three q1806/qc5b9)
-                if fact.value_type in ("amount", "count", "duration", "age") and not _same_head(fact, old):
+                if fact.value_type in ("amount", "count", "duration", "age", "measure") and not _same_head(fact, old):
                     continue
                 if fact.value_type == "duration" and _duration_subkind(fact.value) != _duration_subkind(str(old.get("value") or "")):
                     continue
@@ -757,7 +782,7 @@ def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | Non
         return None
     facts = extract_facts(body, statement_at, role)
     earlier = receipts_for_scope(mem, chat_scope, role="user") if role == "user" else []
-    changes = find_changes(facts, earlier, role=role)
+    changes = find_changes(facts, earlier, role=role, statement_at=float(statement_at) if statement_at is not None else None)
     withdraws = []
     marker = retraction_marker(_strip_envelope(body)[0])
     if marker is not None:

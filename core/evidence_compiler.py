@@ -453,6 +453,7 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
         skip.add("amount")
     selected = match_receipts(receipts, question, extra_terms=extra, limit=max_lines * 3,
                               skip_types=tuple(skip), target_day=target_day)
+
     if ob.kind != "assistant_output":
         # the user's own statements first; an assistant typed value rides only when it is the only match
         selected = sorted(selected, key=lambda x: (0 if x[1].get("role") == "user" else 1, -x[0]))
@@ -564,6 +565,11 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
         telemetry["hop_new_facts"] = len(new_rows)
         selected = selected + new_rows
         found, missing = _found_operands(ob, selected)
+    if ob.kind == "current_value" and re.search(r"\b(?:right\s+now|currently|at\s+the\s+moment|these\s+days|nowadays|now)\b", question, re.I):
+        # a live-reading ask: a past measured report ("the March log pegged the flow at 210 l/h") is not the current
+        # value of anything; the current-observation contract keeps it out of the packet (after the hop, so a hop
+        # cannot bring it back)
+        selected = [row for row in selected if not (row[2].get("value_type") == "measure" and str(row[2].get("norm") or "").endswith("|past"))]
     # an extremum ask ("first", "latest") is answered from the edge of the dated scope: dated user facts render in time
     # order (earliest or latest first) so a partial view still carries the candidate that matters
     if ob.cls == "EXTREMUM" or ob.kind == "sequence":

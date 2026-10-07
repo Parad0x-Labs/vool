@@ -150,6 +150,8 @@ def packet_operands(packet_facts: Sequence[Mapping[str, Any]], reference_day: da
     for f in packet_facts or []:
         if not isinstance(f, Mapping):
             continue
+        if str(f.get("role") or "user") != "user":
+            continue   # v14.6 item 6: an assistant's durations and days are not the user's operands
         line = str(f.get("sentence") or f.get("value") or f.get("text") or "")
         said = _day(f.get("statement_at")); ev = _day(f.get("event_at"))
         rid = str(f.get("receipt_id") or "")
