@@ -162,10 +162,10 @@ def main() -> int:
 
     # Observe the returned vector-space stamp, rather than guessing the model
     # from an open port. The wrapper returns the original vector unchanged.
-    import core.embedding_service as embedding_service
     import core.context_retrieval as context_retrieval
-
-    from core.ollama_endpoint import ollama_base_url as _obu; assert _obu() == "http://127.0.0.1:11434", _obu()
+    import core.embedding_service as embedding_service
+    from core.ollama_endpoint import ollama_base_url as _obu
+    assert _obu() == "http://127.0.0.1:11434", _obu()
     embedding_receipts: list[dict] = []
     original_embed_stamped = embedding_service.embed_stamped
 

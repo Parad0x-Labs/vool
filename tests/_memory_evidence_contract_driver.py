@@ -291,8 +291,8 @@ def main() -> int:
     # from an open port. The wrapper returns the original vector unchanged.
     import core.context_retrieval as context_retrieval
     import core.embedding_service as embedding_service
-
-    from core.ollama_endpoint import ollama_base_url as _obu; assert _obu() == "http://127.0.0.1:11434", _obu()
+    from core.ollama_endpoint import ollama_base_url as _obu
+    assert _obu() == "http://127.0.0.1:11434", _obu()
     embedding_receipts: list[dict] = []
     original_embed_stamped = embedding_service.embed_stamped
 
@@ -435,17 +435,19 @@ def main() -> int:
         stream_id = "offline-stream-" + turn["id"]
         source_context["runtime_event_stream_id"] = stream_id
         observed_events = []
-        def capture_event(event):
+        def capture_event(event, observed_events=observed_events):
             if event.get("event_type") == "model_output_chunk":
                 return
             # Preserve each decision once, replacing only large repeated text with
             # its measured hash/length. Full authorized source remains in wire/body.
-            def compact(value):
-                if isinstance(value, str) and len(value) > 2048:
-                    return {"text_sha256": hashlib.sha256(value.encode()).hexdigest(), "characters": len(value), "capture": "hashed_large_text"}
-                if isinstance(value, dict): return {k: compact(v) for k,v in value.items()}
-                if isinstance(value, list): return [compact(v) for v in value]
-                return value
+            def compact(item):
+                if isinstance(item, str) and len(item) > 2048:
+                    return {"text_sha256": hashlib.sha256(item.encode()).hexdigest(), "characters": len(item), "capture": "hashed_large_text"}
+                if isinstance(item, dict):
+                    return {k: compact(v) for k, v in item.items()}
+                if isinstance(item, list):
+                    return [compact(v) for v in item]
+                return item
             observed_events.append(compact(event))
         if not args.no_event_capture:
             register_runtime_event_sink(stream_id, capture_event)

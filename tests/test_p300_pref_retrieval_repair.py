@@ -283,7 +283,7 @@ def _capsule(home, chat: str, question: str) -> tuple[str, dict]:
 def _distractor_sessions(extra_first=()):
     sessions = [
         (date, user, assistant)
-        for date, (user, assistant) in zip(_DISTRACTOR_DATES, _REGISTER_DISTRACTORS)
+        for date, (user, assistant) in zip(_DISTRACTOR_DATES, _REGISTER_DISTRACTORS, strict=False)
     ]
     return [*(extra_first or ()), *sessions]
 

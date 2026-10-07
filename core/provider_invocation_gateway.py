@@ -1079,7 +1079,7 @@ def seal_provider_invocation(
     # never disable enforcement and never fail the seal).
     try:
         from core.context_delivery_ledger import (
-            ProviderPayloadMeasurementFailedError as _cdl_measurement_failed,
+            ProviderPayloadMeasurementFailedError as _CdlMeasurementFailedError,
         )
         from core.context_delivery_ledger import (
             build_receipt as _cdl_build,
@@ -1132,7 +1132,7 @@ def seal_provider_invocation(
                 LOGGER.exception(
                     "context delivery enforcement refused an unmeasurable "
                     "payload")
-                raise _cdl_measurement_failed(
+                raise _CdlMeasurementFailedError(
                     "prompt_enforcement_unavailable: the sealed payload could "
                     "not be measured while VOOL_CONTEXT_ENVELOPE_ENFORCE is "
                     "enabled; refusing pre-send")

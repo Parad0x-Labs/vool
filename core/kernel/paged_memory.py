@@ -425,7 +425,7 @@ class PagedSession:
                         note = ""
                     if _cost(prefix) + rendered <= remaining:
                         hot_text = prefix + a[:rendered] + (note or "")
-                        hot = hot[:-1] + [(q, a[:rendered], pid)]
+                        hot = [*hot[:-1], (q, a[:rendered], pid)]
                         clipped_of = len(a)
                         hot_detail = (
                             f"partial (assistant rendered {rendered}/{clipped_of} chars"

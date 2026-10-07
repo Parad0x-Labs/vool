@@ -72,7 +72,7 @@ def test_event_date_and_record_date_keep_separate_labels() -> None:
     assert "August 2023" in distilled
     assert "stated: Session date: 2025-06-10" in distilled
     assert "recorded:" in distilled
-    line = [f for f in distilled.splitlines() if "Milou" in f][0]
+    line = next(f for f in distilled.splitlines() if "Milou" in f)
     assert line.index("August 2023") < line.index("stated: Session date: 2025-06-10")
 
 
@@ -88,8 +88,8 @@ def test_multiple_sources_do_not_cross_attach_dates() -> None:
         "Migration retried and succeeded, database phase complete."
     )
     distilled, _ = _distill("What happened to the migration database phase?", [(a, 0.9), (b, 0.8)])
-    fail_line = [f for f in distilled.splitlines() if "E-4471" in f][0]
-    ok_line = [f for f in distilled.splitlines() if "succeeded" in f][0]
+    fail_line = next(f for f in distilled.splitlines() if "E-4471" in f)
+    ok_line = next(f for f in distilled.splitlines() if "succeeded" in f)
     assert "2024-02-07" in fail_line and "2024-02-09" not in fail_line
     assert "2024-02-09" in ok_line and "2024-02-07" not in ok_line
 

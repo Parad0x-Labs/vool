@@ -97,6 +97,8 @@ if __name__ == '__main__':
     _child()
     raise SystemExit(0)
 
+import itertools
+
 import pytest
 
 from tests._restart_child_env import scrub_child_env
@@ -117,7 +119,8 @@ def restarted_presentation_sources(tmp_path_factory):
     env = scrub_child_env(os.environ)
     env.update(VOOL_HOME=str(home), TMPDIR=str(work), TMP=str(work), TEMP=str(work), PYTHONDONTWRITEBYTECODE='1')
     policy = work / 'worker.sb'
-    q = lambda p: json.dumps(str(p))
+    def q(p):
+        return json.dumps(str(p))
     policy.write_text('\n'.join(['(version 1)', '(allow default)', '(deny network*)', '(deny file-write*)',
         '(deny file-read* (subpath "/Users"))',
         '(allow file-read* (subpath ' + q(Path(sys.base_prefix).resolve()) + '))',
@@ -147,7 +150,7 @@ def restarted_presentation_sources(tmp_path_factory):
         runs.append({'case': case, 'pid': value['pid'], 'exit_code': proc.returncode,
                      'started': started, 'finished': time.time()})
     assert len({r['pid'] for r in runs}) == len(runs)
-    assert all(b['started'] >= a['finished'] for a, b in zip(runs, runs[1:]))
+    assert all(b['started'] >= a['finished'] for a, b in itertools.pairwise(runs))
     (artifact / 'PROCESS-RECEIPT.json').write_text(json.dumps({'runs': runs, 'profile': str(home)}, indent=2) + '\n')
     return outputs
 

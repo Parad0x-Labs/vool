@@ -414,7 +414,9 @@ def scoped_coverage(receipts: Sequence[Mapping[str, Any]], question: str, shown_
     packet; a chat with no candidate at all is exhaustive too (there is nothing unseen), so a clean refusal stays clean."""
     terms = set(question_terms(question)) | {_stem(t) for t in extra_terms if t}
     shown = {(str(f.get("receipt_id")), str(f.get("sentence") or f.get("value"))) for f in shown_facts}
-    candidates = 0; seen = 0; unseen_ids: list[str] = []
+    candidates = 0
+    seen = 0
+    unseen_ids: list[str] = []
     for r in receipts:
         if r.get("role") != "user":
             continue
@@ -489,16 +491,19 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
         prefs.sort(key=lambda x: -(x[0].get("statement_at") or 0))
         for r, f in prefs[:6]:
             if id(f) not in seen_ids:
-                kernel_rows.append((3.0, r, f)); seen_ids.add(id(f))
+                kernel_rows.append((3.0, r, f))
+                seen_ids.add(id(f))
     state_key = question_state_key(question) if ob.kind in ("current_value", "single_fact", "when") else ""
     if state_key:
         states = [(r, f) for r in receipts if r.get("role") == "user" for f in (r.get("facts") or [])
                   if f.get("value_type") == "state" and str(f.get("norm") or "").split("=", 1)[0] == state_key]
-        former = lambda f: str(f.get("norm") or "").endswith("|former")
+        def former(f):
+            return str(f.get("norm") or "").endswith("|former")
         states.sort(key=lambda x: (0 if (not x[1].get("replaced_by") and not former(x[1])) else 1, -(x[0].get("statement_at") or 0)))
         for r, f in states[:4]:
             if id(f) not in seen_ids:
-                kernel_rows.append((4.0 if not f.get("replaced_by") else 2.5, r, f)); seen_ids.add(id(f))
+                kernel_rows.append((4.0 if not f.get("replaced_by") else 2.5, r, f))
+                seen_ids.add(id(f))
     selected = kernel_rows + selected
     found, missing = _found_operands(ob, selected)
     telemetry: dict[str, Any] = {"obligation": ob.as_dict(), "receipts_in_chat": len(receipts), "matched_facts": len(selected),
@@ -545,7 +550,6 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
                     occ_by_id.setdefault(oid, occurrence)
         hits = [(occ_by_id[oid], fused[oid] * 60.0) for oid in sorted(fused, key=lambda k: -fused[k])]
         qterms_hop = set(question_terms(question)) | {_stem(t) for t in extra}
-        lexical_ids = {str(getattr(o, "occurrence_id", "") or "") for o, _s in lexical}
         semantic_ids = {str(getattr(o, "occurrence_id", "") or "") for o, _s in semantic}
         new_rows: list[tuple[float, dict[str, Any], dict[str, Any]]] = []
         seen = {id(f) for _s, _r, f in selected}
@@ -568,7 +572,8 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
                     continue
                 if fact.get("value_type") in skip and fact.get("event_at") is None:
                     continue
-                seen.add(id(fact)); added += 1
+                seen.add(id(fact))
+                added += 1
                 new_rows.append((float(score), receipt, {**fact, "via_hop": True, "hop_leg": "semantic" if oid in semantic_ids else "lexical"}))
             if ob.kind == "sequence" and added == 0 and receipt.get("role") == "user":
                 # a sequence ask is about WHEN each thing came up: a user turn that names one of the asked things but
@@ -578,7 +583,8 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
                     if set(_slot_terms(sentence)) & qterms_hop:
                         mention = {"sentence": sentence.strip()[:240], "slot": _slot_terms(sentence), "value_type": "mention", "value": sentence.strip()[:240],
                                    "norm": "", "event_at": None, "event_grain": "", "via_hop": True, "hop_leg": "semantic" if oid in semantic_ids else "lexical"}
-                        new_rows.append((float(score), receipt, mention)); break
+                        new_rows.append((float(score), receipt, mention))
+                        break
         telemetry["hop_query"] = hop_query
         telemetry["hop_new_facts"] = len(new_rows)
         selected = selected + new_rows
@@ -593,7 +599,8 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
     if ob.cls == "EXTREMUM" or ob.kind == "sequence":
         earliest = bool(_EARLIEST_RE.search(question)) or ob.kind == "sequence"
         def _when(row):
-            f = row[2]; r = row[1]
+            f = row[2]
+            r = row[1]
             t = f.get("event_at") if f.get("event_at") is not None else r.get("statement_at")
             return float(t or 0)
         dated_rows = sorted([row for row in selected if row[1].get("role") == "user" and (row[2].get("event_at") is not None or row[2].get("value_type") in ("event", "mention") or ob.kind == "sequence")], key=_when, reverse=not earliest)
@@ -682,7 +689,7 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     kept_lines: list[str] = []
     kept_facts: list[dict[str, Any]] = []
     dropped: list[dict[str, Any]] = []
-    for line, fact in zip(fact_lines, packet.facts):
+    for line, fact in zip(fact_lines, packet.facts, strict=False):
         occ = str(fact.get("occurrence_id") or "")
         if occ and occ in refused:
             dropped.append({"occurrence_id": occ, "receipt_id": fact.get("receipt_id"), "reason": str(refused[occ])})
@@ -761,7 +768,7 @@ def verify_answer(question: str, raw_answer: str, packet_facts: Sequence[Mapping
     days = sorted({date.fromtimestamp(float(f["event_at"]), tz=_UTC) if False else datetime.fromtimestamp(float(f["event_at"]), tz=_UTC).date()
                    for f in packet_facts if f.get("event_at") is not None})
     if reference_day is not None:
-        days_with_ref = days + [reference_day]
+        days_with_ref = [*days, reference_day]
     else:
         days_with_ref = days
     diffs: list[tuple[float, str]] = []

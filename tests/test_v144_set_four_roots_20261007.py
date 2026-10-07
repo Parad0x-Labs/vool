@@ -69,7 +69,7 @@ def test_a_compound_duration_is_the_whole_number_not_its_last_word(sentence, min
 
 
 def test_forty_five_minutes_binds_and_thirty_does_not():
-    f = [x for x in extract_facts("I already spend **about forty-five minutes** meditating daily.", _epoch(2025, 2, 9), "user")][0]
+    f = next(iter(extract_facts("I already spend **about forty-five minutes** meditating daily.", _epoch(2025, 2, 9), "user")))
     facts = [{"sentence": f.sentence, "value_type": f.value_type, "value": f.value, "norm": f.norm, "event_at": None, "statement_at": _epoch(2025, 2, 9), "receipt_id": "r:x", "role": "user"}]
     q = "How long did I spend meditating each day when I first mentioned it?"
     assert bind_temporal_claims(question=q, reply="About forty-five minutes daily (first mentioned 2025-02-09).", packet_facts=facts, reference_day=date(2025, 6, 25)).restored

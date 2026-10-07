@@ -235,7 +235,7 @@ def requested_action_clauses(
             sentence.rstrip().endswith("?")
             or re.match(r"\s*(?:did|does|do|is|are|was|were|can|could|would|will|has|have|had|should)\b", sentence, re.I)
         )
-        for index, (start, end) in enumerate(zip(starts, ends)):
+        for index, (start, end) in enumerate(zip(starts, ends, strict=False)):
             part = sentence[start:end]
             lead = _ACTION_REQUEST_LEAD_RE.match(part)
             offset = lead.end()

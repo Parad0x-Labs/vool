@@ -7,10 +7,7 @@ from tests._restart_child_env import ISOLATION_PINS, scrub_child_env
 
 PIN_VALUES = {
     "VOOL_KEY_STORAGE_MODE": "file",
-    "VOOL_KEY_STORAGE_MODE": "file",
     "VOOL_CREDENTIAL_STORE": "vault",
-    "VOOL_CREDENTIAL_STORE": "vault",
-    "VOOL_KEYCHAIN_ALLOWED": "0",
     "VOOL_KEYCHAIN_ALLOWED": "0",
     "PYTHON_KEYRING_BACKEND": "keyring.backends.fail.Keyring",
 }

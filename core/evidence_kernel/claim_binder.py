@@ -26,6 +26,7 @@ on every owned, non-negated, non-quoted record; the exact derivation is what bin
 """
 from __future__ import annotations
 
+import contextlib
 import itertools
 import re
 from collections.abc import Mapping, Sequence
@@ -112,7 +113,8 @@ def _values_in(text: str) -> list[tuple[str, float, int, int]]:
     for m in _MONEY_RE.finditer(text):
         v = _num(m.group("v") or m.group("v2"))
         if v is not None:
-            out.append(("money", v, m.start(), m.end())); spans.append(m.span())
+            out.append(("money", v, m.start(), m.end()))
+            spans.append(m.span())
     for m in _DATE_LIKE_RE.finditer(text):
         spans.append(m.span())
     for m in _NUMBER_RE.finditer(text):
@@ -143,7 +145,8 @@ def evidence_records(lines: Sequence[str], *, owner: str = "user") -> list[Evide
         pos = 0
         pieces: list[tuple[int, str]] = []
         for m in _CLAUSE_SPLIT_RE.finditer(body):
-            pieces.append((pos, body[pos:m.start()])); pos = m.end()
+            pieces.append((pos, body[pos:m.start()]))
+            pos = m.end()
         pieces.append((pos, body[pos:]))
         # a comma fragment is a clause of its own only when it carries a value of its own ("widest oak board 31cm,
         # widest ash board 44cm"); otherwise it stays with the clause before it
@@ -153,7 +156,8 @@ def evidence_records(lines: Sequence[str], *, owner: str = "user") -> list[Evide
             for m in re.finditer(r",\s+", piece):
                 head, tail = piece[sub_pos:m.start()], piece[m.end():]
                 if _values_in(head) and _values_in(tail):
-                    split.append((start + sub_pos, head)); sub_pos = m.end()
+                    split.append((start + sub_pos, head))
+                    sub_pos = m.end()
             split.append((start + sub_pos, piece[sub_pos:]))
         pieces = split
         prev_terms: set[str] = set()
@@ -330,7 +334,8 @@ def user_owned_lines(evidence_text: Any, packet_facts: Sequence[Mapping[str, Any
             body = m.group("body").strip()
             if m.group("day") and not _STATED_SUFFIX_RE.search(body):
                 body += f" (stated: {m.group('day')})"   # the capsule's own statement day, kept for the record law
-            lines.append(body); in_user = True
+            lines.append(body)
+            in_user = True
             continue
         if raw.startswith("- ") or raw.startswith("<") or raw.startswith("Evidence ") or raw.startswith("Distilled "):
             in_user = False
@@ -363,7 +368,8 @@ def reply_value_claims(reply: Any) -> list[tuple[str, float, str]]:
     for m in _MONEY_RE.finditer(body):
         v = _num(m.group("v") or m.group("v2"))
         if v is not None:
-            claims.append(("money", v, m.group(0))); spans.append(m.span())
+            claims.append(("money", v, m.group(0)))
+            spans.append(m.span())
     for m in _DATE_LIKE_RE.finditer(body):
         spans.append(m.span())
     for m in _NUMBER_RE.finditer(body):
@@ -379,13 +385,15 @@ def reply_value_claims(reply: Any) -> list[tuple[str, float, str]]:
 
 def evidence_values(lines: Sequence[str]) -> tuple[list[tuple[float, str]], list[tuple[float, str]]]:
     """(money values, other numbers) stated in user-owned evidence lines, each with its line."""
-    money: list[tuple[float, str]] = []; numbers: list[tuple[float, str]] = []
+    money: list[tuple[float, str]] = []
+    numbers: list[tuple[float, str]] = []
     for line in lines:
         spans = [m.span() for m in _LIST_MARKER_RE.finditer(line)]
         for m in _MONEY_RE.finditer(line):
             v = _num(m.group("v") or m.group("v2"))
             if v is not None:
-                money.append((v, line)); spans.append(m.span())
+                money.append((v, line))
+                spans.append(m.span())
         for m in _DATE_LIKE_RE.finditer(line):
             spans.append(m.span())
         for m in _NUMBER_RE.finditer(line):
@@ -419,7 +427,8 @@ def _derive(value: float, pool: Sequence[tuple[float, str]], *, max_items: int =
     seen: set[float] = set()
     for v, line in pool:
         if v not in seen:
-            seen.add(v); distinct.append((v, line))
+            seen.add(v)
+            distinct.append((v, line))
     for v, line in distinct:
         if _close(value, v):
             return {"op": "stated", "args": [v], "lines": [line]}
@@ -454,14 +463,14 @@ def _evidence_days(evidence_text: Any, packet_facts: Sequence[Mapping[str, Any]]
             out.append((m.group(0), raw.strip()[:200]))
     for fact in packet_facts or []:
         if fact.get("event_at") is not None:
-            try:
+            with contextlib.suppress(Exception):
                 out.append((datetime.fromtimestamp(float(fact["event_at"]), tz=timezone.utc).date().isoformat(), str(fact.get("sentence") or "")[:200]))
-            except Exception:
-                pass
-    seen = set(); dedup = []
+    seen = set()
+    dedup = []
     for d, line in out:
         if d not in seen:
-            seen.add(d); dedup.append((d, line))
+            seen.add(d)
+            dedup.append((d, line))
     return dedup[:40]
 
 
@@ -516,7 +525,8 @@ def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: 
     for kind, value, text in claims:
         # stated: the current record of the question's subject states exactly this value
         same_value = [r for r in records if _close(value, r.value) and (kind != "money" or r.kind == "money")]
-        d = None; refused = None
+        d = None
+        refused = None
         if same_value:
             typed = [r for r in records if (kind != "money" or r.kind == "money")]
             # The subject discriminator is for a single-value answer: "my current longest tunnel route is 26 km"
@@ -526,10 +536,12 @@ def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: 
             cur, why = None, "no_usable_record"
             for r in same_value:
                 if r not in eligible:
-                    why = "record_is_not_about_the_asked_subject"; continue
+                    why = "record_is_not_about_the_asked_subject"
+                    continue
                 c, w = current_record(same_subject(r, eligible), current_ask=bool(_CURRENT_FRAME_RE.search(q)))
                 if c is not None and _close(value, c.value):
-                    cur, why = c, w; break
+                    cur, why = c, w
+                    break
                 why = w if c is None else "superseded_by_current_record"
             if cur is not None and _close(value, cur.value):
                 d = {"op": "stated", "args": [cur.value], "lines": [cur.line], "record": cur.as_dict()}
@@ -545,12 +557,13 @@ def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: 
             # tunnel record cannot stand for a hill route; a question with no content term names no subject
             q_content = {t for t in _terms(q) if not _record_modifier_re().search(t) and t not in ("current", "currently", "now", "longest", "highest", "route", "score")} or {t for t in _terms(q) if not _record_modifier_re().search(t)}
             subject = [r for r in subject_eligible(typed_all, q, "") if q_content and q_content <= set(r.terms)]
-            cur_s, why_s = current_record(subject, current_ask=bool(_CURRENT_FRAME_RE.search(q))) if subject else (None, "no_subject_record")
+            cur_s, _why_s = current_record(subject, current_ask=bool(_CURRENT_FRAME_RE.search(q))) if subject else (None, "no_subject_record")
             if cur_s is not None and not _close(value, cur_s.value):
                 # the record law's own reason stays (the port's cases read it); the contradiction rides beside it
                 refused = dict(refused or {"op": "refused_record", "reason": "subject_current_record_differs", "records": [r.as_dict() for r in subject][:4]})
                 refused["contradicted_by"] = cur_s.as_dict()
-                out.append(ClaimBinding(value, text, kind, "unsupported", [], refused)); continue
+                out.append(ClaimBinding(value, text, kind, "unsupported", [], refused))
+                continue
         pool = money if kind == "money" else (numbers + money)
         if d is None and refused is not None and refused.get("reason") == "superseded_by_current_record":
             # a value the subject's current record superseded is CONTRADICTED; an arithmetic coincidence in the pool (a
@@ -559,7 +572,8 @@ def bind_claims(*, question: Any, reply: Any, evidence_text: Any, packet_facts: 
             if kind != "money" and days and re.search(r"\b(?:days?|weeks?)\b", text, re.IGNORECASE):
                 d = _date_derivation(value, text, days)
             if d is None:
-                out.append(ClaimBinding(value, text, kind, "unsupported", [], refused)); continue
+                out.append(ClaimBinding(value, text, kind, "unsupported", [], refused))
+                continue
         if d is None:
             d = _derive(value, pool)
             if d is not None and d["op"] == "stated":

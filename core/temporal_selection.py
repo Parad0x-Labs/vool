@@ -926,15 +926,7 @@ _STOPWORDS = frozenset({
 #: Calendar vocabulary is temporal context, not subject identity. Month and
 #: weekday names stay out of slot signatures (they are values/conditions).
 _TEMPORAL_WORDS = frozenset(
-    list(_MONTHS.keys())
-    + ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
-       "sunday", "today", "tonight", "tomorrow", "yesterday", "now",
-       "week", "weeks", "month", "months", "year", "years", "day", "days",
-       "morning", "afternoon", "evening", "night", "noon", "midnight",
-       "winter", "spring", "summer", "autumn", "fall", "season", "seasons",
-       "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept",
-       "oct", "nov", "dec", "weekend", "weekdays", "hour", "hours",
-       "minute", "minutes", "time", "date", "oclock", "am", "pm"]
+    [*list(_MONTHS.keys()), "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "today", "tonight", "tomorrow", "yesterday", "now", "week", "weeks", "month", "months", "year", "years", "day", "days", "morning", "afternoon", "evening", "night", "noon", "midnight", "winter", "spring", "summer", "autumn", "fall", "season", "seasons", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec", "weekend", "weekdays", "hour", "hours", "minute", "minutes", "time", "date", "oclock", "am", "pm"]
 )
 
 #: Units pair numbers to measures; they recur inside one value chain, so they
@@ -1710,7 +1702,7 @@ def _build_slots_with_ties(
     # A live retraction's act words ("never mind", "scratch", "take ...
     # down") name the withdrawing, not its subject: they never join slots.
     acts = [_retraction_act_words(c.body) for c in candidates]
-    sigs = [slot_signature(c.body) - act for c, act in zip(candidates, acts)]
+    sigs = [slot_signature(c.body) - act for c, act in zip(candidates, acts, strict=False)]
     # Unit vocabulary includes the components of hyphenated compounds: a
     # value-bearing token like "7.9-metre" carries the unit 'metre', and a
     # join that missed it split successive readings of one measure into
@@ -1720,7 +1712,7 @@ def _build_slots_with_ties(
         (({t.lower() for t in _tokens(c.body)}
           | {part.lower() for t in _tokens(c.body)
              for part in t.split("-") if len(part) > 2}) & _UNIT_WORDS) - act
-        for c, act in zip(candidates, acts)
+        for c, act in zip(candidates, acts, strict=False)
     ]
     parent = list(range(len(candidates)))
     # Slot identity is per speaker: a slot never holds statements attributed
@@ -1759,7 +1751,7 @@ def _build_slots_with_ties(
         return {(toks[k], toks[k + 1]) for k in range(len(toks) - 1)
                 if _stem(toks[k]) not in act and _stem(toks[k + 1]) not in act}
 
-    bigrams = [_content_bigrams(c.body, act) for c, act in zip(candidates, acts)]
+    bigrams = [_content_bigrams(c.body, act) for c, act in zip(candidates, acts, strict=False)]
     # A marker statement joins the chains SPOKEN BEFORE it, which is
     # sequence order - not state order. State-dated rungs sort EARLIER than
     # the state-less value they replace ("It rose to 8 credits in June" has
@@ -1882,9 +1874,7 @@ def _value_conflict(a: str, b: str) -> bool:
     if not va or not vb or (va & vb):
         return False
     ka, kb = _measure_kinds(a), _measure_kinds(b)
-    if ka and kb and not (ka & kb):
-        return False
-    return True
+    return not (ka and kb and not ka & kb)
 
 
 #: Closed reassignment vocabulary: verbs/adverbs of REASSIGNING, not subject
@@ -2328,7 +2318,6 @@ def _demote_assistant_echoes(
     record it also shares a subject token with is an echo, not evidence of
     current state. Echoes of the WINNING value are untouched (harmless).
     """
-    by_key = {cand.key: cand for cand in normalized}
     superseded = [
         cand for cand in normalized
         if not verdicts.get(cand.key, EligibilityVerdict(cand.key, True, "")).eligible

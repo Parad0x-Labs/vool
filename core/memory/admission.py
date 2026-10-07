@@ -632,7 +632,7 @@ def classify_user_text(user_input: str) -> UserTextOrigin:
     # third-party material.  Lines already inside a structural source span are
     # skipped — a fenced "You are now a pirate." template must not swallow the
     # genuine declaration written above it.
-    for line, kind in zip(lines, kinds):
+    for line, kind in zip(lines, kinds, strict=False):
         if kind is not None:
             continue
         if _INJECTION_DIRECTIVE_LINE_RE.match(line) or _INJECTION_IDENTITY_LINE_RE.match(line):
@@ -660,7 +660,7 @@ def classify_user_text(user_input: str) -> UserTextOrigin:
             segments.append(Segment("\n".join(source_buffer), SOURCE))
             source_buffer.clear()
 
-    for line, kind in zip(lines, kinds):
+    for line, kind in zip(lines, kinds, strict=False):
         if kind is None:
             if source_buffer:
                 _flush_source()

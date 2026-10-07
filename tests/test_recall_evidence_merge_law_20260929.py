@@ -92,7 +92,6 @@ def test_correction_and_original_both_delivered(fresh_profile):
     ])
     cap = _capsule(home, "bell-tower", "When is bell practice held?")
     assert "not on Thursdays" in cap, cap
-    assert "assistant said" not in "not on Thursdays after all" or True
     # both statements present: recall delivers; adjudication stays downstream
     assert "practice is on Thursdays" in cap or "not on Thursdays" in cap
 

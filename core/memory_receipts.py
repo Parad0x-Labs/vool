@@ -286,7 +286,8 @@ def resolve_event_day(sentence: str, statement_day: date | None) -> tuple[date |
             off = 2 if ("before yesterday" in w or w == "the other day") else (1 if w == "yesterday" else 0)
             found.append((statement_day - timedelta(days=off), "day"))
         for m in _AGO_RE.finditer(text):
-            n = _number(m.group("n")); per = _unit_days(m.group("u"))
+            n = _number(m.group("n"))
+            per = _unit_days(m.group("u"))
             if n is None or per is None:
                 continue  # hours/minutes ago: same day
             grain = m.group("u").lower().rstrip("s")
@@ -461,9 +462,11 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
             continue
         if _is_question(sentence):
             # a question is not an asserted fact: no typed value, no dated event, no state or preference
-            start = text.find(sentence, pos); pos = start + len(sentence) if start >= 0 else pos
+            start = text.find(sentence, pos)
+            pos = start + len(sentence) if start >= 0 else pos
             continue
-        start = text.find(sentence, pos); pos = start + len(sentence) if start >= 0 else pos
+        start = text.find(sentence, pos)
+        pos = start + len(sentence) if start >= 0 else pos
         span = (start, start + len(sentence)) if start >= 0 else (0, 0)
         slot = _slot(sentence)
         # Only the user's own words date an event: an assistant reply's "today" or "last week" is generic prose
@@ -478,7 +481,10 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
         event_at = _epoch(event_day) if event_day is not None else None
         seen: set[tuple[str, str]] = set()
 
-        def add(value_type: str, value: str, norm: str, *, at: int | None = None) -> None:
+        # This iteration's sentence state is bound as defaults, so `add` can never read a later sentence's.
+        def add(value_type: str, value: str, norm: str, *, at: int | None = None, seen: set = seen,
+                event_day=event_day, grain: str = grain, clause_days: list = clause_days, sentence: str = sentence,
+                slot=slot, span=span) -> None:
             key = (value_type, norm)
             if key in seen:
                 return
@@ -510,7 +516,8 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
             if mins is None:
                 continue
             if m.group("n2"):
-                n2 = _number(m.group("n2")); extra = _minutes(n2, m.group("u2")) if n2 is not None else None
+                n2 = _number(m.group("n2"))
+                extra = _minutes(n2, m.group("u2")) if n2 is not None else None
                 mins += extra or 0.0
             add("duration", m.group(0), f"{mins:g}min", at=m.start())
         for m in _CLOCK_RE.finditer(sentence):
@@ -563,7 +570,8 @@ def extract_facts(body: str, statement_at: float | None, role: str) -> list[Fact
             if t:
                 new_v = next((t.group(k) for k in ("new1", "new2", "new3") if t.group(k)), "")
                 old_v = next((t.group(k) for k in ("old1", "old2", "old3") if t.group(k)), "")
-                new_v = _cut_object(new_v); old_v = _cut_object(old_v)
+                new_v = _cut_object(new_v)
+                old_v = _cut_object(old_v)
                 if new_v and old_v and new_v.lower() != old_v.lower():
                     # the state key is unknown here; find_changes resolves it from the earlier state fact that
                     # holds the old value (a traded-in car, a former job) and rewrites the norm to key=new
@@ -611,7 +619,7 @@ def norm_preference(sentence: str) -> str:
 def _cut_object(obj: str) -> str:
     obj = re.sub(r"[*_]+", "", obj or "").strip()
     obj = re.sub(r"^(?:the|my|our|a|an|his|her|their)\s+", "", obj, flags=re.IGNORECASE)   # "traded in the Renault Clio": the article is not the car
-    obj = re.split(r"\s+(?:and|but|which|that|because|since|so|when|where|while|for|with|to|in|on|at|from|now|these|lately|recently|again|last|this|next|yesterday|today|tonight|about|after|before|every|each|as|who)\b", obj, 1)[0].strip(" ,.;:")
+    obj = re.split(r"\s+(?:and|but|which|that|because|since|so|when|where|while|for|with|to|in|on|at|from|now|these|lately|recently|again|last|this|next|yesterday|today|tonight|about|after|before|every|each|as|who)\b", obj, maxsplit=1)[0].strip(" ,.;:")
     words = obj.split()
     return "" if (not words or words[0].lower() in _STATE_STOP_OBJ) else obj
 
@@ -622,7 +630,7 @@ def state_key_and_object(m: re.Match[str], sentence: str) -> tuple[str, str]:
     noun = (m.group("noun") or "").lower()
     obj = re.sub(r"[*_]+", "", m.group("obj") or "").strip()
     # cut the object at a clause boundary or at a trailing adverbial
-    obj = re.split(r"\s+(?:and|but|which|that|because|since|so|when|where|while|for|with|to|in|on|at|from|now|these|lately|recently|again|last|this|next|yesterday|today|tonight|about|after|before|every|each|as)\b", obj, 1)[0].strip(" ,.;:")
+    obj = re.split(r"\s+(?:and|but|which|that|because|since|so|when|where|while|for|with|to|in|on|at|from|now|these|lately|recently|again|last|this|next|yesterday|today|tonight|about|after|before|every|each|as)\b", obj, maxsplit=1)[0].strip(" ,.;:")
     words = obj.split()
     if not words or words[0].lower() in _STATE_STOP_OBJ:
         return "", ""
@@ -651,11 +659,13 @@ def _jaccard(a: Sequence[str], b: Sequence[str]) -> float:
 
 def _value_head(sentence: str, value: str) -> set[str]:
     """Content words right before (6) and after (2) a value in its sentence: the thing the value measures."""
-    text = re.sub(r"[*_`]+", "", str(sentence or "")); v = re.sub(r"[*_`]+", "", str(value or "")).strip()
+    text = re.sub(r"[*_`]+", "", str(sentence or ""))
+    v = re.sub(r"[*_`]+", "", str(value or "")).strip()
     i = text.find(v) if v else -1
     if i < 0:
         return set()
-    before = re.findall(r"[A-Za-z][A-Za-z'-]*", text[:i])[-6:]; after = re.findall(r"[A-Za-z][A-Za-z'-]*", text[i + len(v):])[:2]
+    before = re.findall(r"[A-Za-z][A-Za-z'-]*", text[:i])[-6:]
+    after = re.findall(r"[A-Za-z][A-Za-z'-]*", text[i + len(v):])[:2]
     return {w.lower() for w in before + after if len(w) > 2 and w.lower() not in _STOP and w.lower() not in _HEAD_STOP}
 
 
@@ -663,7 +673,8 @@ _HEAD_STOP = frozenset(["bought", "buy", "purchased", "got", "picked", "paid", "
 
 
 def _same_head(fact: Fact, old: Mapping[str, Any]) -> bool:
-    a = _value_head(fact.sentence, fact.value); b = _value_head(str(old.get("sentence") or ""), str(old.get("value") or ""))
+    a = _value_head(fact.sentence, fact.value)
+    b = _value_head(str(old.get("sentence") or ""), str(old.get("value") or ""))
     if not a or not b:
         return True   # no head to read: fall back to the slot rule above
     return len(a & b) >= min(2, len(a), len(b))
@@ -689,13 +700,15 @@ def find_changes(new_facts: Sequence[Fact], earlier: Sequence[dict[str, Any]], *
                 # no earlier state holds the old value: keep the transition as a state with an unknown key,
                 # so the new value is at least visible with its "replaces old" line
                 key = "state"
-                fact.value_type = "state"; fact.norm = key + "=" + fact.value.lower()
+                fact.value_type = "state"
+                fact.norm = key + "=" + fact.value.lower()
                 changes.append({"slot": [key], "old_occurrence": None, "old_receipt": None, "old_value": old_v, "old_statement_at": None,
                                 "new_value": fact.value, "value_type": "state", "kind": "replaced", "rule": "transition-stated-in-turn", "slot_overlap": 1.0})
                 continue
             r, old = match
             key = str(old.get("norm") or "").split("=", 1)[0]
-            fact.value_type = "state"; fact.norm = key + "=" + fact.value.lower()
+            fact.value_type = "state"
+            fact.norm = key + "=" + fact.value.lower()
             changes.append({"slot": [key], "old_occurrence": r["occurrence_id"], "old_receipt": r["receipt_id"], "old_value": old.get("value"),
                             "old_statement_at": r.get("statement_at"), "new_value": fact.value, "value_type": "state", "kind": "replaced",
                             "rule": "transition-from-old-to-new", "slot_overlap": 1.0})
@@ -846,7 +859,7 @@ def receipts_for_scope(mem: Any, chat_scope: str, *, role: str | None = None) ->
                 (mem._agent_id, str(chat_scope or "")) + ((role,) if role else ()))
             cur.row_factory = None
             cols = [d[0] for d in cur.description]
-            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+            rows = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
     except Exception:
         LOGGER.debug("memory_receipts read failed", exc_info=True)
         return []
@@ -897,7 +910,8 @@ def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | Non
                 old = mem._conn.execute("SELECT facts_json, replaced_by_json FROM memory_receipts WHERE receipt_id = ?", (change["old_receipt"],)).fetchone()
                 if old is None:
                     continue
-                old_facts = json.loads(old[0] or "[]"); old_rb = json.loads(old[1] or "[]")
+                old_facts = json.loads(old[0] or "[]")
+                old_rb = json.loads(old[1] or "[]")
                 for f in old_facts:
                     if f.get("value") == change["old_value"] and f.get("value_type") == change["value_type"] and not f.get("replaced_by"):
                         f["replaced_by"] = receipt["receipt_id"]

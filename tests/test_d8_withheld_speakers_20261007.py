@@ -33,7 +33,7 @@ def _lifecycle(question: str, rows):
 
 
 def test_a_records_question_whose_speaker_was_withheld_gets_the_records_refusal():
-    rows = memory_record_rows(TIM) + [JAMES_MARKER]
+    rows = [*memory_record_rows(TIM), JAMES_MARKER]
     verdict = publication_verdict(_lifecycle("How much does James pay per dance class?", rows), "James pays $25 per dance class.")
     assert verdict.state in {"refused", "failed"}, verdict
     assert verdict.content.startswith(RECORDS_LEAD), verdict.content
@@ -41,14 +41,14 @@ def test_a_records_question_whose_speaker_was_withheld_gets_the_records_refusal(
 
 
 def test_a_live_question_in_a_chat_with_unrelated_records_keeps_the_live_notice():
-    rows = memory_record_rows(TIM) + [JAMES_MARKER]
+    rows = [*memory_record_rows(TIM), JAMES_MARKER]
     verdict = publication_verdict(_lifecycle("When does the next train to Vilnius leave?", rows),
                                   "The next train to Vilnius leaves at 14:05 from platform 3.")
     assert verdict.content.startswith(LIVE_LEAD), verdict.content
 
 
 def test_a_question_naming_someone_who_never_speaks_keeps_the_live_notice():
-    rows = memory_record_rows(TIM) + [JAMES_MARKER]
+    rows = [*memory_record_rows(TIM), JAMES_MARKER]
     verdict = publication_verdict(_lifecycle("How much does Olga pay per pottery class?", rows), "Olga pays $30 per class.")
     assert verdict.content.startswith(LIVE_LEAD), verdict.content
 
@@ -62,7 +62,7 @@ def test_a_records_question_with_its_rows_retrieved_behaves_as_before():
 
 
 def test_a_withheld_marker_is_never_a_support_row_and_carries_the_name_only():
-    rows = memory_record_rows(TIM) + [JAMES_MARKER]
+    rows = [*memory_record_rows(TIM), JAMES_MARKER]
     support, origin = _support_rows(_lifecycle("How much does James pay per dance class?", rows))
     assert all(not row.get("withheld") for row in support), support
     assert all("James" not in str(row.get("summary")) for row in support), support

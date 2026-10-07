@@ -149,9 +149,6 @@ def test_capsule_message_shape_matches_assembler_contract(profile):
     capsule = [m for m in transcript if m.get("role") == "system"
                and "<retrieved_context>" in str(m.get("content") or "")]
     assert capsule, transcript
-    # the assembler separates exactly these; no current-user turn may ride along
-    assert not [m for m in transcript
-                if str(m.get("content") or "") == "Where does the pilot boat moor?"
-                and m.get("role") == "user" and m not in []] or True
+    # the assembler separates exactly these; no current-user turn may ride along (asserted below)
     user_turns = [m for m in transcript if m.get("role") == "user"]
     assert user_turns == [], user_turns  # carrier turn removed; assembler adds the real one

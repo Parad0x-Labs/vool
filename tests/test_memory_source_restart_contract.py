@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import os
 import subprocess
@@ -34,7 +35,8 @@ def restarted_sources(tmp_path_factory):
         if relative.startswith("tests/"):(artifact/Path(relative).name).write_bytes(body)
     (artifact/"SOURCE-IDENTITY.json").write_text(json.dumps(identities,indent=2)+"\n")
     policy=work/"worker.sb"
-    q=lambda p:json.dumps(str(p))
+    def q(p):
+        return json.dumps(str(p))
     policy.write_text("\n".join(["(version 1)","(allow default)","(deny network*)","(deny file-write*)",
         '(deny file-read* (subpath "/Users"))',
         '(allow file-read* (subpath '+q(Path(sys.base_prefix).resolve())+'))',
@@ -61,7 +63,7 @@ def restarted_sources(tmp_path_factory):
     receipt={"phases":phases,"profile":str(profile),"provider_spending_usd":0,"live_model_quality":"not_measured"}
     (artifact/"PROCESS-RECEIPT.json").write_text(json.dumps(receipt,indent=2)+"\n")
     assert len({p["pid"] for p in phases})==4
-    assert all(b["started_epoch"]>=a["finished_epoch"] for a,b in zip(phases,phases[1:]))
+    assert all(b["started_epoch"]>=a["finished_epoch"] for a,b in itertools.pairwise(phases))
     data["artifact"]=str(artifact);return data
 
 

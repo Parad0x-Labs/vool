@@ -135,7 +135,7 @@ def test_anchor_lane_ranks_nearest_in_meaning_first():
     hits[0][0].embedding = anchor_embedding
 
     def cos(a, b):
-        return 1.0 if sum(x * y for x, y in zip(a, b)) > 0 else 0.0
+        return 1.0 if sum(x * y for x, y in zip(a, b, strict=False)) > 0 else 0.0
 
     strong.embedding = [0.3] * 8   # same direction as the query vector
     weak.embedding = [-0.3] * 8    # opposite direction: low similarity
@@ -271,7 +271,7 @@ def test_named_reference_lane_lifts_fold_blocked_reference_records():
     anchor = _node("Session date: 2025/03/05 (Tue) 10:00\nI love my desk gear overall.",
                    node_id="anchor", ts=110.0)
     filler = [(_node(f"filler-{i}", node_id=f"f{i}", ts=50.0 + i), 0.28) for i in range(9)]
-    hits = [(anchor, 0.4)] + filler[:8] + [(ref, 0.26)]  # ref at position 9, past the fold
+    hits = [(anchor, 0.4), *filler[:8], (ref, 0.26)]  # ref at position 9, past the fold
 
     import core.embedding_service as es
     original = es.cosine_similarity

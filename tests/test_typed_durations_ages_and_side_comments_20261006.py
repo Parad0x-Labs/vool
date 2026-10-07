@@ -105,7 +105,7 @@ def test_an_age_difference_is_derived_from_two_ages_the_asker_stated(answer):
     ("9 years: you're 38 now and finished at 30.", AGES),                       # wrong arithmetic
     ("7 years: you're 38 now and finished at 31.", AGES),                       # 31 is stated nowhere
     ("3 years: you're 38 and your sister is 41.",
-     AGES + ["- user said (stated 2024-04-10): My 41-year-old sister moved to Porto."]),  # a third person's age
+     [*AGES, "- user said (stated 2024-04-10): My 41-year-old sister moved to Porto."]),  # a third person's age
     ("8 years.", ["- user said (stated 2024-04-02): As a 38-year-old landscape architect, I want a calmer job."]),
 ])
 def test_an_age_difference_without_two_stated_own_ages_is_withdrawn(answer, evidence):

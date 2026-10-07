@@ -2658,6 +2658,8 @@ def _rank_map(scores: dict[str, float]) -> dict[str, int]:
 
 
 def _row_to_node(row: sqlite3.Row) -> MemoryNode:
+    # `name in row` tests a sqlite3.Row's VALUES, not its columns: membership must use row.keys().
+    keys = row.keys()
     return MemoryNode(
         node_id=str(row["node_id"]),
         content=str(row["content"]),
@@ -2668,19 +2670,19 @@ def _row_to_node(row: sqlite3.Row) -> MemoryNode:
         embedding=[float(value) for value in _json_list(row["embedding"])],
         linked_node_ids=_json_list(row["linked_node_ids"]),
         agent_id=str(row["agent_id"]),
-        embedding_backend=str(row["embedding_backend"] if "embedding_backend" in row.keys() else ""),
-        source_occurrence_id=str(row["source_occurrence_id"] if "source_occurrence_id" in row.keys() else ""),
+        embedding_backend=str(row["embedding_backend"] if "embedding_backend" in keys else ""),
+        source_occurrence_id=str(row["source_occurrence_id"] if "source_occurrence_id" in keys else ""),
     )
 
 
 def _row_to_occurrence(row: sqlite3.Row) -> SourceOccurrence:
     keys = row.keys()
     def _opt_time(name: str) -> float | None:
-        value = row[name] if name in row.keys() else None
+        value = row[name] if name in keys else None
         return float(value) if value is not None else None
 
     def _opt_str(name: str) -> str | None:
-        value = row[name] if name in row.keys() else None
+        value = row[name] if name in keys else None
         return None if value is None else str(value)
 
     return SourceOccurrence(
@@ -2688,7 +2690,7 @@ def _row_to_occurrence(row: sqlite3.Row) -> SourceOccurrence:
         chat_scope=str(row["chat_scope"]),
         project_id=_opt_str("project_id"),
         role=str(row["role"]),
-        speaker=str(row["speaker"] if "speaker" in row.keys() else ""),
+        speaker=str(row["speaker"] if "speaker" in keys else ""),
         authority=str(row["authority"]),
         recorded_at=float(row["recorded_at"]),
         statement_at=_opt_time("statement_at"),
@@ -2697,7 +2699,7 @@ def _row_to_occurrence(row: sqlite3.Row) -> SourceOccurrence:
         source_kind=str(row["source_kind"]),
         import_batch=_opt_str("import_batch"),
         status=str(row["status"]),
-        request_id=str(row["request_id"] if "request_id" in row.keys() else ""),
+        request_id=str(row["request_id"] if "request_id" in keys else ""),
         body_integrity=_occurrence_body_integrity(row),
         source_sequence=(
             int(row["source_sequence"])
