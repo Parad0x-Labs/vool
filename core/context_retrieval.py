@@ -3793,6 +3793,29 @@ def _whole_turn_already_delivered(records: list[tuple[str, frozenset[str], str]]
     return False
 
 
+_EMBEDDED_ROLE_LINE_RE = re.compile(r"^\s*(USER|ASSISTANT)\s*:\s*", re.IGNORECASE)
+
+
+def _lane_admitted_user_text(raw: str) -> str:
+    """A user record as the whole-turn lane may deliver it: the user's own lines, questions masked.
+
+    Lines under a pasted "ASSISTANT:" label (up to the next "USER:" label) belong to the assistant and are
+    dropped; pure question clauses are masked by the same analysis view the capsule's distiller reads
+    (_recall_assertion_view). Empty when nothing asserted remains."""
+    kept: list[str] = []
+    speaker = "user"
+    for line in str(raw or "").splitlines():
+        match = _EMBEDDED_ROLE_LINE_RE.match(line)
+        if match:
+            speaker = match.group(1).lower()
+        if speaker == "assistant":
+            continue
+        kept.append(line)
+    view = _recall_assertion_view("\n".join(kept))
+    lines = [" ".join(line.split()) for line in view.splitlines()]
+    return "\n".join(line for line in lines if line).strip()
+
+
 def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
                       max_tokens: int | None = None, assistant_ask: bool = False,
                       owned_only: bool = False, query: str = "",
@@ -3824,6 +3847,12 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
                 from core.memory.admission import classify_user_text
 
                 raw = classify_user_text(raw).authored_text
+            if not is_assistant and not assistant_ask:
+                # The capsule's admission, clause by clause: a "user said" line carries only what the user
+                # asserted. Assistant lines pasted inside the record ("ASSISTANT: You might instead book the
+                # Amber canyon walk") and pure question clauses ("Should I buy a 450 euro stove?") are not
+                # the user's facts and never ride the lane; the asserted clauses of a mixed turn still do.
+                raw = _lane_admitted_user_text(raw)
             # Redacted whole, before any cut: a window opening mid-turn must never separate a
             # secret's label from its value.
             redacted = redact_secrets(raw)
