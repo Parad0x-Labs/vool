@@ -218,7 +218,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             retry_policy="none",
             artifact_emission="none",
             error_contract="returns_structured_error_result",
-            claim=ToolClaim(target_argument="path", resolved_target_key="path", result_items_key="paths"),
+            claim=ToolClaim(target_argument="path", resolved_target_key="path", result_items_key="entries"),
         ),
         RuntimeToolContract(
             intent="workspace.list_files",
