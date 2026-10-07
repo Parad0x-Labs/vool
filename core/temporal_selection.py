@@ -517,6 +517,11 @@ def relative_reference_day(body: str, statement_at: float | None) -> date | None
     if statement_at is None:
         return None
     text = str(body or "")
+    if _is_hedged(text):
+        # a hedged back-reference ("Maybe yesterday the swarm went ..., I am not sure") dates nothing: the capsule's
+        # hedge class (the correction law's) applies to anchoring too, so a speculative record is never the record of
+        # the asked day (tests/test_question_date_time_leg_20261002.py::test_hedged_next_day_record_does_not_ride)
+        return None
     offsets: set[int] = set()
     stripped = _REL_DAY_BEFORE_YESTERDAY_RE.sub(" ", text)
     if stripped != text:
