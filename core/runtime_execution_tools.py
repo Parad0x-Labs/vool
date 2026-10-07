@@ -3527,6 +3527,31 @@ def execute_runtime_tool(
     workspace root the dispatch resolves against is replaced by that workspace, so even an
     approved builder seat cannot reach the operator's checkout through a relative path.
     """
+    from core.agent_team import gate as agent_team_gate
+
+    # Agent-team write gate: a call made for an agent's chat session may only read, or write
+    # inside that agent's own claimed paths. Ordinary chats get "" and pass through untouched.
+    agent_refusal = agent_team_gate.check_tool(intent, arguments, source_context)
+    if agent_refusal:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status=agent_team_gate.GATE_STATUS,
+            response_text=f"`{intent}` was not executed: {agent_refusal}.",
+            details={
+                "agent_team_gate": True,
+                "reason": agent_refusal,
+                "executed": False,
+                "observation": _tool_observation(
+                    intent=intent,
+                    tool_surface="agent_team_gate",
+                    ok=False,
+                    status=agent_team_gate.GATE_STATUS,
+                    reason=agent_refusal,
+                ),
+            },
+        )
+
     from core.council import containment as council_containment
 
     verdict = council_containment.evaluate(intent, arguments, source_context)
@@ -7597,3 +7622,10 @@ def _skill_inspect(arguments: dict[str, Any]) -> RuntimeExecutionResult:
         f"Stopping conditions: {contract.get('stopping_conditions')}."
     )
     return _skill_result("skill.inspect", result, response=body)
+
+
+# The agent-team gate is now asked by the one runtime tool door above; write-mode model agents
+# may start only in a process where that is true.
+from core.agent_team import gate as _agent_team_gate  # noqa: E402
+
+_agent_team_gate.mark_installed()
