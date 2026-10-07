@@ -84,6 +84,15 @@ _RUNTIME_DATA_SUBPATHS: tuple[str, ...] = (
     "/opt/homebrew/Cellar",
     "/opt/homebrew/opt",
 )
+#: Homebrew's prefix on Intel Macs is /usr/local, where video.py already looks for ffmpeg; without
+#: these trees the Intel ffmpeg is found but cannot load its libraries. Granted on x86_64 only, so
+#: Apple Silicon keeps the measured set above. Mirrors those four trees; not yet measured on Intel.
+_INTEL_HOMEBREW_DATA_SUBPATHS: tuple[str, ...] = (
+    "/usr/local/bin",
+    "/usr/local/lib",
+    "/usr/local/Cellar",
+    "/usr/local/opt",
+)
 _RUNTIME_DATA_LITERALS: tuple[str, ...] = (
     "/",                        # the root directory entry, for path resolution
     "/dev/null",
@@ -92,6 +101,12 @@ _RUNTIME_DATA_LITERALS: tuple[str, ...] = (
     "/dev/random",
     "/dev/dtracehelper",
 )
+
+
+def _runtime_data_subpaths() -> tuple[str, ...]:
+    if platform.machine().lower() == "x86_64":
+        return _RUNTIME_DATA_SUBPATHS + _INTEL_HOMEBREW_DATA_SUBPATHS
+    return _RUNTIME_DATA_SUBPATHS
 
 
 def _profile(*, scratch: str, extra_read: Sequence[str], allow_gpu: bool) -> str:
@@ -133,7 +148,7 @@ def _profile(*, scratch: str, extra_read: Sequence[str], allow_gpu: bool) -> str
     lines.append('(deny file-read-data (subpath "/"))')
     # ...except these. Last-match-wins, so this is the complete content-read set.
     allowed = [f'(literal "{path}")' for path in _RUNTIME_DATA_LITERALS]
-    allowed += [f'(subpath "{path}")' for path in _RUNTIME_DATA_SUBPATHS]
+    allowed += [f'(subpath "{path}")' for path in _runtime_data_subpaths()]
     allowed.append(f'(subpath "{scratch}")')
     allowed += [f'(subpath "{path}")' for path in extra_read]
     lines.append("(allow file-read-data " + " ".join(allowed) + ")")

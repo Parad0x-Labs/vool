@@ -19,7 +19,7 @@ state of artifacts, signing and updates on every channel.
 | --- | ---: | ---: |
 | Memory | 8 GB | 16 GB or more |
 | Disk | 2 GB for the app | 20 GB with local models |
-| macOS | 14 Sonoma, Apple silicon | 14 Sonoma or newer |
+| macOS | 14 Sonoma, Apple silicon or Intel ([limits](#intel-macs)) | 14 Sonoma or newer, Apple silicon |
 | Windows | 10 (64-bit) | 11 |
 | Linux | glibc 2.31 | Ubuntu 22.04 or newer |
 
@@ -46,6 +46,22 @@ The installer prepares the Python environment, checks your hardware, sets up the
 model, and launches the local services. Allow time and disk space for the initial model
 download. Local model inference works offline after setup; web tools and cloud models need
 a connection.
+
+## Intel Macs
+
+VOOL installs from source on Intel Macs running macOS 14 or newer (for example a 2020
+13-inch MacBook Pro). The installer detects the Intel CPU and installs the Intel builds of
+every dependency. Three limits are specific to Intel:
+
+* **No local model training.** PyTorch has published no Intel macOS build since 2.3, so
+  the installer skips it and LoRA training reports itself unavailable. Chat, memory,
+  tools and cloud models are unaffected.
+* **Local models run on the CPU only.** Ollama has no GPU acceleration for Intel graphics,
+  so local answers are several times slower than on Apple silicon. On an 8 GB Mac, use a
+  cloud model for chat; on 16 GB, the installer's default small local model works but is slow.
+
+A packaged Intel app needs its own `--arch x86_64` build; the Apple silicon download does
+not run on Intel and says so at launch.
 
 ## Packaged builds
 

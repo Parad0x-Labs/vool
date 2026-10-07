@@ -278,3 +278,16 @@ def test_office_and_video_decoder_probes_do_not_raise_when_absent(monkeypatch: p
     assert "doc" in report["blocked_formats"]
     assert "video" in report["blocked_formats"]
     assert ".doc" not in report["available_extensions"]
+
+
+@pytest.mark.parametrize(("machine", "granted"), [("x86_64", True), ("arm64", False)])
+def test_intel_homebrew_trees_are_readable_only_on_intel(monkeypatch: pytest.MonkeyPatch, machine, granted):
+    """Intel Homebrew lives in /usr/local; video.py finds ffmpeg there, so the profile must let it
+    load. Apple Silicon keeps the measured /opt/homebrew-only set."""
+    from core.artifact_readers import _sandbox
+
+    monkeypatch.setattr(_sandbox.platform, "machine", lambda: machine)
+    profile = _sandbox._profile(scratch="/tmp/vool-scratch", extra_read=(), allow_gpu=False)
+    for tree in ("/usr/local/bin", "/usr/local/lib", "/usr/local/Cellar", "/usr/local/opt"):
+        assert (f'(subpath "{tree}")' in profile) is granted, tree
+    assert '(subpath "/opt/homebrew/lib")' in profile

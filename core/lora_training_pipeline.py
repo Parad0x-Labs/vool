@@ -6,6 +6,7 @@ import io
 import json
 import math
 import os
+import platform
 import sys
 import warnings
 from contextlib import redirect_stderr, redirect_stdout
@@ -31,9 +32,10 @@ class DependencyStatus:
     ok: bool
     modules: dict[str, bool]
     device: str
+    reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {"ok": self.ok, "modules": dict(self.modules), "device": self.device}
+        return {"ok": self.ok, "modules": dict(self.modules), "device": self.device, "reason": self.reason}
 
 
 class AdaptationDataset:
@@ -101,7 +103,18 @@ class AdaptationCollator:
 
 def dependency_status() -> DependencyStatus:
     modules = {name: _dependency_importable(name) for name in _REQUIRED_DEPS}
-    return DependencyStatus(ok=all(modules.values()), modules=modules, device=_resolve_device())
+    ok = all(modules.values())
+    reason = ""
+    if not ok:
+        reason = "Missing runtime dependencies for LoRA training."
+        if _is_intel_macos():
+            # Not a broken install: the installer skips torch here on purpose (pyproject.toml).
+            reason = "LoRA training is unavailable on Intel Macs: PyTorch publishes no Intel macOS build since 2.3."
+    return DependencyStatus(ok=ok, modules=modules, device=_resolve_device(), reason=reason)
+
+
+def _is_intel_macos() -> bool:
+    return sys.platform == "darwin" and platform.machine().lower() == "x86_64"
 
 
 def run_adaptation_job(job_id: str, *, promote: bool = False) -> dict[str, Any]:
@@ -116,7 +129,7 @@ def run_adaptation_job(job_id: str, *, promote: bool = False) -> dict[str, Any]:
     update_adaptation_job(job_id, status="running", device=deps.device, dependency_status=deps.to_dict(), started_at=_utcnow(), error_text="")
     append_adaptation_job_event(job_id, "dependency_check", "Dependency check completed.", deps.to_dict())
     if not deps.ok:
-        error_text = "Missing runtime dependencies for LoRA training."
+        error_text = deps.reason
         update_adaptation_job(job_id, status="failed", error_text=error_text, completed_at=_utcnow())
         append_adaptation_job_event(job_id, "job_failed", error_text, deps.to_dict())
         return get_adaptation_job(job_id) or job
