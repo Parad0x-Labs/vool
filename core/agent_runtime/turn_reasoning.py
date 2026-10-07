@@ -1644,6 +1644,25 @@ def execute_grounded_turn(
             "evidence_capture": "supplied note hashes; internal observation-store view not separately captured",
         }
 
+    # v14.6 (ASTRA item 5): a scope-wide conclusion ("never", "the first", "the latest", "all") on a partial view of the
+    # scoped candidate set is not delivered as fact; the compiler's typed completeness decides (coverage_guard)
+    try:
+        from core.evidence_kernel.coverage_guard import guard_coverage as _guard_coverage
+        from core.evidence_kernel.receipts import kernel_enabled as _kernel_on
+
+        if _kernel_on():
+            from core.context_retrieval import get_last_retrieval_telemetry as _cov_telemetry
+
+            _cov = _guard_coverage(reply=response, compiler_telemetry=_cov_telemetry().get("evidence_compiler"))
+            if _cov.changed:
+                response = _cov.text
+            if isinstance(source_context, dict):
+                source_context["coverage_guard"] = _cov.as_dict()
+    except Exception:
+        import logging as _logging
+
+        _logging.getLogger(__name__).debug("coverage guard failed", exc_info=True)
+
     # The PAST-event twin of that guard. A question anchored to a past event, answered
     # with a specific time/date/duration the request's own material never carried, is a
     # fabricated recall: measured live on the served path (2026-09-29 demo, provider tap,
