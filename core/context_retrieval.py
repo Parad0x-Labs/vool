@@ -4781,6 +4781,10 @@ _FACET_FRAME_EXTRA = frozenset({
     # temporal deixis of the ask
     "now", "right", "today", "tonight", "currently", "again", "still",
     "tomorrow", "yesterday",
+    # ordinals of an ask ("which came first", "my second dentist appointment", "the last time") name WHICH
+    # occurrence is asked, never a retained facet (measured 2026-10-07: absent={first, second} armed the gate on
+    # a sloppy ordinal ask, refused every dentist record, and with the packet honouring the gate the answer was lost)
+    "first", "second", "third", "fourth", "fifth", "last", "latest", "earliest", "final",
     # copulas and primary auxiliaries ("What are the two codes" must not
     # count "are" as an asked attribute; measured regressions F01-12,
     # F16-13, F07-13: {are, two} suppressed the served answer lines)
@@ -8192,12 +8196,49 @@ def _historical_anchor_candidates(
             keep, reserve_only_ids)
 
 
-def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "") -> list[dict[str, str]]:
+#: Temporal verdicts that WITHHOLD a record from the reader (a retraction, the as-of law, a closed or not-yet-open
+#: window). A superseded or duplicate value is not withheld: the packet marks replaced values itself and an extremum
+#: or sequence ask reads the whole dated scope, so those verdicts never empty the packet.
+_PACKET_REFUSING_VERDICTS = frozenset({
+    "withdrawn", "future-relative-to-as-of", "future-relative-to-now",
+    "window-expired", "window-expired-before-as-of", "window-not-yet-active",
+})
+
+
+def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts: Any = None) -> dict[str, str]:
+    """occurrence_id -> the capsule decision that refused it this turn, for the receipts packet's rows (D8-E).
+
+    The packet is compiled before the capsule's laws run; this reads the decisions the turn has ALREADY made (the
+    occurrence keys the absence gate refused, the temporal verdicts: as-of, retraction, windows) so the packet never
+    carries a row the reader was refused. Pure read; no decision is re-made here: a row the capsule never evaluated
+    (the no-hits path, where the gate saw nothing) is not refused by it."""
+    refused: dict[str, str] = {}
+    gate_keys = set(gate_refused or ())
+    try:
+        for fact in list(getattr(evidence_packet, "facts", []) or []):
+            occ = str(fact.get("occurrence_id") or "")
+            if not occ:
+                continue
+            verdict = (verdicts or {}).get(occ) if isinstance(verdicts, dict) else None
+            reason = str(getattr(verdict, "reason", "") or "") if verdict is not None else ""
+            if verdict is not None and not getattr(verdict, "eligible", True) and reason in _PACKET_REFUSING_VERDICTS:
+                refused[occ] = reason
+                continue
+            if occ in gate_keys and str(fact.get("role") or "") == "user":
+                refused[occ] = "absence-gate"
+    except Exception:
+        LOGGER.debug("packet refusal read failed", exc_info=True)
+    return refused
+
+
+def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "", refused: dict[str, str] | None = None) -> list[dict[str, str]]:
     """v14.2 kernel: when v14's own retrieval delivers nothing, the receipt packet still reaches the reader on its own
     (a stated preference or a state chain is an operand whether or not a capsule line matched the question)."""
     try:
-        from core.evidence_compiler import render as _render_packet
+        from core.evidence_compiler import filter_packet as _filter_packet, render as _render_packet
 
+        if evidence_packet is not None and refused:
+            evidence_packet = _filter_packet(evidence_packet, refused, estimate_tokens=estimate_tokens)
         text = _render_packet(evidence_packet) if evidence_packet is not None else ""
     except Exception:
         text = ""
@@ -9691,6 +9732,7 @@ def _capsule_v2_inject_retrieved(
                 "active=" + str(facet_noise_gate)))
 
     _fp_withheld_speakers: set[str] = set()
+    _fp_refused_keys: set[str] = set()
 
     def facet_noise(key: str, body: str) -> bool:
         """Whether ONE source record is absent-facet noise for this turn."""
@@ -9709,10 +9751,13 @@ def _capsule_v2_inject_retrieved(
         # per dance class?" lost James's cooking-class row to this gate and the refusal said "needed current
         # information" instead of "not mentioned in the records").
         _fp_withheld_speakers.update(_record_speaker_labels(str(body or "")))
+        if key:
+            _fp_refused_keys.add(str(key))
         return True
 
     if not hits and not evidence_hits and not phrase_lanes_found:
-        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""))
+        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""),
+                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")))
     context_text = " ".join(m.get("content", "") for m in transcript).lower()
     selected: list[tuple[str, float]] = []
     selected_record_times: list[float | None] = []
@@ -11849,7 +11894,8 @@ def _capsule_v2_inject_retrieved(
             if receipt.get("delivered"):
                 receipt["delivered"] = False
                 receipt["omission_reason"] = "selection_filter"
-        return _packet_only_injection(transcript, evidence_packet, telemetry, chat_id=str(session_id or ""), question=str(query or ""))
+        return _packet_only_injection(transcript, evidence_packet, telemetry, chat_id=str(session_id or ""), question=str(query or ""),
+                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")))
     # Pack separable facts, not one indivisible capsule: presenting the whole
     # distilled block as a single candidate made the packer drop ALL retrieved
     # evidence when the block exceeded the remaining free budget, even though
@@ -12022,8 +12068,13 @@ def _capsule_v2_inject_retrieved(
     packet_text = ""
     if evidence_packet is not None:
         try:
-            from core.evidence_compiler import render as _render_packet
+            from core.evidence_compiler import filter_packet as _filter_packet, render as _render_packet
 
+            # D8-E: the packet faces the capsule's laws. Rows the absence gate or a temporal verdict refused this
+            # turn (as-of, retraction, supersession, windows) leave the packet before it is rendered.
+            _packet_refused = _packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts"))
+            if _packet_refused:
+                evidence_packet = _filter_packet(evidence_packet, _packet_refused, estimate_tokens=estimate_tokens)
             packet_text = _render_packet(evidence_packet)
             telemetry["evidence_compiler"] = dict(evidence_packet.telemetry)
             telemetry["evidence_packet_facts"] = list(evidence_packet.facts)
