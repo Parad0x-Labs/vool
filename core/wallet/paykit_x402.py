@@ -7,7 +7,9 @@ decision about money here:
 
 1. :func:`fetch_paid` sends the owner's request (method, body and the few replayable headers) once. A 402 that
    pay-kit parses for this wallet's own network becomes ONE capped proposal bound to that exact request, under the
-   origin ``x402_paykit``. Nothing is signed; the request bytes are kept on the binding.
+   origin ``x402_paykit``. Nothing is signed; the request bytes are kept on the binding. The ordinary x402 door
+   (``core.wallet.x402.fetch_paid_resource``, behind the agent tool and the wallet API) hands this lane the
+   canonical Solana offers it meets (:func:`claims_challenge`, :func:`park_challenge`).
 2. The owner approves it on the ordinary approval path (``PaymentLifecycle.approve_and_execute``), which hands an
    accepted decision to the lifecycle's pay-kit step: claim (hold + effect), then pay-kit builds the payment with a
    signer that refuses any message other than exactly the approved transfer (:func:`verify_payment_message`), then
@@ -202,6 +204,61 @@ def _terms_from_requirement(requirement: dict[str, Any], *, wallet_network: str,
 
 # --- the one fetch ---------------------------------------------------------------------------------------------------
 
+def existing_outcome(digest: str, *, source_context: dict[str, Any] | None = None) -> Any:
+    """What a request this lane already bound gets, before anything is sent: its parked proposal while one waits,
+    a typed refusal once it was paid (its payment is delivered once and never sent again), else None."""
+    from core.wallet import x402
+
+    binding = x402.binding_for_digest(digest)
+    if not binding or not binding.get("proposal_id") or int(binding.get("version") or 1) != x402.BINDING_VERSION_PAYKIT:
+        return None
+    parked = proposals.get_proposal(binding["proposal_id"])
+    if parked is not None and parked.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
+        return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=402, proposal_id=parked.proposal_id, binding_id=binding["binding_id"])
+    if parked is not None and parked.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
+        # this exact request was paid: its payment was delivered once and is never sent again
+        raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": parked.proposal_id, "reason": "paykit_request_already_paid"}, source_context=source_context)
+    return None
+
+
+def _parse_challenge(headers: dict[str, Any] | None, body: bytes | None, *, network: str) -> tuple[dict[str, Any] | None, int]:
+    """pay-kit's reading of a 402 (v1 or v2), preferring this wallet's network. (None, 0) when it reads no offer."""
+    payment = _payment_module()
+    text = body.decode("utf-8", "replace") if body else None
+    try:
+        requirement, wire_version = payment.parse_x402_challenge_with_version(dict(headers or {}), text, payment.ChallengeSelection(network=network))
+    except Exception:  # a malformed challenge is no offer, never a crash at the door
+        return None, 0
+    return (dict(requirement), int(wire_version or 2)) if requirement is not None else (None, 0)
+
+
+def claims_challenge(headers: dict[str, Any] | None, body: bytes | None, *, wallet_id: str) -> bool:
+    """Whether a 402 the ordinary x402 door met belongs to this lane: pay-kit is installed, the wallet is a Solana
+    wallet, and pay-kit reads a canonical Solana offer, one whose fee payer (the resource's) settles it. VOOL's own
+    v1 Solana offers name no fee payer and stay on that lane, unchanged. Reads only."""
+    if not availability()[0]:
+        return False
+    profile = custody.get_wallet(str(wallet_id or ""))
+    if profile is None:
+        return False
+    try:
+        spec = chains.resolve_network(profile.network)
+    except Exception:
+        return False
+    if not spec.is_svm:
+        return False
+    requirement, _version = _parse_challenge(headers, body, network=spec.network)
+    if requirement is None:
+        return False
+    extra = requirement.get("extra") if isinstance(requirement.get("extra"), dict) else {}
+    if not str(requirement.get("feePayerKey") or extra.get("feePayer") or "").strip():
+        return False
+    try:
+        return chains.resolve_network(_payment_module()._offer_network_caip2(requirement) or "").is_svm
+    except Exception:
+        return False
+
+
 def fetch_paid(url: str, *, wallet_id: str, method: str = "GET", headers: dict[str, str] | None = None, body: bytes | str | None = b"",
                source_context: dict[str, Any] | None = None, timeout: float = 20.0) -> Any:
     """Send the owner's request once; on a 402 park ONE capped proposal bound to exactly this request. Never pays."""
@@ -209,29 +266,34 @@ def fetch_paid(url: str, *, wallet_id: str, method: str = "GET", headers: dict[s
 
     require_available(source_context=source_context)
     custody.require_enabled(source_context=source_context)
-    profile = custody.require_wallet(wallet_id, source_context=source_context)
+    custody.require_wallet(wallet_id, source_context=source_context)
     clean_url, clean_method, raw_body = _clean_request(url, method, body, source_context=source_context)
     replay_headers = _clean_headers(headers)
-    digest = request_digest(clean_method, clean_url, raw_body)
-    binding = x402.binding_for_digest(digest)
-    if binding and binding.get("proposal_id"):
-        parked = proposals.get_proposal(binding["proposal_id"])
-        if parked is not None and parked.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
-            return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=402, proposal_id=parked.proposal_id, binding_id=binding["binding_id"])
-        if parked is not None and parked.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
-            # this exact request was paid: its payment was delivered once and is never sent again
-            raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": parked.proposal_id, "reason": "paykit_request_already_paid"}, source_context=source_context)
+    already = existing_outcome(request_digest(clean_method, clean_url, raw_body), source_context=source_context)
+    if already is not None:
+        return already
     answer = outbound.fetch(clean_url, method=clean_method, headers={**replay_headers, "Accept": replay_headers.get("accept", "*/*")}, body=raw_body or None, timeout=timeout)
     status = int(answer["status"])
     if status != 402:
         return x402.X402Outcome(status=x402.OUTCOME_DELIVERED if status < 400 else x402.OUTCOME_REFUSED, http_status=status, body=answer["body"])
-    payment = _payment_module()
-    text = answer["body"].decode("utf-8", "replace") if answer["body"] else None
-    selection = payment.ChallengeSelection(network=chains.resolve_network(profile.network).network)
-    requirement, wire_version = payment.parse_x402_challenge_with_version(dict(answer["headers"] or {}), text, selection)
+    return park_challenge(answer, url=clean_url, method=clean_method, headers=headers, body=raw_body, wallet_id=wallet_id, source_context=source_context)
+
+
+def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: dict[str, str] | None, body: bytes, wallet_id: str,
+                   source_context: dict[str, Any] | None = None) -> Any:
+    """The 402 the owner's request met (``answer``, already received: nothing is sent here) -> ONE capped proposal
+    bound to that exact request, or a typed refusal. Never signs."""
+    from core.wallet import x402
+
+    require_available(source_context=source_context)
+    profile = custody.require_wallet(wallet_id, source_context=source_context)
+    clean_url, clean_method, raw_body = _clean_request(url, method, body, source_context=source_context)
+    replay_headers = _clean_headers(headers)
+    digest = request_digest(clean_method, clean_url, raw_body)
+    status = int(answer["status"])
+    requirement, wire_version = _parse_challenge(answer.get("headers"), answer.get("body"), network=chains.resolve_network(profile.network).network)
     if requirement is None:
         return x402.X402Outcome(status=x402.OUTCOME_REFUSED, http_status=status, body=answer["body"])
-    requirement = dict(requirement)
     terms = _terms_from_requirement(requirement, wallet_network=profile.network, source_context=source_context)
     cap = config.x402_cap_minor()
     if terms["amount_minor"] > cap:
@@ -242,7 +304,7 @@ def fetch_paid(url: str, *, wallet_id: str, method: str = "GET", headers: dict[s
         memo=f"x402 {clean_method} {clean_url}"[:200], idempotency_key=idempotency_key, source_context=source_context, network=terms["network"],
     )
     _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
-                    requirement=requirement, wire_version=int(wire_version or 2), proposal_id=proposal.proposal_id)
+                    requirement=requirement, wire_version=wire_version, proposal_id=proposal.proposal_id)
     from core.wallet import lifecycle
 
     prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
