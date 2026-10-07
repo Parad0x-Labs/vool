@@ -3868,7 +3868,6 @@ def _lane_admitted_user_text(raw: str) -> str:
 
 #: Ineligible verdicts that refuse no value of their own: the record's words reach the reader another way.
 _LANE_TOLERATED_VERDICTS = frozenset({"assistant-derivative", "historical-attributed"})
-_LANE_HONOURS_PACK_SELECTION = False  # measured 2026-10-07: the pack leaves fillers unselected by relevance, not by law; the lane ranks them on purpose
 
 
 def _pack_cut_inside_a_sentence(body: str, spans: Sequence[tuple[int, int]]) -> bool:
@@ -3895,7 +3894,7 @@ def _pack_cut_inside_a_sentence(body: str, spans: Sequence[tuple[int, int]]) -> 
 
 def _whole_turn_units_facing_the_laws(
     units: list[list[Any]], *, verdicts: Any, runtime_home: str | None,
-    refused: list[dict[str, str]] | None = None, considered: Sequence[Any] = (),
+    refused: list[dict[str, str]] | None = None,
     receipts: Sequence[Mapping[str, Any]] = (), delivered_text: str = "", query: str = "",
 ) -> list[list[Any]]:
     """The ranked units the lane may still render: none whose member a temporal verdict found ineligible this
@@ -3908,11 +3907,9 @@ def _whole_turn_units_facing_the_laws(
         return []
     kept: list[list[Any]] = []
     verdict_map = verdicts if isinstance(verdicts, dict) else {}
-    # The main pack's own decision, whatever its law (temporal contract, hedge, backchannel, ownership, window,
-    # episode, speaker scope, budget): a record the pack read and delivered nothing from is refused here too.
-    # Records the pack never read (the lane's own search legs found them) are the lane's to render.
-    considered_ids = {str(getattr(o, "occurrence_id", "") or "") for o in (considered or ())}
-    considered_ids |= {str(r.get("occurrence_id") or "") for r in (receipts or ())}
+    # The pack's non-selection of a turn is relevance, not a refusal (measured 2026-10-07: a generic "the pack read it
+    # and delivered nothing" rule emptied the lane of the filler turns it exists to rank), so the lane honours only
+    # decisions it can read: the verdicts, the store, the pack's spans and its span predicates below.
     delivered_ids = {str(r.get("occurrence_id") or "") for r in (receipts or ()) if r.get("delivered")}
     # A turn the pack cut INSIDE a sentence is decided: the rest of that sentence (a displaced value, "the 18:05 slot
     # went to the maintenance fleet") was left out on purpose and stays out. A span that ends at a sentence end is the
@@ -3931,6 +3928,10 @@ def _whole_turn_units_facing_the_laws(
         asked_terms = _query_overlap_terms(str(query or ""))
     except Exception:  # pragma: no cover - pure helper
         asked_terms = set()
+    # The pack's hedge exemptions (its delivery arm, `_deliver_evidence_span`): a count-shaped ask, an ask for the
+    # complete source, and a whole reported dialogue turn keep a hedged user span.
+    hedge_exempt_ask = bool(_query_is_count_shaped(str(query or ""))
+                            or _COLLECTION_COMPLETE_REQUEST_RE.search(str(query or "")))
     delivered_lines: dict[str, list[str]] = {"user": [], "assistant": []}
     current_role = ""
     for line in str(delivered_text or "").splitlines():
@@ -3970,35 +3971,24 @@ def _whole_turn_units_facing_the_laws(
                 body = str(getattr(occurrence, "body", "") or "")
                 body_norm = " ".join(body.lower().split())
                 role = str(getattr(occurrence, "role", "") or "")
-                other = "assistant" if role == "user" else "user"
-                same_words_other_speaker = bool(body_norm) and any(body_norm in line for line in delivered_lines.get(other, ()))
-                if (_LANE_HONOURS_PACK_SELECTION and key in considered_ids and key not in delivered_ids
-                        and len(body) <= _TURN_LANE_UNIT_MAX_CHARS and not same_words_other_speaker
-                        and asked_terms and _query_terms_in_text(body_norm, asked_terms, _stemmed_token_set(body_norm))):
-                    # A short turn ABOUT the ask (it carries an asked term) that the pack read whole and delivered
-                    # nothing from is the pack's refusal: its ownership, speaker-scope, envelope, window and episode
-                    # laws decided there. A turn that shares no asked term was never selected, not refused, and stays
-                    # the lane's to rank; a turn longer than the lane's unit bound is the lane's own region case.
-                    reason = "pack:not_delivered"
-                    break
                 if key in cut_spans and _pack_cut_inside_a_sentence(body, cut_spans[key]):
                     reason = "pack:bounded_span_delivered"
                     break
                 if key not in delivered_ids and len(body) <= _TURN_LANE_UNIT_MAX_CHARS:
-                    # The pack's own span laws, applied to a short turn the pack delivered nothing from: a hedged or
-                    # speculative user turn ("we might instead book the 11:15") and a bare acknowledgment or greeting
-                    # ("Haha nice one, cheers.") are refused by the pack's predicates, not by a list of their own.
+                    # The pack's own span laws, applied to a short turn the pack delivered nothing from, with the
+                    # pack's exemptions: a hedged or speculative user turn ("we might instead book the 11:15") is
+                    # refused unless the ask is count-shaped, asks for the complete source, or the turn is a whole
+                    # reported dialogue turn. (An acknowledgment is not refused: the pack delivers acks and only
+                    # declines to count them as decisive.)
                     content = _envelope_masked(body) if "\n" in body else body
+                    label = re.match(r"^([A-Z][\w' .-]{0,40}):\s", content.strip())
                     speaker_free = re.sub(r"^[A-Z][\w' .-]{0,40}:\s*", "", content.strip())
-                    if role == "user" and _span_is_hedged(speaker_free):
+                    if (role == "user" and not hedge_exempt_ask and label is None
+                            and _span_is_hedged(speaker_free)):
                         reason = "pack:hedged"
-                        break
-                    if _span_is_acknowledgment(speaker_free):
-                        reason = "pack:acknowledgment"
                         break
                     # The pack's speaker-scope law for a labelled dialogue turn: a turn rides only when its own words,
                     # the speakers' names aside, carry an asked term ("Declan: Haha nice one, cheers." carries none).
-                    label = re.match(r"^([A-Z][\w' .-]{0,40}):\s", content.strip())
                     if label and asked_terms:
                         names = {w.lower() for w in label.group(1).split()}
                         own_terms = {term for term in asked_terms if term.lower() not in names}
@@ -8440,7 +8430,25 @@ _PACKET_REFUSING_VERDICTS = frozenset({
 })
 
 
-def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts: Any = None) -> dict[str, str]:
+def _hydration_refusals(receipts: Sequence[Mapping[str, Any]], lane_refused: Sequence[Mapping[str, str]] = ()) -> dict[str, str]:
+    """occurrence_id -> the render-time store decision that refused it: a requested source the final-pack
+    revalidation rejected (`source_hydration_*`), or a lane unit the store no longer held as ranked."""
+    out: dict[str, str] = {}
+    for receipt in receipts or ():
+        why = str(receipt.get("omission_reason") or "")
+        occ = str(receipt.get("occurrence_id") or "")
+        if occ and why.startswith("source_hydration_"):
+            out[occ] = why
+    for row in lane_refused or ():
+        why = str(row.get("reason") or "")
+        occ = str(row.get("occurrence_id") or "")
+        if occ and why.startswith("revalidation:"):
+            out.setdefault(occ, why)
+    return out
+
+
+def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts: Any = None,
+                     hydration_refused: Mapping[str, str] | None = None) -> dict[str, str]:
     """occurrence_id -> the capsule decision that refused it this turn, for the receipts packet's rows (D8-E).
 
     The packet is compiled before the capsule's laws run; this reads the decisions the turn has ALREADY made (the
@@ -8465,6 +8473,12 @@ def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts
             reason = str(getattr(verdict, "reason", "") or "") if verdict is not None else ""
             if verdict is not None and not getattr(verdict, "eligible", True) and reason in _PACKET_REFUSING_VERDICTS:
                 refused[occ] = reason
+                continue
+            if hydration_refused and occ in hydration_refused:
+                # A source the store no longer holds as ranked (deleted, altered, inactive) was refused at the final
+                # pack and by the lane; the packet, compiled before that re-read, carries no row of it either
+                # (review 2026-10-07: the deleted record leaked through the receipts packet with the kernel on).
+                refused[occ] = str(hydration_refused[occ])
                 continue
             if gate_binds and occ in gate_keys and str(fact.get("role") or "") == "user":
                 refused[occ] = "absence-gate"
@@ -12142,7 +12156,8 @@ def _capsule_v2_inject_retrieved(
                 receipt["delivered"] = False
                 receipt["omission_reason"] = "selection_filter"
         return _packet_only_injection(transcript, evidence_packet, telemetry, chat_id=str(session_id or ""), question=str(query or ""),
-                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")),
+                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
+                                                               hydration_refused=_hydration_refusals(evidence_receipts)),
                                       budget_tokens=int(budget.free_tokens))
     # Pack separable facts, not one indivisible capsule: presenting the whole
     # distilled block as a single candidate made the packer drop ALL retrieved
@@ -12305,9 +12320,8 @@ def _capsule_v2_inject_retrieved(
     # (tests/test_requested_source_authority_contract.py). Both refusals are recorded on the telemetry.
     _lane_refused: list[dict[str, str]] = []
     whole_turn_units = _whole_turn_units_facing_the_laws(
-        whole_turn_units, verdicts=locals().get("verdicts"), runtime_home=runtime_home, refused=_lane_refused,
-        considered=[occ for occ, _s in (locals().get("evidence_hits") or [])],
-        receipts=locals().get("evidence_receipts") or [], delivered_text=render_block, query=query)
+        whole_turn_units, verdicts=verdicts, runtime_home=runtime_home, refused=_lane_refused,
+        receipts=evidence_receipts, delivered_text=render_block, query=query)
     if _lane_refused:
         telemetry["whole_turn_lane_refused"] = _lane_refused
     turn_lines, turn_tokens = ([], 0)
@@ -12338,7 +12352,8 @@ def _capsule_v2_inject_retrieved(
 
             # D8-E: the packet faces the capsule's laws. Rows the absence gate or a temporal verdict refused this
             # turn (as-of, retraction, supersession, windows) leave the packet before it is rendered.
-            _packet_refused = _packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts"))
+            _packet_refused = _packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
+                                               hydration_refused=_hydration_refusals(evidence_receipts, _lane_refused))
             if _packet_refused:
                 evidence_packet = _filter_packet(evidence_packet, _packet_refused, estimate_tokens=estimate_tokens)
             packet_text = _render_packet(evidence_packet)

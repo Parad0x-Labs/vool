@@ -123,3 +123,54 @@ def test_the_lane_renders_nothing_the_store_no_longer_holds(tmp_path, monkeypatc
     lane_text = capsule.split("Evidence turns", 1)[1] if "Evidence turns" in capsule else ""
     assert "7731" not in lane_text, capsule
     assert any(r.get("occurrence_id") in deleted for r in telemetry.get("whole_turn_lane_refused", [])), telemetry.get("whole_turn_lane_refused")
+
+
+@pytest.mark.parametrize("target", ["its password", "this is my old address", "that's my pin", "which is my pin"])
+def test_a_forget_target_without_a_reason_clause_is_kept_whole(target):
+    """Review 2026-10-07: the reason-tail strip needs a real separator; a target that merely starts with "its",
+    "this is" or "that's" is the whole target, never an empty one."""
+    from core.persistent_memory import _normalize_forget_target
+
+    assert _normalize_forget_target(target) == target.strip(" .,!?")
+
+
+@pytest.mark.parametrize("text, head", [
+    ("the storage unit code I gave you, it is wrong", "the storage unit code I gave you"),
+    ("the storage unit code it was a typo", "the storage unit code"),
+    ("my pin? its wrong", "my pin"),
+    ("the old route - because it changed", "the old route"),
+])
+def test_a_reason_clause_after_a_separator_is_not_the_target(text, head):
+    from core.persistent_memory import _normalize_forget_target
+
+    assert _normalize_forget_target(text) == head
+
+
+def test_a_second_forget_of_an_erased_fact_is_confirmed_as_already_forgotten(tmp_path):
+    """Review 2026-10-07: a tombstoned fact removes 0 on the next forget; that is "already forgotten", not a no-match
+    (which falls through) and not "Forget applied"."""
+    from core.context_namespace import ensure_chat_namespace
+    from core.memory.entries import resolve_memory_access_policy
+    from core.persistent_memory import maybe_handle_memory_command
+    from core.runtime_paths import configure_runtime_home
+
+    profile = _profile(tmp_path)
+    configure_runtime_home(profile)
+    chat = "forgetting-twice"
+    ensure_chat_namespace(chat, grant_current_receipts=False)
+    policy = resolve_memory_access_policy(chat_id=chat)
+    ctx = {"surface": "api", "platform": "api", "chat_id": chat, "runtime_home": str(profile)}
+    handled, reply = maybe_handle_memory_command("Remember that the boathouse gate code is QX-4471", session_id=chat,
+                                                 access_policy=policy, source_context=ctx)
+    assert handled, reply
+    # the exact stored text is the target, so the second forget meets its tombstone (a tombstone keeps only a
+    # salted digest of the text; a keyword that is not the whole text cannot be matched to one)
+    handled, reply = maybe_handle_memory_command("Forget the boathouse gate code is QX-4471", session_id=chat,
+                                                 access_policy=policy, source_context=ctx)
+    assert handled and reply.startswith("Forget applied"), reply
+    handled, reply = maybe_handle_memory_command("Forget the boathouse gate code is QX-4471", session_id=chat,
+                                                 access_policy=policy, source_context=ctx)
+    assert handled and "already forgotten" in reply and "Forget applied" not in reply, (handled, reply)
+    # a keyword that matches nothing stored and no tombstone text still falls through (a retraction turn)
+    handled, reply = maybe_handle_memory_command("Forget QX-9999", session_id=chat, access_policy=policy, source_context=ctx)
+    assert not handled and reply == "", (handled, reply)
