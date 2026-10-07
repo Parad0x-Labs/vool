@@ -249,7 +249,7 @@ def _support_rows(lifecycle: GroundingLifecycle) -> tuple[list[dict[str, Any]], 
     remembered = [
         dict(entry)
         for entry in getattr(lifecycle, "memory_records", ()) or ()
-        if isinstance(entry, dict) and _row_carries_content(entry)
+        if isinstance(entry, dict) and not entry.get("withheld") and _row_carries_content(entry)
     ]
     if remembered:
         rows.extend(remembered)
@@ -740,7 +740,7 @@ def _records_only_support(lifecycle: GroundingLifecycle) -> bool:
     from core.memory_grounding import question_names_someone_in_the_records
 
     return question_names_someone_in_the_records(
-        lifecycle.request_text, "\n".join(str(row.get("summary") or "") for row in records if isinstance(row, dict))
+        lifecycle.request_text, [row for row in records if isinstance(row, dict)]
     )
 
 
