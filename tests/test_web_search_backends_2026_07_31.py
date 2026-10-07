@@ -27,6 +27,8 @@ Also locked here: the Yahoo parser, which google_html now leads with.
 
 from __future__ import annotations
 
+import threading
+import time
 import urllib.error
 
 import pytest
@@ -232,12 +234,21 @@ def test_a_second_consecutive_transient_failure_surfaces_after_exactly_one_retry
     # would burn the turn budget the retry exists to protect.
     attempts = {"n": 0}
     sleeps = {"n": 0}
+    # time.sleep is process-global: patching it through google_html.time also intercepts
+    # every other live thread (daemon workers an earlier test in the same pytest process
+    # left running). Only the backoff taken on the thread running _fetch is the retry
+    # under test; any other thread keeps the real sleep and is not counted.
+    fetch_thread = threading.get_ident()
+    real_sleep = time.sleep
 
     def _urlopen(req, timeout=None):
         attempts["n"] += 1
         raise urllib.error.HTTPError("u", 503, "still transient", {}, None)  # type: ignore[arg-type]
 
-    def _sleep(_seconds):
+    def _sleep(seconds):
+        if threading.get_ident() != fetch_thread:
+            real_sleep(seconds)
+            return
         sleeps["n"] += 1
 
     monkeypatch.setattr(google_html.urllib.request, "urlopen", _urlopen)
