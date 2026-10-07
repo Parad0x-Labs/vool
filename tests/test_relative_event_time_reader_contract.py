@@ -127,6 +127,22 @@ def _primary_system(request) -> str:
     return next(str(m["content"]) for m in request.messages if m.get("role") == "system")
 
 
+# The answer-format block rides the per-turn system message that follows the history, and the leading
+# system message stays byte-stable across turns for provider prompt caching: main 00ba5bd5
+# (2026-10-05, "keep the leading provider system message stable across turns"), ported in dc937f7
+# (core/memory_first_router.py, "Ported from 00ba5bd").
+_TURN_PREFIX = "Context for this turn:\n"
+
+
+def _turn_system(request) -> str:
+    return next((str(m["content"]) for m in request.messages if m.get("role") == "system"
+                 and str(m["content"]).startswith(_TURN_PREFIX)), "")
+
+
+def _all_system(request) -> str:
+    return "\n".join(str(m["content"]) for m in request.messages if m.get("role") == "system")
+
+
 # --- recognition -------------------------------------------------------------------------------
 
 
@@ -197,12 +213,13 @@ def test_the_rule_is_general_wording_with_synthetic_examples() -> None:
 def test_the_reader_request_states_the_rule_in_the_answer_format_block() -> None:
     turn = READER_PREFIX + "When did Mira repaint her kayak?" + LICENSE
     request = _reader_request(turn)
-    primary = _primary_system(request)
-    assert primary.startswith("BASE SYSTEM\n\nAnswer format for this request:")
+    assert _primary_system(request) == "BASE SYSTEM"  # stable across turns
+    turn_block = _turn_system(request)
+    assert turn_block.startswith(_TURN_PREFIX + "Answer format for this request:")
     for marker in RULE_MARKERS:
-        assert marker in primary, marker
+        assert marker in turn_block, marker
     # The short-answer contract the same turn asks for is still there, and still leads.
-    assert primary.index("give the answer first") < primary.index(RULE_MARKERS[0])
+    assert turn_block.index("give the answer first") < turn_block.index(RULE_MARKERS[0])
     assert request.metadata["ordinary_chat_output_policy"]["relative_event_time"] is True
     # Evidence and the user's turn are untouched.
     assert request.messages[-1]["content"] == turn
@@ -210,22 +227,23 @@ def test_the_reader_request_states_the_rule_in_the_answer_format_block() -> None
 
 def test_a_time_ask_without_the_short_contract_still_gets_the_block() -> None:
     request = _reader_request("When did Mira repaint her kayak?")
-    primary = _primary_system(request)
-    assert primary.startswith("BASE SYSTEM\n\nAnswer format for this request:")
-    assert RULE_MARKERS[0] in primary
-    assert "give the answer first" not in primary
+    assert _primary_system(request) == "BASE SYSTEM"  # stable across turns
+    turn_block = _turn_system(request)
+    assert turn_block.startswith(_TURN_PREFIX + "Answer format for this request:")
+    assert RULE_MARKERS[0] in turn_block
+    assert "give the answer first" not in _all_system(request)
 
 
 @pytest.mark.parametrize("text", [READER_PREFIX + "What did Mira repaint?", "Why did Oren pick the north pier?"])
 def test_a_reader_turn_that_asks_no_event_time_carries_no_rule(text: str) -> None:
     request = _reader_request(text)
-    assert RULE_MARKERS[0] not in _primary_system(request)
+    assert RULE_MARKERS[0] not in _all_system(request)
     assert request.metadata["ordinary_chat_output_policy"]["relative_event_time"] is False
 
 
 def test_a_time_ask_with_no_retrieved_records_carries_no_rule() -> None:
     request = _reader_request("When did Mira repaint her kayak?", capsule=False)
-    assert RULE_MARKERS[0] not in _primary_system(request)
+    assert RULE_MARKERS[0] not in _all_system(request)
     assert request.metadata["ordinary_chat_output_policy"]["relative_event_time"] is False
 
 

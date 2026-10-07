@@ -133,6 +133,16 @@ def _system_messages(request) -> list[str]:
     return [str(m["content"]) for m in request.messages if m.get("role") == "system"]
 
 
+# The answer-format block rides the per-turn system message that follows the history, and the leading
+# system message stays byte-stable across turns for provider prompt caching: main 00ba5bd5
+# (2026-10-05, "keep the leading provider system message stable across turns"), ported in dc937f7.
+_TURN_PREFIX = "Context for this turn:\n"
+
+
+def _turn_system(request) -> str:
+    return next((m for m in _system_messages(request) if m.startswith(_TURN_PREFIX)), "")
+
+
 # --- recognition -------------------------------------------------------------------------------
 
 
@@ -183,12 +193,13 @@ def test_a_non_chat_output_mode_takes_no_answer_shape() -> None:
 
 def test_the_reader_system_prompt_carries_the_short_answer_contract() -> None:
     request = _reader_request(READER_STYLE_TURN)
-    primary = _system_messages(request)[0]
-    assert primary.startswith("BASE SYSTEM\n\nAnswer format for this request:")
-    assert "give the answer first" in primary
-    assert "No preamble" in primary
-    assert "no restating the question" in primary
-    assert "no narration of where the answer came from" in primary
+    assert _system_messages(request)[0] == "BASE SYSTEM"  # stable across turns
+    turn_block = _turn_system(request)
+    assert turn_block.startswith(_TURN_PREFIX + "Answer format for this request:")
+    assert "give the answer first" in turn_block
+    assert "No preamble" in turn_block
+    assert "no restating the question" in turn_block
+    assert "no narration of where the answer came from" in turn_block
     # The retrieved evidence block is untouched and appears exactly once.
     assert _system_messages(request)[1] == "<retrieved_context>harbor log</retrieved_context>"
     assert request.metadata["ordinary_chat_output_policy"]["answer_shape"] == "short"
@@ -203,8 +214,8 @@ def test_a_reader_turn_without_a_length_request_gets_no_short_answer_contract() 
     request = _reader_request("What colour was the kayak Marta rented?")
     primary = _system_messages(request)[0]
     assert primary.startswith("BASE SYSTEM")
-    assert "give the answer first" not in primary
-    assert "No preamble" not in primary
+    assert "give the answer first" not in "\n".join(_system_messages(request))
+    assert "No preamble" not in "\n".join(_system_messages(request))
     assert request.metadata["ordinary_chat_output_policy"]["answer_shape"] == ""
 
 
@@ -219,7 +230,7 @@ def test_an_earlier_turns_length_request_does_not_shape_a_later_turn() -> None:
     )
     primary = _system_messages(request)[0]
     assert primary.startswith("BASE SYSTEM")
-    assert "give the answer first" not in primary
+    assert "give the answer first" not in "\n".join(_system_messages(request))
     assert request.metadata["ordinary_chat_output_policy"]["answer_shape"] == ""
 
 
@@ -231,7 +242,7 @@ def test_a_follow_up_that_asks_for_brevity_gets_the_contract() -> None:
             ("assistant", "It left at 9:40 pm after a delay at the fuel dock."),
         ],
     )
-    assert "give the answer first" in _system_messages(request)[0]
+    assert "give the answer first" in _turn_system(request)
 
 
 def test_the_rewrite_repeats_the_short_answer_contract() -> None:
@@ -247,7 +258,9 @@ def test_the_rewrite_repeats_the_short_answer_contract() -> None:
 
 def test_the_contract_keeps_every_list_item_and_part() -> None:
     instruction = guard.short_answer_instruction(_policy(READER_STYLE_TURN))
-    assert "names every requested item" in instruction
+    # Wording from c1b97f31 (2026-10-06, "name every supported item"); the rule is unchanged: every
+    # item the records name is kept, and every part of a multi-part request is answered.
+    assert "name every one of them" in instruction
     assert "answers every part" in instruction
 
 
