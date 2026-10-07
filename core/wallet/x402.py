@@ -303,9 +303,11 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     binding = binding_for_digest(digest)
     if binding and binding.get("proposal_id"):
         proposal = proposals.get_proposal(binding["proposal_id"])
-        if int(binding.get("version") or 1) == 2 and proposal is not None and proposal.tx_signature and proposal.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
+        if int(binding.get("version") or 1) == 2 and proposal is not None and proposal.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
             # v2 delivery happens at signature submission; a re-fetch never re-sends payment
-            # material, and the v1 X-PAYMENT header must never dress a v2 settlement.
+            # material, and the v1 X-PAYMENT header must never dress a v2 settlement. A
+            # submission that learned no transaction is unknown, not failed: it may still
+            # settle, so the request is refused here too, before anything is sent.
             raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "v2_delivery_happens_at_submission"}, source_context=source_context)
         if proposal is not None and proposal.tx_signature and proposal.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
             return _deliver(binding, proposal, timeout=timeout, source_context=source_context)

@@ -9,6 +9,7 @@ response bound to the payment by digest.
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -448,6 +449,119 @@ def test_e5b_database_rewind_cannot_repay_a_broadcast_payment(wallet_env, evm_ri
             engine.request_external_signature(outcome.proposal_id)
         assert replayed.value.code == "wallet_duplicate_payment"
         assert len(resource.deliveries) == 1  # exactly one delivery ever
+
+
+# --- E5c-E5e: what a paid request's answer can release, and what can be paid again ------------------
+
+#: Ways a resource can answer a request whose payment it settled, other than by delivering: a bare 3xx (300, 304,
+#: 305 and 306 carry no Location), a same-origin redirect, a body over the byte limit, a dropped connection.
+ANSWERS_AFTER_PAYMENT = ("status:300", "status:304", "status:305", "status:306", "redirect", "oversize", "drop")
+
+
+def _parked_and_signed(signer, resource):
+    """Park one v2 payment for ``resource`` and sign it: (wallet_id, proposal_id, engine, request_id, signature)."""
+    from core.wallet import custody
+    from core.wallet import x402 as wallet_x402
+
+    profile = custody.register_external_signer_wallet(signer.address, network=BASE_SEPOLIA)
+    outcome = wallet_x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    engine = wallet_x402.lifecycle_default_engine()
+    view = engine.request_external_signature(outcome.proposal_id)
+    signature = signer_sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+    return profile.wallet_id, outcome.proposal_id, engine, view["request_id"], signature
+
+
+@contextlib.contextmanager
+def _settled_but_undelivered(monkeypatch, evm_rig, answer: str):
+    """Submit one v2 payment that the resource settles and then answers ``answer`` instead of delivering; yields
+    (wallet_id, proposal_id, the submission's fault, the resource) with the resource still serving."""
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", paid_answer=answer) as resource:
+        wallet_id, proposal_id, engine, request_id, signature = _parked_and_signed(signer, resource)
+        resource.settled_signatures.add(signature)
+        with pytest.raises(WalletFault) as submitted:
+            engine.submit_external_signature(request_id, signature_hex=signature)
+        assert resource.unanswered == [signature]  # the payment reached the resource, which settled it
+        yield wallet_id, proposal_id, submitted.value, resource
+
+
+@pytest.mark.parametrize("answer", ANSWERS_AFTER_PAYMENT)
+def test_e5c_a_payment_that_left_keeps_its_hold_whatever_the_resource_answers(wallet_env, evm_rig, monkeypatch, answer):
+    """Once the payment header has left this machine the resource may have settled it, whatever it answers. An answer
+    that delivers nothing leaves the payment UNKNOWN: the hold stays and the proposal is not failed."""
+    from core.wallet import limits, proposals, receipts
+
+    with _settled_but_undelivered(monkeypatch, evm_rig, answer) as (_wallet_id, proposal_id, fault, _resource):
+        assert fault.code == "wallet_broadcast_failed"
+        assert str(fault.context.get("reason") or "").startswith("submit_unknown:")
+        assert proposals.get_proposal(proposal_id).state == proposals.STATE_BROADCAST
+        assert limits.reservation_state(proposal_id) == limits.RESERVATION_RESERVED
+        assert [r["state"] for r in receipts.list_receipts() if r["proposal_id"] == proposal_id] == [proposals.STATE_BROADCAST]
+
+
+@pytest.mark.parametrize("answer", ANSWERS_AFTER_PAYMENT)
+def test_e5d_a_request_whose_payment_may_have_settled_is_never_paid_again(wallet_env, evm_rig, monkeypatch, answer):
+    """While a payment's outcome is unknown, fetching the same request again refuses before anything is sent: it
+    neither parks a second payment nor rebinds the request to one."""
+    from core.wallet import x402 as wallet_x402
+
+    with _settled_but_undelivered(monkeypatch, evm_rig, answer) as (wallet_id, proposal_id, _fault, resource):
+        with pytest.raises(WalletFault) as again:
+            wallet_x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert again.value.code == "wallet_duplicate_payment"
+        assert resource.challenges == 1  # the first fetch's challenge is the only request without a payment
+        assert (wallet_x402.binding_for_proposal(proposal_id) or {}).get("proposal_id") == proposal_id
+
+
+def test_e5d2_new_terms_for_the_same_request_do_not_park_a_second_payment(wallet_env, evm_rig, monkeypatch):
+    """The proposal key covers the offer's terms, so a resource that asks again on other terms (here another price)
+    would get a fresh proposal and the request rebound to it, one approval away from a second payment. While the first
+    payment's outcome is unknown the request is refused before it is sent, whatever the resource would ask."""
+    from core.wallet import x402 as wallet_x402
+
+    with _settled_but_undelivered(monkeypatch, evm_rig, "drop") as (wallet_id, proposal_id, _fault, resource):
+        resource.amount_minor = 12000
+        with pytest.raises(WalletFault) as again:
+            wallet_x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert again.value.code == "wallet_duplicate_payment"
+        assert resource.challenges == 1
+        assert (wallet_x402.binding_for_proposal(proposal_id) or {}).get("proposal_id") == proposal_id
+
+
+@pytest.mark.parametrize("refusal", ["loopback_off", "loopback_name", "dns_failure"])
+def test_e5e_a_payment_refused_before_its_socket_is_released_and_can_be_parked_again(wallet_env, evm_rig, monkeypatch, refusal):
+    """A refusal the target check raises before the payment hop's socket opens proves nothing was sent: the hold is
+    released, the proposal fails, and the same request can be parked again."""
+    import socket
+
+    from core.wallet import limits, proposals
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2") as resource:
+        wallet_id, proposal_id, engine, request_id, signature = _parked_and_signed(signer, resource)
+        with pytest.MonkeyPatch.context() as patch:
+            if refusal == "loopback_off":  # 127.0.0.1 is no longer an allowed address
+                patch.delenv("VOOL_WALLET_X402_ALLOW_LOOPBACK")
+            elif refusal == "loopback_name":  # a loopback name answering a public address, the switch off
+                patch.delenv("VOOL_WALLET_X402_ALLOW_LOOPBACK")
+                patch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))])
+            else:
+                def no_answer(*_args, **_kwargs):
+                    raise socket.gaierror("no such name")
+
+                patch.setattr(socket, "getaddrinfo", no_answer)
+            with pytest.raises(WalletFault) as submitted:
+                engine.submit_external_signature(request_id, signature_hex=signature)
+        assert str(submitted.value.context.get("reason") or "").startswith("submit_refused:")
+        assert resource.deliveries == [] and resource.unanswered == [] and resource.challenges == 1
+        assert proposals.get_proposal(proposal_id).state == proposals.STATE_FAILED
+        assert limits.reservation_state(proposal_id) == limits.RESERVATION_RELEASED
+        again = wallet_x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert again.status == "payment_required" and again.proposal_id and again.proposal_id != proposal_id
 
 
 def test_e6_facilitator_discovery_is_typed_and_network_scoped(wallet_env, evm_rig):
