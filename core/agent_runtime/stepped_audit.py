@@ -978,11 +978,18 @@ def _finding_defect(
         return f"harm_class {declared!r} is not one of {', '.join(HARM_CLASSES)}"
     provable = bool(_OUTPUT_INTEGRITY_HARM_RE.search(claim_text))
     if declared in PROVABLE_HARM_CLASSES and not provable:
-        # Self-declaring crash/integrity is not enough on its own to occupy the tier that maps to
-        # High severity -- the claim text has to actually allege the kind of harm that tier promises,
-        # or a model can pick "crash" to buy High severity (and a bigger score deduction) with no
-        # content behind it. Fall through to the same undeclared-inference rule below.
-        declared = ""
+        if allow_observations:
+            # A survey row is shown without any challenge, so its declared crash/integrity has to be
+            # backed by its words or it is downgraded to the undeclared-inference rule below.
+            declared = ""
+        else:
+            # The PRIMARY candidate keeps its declared class, and the source challenge decides
+            # (`_challenge_finding`, fail-closed: only a clean `supported` is ever shown). The vocabulary
+            # used to decide instead, and refused real bugs worded in plain language: VOOL-only pass u3,
+            # 2026-10-07, refused the right orders.py bug three times ("the 2 cancelled units stay
+            # reserved forever"). Measured on Pack 1's 42 cases through the real challenge on a paid
+            # model: 1/28 non-bugs and 12/14 real bugs shown, against 0/28 and 0/14 for the vocabulary.
+            candidate["claim_needs_challenge"] = True
     if not declared:
         # An undeclared class falls back to the historical rule, so a model that ignores the field
         # cannot smuggle an unprovable claim into the provable tier by omission.
