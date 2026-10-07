@@ -27,6 +27,8 @@ behaves exactly as before.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import calendar
 import json
 import logging
@@ -661,6 +663,39 @@ def _row_to_receipt(row: Any) -> dict[str, Any]:
     out["withdraws"] = json.loads(r.get("withdraws_json") or "[]")
     out["replaced_by"] = json.loads(r.get("replaced_by_json") or "[]")
     return out
+
+
+def rebuild_missing_receipts(mem: Any, chat_scope: str, *, limit: int = 500) -> int:
+    """Write the receipt of every active occurrence of this chat that has none. Returns how many were written.
+
+    Receipts are an index derived from the canonical occurrence rows. A turn whose receipt write failed (or a
+    process that stopped between the occurrence write and the receipt write) keeps its occurrence, and the next
+    read of the chat's receipts rebuilds what is missing: an index failure costs a rebuild, never a memory.
+    """
+    if not ensure_schema(mem):
+        return 0
+    try:
+        with mem._lock:
+            rows = mem._conn.execute(
+                "SELECT o.occurrence_id, o.role, o.body, o.statement_at, o.speaker FROM source_occurrences o "
+                "LEFT JOIN memory_receipts r ON r.occurrence_id = o.occurrence_id "
+                "WHERE o.agent_id = ? AND o.chat_scope = ? AND o.status = 'active' AND o.body != '' "
+                "AND r.occurrence_id IS NULL ORDER BY COALESCE(o.statement_at, o.recorded_at), o.rowid LIMIT ?",
+                (mem._agent_id, str(chat_scope or ""), int(limit)),
+            ).fetchall()
+    except Exception:
+        LOGGER.warning("memory receipt rebuild read failed", exc_info=True)
+        return 0
+    written = 0
+    for row in rows:
+        occurrence = SimpleNamespace(occurrence_id=str(row[0]), role=str(row[1] or "user"), body=str(row[2] or ""),
+                                     statement_at=row[3], speaker=str(row[4] or ""))
+        try:
+            if write_receipt(mem, occurrence, chat_scope=str(chat_scope or "")) is not None:
+                written += 1
+        except Exception:
+            LOGGER.warning("memory receipt rebuild failed for one occurrence", exc_info=True)
+    return written
 
 
 def receipts_for_scope(mem: Any, chat_scope: str, *, role: str | None = None) -> list[dict[str, Any]]:
