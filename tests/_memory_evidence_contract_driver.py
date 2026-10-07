@@ -514,6 +514,7 @@ def main() -> int:
                         "model_execution",
                         "fast_path_hit",
                         "capsule_mode",
+                        "memory_route",
                         "web_calls",
                         "prompt_eval_count",
                     )
