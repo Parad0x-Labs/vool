@@ -710,15 +710,22 @@ def _claimed_inspection_targets(response: str, user_input: str) -> list[str]:
     the one whose absence was the bug.
     """
 
-    found: list[str] = []
-    for text in (response, user_input):
+    def _files(text: str) -> list[str]:
+        found: list[str] = []
         for candidate in iter_claimed_file_candidates(str(text or "")):
             stem, _, extension = candidate.rpartition(".")
             if not stem or extension.lower() not in _REAL_FILE_EXTENSIONS:
                 continue
             if candidate not in found:
                 found.append(candidate)
-    return found
+        return found
+
+    # A reply that names its own files claims exactly those: a file the user listed and the reply never
+    # mentions is not claimed to have been inspected (measured on the live agent-team comparison, 2026-10-07:
+    # a reply reporting on orders.py was replaced by "I did not actually open `pricing.py`" because the user
+    # had named three files). A reply that names none ("the audit ran -- it inspected the whole workspace")
+    # claims the files the user named.
+    return _files(response) or _files(user_input)
 
 
 def _enforce_inspection_claims(
