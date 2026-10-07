@@ -1187,6 +1187,13 @@ def harvest_execution_records(source_context: dict[str, Any] | None) -> int:
     The record is reshaped, not reinterpreted: its ``items`` are the result rows the tool
     returned and its ``citations`` are where they came from, and they are placed in the note
     fields `core.claim_support` already reads. No new extraction and no new judgement.
+
+    A record's ``result_text`` -- the tool's own rendered result -- is one more row. Item names
+    alone carry no content, so a file read or a text search left a correct answer with nothing
+    to be matched against and the gate refused it (measured on the served daemon: a workspace
+    search found "The launch date is 14 March", the answer said so, and the turn was refused as
+    "no usable rows"). Only a registered tool that observes something outside the runtime
+    contributes it: `_tool_result_is_evidence`.
     """
 
     identity = _identity_from(source_context)
@@ -1200,6 +1207,22 @@ def harvest_execution_records(source_context: dict[str, Any] | None) -> int:
     for entry in execution_records.records_for_turn(identity.session_id, identity.turn_id):
         if not entry.ok:
             continue
+        result_text = str(getattr(entry, "result_text", "") or "").strip()
+        if result_text and _tool_result_is_evidence(entry.intent):
+            rows.append(
+                {
+                    "summary": result_text,
+                    "result_url": "",
+                    # The label a claim map shows for this row is what the tool acted on (a path, a URL), never
+                    # the tool's own name: a tool intent is not a source, and labelling a row "web.search"
+                    # put a tool name where a source should be (test_served_evidence_binding_p0, invariant 3).
+                    # A row with no resolved target stays unlabelled rather than mislabelled.
+                    "origin_domain": entry.resolved_target or "",
+                    "source_type": "tool_receipt",
+                    "intent": entry.intent,
+                    "ok": True,
+                }
+            )
         for index, item in enumerate(entry.items):
             text = str(item or "").strip()
             if not text:
@@ -1225,6 +1248,28 @@ def harvest_execution_records(source_context: dict[str, Any] | None) -> int:
         if not record.retrieval_outcome:
             record.retrieval_outcome = "tool_receipt"
     return record_typed_observations(source_context, entries=rows)
+
+
+def _tool_result_is_evidence(intent: str) -> bool:
+    """May this tool's rendered result support a claim? Only a registered, world-observing tool.
+
+    Fail closed in both directions that matter. An intent with no registered contract
+    contributes nothing: its text has no declared provenance. And the runtime's own plumbing --
+    `capability_id` under ``runtime.`` (`respond.direct`, `capability.expand_family`) -- observes
+    nothing outside the runtime: the first carries the model's own words, which may never certify
+    themselves, and the second is an offer receipt ("Seated the workspace family ...").
+    """
+
+    try:
+        from core.tool_registry import tool_for_intent
+
+        contract = tool_for_intent(str(intent or ""))
+    except Exception:
+        return False
+    if contract is None:
+        return False
+    capability = str(getattr(contract, "capability_id", "") or "").strip()
+    return bool(capability) and not capability.startswith("runtime.")
 
 
 def record_model_authorship(source_context: dict[str, Any] | None) -> bool:

@@ -33,6 +33,10 @@ _MAX_RECORDS_PER_SESSION = 64
 _MAX_SESSIONS = 32
 # A single tool can return thousands of filenames; the binder only needs them for membership.
 _MAX_ITEMS_PER_RECORD = 2000
+# The tool's own rendered result, kept so the grounding gate can match claims against what the
+# tool actually returned. Bounded like the tool loop's inline observation window: enough for a
+# listing, a search hit set or a short file, not a whole log.
+_MAX_RESULT_TEXT_CHARS = 6000
 
 
 @dataclass(frozen=True)
@@ -46,6 +50,11 @@ class ExecutionRecord:
     ``generation`` separates retry attempts within one turn (a failed first attempt and the
     successful re-run are different facts about the same turn), and ``sequence`` is a monotonic
     per-session counter so chronology survives even when neither of the other two is known.
+
+    ``result_text`` is the tool's own rendered result (`ToolIntentExecution.response_text`),
+    secret-redacted and bounded. ``items`` holds only the NAMES a tool declares, so a file read or
+    a text search -- whose evidence is content, not names -- left nothing a claim could be matched
+    against, and the grounding gate refused a correct answer built from a tool that really ran.
 
     An empty ``turn_id`` means UNATTRIBUTED, never "the current turn": a record whose turn nobody
     stamped cannot confirm a claim about this turn, and its presence is why a negative about this
@@ -63,6 +72,7 @@ class ExecutionRecord:
     turn_id: str = ""
     generation: int = 0
     sequence: int = 0
+    result_text: str = ""
 
     @property
     def has_target(self) -> bool:
@@ -105,6 +115,7 @@ def record(
     source_context: Mapping[str, Any] | None = None,
     turn_id: str = "",
     generation: int = 0,
+    result_text: str = "",
 ) -> ExecutionRecord:
     """Reduce one tool execution to a record and keep it for this session's turn.
 
@@ -116,7 +127,11 @@ def record(
     `core.runtime_task_events.emit_runtime_event` stamps on every Activity event
     (``cancel_turn_id``), so a record and the durable Activity row for the same call agree on which
     turn they belong to. Explicit ``turn_id``/``generation`` win over the context for callers that
-    already resolved them.
+    already resolved them. The context is read as ``cancel_turn_id`` then ``turn_id`` -- the same
+    order every reader of these records resolves the turn in (`core.grounding_lifecycle`,
+    `core.unsourced_current_claim`). Reading ``cancel_turn_id`` alone stamped every tool-loop record
+    as unattributed (that loop's context carries only ``turn_id``), so the readers could never find
+    this turn's own tool calls and the grounding gate refused answers built from them.
     """
 
     observation = dict(observation or {})
@@ -127,8 +142,9 @@ def record(
     resolved = _resolved_target(observation, details, arguments, claim)
     items = _items(observation, details, claim)
     citations = _citations(observation, details, claim)
-    bound_turn = str(turn_id or context.get("cancel_turn_id") or "").strip()
+    bound_turn = str(turn_id or context.get("cancel_turn_id") or context.get("turn_id") or "").strip()
     bound_generation = int(generation or _generation_from(context, session_id))
+    bound_text = _bounded_result_text(result_text)
 
     with _lock:
         key = _session_key(session_id)
@@ -146,9 +162,28 @@ def record(
             turn_id=bound_turn,
             generation=bound_generation,
             sequence=sequence,
+            result_text=bound_text,
         )
         _bucket(session_id).append(entry)
     return entry
+
+
+def _bounded_result_text(text: Any) -> str:
+    """The tool's rendered result, secret-redacted and capped, or "" when there is none."""
+
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    try:
+        from core.secret_redaction import redact_secrets
+
+        raw = redact_secrets(raw)
+    except Exception:
+        # Fail closed: content that could not be scrubbed is not kept at all.
+        return ""
+    if len(raw) > _MAX_RESULT_TEXT_CHARS:
+        raw = raw[:_MAX_RESULT_TEXT_CHARS].rstrip() + "\n… [truncated]"
+    return raw
 
 
 def _generation_from(context: Mapping[str, Any], session_id: str) -> int:
