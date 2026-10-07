@@ -51,10 +51,14 @@ class ExecutionRecord:
     successful re-run are different facts about the same turn), and ``sequence`` is a monotonic
     per-session counter so chronology survives even when neither of the other two is known.
 
-    ``result_text`` is the tool's own rendered result (`ToolIntentExecution.response_text`),
-    secret-redacted and bounded. ``items`` holds only the NAMES a tool declares, so a file read or
-    a text search -- whose evidence is content, not names -- left nothing a claim could be matched
-    against, and the grounding gate refused a correct answer built from a tool that really ran.
+    ``result_text`` is the content the tool OBSERVED, read from its typed payload: the matched
+    lines of a text search (``details["matches"]``) and the lines a file read returned
+    (``details["lines"]``), secret-redacted and bounded. ``items`` holds only the NAMES a tool
+    declares, so a file read or a text search -- whose evidence is content, not names -- left
+    nothing a claim could be matched against, and the grounding gate refused a correct answer built
+    from a tool that really ran. The rendered reply is never kept: it echoes the query back, so a
+    search that found nothing ('No text matches for "The launch date is 14 March." ...') would
+    ground the very fact it searched for (Pack 2b re-audit, 2026-10-07).
 
     An empty ``turn_id`` means UNATTRIBUTED, never "the current turn": a record whose turn nobody
     stamped cannot confirm a claim about this turn, and its presence is why a negative about this
@@ -115,7 +119,6 @@ def record(
     source_context: Mapping[str, Any] | None = None,
     turn_id: str = "",
     generation: int = 0,
-    result_text: str = "",
 ) -> ExecutionRecord:
     """Reduce one tool execution to a record and keep it for this session's turn.
 
@@ -144,7 +147,7 @@ def record(
     citations = _citations(observation, details, claim)
     bound_turn = str(turn_id or context.get("cancel_turn_id") or context.get("turn_id") or "").strip()
     bound_generation = int(generation or _generation_from(context, session_id))
-    bound_text = _bounded_result_text(result_text)
+    bound_text = _bounded_result_text(_observed_content(details))
 
     with _lock:
         key = _session_key(session_id)
@@ -166,6 +169,31 @@ def record(
         )
         _bucket(session_id).append(entry)
     return entry
+
+
+def _observed_content(details: Mapping[str, Any]) -> str:
+    """The content a tool observed, from its typed payload only; "" when it observed none.
+
+    A search contributes its matched lines, a read the lines it returned. A no-results search, an
+    empty slice and every other tool contribute nothing here: their evidence, if any, is the names
+    and citations read through the tool's declared claim.
+    """
+
+    rows: list[str] = []
+    matches = details.get("matches")
+    if isinstance(matches, list):
+        for match in matches:
+            if isinstance(match, Mapping) and isinstance(match.get("snippet"), str) and match["snippet"].strip():
+                where = str(match.get("path") or "").strip()
+                line = match.get("line")
+                prefix = f"{where}:{line} " if where and isinstance(line, int) else (f"{where} " if where else "")
+                rows.append(prefix + match["snippet"].strip())
+    lines = details.get("lines")
+    if isinstance(lines, list):
+        for row in lines:
+            if isinstance(row, Mapping) and isinstance(row.get("text"), str) and row["text"].strip():
+                rows.append(row["text"].rstrip())
+    return "\n".join(rows)
 
 
 def _bounded_result_text(text: Any) -> str:

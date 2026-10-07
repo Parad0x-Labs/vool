@@ -1735,7 +1735,6 @@ def _record_execution(
             ok=bool(getattr(execution, "ok", False)),
             status=str(getattr(execution, "status", "") or ""),
             source_context=source_context,
-            result_text=str(getattr(execution, "response_text", "") or ""),
         )
     except Exception:
         return

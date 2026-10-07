@@ -36,6 +36,8 @@ from core.grounding_publication import EXIT_PARTIAL, publication_verdict
 from core.tool_intent_executor import _record_execution
 
 SEARCH_TEXT = 'Search matches for "launch date":\n- beta.md:2 The launch date is 14 March and the owner is the ops team.'
+# The typed payload `workspace.search_text` returns beside that rendering; only this is evidence.
+SEARCH_MATCHES = [{"path": "beta.md", "line": 2, "snippet": "The launch date is 14 March and the owner is the ops team."}]
 REQUEST = "Search my workspace files for the launch date and tell me what it is right now."
 
 
@@ -52,12 +54,13 @@ def _open_lifecycle(context: dict, request: str = REQUEST):
 
 
 def _run_tool(context: dict, session_id: str, *, intent: str, response_text: str, ok: bool = True,
-              observation: dict | None = None) -> None:
+              observation: dict | None = None, payload: dict | None = None) -> None:
     execution = SimpleNamespace(
         ok=ok,
         status="executed" if ok else "failed",
         response_text=response_text,
-        details={"observation": dict(observation or {"intent": intent, "ok": ok})},
+        details={"observation": dict(observation or {"intent": intent, "ok": ok}),
+                 **(payload if payload is not None else {"matches": SEARCH_MATCHES})},
     )
     _record_execution(execution, session_id=session_id, intent=intent, arguments={"query": "launch date"},
                       source_context=context)
@@ -171,7 +174,48 @@ def test_the_kept_result_text_is_bounded_and_secret_redacted(session: str) -> No
     # A labelled placeholder, not a credential: the redaction rule keys on the label.
     secret = "Pl4ceholder-not-a-real-value-9271"
     context = _turn_context(session, "turn-bounded")
-    _run_tool(context, session, intent="workspace.read_file", response_text=f"password={secret}\n" + "x" * 20000)
+    _run_tool(context, session, intent="workspace.read_file", response_text=f"password={secret}\n" + "x" * 20000,
+              payload={"lines": [{"line_number": 1, "text": f"password={secret}"},
+                                 {"line_number": 2, "text": "x" * 20000}]})
     [entry] = execution_records.records_for(session)
+    assert entry.result_text.startswith("password"), "the read's lines were not kept"
     assert secret not in entry.result_text
     assert len(entry.result_text) <= execution_records._MAX_RESULT_TEXT_CHARS + 32
+
+
+@pytest.mark.parametrize("has_match", [False, True])
+def test_only_a_real_search_match_grounds_the_queried_fact(tmp_path, session: str, has_match: bool) -> None:
+    # Pack 2b re-audit, 2026-10-07: a no-results search echoes its query ('No text matches for "The
+    # launch date is 14 March." were found'), and the whole rendered result was kept as evidence, so
+    # a search that found nothing grounded the very fact it searched for.
+    from core.runtime_execution_tools import _search_text
+
+    statement = "The launch date is 14 March."
+    (tmp_path / "beta.md").write_text(statement if has_match else "No launch schedule has been approved.")
+    context = _turn_context(session, f"turn-search-{has_match}")
+    _open_lifecycle(context)
+    result = _search_text({"query": statement}, workspace_root=tmp_path)
+    assert result.ok and result.status == ("executed" if has_match else "no_results")
+    _record_execution(result, session_id=session, intent="workspace.search_text", arguments={"query": statement},
+                      source_context=context)
+    verdict = _verdict(context, statement)
+    assert (verdict.coverage == "full") is has_match, (result.response_text, verdict)
+
+
+def test_a_read_files_lines_ground_and_an_empty_slice_does_not(tmp_path, session: str) -> None:
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    (tmp_path / "beta.md").write_text("Owner: ops team\nThe launch date is 14 March.\n")
+    context = _turn_context(session, "turn-read")
+    _open_lifecycle(context, "Read beta.md in my workspace and tell me the launch date right now.")
+    empty = execute_runtime_tool("workspace.read_file", {"path": "beta.md", "start_line": 40},
+                                 source_context={"workspace": str(tmp_path)})
+    assert empty is not None and empty.ok and empty.status == "empty_slice"
+    _record_execution(empty, session_id=session, intent="workspace.read_file", arguments={"path": "beta.md"},
+                      source_context=context)
+    assert _verdict(context, "The launch date is 14 March.").coverage != "full"
+    read = execute_runtime_tool("workspace.read_file", {"path": "beta.md"}, source_context={"workspace": str(tmp_path)})
+    assert read is not None and read.ok and read.status == "executed", read
+    _record_execution(read, session_id=session, intent="workspace.read_file", arguments={"path": "beta.md"},
+                      source_context=context)
+    assert _verdict(context, "The launch date is 14 March.").coverage == "full"
