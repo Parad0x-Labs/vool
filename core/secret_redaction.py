@@ -442,11 +442,7 @@ def _label_declared_public(label: str, text: str, start: int) -> bool:
     # The qualifier span itself consumes up to two filler words, so the whole
     # stretch from the qualifier to the label is checked (analysis copy again;
     # the span bounds remain the original prefix's).
-    if _PUBLICITY_CONTRADICTION_RE.search(
-        _publicity_analysis_text(prefix[match.start() :])
-    ):
-        return False
-    return True
+    return not _PUBLICITY_CONTRADICTION_RE.search(_publicity_analysis_text(prefix[match.start():]))
 
 
 def _mask_secret_label(match: re.Match) -> str:

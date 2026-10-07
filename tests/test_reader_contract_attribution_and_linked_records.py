@@ -474,7 +474,7 @@ def test_the_premise_rule_names_the_asked_only_and_qualified_option_shapes() -> 
 # --- negative controls and near-misses: no new rule ---------------------------------------------
 
 
-@pytest.mark.parametrize("question", REPORTED_PERSON_QUESTIONS + ["What did I arrange on the lake?"])
+@pytest.mark.parametrize("question", [*REPORTED_PERSON_QUESTIONS, "What did I arrange on the lake?"])
 def test_without_retrieved_records_no_record_rule_is_sent(question: str) -> None:
     request, wire = _reader_request(question, records=None)
     _assert_lane(request, attribution=False, linked=False, premise=False)
@@ -607,7 +607,7 @@ def test_a_cue_less_record_question_reaches_the_reader_with_both_rules(turn: str
     _assert_records_and_turn_untouched(request, wire)
 
 
-@pytest.mark.parametrize("turn", SLOPPY_PERSON_QUESTIONS + ["did the rowing sessions start in april"])
+@pytest.mark.parametrize("turn", [*SLOPPY_PERSON_QUESTIONS, "did the rowing sessions start in april"])
 def test_a_typed_question_without_a_question_mark_still_asks(turn: str) -> None:
     assert guard.asks_a_question(turn, guard.retrieved_record_speakers([RECORDS]))
 

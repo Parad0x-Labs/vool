@@ -1327,6 +1327,8 @@ _LIVE_PERCENT_CHANGE_RE = re.compile(
 #: only) that `core.unsourced_current_claim` owns and documents. Imported, not copied, so
 #: the two guards can never drift on what a measured value is; that module's broader
 #: whole-answer pattern stays where the requirement has already narrowed the turn.
+import itertools
+
 from core.unsourced_current_claim import _PROSE_SAFE_MEASURED_RE as _MEASURED_QUANTITY_RE
 
 _LIVE_VALUE_KINDS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -1861,8 +1863,8 @@ _PAST_CLOCK_TIME_RE = re.compile(
 # Bounded English cardinal quantities: zero through 999, plus nonnegative
 # decimal digits. Larger/fractional number-word forms are detected but cannot
 # silently receive numerical verification. This is not a multilingual parser.
-_NUMBER_SMALL = dict(zip(["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"], range(20)))
-_NUMBER_TENS = dict(zip(["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"], range(20, 100, 10)))
+_NUMBER_SMALL = dict(zip(["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"], range(20), strict=False))
+_NUMBER_TENS = dict(zip(["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"], range(20, 100, 10), strict=False))
 _NUMBER_WORD_PATTERN = "|".join((*_NUMBER_SMALL, *_NUMBER_TENS, "hundred", "thousand", "million", "billion", "and", "point", "half", "quarter"))
 # "and" and "point" join the parts of one number ("one hundred and two", "two point five"); a
 # quantity cannot START with them. Allowing it read "three days and two nights" as the
@@ -2817,7 +2819,6 @@ def _span_supports_request(span, question: str, answer: str = "", *, complete_su
     if "record_fields" in span:
         return _record_span_values(span, question, answer) is not None
     actors = _support_question_actors(question)
-    actor = actors[0] if actors else ""
     if actors and _support_reference_actor(span["actor"], question) not in actors:
         return False
     direct = _SUPPORT_DIRECT_TIME_RE.match(_support_reference_question(question))
@@ -3071,7 +3072,7 @@ def _terms_with_joined_compounds(text: str) -> set[str]:
 
     words = re.findall(r"[A-Za-z]+", str(text or ""))
     terms = _support_terms(text)
-    for first, second in zip(words, words[1:]):
+    for first, second in itertools.pairwise(words):
         # Two content words only: a function word ("after the") joined to anything is no compound.
         if _support_terms(first) and _support_terms(second):
             terms |= _support_terms(first + second)
@@ -5592,7 +5593,7 @@ def _without_incidental_time_claims(answer: str, claims, receipt: dict, *, quest
         # A value another sentence supports stays where it is supported.
         if per_unit:
             parts = []
-            for (sentence, separator), check in zip(units, checks):
+            for (sentence, separator), check in zip(units, checks, strict=False):
                 text = unit_edit(edit, sentence, set(check["unsupported_values"])) if check["unsupported_values"] else sentence
                 if text.strip():
                     parts.append(text + separator)
@@ -5606,7 +5607,7 @@ def _without_incidental_time_claims(answer: str, claims, receipt: dict, *, quest
         if result is not None:
             return result
     if per_unit:
-        surviving = [unit for unit, check in zip(units, checks) if not check["unsupported_values"]]
+        surviving = [unit for unit, check in zip(units, checks, strict=False) if not check["unsupported_values"]]
         if surviving and len(surviving) < len(units):
             result = "".join(sentence + separator for sentence, separator in surviving).strip()
             if _support_terms(result):

@@ -580,7 +580,7 @@ def _shrink_unit_to_line_boundary(
         open_line = lines[0] if body_start else ""
         close_line = lines[body_end] if body_end < len(lines) else ""
 
-        def _assemble(kept_lines: list[str]) -> str:
+        def _assemble(kept_lines: list[str], open_line: str = open_line, close_line: str = close_line) -> str:
             parts = ([open_line] if open_line else []) + list(kept_lines) + [marker_line]
             if close_line:
                 parts.append(close_line)

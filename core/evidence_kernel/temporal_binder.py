@@ -105,9 +105,12 @@ def reply_temporal_values(text: str) -> list[TValue]:
         g = m.groupdict()
         try:
             if g.get("y3"):
-                d = date(int(g["y3"]), int(g["m3"]), int(g["d3"])); out.append(TValue("date", m.group(0), m.start(), m.end(), day=d))
+                d = date(int(g["y3"]), int(g["m3"]), int(g["d3"]))
+                out.append(TValue("date", m.group(0), m.start(), m.end(), day=d))
             else:
-                mon = _MONTHS[(g.get("m1") or g.get("m2")).lower().rstrip(".")]; dd = int(g.get("d1") or g.get("d2")); yy = g.get("y1") or g.get("y2")
+                mon = _MONTHS[(g.get("m1") or g.get("m2")).lower().rstrip(".")]
+                dd = int(g.get("d1") or g.get("d2"))
+                yy = g.get("y1") or g.get("y2")
                 if yy:
                     out.append(TValue("date", m.group(0), m.start(), m.end(), day=date(int(yy), mon, dd)))
                 else:
@@ -124,7 +127,8 @@ def reply_temporal_values(text: str) -> list[TValue]:
         if _RATE_DENOMINATOR_RE.fullmatch(m.group(0)) and last_duration_end >= 0 and not text[last_duration_end:m.start()].strip():
             # "an hour a day", "20 minutes a week": the second phrase is the rate's denominator, not a duration claim
             continue
-        n = _num(m.group("n")); n2 = _num(m.group("n2")) if m.group("n2") else None
+        n = _num(m.group("n"))
+        n2 = _num(m.group("n2")) if m.group("n2") else None
         if n is None:
             continue
         last_duration_end = m.end()
@@ -155,7 +159,8 @@ def packet_operands(packet_facts: Sequence[Mapping[str, Any]], reference_day: da
         if str(f.get("role") or "user") != "user":
             continue   # v14.6 item 6: an assistant's durations and days are not the user's operands
         line = str(f.get("sentence") or f.get("value") or f.get("text") or "")
-        said = _day(f.get("statement_at")); ev = _day(f.get("event_at"))
+        said = _day(f.get("statement_at"))
+        ev = _day(f.get("event_at"))
         rid = str(f.get("receipt_id") or "")
         if ev is not None:
             # an event-grade day outranks a statement-day or reference-day registration of the same date (two records
@@ -175,7 +180,8 @@ def packet_operands(packet_facts: Sequence[Mapping[str, Any]], reference_day: da
         for m in _DUR_RE.finditer(line):
             n = _num(m.group("n"))
             if n is not None:
-                unit = m.group("u").lower().rstrip("s"); unit = "minute" if unit == "min" else unit
+                unit = m.group("u").lower().rstrip("s")
+                unit = "minute" if unit == "min" else unit
                 ops.durations.append((n * _UNIT_DAYS[unit], unit, f"{m.group(0)} stated in {rid}"))
         if str(f.get("value_type") or "") == "duration":
             try:
@@ -218,11 +224,14 @@ def _bind_value(v: TValue, ops: Operands, reply_days: dict[date, str], *, before
         if v.day is not None:
             for d, why in candidates.items():
                 if d == v.day:
-                    v.status, v.rule, v.operands = "stated", "day_in_records", why; return
+                    v.status, v.rule, v.operands = "stated", "day_in_records", why
+                    return
         elif v.yearless is not None:
             for d, why in candidates.items():
                 if (d.month, d.day) == v.yearless:
-                    v.day = d; v.status, v.rule, v.operands = "stated", "yearless_day_in_records", why; return
+                    v.day = d
+                    v.status, v.rule, v.operands = "stated", "yearless_day_in_records", why
+                    return
         return
     if v.kind == "weekday":
         # the weekday of an EVENT: event-grade days and the reply's own supported dates, never a bare statement day
@@ -230,13 +239,15 @@ def _bind_value(v: TValue, ops: Operands, reply_days: dict[date, str], *, before
             if why.startswith("statement day") or why.startswith("reference day"):
                 continue
             if _WEEKDAYS[d.weekday()] == v.text.lower():
-                v.status, v.rule, v.operands = "derived", "weekday_of_supported_day", f"{d.isoformat()} ({why})"; return
+                v.status, v.rule, v.operands = "derived", "weekday_of_supported_day", f"{d.isoformat()} ({why})"
+                return
         return
     if v.kind in ("interval", "duration"):
         tol = _TOL_DAYS.get(v.unit, 1.0)
-        for d, u, why in ops.durations:
+        for d, _u, why in ops.durations:
             if abs(d - v.days) <= (0.5 if v.unit == "day" else (tol if v.unit in ("hour", "minute") else tol / 4)):
-                v.status, v.rule, v.operands = "stated", "duration_in_records", why; return
+                v.status, v.rule, v.operands = "stated", "duration_in_records", why
+                return
         # Operand pools: an "ago" interval counts back from the reference day to an event-grade day; any other
         # interval is between two event-grade days (event days, relative days resolved from a fact's own offset,
         # or days the reply itself states and the records support). A plain statement day is not an event: two
@@ -253,14 +264,16 @@ def _bind_value(v: TValue, ops: Operands, reply_days: dict[date, str], *, before
             diff = (b - a).days
             if diff > 0 and abs(diff - v.days) <= tol:
                 v.status, v.rule = "derived", "interval_between_supported_days"
-                v.operands = f"{a.isoformat()} ({all_days[a]}) .. {b.isoformat()} ({all_days[b]}) = {diff} days"; return
+                v.operands = f"{a.isoformat()} ({all_days[a]}) .. {b.isoformat()} ({all_days[b]}) = {diff} days"
+                return
         if v.difference_ask:
             # only a question about a difference ("how much longer", "the difference between") derives one; a
             # plain "how many days was the trip" is a stated value or nothing
             for d1, _u1, w1 in ops.durations:
                 for d2, _u2, w2 in ops.durations:
                     if d1 > d2 and abs((d1 - d2) - v.days) <= tol:
-                        v.status, v.rule, v.operands = "derived", "difference_of_stated_durations", f"{w1} - {w2}"; return
+                        v.status, v.rule, v.operands = "derived", "difference_of_stated_durations", f"{w1} - {w2}"
+                        return
 
 
 def _asked_kind(question: str) -> str:
@@ -317,7 +330,9 @@ def bind_temporal_claims(*, question: str, reply: str, packet_facts: Sequence[Ma
     asked = _asked_kind(question)
     # clause-level qualification over the first sentence (memory answers are one sentence; later sentences follow the same rule)
     sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", reply)
-    kept: list[str] = []; dropped: list[str] = []; answering = ""
+    kept: list[str] = []
+    dropped: list[str] = []
+    answering = ""
     for s_index, sentence in enumerate(sentences):
         offset = reply.index(sentence)
         bounds = [0] + [m.start() for m in _CLAUSE_SPLIT_RE.finditer(sentence)] + [len(sentence)]
@@ -334,14 +349,15 @@ def bind_temporal_claims(*, question: str, reply: str, packet_facts: Sequence[Ma
                 return TemporalBinding(True, "answering_value_unsupported", "", values, [], answering)
             if primary is None and in_sentence and all(v.status == "unsupported" for v in in_sentence):
                 return TemporalBinding(True, "first_sentence_unsupported", "", values, [], answering)
-        for c_index, (a, b) in enumerate(clauses):
+        for a, b in clauses:
             inside = [v for v in values if offset + a <= v.start < offset + b]
             unsupported = [v for v in inside if v.status == "unsupported"]
             if s_index == 0 and primary is not None and any(v is primary for v in inside) and unsupported:
                 # the answering clause itself carries an unsupported value beside the answer: withdraw, do not trim
                 return TemporalBinding(True, "answering_clause_has_unsupported_value", "", values, [], answering)
             if unsupported:
-                dropped.append(sentence[a:b].strip(" ,;—–(")); continue
+                dropped.append(sentence[a:b].strip(" ,;—–("))
+                continue
             good.append(sentence[a:b])
         if good:
             text = "".join(good).strip()

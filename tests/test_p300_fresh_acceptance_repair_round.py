@@ -167,7 +167,7 @@ def kayak_home(tmp_path, monkeypatch):
                 r += 1.0
             elif word in topic:
                 dims[1 + (sum(map(ord, word)) % 3)] += 1.0
-        vec = [r] + dims[1:]
+        vec = [r, *dims[1:]]
         norm = math.sqrt(sum(v * v for v in vec))
         if norm == 0.0:
             return [0.0] * 7 + [1.0], "ollama:repairround-stub-ax"

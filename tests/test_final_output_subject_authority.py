@@ -12,11 +12,7 @@ JSON_REQUESTS=[
     'Respond with exactly a JSON object containing the valid key "label" and its recorded value.',
 ]
 
-@pytest.mark.parametrize('prompt',JSON_REQUESTS+[
-    'Return exactly the table from the saved invoice. No extra text.',
-    'Output exactly a CSV row of the recorded values.',
-    'Reply exactly one complete XML document with the stored labels.',
-])
+@pytest.mark.parametrize('prompt',[*JSON_REQUESTS, 'Return exactly the table from the saved invoice. No extra text.', 'Output exactly a CSV row of the recorded values.', 'Reply exactly one complete XML document with the stored labels.'])
 def test_unquoted_deliverable_description_does_not_bind_literal(prompt):
     assert exact_response_target(prompt)==''
     result={'response':'the actual complete deliverable','fulfillment_outcome':{'fulfillment_status':'failed'}}
@@ -32,12 +28,7 @@ def test_unquoted_deliverable_description_does_not_bind_literal(prompt):
 def test_supplied_literal_authority_is_preserved(prompt,literal):
     assert exact_response_target(prompt)==literal
 
-@pytest.mark.parametrize('prompt',JSON_REQUESTS+[
-    'Is the JSON key "enabled" valid in this object?',
-    'Is my house key working?',
-    'Is the key to this piano working?',
-    'Is my subscription token expired?',
-])
+@pytest.mark.parametrize('prompt',[*JSON_REQUESTS, 'Is the JSON key "enabled" valid in this object?', 'Is my house key working?', 'Is the key to this piano working?', 'Is my subscription token expired?'])
 def test_noncredential_subject_does_not_claim_runtime_key(prompt):
     assert runtime_lane_question(prompt)==''
 
