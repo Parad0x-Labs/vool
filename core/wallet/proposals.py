@@ -32,7 +32,13 @@ ORIGIN_DNA_FEE = "dna_fee"
 #: owner's own request met, approved on the ordinary sheet, signed by this wallet only after the built transaction
 #: proves it moves exactly the approved amount to the approved payee.
 ORIGIN_X402_PAYKIT = "x402_paykit"
-ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT)
+#: An MPP (Machine Payments Protocol) ``charge`` on Solana built by Solana pay-kit (core.wallet.paykit_mpp), under the
+#: same authority as the x402 pay-kit lane: parked from a 402 the owner's own request met, approved on the ordinary
+#: sheet, signed only after the built transaction proves it moves exactly the approved amount to the approved payee.
+ORIGIN_MPP_PAYKIT = "mpp_paykit"
+#: The origins whose payment pay-kit builds and the resource settles: the wallet never broadcasts a transfer for them.
+PAYKIT_ORIGINS = (ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT)
+ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT)
 
 STATE_PROPOSED = "proposed"
 STATE_SIMULATED = "simulated"
@@ -303,12 +309,12 @@ def _validated_asset(network: str, asset: str, *, source_context: dict[str, Any]
 
 
 def _require_token_lane(network: str, asset: str, *, origin: str, source_context: dict[str, Any] | None) -> None:
-    """A token on a Mainnet row moves only for an x402 payment lane (UsePod's, or a pay-kit x402 payment to any site) and
+    """A token on a Mainnet row moves only for a service payment lane (UsePod's x402, or a pay-kit x402 or MPP payment to any site) and
     the DNA fee collection; the pilot's own transfers there stay native coins. Test-network rows keep their registered tokens for every origin (the existing x402 lane pays with them)."""
     from core.wallet import chains
 
     spec = chains.resolve_network(network)
-    if not spec.is_mainnet or origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT) or chains.asset_for(spec.network, asset).native:
+    if not spec.is_mainnet or origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE, *PAYKIT_ORIGINS) or chains.asset_for(spec.network, asset).native:
         return
     raise wallet_fault(
         "wallet_network_disabled", authority=AUTHORITY,
@@ -395,11 +401,13 @@ __all__ = [
     "EVENT_APPROVAL_REFUSED",
     "ORIGINS",
     "ORIGIN_MODEL",
+    "ORIGIN_MPP_PAYKIT",
     "ORIGIN_PLUGIN",
     "ORIGIN_SKILL",
     "ORIGIN_USER",
     "ORIGIN_X402",
     "ORIGIN_X402_PAYKIT",
+    "PAYKIT_ORIGINS",
     "STATE_APPROVED",
     "STATE_AWAITING_SIGNATURE",
     "STATE_BROADCAST",

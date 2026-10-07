@@ -174,6 +174,9 @@ BINDING_PAID = "paid"
 BINDING_DELIVERED = "delivered"
 #: The binding version of the pay-kit lane (core.wallet.paykit_x402): the wire version (x402 v1 or v2) is in offer_json.
 BINDING_VERSION_PAYKIT = 3
+#: The binding version of an MPP charge built by Solana pay-kit (core.wallet.paykit_mpp): offer_json holds the challenge.
+BINDING_VERSION_PAYKIT_MPP = 4
+PAYKIT_BINDING_VERSIONS = (BINDING_VERSION_PAYKIT, BINDING_VERSION_PAYKIT_MPP)
 ALLOW_LOOPBACK_ENV = "VOOL_WALLET_X402_ALLOW_LOOPBACK"
 _BINDING_COLS = "binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, tx_signature, state, resource_status, resource_digest, resource_bytes, created_at, updated_at, version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, nonce, deadline, expires_at, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, fee_asset, max_timeout_seconds, asset_address, request_body_b64, request_headers_json, fee_payer"
 #: A request's binding is never handed to another proposal while its own proposal is being prepared, waits on its
@@ -558,8 +561,9 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     typed before anything is sent, never silently dropped. A request with a body pays through the pay-kit lane
     (:func:`core.wallet.paykit_x402.fetch_paid`), whose binding carries the body.
 
-    With the optional ``pay`` extra installed, a canonical Solana offer (one naming the resource's fee payer) that
-    this request meets is handed to the pay-kit lane, from the 402 already received: nothing is sent twice."""
+    With the optional ``pay`` extra installed, a canonical Solana x402 offer (one naming the resource's fee payer) or
+    an MPP Solana challenge that this request meets is handed to the pay-kit lane, from the 402 already received:
+    nothing is sent twice."""
     custody.require_enabled(source_context=source_context)
     if body:
         raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "request_body_needs_paykit_lane"}, source_context=source_context)
@@ -585,6 +589,11 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
         # a canonical Solana offer (the resource's fee payer settles it): pay-kit builds it, this wallet approves and
         # signs it. Only with the optional `pay` extra; VOOL's own v1 Solana offers name no fee payer and stay here.
         return paykit_x402.park_challenge(answer, url=clean_url, method=method, headers=headers, body=b"", wallet_id=wallet_id, source_context=source_context)
+    from core.wallet import paykit_mpp
+
+    if paykit_mpp.claims_challenge(response_headers, wallet_id=wallet_id):
+        # an MPP Solana challenge (WWW-Authenticate: Payment): the same pay-kit lane, its MPP terms
+        return paykit_mpp.park_challenge(answer, url=clean_url, method=method, headers=headers, body=b"", wallet_id=wallet_id, source_context=source_context)
     # a v2 challenge is parsed ONLY by the v2 parser: never silently downgraded to v1
     from core.wallet import x402_v2
 
@@ -758,7 +767,7 @@ def retry_paid_resource(proposal_id: str, *, source_context: dict[str, Any] | No
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"proposal_id": str(proposal_id), "reason": "no_x402_binding"}, source_context=source_context)
     if int(binding.get("version") or 1) == 2:
         raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "v2_delivery_happens_at_submission"}, source_context=source_context)
-    if int(binding.get("version") or 1) == BINDING_VERSION_PAYKIT:
+    if int(binding.get("version") or 1) in PAYKIT_BINDING_VERSIONS:
         # the pay-kit lane delivers exactly once, at approval: its signed payment is a one-shot instrument the
         # resource settles, so a retry here would replay it (or, worse, re-send it with another request). A retry
         # hands back the body that approval delivered, once, and sends nothing.

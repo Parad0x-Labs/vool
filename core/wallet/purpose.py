@@ -31,6 +31,8 @@ KIND_UNKNOWN = "unknown"
 MECHANISM_DIRECT = "Direct transfer"
 MECHANISM_X402 = "Service payment · x402"
 MECHANISM_CREDIT = "Provider credit · UsePod top-up"
+#: binding version -> the label of a pay-kit lane (3: x402 through Solana pay-kit, 4: an MPP charge through it)
+_MECHANISM_BY_VERSION = {3: f"{MECHANISM_X402} (Solana pay-kit)", 4: "Service payment · MPP (Solana pay-kit)"}
 
 CHARGE_ONE_RESPONSE = "one paid response for this resource"
 CHARGE_PREPAID_CREDIT = "prepayment: credit held by the provider, spent by later requests"
@@ -102,7 +104,7 @@ def _service(proposal: Any) -> dict[str, Any]:
         description = ""
     version = int(binding.get("version") or 1)
     view = _base(KIND_SERVICE, headline=f"Pay {provider} for {method} {url}" if url else f"Pay {provider} for a resource",
-                 mechanism_label=f"{MECHANISM_X402} (Solana pay-kit)" if version == 3 else f"{MECHANISM_X402} v{version}", beneficiary=str(binding.get("pay_to") or proposal.destination), charge_scope=CHARGE_ONE_RESPONSE)
+                 mechanism_label=_MECHANISM_BY_VERSION.get(version, f"{MECHANISM_X402} v{version}"), beneficiary=str(binding.get("pay_to") or proposal.destination), charge_scope=CHARGE_ONE_RESPONSE)
     view.update({"provider": provider, "provider_source": "the resource's own origin (not a verified merchant identity)", "resource": url,
                  "resource_method": method, "description": description, "description_source": "the provider's own description (untrusted)" if description else ""})
     return view
@@ -137,7 +139,7 @@ def purpose_for(proposal: Any) -> dict[str, Any]:
     origin = str(getattr(proposal, "origin", "") or "")
     if origin in _DIRECT_ORIGINS:
         return _direct(proposal)
-    if origin in (proposals.ORIGIN_X402, proposals.ORIGIN_X402_PAYKIT):
+    if origin in (proposals.ORIGIN_X402, *proposals.PAYKIT_ORIGINS):
         return _service(proposal)
     if origin == proposals.ORIGIN_USEPOD:
         return _usepod_payment(proposal)
