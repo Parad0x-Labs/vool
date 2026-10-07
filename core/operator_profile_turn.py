@@ -160,6 +160,19 @@ def observe_profile_turn(
     principal = profile.principal_for_request(source_context)
     project_id = str(getattr(access_policy, "project_id", "") or (source_context or {}).get("_trusted_project_id") or "")
     bind_turn_scope(principal, session_id, project_id)
+    # Standing instructions ("from now on …", "always …", a correction of how answers look) are saved here,
+    # on the same seat as the profile, so they reach every later chat in this workspace. Owner turns only; a
+    # turn that only states an instruction still gets an answer (this never claims the turn).
+    if principal:
+        try:
+            from core.standing_instructions import observe_turn as _observe_standing
+
+            standing = _observe_standing(raw_user_input, source_context, principal=principal,
+                                         project_id=project_id, session_id=session_id)
+            if (standing["saved"] or standing["taken_back"]) and isinstance(source_context, dict):
+                _observation(source_context)["standing_instructions"] = standing
+        except Exception:
+            pass
     try:
         proposals = interpret_profile_turn(raw_user_input)
     except Exception:
