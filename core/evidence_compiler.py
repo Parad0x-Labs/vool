@@ -185,7 +185,9 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
         tag = f"<{key} = {fact.get('value')}>" if not str(fact.get("norm") or "").endswith("|former") else f"<former {key} = {fact.get('value')}>"
         line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  {tag}"
     elif fact.get("value_type") == "preference":
-        line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  <preference>"
+        # a stated preference or constraint is an operand the answer has to respect, not a detail it may drop: set five
+        # (v14.4) had three penicillin-allergy lines in the packet and a snack list that ignored them
+        line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  <stated preference: respect it in the answer>"
     else:
         sentence = str(fact.get("sentence") or "").strip()
         line = f"- [{stated}] {role} said: \"{sentence[:400]}\""
