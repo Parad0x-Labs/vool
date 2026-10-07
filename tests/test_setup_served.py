@@ -50,7 +50,13 @@ def served(tmp_path_factory):
         except RuntimeError as exc:
             daemon.stop()
             pytest.skip(f"served daemon could not boot here: {exc}")
-        manager, browser = launch_chromium()
+        # The daemon is already up: if the browser cannot start (pytest.skip/fail are BaseException), stop it here,
+        # or it outlives pytest in its own session.
+        try:
+            manager, browser = launch_chromium()
+        except BaseException:
+            daemon.stop()
+            raise
         try:
             yield daemon, browser
         finally:

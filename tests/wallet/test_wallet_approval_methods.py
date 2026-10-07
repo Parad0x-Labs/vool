@@ -207,7 +207,13 @@ def test_served_card_shows_the_device_button_and_approves_through_it(tmp_path):
         except RuntimeError as exc:
             daemon.stop()
             pytest.skip(f"served daemon could not boot here: {exc}")
-        manager, browser = launch_chromium()
+        # The daemon is already up: if the browser cannot start (pytest.skip/fail are BaseException), stop it here,
+        # or it outlives pytest in its own session.
+        try:
+            manager, browser = launch_chromium()
+        except BaseException:
+            daemon.stop()
+            raise
         try:
             def post(path, body):
                 req = urllib.request.Request(daemon.base_url + path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")

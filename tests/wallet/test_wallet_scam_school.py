@@ -81,7 +81,13 @@ def test_served_settings_show_the_cards_with_the_wallet_off(tmp_path):
         except RuntimeError as exc:
             daemon.stop()
             pytest.skip(f"served daemon could not boot here: {exc}")
-        manager, browser = launch_chromium()
+        # The daemon is already up: if the browser cannot start (pytest.skip/fail are BaseException), stop it here,
+        # or it outlives pytest in its own session.
+        try:
+            manager, browser = launch_chromium()
+        except BaseException:
+            daemon.stop()
+            raise
         try:
             page = browser.new_page()
             page.goto(f"{daemon.base_url}/settings#wallet", wait_until="networkidle")

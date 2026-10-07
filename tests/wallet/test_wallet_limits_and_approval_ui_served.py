@@ -50,7 +50,13 @@ def test_caps_and_approval_method_are_set_from_the_page_and_stored_by_the_doors(
         except RuntimeError as exc:
             daemon.stop()
             pytest.skip(f"served daemon could not boot here: {exc}")
-        manager, browser = launch_chromium()
+        # The daemon is already up: if the browser cannot start (pytest.skip/fail are BaseException), stop it here,
+        # or it outlives pytest in its own session.
+        try:
+            manager, browser = launch_chromium()
+        except BaseException:
+            daemon.stop()
+            raise
         try:
             code, created = _post(daemon.base_url, "/api/wallet/pocket/create", {"pin": PIN, "acknowledged_warning": True, "confirmation_phrase": custody.POCKET_CONFIRMATION_PHRASE})
             assert code == 200, created
