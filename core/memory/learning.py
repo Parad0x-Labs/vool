@@ -1082,6 +1082,22 @@ def contains_negated_declaration(value: str) -> bool:
     return bool(tokens) and tokens[0] in _NEGATION_OPENERS
 
 
+_THIRD_PARTY_SUBJECT_RE = re.compile(
+    r"^(?:(?:my|our)\s+(?!own\b)[a-z][\w'-]*|he|she|they|his|her|their)\b(?:\s+[a-z][\w'-]*){0,2}?\s+"
+    r"(?:always|never|usually|often|wants?|likes?|prefers?|hates?|needs?|asks?)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_standing_instruction(sentence: str) -> bool:
+    try:
+        from core.standing_instructions import _is_standing
+
+        return _is_standing(sentence)
+    except Exception:
+        return False
+
+
 def extract_memory_candidates(user_input: str) -> list[dict[str, Any]]:
     text = " ".join(str(user_input or "").split()).strip()
     if not text:
@@ -1107,7 +1123,17 @@ def extract_memory_candidates(user_input: str) -> list[dict[str, Any]]:
         # The directive itself is an instruction, not a fact about the user.
         if _STANDALONE_REMEMBER_RE.match(sentence.strip()):
             continue
-        if any(pattern.search(clean) for pattern in _STYLE_PATTERNS):
+        # Someone else's habit ("my sister always wants …", "our CFO always prefers …") is a fact about them,
+        # never the owner's instruction or preference: it skips both kinds and can only land as a fact.
+        if _THIRD_PARTY_SUBJECT_RE.match(sentence.strip()):
+            if directed or any(pattern.search(clean) for pattern in _FACT_PATTERNS):
+                out.append({"text": clean, "category": "fact", "confidence": 0.78,
+                            "keywords": memory_entries.keyword_tokens_filtered(clean)})
+            continue
+        # A standing instruction is kept whatever its verb ("always give me …", "never show …", "from now on
+        # write …"). The verb lists below only knew answer/respond/use/remember/be, so the instruction half of a
+        # lesson was dropped and only its fact survived. One detector, shared with core.standing_instructions.
+        if _is_standing_instruction(sentence.strip()) or any(pattern.search(clean) for pattern in _STYLE_PATTERNS):
             out.append(
                 {
                     "text": clean,
