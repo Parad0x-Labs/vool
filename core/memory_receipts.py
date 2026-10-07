@@ -739,12 +739,14 @@ def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | Non
     return receipt
 
 
-_QUESTION_NOISE = frozenset("remind previous conversation conversations mention mentioned mentioning earlier follow following discussed discuss told said ask asked want wanted know think like remember recall recently back going go come came thing things way one ones still now long many much time times first last ago before after between since until day days week weeks month months year years did do does have has had was were".split())
+_QUESTION_NOISE = frozenset("remind previous conversation conversations mention mentioned mentioning earlier follow following discussed discuss told said ask asked want wanted know think like remember recall recently back going go come came thing things way one ones still now long many much time times first last ago before after between since until day days week weeks month months year years hour hours minute minutes mins did do does have has had was were".split())
 
 
 def question_terms(question: str) -> list[str]:
-    return sorted({_stem(t) for t in re.findall(r"[a-zA-Z][a-zA-Z'\-]+", str(question or "").lower())
-                   if t not in _STOP and t not in _QUESTION_NOISE and len(t) > 2})
+    # a token may start with a digit when it carries a letter ("10K", "401k", "3D"): the race the question names is a
+    # content term, the same way the slot tokenizer keeps it
+    return sorted({_stem(t) for t in re.findall(r"[a-zA-Z0-9][a-zA-Z0-9'\-]+", str(question or "").lower())
+                   if t not in _STOP and t not in _QUESTION_NOISE and len(t) > 2 and re.search(r"[a-z]", t)})
 
 
 def match_receipts(receipts: Sequence[dict[str, Any]], question: str, *, extra_terms: Sequence[str] = (), limit: int = 12,
