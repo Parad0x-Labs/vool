@@ -222,6 +222,9 @@ def main() -> int:
                 finish_reason=str(state.get("finish_reason") or "stop"),
             ))
         reader_sufficient = decision.get("source_present")
+        if decision.get("purpose") == "auxiliary_decomposition" and state.get("decomposition"):
+            # A turn may script the clause decomposition reply itself (a recorded live reply).
+            decision = {**decision, "content": state["decomposition"]}
         raw = decision["content"]
         calls.append(
             {
@@ -403,6 +406,7 @@ def main() -> int:
         state["malformed_final"] = turn.get("malformed_final", False)
         state["finish_reason"] = turn.get("finish_reason", "stop")
         state["reader_require"] = turn.get("reader_require") or []
+        state["decomposition"] = turn.get("decomposition") or ""
         source_context: dict = {
             "surface": str(turn.get("surface") or "openclaw"),
             "platform": str(turn.get("surface") or "openclaw"),

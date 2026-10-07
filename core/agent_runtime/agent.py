@@ -2882,6 +2882,15 @@ class VoolAgent(
             coverage = demand_coverage(demand_text)
             if not coverage.mixed:
                 return None
+            # The turn's clause decomposition (one model reading, already asked by the conductor)
+            # read every clause as ONE request: answer it as one. Measured on the live agent-team run
+            # (2026-10-07): it grouped "Review the three files ... For each file, find the bug ...
+            # Read the code; do not change any file." into one workspace investigation, this cut split
+            # it anyway, and the second half was answered without the files ("which code?").
+            from core.agent_runtime.turn_planner_hook import decomposition_groups_whole_turn
+
+            if decomposition_groups_whole_turn(source_context, demand_text):
+                return None
             tasks = units_as_plan(demand_text)
             if len(tasks) < 2:
                 return None
