@@ -40,6 +40,7 @@ _DATE_RE = re.compile(
     re.IGNORECASE)
 _NUM = rf"(?:\d+(?:[.,]\d+)?|(?:{_TENS})[\s-](?:{_ONES})|{_TENS}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|couple of|few|half a)"
 _DUR_RE = re.compile(rf"\b(?:about\s+|around\s+|roughly\s+|approximately\s+|nearly\s+|almost\s+|just\s+over\s+|over\s+)?(?P<n>{_NUM})(?:\s*(?:–|-|to)\s*(?P<n2>\d+(?:\.\d+)?))?[\s-]+(?P<u>days?|weeks?|months?|years?|hours?|minutes?|mins?)\b", re.IGNORECASE)
+_RATE_DENOMINATOR_RE = re.compile(r"(?:a|an|per|each|every)\s+(?:day|week|month|year|hour)", re.IGNORECASE)
 _WEEKDAY_RE = re.compile(r"\b(" + "|".join(_WEEKDAYS) + r")\b", re.IGNORECASE)
 _AGO_RE = re.compile(rf"\b(?P<n>{_NUM})\s+(?P<u>days?|weeks?|months?|years?)\s+ago\b", re.IGNORECASE)
 _LAST_RE = re.compile(r"\b(?:last|this\s+past|the\s+previous)\s+(?P<u>week|month|year|weekend)\b|\byesterday\b", re.IGNORECASE)
@@ -115,12 +116,17 @@ def reply_temporal_values(text: str) -> list[TValue]:
             continue
     for m in _WEEKDAY_RE.finditer(text):
         out.append(TValue("weekday", m.group(0), m.start(), m.end()))
+    last_duration_end = -1
     for m in _DUR_RE.finditer(text):
         if any(s <= m.start() < e for s, e in taken):
+            continue
+        if _RATE_DENOMINATOR_RE.fullmatch(m.group(0)) and last_duration_end >= 0 and not text[last_duration_end:m.start()].strip():
+            # "an hour a day", "20 minutes a week": the second phrase is the rate's denominator, not a duration claim
             continue
         n = _num(m.group("n")); n2 = _num(m.group("n2")) if m.group("n2") else None
         if n is None:
             continue
+        last_duration_end = m.end()
         unit = m.group("u").lower().rstrip("s")
         window = text[max(0, m.start() - 40): m.end() + 24]
         kind = "interval" if re.search(r"\bago\b|\bbefore\b|\bafter\b|\bbetween\b|\blater\b|\bearlier\b|\bapart\b", window, re.I) else "duration"
