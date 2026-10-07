@@ -65,13 +65,15 @@ evm = [
     "eth-account>=0.13",
 ]
 models = [
-    "sentence-transformers>=2.2",
+    # PyTorch publishes no Intel-macOS wheel since 2.3: torch and the packages that require it
+    # are skipped there, and local LoRA training reports itself unavailable.
+    "sentence-transformers>=2.2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "openai>=1.0",
     "anthropic>=0.18",
-    "torch>=2.13.0",
+    "torch>=2.13.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "transformers>=4.48",
-    "peft>=0.14",
-    "accelerate>=1.2",
+    "peft>=0.14; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "accelerate>=1.2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "aiohttp>=3.14.3",  # Security floor for model/data download clients.
     "datasets>=3.2",
     "huggingface_hub>=0.28",
@@ -84,13 +86,15 @@ companion = [
     "xxhash>=3.4.0",
 ]
 runtime = [
-    "sentence-transformers>=2.2",
+    # PyTorch publishes no Intel-macOS wheel since 2.3: torch and the packages that require it
+    # are skipped there, and local LoRA training reports itself unavailable.
+    "sentence-transformers>=2.2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "openai>=1.0",
     "anthropic>=0.18",
-    "torch>=2.13.0",
+    "torch>=2.13.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "transformers>=4.48",
-    "peft>=0.14",
-    "accelerate>=1.2",
+    "peft>=0.14; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "accelerate>=1.2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "aiohttp>=3.14.3",  # Security floor for model/data download clients.
     "datasets>=3.2",
     "huggingface_hub>=0.28",

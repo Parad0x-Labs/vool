@@ -5,6 +5,13 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -45,8 +52,10 @@ def test_pyproject_runtime_extra_covers_installer_runtime_surface() -> None:
         "runtime = [",
         '"openai>=1.0"',
         '"anthropic>=0.18"',
-        '"sentence-transformers>=2.2"',
-        '"torch>=2.13.0"',
+        # Required everywhere except Intel macOS, where PyTorch publishes no wheel since 2.3.
+        # The exclusion is exactly that one platform; any wider marker drops torch elsewhere.
+        '"sentence-transformers>=2.2; sys_platform != \'darwin\' or platform_machine != \'x86_64\'"',
+        '"torch>=2.13.0; sys_platform != \'darwin\' or platform_machine != \'x86_64\'"',
         '"transformers>=4.48"',
         '"playwright>=1.52,<2.0"',
         '"zstandard>=0.22.0"',
@@ -975,3 +984,60 @@ def test_open_chat_bat_executed_browser_open_failure_reports_honestly(tmp_path: 
     assert not any("opened_url" in e for e in ps)
     assert _calls(doubles, "schtasks") == [], "an open failure must not start anything"
     assert config.read_text(encoding="utf-8") == '{"model": "unrelated", "reserveTokensFloor": 99000}'
+
+
+_PLATFORM_ENVIRONMENTS = {
+    "macos-arm64": {"sys_platform": "darwin", "platform_machine": "arm64"},
+    "macos-x86_64": {"sys_platform": "darwin", "platform_machine": "x86_64"},
+    "linux-x86_64": {"sys_platform": "linux", "platform_machine": "x86_64"},
+    "windows-amd64": {"sys_platform": "win32", "platform_machine": "AMD64"},
+}
+
+
+def _declared_requirements() -> dict[str, list[str]]:
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    sources = {
+        "pyproject dependencies + runtime extra": [
+            *pyproject["dependencies"],
+            *pyproject["optional-dependencies"]["runtime"],
+        ],
+    }
+    for name in ("requirements.txt", "requirements-runtime.txt"):
+        lines = (REPO_ROOT / name).read_text(encoding="utf-8").splitlines()
+        sources[name] = [
+            line.split("  #", 1)[0].strip()
+            for line in lines
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    return sources
+
+
+def _applicable(requirements: list[str], package: str, environment: dict[str, str]) -> list[str]:
+    from packaging.requirements import Requirement
+
+    out = []
+    for raw in requirements:
+        requirement = Requirement(raw)
+        if requirement.name != package:
+            continue
+        if requirement.marker is None or requirement.marker.evaluate(environment):
+            out.append(str(requirement.specifier))
+    return out
+
+
+@pytest.mark.parametrize("platform_name", sorted(_PLATFORM_ENVIRONMENTS))
+def test_intel_macos_is_the_only_platform_without_torch_and_every_platform_keeps_the_cryptography_floor(platform_name):
+    """Intel macOS has no wheel for torch>=2.3, so the source install failed there at dependency
+    resolution. Every other platform keeps torch, and every platform keeps cryptography>=50.0.0."""
+    environment = _PLATFORM_ENVIRONMENTS[platform_name]
+    intel_mac = platform_name == "macos-x86_64"
+    for source, requirements in _declared_requirements().items():
+        torch_specs = _applicable(requirements, "torch", environment)
+        crypto_specs = _applicable(requirements, "cryptography", environment)
+        if intel_mac:
+            assert torch_specs == [], f"{source}: torch has no Intel-macOS wheel"
+            for package in ("sentence-transformers", "peft", "accelerate"):
+                assert _applicable(requirements, package, environment) == [], f"{source}: {package} requires torch"
+        else:
+            assert torch_specs == [">=2.13.0"], f"{source}: {torch_specs}"
+        assert crypto_specs == [">=50.0.0"], f"{source}: {crypto_specs}"
