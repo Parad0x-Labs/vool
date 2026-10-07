@@ -2121,6 +2121,23 @@ class ResearchToolLoopFacadeMixin:
                 if execution.mode != "tool_preview":
                     from core.execution_requirements import requirements_for
 
+                    # An optional web step the turn's own fetch veto refused: no socket opened and nothing
+                    # ran, so the turn is answered on the ordinary path. Measured 2026-10-06 (round 3's
+                    # LoCoMo questions, v12 and v13 alike): a research-labelled memory question planned
+                    # web.search, the veto refused it, and the turn shipped "I wasn't able to turn that into a
+                    # completed action" without a model answer. Checked before the tools-required break below:
+                    # the refused step is recorded on executed_steps, so a tools-required memory question
+                    # ("what is my current job") broke to synthesis on a step that never ran and lost the
+                    # model's answer for "0 of 1 tool steps succeeded" (measured 2026-10-07 on the v0.7
+                    # candidate; tests/test_a_refused_web_step_on_a_tools_required_turn_is_not_a_failed_answer.py).
+                    if self._web_step_refused_by_turn_veto(
+                        execution=execution,
+                        executed_steps=executed_steps,
+                        effective_input=effective_input,
+                        source_context=loop_source_context,
+                    ):
+                        return None
+
                     failed_status = str(execution.status or "").strip().lower()
                     failed_name = str(execution.tool_name or tool_name or "").strip().lower()
                     no_usable_intent = failed_status in {"missing_intent", "invalid_payload"} or failed_name in {"", "unknown"}
@@ -2148,18 +2165,6 @@ class ResearchToolLoopFacadeMixin:
                         # these same steps if the model will not answer from them.
                         loop_stop_reason = "tool_failed_after_evidence"
                         break
-                        return None
-                    # Nor may an optional web step the turn's own fetch veto refused: no socket
-                    # opened and nothing ran, so the turn is answered on the ordinary path. Measured
-                    # 2026-10-06 (round 3's LoCoMo questions, v12 and v13 alike): a research-labelled
-                    # memory question planned web.search, the veto refused it, and the turn shipped
-                    # "I wasn't able to turn that into a completed action" without a model answer.
-                    if self._web_step_refused_by_turn_veto(
-                        execution=execution,
-                        executed_steps=executed_steps,
-                        effective_input=effective_input,
-                        source_context=loop_source_context,
-                    ):
                         return None
                 confidence = max(0.35, min(0.96, confidence_hint))
                 task_outcome = "pending_approval" if execution.mode == "tool_preview" else "failed"
