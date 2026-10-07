@@ -278,6 +278,27 @@ def test_another_body_or_method_is_another_request_and_a_paid_one_is_never_paid_
         assert len(resource.paid_requests) == 1 and len(env["rpc"].transactions) == 1
 
 
+def test_an_mpp_challenge_parked_for_a_request_already_paid_never_rebinds_it(env):
+    """Each MPP challenge carries its own id, so the same request challenged again would get a fresh proposal key:
+    park_challenge itself refuses a request this lane already paid, and the request stays bound to its payment."""
+    from core.wallet import outbound, paykit_mpp, paykit_x402, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    headers = {"Content-Type": "application/json"}
+    with ScriptedMppResource(env["rpc"]) as resource:
+        parked = _park(resource, profile)
+        _approve(parked.proposal_id)
+        challenge = outbound.fetch(resource.url, method="POST", headers=headers, body=REQUEST_BODY)
+        assert challenge["status"] == 402
+        with pytest.raises(WalletFault) as again:
+            paykit_mpp.park_challenge(challenge, url=resource.url, method="POST", headers=headers, body=REQUEST_BODY, wallet_id=profile.wallet_id)
+        assert again.value.context["reason"] == "paykit_request_already_paid"
+        assert len(resource.landed) == 1
+    binding = x402.binding_for_digest(paykit_x402.request_digest("POST", resource.url, REQUEST_BODY))
+    assert binding["proposal_id"] == parked.proposal_id
+
+
 def test_a_challenge_that_expires_before_approval_is_never_signed_and_releases_the_hold(env):
     from core.wallet import limits, proposals
     from core.wallet.errors import WalletFault
@@ -337,11 +358,32 @@ def test_a_charge_that_failed_on_chain_releases_the_hold(env):
     assert receipt.state == proposals.STATE_FAILED and limits.reservation_state(parked.proposal_id) == "released"
 
 
+@pytest.mark.parametrize("paid_answer", ["ok", "status:304"])
+def test_a_charge_that_failed_on_chain_still_counts_the_fee_this_wallet_paid(env, paid_answer):
+    """This wallet paid the network fee of a charge that failed on chain: the amount never moved, but the fee was
+    charged, so the caps count the fee and not the amount (the way the Pilot lane settles a failed transfer)."""
+    from core.wallet import limits, paykit_mpp, proposals
+    from core.wallet.store import connection
+
+    profile = _pocket()
+    with ScriptedMppResource(env["rpc"], sponsored=False, mode="settle_fails", paid_answer=paid_answer) as resource:
+        parked = _park(resource, profile)
+        receipt = _approve(parked.proposal_id)
+    assert receipt.state == proposals.STATE_FAILED
+    assert limits.reservation_state(parked.proposal_id) == "settled"
+    with connection() as conn:
+        rows = conn.execute("SELECT state, amount_minor, fee_minor FROM wallet_spend_ledger WHERE proposal_id IN (?, ?)",
+                            (parked.proposal_id, limits._fee_hold_id(parked.proposal_id))).fetchall()
+    assert {row[0] for row in rows} == {"settled"}
+    assert sum(row[1] for row in rows) == 0, "the amount of a failed charge never counts"
+    assert sum(row[2] for row in rows) == paykit_mpp.payer_fee_minor(proposals.get_proposal(parked.proposal_id))
+
+
 # --- the ordinary x402 door -------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize(("sponsored", "mode", "state", "hold"), [
     (False, "ok", "confirmed", "settled"),
-    (False, "settle_fails", "failed", "released"),
+    (False, "settle_fails", "failed", "settled"),
     (True, "ok", "broadcast", "reserved"),
 ], ids=["wallet-pays-fee-landed", "wallet-pays-fee-failed-on-chain", "server-pays-fee"])
 def test_a_charge_answered_with_a_bare_3xx_is_decided_by_the_chain(env, sponsored, mode, state, hold):
