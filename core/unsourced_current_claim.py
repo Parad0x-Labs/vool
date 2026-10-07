@@ -862,19 +862,13 @@ def inspect_unsourced_current_claim(
             from core.bootstrap_context import admitted_capsule_evidence_text as _admitted_text
             from core.evidence_kernel.claim_binder import bind_claims as _bind_claims
 
-            _packet_facts = None
-            try:
-                from core.context_retrieval import get_last_retrieval_telemetry as _telemetry
-
-                _packet_facts = list(_telemetry().get("evidence_packet_facts") or [])
-            except Exception:
-                _packet_facts = None
             from core.evidence_kernel.revocation import without_revoked as _without_revoked
+            from core.evidence_kernel.snapshot import packet_facts_for as _packet_facts_for
 
-            _evidence_text, _packet_facts = _without_revoked(
-                _admitted_text(source_context or {}, session_id, question=str(user_turn_text or "")),
-                _packet_facts, str(session_id or ""),
-            )
+            _admitted = _admitted_text(source_context or {}, session_id, question=str(user_turn_text or ""))
+            # One memory revision: the packet the turn's evidence carries, never a later retrieval's.
+            _packet_facts = _packet_facts_for(_admitted, str(session_id or ""))
+            _evidence_text, _packet_facts = _without_revoked(_admitted, _packet_facts, str(session_id or ""))
             _binding = _bind_claims(
                 question=user_turn_text, reply=answer,
                 evidence_text=_evidence_text,
