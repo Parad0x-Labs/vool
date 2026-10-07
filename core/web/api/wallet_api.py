@@ -23,6 +23,7 @@ _STATUS_FOR_CODE = {
     "wallet_approval_rejected": 403, "wallet_x402_cap_exceeded": 403, "wallet_card_data_refused": 400, "wallet_not_found": 404,
     "wallet_simulation_failed": 502, "wallet_broadcast_failed": 502, "wallet_acknowledgement_required": 400,
     "wallet_device_auth_unavailable": 403, "wallet_device_auth_denied": 403, "wallet_export_unavailable": 400, "wallet_export_pin_not_accepted": 400, "wallet_dependency_unavailable": 403,
+    "wallet_paykit_unavailable": 403,
     "wallet_password_invalid": 400,
     "wallet_chain_identity_mismatch": 403, "wallet_outbound_refused": 403, "evm_pocket_custody_unavailable": 403, "x402_scheme_unavailable": 403,
     "wallet_caller_refused": 403, "wallet_environment_inactive": 409,

@@ -456,7 +456,8 @@ def test_without_paykit_the_lane_refuses_before_sending_anything(env, monkeypatc
     with ScriptedPayKitResource(env["rpc"]) as resource:
         with pytest.raises(WalletFault) as exc:
             _park(resource, profile)
-        assert exc.value.code == "wallet_dependency_unavailable" and exc.value.context["reason"] == "paykit_not_installed"
+        assert exc.value.code == "wallet_paykit_unavailable" and exc.value.context["reason"] == "paykit_not_installed"
+        assert "optional pay extra" in exc.value.user_message and "EVM" not in exc.value.user_message
         assert resource.requests == [] and proposals.list_proposals() == []
 
 

@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "İki giriş birbirini tutmadı, bu yüzden hiçbir şey oluşturulmadı. Aynı PIN'i veya parolayı iki kez girin, sonra tekrar deneyin.",
     "fault.wallet_dependency_unavailable.action": "EVM şeritlerini etkinleştirmek için EVM eklerini (eth-abi, eth-utils, eth-account) kurun; cüzdanın diğer her işlevi onsuz çalışır.",
     "fault.wallet_dependency_unavailable.message": "Bu yapı EVM imzalama veya ABI kodlaması yapamaz: Ethereum kitaplıkları bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Solana, saklama ve harcama tavanları etkilenmez; kitaplıklar kurulunca tekrar deneyin.",
+    "fault.wallet_paykit_unavailable.action": "pay-kit ödemelerini etkinleştirmek için VOOL'un isteğe bağlı pay ekini Python 3.11 veya daha yenisine kurun; cüzdan her durumda kendi imzalayıcısını, harcama tavanlarını ve onayını korur.",
+    "fault.wallet_paykit_unavailable.message": "Bu yapı Solana x402 veya MPP tekliflerini ödeyemez: isteğe bağlı pay eki (Solana pay-kit, Python 3.11 veya daha yenisi) bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Cüzdanın diğer her işlevi onsuz çalışır; kurulunca tekrar deneyin.",
     "fault.wallet_disabled.action": "Cüzdanı yalnızca bu kurulumda ödemeler isteniyorsa açıkça etkinleştirin (VOOL_WALLET_ENABLED=1).",
     "fault.wallet_disabled.message": "Cüzdan kapalı, bu yüzden önerilen veya gönderilen ödeme olmadı. Önce etkinleştirin, sonra tekrar deneyin.",
     "fault.wallet_duplicate_payment.action": "Var olan önerinin makbuzunu kontrol edin; gerçekten yeni bir ödeme için yeni bir eşgüçlülük anahtarı kullanın.",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "Sesi dinle",
     "vns.sound.blocked": "Ses çalma kullanılamıyor. Bildirimler zil menüsünde kalır."
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

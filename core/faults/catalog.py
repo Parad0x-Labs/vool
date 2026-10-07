@@ -121,6 +121,7 @@ FAULT_WALLET_OUTBOUND_REFUSED = "wallet_outbound_refused"
 FAULT_EVM_POCKET_CUSTODY_UNAVAILABLE = "evm_pocket_custody_unavailable"
 FAULT_X402_SCHEME_UNAVAILABLE = "x402_scheme_unavailable"
 FAULT_WALLET_DEPENDENCY_UNAVAILABLE = "wallet_dependency_unavailable"
+FAULT_WALLET_PAYKIT_UNAVAILABLE = "wallet_paykit_unavailable"
 FAULT_WALLET_ENVIRONMENT_INACTIVE = "wallet_environment_inactive"
 FAULT_WALLET_AMOUNT_INVALID = "wallet_amount_invalid"
 FAULT_WALLET_CALLER_REFUSED = "wallet_caller_refused"
@@ -473,6 +474,11 @@ _WALLET_SPECS: tuple[FaultSpec, ...] = (
               user_message="This build cannot do EVM signing or ABI encoding: the Ethereum libraries are not installed on this machine. Nothing was signed or sent. Solana, custody and spend ceilings are unaffected; once the libraries are installed, try again.",
               operator_action="Install the EVM extras (eth-abi, eth-utils, eth-account) to enable the EVM lanes; every other wallet lane works without them.",
               authority="core.wallet.evm"),
+    FaultSpec(code=FAULT_WALLET_PAYKIT_UNAVAILABLE, category=CATEGORY_POLICY, severity=SEVERITY_MEDIUM,
+              retry=RETRY_AFTER_CHANGE,
+              user_message="This build cannot pay Solana x402 or MPP offers: the optional pay extra (Solana pay-kit, Python 3.11 or newer) is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again.",
+              operator_action="Install VOOL's optional pay extra on Python 3.11 or newer to enable pay-kit payments; the wallet keeps its own signer, spend caps and approval either way.",
+              authority="core.wallet.paykit_x402"),
     FaultSpec(code=FAULT_X402_SCHEME_UNAVAILABLE, category=CATEGORY_POLICY, severity=SEVERITY_LOW, retry=RETRY_AFTER_CHANGE,
               user_message="This payment offer needs a scheme this wallet cannot prove end to end, so nothing was signed. Try an offer whose scheme, token and facilitator are verified for this network.",
               operator_action="Use an offer whose scheme, token and facilitator are verified for the network; partial signing support is never improvised.",
@@ -519,6 +525,7 @@ _EFFECT_BY_CODE: dict[str, str] = {
     FAULT_EVM_POCKET_CUSTODY_UNAVAILABLE: EFFECT_NONE,
     FAULT_X402_SCHEME_UNAVAILABLE: EFFECT_NONE,
     FAULT_WALLET_DEPENDENCY_UNAVAILABLE: EFFECT_NONE,
+    FAULT_WALLET_PAYKIT_UNAVAILABLE: EFFECT_NONE,
     FAULT_WALLET_ENVIRONMENT_INACTIVE: EFFECT_NONE,
     FAULT_WALLET_AMOUNT_INVALID: EFFECT_NONE,
     FAULT_WALLET_CALLER_REFUSED: EFFECT_NONE,

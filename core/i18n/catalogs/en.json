@@ -586,6 +586,8 @@
     "fault.wallet_credential_mismatch.message": "The two entries did not match, so nothing was created. Enter the same PIN or password twice, then try again.",
     "fault.wallet_dependency_unavailable.action": "Install the EVM extras (eth-abi, eth-utils, eth-account) to enable the EVM lanes; every other wallet lane works without them.",
     "fault.wallet_dependency_unavailable.message": "This build cannot do EVM signing or ABI encoding: the Ethereum libraries are not installed on this machine. Nothing was signed or sent. Solana, custody and spend ceilings are unaffected; once the libraries are installed, try again.",
+    "fault.wallet_paykit_unavailable.action": "Install VOOL's optional pay extra on Python 3.11 or newer to enable pay-kit payments; the wallet keeps its own signer, spend caps and approval either way.",
+    "fault.wallet_paykit_unavailable.message": "This build cannot pay Solana x402 or MPP offers: the optional pay extra (Solana pay-kit, Python 3.11 or newer) is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again.",
     "fault.wallet_disabled.action": "Enable the wallet explicitly (VOOL_WALLET_ENABLED=1) only if payments are wanted on this install.",
     "fault.wallet_disabled.message": "The wallet is switched off, so no payment was proposed or sent. Enable it first, then try again.",
     "fault.wallet_duplicate_payment.action": "Check the existing proposal's receipt; use a new idempotency key for a genuinely new payment.",

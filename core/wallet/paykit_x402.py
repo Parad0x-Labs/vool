@@ -18,7 +18,7 @@ decision about money here:
    signature over the approved message and have succeeded. Anything less leaves the hold in place as unknown.
 
 pay-kit is an optional dependency (the ``pay`` extra, Python 3.11+). Without it, :func:`availability` says why and
-every door refuses typed (``wallet_dependency_unavailable``) before any request is sent.
+every door refuses typed (``wallet_paykit_unavailable``, naming the extra) before any request is sent.
 """
 from __future__ import annotations
 
@@ -112,7 +112,7 @@ def availability() -> tuple[bool, str]:
 def require_available(*, source_context: dict[str, Any] | None = None) -> None:
     ok, reason = availability()
     if not ok:
-        raise wallet_fault("wallet_dependency_unavailable", authority=AUTHORITY, context={"reason": reason, "dependency": PAYKIT_DISTRIBUTION}, source_context=source_context)
+        raise wallet_fault("wallet_paykit_unavailable", authority=AUTHORITY, context={"reason": reason, "dependency": PAYKIT_DISTRIBUTION}, source_context=source_context)
 
 
 def _payment_module() -> Any:

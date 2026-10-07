@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "Dwa wpisy nie pasowały do siebie, więc nic nie utworzono. Wpisz ten sam PIN lub hasło dwa razy i spróbuj ponownie.",
     "fault.wallet_dependency_unavailable.action": "Zainstaluj dodatki EVM (eth-abi, eth-utils, eth-account), by włączyć pasma EVM; każda inna funkcja portfela działa bez nich.",
     "fault.wallet_dependency_unavailable.message": "Ta wersja nie potrafi podpisywać EVM ani kodować ABI: na tym komputerze nie ma bibliotek Ethereum. Nic nie podpisano ani nie wysłano. Solana, przechowywanie i limity wydatków nie są dotknięte; po zainstalowaniu bibliotek spróbuj ponownie.",
+    "fault.wallet_paykit_unavailable.action": "Zainstaluj opcjonalny dodatek pay VOOL na Pythonie 3.11 lub nowszym, by włączyć płatności pay-kit; portfel w każdym przypadku zachowuje własnego sygnatariusza, limity wydatków i zatwierdzanie.",
+    "fault.wallet_paykit_unavailable.message": "Ta wersja nie potrafi opłacać ofert x402 ani MPP w Solanie: na tym komputerze nie ma opcjonalnego dodatku pay (Solana pay-kit, Python 3.11 lub nowszy). Nic nie podpisano ani nie wysłano. Każda inna funkcja portfela działa bez niego; po zainstalowaniu spróbuj ponownie.",
     "fault.wallet_disabled.action": "Włącz portfel jawnie (VOOL_WALLET_ENABLED=1) tylko jeśli płatności są chciane na tej instalacji.",
     "fault.wallet_disabled.message": "Portfel jest wyłączony, więc nie zaproponowano ani nie wysłano płatności. Najpierw go włącz, potem spróbuj ponownie.",
     "fault.wallet_duplicate_payment.action": "Sprawdź pokwitowanie istniejącego wniosku; dla naprawdę nowej płatności użyj nowego klucza idempotencji.",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "Odsłuchaj dźwięk",
     "vns.sound.blocked": "Odtwarzanie dźwięku jest niedostępne. Powiadomienia pozostają pod dzwonkiem."
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "Du įrašai nesutapo, todėl niekas nebuvo sukurta. Įrašykite tą patį PIN ar slaptažodį du kartus ir bandykite dar kartą.",
     "fault.wallet_dependency_unavailable.action": "Įdiekite EVM papildinius (eth-abi, eth-utils, eth-account) EVM keliams įjungti; visos kitos piniginės funkcijos veikia ir be jų.",
     "fault.wallet_dependency_unavailable.message": "Ši versija negali atlikti EVM pasirašymo ar ABI kodavimo: šiame kompiuteryje nėra įdiegtos Ethereum bibliotekos. Niekas nebuvo pasirašyta ar išsiųsta. Solana, saugojimas ir išlaidų ribos nepaveiktos; įdiegus bibliotekas bandykite dar kartą.",
+    "fault.wallet_paykit_unavailable.action": "Įdiekite pasirenkamą VOOL papildinį pay su Python 3.11 ar naujesniu, kad įjungtumėte pay-kit mokėjimus; piniginė bet kuriuo atveju išlaiko savo pasirašytoją, išlaidų ribas ir patvirtinimą.",
+    "fault.wallet_paykit_unavailable.message": "Ši versija negali apmokėti Solana x402 ar MPP pasiūlymų: šiame kompiuteryje neįdiegtas pasirenkamas papildinys pay (Solana pay-kit, Python 3.11 ar naujesnis). Niekas nebuvo pasirašyta ar išsiųsta. Visos kitos piniginės funkcijos veikia ir be jo; jį įdiegę bandykite dar kartą.",
     "fault.wallet_disabled.action": "Įjunkite piniginę aiškiai (VOOL_WALLET_ENABLED=1) tik jei šiame diegime norimi mokėjimai.",
     "fault.wallet_disabled.message": "Piniginė išjungta, todėl mokėjimas nebuvo pasiūlytas ar išsiųstas. Pirmiausia ją įjunkite, tada bandykite dar kartą.",
     "fault.wallet_duplicate_payment.action": "Patikrinkite esamo prašymo kvitą; iš tikrųjų naujam mokėjimui naudokite naują idempotencijos raktą.",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "Išbandyti garsą",
     "vns.sound.blocked": "Garso paleisti nepavyko. Pranešimai lieka varpelio meniu."
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

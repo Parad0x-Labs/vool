@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "दोनों प्रविष्टियाँ मेल नहीं खाईं, इसलिए कुछ नहीं बनाया गया। एक ही PIN या पासवर्ड दो बार दर्ज करें, फिर कोशिश करें।",
     "fault.wallet_dependency_unavailable.action": "EVM लेन सक्षम करने के लिए EVM ऐड-ऑन (eth-abi, eth-utils, eth-account) लगाएँ; वॉलेट की बाकी हर सुविधा इनके बिना चलती है।",
     "fault.wallet_dependency_unavailable.message": "यह बिल्ड EVM हस्ताक्षर या ABI एन्कोडिंग नहीं कर सकता: Ethereum लाइब्रेरियाँ इस मशीन पर नहीं हैं। कुछ हस्ताक्षरित या भेजा नहीं गया। Solana, कस्टडी और खर्च छत अप्रभावित हैं; लाइब्रेरियाँ लगने पर दोबारा कोशिश करें।",
+    "fault.wallet_paykit_unavailable.action": "pay-kit भुगतान सक्षम करने के लिए Python 3.11 या नए पर VOOL का वैकल्पिक pay ऐड-ऑन लगाएँ; वॉलेट हर हाल में अपना हस्ताक्षरकर्ता, खर्च छत और स्वीकृति रखता है।",
+    "fault.wallet_paykit_unavailable.message": "यह बिल्ड Solana के x402 या MPP ऑफ़र का भुगतान नहीं कर सकता: वैकल्पिक pay ऐड-ऑन (Solana pay-kit, Python 3.11 या नया) इस मशीन पर नहीं है। कुछ हस्ताक्षरित या भेजा नहीं गया। वॉलेट की बाकी हर सुविधा इसके बिना चलती है; इसे लगाने पर दोबारा कोशिश करें।",
     "fault.wallet_disabled.action": "केवल तभी वॉलेट स्पष्ट रूप से सक्षम करें (VOOL_WALLET_ENABLED=1) जब इस इंस्टॉल पर भुगतान चाहिए।",
     "fault.wallet_disabled.message": "वॉलेट बंद है, इसलिए कोई भुगतान प्रस्तावित या भेजा नहीं गया। पहले उसे सक्षम करें, फिर कोशिश करें।",
     "fault.wallet_duplicate_payment.action": "मौजूदा प्रस्ताव की रसीद जाँचें; सचमुच नए भुगतान के लिए नई आइडेम्पोटेंसी कुंजी लें।",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "ध्वनि सुनें",
     "vns.sound.blocked": "ध्वनि चलाना उपलब्ध नहीं है। सूचनाएँ घंटी में बनी रहती हैं।"
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

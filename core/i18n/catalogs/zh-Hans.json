@@ -529,6 +529,8 @@
     "fault.wallet_credential_mismatch.message": "两次输入不一致，因此没有创建任何内容。请两次输入相同的 PIN 或密码后重试。",
     "fault.wallet_dependency_unavailable.action": "安装 EVM 扩展（eth-abi、eth-utils、eth-account）以启用 EVM 通道；钱包的其他所有功能没有它们也能工作。",
     "fault.wallet_dependency_unavailable.message": "此构建无法进行 EVM 签名或 ABI 编码：这台机器上没有安装以太坊库。没有签名或发送任何内容。Solana、保管和支出上限不受影响；安装库之后请重试。",
+    "fault.wallet_paykit_unavailable.action": "在 Python 3.11 或更高版本上安装 VOOL 的可选 pay 扩展以启用 pay-kit 支付；无论如何，钱包都保留自己的签名者、支出上限和审批。",
+    "fault.wallet_paykit_unavailable.message": "此构建无法支付 Solana 上的 x402 或 MPP 报价：这台机器上没有安装可选的 pay 扩展（Solana pay-kit，Python 3.11 或更高版本）。没有签名或发送任何内容。钱包的其他所有功能没有它也能工作；安装之后请重试。",
     "fault.wallet_disabled.action": "仅当此安装确实需要付款时，才显式启用钱包（VOOL_WALLET_ENABLED=1）。",
     "fault.wallet_disabled.message": "钱包处于关闭状态，因此没有提出或发送任何付款。请先启用它，然后重试。",
     "fault.wallet_duplicate_payment.action": "检查现有提案的收据；真正的新付款请使用新的幂等键。",
@@ -1749,7 +1751,7 @@
     "vns.sound.preview": "试听声音",
     "vns.sound.blocked": "无法播放声音。通知仍保留在铃铛菜单中。"
   },
-  "source_catalog_sha256": "d14d3bc2d0d684b31d5ac58e0d7b53724b3cbfde897438cedfc551b5811ebf71",
+  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

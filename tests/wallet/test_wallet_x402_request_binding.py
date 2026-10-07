@@ -100,6 +100,7 @@ def test_without_the_pay_extra_the_paykit_lane_is_unavailable_and_sends_nothing(
     monkeypatch.setattr(outbound, "fetch", lambda *a, **k: sent.append("request") or (_ for _ in ()).throw(AssertionError("sent")))
     with pytest.raises(WalletFault) as refused:
         paykit_x402.fetch_paid("https://api.example.test/paid", wallet_id="any", method="POST", body=b"{}")
-    assert refused.value.code == "wallet_dependency_unavailable"
+    assert refused.value.code == "wallet_paykit_unavailable"
+    assert "optional pay extra" in refused.value.user_message and "EVM" not in refused.value.user_message
     assert sent == []
     assert proposals.list_proposals() == []
