@@ -1031,7 +1031,11 @@ def _compute_requirements(
                 all_tools=constraints.forbids_all_tools,
                 live_data=False,
                 extra_reasons=_conservation_reasons,
-                past_only=past_only,
+                # Only the user's own past is answerable with retrieval forbidden (from this chat's
+                # history). A past WORLD fact ("What was Acme Corp's revenue in 2024?") has no lane
+                # left at all, so an exact figure would still be an unverified claim: the current-
+                # value law and its notice stand for it.
+                past_only=past_only and time_scope.past_subject != "world",
                 current_input_only=current_input_only,
             )
         reasons.append("request_promises_evidence")
