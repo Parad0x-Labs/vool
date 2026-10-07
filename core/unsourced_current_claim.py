@@ -869,9 +869,15 @@ def inspect_unsourced_current_claim(
                 _packet_facts = list(_telemetry().get("evidence_packet_facts") or [])
             except Exception:
                 _packet_facts = None
+            from core.evidence_kernel.revocation import without_revoked as _without_revoked
+
+            _evidence_text, _packet_facts = _without_revoked(
+                _admitted_text(source_context or {}, session_id, question=str(user_turn_text or "")),
+                _packet_facts, str(session_id or ""),
+            )
             _binding = _bind_claims(
                 question=user_turn_text, reply=answer,
-                evidence_text=_admitted_text(source_context or {}, session_id, question=str(user_turn_text or "")),
+                evidence_text=_evidence_text,
                 packet_facts=_packet_facts,
             )
             claim_binding = _binding.as_dict()
