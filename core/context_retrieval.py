@@ -4785,6 +4785,12 @@ _FACET_FRAME_EXTRA = frozenset({
     # occurrence is asked, never a retained facet (measured 2026-10-07: absent={first, second} armed the gate on
     # a sloppy ordinal ask, refused every dentist record, and with the packet honouring the gate the answer was lost)
     "first", "second", "third", "fourth", "fifth", "last", "latest", "earliest", "final",
+    # the mention idiom and the sequence frame ("in what order did I bring up ..."): the ask's own frame, never a
+    # retained facet (measured 2026-10-07 with the past-tense gate on: absent={bring, order} refused every record)
+    "bring", "brings", "brought", "bringing", "order",
+    # the aggregate frame ("how much did I spend on the lamp and the rug together", "in total"): the ask's shape,
+    # never a retained facet (measured 2026-10-07 with the past-tense gate on: absent={spend, together})
+    "together", "altogether", "total", "combined", "sum", "overall",
     # copulas and primary auxiliaries ("What are the two codes" must not
     # count "are" as an asked attribute; measured regressions F01-12,
     # F16-13, F07-13: {are, two} suppressed the served answer lines)
@@ -8199,6 +8205,9 @@ def _historical_anchor_candidates(
 #: Temporal verdicts that WITHHOLD a record from the reader (a retraction, the as-of law, a closed or not-yet-open
 #: window). A superseded or duplicate value is not withheld: the packet marks replaced values itself and an extremum
 #: or sequence ask reads the whole dated scope, so those verdicts never empty the packet.
+#: Obligation kinds whose packet rows the absence gate's refusal binds: the single-facet asks the gate was built for.
+_PACKET_GATE_BOUND_KINDS = frozenset({"single_fact", "current_value", "existence", "preference", "aggregate"})
+
 _PACKET_REFUSING_VERDICTS = frozenset({
     "withdrawn", "future-relative-to-as-of", "future-relative-to-now",
     "window-expired", "window-expired-before-as-of", "window-not-yet-active",
@@ -8214,6 +8223,13 @@ def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts
     (the no-hits path, where the gate saw nothing) is not refused by it."""
     refused: dict[str, str] = {}
     gate_keys = set(gate_refused or ())
+    # The absence gate judges a SINGLE-facet ask (another entity's value answering for an absent facet); the dated
+    # operand kinds (interval, sequence, order, aggregate) and an assistant-output ask select their rows by subject
+    # and are the packet's own law, so the gate's refusal does not bind their rows (measured 2026-10-07: with the
+    # past-tense gate on, "How many weeks ago did I participate in the 5K charity run?" refused the run record over
+    # {weeks, participate} and the packet lost its only operand). Temporal verdicts bind every kind.
+    kind = str(getattr(getattr(evidence_packet, "obligation", None), "kind", "") or "")
+    gate_binds = kind in _PACKET_GATE_BOUND_KINDS
     try:
         for fact in list(getattr(evidence_packet, "facts", []) or []):
             occ = str(fact.get("occurrence_id") or "")
@@ -8224,7 +8240,7 @@ def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts
             if verdict is not None and not getattr(verdict, "eligible", True) and reason in _PACKET_REFUSING_VERDICTS:
                 refused[occ] = reason
                 continue
-            if occ in gate_keys and str(fact.get("role") or "") == "user":
+            if gate_binds and occ in gate_keys and str(fact.get("role") or "") == "user":
                 refused[occ] = "absence-gate"
     except Exception:
         LOGGER.debug("packet refusal read failed", exc_info=True)
