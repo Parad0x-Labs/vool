@@ -1144,7 +1144,9 @@ _PENDING_TOOL_HINT_RE = re.compile(
 #: answer with a gloss, not a call.
 _TOOL_CALL_EXPRESSION_RE = re.compile(
     r"^(?:[A-Za-z_][A-Za-z0-9]*[_.][A-Za-z0-9_.]{0,47}\((?:[^()]|\([^()]*\))*\)"
-    r"|[A-Za-z_][A-Za-z0-9_.]{1,48}\((?:\s*(?:\"[^\"]*\"|'[^']*'|[A-Za-z_]\w*\s*=\s*[^,()]+)\s*,?)*\)"
+    # Each argument is matched once and kept (the lookahead + backreference is an atomic group on
+    # Python 3.10): re-splitting a long keyword value into further arguments backtracked exponentially.
+    r"|[A-Za-z_][A-Za-z0-9_.]{1,48}\((?:(?=(?P<arg>\s*(?:\"[^\"]*\"|'[^']*'|[A-Za-z_]\w*\s*=\s*[^,()]+)\s*,?))(?P=arg))*\)"
     r"|[A-Za-z_][A-Za-z0-9_.]{1,48}\(\s*[{\[].*[}\]]\s*\))[.;]?$",
     re.DOTALL,
 )
