@@ -40,6 +40,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 LOCK = REPO / "uv.lock"
 BUILD_SCRIPT = REPO / "installer" / "bundle" / "build_macos_app.sh"
+#: Wheels this project builds itself because no published wheel exists for a target (cryptography
+#: >= 49 ships no Intel macOS wheel). Each entry is reviewed and committed with what it was built
+#: from: the wheel's own sha256, the source sdist and its sha256, and the toolchain inputs.
+BUILT_WHEELS = REPO / "installer" / "bundle" / "built_wheels.json"
 
 
 def lean_requirements() -> list[str]:
@@ -175,8 +179,23 @@ def verify_record(path: Path) -> dict:
     return result
 
 
+def built_wheels() -> dict[str, dict]:
+    """{wheel sha256: entry} from the committed built-wheel record; empty when there is none."""
+    try:
+        data = json.loads(BUILT_WHEELS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, dict] = {}
+    for entry in data.get("wheels", []) if isinstance(data, dict) else []:
+        digest = str(entry.get("sha256", "")) if isinstance(entry, dict) else ""
+        if re.fullmatch(r"[0-9a-f]{64}", digest) and re.fullmatch(r"[0-9a-f]{64}", str(entry.get("source_sdist_sha256", ""))):
+            out[digest] = entry
+    return out
+
+
 def audit(wheelhouse: Path) -> dict:
     lock = lock_artifacts()
+    built = built_wheels()
     entries = []
     for wheel in sorted(wheelhouse.glob("*.whl")):
         pkg = _norm(wheel.name.split("-", 1)[0])
@@ -188,6 +207,10 @@ def audit(wheelhouse: Path) -> dict:
         digest_is_pinned = digest in {v for k, v in pinned.items() if k != "__version__"}
         record = verify_record(wheel)
         content_ok = not record.get("error") and not record["mismatched"] and not record["missing"]
+        # A wheel we built ourselves is identified the same way -- by its own digest -- against the
+        # committed built-wheel record, and only under the filename and package that record names.
+        built_entry = built.get(digest)
+        built_here = bool(built_entry and built_entry.get("file") == wheel.name and _norm(str(built_entry.get("package", ""))) == pkg)
         entries.append({
             "file": wheel.name,
             "package": pkg,
@@ -195,10 +218,12 @@ def audit(wheelhouse: Path) -> dict:
             "sha256": digest,
             "uv_lock_expected_sha256": expected or "",
             "artifact_matches_lock": bool(expected and digest == expected) or digest_is_pinned,
+            "built_here": built_here,
+            "built_from": (built_entry or {}) if built_here else {},
             "record_verified": content_ok,
             "record_detail": record,
             "grade": (
-                "RELEASE" if ((expected and digest == expected) or digest_is_pinned) and content_ok
+                "RELEASE" if ((expected and digest == expected) or digest_is_pinned or built_here) and content_ok
                 else "DIAGNOSTIC" if content_ok
                 else "REJECTED"
             ),
@@ -227,7 +252,7 @@ def main() -> int:
         Path(args.out).write_text(text, encoding="utf-8")
     print(text)
     for e in report["artifacts"]:
-        print(f"{e['grade']:<11} {e['file']}  artifact_matches_lock={e['artifact_matches_lock']} record_verified={e['record_verified']}")
+        print(f"{e['grade']:<11} {e['file']}  artifact_matches_lock={e['artifact_matches_lock']} built_here={e['built_here']} record_verified={e['record_verified']}")
     if report["lean_requirements_absent_from_uv_lock"]:
         print("NOT PINNED IN uv.lock: " + ", ".join(report["lean_requirements_absent_from_uv_lock"]))
     print(f"\nrelease_grade: {report['release_grade']}")
