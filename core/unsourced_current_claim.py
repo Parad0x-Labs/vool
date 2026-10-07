@@ -912,6 +912,13 @@ def inspect_unsourced_current_claim(
     )
 
 
+#: The withdrawal on a question about this chat's own records: nothing was looked up live, so the notice says the
+#: value is not in the records rather than that a current reading could not be obtained.
+RECORDS_WITHDRAWAL_NOTICE = (
+    "That is not mentioned in the records I have from our conversations, so I am not going to state one."
+)
+
+
 def unverified_current_answer(request_text: Any = "") -> str:
     """What to say instead. States the limit; promises nothing and names no value.
 
@@ -941,6 +948,7 @@ __all__ = [
     "reply_match_is_user_supplied",
     "turn_has_current_evidence",
     "unverified_current_answer",
+    "RECORDS_WITHDRAWAL_NOTICE",
 ]
 
 
