@@ -796,6 +796,15 @@ def _build_conversational_request(
     if runtime_truth:
         turn_directives.append(runtime_truth)
         system_segments.append(("runtime_truth", _PAYLOAD_SYSTEM_BOOTSTRAP, runtime_truth))
+    # Standing instructions the owner saved in earlier chats (stored text only, no search). The minimal plain-task
+    # prompt has no context message, so the profile's own lines ride here too; other profiles already carry them.
+    from core.standing_instructions import standing_block
+
+    standing = standing_block(source_context, profile_lines=(
+        list((source_context or {}).get("profile_context_lines") or []) if prompt_profile == "plain_task_minimal" else None
+    ))
+    if standing:
+        turn_directives.append(standing)
 
     system = InternalMessage(role="system", content=system_content)
     history_messages, transcript_source = _history_messages_for_chat(
