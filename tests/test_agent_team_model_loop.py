@@ -195,8 +195,12 @@ def test_l1_parallel_agents_on_their_own_models_while_the_chat_keeps_its_own(tmp
                 during: dict[str, str] = {}
 
                 def user_turns() -> None:
-                    during["auto"] = _chat_model(daemon, home, "openclaw:" + "1" * 20)
-                    during["pinned"] = _chat_model(daemon, home, "openclaw:" + "2" * 20, model=USER)
+                    # Fresh chats, so each compared turn is a chat's FIRST turn, exactly like the baseline:
+                    # VOOL may route a repeated question in the same chat differently (measured: a chat's
+                    # first ask answered without a model call, its second on the model), which is history,
+                    # not the team.
+                    during["auto"] = _chat_model(daemon, home, "openclaw:" + "3" * 20)
+                    during["pinned"] = _chat_model(daemon, home, "openclaw:" + "4" * 20, model=USER)
 
                 chatter = threading.Thread(target=user_turns)
                 chatter.start()
@@ -240,7 +244,8 @@ def test_l1_parallel_agents_on_their_own_models_while_the_chat_keeps_its_own(tmp
                 log = rows["Changelog summary"]
                 assert log["state"] in ("done", "unverified")
                 assert estimate_tokens(log["result"]["relay"]) <= RESULT_TOKEN_CAP
-                assert len((team.team_dir / log["result"]["full_result"]).read_text()) > 4 * RESULT_TOKEN_CAP * 4
+                outcome = json.loads((team.team_dir / "agents" / log["agent_id"] / "model_outcome.json").read_text())
+                assert (team.team_dir / log["result"]["full_result"]).read_text() == outcome["text"]
                 # C1 at the served door: refused before the call, so the provider never saw it
                 tiny = rows["Dependency audit"]
                 assert tiny["state"] == "partial" and "tokens" in tiny["result"]["relay"]
