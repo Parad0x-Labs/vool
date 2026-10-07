@@ -7,7 +7,6 @@ import pytest
 
 from core.agent_runtime.response import _validate_final_chat_output
 
-
 CASES = [
     dict(id='R01-unrelated-subject-borrow', keep=False,
          question='What is my current heaviest clay haul?',

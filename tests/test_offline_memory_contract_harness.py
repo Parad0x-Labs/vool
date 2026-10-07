@@ -1,7 +1,17 @@
 from __future__ import annotations
+
 import json
+
 import pytest
-from tests._memory_contract_transport import ReplyControl, call_contract, reply_for, strict_judge_label, launcher_context_defaults, fulfillment_is_failed
+
+from tests._memory_contract_transport import (
+    ReplyControl,
+    call_contract,
+    fulfillment_is_failed,
+    launcher_context_defaults,
+    reply_for,
+    strict_judge_label,
+)
 
 AUX = {"messages": [{"role": "system", "content": "You split a user's message into the separate requests it makes, so each can be answered. Return ONLY a JSON array."}, {"role": "user", "content": "Restate my saved inspection procedure."}], "max_tokens": 2048}
 FINAL = {"messages": [{"role": "system", "content": "Return valid JSON only in the form {\"summary\": string, \"steps\": [string, ...]}."}, {"role": "user", "content": "Retained procedure: do every item."}], "max_tokens": 2048}

@@ -57,8 +57,9 @@ import logging
 import math
 import os
 import uuid
+from collections.abc import Iterable
 from datetime import datetime, timezone
-from typing import Any, Iterable
+from typing import Any
 
 from core.prompt_budget import (
     PromptBudgetExceededError,

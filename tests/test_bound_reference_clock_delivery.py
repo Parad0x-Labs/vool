@@ -1,8 +1,10 @@
 """A reference date survives only its admitted runtime carrier, never a premise."""
-from datetime import date
 from copy import deepcopy
+from datetime import date
+
 import pytest
-from core.model_output_guard import ReferenceClock, stated_past_time_claims, replace_unsupported_past_time_claims
+
+from core.model_output_guard import ReferenceClock, replace_unsupported_past_time_claims, stated_past_time_claims
 
 QUESTION = "How many months ago did I attend the photography workshop?"
 EVIDENCE = ["- user said (stated 2023-11-01): I went to a 3-day photography workshop today."]
@@ -75,7 +77,7 @@ def test_non_aligned_months_require_an_explicit_calendar_convention():
 
 
 def test_clock_is_read_from_existing_session_request_seal():
-    from core.bootstrap_context import admitted_request_reference_clock, admitted_request_evidence_texts
+    from core.bootstrap_context import admitted_request_evidence_texts, admitted_request_reference_clock
     c, messages = sealed_context()
     clock = admitted_request_reference_clock(c, "clock-session", question=QUESTION)
     assert clock.day == date(2024,2,1)
@@ -123,12 +125,13 @@ def test_origin_stamped_system_wrapper_preserves_exact_runtime_fact():
 
 def test_app_normalizer_and_actual_adapter_preserve_bound_clock(monkeypatch):
     from datetime import datetime, timezone
+
     import core.prompt_normalizer as pn
-    from core.bootstrap_context import admitted_request_reference_clock
+    from adapters.base_adapter import ModelRequest
     from core.agent_runtime.turn_reasoning import _past_time_guard_evidence, _past_time_guard_reference_clock
+    from core.bootstrap_context import admitted_request_reference_clock
     from tests.test_prompt_assembly_profiles import _build_request
     from tests.test_provider_request_evidence_binding import _adapter
-    from adapters.base_adapter import ModelRequest
     class FrozenDateTime(datetime):
         @classmethod
         def now(cls, tz=None):

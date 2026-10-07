@@ -16,14 +16,14 @@ from __future__ import annotations
 
 import pytest
 
-from core.execution.planner import should_attempt_tool_intent
-from core.execution_requirements import requirements_for
-from core.plain_task_routing import is_ordinary_multi_part_plain_task
 from core.capability_graph import (
     capability_hint_from_task_class,
     family_hint_from_task_class,
     model_visible_specs,
 )
+from core.execution.planner import should_attempt_tool_intent
+from core.execution_requirements import requirements_for
+from core.plain_task_routing import is_ordinary_multi_part_plain_task
 
 WORKSPACE_NOW_QUESTIONS = (
     "Which files in my workspace are markdown right now?",

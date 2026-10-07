@@ -30,7 +30,7 @@ from core.runtime_paths import configure_runtime_home
 
 FACT = "Please remember: the pilot boat moors at the southern pontoon."
 FOREIGN = "Please remember: the crane pad lights run amber after dusk."
-SECRET_WORDS = "harbor lantern meadow cinder tundra willow ember fjord".split()
+SECRET_WORDS = ["harbor", "lantern", "meadow", "cinder", "tundra", "willow", "ember", "fjord"]
 SECRET_RECORD = "Please remember: my seed phrase is " + ", ".join(SECRET_WORDS) + "."
 
 
@@ -65,8 +65,9 @@ def profile(tmp_path, monkeypatch):
 
 
 def _transcript(home, chat, query, *, env_flag="1"):
-    import core.bootstrap_context as bc
     import os
+
+    import core.bootstrap_context as bc
 
     old = os.environ.get("VOOL_CONTEXT_CAPSULE_V2")
     if env_flag is None:

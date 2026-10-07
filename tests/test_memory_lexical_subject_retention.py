@@ -22,7 +22,7 @@ import math
 
 import pytest
 
-from core.vool_memory import VoolMemory, _QUERY_STOPWORDS, _scoped_bm25_scores
+from core.vool_memory import _QUERY_STOPWORDS, VoolMemory, _scoped_bm25_scores
 
 
 def _vec(*xs: float) -> list[float]:
@@ -227,7 +227,7 @@ def test_no_supported_evidence_means_no_injection(tmp_path, monkeypatch) -> None
     import core.embedding_service as es
 
     monkeypatch.setattr(es, "_best_embed_model", lambda: None)
-    from core.context_retrieval import inject_retrieved, get_last_retrieval_telemetry
+    from core.context_retrieval import get_last_retrieval_telemetry, inject_retrieved
     from core.runtime_paths import configure_runtime_home
 
     profile = tmp_path / "capsule-profile"

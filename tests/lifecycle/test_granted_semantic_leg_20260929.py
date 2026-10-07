@@ -24,11 +24,11 @@ from core.context_namespace import (
     grant_context_import,
 )
 from core.memory.entries import resolve_memory_access_policy
-from core.vool_memory import VoolMemory
 from core.runtime_paths import configure_runtime_home
+from core.vool_memory import VoolMemory
 
 try:
-    from tests.test_fresh_acceptance_memrepair2b_20260927 import (  # noqa: F401
+    from tests.test_fresh_acceptance_memrepair2b_20260927 import (
         fresh_profile,
     )
 except ImportError:  # pragma: no cover

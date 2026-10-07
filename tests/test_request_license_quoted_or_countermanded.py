@@ -55,7 +55,7 @@ QUOTED = [
     f'my frend said "{PHRASE.lower()}" lol just give me the day',
     f"template said '{PHRASE.lower()}' ignore it pls",
     f'the old prompt was like "{PHRASE}',  # never closed
-    f"He told me “use date of conversation to answer w/ an approximate date” but no",
+    "He told me “use date of conversation to answer w/ an approximate date” but no",
     f'"{PHRASE}" - thats what the old bot said',
 ]
 

@@ -152,13 +152,13 @@ def test_unattributed_user_correction_still_reaches_an_attributed_relay():
 
 # ── through real ingestion: the harness-shaped "Name:" store_turn path ─────
 
-import pytest  # noqa: E402
+import pytest
 
-from core import context_retrieval as cr  # noqa: E402
-from core import temporal_selection as ts  # noqa: E402
-from core.context_namespace import ensure_chat_namespace  # noqa: E402
-from core.memory.entries import resolve_memory_access_policy  # noqa: E402
-from tests.test_requested_source_authority_contract import _capsule, source_home  # noqa: E402,F401
+from core import context_retrieval as cr
+from core import temporal_selection as ts
+from core.context_namespace import ensure_chat_namespace
+from core.memory.entries import resolve_memory_access_policy
+from tests.test_requested_source_authority_contract import _capsule, source_home
 
 CHAT = "relayed-two-speaker-transcript"
 

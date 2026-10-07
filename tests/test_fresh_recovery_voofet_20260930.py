@@ -18,7 +18,7 @@ from core.context_namespace import ensure_chat_namespace
 from core.memory.entries import resolve_memory_access_policy
 
 try:
-    from tests.test_fresh_acceptance_memrepair2b_20260927 import (  # noqa: F401
+    from tests.test_fresh_acceptance_memrepair2b_20260927 import (
         fresh_profile,
     )
 except ImportError:  # pragma: no cover
@@ -345,8 +345,9 @@ def test_r6_receipt_lane_declines_competing_sibling_subject(fresh_profile):
 def test_r3b_partitive_month_as_of_resolves_from_question_text(fresh_profile):
     """A real user types 'as of mid <month>' — no plumbed metadata. The
     question-text parser resolves it (early=1st, mid=15th, late/end=last)."""
-    from core.temporal_selection import resolve_question_as_of
     import datetime
+
+    from core.temporal_selection import resolve_question_as_of
 
     now = datetime.datetime(2026, 9, 29, tzinfo=datetime.timezone.utc)
     intent = resolve_question_as_of(

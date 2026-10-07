@@ -16,9 +16,10 @@ Off (VOOL_EVIDENCE_KERNEL unset) nothing here runs and v14.1's verify_answer kee
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 _UTC = timezone.utc
 _MONTHS = {m: i + 1 for i, m in enumerate(("january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"))}

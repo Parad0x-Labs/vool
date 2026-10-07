@@ -5,8 +5,8 @@ from unittest import mock
 
 import pytest
 
-from core.agent_runtime import agent, action_honesty_validator
 from core import remote_fetch_policy
+from core.agent_runtime import action_honesty_validator, agent
 from core.semantic.semantic_result_seam import current_admission, reset_admission
 from core.web.api import response_control
 

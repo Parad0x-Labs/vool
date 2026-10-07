@@ -1,7 +1,8 @@
 """Independent fresh review cases; candidate frozen before these were executed."""
 import json
+
 from core.context_scope import ContextAccessPolicy
-from core.memory.files import user_heuristics_path, memory_entries_path
+from core.memory.files import memory_entries_path, user_heuristics_path
 from core.persistent_memory import append_conversation_event, maybe_handle_memory_command
 
 LOCAL={"surface":"cli","platform":"cli"}

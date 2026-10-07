@@ -6,7 +6,9 @@ The first executed attempt is preserved even if any case needs later repair.
 import datetime as dt
 import json
 from pathlib import Path
+
 import pytest
+
 from core.agent_runtime.response import _validate_final_chat_output
 from core.unsourced_current_claim import inspect_unsourced_current_claim
 
@@ -80,8 +82,8 @@ def pottery_home(tmp_path,monkeypatch):
 
 def prepare_pottery(home, *, only_foreign=False):
     from core.context_namespace import ensure_chat_namespace
-    from core.memory.entries import resolve_memory_access_policy
     from core.context_retrieval import store_turn
+    from core.memory.entries import resolve_memory_access_policy
     ensure_chat_namespace('pottery-evenings',grant_current_receipts=False)
     ensure_chat_namespace('pottery-neighbour',grant_current_receipts=False)
     source='pottery-neighbour' if only_foreign else 'pottery-evenings'
@@ -93,8 +95,8 @@ def prepare_pottery(home, *, only_foreign=False):
         assert receipt['status'] in {'stored','retained'},receipt
 
 def ask_pottery(home):
+    from core.context_retrieval import get_last_retrieval_telemetry, inject_retrieved
     from core.memory.entries import resolve_memory_access_policy
-    from core.context_retrieval import inject_retrieved, get_last_retrieval_telemetry
     out=inject_retrieved('pottery-evenings',POTTERY_Q,[{'role':'user','content':POTTERY_Q}],
         access_policy=resolve_memory_access_policy(chat_id='pottery-evenings'),
         source_context={'chat_id':'pottery-evenings','runtime_home':str(home),'surface':'channel','platform':'api'})

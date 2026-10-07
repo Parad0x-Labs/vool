@@ -27,7 +27,7 @@ from types import SimpleNamespace
 import pytest
 
 import core.context_retrieval as cr
-from tests.test_question_date_time_leg_20261002 import _hash_backend, _profile  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _hash_backend, _profile
 from tests.test_time_leg_follows_allowance_20261003 import _wide_capsule
 
 _CAP = cr._TURN_LANE_UNIT_MAX_CHARS

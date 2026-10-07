@@ -6,8 +6,7 @@ live model answer accuracy. Facts and expected relationships are authored.
 import pytest
 
 from core.context_retrieval import _evidence_clause_windows
-from tests.test_overnight_source_structure import source_env, _store, _recall
-
+from tests.test_overnight_source_structure import _recall, _store, source_env
 
 WORLDS = [
     (

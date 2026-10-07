@@ -202,7 +202,7 @@ def test_last_week_does_not_support_a_day_outside_that_week():
 
 # --- the same law over other relative forms, answer renderings and statement-time spellings ----
 
-import pytest  # noqa: E402
+import pytest
 
 # Each row: (record text, statement clock, statement day as rendered, ISO, question, kept answer, withdrawn answer).
 # 6 June 2024 is a Thursday.

@@ -1,7 +1,7 @@
 """Subject references constrain admitted dates; exclusions supply no authority."""
 import pytest
-from core.model_output_guard import replace_unsupported_past_time_claims
 
+from core.model_output_guard import replace_unsupported_past_time_claims
 
 QUESTION = "How many complete calendar months did I, Elena Ruiz, work on the estuary survey across my two recorded assignments? Give both exact ISO date intervals and the total, without counting Julian's interval."
 EVIDENCE = [

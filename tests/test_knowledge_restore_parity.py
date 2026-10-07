@@ -29,6 +29,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
+import storage.chunk_store as chunk_store
 from core.knowledge_registry import (
     load_canonical_shareable_shard_payload,
     register_local_shard,
@@ -40,8 +41,6 @@ from storage.db import get_connection
 from storage.knowledge_manifests import upsert_manifest
 from storage.migrations import run_migrations
 from storage.replica_table import upsert_holder
-
-import storage.chunk_store as chunk_store
 
 NOW = datetime.now(timezone.utc)
 

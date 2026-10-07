@@ -1,9 +1,13 @@
 """Request clause ownership of machine target extraction."""
 from __future__ import annotations
+
 from pathlib import Path
 from types import SimpleNamespace
+
 import pytest
+
 from core.agent_runtime import fast_paths_machine as machine
+
 
 def test_a_prior_question_cannot_supply_the_filename_or_content(monkeypatch, tmp_path: Path) -> None:
     root = tmp_path / "Desktop"

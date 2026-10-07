@@ -1,9 +1,12 @@
 """Bounded grammar limits and retained explicit execution."""
 from __future__ import annotations
+
 import pytest
+
 from core.agent_runtime.fast_paths_machine import _has_affirmative_machine_write_verb
 from core.execution.constants import image_generation_intent
 from core.instructional_request import asks_for_instructions_not_execution
+
 
 @pytest.mark.parametrize(("text", "claimed"), (
     ("Tell me what I saved yesterday, then create a folder on my Desktop", False),

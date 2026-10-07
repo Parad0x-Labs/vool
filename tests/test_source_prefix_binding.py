@@ -1,7 +1,9 @@
 """Reported source labels are formatting data, never runtime ownership."""
 from __future__ import annotations
+
 import pytest
-from tests.test_overnight_source_structure import source_env, _store, _recall
+
+from tests.test_overnight_source_structure import _recall, _store, source_env
 
 BODY = "Session date: 2024-02-10\nMira: The studio walls were painted white. Anyway, I tuned the brass gong to 294 Hz."
 ASK = "What frequency did the brass gong use?"
@@ -86,11 +88,11 @@ def test_assistant_reported_prefix_keeps_assistant_role(source_env):
 
 
 def test_added_prefix_is_in_atomic_fact_budget(source_env):
-    from core.context_retrieval import inject_retrieved, get_last_retrieval_telemetry
-    from core.context_capsule_v2 import resolve_budget
-    from core.memory.entries import resolve_memory_access_policy
     from dataclasses import replace
-    from core.context_capsule_v2 import estimate_tokens
+
+    from core.context_capsule_v2 import estimate_tokens, resolve_budget
+    from core.context_retrieval import get_last_retrieval_telemetry, inject_retrieved
+    from core.memory.entries import resolve_memory_access_policy
     _store(source_env, "prefix-budget", BODY, "Recorded.")
     budget = replace(resolve_budget(bucket="B", role="general"), free_tokens=48)
     result = inject_retrieved("prefix-budget", ASK, [{"role":"user", "content":ASK}],

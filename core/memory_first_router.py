@@ -45,6 +45,7 @@ from core.incomplete_answer import (
     inspect_provider_completion,
     partial_answer_notice,
 )
+from core.internal_message_schema import TURN_DIRECTIVES_HEADER
 from core.local_inference_autopilot import build_local_inference_autopilot_plan
 from core.local_inference_evidence import hydrate_capability_truth_with_benchmarks
 from core.local_model_bundles import model_parameter_billions, model_total_parameter_billions
@@ -94,7 +95,6 @@ from core.presentation_selection import (
     selection_repair_acceptance,
 )
 from core.prompt_budget import PromptBudgetExceededError
-from core.internal_message_schema import TURN_DIRECTIVES_HEADER
 from core.prompt_normalizer import TURN_DIRECTIVES_METADATA_KEY, normalize_prompt
 from core.provider_execution_boundary import invoke_provider_execution_boundary
 from core.provider_invocation_gateway import ProviderInvocationValidationError

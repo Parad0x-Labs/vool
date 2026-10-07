@@ -26,7 +26,8 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from contextvars import ContextVar
-from dataclasses import dataclass, replace as _dc_replace
+from dataclasses import dataclass
+from dataclasses import replace as _dc_replace
 from datetime import date as _date
 from typing import Any
 
@@ -34,7 +35,7 @@ from core.context_capsule_v2 import ContextCandidate, estimate_tokens, pack_cont
 from core.context_scope import ContextAccessPolicy
 from core.embedding_service import embed, embed_stamped, embedding_query
 from core.local_ollama_inventory import env_flag_enabled
-from core.plain_task_routing import scalar_answer_covers_requested_shape, requested_answer_field_shape
+from core.plain_task_routing import requested_answer_field_shape, scalar_answer_covers_requested_shape
 
 
 def _current_request_lineage() -> str:
@@ -298,8 +299,7 @@ _ANCHOR_PREFIX_CUT_VERBS = frozenset({
     # BOOK through the green ledger", "I PROMISED the depot a shelf") -
     # the withdrawn claim's value follows them
     "book", "books", "booked", "booking", "promise", "promised",
-    "promises", "pledged", "pledge", "committed", "commit", "goes",
-    "go", "went", "supply", "supplied", "supplies", "ship", "ships",
+    "promises", "pledged", "pledge", "committed", "commit", "go", "supply", "supplied", "supplies", "ship", "ships",
     "shipped", "deliver", "delivers", "delivered",
 })
 
@@ -1585,7 +1585,8 @@ def _envelope_calendar_day(date_text: object) -> float | None:
     October, 2023", "29th Oct 2023") or month-first ("October 29, 2023").
     A month-grain date ("October 2023") names no day and is not a
     statement time."""
-    from datetime import datetime as _dt, timezone as _tz
+    from datetime import datetime as _dt
+    from datetime import timezone as _tz
 
     text = " ".join(str(date_text or "").split())
     normalized = text.replace("/", "-")
@@ -3000,7 +3001,7 @@ def _without_reported_prefix_annotation(line: str) -> str:
     return _REPORTED_PREFIX_ANNOTATION_RE.sub(r"\1", str(line or ""), count=1)
 
 
-def _reported_source_label_match(occurrence: Any) -> "re.Match[str] | None":
+def _reported_source_label_match(occurrence: Any) -> re.Match[str] | None:
     """The record's own reported source label: exactly one unquoted
     ``Name:`` label, heading the first substantive source line of a
     verified user/assistant body (envelope date lines skipped), single-
@@ -4827,7 +4828,7 @@ _FACET_FRAME_EXTRA = frozenset({
     "materialize", "tell", "show",
     # answer-channel instruction register ("Return the exact code only")
     "return", "returns", "returned", "exact", "exactly", "only",
-    "just", "back", "again", "please", "reply", "answer",
+    "just", "back", "please", "reply", "answer",
     # modals and the memory-act verbs of an ask ("What stored ID should
     # I remember?" - remember/should name the act, not the facet)
     "should", "would", "could", "can", "may", "might", "must", "will",
@@ -4843,8 +4844,7 @@ _FACET_FRAME_EXTRA = frozenset({
     # addresses the assistant: "you/your/i/we/me" are conversation frame,
     # never asked content - measured: "did YOU recommend" read as an absent
     # discriminator and suppressed the recommended answer)
-    "its", "his", "her", "their", "our", "my", "your", "yours", "ours",
-    "theirs", "mine", "you", "your", "i", "we", "me", "us", "them",
+    "its", "his", "her", "their", "our", "my", "your", "you", "i", "we", "me", "us", "them",
     "they", "it", "this", "that", "these", "those",
     # generic placeholder nouns of which/what asks and capability probes
     "instrument", "thing", "things", "one", "kind", "sort", "source",
@@ -5219,7 +5219,7 @@ def _answer_bearing_window(text: str, query_terms: set[str]) -> str | None:
 def _stemmed_token_set(text: str) -> set[str]:
     """Porter-stemmed word tokens of *text* (same stemming authority as the
     scoped BM25 leg and the FTS5 index; see core/porter_stem.py)."""
-    from core.porter_stem import stem, recall_words
+    from core.porter_stem import recall_words, stem
 
     return {stem(tok) for tok in recall_words(text)}
 
@@ -7663,6 +7663,8 @@ def _legacy_inject_retrieved(
         if (legacy_scope.asks_current and not legacy_scope.asks_past):
             from core.temporal_selection import (
                 EligibilityVerdict as _LegacyVerdict,
+            )
+            from core.temporal_selection import (
                 is_stale_observation_for_current_ask as _stale_obs,
             )
 
@@ -8264,7 +8266,8 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
     """v14.2 kernel: when v14's own retrieval delivers nothing, the receipt packet still reaches the reader on its own
     (a stated preference or a state chain is an operand whether or not a capsule line matched the question)."""
     try:
-        from core.evidence_compiler import filter_packet as _filter_packet, render as _render_packet
+        from core.evidence_compiler import filter_packet as _filter_packet
+        from core.evidence_compiler import render as _render_packet
 
         if evidence_packet is not None and refused:
             evidence_packet = _filter_packet(evidence_packet, refused, estimate_tokens=estimate_tokens)
@@ -8646,7 +8649,8 @@ def _capsule_v2_inject_retrieved(
         time_leg_reference_days: dict[str, Any] = {}
         time_leg_window = None
         try:
-            from datetime import datetime as _tl_dt, timezone as _tl_tz
+            from datetime import datetime as _tl_dt
+            from datetime import timezone as _tl_tz
 
             from core.temporal_selection import (
                 question_date_window,
@@ -9208,14 +9212,15 @@ def _capsule_v2_inject_retrieved(
     temporal_replacement_keys: set[str] = set()
     temporal_stale_values: set[str] = set()
     try:
-        from datetime import datetime as _now_dt, timezone as _now_tz
+        from datetime import datetime as _now_dt
+        from datetime import timezone as _now_tz
 
+        from core.temporal_question_scope import question_time_scope
         from core.temporal_selection import (
             TemporalCandidate,
             apply_temporal_selection,
             resolve_question_as_of,
         )
-        from core.temporal_question_scope import question_time_scope
 
         scope = question_time_scope(query)
         intent = resolve_question_as_of(query, plumbed=question_as_of)
@@ -9569,7 +9574,6 @@ def _capsule_v2_inject_retrieved(
         # days', F11-12 'cabinet 12' — germination window and a near-name
         # collection rode questions they do not answer).
         from core.temporal_selection import carries_undo_marker as _carries_undo
-
         from core.temporal_selection import is_reading_frame_observation as _is_reading
 
         temporal_winner_keys = {
@@ -12098,7 +12102,8 @@ def _capsule_v2_inject_retrieved(
     packet_text = ""
     if evidence_packet is not None:
         try:
-            from core.evidence_compiler import filter_packet as _filter_packet, render as _render_packet
+            from core.evidence_compiler import filter_packet as _filter_packet
+            from core.evidence_compiler import render as _render_packet
 
             # D8-E: the packet faces the capsule's laws. Rows the absence gate or a temporal verdict refused this
             # turn (as-of, retraction, supersession, windows) leave the packet before it is rendered.

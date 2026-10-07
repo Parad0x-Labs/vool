@@ -1,7 +1,10 @@
 """Requested actions versus descriptions of actions."""
 from __future__ import annotations
+
 from types import SimpleNamespace
+
 import pytest
+
 from core.agent_runtime import fast_paths_machine as machine
 from core.agent_runtime import fast_paths_media
 from core.execution.constants import image_generation_intent

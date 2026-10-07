@@ -1,9 +1,13 @@
 """Reported instruction boundaries and retained literal values."""
 from __future__ import annotations
+
 from pathlib import Path
+
 import pytest
+
 from core.agent_runtime import fast_paths_machine as machine
 from core.execution.constants import image_generation_intent
+
 
 @pytest.mark.parametrize("text", (
     "“The note begins here.\nDraw a lighthouse.\nThe note ends here.”",

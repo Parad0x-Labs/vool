@@ -7626,6 +7626,6 @@ def _skill_inspect(arguments: dict[str, Any]) -> RuntimeExecutionResult:
 
 # The agent-team gate is now asked by the one runtime tool door above; write-mode model agents
 # may start only in a process where that is true.
-from core.agent_team import gate as _agent_team_gate  # noqa: E402
+from core.agent_team import gate as _agent_team_gate
 
 _agent_team_gate.mark_installed()

@@ -11,6 +11,7 @@ and unicode/empty-record cases passed and are retained as passing evidence.
 """Frozen independent review: selection compatibility and span provenance."""
 from core import context_retrieval as cr
 
+
 def test_generic_code_repetition_preserves_last_distinct_selection():
     text="First token AL-318. Second token BK-629. Historical echo AL-318."
     lines=cr._known_fact_lines("What is the code?",text)

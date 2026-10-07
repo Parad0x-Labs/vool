@@ -23,13 +23,12 @@ import pytest
 
 import core.context_retrieval as cr
 from tests.test_envelope_provenance_not_content_20261003 import _items, _payload
-from tests.test_question_date_time_leg_20261002 import (  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import (
     _hash_backend,
     _ingest,
     _profile,
 )
 from tests.test_time_leg_follows_allowance_20261003 import _ts
-
 
 # ───────────────────────── anchor carriers deliver the stored record ──────
 

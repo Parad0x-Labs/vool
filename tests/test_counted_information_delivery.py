@@ -1,12 +1,19 @@
 """A finite requested collection must outrank implicit brevity, without granting actions."""
 from __future__ import annotations
+
 from types import SimpleNamespace
 from unittest import mock
+
 import pytest
-from adapters.base_adapter import ModelRequest,ModelResponse
+
+from adapters.base_adapter import ModelRequest, ModelResponse
 from core import response_constraints
 from core.memory_first_router import MemoryFirstRouter
-from core.ordinary_chat_response_guard import ordinary_chat_output_policy,inspect_ordinary_chat_output,constrain_ordinary_chat_output
+from core.ordinary_chat_response_guard import (
+    constrain_ordinary_chat_output,
+    inspect_ordinary_chat_output,
+    ordinary_chat_output_policy,
+)
 from tests.test_requested_answer_delivery_contract import request
 from tests.test_response_constraint_router import _manifest
 

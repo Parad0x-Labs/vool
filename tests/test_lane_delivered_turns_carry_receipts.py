@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from core import context_retrieval as cr
-from tests.test_complete_source_evidence_units import fresh_profile  # noqa: F401
+from tests.test_complete_source_evidence_units import fresh_profile
 from tests.test_recall_evidence_merge_law_20260929 import _capsule, _live
 
 FACT = "The ceramics society meets at Alder Hall on Wednesdays. The organiser is Imani and the fee is 32 euros."

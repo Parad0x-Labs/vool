@@ -51,7 +51,7 @@ def test_twelve_word_wordlist_masked() -> None:
 
 # --- formatting variants of the labelled value (review R2/R3) ------------------
 
-_PHRASE_WORDS = "velvet cabin orbit meadow maple ladder harbor quilt".split()
+_PHRASE_WORDS = ["velvet", "cabin", "orbit", "meadow", "maple", "ladder", "harbor", "quilt"]
 
 
 def test_comma_separated_recovery_phrase_masked() -> None:

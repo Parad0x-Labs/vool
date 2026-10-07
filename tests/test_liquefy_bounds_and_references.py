@@ -21,9 +21,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
-import storage.chunk_store as chunk_store
-
 import core.liquefy_bridge as liquefy_bridge
+import storage.chunk_store as chunk_store
 from core.knowledge_registry import (
     load_canonical_shareable_shard_payload,
     register_local_shard,
@@ -60,7 +59,7 @@ class DecompressionBoundsTests(unittest.TestCase):
 
     def test_zstd_over_cap_payload_is_refused(self) -> None:
         try:
-            import zstandard  # noqa: F401
+            import zstandard
         except ImportError:
             self.skipTest("zstandard unavailable")
         packed = self._pack_via_codec("liquefy")
