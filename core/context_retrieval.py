@@ -4769,6 +4769,18 @@ _FACET_DEPARTURE_FRAME_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: Ask idioms, removed from the question before the gate reads its discriminators: the mention idiom ("bring up",
+#: "brought up"), the sequence frame ("in what order") and the aggregate frame ("all together", "in total",
+#: "altogether"). Idioms only, never the bare words: "What did I order at Nobu?" and "What did Sam bring to the
+#: party?" ask about an order and a thing brought, which stay facets (measured 2026-10-07 with the past-tense gate
+#: on: absent={bring, order} and {spend, together} refused every record of a dated-operand ask).
+_FACET_ASK_IDIOM_RE = re.compile(
+    r"\b(?:bring|brings|brought|bringing)\s+up\b"
+    r"|\bin\s+(?:what|which)\s+order\b"
+    r"|\b(?:all\s+)?together\b|\bin\s+total\b|\baltogether\b",
+    re.IGNORECASE,
+)
+
 #: Ask-frame vocabulary that is not asked CONTENT either: temporal deixis
 #: ("right now"), light verbs, closed-class pronouns/determiners, and the
 #: generic nouns a "which/what" ask uses as placeholders ("which
@@ -4785,12 +4797,7 @@ _FACET_FRAME_EXTRA = frozenset({
     # occurrence is asked, never a retained facet (measured 2026-10-07: absent={first, second} armed the gate on
     # a sloppy ordinal ask, refused every dentist record, and with the packet honouring the gate the answer was lost)
     "first", "second", "third", "fourth", "fifth", "last", "latest", "earliest", "final",
-    # the mention idiom and the sequence frame ("in what order did I bring up ..."): the ask's own frame, never a
-    # retained facet (measured 2026-10-07 with the past-tense gate on: absent={bring, order} refused every record)
-    "bring", "brings", "brought", "bringing", "order",
-    # the aggregate frame ("how much did I spend on the lamp and the rug together", "in total"): the ask's shape,
-    # never a retained facet (measured 2026-10-07 with the past-tense gate on: absent={spend, together})
-    "together", "altogether", "total", "combined", "sum", "overall",
+
     # copulas and primary auxiliaries ("What are the two codes" must not
     # count "are" as an asked attribute; measured regressions F01-12,
     # F16-13, F07-13: {are, two} suppressed the served answer lines)
@@ -9655,7 +9662,7 @@ def _capsule_v2_inject_retrieved(
     _fp_winners = locals().get("temporal_winner_keys") or set()
     _fp_coexists = locals().get("temporal_coexist_keys") or set()
     _fp_replacements = locals().get("temporal_replacement_keys") or set()
-    _fp_question = str(query or "")
+    _fp_question = _FACET_ASK_IDIOM_RE.sub(" ", str(query or ""))
     _fp_lead_in_terms: set[str] = set()
     if ":" in _fp_question:
         _fp_lead_in = _fp_question.split(":", 1)[0]
