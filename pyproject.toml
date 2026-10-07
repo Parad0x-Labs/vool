@@ -269,7 +269,11 @@ testpaths = ["tests", "."]
 # `-o addopts=`, which clears addopts, so --ignore alone does NOT reach the gate's collection.
 # norecursedirs prunes the dir during recursion regardless. The list restates pytest's defaults so
 # adding "recovery" does not drop them.
-addopts = ["--ignore=recovery"]
+# `-p no:pytest_anchorpy`: the optional `pay` extra installs anchorpy (through Solana pay-kit), whose
+# pytest plugin needs pytest-asyncio and pytest-xprocess and stops every pytest run at startup
+# without them. VOOL uses no part of it. The gate's children (ops/pytest_manifest.py,
+# ops/pytest_execution.py) clear addopts, so they block it themselves.
+addopts = ["--ignore=recovery", "-p", "no:pytest_anchorpy"]
 norecursedirs = ["*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}", "recovery"]
 python_files = ["test_*.py"]
 python_classes = ["Test*", "*Tests"]

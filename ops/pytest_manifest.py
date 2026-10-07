@@ -11,6 +11,12 @@ from typing import Any
 
 import pytest
 
+#: Third-party pytest plugins this child never loads, whatever is installed. addopts is cleared
+#: here, so the repository's own ``-p no:`` entries do not reach this run. anchorpy (installed by
+#: the optional ``pay`` extra, through Solana pay-kit) registers a plugin that stops pytest at
+#: startup unless pytest-asyncio and pytest-xprocess are installed; VOOL uses none of it.
+BLOCKED_PLUGIN_ARGS = ("-p", "no:pytest_anchorpy")
+
 
 class _ManifestPlugin:
     def __init__(self, *, repo_root: Path, output_path: Path) -> None:
@@ -61,7 +67,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     return int(
         pytest.main(
-            ["--collect-only", "-q", "-o", "addopts=", *pytest_args], plugins=[plugin]
+            ["--collect-only", "-q", "-o", "addopts=", *BLOCKED_PLUGIN_ARGS, *pytest_args],
+            plugins=[plugin],
         )
     )
 

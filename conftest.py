@@ -35,6 +35,12 @@ os.environ["VOOL_HOME"] = str(_TEST_RUNTIME_HOME)
 os.environ["VOOL_KEY_STORAGE_MODE"] = "file"
 os.environ["VOOL_CREDENTIAL_STORE"] = "vault"
 os.environ.pop("VOOL_KEYCHAIN_ALLOWED", None)
+# Child pytest sessions a test starts in a scratch directory never read this repository's addopts:
+# a third-party plugin VOOL blocks (anchorpy's, installed by the optional `pay` extra) reaches them
+# through PYTEST_ADDOPTS instead. Untouched when no blocked plugin is installed.
+from tests.pytest_plugin_blocks import block_for_child_sessions
+
+block_for_child_sessions()
 
 from core.env_compat import apply_legacy_nulla_env
 from core.runtime_paths import configure_runtime_home
