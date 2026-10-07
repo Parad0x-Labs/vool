@@ -37,6 +37,27 @@ def _canonical_current_required(effective_input: str, source_context: Any) -> bo
     except Exception:
         return False
 
+def _kernel_temporal_decision(question: str, raw_reply: str, packet_facts: list, reference_day) -> dict | None:
+    """v14.3 (VOOL_EVIDENCE_KERNEL=1): the temporal claim binder's decision on a memory answer the past-time guard
+    withdrew. None when the kernel is off or the binder did not attempt (no packet, no temporal value), so the v14.1
+    verifier keeps its job. The decision carries the qualified text, every value with its rule and operands, and the
+    dropped clauses, beside the guard's own receipt (core/evidence_kernel/temporal_binder.py)."""
+    try:
+        from core.evidence_kernel.receipts import kernel_enabled
+        from core.evidence_kernel.temporal_binder import bind_temporal_claims
+    except Exception:
+        return None
+    if not kernel_enabled():
+        return None
+    binding = bind_temporal_claims(question=question, reply=raw_reply, packet_facts=packet_facts, reference_day=reference_day)
+    if not binding.attempted:
+        return None
+    decision = binding.as_dict()
+    decision.update({"execution": "executed", "owner": "core.evidence_kernel.temporal_binder.bind_temporal_claims",
+                     "guard_withdrew": True, "packet_facts": len(packet_facts), "text": binding.text,
+                     "verified": binding.restored, "rule": "clause_level_binding"})
+    return decision
+
 
 def _internal_payload(text: str) -> bool:
     """Machine scaffolding or a bare monologue, never an answer to a person.
@@ -1654,6 +1675,40 @@ def execute_grounded_turn(
                 "changed": response != before_past_time_guard,
             }
 
+        # Evidence verification (VOOL_EVIDENCE_VERIFY=1, core.evidence_compiler): a computed interval or
+        # duration the guard withdrew is restored when the turn's receipt packet derives it (two event days,
+        # or two durations). Labelling, never deletion: the decision is recorded beside the guard's.
+        if response != before_past_time_guard:
+            try:
+                from core.evidence_compiler import verify_enabled as _verify_enabled
+
+                if _verify_enabled():
+                    from core.context_retrieval import get_last_retrieval_telemetry as _telemetry
+
+                    _facts = list(_telemetry().get("evidence_packet_facts") or [])
+                    _ref_day = past_time_clock.day if past_time_clock is not None else None
+                    _decision = _kernel_temporal_decision(effective_input, before_past_time_guard, _facts, _ref_day)
+                    if _decision is None:
+                        # v14.1: a computed interval or duration the guard withdrew is restored whole when the packet
+                        # derives it (labelling, never deletion)
+                        from core.evidence_compiler import verify_answer as _verify_answer
+
+                        _decision = _verify_answer(effective_input, before_past_time_guard, _facts, reference_day=_ref_day)
+                        _decision.update({"execution": "executed", "owner": "core.evidence_compiler.verify_answer",
+                                          "guard_withdrew": True, "packet_facts": len(_facts)})
+                        if _decision.get("verified"):
+                            response = before_past_time_guard
+                            _decision["restored"] = True
+                    elif _decision.get("restored"):
+                        # v14.3 kernel: every temporal value bound to the typed receipts; clauses whose values nothing
+                        # supports are dropped, the answering clause ships when it is supported
+                        response = str(_decision["text"])
+                    if isinstance(source_context, dict):
+                        source_context["evidence_verification"] = _decision
+            except Exception:
+                import logging as _logging
+
+                _logging.getLogger(__name__).debug("evidence verification failed", exc_info=True)
     elif isinstance(source_context, dict):
         source_context["past_time_support_decision"] = {
             "execution": "not_executed",
