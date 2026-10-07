@@ -44,6 +44,8 @@ _PACT_POST_PATHS = {
     "/api/onboarding/pact/choice/local-only": "first_run.choice.local_only",
     "/api/onboarding/choice": "onboarding.choice",
     "/api/onboarding/reset": "onboarding.reset",
+    "/api/onboarding/cloud-default": "onboarding.cloud_default.set",
+    "/api/onboarding/cloud-default/clear": "onboarding.cloud_default.clear",
     "/api/intake/begin": "intake.begin",
     "/api/intake/classify": "intake.classify",
     "/api/intake/preview": "intake.preview",
@@ -219,7 +221,9 @@ def _command_input(command_id: str, body: dict) -> dict:
         return data
     if command_id == "first_run.choice.local_only":
         return {"expect_revision": expect_revision}
-    if command_id == "intake.begin":
+    if command_id == "onboarding.cloud_default.set":
+        return {"decision": _opt_str(body, "decision"), "model": _opt_str(body, "model")}
+    if command_id in {"intake.begin", "onboarding.cloud_default.clear"}:
         return {}
     # first_run.pact.{begin,skip,reset} / onboarding.reset
     return {"expect_revision": expect_revision}

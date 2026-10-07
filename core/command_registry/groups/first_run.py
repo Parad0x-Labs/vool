@@ -39,6 +39,9 @@ _FAULT_REMEDIATIONS = {
     "lock_unavailable": ("another window is publishing; retry in a moment",),
     "boundary_partial": ("part of the boundary applied; the outcome names what did and what failed — live truth is projected",),
     "authority_write_failed": ("the boundary write was refused by its authority; nothing was changed",),
+    "model_required": ("choose one of the cloud models the setup step lists",),
+    "model_not_registered": ("add that model's key in Settings → API Keys first",),
+    "invalid_decision": ("use use_cloud (with a model) or not_now",),
 }
 
 
@@ -121,6 +124,12 @@ class ClaimInput:
 class ChoiceInput:
     choice: str
     expect_revision: int | None = None
+
+
+@dataclass
+class CloudDefaultInput:
+    decision: str
+    model: str = ""
 
 
 @dataclass
@@ -353,6 +362,29 @@ def _onboarding_reset(inp, ctx):
     except FirstRunError as exc:
         return _err(exc)
     return HandlerOk(data={"state": data["state"], "revision": data["revision"]}, summary="provider setup review")
+
+
+def _onboarding_cloud_default_set(inp, ctx):
+    """"No local model runs here -- answer with this cloud model?", answered once (core.cloud_only_default)."""
+    from core import cloud_only_default
+
+    try:
+        if inp.decision == cloud_only_default.DECISION_USE_CLOUD:
+            data = cloud_only_default.choose(inp.model)
+        elif inp.decision == cloud_only_default.DECISION_NOT_NOW:
+            data = cloud_only_default.decline()
+        else:
+            raise cloud_only_default.CloudOnlyDefaultError("invalid_decision", f"unknown decision {inp.decision!r}")
+    except cloud_only_default.CloudOnlyDefaultError as exc:
+        return _err(exc)
+    return HandlerOk(data={"model": data["model"], "decision": data["decision"]}, summary=f"cloud default: {data['decision']}")
+
+
+def _onboarding_cloud_default_clear(inp, ctx):
+    from core import cloud_only_default
+
+    data = cloud_only_default.clear()
+    return HandlerOk(data={"model": data["model"], "decision": data["decision"]}, summary="cloud default cleared")
 
 
 # --- intake handlers (zero network until the explicit verify) ----------------------------------
@@ -1071,6 +1103,29 @@ def register(reg) -> None:
             handler=Handler("core.command_registry.groups.first_run:_onboarding_choice"),
             fault_bindings=_bindings("invalid_transition", "stale_revision"),
             exit_codes=(0, 2, 30),
+        ),
+        CommandSpec(
+            command_id="onboarding.cloud_default.set",
+            group=GROUP_ID,
+            description="Save the cloud model Auto uses while no local model runs: use_cloud | not_now",
+            input_schema=CloudDefaultInput,
+            effects="mutating",
+            permission=provider_perm,
+            availability=Availability("core.command_registry.groups.first_run:_probe_first_run_state"),
+            handler=Handler("core.command_registry.groups.first_run:_onboarding_cloud_default_set"),
+            fault_bindings=_bindings("model_required", "model_not_registered", "invalid_decision"),
+            exit_codes=(0, 2, 30),
+        ),
+        CommandSpec(
+            command_id="onboarding.cloud_default.clear",
+            group=GROUP_ID,
+            description="Forget the saved cloud default so setup asks again",
+            input_schema=EmptyInput,
+            effects="mutating",
+            permission=provider_perm,
+            availability=Availability("core.command_registry.groups.first_run:_probe_first_run_state"),
+            handler=Handler("core.command_registry.groups.first_run:_onboarding_cloud_default_clear"),
+            exit_codes=(0, 2),
         ),
         CommandSpec(
             command_id="onboarding.reset",

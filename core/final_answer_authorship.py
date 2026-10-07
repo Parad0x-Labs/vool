@@ -262,13 +262,41 @@ class AuthorshipDecision:
                 f"`{author}` has no certification run on this runtime, and no certified model was "
                 "available to write it instead."
             )
-        return (
-            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} nothing this turn retrieved, computed or observed "
-            f"backs it, so the answer would rest on the writing model alone. {cause}\n\n"
+        remedy = (
             "What would make this answerable: run the local model tool certification for that "
             "model, pick a certified model, or ask something this runtime can look up, compute "
             "or read for you."
         )
+        if _local_author_not_running(author):
+            # Certifying a model that is not running cannot help; name the fix that can.
+            remedy = (
+                f"What would make this answerable: no local model is running on this computer, so "
+                f"`{author}` cannot answer. Pick a cloud model in the model selector, save one in "
+                "Setup under \u201cWhere should it think?\u201d, or start a local model."
+            )
+        return (
+            f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} nothing this turn retrieved, computed or observed "
+            f"backs it, so the answer would rest on the writing model alone. {cause}\n\n"
+            f"{remedy}"
+        )
+
+
+def _local_author_not_running(author: str) -> bool:
+    """True when ``author`` is a registered local model and no local model answers right now."""
+    provider_name, _, model_name = str(author or "").partition(":")
+    if not provider_name or not model_name:
+        return False
+    try:
+        from core.local_model_policy import manifest_is_local
+        from core.local_model_presence import local_model_running
+        from storage.model_provider_manifest import get_provider_manifest
+
+        manifest = get_provider_manifest(provider_name, model_name)
+        if manifest is None or not manifest_is_local(manifest):
+            return False
+        return not local_model_running()
+    except Exception:
+        return False
 
 
 # --------------------------------------------------------------------------- certification

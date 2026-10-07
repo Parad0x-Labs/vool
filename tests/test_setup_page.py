@@ -108,7 +108,13 @@ def test_the_example_is_labelled_bounded_pausable_and_static_under_reduced_motio
 def test_the_page_writes_only_through_existing_doors() -> None:
     html = render_vool_setup_html()
     posts = set(re.findall(r"postJSON\('([^']+)'", html))
-    assert posts == {"/api/onboarding/choice", "/api/projects", "/api/settings/prefs", "/api/profile/remember"}, posts
+    assert posts == {
+        "/api/onboarding/choice",
+        "/api/onboarding/cloud-default",
+        "/api/projects",
+        "/api/settings/prefs",
+        "/api/profile/remember",
+    }, posts
     gets = set(re.findall(r"getJSON\('([^']+)'", html))
     assert gets == {"/api/setup/state"}
     assert "/api/setup/skip" not in html and "/api/setup/dismiss" not in html, "skip and dismiss are preferences, not new doors"
