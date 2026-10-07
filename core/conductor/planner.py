@@ -2679,13 +2679,13 @@ def plan_conductor_turn(
     subject = _subject_without_answer_frame(original)
     if subject.strip() and subject.strip() != original:
         subject_key = " ".join(subject.lower().split())
+        # Whatever operation the planner gave it, a node whose text lies wholly in the directives
+        # (measured: "Give a concise final answer." planned as factual_explanation beside the real
+        # question planned as unresolved) restates how to answer; it is not a request.
         requests = [
             node
             for node in plan.nodes
-            if not (
-                node.operation == UNRESOLVED_OPERATION
-                and " ".join(str(node.request_text or "").lower().split()) not in subject_key
-            )
+            if " ".join(str(node.request_text or "").lower().split()) in subject_key
         ]
         if len(requests) < 2 and not single_computation:
             return None

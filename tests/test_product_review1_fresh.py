@@ -58,18 +58,8 @@ def test_line_shrink_does_not_remove_condition_from_permission():
     blob="\n".join(x["content"] for x in result)
     assert "badge may be shared" not in blob or "only with the curator" in blob,blob
 
-@pytest.mark.xfail(
-    reason=(
-        "DEFERRED (review 1, section D): short-gap current-vs-historical ordering. "
-        "The access-recency laundering fix (b6557348) removed last_access "
-        "rejuvenation, but for records recorded ~23h apart the lexical-rank "
-        "tie-break and the bounded frequency bonus still order older-first both "
-        "before and after targeted access. A defined current/historical contract "
-        "is explicitly deferred; global newest-first ordering must not be forced "
-        "just to pass this diagnostic."
-    ),
-    strict=True,
-)
+# Was a strict xfail (review 1, section D: short-gap current-vs-historical ordering). It passes on the memory
+# port, so it is a plain test that keeps the newer of two records ~23h apart ranked first.
 def test_short_gap_facts_resist_access_popularity(tmp_path,monkeypatch):
     now=2_000_000_000.
     monkeypatch.setattr(time,"time",lambda:now)
