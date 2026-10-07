@@ -1978,15 +1978,13 @@ class PaymentLifecycle:
                 # any other 3xx, an oversize answer): the outcome is unknown and only the chain decides it, below
                 unanswered = f"submit_unknown:{exc.context.get('reason') or exc.code}"
             else:
-                reason = f"submit_refused:{exc.code}"
-                limits.release_spend(proposal.proposal_id)
-                reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=reason, source="mechanical")
-                proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail={"reason": reason}, fault_code=exc.code if exc.code == "wallet_outbound_refused" else "wallet_broadcast_failed")
-                self._close_effect(effect, ok=False, reason=reason)
-                receipts.record_receipt(proposal, state=proposals.STATE_FAILED, fault_code=exc.code)
-                receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=False, status="failed")
-                raise self._fault("wallet_broadcast_failed", proposal, reason=reason) from None
+                raise self._paykit_unsent(proposal, effect, exc.code) from None
         except Exception as exc:  # transport UNKNOWN: the signed payment may have arrived; never blind-retry
+            from core.remote_fetch_policy import RemoteFetchRefusedError
+
+            if isinstance(exc, RemoteFetchRefusedError):
+                # the network door's own veto, raised before its attempt began: no socket opened, nothing left
+                raise self._paykit_unsent(proposal, effect, "wallet_network_disabled") from None
             unanswered = f"submit_unknown:{type(exc).__name__}"
         status = int(answer["status"]) if answer is not None else 0
         body = bytes(answer["body"] or b"") if answer is not None else b""
@@ -2015,8 +2013,13 @@ class PaymentLifecycle:
             reconciliation.resolve_payment_effect(proposal.proposal_id, applied=True, evidence=tx_signature, source="provider")
             final_state = proposals.STATE_CONFIRMED
         elif settlement == "failed":
-            # the chain holds OUR signed message under that signature and it failed: nothing moved
-            limits.release_spend(proposal.proposal_id)
+            # the chain holds OUR signed message under that signature and it failed: the amount never moved. A fee this
+            # wallet paid was charged all the same, so its hold settles to that fee alone (the reserved maximum: the
+            # charged fee is not read here), the way the Pilot lane settles a transfer that failed on chain
+            if terms.get("payer_pays_fee"):
+                limits.settle_failed_on_chain(proposal.proposal_id)
+            else:
+                limits.release_spend(proposal.proposal_id)
             reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=tx_signature, source="provider")
             proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail={"settlement": settlement, "resource_status": status}, tx_signature=tx_signature, fault_code="wallet_broadcast_failed")
             final_state = proposals.STATE_FAILED
@@ -2044,6 +2047,18 @@ class PaymentLifecycle:
             # the request left but its answer never arrived in a form this lane reads, and the chain proves nothing yet
             raise self._fault("wallet_broadcast_failed", proposal, reason=unanswered)
         return receipt
+
+    def _paykit_unsent(self, proposal: proposals.TransactionProposal, effect: Any, code: str) -> WalletFault:
+        """The paid request was refused before its socket opened, so nothing left this machine: the hold is released,
+        the proposal fails and the same request may be parked again. Returns the fault to raise."""
+        reason = f"submit_refused:{code}"
+        limits.release_spend(proposal.proposal_id)
+        reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=reason, source="mechanical")
+        proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail={"reason": reason}, fault_code=code if code == "wallet_outbound_refused" else "wallet_broadcast_failed")
+        self._close_effect(effect, ok=False, reason=reason)
+        receipts.record_receipt(proposal, state=proposals.STATE_FAILED, fault_code=code)
+        receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=False, status="failed")
+        return self._fault("wallet_broadcast_failed", proposal, reason=reason)
 
     def _verify_evm_settlement(self, spec: chains.ChainIdentity, proposal: proposals.TransactionProposal, binding: dict[str, Any], tx_hash: str, *, payer: str = "") -> tuple[str, bool]:
         """Independent settlement proof from the chain itself: the receipt's USDC Transfer

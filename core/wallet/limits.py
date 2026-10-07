@@ -382,6 +382,17 @@ def settle_spend(proposal_id: str, *, now: float | None = None) -> None:
         )
 
 
+def settle_failed_on_chain(proposal_id: str, *, charged_fee_minor: int | None = None, now: float | None = None) -> None:
+    """A transaction that failed on chain moved none of its amount but still charged its fee: the hold settles with
+    the amount at 0 and the fee the chain charged, or the reserved maximum when that is not known (see ``_settle``)."""
+    moment = float(now if now is not None else time.time())
+    try:
+        with connection() as conn:
+            _settle(conn, proposal_id, charged_fee_minor=charged_fee_minor, amount_moved=False, now=moment)
+    except HoldStateConflictError:
+        return  # nothing reserved: silent, as release_spend
+
+
 def release_spend(proposal_id: str) -> None:
     with connection() as conn:
         try:

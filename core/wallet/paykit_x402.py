@@ -305,6 +305,10 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
     clean_url, clean_method, raw_body = _clean_request(url, method, body, source_context=source_context)
     replay_headers = _clean_headers(headers)
     digest = request_digest(clean_method, clean_url, raw_body)
+    already = existing_outcome(digest, source_context=source_context)
+    if already is not None:
+        # this request is already parked or paid: a later caller can never rebind it to another proposal
+        return already
     status = int(answer["status"])
     requirement, wire_version = _parse_challenge(answer.get("headers"), answer.get("body"), network=chains.resolve_network(profile.network).network)
     if requirement is None:

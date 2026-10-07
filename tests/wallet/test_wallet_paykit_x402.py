@@ -445,6 +445,68 @@ def test_a_paid_request_that_left_keeps_the_hold_whatever_the_answer(env, paid_a
         assert len(resource.landed) == 1 and len(resource.requests) == 2, "no second payment and no redirect followed"
 
 
+@pytest.mark.parametrize("refusal", ["loopback_off", "loopback_name", "dns_failure", "door_veto"])
+def test_a_paid_request_refused_before_its_socket_releases_the_hold_and_can_be_parked_again(env, refusal):
+    """The paid request is refused before its socket opens: by the target check (the loopback switch off for it, a
+    loopback name answering a public address, a failed name lookup) or by the network door's own veto. Nothing was
+    sent, so the proposal fails, the hold is released and the same request can be parked again."""
+    import socket
+    import types
+
+    from core import remote_fetch_policy
+    from core.wallet import limits, outbound, proposals
+    from core.wallet.errors import WalletFault
+
+    def lookup(*_args, **_kwargs):
+        if refusal == "dns_failure":
+            raise socket.gaierror("no such name")
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))]
+
+    profile = _pocket()
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        parked = _park(resource, profile)
+        with pytest.MonkeyPatch.context() as patch:
+            # only the paid request's door changes: the wallet's own RPC reads go their own way
+            if refusal in ("loopback_off", "loopback_name"):
+                patch.setattr(outbound, "_loopback_switch", lambda: False)
+            if refusal in ("loopback_name", "dns_failure"):
+                patch.setattr(outbound, "socket", types.SimpleNamespace(getaddrinfo=lookup))
+            veto = remote_fetch_policy._REMOTE_FETCH_FORBIDDEN.set(refusal == "door_veto")
+            try:
+                with pytest.raises(WalletFault) as exc:
+                    _approve(parked.proposal_id)
+            finally:
+                remote_fetch_policy._REMOTE_FETCH_FORBIDDEN.reset(veto)
+        assert exc.value.code == "wallet_broadcast_failed" and exc.value.context["reason"].startswith("submit_refused:")
+        assert resource.paid_requests == [] and resource.landed == [] and len(resource.requests) == 1
+        assert proposals.get_proposal(parked.proposal_id).state == proposals.STATE_FAILED
+        assert limits.reservation_state(parked.proposal_id) == "released"
+        again = _park(resource, profile)
+        assert again.status == "payment_required" and again.proposal_id != parked.proposal_id
+
+
+def test_a_challenge_parked_for_a_request_already_paid_never_rebinds_it(env):
+    """park_challenge itself refuses a request this lane already paid, whoever calls it, even when the resource now
+    asks on other terms: the request is never rebound to a second proposal."""
+    from core.wallet import outbound, paykit_x402, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    headers = {"Content-Type": "application/json"}
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        parked = _park(resource, profile)
+        _approve(parked.proposal_id)
+        resource.amount_minor = 1400
+        challenge = outbound.fetch(resource.url, method="POST", headers=headers, body=REQUEST_BODY)
+        assert challenge["status"] == 402
+        with pytest.raises(WalletFault) as again:
+            paykit_x402.park_challenge(challenge, url=resource.url, method="POST", headers=headers, body=REQUEST_BODY, wallet_id=profile.wallet_id)
+        assert again.value.context["reason"] == "paykit_request_already_paid"
+        assert len(resource.landed) == 1
+    binding = x402.binding_for_digest(paykit_x402.request_digest("POST", resource.url, REQUEST_BODY))
+    assert binding["proposal_id"] == parked.proposal_id
+
+
 # --- the optional dependency and the legacy lane --------------------------------------------------------------------
 
 def test_without_paykit_the_lane_refuses_before_sending_anything(env, monkeypatch):
