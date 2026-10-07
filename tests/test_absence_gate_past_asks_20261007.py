@@ -38,6 +38,8 @@ REFUSE = {
     "s3": "locker number rowing club boathouse what did i tell u",
     "s4": "Ingrid Halvorsen locker number swimming pool lower corridor what did I say?",
     "s5": "wat were the openning hours for the pool locker lower corridor",
+    # "who" IS the asked facet here, and the chat never retained the sharing or the cousin: still refused
+    "who_facet": "Who did I say shares the swimming pool locker on the lower corridor with my cousin?",
 }
 
 # the same past frames over a facet the chat DID retain: served
@@ -47,6 +49,12 @@ KEEP = {
                   "lime green"),
     "other_record": ("What was the alarm code of the orchard gatehouse?", "5-9-2-6"),
     "sloppy_own": ("key fob colour swimming pool locker lower corridor what did i say", "lime green"),
+    # a relative clause's "who" is ask frame, never an absent facet (measured: "The plumber who bled the
+    # radiators - how much was his bill?" armed the gate on {who, bill} and withheld the invoice)
+    "who_clause": ("The person who keeps the swimming pool locker on the lower corridor - what did I say the number was?",
+                   "214"),
+    "who_clause_present": ("The person who keeps the swimming pool locker on the lower corridor - what is the number?",
+                           "214"),
 }
 
 

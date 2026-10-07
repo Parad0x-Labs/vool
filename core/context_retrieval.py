@@ -4727,7 +4727,10 @@ _QUERY_OVERLAP_STOPWORDS = frozenset(
 #: "when/how/what/why" describe the SHAPE of the ask, not the facet it
 #: requests. who/whom/whose DO discriminate (a person-ask whose actor term
 #: is absent is asking for something the chat never stated).
-_FACET_FRAME_WORDS = frozenset({"when", "what", "which", "why", "how"})
+# "who"/"whom"/"whose" are interrogatives like what/which: a relative clause ("the plumber who bled the radiators")
+# or a person ask names the frame, never a retained facet (measured 2026-10-07: {who, bill} armed the absence gate
+# on a past ask and withheld the plumber's invoice; the present-tense form armed it too)
+_FACET_FRAME_WORDS = frozenset({"when", "what", "which", "why", "how", "who", "whom", "whose"})
 
 # Bound modal departure phrases describe the requested action, rather than
 # an attribute asserted by the source. Keep head/set/out/off as ordinary
