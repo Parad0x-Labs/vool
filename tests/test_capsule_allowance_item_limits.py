@@ -129,6 +129,14 @@ def _quality_budget(question: str, target: int = 8192):
     return replace(budget, min_score=0.25)
 
 
+def _distilled(block: str) -> str:
+    """The distilled section of the capsule: the lines the packer budgeted and the laws here describe. Since the v14
+    whole-turn delivery (lme-diagnosis, 2026-10-06) the block also carries verbatim whole turns after the 'Evidence
+    turns' header, sized by the free window, which quote each turn as said."""
+    cut = block.find("Evidence turns (whole records")
+    return block if cut < 0 else block[:cut]
+
+
 def _capsule(home, chat, question, *, budget=None):
     from core.memory.entries import resolve_memory_access_policy
 
@@ -352,8 +360,8 @@ def test_sentence_group_never_adds_a_co_tenant_value(capsule_env, no_node_leg):
     ])
     block, _telemetry = _capsule(home, "ferry-group", question,
                                  budget=_quality_budget(question))
-    assert "09:15" in block, block
-    assert "10:40" not in block, block
+    assert "09:15" in _distilled(block), block
+    assert "10:40" not in _distilled(block), block
 
 
 def test_sentence_group_windows_unit_contract():

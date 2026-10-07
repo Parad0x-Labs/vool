@@ -29,6 +29,14 @@ TREE = Path(__file__).resolve().parents[1]
 UTC = timezone.utc
 
 
+
+def _distilled(block: str) -> str:
+    """The distilled section of the capsule: the lines the packer budgeted and the laws here describe. Since the v14
+    whole-turn delivery (lme-diagnosis, 2026-10-06) the block also carries verbatim whole turns after the 'Evidence
+    turns' header, sized by the free window, which quote each turn as said."""
+    cut = block.find("Evidence turns (whole records")
+    return block if cut < 0 else block[:cut]
+
 def _profile(tmp_path: Path) -> Path:
     profile = tmp_path / "home"
     profile.mkdir(parents=True, exist_ok=True)
@@ -142,7 +150,7 @@ def test_capsule_current_ask_serves_correction_with_true_date_and_ids(tmp_path) 
         profile, "shrimp-dock", "When does the ice window open these days?"
     )
     assert "06:10" in capsule
-    assert "05:50" not in capsule
+    assert "05:50" not in _distilled(capsule)
     # The receipt exposes the ACTUAL date metadata and the selected source
     # occurrence ids, not any date token: the delivered line's statement_at
     # is the correction's July 16 instant and its occurrence id exists in
@@ -191,8 +199,8 @@ def test_capsule_as_of_ask_serves_the_value_that_applied(tmp_path) -> None:
         as_of="2026-04-20",
     )
     assert "24 francs" in capsule
-    assert "18 francs" not in capsule
-    assert "27 francs" not in capsule
+    assert "18 francs" not in _distilled(capsule)
+    assert "27 francs" not in _distilled(capsule)
     # the true statement date rides with the winning value
     assert "2026-03-02" in capsule
 
@@ -212,7 +220,7 @@ def test_capsule_window_expiry_and_reversion_pair(tmp_path) -> None:
         "What does a visiting lane ticket cost?",
     )
     assert "9 pounds" in capsule
-    assert "free of charge" not in capsule
+    assert "free of charge" not in _distilled(capsule)
     assert "normal tickets are back" in capsule
 
 
@@ -240,7 +248,7 @@ def test_legacy_path_does_not_serve_the_superseded_value(tmp_path) -> None:
         profile, "net-loft", "How long is the drying slot?", mode="legacy",
     )
     assert "55 minutes" in capsule
-    assert "40 minutes" not in capsule
+    assert "40 minutes" not in _distilled(capsule)
 
 
 # ------------------------------------------------- two-process restart row
@@ -332,8 +340,8 @@ def test_retraction_survives_a_true_process_restart(tmp_path) -> None:
     assert reader.returncode == 0, reader.stderr
     capsule = json.loads(reader.stdout)["capsule"]
     assert "Jacquard" in capsule or "cancelled" in capsule or "cancellation" in capsule
-    assert "1890 Jacquard demo, announce" not in capsule
-    assert "announce it" not in capsule
+    assert "1890 Jacquard demo, announce" not in _distilled(capsule)
+    assert "announce it" not in _distilled(capsule)
     # the retraction is the statement of record, with its true date
     assert "Scratch that" in capsule
     assert "2026-08-12" in capsule
@@ -364,7 +372,7 @@ def test_cross_lane_mixed_subjects_do_not_cross_pollinate(composition_env) -> No
     ])
     capsule = composition_env.ask(chat, "How many ducks are on the farm in total?")
     assert "14" in capsule, capsule
-    assert "= 20" not in capsule and "6 geese" not in capsule, capsule
+    assert "= 20" not in _distilled(capsule) and "6 geese" not in _distilled(capsule), capsule
 
 
 def test_cross_lane_recency_sensitive_question_keeps_strict_law(composition_env) -> None:
@@ -373,7 +381,7 @@ def test_cross_lane_recency_sensitive_question_keeps_strict_law(composition_env)
         ("user", "Correction for the timetable: the night ferry now departs at 23:40, the 23:10 slot went to the freight run."),
     ])
     capsule = composition_env.ask(chat, "When does the night ferry depart?")
-    assert not ("23:10" in capsule and "23:40" in capsule), capsule
+    assert not ("23:10" in _distilled(capsule) and "23:40" in _distilled(capsule)), capsule
 
 
 def test_cross_lane_duplicate_occurrence_not_double_counted(composition_env) -> None:
@@ -382,4 +390,4 @@ def test_cross_lane_duplicate_occurrence_not_double_counted(composition_env) -> 
         ("user", "Inventory: 22 packets of kale seed in drawer A."),
     ])
     capsule = composition_env.ask(chat, "How many kale packets are in drawer A in total?")
-    assert "44" not in capsule, capsule
+    assert "44" not in _distilled(capsule), capsule
