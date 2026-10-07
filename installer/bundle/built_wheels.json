@@ -1,0 +1,5 @@
+{
+  "schema": "vool.built_wheels/1",
+  "note": "Wheels built here because no published wheel exists for the target. Filled from the build record after sls runs INTEL-CRYPTO-WHEEL-PASTE.txt; an artifact is accepted only by its sha256.",
+  "wheels": []
+}
