@@ -2656,7 +2656,7 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
             if v2_offer is not None:
                 entry, reason = x402_v2.select_offer(v2_offer, wallet_id=wallet_id, source_context=context)
                 if entry is None:
-                    raise WalletFault("x402_scheme_unavailable", context={"reason": reason})
+                    raise wallet_x402.selection_refusal(reason, source_context=context)
                 proposal = x402_v2.propose_from_v2_offer(v2_offer, entry, wallet_id=wallet_id, source_context=context)
             else:
                 request = wallet_x402.detect_x402(status_code, headers_arg, body_arg)

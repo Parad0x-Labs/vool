@@ -38,7 +38,7 @@ class X402Request:
     max_timeout_seconds: int = 0
     asset_transfer_method: str = ""
     #: the fee payer a canonical Solana offer names (extra.feePayer / feePayerKey): the resource settles a transaction
-    #: that payer co-signs, so such an offer is never a plain transfer of this wallet's own
+    #: pay-kit builds, so such an offer is never a plain transfer of this wallet's own
     fee_payer: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -118,6 +118,26 @@ def offer_key(wire: str, *terms: Any) -> str:
     return prefix + hashlib.sha256("|".join(str(term) for term in terms).encode("utf-8")).hexdigest()[:24]
 
 
+def paykit_offer_refusal(reason: str, *, source_context: dict[str, Any] | None = None) -> Exception:
+    """The refusal of an offer only the pay-kit lane can pay (a canonical Solana x402 offer or an MPP Solana charge):
+    raises ``wallet_paykit_unavailable``, naming the dependency, while the optional ``pay`` extra is absent; with it,
+    returns the fault of a door that is not the one that pays it. Never a plain transfer of this wallet's own."""
+    from core.wallet import paykit_x402
+
+    paykit_x402.require_available(source_context=source_context)
+    return wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": reason}, source_context=source_context)
+
+
+def selection_refusal(reason: str, *, source_context: dict[str, Any] | None = None) -> Exception:
+    """The fault for a v2 offer nothing was selected from: one whose Solana entries need the pay-kit lane names it
+    (see :func:`paykit_offer_refusal`), anything else is x402_scheme_unavailable with the selection's reason."""
+    from core.wallet import x402_v2
+
+    if reason == x402_v2.REFUSED_SOLANA_NEEDS_PAYKIT:
+        return paykit_offer_refusal(reason, source_context=source_context)
+    return wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": reason}, source_context=source_context)
+
+
 def canonical_offer(network: str, asset: str) -> tuple[str, str]:
     """An offer's network and asset as a proposal stores them (the declared network, the asset row's symbol), so every
     spelling of one offer has one key. As given when either does not resolve: the proposal then refuses it as it
@@ -140,9 +160,9 @@ def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: d
     from core.wallet import x402_v2
 
     if request.fee_payer and x402_v2.names_solana(request.network):
-        # a canonical Solana offer: the resource's fee payer settles a transaction it co-signs. This lane would
-        # broadcast a plain transfer of its own instead, which the resource never accepts, so it never proposes one
-        raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "canonical_solana_offer_needs_paykit_lane"}, source_context=source_context)
+        # a canonical Solana offer: the resource's fee payer settles a transaction pay-kit builds. This lane would
+        # broadcast a plain transfer of its own instead, so it never proposes one, with or without the extra
+        raise paykit_offer_refusal("canonical_solana_offer_needs_paykit_lane", source_context=source_context)
     if not config.network_allowed(request.network):
         raise wallet_fault("wallet_network_disabled", authority=AUTHORITY, context={"network": request.network, "reason": "x402_offer_network"}, source_context=source_context)
     cap = config.x402_cap_minor()
@@ -604,6 +624,9 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
         raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "v2_challenge_unparseable"}, source_context=source_context)
     offer = detect_x402(status, response_headers, body)
     if offer is None:
+        if paykit_mpp.names_solana_challenge(response_headers):
+            # an MPP Solana charge only the pay-kit lane pays: without the extra, the refusal names that dependency
+            paykit_x402.require_available(source_context=source_context)
         return X402Outcome(status=OUTCOME_REFUSED, http_status=status, body=body)
     # the offer's one proposal and this request's claim on it commit together: a new proposal is never seen unbound,
     # and one that lost the request to another payment is rejected in that same transaction, never approvable
@@ -715,7 +738,7 @@ def _fetch_v2(v2_offer, clean_url: str, method: str, wallet_id: str, *, source_c
 
     entry, reason = x402_v2.select_offer(v2_offer, wallet_id=wallet_id, source_context=source_context)
     if entry is None:
-        raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": reason}, source_context=source_context)
+        raise selection_refusal(reason, source_context=source_context)
     # the paid retry replays the CALLER's request: an offer that names another method than the one this request used
     # is refused, and an offer naming none is bound to the caller's own method (never a silent GET)
     declared_method = str((entry.raw or {}).get("method") or "").strip().upper()

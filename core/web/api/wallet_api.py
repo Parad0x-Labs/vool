@@ -340,7 +340,7 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             if v2_offer is not None:
                 entry, reason = x402_v2.select_offer(v2_offer, wallet_id=_wallet_id(body), source_context=source_context)
                 if entry is None:
-                    raise WalletFault("x402_scheme_unavailable", context={"reason": reason})
+                    raise x402.selection_refusal(reason, source_context=source_context)
                 proposal = x402_v2.propose_from_v2_offer(v2_offer, entry, wallet_id=_wallet_id(body), source_context=source_context)
                 existed = proposal.state != proposals.STATE_PROPOSED
                 return _prepared(proposal, source_context=source_context, duplicate=existed)
