@@ -268,7 +268,10 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
             rep = receipts_by_id.get(str(fact.get("replaced_by"))) or {}
             until = _day(rep.get("statement_at")) if rep.get("statement_at") is not None else "unknown day"
         window = f" effective from {stated}" + (f" until {until}" if until else ", current") if stated and stated != "undated" else ""
-        line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  {tag}{window}"
+        # the same row with nothing from its replacing record (no "until <that day>"), for filter_packet
+        bare_window = f" effective from {stated}" if stated and stated != "undated" else ""
+        head = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  {tag}"
+        line, bare = head + window, head + (bare_window if until else window)
     elif fact.get("value_type") == "mention":
         line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:240]}\"  <mention>"
     elif fact.get("value_type") == "preference":
@@ -280,17 +283,25 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
         line = f"- [{stated}] {role} said: \"{sentence[:400]}\""
         if fact.get("value_type") not in ("event",):
             line += f"  <{fact.get('value_type')}: {fact.get('value')}>"
+    if fact.get("value_type") != "state":
+        bare = line
+    tail = ""
     ev = fact.get("event_at")
     if ev is not None:
-        line += f"  (event day {_day(ev)}, {fact.get('event_grain') or 'dated'})"
+        tail += f"  (event day {_day(ev)}, {fact.get('event_grain') or 'dated'})"
     for change in receipt.get("changes") or []:
         if change.get("new_value") == fact.get("value"):
-            line += f"  [replaces \"{change.get('old_value')}\" stated {_day(change.get('old_statement_at'))}]"
+            tail += f"  [replaces \"{change.get('old_value')}\" stated {_day(change.get('old_statement_at'))}]"
+    line, bare = line + tail, bare + tail
     if fact.get("replaced_by"):
         later = receipts_by_id.get(str(fact.get("replaced_by")))
         if later is not None:
             newer = next((c.get("new_value") for c in later.get("changes") or [] if c.get("old_value") == fact.get("value")), None)
             line += f"  [REPLACED later by \"{newer}\" stated {_day(later.get('statement_at'))}; not current]"
+    # The row rendered without anything its replacing record contributed (the "until" day and the REPLACED note): when
+    # the capsule refuses that record, filter_packet puts this in its place. Kept beside the fact, never parsed back out
+    # of the line, so a quote, a newline or the user's own "until <date>" inside the sentence is never cut.
+    fact["line_without_replacement"] = bare
     return line
 
 
@@ -675,8 +686,14 @@ def _completeness_line(ob: Obligation, missing: Sequence[str], coverage: Mapping
 
 _COMPLETENESS_LINE_PREFIX = "- This question needs: "
 _TEMPORAL_REFUSAL_RE = re.compile(r"(?:note:|temporal:)?(?:withdrawn|future-relative|window-|superseded)")
-_UNTIL_RE = re.compile(r" until (?:\d{4}-\d{2}-\d{2}|unknown day)(?=\s|$|<)")
-_REPLACED_LATER_RE = re.compile(r'  \[REPLACED later by "[^"\n]*" stated [^;\]\n]*; not current\]')
+_REPLACED_NOTE_LEAD = "  [REPLACED later by "
+
+
+def _without_trailing_replacement_note(line: str) -> str:
+    """A row without its REPLACED note, for a row rendered before facts carried their bare line: the note is always the
+    last thing on the row, so everything from its last opening on is cut, whatever the replacing value holds."""
+    head, lead, _note = str(line).rpartition(_REPLACED_NOTE_LEAD)
+    return head if lead else str(line)
 
 
 def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens: Callable[[str], int] | None = None) -> Packet:
@@ -715,7 +732,7 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
         replacing = str(fact.get("replaced_by_occurrence") or "")
         if (str(fact.get("replaced_by") or "") in refused_receipts
                 or (replacing and _TEMPORAL_REFUSAL_RE.match(str(refused.get(replacing) or "")))):
-            line = _UNTIL_RE.sub("", _REPLACED_LATER_RE.sub("", kept_lines[index]))
+            line = str(fact.get("line_without_replacement") or "") or _without_trailing_replacement_note(kept_lines[index])
             stripped += line != kept_lines[index]
             kept_lines[index] = line
     if not dropped:
