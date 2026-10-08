@@ -212,10 +212,17 @@ def _canonical_chain(chain: str) -> str:
 
 
 def check_limits(wallet_id: str, asset: str, amount_minor: int, destination: str, *, now: float | None = None, fee_minor: int = 0, chain: str = "") -> LimitVerdict:
-    """Advisory pre-check (simulation stage). The binding check is :func:`reserve_spend`."""
+    """Advisory pre-check (simulation stage). The binding check is :func:`reserve_spend`, whose split it mirrors: a
+    token transfer's principal is checked in the token and its fee in the native coin, never added together."""
     moment = float(now if now is not None else time.time())
+    canonical = _canonical_chain(chain)
     with connection() as conn:
-        return _verdict(conn, str(wallet_id), str(asset).upper(), amount_minor, str(destination), moment, fee=fee_minor, chain=_canonical_chain(chain))
+        if fee_minor and _token_transfer(canonical, asset):
+            verdict = _verdict(conn, str(wallet_id), str(asset).upper(), amount_minor, str(destination), moment, fee=0, chain=canonical)
+            if not verdict.ok:
+                return verdict
+            return _verdict(conn, str(wallet_id), _native_symbol(canonical), 0, str(destination), moment, fee=fee_minor, chain=canonical)
+        return _verdict(conn, str(wallet_id), str(asset).upper(), amount_minor, str(destination), moment, fee=fee_minor, chain=canonical)
 
 
 def _begin_immediate(conn) -> None:

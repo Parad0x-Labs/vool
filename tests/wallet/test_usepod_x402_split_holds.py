@@ -89,6 +89,18 @@ def test_each_ceiling_judges_only_its_own_asset(ledger) -> None:
     assert (refused.ok, refused.limit) == (False, "per_transaction") and _rows("p-cap-fee") == []
 
 
+def test_the_advisory_check_splits_a_token_transfer_as_the_reservation_does(ledger) -> None:
+    # The pre-check at simulation must judge what the reservation will judge: a principal at its USDC ceiling passes,
+    # a fee above the SOL ceiling is refused, and the lamport fee is never added to the USDC microunits.
+    ledger.set_limits(WALLET, "USDC", ledger.SpendLimits(per_tx_minor=150_000, daily_minor=10_000_000, per_destination_daily_minor=10_000_000))
+    assert ledger.check_limits(WALLET, "USDC", 150_000, DESTINATION, fee_minor=5_000, chain=SOLANA_MAINNET).ok
+    ledger.set_limits(WALLET, "SOL", ledger.SpendLimits(per_tx_minor=4_000, daily_minor=10_000_000, per_destination_daily_minor=10_000_000))
+    refused = ledger.check_limits(WALLET, "USDC", 10_000, DESTINATION, fee_minor=5_000, chain=SOLANA_MAINNET)
+    assert (refused.ok, refused.limit) == (False, "per_transaction")
+    over = ledger.check_limits(WALLET, "USDC", 150_001, DESTINATION, fee_minor=0, chain=SOLANA_MAINNET)
+    assert (over.ok, over.limit) == (False, "per_transaction")
+
+
 def test_a_native_transfer_keeps_one_row_and_the_quote_reads_holds_per_asset(ledger) -> None:
     from core.wallet import quotes
 

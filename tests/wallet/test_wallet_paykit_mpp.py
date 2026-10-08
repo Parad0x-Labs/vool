@@ -101,6 +101,61 @@ def test_the_approval_shows_the_fee_an_unsponsored_charge_costs_this_wallet(env)
     assert challenge.max_network_fee_minor == paykit_mpp.payer_fee_minor(proposal) > 0
 
 
+def test_an_unsponsored_charge_is_never_approvable_before_its_fee_is_bound(env, monkeypatch):
+    """The moment the proposal becomes approvable, an approval sheet read then already shows the fee this wallet will
+    pay: the fee is bound while the proposal is prepared, not after it was published as pending."""
+    from core.wallet import custody, lifecycle, paykit_mpp, proposals
+
+    profile = _pocket()
+    seen = []
+    real = proposals.transition
+
+    def watching(proposal_id, new_state, **kwargs):
+        moved = real(proposal_id, new_state, **kwargs)
+        if new_state == proposals.STATE_PENDING_APPROVAL and moved is not None:
+            seen.append(lifecycle.default_lifecycle()._challenge_for(moved, custody.get_wallet(profile.wallet_id)).max_network_fee_minor)
+        return moved
+
+    monkeypatch.setattr(proposals, "transition", watching)
+    with ScriptedMppResource(env["rpc"], sponsored=False) as resource:
+        parked = _park(resource, profile)
+    assert seen == [paykit_mpp.payer_fee_minor(proposals.get_proposal(parked.proposal_id))] and seen[0] > 0
+
+
+class _ApproverSeeingNoFee:
+    """The owner approves a sheet whose charge shows no network fee (the binding's fee was not there when it was read)."""
+
+    def __init__(self, pin):
+        from core.wallet import approval
+
+        self._inner = approval.PinApprover(pin)
+        self.sheets = []
+
+    def approve(self, challenge):
+        self.sheets.append(challenge)
+        return self._inner.approve(challenge)
+
+
+def test_a_charge_approved_without_its_fee_is_never_held_or_paid(env):
+    """An approval whose sheet showed no fee for a charge this wallet pays the fee of: execution never works the fee
+    out afresh and holds more than was approved. It refuses before anything is held, signed or sent."""
+    from core.wallet import lifecycle, limits, paykit_x402, proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    with ScriptedMppResource(env["rpc"], sponsored=False) as resource:
+        parked = _park(resource, profile)
+        x402._update_binding(paykit_x402.binding_for(parked.proposal_id)["request_digest"], max_network_fee_minor=0)
+        approver = _ApproverSeeingNoFee(PIN)
+        with pytest.raises(WalletFault) as refused:
+            lifecycle.default_lifecycle().approve_and_execute(parked.proposal_id, approver=approver)
+        assert approver.sheets[0].max_network_fee_minor == 0 and approver.sheets[0].max_total_minor == 1500
+        assert refused.value.context["reason"] == "paykit_fee_not_what_was_approved"
+        assert limits.reservation_state(parked.proposal_id) == "", "nothing was held"
+        assert resource.paid_requests == [] and env["rpc"].send_count() == 0
+        assert proposals.get_proposal(parked.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+
+
 @pytest.mark.parametrize("order", ["sponsored-then-unsponsored", "unsponsored-then-sponsored"])
 def test_a_request_parked_again_binds_the_fee_facts_of_its_new_offer(env, order):
     """The same request meets one offer, that proposal dies (approval attempts exhausted), then it meets another offer
