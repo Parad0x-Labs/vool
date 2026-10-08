@@ -1893,7 +1893,16 @@ def maybe_handle_memory_command(
             )
         except Exception as exc:
             LOGGER.warning("semantic memory forget unavailable: %s", type(exc).__name__)
-        total_removed = max(int(removed), int(semantic_removed), *(int(count or 0) for count in erasures.values()))
+            erasures["store_failures"] = 1
+        total_removed = max(int(removed), int(semantic_removed),
+                            *(int(erasures.get(key) or 0) for key in ("semantic_nodes", "source_occurrences")))
+        if erasures.get("store_failures"):
+            # A failed or unopened memory store is not an empty one: the value may still be held and recalled, so the
+            # reply never says nothing matched (review 2026-10-08: a denied read answered "found no memory").
+            return True, ("Forget could not be verified as fully applied: the memory store could not be read or "
+                          "changed on this turn"
+                          + (f", after {total_removed} entr{'y' if total_removed == 1 else 'ies'} were removed" if total_removed > 0 else "")
+                          + ". Please retry the forget.")
         if total_removed <= 0:
             mirror_after = _mirror_text().lower()
             healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
@@ -1904,8 +1913,8 @@ def maybe_handle_memory_command(
             # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
             # command is answered with the truth; the turn is still recorded by the fast path, so the
             # capsule's temporal law withdraws the record it names on the next recall.
-            # worded without a storage verb beside "memory": the action-honesty check reads "no stored memory" as a
-            # claim that something was stored, and replaced the forget reply (tests/test_a_product_word_in_a_sentence_is_not_a_command.py)
+            # worded without a storage verb beside "memory": the final claim check reads "no stored memory" as a
+            # claim that something was stored, and replaced the forget reply (main's test_a_product_word_in_a_sentence_is_not_a_command.py)
             return True, f"Nothing was removed. Forget found no memory in this chat that matched \"{token}\"."
         return True, f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}."
 

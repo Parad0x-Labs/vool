@@ -432,3 +432,136 @@ def test_records_that_contain_each_other_leave_whole_and_the_rest_still_rides(tm
     assert "blue hook" in capsule, (capsule, telemetry)
     delivered = [ref for ref in telemetry.get("evidence_refs", []) if ref.get("delivered")]
     assert not any(cr.text_carries_revoked_token(str(ref.get("line") or ""), ("bay 12",)) for ref in delivered), delivered
+
+
+def _forget_command(profile, chat: str, text: str) -> tuple[bool, str]:
+    from core.memory.entries import resolve_memory_access_policy
+    from core.persistent_memory import maybe_handle_memory_command
+
+    return maybe_handle_memory_command(text, session_id=chat, access_policy=resolve_memory_access_policy(chat_id=chat),
+                                       source_context={"chat_id": chat, "runtime_home": str(profile)})
+
+
+@pytest.mark.parametrize("target", ["ZX-41", "stored memory", "created files", "audit in progress"])
+def test_a_no_match_reply_survives_the_final_claim_check_whatever_the_target_says(tmp_path, target):
+    """Review 2026-10-08 (third review): the forget reply quotes the target back, and the final claim check read
+    'matched "stored memory"' as a claim that something was stored ("created files": a claimed execution; "audit in
+    progress": a claimed running task) and replaced what the forget command did. A quoted echo of the user's own
+    words is a mention, not a claim."""
+    from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty
+
+    profile = _profile(tmp_path)
+    chat = "forget-literal-target"
+    _ingest(profile, chat, [(_ts("2026-02-03T09:00:00"), "My locker key hangs on the blue hook.")])
+    prompt = "forget " + target
+    handled, reply = _forget_command(profile, chat, prompt)
+    assert handled and reply.startswith("Nothing was removed"), reply
+    final = enforce_final_action_honesty({"response": reply, "mode": "advice_only"}, user_input=prompt,
+                                         session_id=chat, source_context={"chat_id": chat})
+    assert final["response"] == reply, final
+
+
+def test_a_claim_beside_a_quoted_echo_is_still_checked(tmp_path):
+    """The quoted echo is blanked for the claim check only: a reply that claims a write outside the quotes is still
+    replaced."""
+    from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty
+
+    prompt = "please keep ZX-41"
+    reply = 'I stored it in workspace memory: "ZX-41".'
+    final = enforce_final_action_honesty({"response": reply, "mode": "advice_only"}, user_input=prompt,
+                                         session_id="forget-echo-claim", source_context={"chat_id": "forget-echo-claim"})
+    assert final["response"] != reply, final
+
+
+def test_a_failed_erasure_is_never_reported_as_no_match(tmp_path, monkeypatch):
+    """Review 2026-10-08 (third review): the semantic store denied its read, the value stayed recallable, and the reply
+    said "Forget found no memory ... that matched". A failed erasure is unknown, and says so."""
+    import sqlite3
+
+    profile = _profile(tmp_path)
+    chat = "forget-store-failure"
+    _ingest(profile, chat, [(_ts("2026-02-03T09:00:00"), "My storage unit code is MINT-84.")])
+    control, _ = _capsule(profile, chat, "What is my storage unit code?")
+    assert "MINT-84" in control, control
+    open_store = cr._open_memory_for_runtime
+
+    def denying_store(home):
+        memory = open_store(home)
+
+        def authorize(action, table, *rest):
+            return sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_READ and table == "memory_nodes" else sqlite3.SQLITE_OK
+
+        memory._conn.set_authorizer(authorize)
+        return memory
+
+    with monkeypatch.context() as patch:
+        patch.setattr(cr, "_open_memory_for_runtime", denying_store)
+        handled, reply = _forget_command(profile, chat, "forget MINT-84")
+    assert handled, reply
+    assert "no memory" not in reply.lower() and "Forget applied" not in reply, reply
+    assert "could not be verified" in reply, reply
+
+
+def _rent_rows(newer: str, sentence: str = "The rent is 41 crowns.", value_type: str = "count"):
+    from core.evidence_compiler import Packet, _render_line, obligations
+
+    old = {"value_type": value_type, "value": "41 crowns", "sentence": sentence, "replaced_by": "r:later",
+           "replaced_by_occurrence": "u:later", "receipt_id": "r:old", "occurrence_id": "u:old", "role": "user"}
+    if value_type == "state":
+        old["norm"] = "rent=41 crowns"
+    receipts = {"r:old": {"role": "user", "statement_at": _ts("2026-02-03T09:00:00")},
+                "r:later": {"role": "user", "statement_at": _ts("2026-11-06T09:00:00"),
+                            "changes": [{"old_value": "41 crowns", "new_value": newer}]}}
+    return Packet(obligation=obligations("How much was the rent?"), lines=[_render_line(receipts["r:old"], old, receipts)],
+                  facts=[old])
+
+
+@pytest.mark.parametrize("reason", ["withdrawn", "future-relative-to-as-of", "window-expired"])
+@pytest.mark.parametrize("newer", ["47 crowns", '47 "gold" crowns', "47 crowns\nwith irrigation"])
+def test_a_refused_replacement_leaves_no_note_whatever_its_value_holds(reason, newer):
+    """Review 2026-10-08 (third review): a quote or a newline in the replacing value kept the REPLACED note."""
+    from types import SimpleNamespace
+
+    from core.evidence_compiler import filter_packet, render
+
+    packet = _rent_rows(newer)
+    assert newer in render(packet)
+    refused = cr._packet_refusals(packet, verdicts={"u:later": SimpleNamespace(eligible=False, reason=reason)})
+    filtered = render(filter_packet(packet, refused))
+    assert "41 crowns" in filtered and newer not in filtered and "REPLACED later" not in filtered, filtered
+
+
+def test_a_refused_replacement_never_cuts_the_users_own_until_date():
+    """Review 2026-10-08 (third review): withholding the replacing record's "until <day>" also cut the user's own
+    "until 2026-08-01" out of the quoted sentence."""
+    from core.evidence_compiler import filter_packet, render
+
+    sentence = "My allotment rent is 41 crowns until 2026-08-01 and includes the shed."
+    packet = _rent_rows("47 crowns", sentence=sentence, value_type="state")
+    assert sentence in render(packet) and "until 2026-11-06" in render(packet)
+    filtered = render(filter_packet(packet, {"u:later": "temporal:future-relative-to-as-of"}))
+    assert sentence in filtered and "until 2026-11-06" not in filtered and "47 crowns" not in filtered, filtered
+
+
+def test_a_compiled_row_keeps_its_sentence_when_its_replacement_is_refused(tmp_path, monkeypatch):
+    """The same through real ingestion and the compiler: "I live in Wexcombe until 2026-08-01 ..." keeps its date."""
+    from core.evidence_compiler import compile_packet, filter_packet, render
+    from core.vool_memory import VoolMemory
+
+    monkeypatch.setenv("VOOL_MEMORY_RECEIPTS", "1")
+    profile = _profile(tmp_path)
+    chat = "forget-compiled-until"
+    sentence = "I live in Wexcombe until 2026-08-01 and tend the allotment."
+    _ingest(profile, chat, [(_ts("2026-02-03T09:00:00"), sentence),
+                            (_ts("2026-11-06T09:00:00"), "I now live in Brindle with a large garden.")])
+    memory = VoolMemory(runtime_home=str(profile))
+    try:
+        packet = compile_packet(memory, chat, "Where do I live?", max_tokens=2000)
+    finally:
+        memory.close()
+    states = [fact for fact in packet.facts if fact.get("value_type") == "state"]
+    old = next(fact for fact in states if fact.get("replaced_by"))
+    later = next(fact for fact in states if fact["receipt_id"] == old["replaced_by"])
+    assert sentence in render(packet), render(packet)
+    filtered = render(filter_packet(packet, {later["occurrence_id"]: "temporal:future-relative-to-as-of"}))
+    assert sentence in filtered, filtered
