@@ -8489,7 +8489,8 @@ def _hydration_refusals(receipts: Sequence[Mapping[str, Any]], lane_refused: Seq
 
 
 def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts: Any = None,
-                     hydration_refused: Mapping[str, str] | None = None) -> dict[str, str]:
+                     hydration_refused: Mapping[str, str] | None = None, query: str = "",
+                     question_as_of: object = None) -> dict[str, str]:
     """occurrence_id -> the capsule decision that refused it this turn, for the receipts packet's rows (D8-E).
 
     The packet is compiled before the capsule's laws run; this reads the decisions the turn has ALREADY made (the
@@ -8523,28 +8524,56 @@ def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts
                 continue
             if gate_binds and occ in gate_keys and str(fact.get("role") or "") == "user":
                 refused[occ] = "absence-gate"
+        # The record that replaced a shown row is named on that row ('[REPLACED later by ...]'), shown or not: its own
+        # temporal verdict binds it, and with no verdict an as-of question still refuses a replacement stated after
+        # its as-of day (filter_packet then withholds the note).
+        as_of_end = None
+        for fact in list(getattr(evidence_packet, "facts", []) or []):
+            later = str(fact.get("replaced_by_occurrence") or "")
+            if not later or later in refused:
+                continue
+            verdict = (verdicts or {}).get(later) if isinstance(verdicts, dict) else None
+            if verdict is not None:
+                reason = str(getattr(verdict, "reason", "") or "")
+                if not getattr(verdict, "eligible", True) and reason in _PACKET_REFUSING_VERDICTS:
+                    refused[later] = reason
+                continue
+            if as_of_end is None:
+                as_of_end = False
+                if question_as_of not in (None, "") or _EXPLICIT_AS_OF_RE.search(str(query or "")):
+                    from core.temporal_selection import resolve_question_as_of
+
+                    as_of_end = getattr(resolve_question_as_of(query, plumbed=question_as_of), "as_of_end", None) or False
+            stated = fact.get("replaced_by_statement_at")
+            if as_of_end and stated is not None and float(stated) > as_of_end.timestamp():
+                # only the note on the earlier row is withheld: with no verdict of its own the later record's row (if
+                # shown) is not judged here; it may date itself back onto the asked period
+                refused[later] = "note:future-relative-to-as-of"
     except Exception:
         LOGGER.debug("packet refusal read failed", exc_info=True)
     return refused
 
 
-def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "", refused: dict[str, str] | None = None, budget_tokens: int | None = None, revoked_since: tuple[str, ...] | None = None, runtime_home: str | None = None) -> list[dict[str, str]]:
+def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "", refused: dict[str, str] | None = None, budget_tokens: int | None = None, check_revocations: bool = False, runtime_home: str | None = None) -> list[dict[str, str]]:
     """v14.2 kernel: when v14's own retrieval delivers nothing, the receipt packet still reaches the reader on its own
     (a stated preference or a state chain is an operand whether or not a capsule line matched the question)."""
     try:
         from core.evidence_compiler import filter_packet as _filter_packet
         from core.evidence_compiler import render as _render_packet
 
-        # A forget that landed while this turn was assembled (after the packet was compiled): its rows leave the
-        # packet, and a packet line still carrying the token withholds it (the capsule path's law, applied here too).
-        revoked_now = (tuple(token for token in _chat_revocations(runtime_home, chat_id) if token not in revoked_since)
-                       if revoked_since is not None else ())
+        # Forget blocks the packet too, read at delivery: a revoked token's rows leave the packet, a packet line still
+        # carrying it withholds the packet, and an unreadable revocation ledger withholds it as well (fail closed).
+        revoked_now = _chat_revocations(runtime_home, chat_id) if check_revocations else ()
+        if revoked_now is None:
+            telemetry["evidence_packet_withheld"] = "revocation_unreadable"
+            evidence_packet = None
+            revoked_now = ()
         if revoked_now and evidence_packet is not None:
             refused = dict(refused or {})
             for fact in list(getattr(evidence_packet, "facts", []) or []):
                 occ = str(fact.get("occurrence_id") or "")
                 if occ and text_carries_revoked_token(" ".join(str(fact.get(k) or "") for k in ("sentence", "value")), revoked_now):
-                    refused[occ] = "revocation:during_assembly"
+                    refused[occ] = "revocation:at_delivery"
         if evidence_packet is not None and refused:
             evidence_packet = _filter_packet(evidence_packet, refused, estimate_tokens=estimate_tokens)
         text = _render_packet(evidence_packet) if evidence_packet is not None else ""
@@ -8585,56 +8614,35 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
     return _inject_render_block(transcript, "<retrieved_context>\n" + text + "\n</retrieved_context>")
 
 
-def _chat_revocations(runtime_home: str | None, chat_id: str | None) -> tuple[str, ...]:
-    """The forget-law revocations of one chat as the store holds them now (empty when unreadable)."""
+def _evidence_packet_header() -> str:
+    try:
+        from core.evidence_compiler import PACKET_HEADER
+
+        return PACKET_HEADER
+    except Exception:
+        return ""
+
+
+def _chat_revocations(runtime_home: str | None, chat_id: str | None) -> tuple[str, ...] | None:
+    """The forget-law revocations of one chat as the store holds them now; None when the ledger cannot be read
+    (an unreadable authority is never an empty one)."""
     scope = str(chat_id or "").strip()
     if not scope:
         return ()
     memory = None
     try:
         memory = _open_memory_for_runtime(runtime_home)
-        return tuple(memory.revoked_tokens(scope) or ()) if memory is not None else ()
+        if memory is None:
+            return None
+        if not callable(getattr(memory, "revoked_tokens", None)):
+            return ()  # a store with no revocation ledger holds no revocations (test doubles of the read path)
+        return tuple(memory.revoked_tokens(scope, strict=True) or ())
     except Exception:
-        return ()
+        return None
     finally:
         if memory is not None:
             with contextlib.suppress(Exception):
                 memory.close()
-
-
-def _without_revoked_records(block: str, tokens: tuple[str, ...]) -> tuple[str, int]:
-    """*block* without every record that carries a revoked token. A record is a '- ' line with the continuation
-    lines under it (a multi-line turn is one record, whatever its lines start with); only the block's own
-    <retrieved_context> tags and the lines above its first record stand apart."""
-    lines = str(block or "").split("\n")
-    kept: list[str] = []
-    record: list[str] = []
-    dropped = 0
-    seen_record = False
-
-    def flush() -> None:
-        nonlocal dropped
-        if record:
-            if text_carries_revoked_token("\n".join(record), tokens):
-                dropped += 1
-            else:
-                kept.extend(record)
-            record.clear()
-
-    for line in lines:
-        if line.strip() in ("<retrieved_context>", "</retrieved_context>"):
-            flush()
-            kept.append(line)
-        elif line.startswith("- "):
-            flush()
-            seen_record = True
-            record.append(line)
-        elif seen_record:
-            record.append(line)
-        else:
-            kept.append(line)
-    flush()
-    return "\n".join(kept), dropped
 
 
 def _capsule_v2_inject_retrieved(
@@ -8649,9 +8657,6 @@ def _capsule_v2_inject_retrieved(
     session_order: bool = False,
     search_expansions: tuple[str, ...] = (),
 ) -> list[dict[str, str]]:
-    # The revocations this assembly starts from: a forget that lands while it runs is read against every carrier
-    # before the block is delivered (below).
-    revoked_at_start = _chat_revocations(runtime_home, session_id)
     # Hardware-sized injection budget (default bucket B when the caller doesn't supply one).
     if budget is None:
         budget = resolve_budget(
@@ -9534,7 +9539,8 @@ def _capsule_v2_inject_retrieved(
     phrase_lanes_found = bool(search_expansions) and bool(whole_turn_units or recall_supplement)
     if not hits and not evidence_hits and not chain_extras and not phrase_lanes_found:
         return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
-                                      revoked_since=revoked_at_start, runtime_home=runtime_home)
+                                      refused=_packet_refusals(evidence_packet, query=query, question_as_of=question_as_of),
+                                      check_revocations=True, runtime_home=runtime_home)
 
     # ── temporal eligibility (mission memory-quality90, temporal lane) ─────
     # One contract decides which candidates may be PACKED for THIS question:
@@ -10133,8 +10139,9 @@ def _capsule_v2_inject_retrieved(
 
     if not hits and not evidence_hits and not phrase_lanes_found:
         return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
-                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")),
-                                      revoked_since=revoked_at_start, runtime_home=runtime_home)
+                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts"),
+                                                               query=query, question_as_of=question_as_of),
+                                      check_revocations=True, runtime_home=runtime_home)
     context_text = " ".join(m.get("content", "") for m in transcript).lower()
     selected: list[tuple[str, float]] = []
     selected_record_times: list[float | None] = []
@@ -12306,8 +12313,9 @@ def _capsule_v2_inject_retrieved(
                 receipt["omission_reason"] = "selection_filter"
         return _packet_only_injection(transcript, evidence_packet, telemetry, chat_id=str(session_id or ""), question=str(query or ""),
                                       refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
-                                                               hydration_refused=_hydration_refusals(evidence_receipts)),
-                                      budget_tokens=int(budget.free_tokens), revoked_since=revoked_at_start, runtime_home=runtime_home)
+                                                               hydration_refused=_hydration_refusals(evidence_receipts),
+                                                               query=query, question_as_of=question_as_of),
+                                      budget_tokens=int(budget.free_tokens), check_revocations=True, runtime_home=runtime_home)
     # Pack separable facts, not one indivisible capsule: presenting the whole
     # distilled block as a single candidate made the packer drop ALL retrieved
     # evidence when the block exceeded the remaining free budget, even though
@@ -12495,26 +12503,41 @@ def _capsule_v2_inject_retrieved(
             query=query, expansions=search_expansions)
     except Exception:
         LOGGER.debug("whole-turn lane render failed", exc_info=True)
-    # Forget always blocks, on every carrier: a forget that landed while this turn was assembled (after its lines were
-    # packed) revoked a token the distilled lines, the lane and the packet may already carry. The lane re-read the
-    # store above; the distilled records, the lane lines and the packet rows that carry a token revoked since the
-    # assembly began are dropped here, and their receipts no longer count as delivered (review 2026-10-08: a forget
-    # after the as-of pass left "5906" in the distilled lines). Revocations older than the assembly were applied
-    # where the records were read.
-    revoked_now = tuple(token for token in _chat_revocations(runtime_home, session_id) if token not in revoked_at_start)
+    # Forget always blocks, on every carrier, read at delivery: the revocations as the ledger holds them now (a forget
+    # that landed while this turn was assembled included) remove every packed record that carries a revoked token
+    # (whole records, whatever their lines look like), its lane lines and its packet rows, and their receipts no
+    # longer count as delivered. An unreadable ledger delivers no memory at all: an unreadable authority is never read
+    # as an empty one (reviews 2026-10-08: a forget after the as-of pass left "5906"; a failed read delivered it).
+    revoked_now = _chat_revocations(runtime_home, session_id)
     _render_revoked: dict[str, str] = {}
+    if revoked_now is None:
+        telemetry["revocations_unreadable"] = True
+        render_block, turn_lines, lane_rendered, evidence_packet = "", [], [], None
+        packed = _dc_replace(packed, blocks=())
+        revoked_now = ()
     if revoked_now:
-        render_block, _dropped_records = _without_revoked_records(render_block, revoked_now)
-        packed = _dc_replace(packed, blocks=tuple(
-            block for block in packed.blocks if not text_carries_revoked_token(str(getattr(block, "text", "") or ""), revoked_now)))
+        _carrying = [block for block in packed.blocks
+                     if text_carries_revoked_token(str(getattr(block, "text", "") or ""), revoked_now)]
+        # longest first, so a carrying record that contains another carrying record is cut out before it
+        for block in sorted(_carrying, key=lambda b: -len(b.text)):
+            render_block = render_block.replace("\n" + block.text + "\n", "\n", 1)
+        packed = _dc_replace(packed, blocks=tuple(block for block in packed.blocks if block not in _carrying))
+        if _carrying and not packed.blocks:
+            render_block = ""  # no record is left: the header alone is not a memory block
+        if any(block.text and block.text in render_block for block in _carrying):
+            # a record could not be cut out whole: no memory rides this turn (fail closed), and nothing is claimed
+            telemetry["revoked_at_delivery_withheld"] = True
+            render_block, turn_lines, lane_rendered, evidence_packet = "", [], [], None
+            packed = _dc_replace(packed, blocks=())
         _lane_before = len(turn_lines)
         turn_lines = [line for line in turn_lines if not text_carries_revoked_token(line, revoked_now)]
         lane_rendered = [(occ, line) for occ, line in lane_rendered if not text_carries_revoked_token(line, revoked_now)]
         for fact in list(getattr(evidence_packet, "facts", []) or []):
             occ = str(fact.get("occurrence_id") or "")
             if occ and text_carries_revoked_token(" ".join(str(fact.get(k) or "") for k in ("sentence", "value")), revoked_now):
-                _render_revoked[occ] = "revocation:during_assembly"
-        telemetry["revoked_during_assembly"] = {"records": _dropped_records, "lane_lines": _lane_before - len(turn_lines),
+                _render_revoked[occ] = "revocation:at_delivery"
+        if _carrying or _lane_before != len(turn_lines) or _render_revoked:
+            telemetry["revoked_at_delivery"] = {"records": len(_carrying), "lane_lines": _lane_before - len(turn_lines),
                                                 "packet_rows": len(_render_revoked)}
     packet_text = ""
     if evidence_packet is not None:
@@ -12526,7 +12549,8 @@ def _capsule_v2_inject_retrieved(
             # turn (as-of, retraction, supersession, windows) leave the packet before it is rendered.
             _packet_refused = _packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
                                                hydration_refused={**_hydration_refusals(evidence_receipts, _lane_refused),
-                                                                  **_render_revoked})
+                                                                  **_render_revoked},
+                                               query=query, question_as_of=question_as_of)
             if _packet_refused:
                 evidence_packet = _filter_packet(evidence_packet, _packet_refused, estimate_tokens=estimate_tokens)
             packet_text = _render_packet(evidence_packet)
@@ -12568,6 +12592,19 @@ def _capsule_v2_inject_retrieved(
             render_block = render_block.replace("\n</retrieved_context>", "\n" + lane + "\n</retrieved_context>", 1)
         else:
             render_block = "<retrieved_context>\n" + lane + "\n</retrieved_context>"
+    if revoked_now and render_block:
+        # the block as the reader receives it, its own headers aside: a revoked token that survives (split between two
+        # adjacent records) means no memory rides this turn
+        _content = render_block
+        for _fixed in (header, _TURN_LANE_HEADER, _evidence_packet_header(), "<retrieved_context>", "</retrieved_context>"):
+            if _fixed:
+                _content = _content.replace(_fixed, "\n")
+        if text_carries_revoked_token(_content, revoked_now):
+            telemetry["revoked_at_delivery_withheld"] = True
+            for _key in ("evidence_packet_snapshot", "evidence_packet_facts"):
+                telemetry.pop(_key, None)
+            render_block, turn_lines, lane_rendered = "", [], []
+            packed = _dc_replace(packed, blocks=())
     telemetry.update(
         {
             "whole_turn_units": len(whole_turn_units),

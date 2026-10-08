@@ -301,3 +301,134 @@ def test_a_withheld_pair_names_the_member_whose_value_was_erased(tmp_path):
     assert not cr._whole_turn_units_facing_the_laws([pair], verdicts={}, runtime_home=str(profile), refused=refused)
     assert [row["occurrence_id"] for row in refused] == [pair[1].occurrence_id], refused
     assert pair[1].occurrence_id in cr._hydration_refusals([], refused), refused
+
+
+def _forget_inside(monkeypatch, profile, chat: str, token: str) -> list:
+    """Run a real forget of *token* once, right after the lane rendered its lines (the capsule is mid-assembly)."""
+    from core.memory.entries import resolve_memory_access_policy
+
+    render_lane = cr._whole_turn_lines
+    done: list = []
+
+    def after_lane(*args, **kwargs):
+        lines = render_lane(*args, **kwargs)
+        if not done:
+            done.append(cr.forget_session_memory(chat, token, access_policy=resolve_memory_access_policy(chat_id=chat),
+                                                 source_context={"chat_id": chat, "runtime_home": str(profile)}))
+        return lines
+
+    monkeypatch.setattr(cr, "_whole_turn_lines", after_lane)
+    return done
+
+
+def test_an_unreadable_revocation_ledger_delivers_no_memory(tmp_path, monkeypatch):
+    """Review 2026-10-08 (A): a forget completed mid-assembly, then the delivery read of the ledger failed and was read
+    as "nothing revoked", so "5906" was delivered. An unreadable ledger is never an empty one: no memory rides."""
+    import sqlite3
+
+    from core.vool_memory import VoolMemory
+
+    profile = _profile(tmp_path)
+    chat = "forget-ledger-unreadable"
+    _ingest(profile, chat, [(_ts("2026-02-03T09:00:00"), "My storage unit code is 5906."),
+                            (_ts("2026-02-20T09:00:00"), "The shed roof needs new tar paper.")])
+    done = _forget_inside(monkeypatch, profile, chat, "5906")
+    read = VoolMemory.revoked_tokens
+
+    def failing_read(self, scope, **kwargs):
+        if done:
+            raise sqlite3.OperationalError("ledger unreadable")
+        return read(self, scope, **kwargs)
+
+    monkeypatch.setattr(VoolMemory, "revoked_tokens", failing_read)
+    capsule, telemetry = _capsule(profile, chat, "What is my storage unit code?")
+    assert done, "the forget never ran inside the assembly"
+    assert "5906" not in capsule, (capsule, telemetry)
+
+
+def test_a_token_split_over_bullet_lines_is_still_forgotten(tmp_path, monkeypatch):
+    """Review 2026-10-08 (B): a record holding "- TARP" and "- 9" on separate bullet lines was cut apart by a line
+    parser, so the normalized token "tarp 9" survived. Records are removed whole, as packed."""
+    profile = _profile(tmp_path)
+    chat = "forget-split-bullets"
+    _ingest(profile, chat, [(_ts("2026-02-03T09:00:00"),
+                             "Here is the yard gate code from the landlord email:\n- TARP\n- 9\n- Keep it handy."),
+                            (_ts("2026-02-20T09:00:00"), "The yard gate squeaks, it needs oil.")])
+    done = _forget_inside(monkeypatch, profile, chat, "TARP-9")
+    capsule, telemetry = _capsule(profile, chat, "What is the yard gate code from the landlord email?")
+    assert done, "the forget never ran inside the assembly"
+    assert not cr.text_carries_revoked_token(capsule, ("TARP-9",)), (capsule, telemetry)
+    assert "Keep it handy" not in capsule, capsule
+
+
+def test_a_revoked_token_on_a_still_active_record_is_not_served(tmp_path):
+    """Review 2026-10-08: a revocation in the ledger whose record was never erased (a partial erase, a rebuilt source)
+    served the value on the next recall. The ledger binds every delivery, not only the erasure."""
+    from core.vool_memory import VoolMemory
+
+    profile = _profile(tmp_path)
+    chat = "forget-ledger-only"
+    _ingest(profile, chat, [(_ts("2026-02-03T09:00:00"), "My storage unit code is 5906."),
+                            (_ts("2026-02-20T09:00:00"), "The shed roof needs new tar paper.")])
+    memory = VoolMemory(runtime_home=str(profile))
+    try:
+        memory.record_revocation("5906", chat_id=chat)
+    finally:
+        memory.close()
+    capsule, telemetry = _capsule(profile, chat, "What is my storage unit code?")
+    assert "5906" not in capsule, (capsule, telemetry)
+
+
+def test_a_replacement_the_as_of_law_refuses_is_never_named_on_the_earlier_row(tmp_path, monkeypatch):
+    """Review 2026-10-08 (C): with the later row left out of a bounded packet, the earlier row still said
+    '[REPLACED later by "47 crowns" ...]' to an as-of September ask."""
+    import core.evidence_compiler as compiler
+    from tests.test_anchor_carrier_stored_record_20261003 import _as_of_capsule
+
+    monkeypatch.setenv("VOOL_MEMORY_RECEIPTS", "1")
+    monkeypatch.setenv("VOOL_EVIDENCE_COMPILER", "1")
+    profile = _profile(tmp_path)
+    chat = "forget-replacement-note"
+    _ingest(profile, chat, [
+        (_ts("2026-02-03T09:00:00"), "Session date: 10:00 am on 3 February, 2026\nOrrin: The allotment rent at Wexcombe is 41 crowns a season."),
+        (_ts("2026-11-06T09:00:00"), "Session date: 10:00 am on 6 November, 2026\nOrrin: Wexcombe allotment rent goes up to 47 crowns from "
+                                     "November with irrigation access and garden maintenance fees" + " covering the paths and fences" * 14 + "."),
+    ])
+    compile_packet = compiler.compile_packet
+    packets: list = []
+
+    def bounded(*args, **kwargs):
+        packet = compile_packet(*args, **{**kwargs, "max_tokens": 80, "allow_hop": False})
+        packets.append(packet)
+        return packet
+
+    monkeypatch.setattr(compiler, "compile_packet", bounded)
+    capsule = _as_of_capsule(profile, chat, "as of september 2026 how much was the wexcombe allotment rent", "2026-09-05T00:00:00")
+    assert packets and [fact["value"] for fact in packets[0].facts] == ["41 crowns"], packets
+    assert packets[0].facts[0].get("replaced_by"), "precondition: the shown row names its replacement"
+    assert compiler.PACKET_HEADER in capsule and "41 crowns" in capsule, capsule
+    assert "47 crowns" not in capsule, capsule
+
+
+def test_records_that_contain_each_other_leave_whole_and_the_rest_still_rides(tmp_path):
+    """Review 2026-10-08: a carrying record whose text sits inside another carrying record made the cut look
+    incomplete, withheld the block and still claimed the unrelated records delivered. Both leave; the rest rides."""
+    from core.vool_memory import VoolMemory
+
+    profile = _profile(tmp_path)
+    chat = "forget-nested-records"
+    _ingest(profile, chat, [(_ts("2026-02-03T09:00:00"), "My locker is bay 12."),
+                            (_ts("2026-02-04T09:00:00"), "Again: my locker is bay 12."),
+                            (_ts("2026-02-05T09:00:00"), "My locker key hangs on the blue hook by the locker.")])
+    control, _ = _capsule(profile, chat, "Where is my locker and its key?")
+    assert "blue hook" in control and control.count("bay 12") == 2, control  # precondition: all three ride
+    memory = VoolMemory(runtime_home=str(profile))
+    try:
+        memory.record_revocation("bay 12", chat_id=chat)
+    finally:
+        memory.close()
+    capsule, telemetry = _capsule(profile, chat, "Where is my locker and its key?")
+    assert not cr.text_carries_revoked_token(capsule, ("bay 12",)), (capsule, telemetry)
+    assert "blue hook" in capsule, (capsule, telemetry)
+    delivered = [ref for ref in telemetry.get("evidence_refs", []) if ref.get("delivered")]
+    assert not any(cr.text_carries_revoked_token(str(ref.get("line") or ""), ("bay 12",)) for ref in delivered), delivered

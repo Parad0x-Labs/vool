@@ -2309,8 +2309,9 @@ class VoolMemory:
             self._conn.commit()
         return needle
 
-    def revoked_tokens(self, chat_id: str) -> tuple[str, ...]:
-        """Active forget-law revocations for one chat scope, casefolded."""
+    def revoked_tokens(self, chat_id: str, *, strict: bool = False) -> tuple[str, ...]:
+        """Active forget-law revocations for one chat scope, casefolded. ``strict`` raises when the ledger cannot be
+        read, so a delivery gate can tell an unreadable ledger from an empty one."""
         scope = str(chat_id or "").strip()
         if not scope:
             return ()
@@ -2322,6 +2323,8 @@ class VoolMemory:
                     (scope,),
                 ).fetchall()
         except sqlite3.Error:
+            if strict:
+                raise
             return ()
         return tuple(str(row["token"]) for row in rows)
 

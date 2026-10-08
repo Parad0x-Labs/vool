@@ -621,8 +621,13 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
         if used + cost > max_tokens:
             continue
         packet.lines.append(line)
+        # the row's replacing record, which its line names ('[REPLACED later by ...]', 'until <day>') whether or not
+        # that record's own row is shown: the capsule's temporal laws are read against it too (filter_packet)
+        replacing = by_id.get(str(fact.get("replaced_by"))) if fact.get("replaced_by") else None
         packet.facts.append({**fact, "receipt_id": receipt.get("receipt_id"), "occurrence_id": receipt.get("occurrence_id"),
-                             "role": receipt.get("role"), "statement_at": receipt.get("statement_at"), "score": round(float(score), 3)})
+                             "role": receipt.get("role"), "statement_at": receipt.get("statement_at"), "score": round(float(score), 3),
+                             "replaced_by_occurrence": (replacing or {}).get("occurrence_id"),
+                             "replaced_by_statement_at": (replacing or {}).get("statement_at")})
         used += cost
     derived: list[str] = []
     if packet.lines:
@@ -669,7 +674,8 @@ def _completeness_line(ob: Obligation, missing: Sequence[str], coverage: Mapping
 
 
 _COMPLETENESS_LINE_PREFIX = "- This question needs: "
-_TEMPORAL_REFUSAL_RE = re.compile(r"(?:temporal:)?(?:withdrawn|future-relative|window-|superseded)")
+_TEMPORAL_REFUSAL_RE = re.compile(r"(?:note:|temporal:)?(?:withdrawn|future-relative|window-|superseded)")
+_UNTIL_RE = re.compile(r" until (?:\d{4}-\d{2}-\d{2}|unknown day)(?=\s|$|<)")
 _REPLACED_LATER_RE = re.compile(r'  \[REPLACED later by "[^"\n]*" stated [^;\]\n]*; not current\]')
 
 
@@ -693,22 +699,32 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     dropped: list[dict[str, Any]] = []
     for line, fact in zip(fact_lines, packet.facts, strict=False):
         occ = str(fact.get("occurrence_id") or "")
-        if occ and occ in refused:
+        if occ and occ in refused and not str(refused[occ]).startswith("note:"):
             dropped.append({"occurrence_id": occ, "receipt_id": fact.get("receipt_id"), "reason": str(refused[occ])})
             continue
         kept_lines.append(line)
         kept_facts.append(fact)
-    if not dropped:
-        return packet
-    # A kept row names the value that later replaced it ('[REPLACED later by "47 crowns" ...]'): when a temporal law
-    # refused that later row (the as-of law, a retraction, a window), its value must not ride in on the earlier row's
-    # annotation (an as-of September ask, a November turn). A later row refused for another reason (the absence gate, a
-    # source re-read) still replaced the earlier one, so its annotation stays.
+    # A kept row names the value that later replaced it ('[REPLACED later by "47 crowns" ...]') and the day it did
+    # ('until <day>'): when a temporal law refused that later record (the as-of law, a retraction, a window), whether
+    # or not its own row is shown, neither may ride in on the earlier row (an as-of September ask, a November turn).
+    # A later record refused for another reason (the absence gate, a source re-read) still replaced the earlier one.
     refused_receipts = {str(row.get("receipt_id")) for row in dropped if row.get("receipt_id") is not None
                         and _TEMPORAL_REFUSAL_RE.match(str(row.get("reason") or ""))}
+    stripped = 0
     for index, fact in enumerate(kept_facts):
-        if str(fact.get("replaced_by") or "") in refused_receipts:
-            kept_lines[index] = _REPLACED_LATER_RE.sub("", kept_lines[index])
+        replacing = str(fact.get("replaced_by_occurrence") or "")
+        if (str(fact.get("replaced_by") or "") in refused_receipts
+                or (replacing and _TEMPORAL_REFUSAL_RE.match(str(refused.get(replacing) or "")))):
+            line = _UNTIL_RE.sub("", _REPLACED_LATER_RE.sub("", kept_lines[index]))
+            stripped += line != kept_lines[index]
+            kept_lines[index] = line
+    if not dropped:
+        if not stripped:
+            return packet
+        out = Packet(obligation=packet.obligation, lines=kept_lines + tail, facts=kept_facts, telemetry=dict(packet.telemetry))
+        out.tokens = sum(est(line + "\n") for line in out.lines) + (est(PACKET_HEADER) if out.lines else 0)
+        out.telemetry.update({"packet_tokens": out.tokens, "replacement_notes_withheld": stripped})
+        return out
     tail = [line for line in tail if not line.startswith(_COMPLETENESS_LINE_PREFIX)]
     ob = packet.obligation
     found, missing = _found_operands(ob, [(0.0, {"role": f.get("role"), "statement_at": f.get("statement_at")}, f) for f in kept_facts])
