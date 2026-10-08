@@ -1878,6 +1878,7 @@ def maybe_handle_memory_command(
                 "erased on every memory path. Please retry the forget."
             )
         semantic_removed = 0
+        erasures: dict[str, int] = {}
         try:
             from core.context_retrieval import forget_session_memory
 
@@ -1886,10 +1887,11 @@ def maybe_handle_memory_command(
                 token,
                 access_policy=resolved_policy,
                 source_context=source_context,
+                erasures=erasures,
             )
         except Exception as exc:
             LOGGER.warning("semantic memory forget unavailable: %s", type(exc).__name__)
-        total_removed = max(int(removed), int(semantic_removed))
+        total_removed = max(int(removed), int(semantic_removed), *(int(count or 0) for count in erasures.values()))
         if total_removed <= 0:
             mirror_after = _mirror_text().lower()
             healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
