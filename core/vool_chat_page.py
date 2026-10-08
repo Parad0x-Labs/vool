@@ -11713,7 +11713,7 @@ async function setupLineLoad() {
 </script>
 </body>
 </html>
-"""
+""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
 
 
 def _page_fragments() -> tuple[str, ...]:
@@ -11780,7 +11780,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en") -> s
     tag = catalog_for(ui_locale).locale
     spec = get_locale(tag)
     page = (
-        _VOOL_CHAT_HTML.replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS).replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
+        _VOOL_CHAT_HTML.replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         .replace("__VOOL_LOGO_URI__", logo_uri)
         .replace("</body>", "".join(_page_fragments()) + "</body>")
     )
