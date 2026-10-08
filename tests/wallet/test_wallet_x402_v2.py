@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from core.wallet.errors import WalletFault
+from tests.wallet._rig_evm import ANSWERS_AFTER_PAYMENT
 
 BASE_SEPOLIA = "eip155:84532"
 ETHEREUM_SEPOLIA = "eip155:11155111"
@@ -453,9 +454,6 @@ def test_e5b_database_rewind_cannot_repay_a_broadcast_payment(wallet_env, evm_ri
 
 # --- E5c-E5e: what a paid request's answer can release, and what can be paid again ------------------
 
-#: Ways a resource can answer a request whose payment it settled, other than by delivering: a bare 3xx (300, 304,
-#: 305 and 306 carry no Location), a same-origin redirect, a body over the byte limit, a dropped connection.
-ANSWERS_AFTER_PAYMENT = ("status:300", "status:304", "status:305", "status:306", "redirect", "oversize", "drop")
 
 
 def _parked_and_signed(signer, resource):
@@ -576,3 +574,29 @@ def test_e6_facilitator_discovery_is_typed_and_network_scoped(wallet_env, evm_ri
     with pytest.raises(WalletFault) as missing:
         facilitators.require_capability("eip155:11155111", "exact")
     assert missing.value.code == "x402_scheme_unavailable"
+
+
+@pytest.mark.parametrize("proof", ["no_settlement_header", "unproven_transaction"])
+def test_e5f_an_answered_payment_the_chain_does_not_prove_still_counts_as_spent(wallet_env, evm_rig, monkeypatch, proof):
+    """The resource settled the payment and answered 200, but the answer proves nothing: no PAYMENT-RESPONSE, or one
+    naming a transaction the chain has no receipt for. The payment stays unconfirmed and its hold counts as spent;
+    it is never released, and the same request is not paid again."""
+    from core.wallet import limits, proposals
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    paid_answer = "unproven" if proof == "no_settlement_header" else ""
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", paid_answer=paid_answer) as resource:
+        wallet_id, proposal_id, engine, request_id, signature = _parked_and_signed(signer, resource)
+        resource.settled_signatures.add(signature)
+        resource.settlement_tx = "0x" + "ab" * 32  # never seeded on the scripted chain
+        receipt = engine.submit_external_signature(request_id, signature_hex=signature)
+        assert receipt.state == proposals.STATE_BROADCAST
+        assert proposals.get_proposal(proposal_id).state == proposals.STATE_BROADCAST
+        assert limits.reservation_state(proposal_id) == limits.RESERVATION_SETTLED
+        resource.amount_minor = 12000
+        with pytest.raises(WalletFault) as again:
+            wallet_x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert again.value.code == "wallet_duplicate_payment"
+        assert resource.challenges == 1

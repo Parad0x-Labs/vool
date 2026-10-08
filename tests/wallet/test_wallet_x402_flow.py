@@ -74,6 +74,33 @@ def test_duplicate_retries_and_refetches_never_repay(wallet_env, resource):
     assert third.repaid is False and third.proposal_id == parked.proposal_id
 
 
+@pytest.mark.parametrize("price", [1500, 1400], ids=["same-price", "other-price"])
+def test_a_payment_whose_broadcast_outcome_is_unknown_is_never_paid_again(wallet_env, resource, price):
+    """The node took the transaction and then answered 500: the payment may land, and no transaction id is known.
+    Fetching the same request again refuses before anything is sent, so a resource asking on other terms cannot get
+    a second payment parked for it."""
+    from core.wallet import approval, custody, lifecycle, limits, proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket(custody)
+    parked = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    wallet_env["rpc"].send_mode = "accept_then_500"
+    with pytest.raises(WalletFault) as broadcast:
+        lifecycle.default_lifecycle().approve_and_execute(parked.proposal_id, approver=approval.PinApprover(PIN))
+    assert str(broadcast.value.context.get("reason") or "").startswith("broadcast_unknown:")
+    wallet_env["rpc"].send_mode = "ok"
+    proposal = proposals.get_proposal(parked.proposal_id)
+    assert proposal.state == proposals.STATE_BROADCAST and proposal.tx_signature == ""
+    assert limits.reservation_state(parked.proposal_id) == limits.RESERVATION_RESERVED
+    resource.amount_minor = price
+    with pytest.raises(WalletFault) as again:
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert again.value.code == "wallet_duplicate_payment" and again.value.context["reason"] == "payment_outcome_unknown"
+    assert resource.challenges == 1 and resource.deliveries == []
+    assert wallet_env["rpc"].send_count() == 1
+    assert x402.binding_for_proposal(parked.proposal_id)["proposal_id"] == parked.proposal_id
+
+
 def test_retry_before_approval_or_over_cap_is_refused(wallet_env, resource, monkeypatch):
     from core.wallet import custody, x402
     from core.wallet.errors import WalletFault

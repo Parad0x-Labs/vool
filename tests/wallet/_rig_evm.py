@@ -29,15 +29,22 @@ def _send_raw(handler: BaseHTTPRequestHandler, status: int, body: bytes, headers
     handler.wfile.write(body)
 
 
+#: Ways a resource can answer a request whose payment it settled, other than by delivering: a bare 3xx (300, 304,
+#: 305 and 306 carry no Location), a same-origin redirect, a body over the byte limit, a dropped connection.
+ANSWERS_AFTER_PAYMENT = ("status:300", "status:304", "status:305", "status:306", "redirect", "oversize", "drop")
+
+
 def _answer_oddly(handler: BaseHTTPRequestHandler, how: str) -> None:
     """Answer a paid request whose payment already settled the way ``how`` names: 'status:<code>' a bare status (no
     headers, no body), 'redirect' a 302 to another path on the same origin, 'oversize' a body over the wallet's byte
-    limit, 'drop' closes the connection without answering."""
+    limit, 'drop' closes the connection without answering, 'unproven' a 200 with a body and no settlement header."""
     if how == "drop":
         handler.close_connection = True
         return
     if how == "redirect":
         status, headers, body = 302, {"Location": "/paid/v2/elsewhere"}, b""
+    elif how == "unproven":
+        status, headers, body = 200, {"Content-Type": "text/plain"}, b"PAID REPORT, NO SETTLEMENT HEADER"
     elif how == "oversize":
         from core.wallet.outbound import MAX_RESPONSE_BYTES
 
