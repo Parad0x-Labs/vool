@@ -102,6 +102,9 @@ Cursor_Claude_Handover.md
 # is case-insensitive (with case-sensitive matching, only the exact names are ignored).
 !docs/concepts/memory.md
 !docs/concepts/tools.md
+# The repository's own contributor guide for agents is public; only the root file is negated,
+# so an operator AGENTS.md anywhere else stays ignored.
+!/AGENTS.md
 
 # Handover docs (contain real node IPs, SSH paths, server configs)
 docs/HANDOVER_2026-03-15_FULL_STATE.md

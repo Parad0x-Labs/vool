@@ -1,12 +1,16 @@
 #!/bin/sh
-# NULLA public-push ACCIDENT GUARD. Installed to .git/hooks/pre-push via scripts/install-hooks.
+# VOOL public-push ACCIDENT GUARD. Installed to .git/hooks/pre-push via scripts/install-hooks.
 #
-# Blocks ordinary pushes to the PUBLIC repo (Parad0x-Labs/nulla-local). Only
-# scripts/nulla-public-release may push there (it sets NULLA_PUBLIC_RELEASE=1 after a GO approval).
-# Private pushes (Parad0x-Labs/nulla-local-product) are allowed. Fails CLOSED on an unknown remote.
+# The public repo is Parad0x-Labs/vool. PR branches are pushed there as usual. A push that
+# updates or deletes refs/heads/main, or pushes a tag, passes only on the release path:
+# scripts/vool-public-release sets VOOL_PUBLIC_RELEASE=1 after a GO approval
+# (VOOL-DELIVERY/GO_APPROVAL.json).
+# Parad0x-Labs/nulla-local is retired: every push to it is refused.
+# Parad0x-Labs/nulla-local-product and other GitHub remotes are allowed. Fails CLOSED on an
+# unknown or empty remote.
 #
-# NOTE: a local hook is bypassable (--no-verify / another clone). GitHub branch protection on public
-# main is the authoritative backstop (NULLA-DELIVERY/BRANCH_PROTECTION.md).
+# NOTE: a local hook is bypassable (--no-verify / another clone). GitHub branch protection on
+# vool main is the authoritative backstop (VOOL-DELIVERY/BRANCH_PROTECTION.md).
 
 remote_url="$2"
 if [ -z "$remote_url" ]; then
@@ -15,17 +19,34 @@ if [ -z "$remote_url" ]; then
 fi
 
 norm=$(printf '%s' "$remote_url" | tr 'A-Z' 'a-z')
+norm=${norm%/}
+norm=${norm%.git}
 
 case "$norm" in
-  *parad0x-labs/nulla-local-product*)
-    exit 0 ;;                                   # private product repo -- allowed
-  *parad0x-labs/nulla-local.git|*parad0x-labs/nulla-local|*parad0x-labs/nulla-local/*)
-    if [ "$NULLA_PUBLIC_RELEASE" = "1" ] && [ -f "NULLA-DELIVERY/GO_APPROVAL.json" ]; then
-      exit 0                                    # authorized public release path
+  *github.com*[:/]parad0x-labs/vool)
+    release=0
+    if [ "$VOOL_PUBLIC_RELEASE" = "1" ] && [ -f "VOOL-DELIVERY/GO_APPROVAL.json" ]; then
+      release=1
     fi
-    echo "pre-push: BLOCKED push to the PUBLIC repo ($remote_url)." >&2
-    echo "Public releases go ONLY through scripts/nulla-public-release after an explicit GO." >&2
+    status=0
+    while read -r local_ref local_sha remote_ref remote_sha; do
+      case "$remote_ref" in
+        refs/heads/main|refs/tags/*)
+          if [ "$release" != "1" ]; then
+            echo "pre-push: BLOCKED push to $remote_ref on the PUBLIC repo ($remote_url)." >&2
+            status=1
+          fi ;;
+      esac
+    done
+    if [ "$status" != "0" ]; then
+      echo "main and tags change ONLY through scripts/vool-public-release after an explicit GO." >&2
+    fi
+    exit "$status" ;;
+  *github.com*[:/]parad0x-labs/nulla-local)
+    echo "pre-push: BLOCKED push to the retired repo ($remote_url)." >&2
     exit 1 ;;
+  *github.com*[:/]parad0x-labs/nulla-local-product)
+    exit 0 ;;                                   # private product repo -- allowed
   *github.com*)
     exit 0 ;;                                   # some other GitHub remote -- not the public repo
   *)
