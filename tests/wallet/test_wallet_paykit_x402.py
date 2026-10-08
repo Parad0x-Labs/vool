@@ -454,7 +454,7 @@ def test_a_paid_request_refused_before_its_socket_releases_the_hold_and_can_be_p
     import types
 
     from core import remote_fetch_policy
-    from core.wallet import limits, outbound, proposals
+    from core.wallet import limits, outbound, proposals, receipts
     from core.wallet.errors import WalletFault
 
     def lookup(*_args, **_kwargs):
@@ -481,6 +481,8 @@ def test_a_paid_request_refused_before_its_socket_releases_the_hold_and_can_be_p
         assert resource.paid_requests == [] and resource.landed == [] and len(resource.requests) == 1
         assert proposals.get_proposal(parked.proposal_id).state == proposals.STATE_FAILED
         assert limits.reservation_state(parked.proposal_id) == "released"
+        recorded = [r for r in receipts.list_receipts() if r.get("proposal_id") == parked.proposal_id]
+        assert [(r.get("state"), bool(r.get("fault_code"))) for r in recorded] == [(proposals.STATE_FAILED, True)], "one failed receipt, naming the fault"
         again = _park(resource, profile)
         assert again.status == "payment_required" and again.proposal_id != parked.proposal_id
 
