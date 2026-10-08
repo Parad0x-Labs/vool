@@ -29,6 +29,7 @@ from core.memory.files import (
     load_jsonl,
     memory_entries_path,
     memory_path,
+    operator_dense_profile_path,
     rewrite_jsonl,
     session_summaries_path,
     today_iso,
@@ -136,6 +137,112 @@ class MemoryErasureError(RuntimeError):
     combined view, model-visible excerpt, or the mirror's own binding) can
     still yield the erased text.
     """
+
+
+def _load_erasure_rows(path: Path) -> list[dict[str, Any]]:
+    """Read an erasure store without treating corrupt or unreadable rows as absence."""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    rows = [json.loads(line) for line in content.splitlines() if line.strip()]
+    if any(not isinstance(row, dict) for row in rows):
+        raise MemoryErasureError("erasure store contains a non-object row")
+    return rows
+
+
+def _rewrite_verified_erasure_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+    """A successful write is not an erasure receipt until its bytes are reread."""
+    rewrite_jsonl(path, rows)
+    if _load_erasure_rows(path) != rows:
+        raise MemoryErasureError("erasure store did not retain the verified rewrite")
+
+
+def _record_erasure_store(
+    erasures: dict[str, Any] | None, store: str, status: str, removed: int = 0,
+) -> None:
+    if erasures is None:
+        return
+    confirmed = max(int(erasures.get(store) or 0), removed)
+    erasures.setdefault("stores", {})[store] = {"status": status, "removed": confirmed}
+    erasures[store] = confirmed
+    if status == "incomplete":
+        erasures[f"{store}_failures"] = 1
+
+
+def forget_profile_derivatives(
+    token: str, *, access_policy: ContextAccessPolicy, erasures: dict[str, Any],
+) -> None:
+    """Erase scoped heuristic copies and verify every field of the derived profile."""
+    from core.vool_memory import text_carries_forget_token
+
+    def carries(value: Any) -> bool:
+        return text_carries_forget_token(json.dumps(value, ensure_ascii=False), token)
+
+    with _MEMORY_ENTRY_LOCK:
+        try:
+            rows = _load_erasure_rows(user_heuristics_path())
+            kept = []
+            unresolved = False
+            for row in rows:
+                if not carries(row):
+                    kept.append(row)
+                    continue
+                origin = str(row.get("origin_chat_id") or row.get("session_id") or "")
+                owned = origin == access_policy.chat_id
+                shared = row.get("scope") == "user_profile" and access_policy.allow_user_profile_context
+                if owned or shared:
+                    continue
+                kept.append(row)
+                unresolved = unresolved or not origin
+            if kept != rows:
+                _rewrite_verified_erasure_rows(user_heuristics_path(), kept)
+            _record_erasure_store(erasures, "user_heuristics", "incomplete" if unresolved else "verified", len(rows) - len(kept))
+        except Exception:
+            _record_erasure_store(erasures, "user_heuristics", "incomplete")
+
+        try:
+            path = operator_dense_profile_path()
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                _record_erasure_store(erasures, "operator_dense_profile", "not_applicable")
+                return
+            if not isinstance(payload, dict):
+                raise MemoryErasureError("dense profile is not an object")
+            removed = 0
+            if carries(payload):
+                if not access_policy.allow_user_profile_context:
+                    _record_erasure_store(erasures, "operator_dense_profile", "incomplete")
+                    return
+
+                def prune(value: Any) -> Any:
+                    nonlocal removed
+                    if isinstance(value, dict):
+                        kept = {}
+                        for key, item in value.items():
+                            if carries(key):
+                                removed += 1
+                            else:
+                                kept[key] = prune(item)
+                        return kept
+                    if isinstance(value, list):
+                        kept = [item for item in value if not carries(item)]
+                        removed += len(value) - len(kept)
+                        return kept
+                    if carries(value):
+                        removed += 1
+                        return ""
+                    return value
+
+                cleaned = prune(payload)
+                write_text_atomic(path, json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n")
+                verified = json.loads(path.read_text(encoding="utf-8"))
+                if verified != cleaned or carries(verified):
+                    raise MemoryErasureError("dense profile rewrite could not be verified")
+            _record_erasure_store(erasures, "operator_dense_profile", "verified", removed)
+        except Exception:
+            _record_erasure_store(erasures, "operator_dense_profile", "incomplete")
 
 
 def _erasure_digest_text(text: str) -> str:
@@ -297,6 +404,8 @@ def _rewrite_memory_mirror_locked() -> None:
     body = ["<!-- New memories append below -->", *bound, *preserved]
     content = "\n".join([*preamble, *body]).rstrip() + "\n"
     write_text_atomic(path, content)
+    if path.read_text(encoding="utf-8") != content:
+        raise MemoryErasureError("memory mirror rewrite could not be verified")
 
 
 def _verify_erasure(erased_texts: list[str], erased_record_ids: list[str]) -> None:
@@ -344,10 +453,7 @@ def _verify_erasure(erased_texts: list[str], erased_record_ids: list[str]) -> No
                 problems.append("combined view still yields erased text")
         if needle in load_memory_excerpt(max_chars=2_000_000).casefold():
             problems.append("model-visible memory excerpt still carries erased text")
-    try:
-        mirror_text = memory_path().read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        mirror_text = ""
+    mirror_text = memory_path().read_text(encoding="utf-8")
     for record_id in erased_record_ids:
         if f"<!--mem:{record_id}-->" in mirror_text:
             problems.append(f"mirror still binds erased record {record_id!r}")
@@ -682,6 +788,7 @@ def forget_memory(
     *,
     access_policy: ContextAccessPolicy | None = None,
     chat_id: str | None = None,
+    erasures: dict[str, Any] | None = None,
 ) -> int:
     _ensure_memory_files()
     token = keyword.strip().lower()
@@ -694,6 +801,7 @@ def forget_memory(
     return forget_structured_memory(
         token,
         access_policy=policy,
+        erasures=erasures,
     )
 
 
@@ -1428,6 +1536,15 @@ def search_session_summaries(
         )
         if not allowed:
             continue
+        # Import grants do not override the source chat's erasure authority.
+        from core.context_retrieval import revoked_tokens_for_chat, text_carries_revoked_token
+
+        try:
+            revoked = revoked_tokens_for_chat(row_session_id)
+        except Exception:
+            continue
+        if text_carries_revoked_token(str(row.get("summary") or ""), revoked):
+            continue
         item_tokens = set(row.get("keywords") or keyword_tokens_filtered(str(row.get("summary") or "")))
         overlap = len(query_tokens & item_tokens) if query_tokens else 0
         if query_tokens and overlap <= 0:
@@ -1476,6 +1593,12 @@ def search_user_heuristics(
             metadata=metadata,
         )
         if not allowed or not isinstance(row.get("provenance"), dict):
+            continue
+        from core.vool_memory import memory_payload_is_current
+
+        if not memory_payload_is_current(
+            json.dumps(row, ensure_ascii=False), chat_id=metadata["origin_chat_id"] or None,
+        ):
             continue
         category = str(row.get("category") or "").strip().lower()
         item_tokens = set(row.get("keywords") or keyword_tokens_filtered(str(row.get("text") or "")))
@@ -1800,6 +1923,7 @@ def forget_structured_memory(
     *,
     access_policy: ContextAccessPolicy | None = None,
     chat_id: str | None = None,
+    erasures: dict[str, Any] | None = None,
 ) -> int:
     """The production forget authority.
 
@@ -1826,8 +1950,9 @@ def forget_structured_memory(
     # "Current corrected code: XQ-991-VERDE" survived and stayed retrievable). Matching
     # the same key space the writers use closes that gap without loosening value-match.
     subject_key = _forget_subject_fact_key(clean_token)
+    summary_error: Exception | None = None
     with _MEMORY_ENTRY_LOCK:
-        rows = load_jsonl(memory_entries_path())
+        rows = _load_erasure_rows(memory_entries_path())
         target_ids = [
             str(row.get("record_id") or "").strip()
             for row in rows
@@ -1842,28 +1967,46 @@ def forget_structured_memory(
             )
         ]
         erased_texts = _erase_rows_locked(target_ids)
+        if erased_texts:
+            retained = _load_erasure_rows(memory_entries_path())
+            if any(str(row.get("record_id") or "") in target_ids
+                   and str(row.get("status") or "") != _ERASED_STATUS for row in retained):
+                raise MemoryErasureError("canonical memory still contains an erased record")
+        _record_erasure_store(erasures, "structured_entries", "verified", len(erased_texts))
 
         # A summary is chat-scoped derived data.  Forgetting may clear only
         # summaries from the requesting chat; another chat's summary is never
         # inspected or rewritten by this command.
-        summaries = load_jsonl(session_summaries_path())
-        kept_summaries = [
-            row
-            for row in summaries
-            if not (
-                str(row.get("session_id") or "").strip() == policy.chat_id
-                and clean_token
-                in str(row.get("summary") or "").lower()
-            )
-        ]
-        if len(kept_summaries) != len(summaries):
-            rewrite_jsonl(session_summaries_path(), kept_summaries)
+        try:
+            summaries = _load_erasure_rows(session_summaries_path())
+            kept_summaries = [
+                row
+                for row in summaries
+                if not (
+                    str(row.get("session_id") or "").strip() == policy.chat_id
+                    and clean_token
+                    in str(row.get("summary") or "").lower()
+                )
+            ]
+            if len(kept_summaries) != len(summaries):
+                _rewrite_verified_erasure_rows(session_summaries_path(), kept_summaries)
+            _record_erasure_store(erasures, "structured_summaries", "verified", len(summaries) - len(kept_summaries))
+        except Exception as exc:
+            _record_erasure_store(erasures, "session_summaries", "incomplete")
+            summary_error = exc
         # Refresh the projection on EVERY forget command (not only when rows
         # were erased): a retry after a crash between the canonical erasure
         # and the mirror rewrite heals the stale projection here.
-        _rewrite_memory_mirror_locked()
+        try:
+            _rewrite_memory_mirror_locked()
+        except Exception:
+            _record_erasure_store(erasures, "memory_mirror", "incomplete")
+            raise
     if erased_texts:
         _verify_erasure(erased_texts, target_ids)
+    _record_erasure_store(erasures, "memory_mirror", "verified")
+    if summary_error is not None:
+        raise MemoryErasureError("session summaries could not be erased and verified") from summary_error
     return len(erased_texts)
 
 

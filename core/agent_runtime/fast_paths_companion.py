@@ -216,7 +216,8 @@ def render_companion_continuation_response(
         limit=2,
         exclude_session_id=session_id,
     )
-    summary_text = str((summaries[0] if summaries else {}).get("summary") or "").strip()
+    summary = summaries[0] if summaries else {}
+    summary_text = str(summary.get("summary") or "").strip()
     project_label = active_projects[0] if active_projects else "current project"
     if project_label == "Telegram bot build":
         lead = "Continuing the Telegram bot build."
@@ -233,7 +234,17 @@ def render_companion_continuation_response(
     parts = [lead]
     if summary_text:
         parts.append(f"Latest carried context: {summary_text[:220]}.")
-    return " ".join(part.strip() for part in parts if part.strip())
+    response = " ".join(part.strip() for part in parts if part.strip())
+    if summary_text:
+        from core.context_retrieval import revoked_tokens_for_chat, text_carries_revoked_token
+
+        try:
+            revoked = revoked_tokens_for_chat(str(summary.get("session_id") or ""))
+        except Exception:
+            return ""
+        if text_carries_revoked_token(summary_text, revoked):
+            return ""
+    return response
 
 
 def render_personalized_plan_response(

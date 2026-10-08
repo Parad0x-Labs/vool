@@ -104,7 +104,7 @@ def test_memory_fast_path_seal_and_delivery_guard_keep_the_command_result(tmp_pa
 
 def test_effective_command_input_reaches_the_same_receipt_predicate(tmp_path, monkeypatch):
     from core.agent_runtime.agent import _seal_semantic_result
-    from core.honesty_receipt import VERDICT_NO_CLAIM
+    from core.honesty_receipt import VERDICT_BLOCKED
 
     monkeypatch.setenv("VOOL_HONESTY_RECEIPTS", "1")
     profile = _profile(tmp_path)
@@ -116,5 +116,5 @@ def test_effective_command_input_reaches_the_same_receipt_predicate(tmp_path, mo
         {"response": reply, "mode": "advice_only"}, session_id=chat,
         user_input="please continue", effective_input=prompt, source_context={"chat_id": chat},
     )
-    assert sealed["response"] == reply, sealed
-    assert sealed["honesty_receipt"]["verdict"] == VERDICT_NO_CLAIM
+    assert sealed["response"] != reply, sealed
+    assert sealed["honesty_receipt"]["verdict"] == VERDICT_BLOCKED

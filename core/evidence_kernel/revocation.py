@@ -26,15 +26,24 @@ def without_revoked(
 
         revoked = revoked_tokens_for_chat(str(chat_id or ""))
     except Exception:
-        return text, facts
-    if not revoked:
-        return text, facts
+        return "", []
     kept_lines = [line for line in text.splitlines() if not text_carries_revoked_token(line, revoked)]
     kept_facts = [
         fact for fact in facts
         if not text_carries_revoked_token(" ".join(str(value) for value in dict(fact).values()), revoked)
     ]
-    return "\n".join(kept_lines), kept_facts
+    rendered = "\n".join(kept_lines)
+    try:
+        final_revoked = revoked_tokens_for_chat(str(chat_id or ""))
+    except Exception:
+        return "", []
+    if not revoked and not final_revoked:
+        return text, facts
+    if final_revoked != revoked:
+        rendered = "\n".join(line for line in kept_lines if not text_carries_revoked_token(line, final_revoked))
+        kept_facts = [fact for fact in kept_facts
+                      if not text_carries_revoked_token(" ".join(str(value) for value in dict(fact).values()), final_revoked)]
+    return rendered, kept_facts
 
 
 __all__ = ["without_revoked"]

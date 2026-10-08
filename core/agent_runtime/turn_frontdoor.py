@@ -674,7 +674,11 @@ def handle_turn_frontdoor(
     if profile_outcome is not None:
         if profile_outcome.get("result") is not None:
             return {"result": profile_outcome["result"]}
-        profile_text = str(profile_outcome.get("remaining_text") or raw_user_input)
+        profile_text = str(
+            profile_outcome.get("remaining_memory_text")
+            or profile_outcome.get("remaining_text")
+            or raw_user_input
+        )
 
     handled, response = maybe_handle_preference_command_fn(effective_input)
     if handled:
