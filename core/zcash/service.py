@@ -10,6 +10,7 @@ exactly that key, view-only, before anything it reports is believed. Network wor
 """
 from __future__ import annotations
 
+import contextlib
 import csv
 import hashlib
 import io
@@ -78,7 +79,8 @@ class ZcashLane:
         if not self.devtool.initialized():
             raise ZcashWatchError("not_initialized", "Zcash invoices are not set up yet: give VOOL your viewing key first (it starts with uview1).")
         address = self.devtool.receiving_address()
-        write_private(path, address)
+        with contextlib.suppress(OSError):  # only the cache failed; the derived address stands and is derived again next time
+            write_private(path, address)
         return address
 
     # --- invoices ---------------------------------------------------------------------------------
@@ -237,6 +239,8 @@ def _session_id(source_context: dict[str, Any] | None) -> str:
 def journal_once(kind: str, payload: dict[str, Any], *, source_context: dict[str, Any] | None) -> dict[str, Any]:
     """Append to the Blackbox journal unless an entry of this kind with this receipt id is already there.
 
+    The look and the append happen under the journal's exclusive lock (thread and process), so two refreshes running
+    at once (the turn planner runs independent tool calls in parallel) cannot both append the same receipt.
     Raises when the journal cannot be read or written: the caller keeps the receipt staged and retries.
     """
     from core.blackbox.identity import identity_from_context
@@ -244,11 +248,12 @@ def journal_once(kind: str, payload: dict[str, Any], *, source_context: dict[str
 
     store = default_store()
     receipt_id = payload["receipt_id"]
-    for entry in store.entries():
-        if entry.get("kind") == kind and entry.get("receipt_id") == receipt_id:
-            return entry
     entry = {"schema": "blackbox_effect_v1", "kind": kind, **identity_from_context(source_context).to_dict(), **payload}
-    written = store.append(entry)
+    with store.exclusive():
+        for seen in store.entries():
+            if seen.get("kind") == kind and seen.get("receipt_id") == receipt_id:
+                return seen
+        written = store.append(entry)
     if not written:
         raise RuntimeError("journal append returned nothing")
     return written
