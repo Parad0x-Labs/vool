@@ -1075,6 +1075,7 @@ def _seal_semantic_result(
     return emit_turn_honesty_receipt(
         admitted,
         user_input=user_input,
+        effective_input=effective_input,
         session_id=session_id,
         source_context=source_context,
     )

@@ -7476,8 +7476,6 @@ def forget_session_memory(
         # the same, and the forget lane must say so rather than "nothing was removed"; it reads that through
         # ``erasures``. The return stays the node count (tests/lifecycle/test_forget_sibling_salvage_20260929.py).
         return int(invalidated or 0)
-    except (TypeError, ValueError):
-        return 0
     except Exception as exc:
         LOGGER.warning("semantic memory forget failed: %s", type(exc).__name__)
         if erasures is not None:

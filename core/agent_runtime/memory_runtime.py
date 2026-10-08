@@ -20,7 +20,7 @@ def maybe_handle_memory_fast_path(
         source_context=source_context,
     )
     if handled:
-        return agent._fast_path_result(
+        result = agent._fast_path_result(
             session_id=session_id,
             user_input=user_input,
             response=response,
@@ -28,6 +28,11 @@ def maybe_handle_memory_fast_path(
             source_context=source_context,
             reason="memory_command",
         )
+        from core.memory.command_result import ForgetNoMatch
+
+        if type(response) is ForgetNoMatch and result.get("response") == response:
+            result["_memory_command_outcome"] = response
+        return result
     return agent._maybe_handle_companion_memory_fast_path(
         user_input,
         session_id=session_id,
