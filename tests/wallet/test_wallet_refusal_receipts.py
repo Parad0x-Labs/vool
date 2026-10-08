@@ -746,3 +746,36 @@ def test_a_stop_inside_the_ending_of_an_approval_that_failed_after_its_claim_lea
         restarted.request_external_signature(second.proposal_id)
     assert refused.value.code == "wallet_limit_exceeded"
     assert wallet_env["rpc"].send_count() == 1
+
+
+@pytest.mark.parametrize("decision", ["the_owner_rejects_it", "it_expires"])
+def test_an_approval_whose_payment_was_decided_meanwhile_holds_nothing(wallet_env, monkeypatch, decision):
+    """The owner's rejection, or the payment's expiry, lands between an approval passing its door and its claim. The
+    claim's compare-and-set loses and it holds nothing: the payment stays as that decision left it and the limits do not
+    count it, so a payment of the full daily limit is then paid."""
+    from core.wallet import approval, lifecycle, limits, proposals
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    _one_payment_a_day(profile)
+    engine = lifecycle.default_lifecycle()
+    payment = engine.prepare(_propose(profile).proposal_id)
+    decided = proposals.STATE_REJECTED if decision == "the_owner_rejects_it" else proposals.STATE_EXPIRED
+    real_claim = engine._claim
+    landed: list[str] = []
+
+    def decided_then_claim(claiming, *args, **kwargs):
+        if not landed:
+            landed.append(claiming.proposal_id)
+            assert proposals.transition(claiming.proposal_id, decided, expected_state=proposals.STATE_PENDING_APPROVAL) is not None
+        return real_claim(claiming, *args, **kwargs)
+
+    monkeypatch.setattr(engine, "_claim", decided_then_claim)
+    with pytest.raises(WalletFault):
+        engine.approve_and_execute(payment.proposal_id, approver=approval.PinApprover(PIN))
+    assert landed, "the decision landed before the claim"
+    assert (proposals.get_proposal(payment.proposal_id).state, limits.reservation_state(payment.proposal_id)) == (decided, "")
+    monkeypatch.setattr(engine, "_claim", real_claim)
+    full = engine.prepare(_propose(profile).proposal_id)
+    assert engine.approve_and_execute(full.proposal_id, approver=approval.PinApprover(PIN)).state == proposals.STATE_CONFIRMED
+    assert wallet_env["rpc"].send_count() == 1
