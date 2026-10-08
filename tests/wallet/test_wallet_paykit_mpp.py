@@ -79,13 +79,12 @@ def test_an_mpp_charge_is_paid_once_and_the_same_request_is_delivered(env, spons
     assert "caller-secret" not in json.dumps(binding)
     assert _receipt(parked.proposal_id)["settlement"] == "settled"
     assert limits.reservation_state(parked.proposal_id) == "settled"
-    from core.wallet import paykit_mpp
     from core.wallet.store import connection
 
     with connection() as conn:
         fee = conn.execute("SELECT COALESCE(SUM(fee_minor), 0) FROM wallet_spend_ledger WHERE proposal_id IN (?, ?)",
                            (parked.proposal_id, limits._fee_hold_id(parked.proposal_id))).fetchone()[0]
-    assert fee == (0 if sponsored else paykit_mpp.payer_fee_minor(proposals.get_proposal(parked.proposal_id))), "the fee this wallet pays is held with the amount"
+    assert fee == (0 if sponsored else env["rpc"].transaction_fee), "the fee this wallet paid settles at what the chain charged"
     assert env["rpc"].send_count() == 0, "the resource broadcasts; the wallet never sends a transfer of its own"
 
 
@@ -416,6 +415,24 @@ def test_a_sponsored_delivery_the_chain_does_not_prove_keeps_the_hold_as_unknown
     assert _receipt(parked.proposal_id)["settlement"] == "unknown"
 
 
+@pytest.mark.parametrize("meta", ["null", "absent", "no_err"])
+def test_a_charge_whose_execution_result_is_missing_stays_unknown(env, meta):
+    """The chain returns OUR transaction but not its complete execution result: that names the transaction, it does
+    not prove it ran. Nothing is confirmed or settled: the charge stays unknown and its hold stays reserved."""
+    from core.wallet import limits, proposals
+
+    env["rpc"].transaction_meta = meta
+    profile = _pocket()
+    with ScriptedMppResource(env["rpc"]) as resource:
+        parked = _park(resource, profile)
+        receipt = _approve(parked.proposal_id)
+        assert len(resource.landed) == 1
+    assert receipt.state == proposals.STATE_BROADCAST
+    assert proposals.get_proposal(parked.proposal_id).tx_signature == ""
+    assert limits.reservation_state(parked.proposal_id) == "reserved"
+    assert _receipt(parked.proposal_id)["settlement"] == "unknown"
+
+
 def test_an_unsponsored_charge_is_proven_by_its_own_signature_without_a_receipt(env):
     """This wallet is the fee payer, so the transaction id is its own signature: the chain answers for it."""
     from core.wallet import limits, proposals
@@ -439,25 +456,79 @@ def test_a_charge_that_failed_on_chain_releases_the_hold(env):
     assert receipt.state == proposals.STATE_FAILED and limits.reservation_state(parked.proposal_id) == "released"
 
 
-@pytest.mark.parametrize("paid_answer", ["ok", "status:304"])
-def test_a_charge_that_failed_on_chain_still_counts_the_fee_this_wallet_paid(env, paid_answer):
-    """This wallet paid the network fee of a charge that failed on chain: the amount never moved, but the fee was
-    charged, so the caps count the fee and not the amount (the way the Pilot lane settles a failed transfer)."""
-    from core.wallet import limits, paykit_mpp, proposals
+def _usdc_charge(rpc, profile):
+    """A registered SPL token principal: the mint and both token accounts exist on the scripted chain."""
+    from solders.pubkey import Pubkey
+    from solders.token.state import Mint, TokenAccount, TokenAccountState
+
+    from core.wallet import chains, svm_tokens
+
+    usdc = chains.asset_for(chains.SOLANA_DEVNET, "USDC")
+
+    def token_account(owner, amount):
+        return {"owner": svm_tokens.TOKEN_PROGRAM, "data": bytes(TokenAccount(
+            mint=Pubkey.from_string(usdc.address), owner=Pubkey.from_string(owner), amount=amount, delegate=None,
+            state=TokenAccountState.Initialized, is_native=None, delegated_amount=0, close_authority=None))}
+
+    rpc.accounts[usdc.address] = {"owner": svm_tokens.TOKEN_PROGRAM, "data": bytes(Mint(mint_authority=None, supply=10**12, decimals=usdc.decimals, is_initialized=True, freeze_authority=None))}
+    rpc.accounts[svm_tokens.associated_account(profile.public_key, usdc.address)] = token_account(profile.public_key, 1_000_000)
+    rpc.accounts[svm_tokens.associated_account(OTHER_DESTINATION, usdc.address)] = token_account(OTHER_DESTINATION, 0)
+    return {"currency": usdc.address, "decimals": usdc.decimals}
+
+
+def _holds(proposal_id):
+    from core.wallet import limits
     from core.wallet.store import connection
 
-    profile = _pocket()
-    with ScriptedMppResource(env["rpc"], sponsored=False, mode="settle_fails", paid_answer=paid_answer) as resource:
-        parked = _park(resource, profile)
-        receipt = _approve(parked.proposal_id)
-    assert receipt.state == proposals.STATE_FAILED
-    assert limits.reservation_state(parked.proposal_id) == "settled"
     with connection() as conn:
-        rows = conn.execute("SELECT state, amount_minor, fee_minor FROM wallet_spend_ledger WHERE proposal_id IN (?, ?)",
-                            (parked.proposal_id, limits._fee_hold_id(parked.proposal_id))).fetchall()
-    assert {row[0] for row in rows} == {"settled"}
-    assert sum(row[1] for row in rows) == 0, "the amount of a failed charge never counts"
-    assert sum(row[2] for row in rows) == paykit_mpp.payer_fee_minor(proposals.get_proposal(parked.proposal_id))
+        return sorted(tuple(row) for row in conn.execute(
+            "SELECT asset, state, amount_minor, fee_minor FROM wallet_spend_ledger WHERE proposal_id IN (?, ?)",
+            (proposal_id, limits._fee_hold_id(proposal_id))).fetchall())
+
+
+@pytest.mark.parametrize("asset", ["SOL", "USDC"])
+@pytest.mark.parametrize(("mode", "paid_answer", "state", "moved"), [
+    ("ok", "ok", "confirmed", 1500),
+    ("settle_fails", "ok", "failed", 0),
+    ("settle_fails", "status:304", "failed", 0),
+], ids=["landed", "failed-on-chain", "failed-on-chain-bare-304"])
+def test_an_unsponsored_charge_counts_the_fee_the_chain_charged(env, asset, mode, paid_answer, state, moved):
+    """This wallet paid the network fee: the chain charged it whether the charge landed or failed, so the hold settles
+    at exactly the fee the chain reports (never the reserved maximum, never zero) in the native coin, the amount counts
+    only when it moved, and the receipt carries the charged fee."""
+    from core.wallet import chains, limits, paykit_mpp, proposals
+
+    rpc = env["rpc"]
+    profile = _pocket()
+    shape = _usdc_charge(rpc, profile) if asset == "USDC" else {}
+    with ScriptedMppResource(rpc, sponsored=False, mode=mode, paid_answer=paid_answer, **shape) as resource:
+        parked = _park(resource, profile)
+        proposal = proposals.get_proposal(parked.proposal_id)
+        assert proposal.asset == asset and paykit_mpp.payer_fee_minor(proposal) != rpc.transaction_fee
+        receipt = _approve(parked.proposal_id)
+    assert receipt.state == state
+    charged = rpc.transaction_fee
+    if asset == "SOL":
+        assert _holds(parked.proposal_id) == [("SOL", "settled", moved, charged)]
+    else:
+        assert _holds(parked.proposal_id) == [("SOL", "settled", 0, charged), ("USDC", "settled", moved, 0)]
+        assert limits.spent_today(profile.wallet_id, "USDC", chain=chains.SOLANA_DEVNET) == moved
+    assert limits.spent_today(profile.wallet_id, "SOL", chain=chains.SOLANA_DEVNET) == charged + (moved if asset == "SOL" else 0)
+    fee = _receipt(parked.proposal_id)
+    assert (fee["payer_pays_fee"], fee["charged_fee_minor"], fee["fee_settled_minor"], fee["fee_asset"]) == (True, charged, charged, "SOL")
+
+
+def test_a_sponsored_charge_records_no_fee_for_this_wallet(env):
+    from core.wallet import chains, limits
+
+    profile = _pocket()
+    with ScriptedMppResource(env["rpc"]) as resource:
+        parked = _park(resource, profile)
+        _approve(parked.proposal_id)
+    assert _holds(parked.proposal_id) == [("SOL", "settled", 1500, 0)]
+    assert limits.spent_today(profile.wallet_id, "SOL", chain=chains.SOLANA_DEVNET) == 1500
+    fee = _receipt(parked.proposal_id)
+    assert (fee["payer_pays_fee"], fee["charged_fee_minor"], fee["fee_settled_minor"]) == (False, 0, 0)
 
 
 # --- the ordinary x402 door -------------------------------------------------------------------------------------------

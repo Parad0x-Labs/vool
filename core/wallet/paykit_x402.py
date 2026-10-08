@@ -596,9 +596,18 @@ def settlement_claim(headers: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def verify_settlement_on_chain(rpc: Any, tx_signature: str, *, signed_message: bytes, payer: str, attempts: int = 10, wait_seconds: float = 0.5) -> str:
+    """The verdict of :func:`chain_settlement` alone."""
+    return chain_settlement(rpc, tx_signature, signed_message=signed_message, payer=payer, attempts=attempts, wait_seconds=wait_seconds)[0]
+
+
+def chain_settlement(rpc: Any, tx_signature: str, *, signed_message: bytes, payer: str, attempts: int = 10, wait_seconds: float = 0.5) -> tuple[str, int | None]:
     """'settled' only when the chain holds a SUCCESSFUL transaction under ``tx_signature`` whose message is exactly
     the one this wallet signed and which carries this wallet's signature over it; 'failed' when that transaction
-    failed; otherwise 'unknown'. Reads only."""
+    failed; otherwise 'unknown'. Reads only. Returned with the fee the chain says it charged (None when it does not).
+
+    A verdict needs the transaction's complete execution result: a metadata object whose ``err`` is present (null
+    for success). Matching bytes and signatures prove WHICH transaction came back, never that it ran, so missing or
+    partial metadata is read again and stays 'unknown' if it never completes."""
     import time
 
     from solders.message import to_bytes_versioned
@@ -606,7 +615,7 @@ def verify_settlement_on_chain(rpc: Any, tx_signature: str, *, signed_message: b
     from solders.transaction import VersionedTransaction
 
     if not tx_signature:
-        return "unknown"
+        return "unknown", None
     for attempt in range(max(1, int(attempts))):
         try:
             answer = rpc._call("getTransaction", [tx_signature, {"encoding": "base64", "commitment": "confirmed", "maxSupportedTransactionVersion": 0}])
@@ -616,20 +625,23 @@ def verify_settlement_on_chain(rpc: Any, tx_signature: str, *, signed_message: b
             try:
                 tx = VersionedTransaction.from_bytes(base64.b64decode(str(answer["transaction"][0])))
             except Exception:
-                return "unknown"
+                return "unknown", None
             if bytes(to_bytes_versioned(tx.message)) != bytes(signed_message):
-                return "unknown"
+                return "unknown", None
             keys = list(tx.message.account_keys)
             try:
                 index = keys.index(Pubkey.from_string(payer))
             except ValueError:
-                return "unknown"
+                return "unknown", None
             if index >= len(tx.signatures) or not tx.signatures[index].verify(Pubkey.from_string(payer), bytes(signed_message)):
-                return "unknown"
+                return "unknown", None
             if str(tx.signatures[0]) != str(tx_signature):
-                return "unknown"
-            meta = answer.get("meta") if isinstance(answer.get("meta"), dict) else {}
-            return "failed" if meta.get("err") is not None else "settled"
+                return "unknown", None
+            meta = answer.get("meta")
+            if isinstance(meta, dict) and "err" in meta:
+                fee = meta.get("fee")
+                charged = fee if isinstance(fee, int) and not isinstance(fee, bool) and fee >= 0 else None
+                return ("failed" if meta["err"] is not None else "settled"), charged
         if attempt + 1 < attempts:
             time.sleep(wait_seconds)
-    return "unknown"
+    return "unknown", None

@@ -400,6 +400,17 @@ def settle_failed_on_chain(proposal_id: str, *, charged_fee_minor: int | None = 
         return  # nothing reserved: silent, as release_spend
 
 
+def settle_landed_on_chain(proposal_id: str, *, charged_fee_minor: int | None = None, now: float | None = None) -> None:
+    """A transaction that succeeded on chain moved its amount and charged its fee: the hold settles with the amount and
+    the fee the chain charged, or the reserved maximum when that is not known (see ``_settle``)."""
+    moment = float(now if now is not None else time.time())
+    try:
+        with connection() as conn:
+            _settle(conn, proposal_id, charged_fee_minor=charged_fee_minor, amount_moved=True, now=moment)
+    except HoldStateConflictError:
+        return  # nothing reserved: silent, as settle_spend
+
+
 def release_spend(proposal_id: str) -> None:
     with connection() as conn:
         try:

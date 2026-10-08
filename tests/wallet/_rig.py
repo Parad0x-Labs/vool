@@ -65,6 +65,9 @@ class ScriptedRpc:
         #: and a signature in ``failed_transactions`` answers with an execution error
         self.transactions: dict[str, bytes] = {}
         self.failed_transactions: set[str] = set()
+        #: the shape of such a transaction's metadata: "complete" (its fee and its err), or a partial answer that names
+        #: the transaction without proving it ran: "null" (meta is null), "absent" (no meta), "no_err" (a fee, no err)
+        self.transaction_meta = "complete"
         self.preflight_err: object = "InsufficientFundsForFee"
         self.calls: list[dict[str, Any]] = []
         self.sent: list[bytes] = []
@@ -111,8 +114,11 @@ class ScriptedRpc:
                     not_final_yet = str(options.get("commitment") or "finalized") == "finalized" and rpc.finalized_slot < rpc.status_context_slot
                     if asked_sig in rpc.transactions:
                         failed = asked_sig in rpc.failed_transactions
-                        result = {"slot": rpc.status_context_slot, "transaction": [base64.b64encode(rpc.transactions[asked_sig]).decode("ascii"), "base64"],
-                                  "meta": {"fee": rpc.transaction_fee, "err": {"InstructionError": [2, "Custom"]} if failed else None}}
+                        result = {"slot": rpc.status_context_slot, "transaction": [base64.b64encode(rpc.transactions[asked_sig]).decode("ascii"), "base64"]}
+                        result.update({
+                            "complete": {"meta": {"fee": rpc.transaction_fee, "err": {"InstructionError": [2, "Custom"]} if failed else None}},
+                            "null": {"meta": None}, "absent": {}, "no_err": {"meta": {"fee": rpc.transaction_fee}},
+                        }[rpc.transaction_meta])
                     elif rpc.status_mode in {"none", "processed"} or unknown_sig or not_final_yet:
                         result = None
                     else:
