@@ -10,7 +10,6 @@ carrier that cannot shed the token dies whole. Fresh domains throughout.
 """
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -19,10 +18,6 @@ import pytest
 TREE = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(TREE))
 
-os.environ.setdefault("VOOL_HOME", str(TREE / ".vool_local_test"))
-os.environ["VOOL_HOME"] = os.environ["VOOL_HOME"]
-os.environ["VOOL_WORKSPACE_ROOT"] = os.environ["VOOL_HOME"] + "/workspace"
-os.environ["VOOL_CONTEXT_CAPSULE_V2"] = "1"
 
 
 @pytest.fixture()
@@ -32,7 +27,8 @@ def fresh_profile(tmp_path, monkeypatch):
     home = tmp_path / "profile"
     home.mkdir()
     monkeypatch.setenv("VOOL_HOME", str(home))
-    monkeypatch.setenv("VOOL_HOME", str(home))
+    monkeypatch.setenv("VOOL_WORKSPACE_ROOT", str(home / "workspace"))
+    monkeypatch.setenv("VOOL_CONTEXT_CAPSULE_V2", "1")
     configure_runtime_home(home)
     from core import embedding_service
 

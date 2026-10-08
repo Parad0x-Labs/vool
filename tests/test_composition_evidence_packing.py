@@ -11,7 +11,6 @@ All fixtures are fresh domains — none reuse the frozen acceptance corpus.
 """
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -20,11 +19,6 @@ import pytest
 TREE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(TREE))
 
-PROFILE_ROOT = Path(os.environ.get("VOOL_HOME") or (TREE / ".vool_local_test"))
-os.environ.setdefault("VOOL_HOME", str(PROFILE_ROOT))
-os.environ["VOOL_HOME"] = str(PROFILE_ROOT)
-os.environ["VOOL_WORKSPACE_ROOT"] = str(PROFILE_ROOT / "workspace")
-os.environ["VOOL_CONTEXT_CAPSULE_V2"] = "1"
 
 
 @pytest.fixture()
@@ -36,6 +30,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_HOME", str(home))
     monkeypatch.setenv("VOOL_HOME", str(home))
     monkeypatch.setenv("VOOL_WORKSPACE_ROOT", str(home / "workspace"))
+    monkeypatch.setenv("VOOL_CONTEXT_CAPSULE_V2", "1")
     configure_runtime_home(home)
     assert str(active_vool_home()).startswith(str(home))
     from core import embedding_service
