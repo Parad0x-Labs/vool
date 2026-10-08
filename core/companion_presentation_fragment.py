@@ -45,10 +45,20 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 #companionLayer { position: fixed; inset: 0; pointer-events: none; z-index: 30; --vn-tone: #94a3b8; --vn-size: 168px; }
 #companionLayer .vool-ninja {
   position: fixed; left: 0; top: 0; width: var(--vn-size, 168px); height: var(--vn-size, 168px);
-  pointer-events: auto; cursor: grab; touch-action: none; user-select: none;
+  pointer-events: none; touch-action: none; user-select: none;
   border-radius: 10px; display: flex; flex-direction:column; align-items: center; justify-content: center; gap: 2px;
   background: transparent; -webkit-tap-highlight-color: transparent;
 }
+/* HIT AREA. The painted pet takes no pointer events; its one transparent hit layer does, and that
+   layer is clipped (vnUpdateHitMask) to the pet box MINUS every chat control under it. A pet
+   parked on Send, Stop or Approve therefore never swallows that control's click, while the rest
+   of the pet stays the drag handle. The enlarged 168px pet covered the turn card's Stop button at
+   its docked home (CI run 36981567750, shard 4). */
+#companionLayer .vool-ninja .vn-hit {
+  position: absolute; inset: 0; z-index: 3; pointer-events: auto; cursor: grab;
+  touch-action: none; border-radius: inherit; background: transparent;
+}
+#companionLayer .vool-ninja.dragging .vn-hit { cursor: grabbing; }
 #companionLayer .vool-ninja:focus { outline: none; }
 #companionLayer .vn-caption:empty, #companionLayer .vn-menu:empty { display: none; }
 #companionLayer .vool-ninja:focus-visible { outline: 2px solid var(--vn-tone, #94a3b8); outline-offset: 2px; }
@@ -805,6 +815,228 @@ function vnResolveDrop(x, y) {
 }
 
 // ---------------------------------------------------------------------------
+// Hit area. Chat controls always outrank the pet: the pet's hit layer is the pet box minus the
+// visible part of every control under it, so an ordinary click on Send / Stop / Approve reaches
+// the control even with the pet parked on it, and the pet is still dragged by everything else.
+// Recomputed (rAF-coalesced) when the pet moves, the DOM outside the layer changes, anything
+// scrolls or resizes, and on the re-assert tick; never while a drag owns the pointer.
+const VN_CONTROL_SELECTOR = 'button, input:not([type="hidden"]), textarea, select, a[href], summary, '
+  + '[role="button"], [role="link"], [role="menuitem"], [role="checkbox"], [role="switch"], [role="tab"], '
+  + '[contenteditable=""], [contenteditable="true"]';
+let vnHit = null, vnHitFrame = null, vnHitClip = "", vnHitPlace = "";
+// vnHitKey: what the last probe pass depended on (see vnUpdateHitMask). vnHitForce: re-probe even
+// when it still matches (the pet moved, or the re-assert tick).
+let vnHitKey = "", vnHitForce = false, vnHitCovers = [];
+function vnScheduleHitMask(force) {
+  if (force === true) vnHitForce = true;
+  if (vnHitFrame != null || typeof requestAnimationFrame !== "function") return;
+  vnHitFrame = requestAnimationFrame(function () { vnHitFrame = null; vnUpdateHitMask(); });
+}
+// Which part of a control really takes the click. A control is cut out of the pet's hit area
+// wherever ANY part of it is visible, not only where its middle is (measured: a hidden midpoint
+// gave a partly clipped or partly covered control's whole rectangle back to the pet).
+//  1. Its border box is cut to every ancestor that clips it (overflow other than visible), following
+//     containing blocks, so an absolute or fixed control is cut only by the boxes that really clip it.
+//  2. The rest is checked against the browser's own hit-test stack (elementsFromPoint, companion
+//     layer set aside). Another surface found on top is subtracted as its visible rectangle and both
+//     parts are settled again; a piece is a hole once none of its probe points shows another surface.
+// Every error may only WIDEN a hole, never hide a visible control behind the pet: a point where
+// nothing, or only the control's own ancestor, shows (a rounded corner, a clip-path) counts for the
+// control, and a piece still open when the probe budget runs out becomes a hole, whether or not an
+// earlier probe of that control was answered (measured: 24 of 144 visible buttons, and a Send after
+// 130 stacked controls, went back to the pet once the budget ran out before they were probed).
+// Composer and answer controls (VN_CRITICAL_SELECTORS) are probed first, so they are settled
+// exactly before anything else spends the budget. A control the hit-test never returns at all
+// (visibility:hidden, pointer-events:none, inert) takes nothing, budget or not.
+const VN_PROBE_BUDGET = 600, VN_PROBE_PER_CONTROL = 160, VN_MIN_PIECE = 2;
+const VN_CRITICAL_CSS = VN_CRITICAL_SELECTORS.join(", ");
+function vnRectAnd(a, b) {
+  const r = [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3])];
+  return r[2] > r[0] && r[3] > r[1] ? r : null;
+}
+// [left, top, right, bottom] minus o, as up to four disjoint rectangles.
+function vnRectMinus(r, o) {
+  const i = vnRectAnd(r, o);
+  if (!i) return [r];
+  const out = [];
+  if (i[1] > r[1]) out.push([r[0], r[1], r[2], i[1]]);
+  if (i[3] < r[3]) out.push([r[0], i[3], r[2], r[3]]);
+  if (i[0] > r[0]) out.push([r[0], i[1], i[0], i[3]]);
+  if (i[2] < r[2]) out.push([i[2], i[1], r[2], i[3]]);
+  return out;
+}
+function vnMakesContainingBlock(cs, fixedOnly) {
+  if ((cs.transform && cs.transform !== "none") || (cs.perspective && cs.perspective !== "none")
+      || (cs.filter && cs.filter !== "none")) return true;
+  if (/paint|layout|strict|content/.test(cs.contain || "")) return true;
+  if (/transform|perspective|filter/.test(cs.willChange || "")) return true;
+  return !fixedOnly && cs.position !== "static";
+}
+// The part of el's border box its clipping ancestors and the window let show, or null.
+function vnVisibleBox(el) {
+  const b = el.getBoundingClientRect();
+  let r = vnRectAnd([b.left, b.top, b.right, b.bottom],
+                    [0, 0, window.innerWidth || 0, window.innerHeight || 0]);
+  let position = getComputedStyle(el).position;
+  for (let a = el.parentElement; r && a && a !== document.body && a !== document.documentElement; a = a.parentElement) {
+    const cs = getComputedStyle(a);
+    // An out-of-flow box is clipped only by its containing block and what clips that block.
+    if ((position === "fixed" || position === "absolute") && !vnMakesContainingBlock(cs, position === "fixed")) continue;
+    position = cs.position;
+    if (cs.display === "inline" || cs.display === "contents") continue;  // overflow does not apply
+    const clipX = cs.overflowX !== "visible", clipY = cs.overflowY !== "visible";
+    if (!clipX && !clipY) continue;
+    const ab = a.getBoundingClientRect();
+    const left = ab.left + a.clientLeft, top = ab.top + a.clientTop;
+    r = vnRectAnd(r, [clipX ? left : -Infinity, clipY ? top : -Infinity,
+                      clipX ? left + a.clientWidth : Infinity, clipY ? top + a.clientHeight : Infinity]);
+  }
+  return r;
+}
+// What takes a click at (x, y) once the companion layer is set aside: "ctl" (el or inside it),
+// "own" (nothing, or an ancestor of el: el itself paints nothing there) or that other element.
+function vnTopAt(el, x, y) {
+  const stack = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [];
+  for (let i = 0; i < stack.length; i++) {
+    const s = stack[i];
+    if (vnLayer && vnLayer.contains(s)) continue;
+    if (s === el || el.contains(s)) return "ctl";
+    return s.contains(el) ? "own" : s;
+  }
+  return "own";
+}
+// Whether el can take a click at all, read from its own computed style (no hit-test).
+function vnMayTakeClick(el) {
+  const cs = getComputedStyle(el);
+  return cs.visibility === "visible" && cs.pointerEvents !== "none" && !el.closest("[inert]");
+}
+// Every control whose visible part meets the pet box, composer and answer controls first, and a key
+// of all of it that is cheap to read (rectangles and computed style, no hit-test): the pet box, each
+// such visible part and whether that control can take a click.
+function vnControlsUnder(box) {
+  const pet = [box.left, box.top, box.right, box.bottom];
+  const first = [], rest = [], key = [pet.join(",")];
+  const list = document.querySelectorAll(VN_CONTROL_SELECTOR);
+  for (let i = 0; i < list.length; i++) {
+    const el = list[i];
+    if (vnLayer && vnLayer.contains(el)) continue;
+    const b = el.getBoundingClientRect();
+    if (!b || !b.width || !b.height || !vnRectAnd([b.left, b.top, b.right, b.bottom], pet)) continue;
+    const shown = vnVisibleBox(el);
+    const start = shown && vnRectAnd(shown, pet);
+    if (!start) continue;
+    const live = vnMayTakeClick(el);
+    key.push(start.join(",") + (live ? "" : "x"));
+    (el.closest(VN_CRITICAL_CSS) ? first : rest).push({ el: el, start: start, live: live });
+  }
+  return { controls: first.concat(rest), key: key.join(";") };
+}
+// The other surfaces the last probe pass found on top of a control: where they are now, cheaply.
+function vnCoversKey(covers) {
+  return covers.map(function (c) {
+    if (!c.isConnected) return "gone";
+    const r = c.getBoundingClientRect(), cs = getComputedStyle(c);
+    return [r.left, r.top, r.right, r.bottom, cs.visibility, cs.pointerEvents].join(",");
+  }).join(";");
+}
+function vnControlHoles(box, controls, covers) {
+  const holes = [];
+  let budget = VN_PROBE_BUDGET;
+  for (let i = 0; i < controls.length; i++) {
+    const el = controls[i].el;
+    const mine = [], open = [controls[i].start];
+    let seen = false, forced = false, probes = 0;
+    while (open.length) {
+      const r = open.pop();
+      if (budget <= 0 || probes >= VN_PROBE_PER_CONTROL) { forced = true; mine.push(r); continue; }
+      const w = r[2] - r[0], h = r[3] - r[1];
+      const ix = Math.min(0.5, w / 2), iy = Math.min(0.5, h / 2);
+      const pts = [[(r[0] + r[2]) / 2, (r[1] + r[3]) / 2], [r[0] + ix, r[1] + iy], [r[2] - ix, r[1] + iy],
+                   [r[0] + ix, r[3] - iy], [r[2] - ix, r[3] - iy]];
+      let cover = null, shows = 0;
+      for (let k = 0; k < pts.length; k++) {
+        budget--; probes++;
+        const t = vnTopAt(el, pts[k][0], pts[k][1]);
+        if (t === "ctl") { seen = true; shows++; }
+        else if (t === "own") shows++;
+        else if (!cover) cover = t;
+      }
+      if (!cover) { mine.push(r); continue; }
+      if (covers.indexOf(cover) < 0) covers.push(cover);
+      const cb = vnVisibleBox(cover);
+      const cut = cb && vnRectAnd(r, cb);
+      if (cut && (cut[0] > r[0] || cut[1] > r[1] || cut[2] < r[2] || cut[3] < r[3])) {
+        // The other surface covers part of this piece: settle the uncovered rest and the covered part apart.
+        vnRectMinus(r, cut).forEach(function (p) { open.push(p); });
+        open.push(cut);
+        continue;
+      }
+      // A plain box covering the whole piece at every probe hides it.
+      if (cut && !shows && getComputedStyle(cover).transform === "none") continue;
+      if (w <= VN_MIN_PIECE && h <= VN_MIN_PIECE) { if (shows) mine.push(r); continue; }
+      // Otherwise look closer: split the longer side.
+      if (w >= h) { const m = (r[0] + r[2]) / 2; open.push([r[0], r[1], m, r[3]], [m, r[1], r[2], r[3]]); }
+      else { const m = (r[1] + r[3]) / 2; open.push([r[0], r[1], r[2], m], [r[0], m, r[2], r[3]]); }
+    }
+    // A piece the budget or the cap left unsettled is a hole even when no probe of this control was
+    // answered yet; only a control that cannot take a click at all keeps nothing.
+    if (seen || (forced && controls[i].live)) mine.forEach(function (r) { holes.push([r[0] - box.left, r[1] - box.top, r[2] - box.left, r[3] - box.top]); });
+  }
+  return holes;
+}
+// Box minus holes as disjoint rectangles (horizontal bands), drawn as ONE even-odd polygon whose
+// rectangles hang off the origin by zero-area bridges. Disjoint pieces keep even-odd exact even
+// when two controls overlap each other.
+function vnHitPolygon(w, h, holes) {
+  if (!holes.length) return "none";
+  const ys = [0, h];
+  holes.forEach(function (o) { ys.push(Math.min(h, Math.max(0, o[1]))); ys.push(Math.min(h, Math.max(0, o[3]))); });
+  ys.sort(function (a, b) { return a - b; });
+  const rects = [];
+  for (let i = 0; i + 1 < ys.length; i++) {
+    const ya = ys[i], yb = ys[i + 1];
+    if (yb <= ya) continue;
+    const cuts = holes.filter(function (o) { return o[1] < yb && o[3] > ya; })
+      .map(function (o) { return [Math.max(0, o[0]), Math.min(w, o[2])]; })
+      .sort(function (a, b) { return a[0] - b[0]; });
+    let x = 0;
+    cuts.forEach(function (c) { if (c[0] > x) rects.push([x, ya, c[0], yb]); x = Math.max(x, c[1]); });
+    if (x < w) rects.push([x, ya, w, yb]);
+  }
+  const px = function (v) { return (Math.round(v * 10) / 10) + "px"; };
+  const pts = ["0px 0px"];
+  rects.forEach(function (r) {
+    pts.push(px(r[0]) + " " + px(r[1]), px(r[2]) + " " + px(r[1]), px(r[2]) + " " + px(r[3]),
+             px(r[0]) + " " + px(r[3]), px(r[0]) + " " + px(r[1]), "0px 0px");
+  });
+  // Nothing left (the pet sits wholly on controls): an empty polygon takes no pointer at all.
+  if (!rects.length) pts.push("0px 0px", "0px 0px");
+  return "polygon(evenodd, " + pts.join(", ") + ")";
+}
+function vnUpdateHitMask() {
+  if (!vnHit || !vnSprite) return;
+  if (vnDrag) { vnScheduleHitMask(); return; }  // the drag owns the pointer; re-check after it
+  if (vnSprite.style.display === "none") return;
+  const b = vnSprite.getBoundingClientRect();
+  // The probe pass costs up to VN_PROBE_BUDGET hit-tests; a mutation anywhere on the page (an answer
+  // streaming in) schedules one every frame. Measured over a dense control area: 28,200 hit-tests in
+  // 2 s, worst frame 45 ms. Re-probe only when something it depends on moved: the pet, a control
+  // under it (or its visible part, or whether it takes clicks), or a surface that covered one. The
+  // re-assert tick re-probes regardless, for what no rectangle shows (a new cover, a z-index change).
+  const under = vnControlsUnder(b);
+  if (!vnHitForce && under.key + "|" + vnCoversKey(vnHitCovers) === vnHitKey) return;
+  vnHitForce = false;
+  const covers = [];
+  const clip = vnHitPolygon(b.width, b.height, vnControlHoles(b, under.controls, covers));
+  vnHitCovers = covers;
+  vnHitKey = under.key + "|" + vnCoversKey(covers);
+  if (clip === vnHitClip) return;
+  vnHitClip = clip;
+  vnHit.style.clipPath = clip === "none" ? "" : clip;
+  vnHit.style.webkitClipPath = clip === "none" ? "" : clip;
+}
+
+// ---------------------------------------------------------------------------
 // Painting. rAF-coalesced presentation of the reducer's CURRENT truth: the periodic
 // re-assert tick can only re-paint, never derive. No phrase swap happens without a
 // consumed typed event having changed the reducer.
@@ -836,6 +1068,9 @@ function vnApplyPos() {
   const onDesktop = vnPos.mode === "desktop" && vnDesktopActive;
   vnSprite.style.display = (vnPos.hidden || onDesktop) ? "none" : "flex";
   if (vnRestore) vnRestore.style.display = vnPos.hidden ? "block" : "none";
+  // A moved or re-shown pet covers different controls: re-clip its hit area.
+  const place = vnSprite.style.left + "," + vnSprite.style.top + "," + vnSprite.style.display;
+  if (place !== vnHitPlace) { vnHitPlace = place; vnScheduleHitMask(true); }
 }
 /* Live worker counts, per chat — fed ONLY from the monolith's ledger-derived agent rows
    (agent_node_started/completed). A scene is drawn when the DISPLAYED chat truly has that many
@@ -1504,6 +1739,11 @@ function vnBoot() {
   vnCaption.className = "vn-caption";
   vnCaption.textContent = vnStateWord("idle");
   vnSprite.appendChild(vnCaption);
+  /* The pet's only pointer target (see vnUpdateHitMask): last child, above the art. */
+  vnHit = document.createElement("div");
+  vnHit.className = "vn-hit";
+  vnHit.setAttribute("aria-hidden", "true");
+  vnSprite.appendChild(vnHit);
   vnRestore = document.createElement("button");
   vnRestore.type = "button";
   vnRestore.className = "vn-restore";
@@ -1535,19 +1775,30 @@ function vnBoot() {
     if (e.preventDefault) e.preventDefault();
     vnOpenMenu(e.clientX || 40, e.clientY || 40);
   });
-  window.addEventListener("resize", function () { vnPersistPos(); vnApplyPos(); });
+  window.addEventListener("resize", function () { vnPersistPos(); vnApplyPos(); vnScheduleHitMask(); });
+  // Controls move under a resting pet too: a turn card's Stop button appears, the log scrolls,
+  // the composer grows. Each re-clips the hit area; the layer's own per-frame repaints do not.
+  document.addEventListener("scroll", vnScheduleHitMask, { capture: true, passive: true });
+  if (typeof MutationObserver === "function") {
+    new MutationObserver(function (records) {
+      for (let i = 0; i < records.length; i++) {
+        if (!vnLayer.contains(records[i].target)) { vnScheduleHitMask(); return; }
+      }
+    }).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+  }
+  setInterval(function () { if (!document.hidden) vnScheduleHitMask(true); }, 1200);
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden && vnLoopTimer == null && vnBooted) vnLoopTimer = requestAnimationFrame(vnLoop);
   });
   document.addEventListener("pywebviewready", function () { if (vnPos.mode === "desktop") vnDetachDesktop(true); });
   if (typeof ResizeObserver === "function") {
     const sb = document.getElementById("sidebar");
-    if (sb) new ResizeObserver(function () { vnApplyPos(); }).observe(sb);
+    if (sb) new ResizeObserver(function () { vnApplyPos(); vnScheduleHitMask(); }).observe(sb);
     // The composer's controls appear AFTER boot (a permission bar, an attachment strip, the setup
     // line): the footer grows, and the docked sprite must re-check the critical rects it may now be
     // covering. Measured 2026-09-07: the sprite sat on the setup line's button until this observer.
     const ft = document.querySelector("footer");
-    if (ft) new ResizeObserver(function () { vnApplyPos(); }).observe(ft);
+    if (ft) new ResizeObserver(function () { vnApplyPos(); vnScheduleHitMask(); }).observe(ft);
   }
   document.body.classList.toggle("vn-motion-reduced", vnPrefersReducedMotion());
   vnApplyPos();
