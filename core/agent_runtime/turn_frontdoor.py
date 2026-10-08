@@ -1580,6 +1580,45 @@ def handle_turn_frontdoor(
     if hive_frontdoor_result is not None:
         return {"result": hive_frontdoor_result}
 
+    # A typed request for a visible answer belongs to the transcript reader.
+    # The broader memory-command detector also recognizes "this chat"; let the
+    # transcript owner answer before that detector can report a false absence.
+    same_chat_recall = agent._same_chat_transcript_recall_fast_path(
+        effective_input,
+        source_surface=source_surface,
+        source_context=source_context,
+    )
+    if same_chat_recall is not None:
+        from core.agent_runtime.same_chat_recall import gate_transcript_recall
+
+        recall_context = {**(source_context or {}), "chat_id": session_id}
+        same_chat_recall = gate_transcript_recall(same_chat_recall, source_context=recall_context)
+        result = agent._fast_path_result(
+            session_id=session_id,
+            user_input=effective_input,
+            response=str(same_chat_recall.response),
+            confidence=1.0,
+            source_context=source_context,
+            reason="same_chat_transcript_recall",
+        )
+        delivered_recall = gate_transcript_recall(
+            same_chat_recall, source_context=recall_context, response=str(result.get("response") or ""),
+        )
+        if delivered_recall is not same_chat_recall:
+            result["response"] = delivered_recall.response
+            same_chat_recall = delivered_recall
+        result.update(
+            {
+                "route": "same_chat_history",
+                "route_reason": str(same_chat_recall.route_reason),
+                "recall_kind": str(same_chat_recall.recall_kind),
+                "recall_found": bool(same_chat_recall.found),
+                "route_skips": ["model", "capsule", "web", "tool_loop"],
+                "fast_path_hit": True,
+            }
+        )
+        return {"result": result}
+
     # Memory commands must receive the user's raw text.  The general input normalizer is allowed
     # to repair routing typos, but it can also rewrite an ordinary fact (for example, the literal
     # phrase "North Star" was normalized to "North start" because ``star`` is close to the
@@ -1715,32 +1754,6 @@ def handle_turn_frontdoor(
         return {
             "result": result
         }
-
-    same_chat_recall = agent._same_chat_transcript_recall_fast_path(
-        effective_input,
-        source_surface=source_surface,
-        source_context=source_context,
-    )
-    if same_chat_recall is not None:
-        result = agent._fast_path_result(
-            session_id=session_id,
-            user_input=effective_input,
-            response=str(same_chat_recall.response),
-            confidence=1.0,
-            source_context=source_context,
-            reason="same_chat_transcript_recall",
-        )
-        result.update(
-            {
-                "route": "same_chat_history",
-                "route_reason": str(same_chat_recall.route_reason),
-                "recall_kind": str(same_chat_recall.recall_kind),
-                "recall_found": bool(same_chat_recall.found),
-                "route_skips": ["model", "capsule", "web", "tool_loop"],
-                "fast_path_hit": True,
-            }
-        )
-        return {"result": result}
 
     action_history = agent._action_history_honesty_fast_path(
         effective_input,

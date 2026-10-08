@@ -4,13 +4,14 @@ import contextlib
 import hashlib
 import hmac
 import json
-import os
 import re
 import secrets
 import threading
 import time
 import uuid
 from datetime import datetime, timezone
+from functools import wraps
+from inspect import signature
 from pathlib import Path
 from typing import Any
 
@@ -39,8 +40,53 @@ from core.memory.files import (
     write_text_atomic,
 )
 from core.memory.policies import ensure_session_policy_table, session_memory_policy
+from core.memory.revocation import fenced_writer
 from core.privacy_guard import keyword_tokens, normalize_share_scope
 from core.secret_redaction import contains_secret
+
+_MEMORY_READERS: dict[str, Any] = {}
+
+
+def _authorized_reader_payload(payload: Any, *, chat_id: str | None = None) -> bool:
+    from core.memory.revocation import authorize_payload
+
+    if isinstance(payload, (list, tuple)) and payload:
+        return all(_authorized_reader_payload(item, chat_id=chat_id) for item in payload)
+    origins: set[str] = set()
+    if isinstance(payload, dict):
+        origin = str(payload.get("origin_chat_id") or payload.get("session_id") or payload.get("chat_id") or "")
+        if origin:
+            origins.add(origin)
+        if isinstance(payload.get("origin_chat_ids"), (list, tuple)):
+            origins.update(str(value) for value in payload["origin_chat_ids"] if value)
+    if chat_id:
+        origins.add(chat_id)
+    return all(authorize_payload(payload, chat_id=origin) for origin in origins) if origins else authorize_payload(payload)
+
+
+def _memory_reader(function: Any = None, *, owner_keys: bool = False) -> Any:
+    """Register serving APIs and recheck their completed output through the shared authority."""
+    if function is None:
+        return lambda reader: _memory_reader(reader, owner_keys=owner_keys)
+    parameters = signature(function)
+
+    @wraps(function)
+    def guarded(*args: Any, **kwargs: Any) -> Any:
+        bound = parameters.bind_partial(*args, **kwargs).arguments
+        policy = bound.get("access_policy")
+        chat_id = str(bound.get("chat_id") or bound.get("session_id") or getattr(policy, "chat_id", "") or "") or None
+        result = function(*args, **kwargs)
+        if owner_keys:
+            selected = {sid: row for sid, row in result.items() if _authorized_reader_payload(row, chat_id=sid)}
+            return selected if all(_authorized_reader_payload(row, chat_id=sid) for sid, row in selected.items()) else {}
+        if isinstance(result, list):
+            result = [item for item in result if _authorized_reader_payload(item, chat_id=chat_id)]
+        if _authorized_reader_payload(result, chat_id=chat_id):
+            return result
+        return "" if isinstance(result, str) else {} if isinstance(result, dict) else []
+
+    _MEMORY_READERS[function.__name__] = guarded
+    return guarded
 
 
 def _current_request_lineage() -> str:
@@ -163,6 +209,8 @@ def _record_erasure_store(
 ) -> None:
     if erasures is None:
         return
+    if erasures.get(f"{store}_failures"):
+        status = "incomplete"
     confirmed = max(int(erasures.get(store) or 0), removed)
     erasures.setdefault("stores", {})[store] = {"status": status, "removed": confirmed}
     erasures[store] = confirmed
@@ -174,18 +222,20 @@ def forget_profile_derivatives(
     token: str, *, access_policy: ContextAccessPolicy, erasures: dict[str, Any],
 ) -> None:
     """Erase scoped heuristic copies and verify every field of the derived profile."""
-    from core.vool_memory import text_carries_forget_token
+    from core.memory.carriers import ROW_IDENTITIES, row_payload
+    from core.memory.carriers import carries as payload_carries
 
     def carries(value: Any) -> bool:
-        return text_carries_forget_token(json.dumps(value, ensure_ascii=False), token)
+        return payload_carries(value, token)
 
     with _MEMORY_ENTRY_LOCK:
+        _forget_session_metadata(token, chat_id=access_policy.chat_id, erasures=erasures)
         try:
             rows = _load_erasure_rows(user_heuristics_path())
             kept = []
             unresolved = False
             for row in rows:
-                if not carries(row):
+                if not carries(row_payload(row, structural_fields=ROW_IDENTITIES)):
                     kept.append(row)
                     continue
                 origin = str(row.get("origin_chat_id") or row.get("session_id") or "")
@@ -295,7 +345,7 @@ def _erase_rows_locked(record_ids: list[str]) -> list[str]:
     wanted = {str(rid or "").strip() for rid in record_ids if str(rid or "").strip()}
     if not wanted:
         return []
-    rows = load_jsonl(memory_entries_path())
+    rows = _load_erasure_rows(memory_entries_path())
     out: list[dict[str, Any]] = []
     erased_texts: list[str] = []
     for row in rows:
@@ -656,6 +706,7 @@ def _governed_excerpt_rows() -> list[dict[str, Any]]:
         and not contains_secret(str(row.get("text") or ""))
         and _memory_expiry_is_current(row)
         and writer_may_persist_text(str(row.get("text") or ""))
+        and _authorized_reader_payload(row)
     ]
     rows.sort(
         key=lambda row: (
@@ -666,6 +717,7 @@ def _governed_excerpt_rows() -> list[dict[str, Any]]:
     return rows
 
 
+@_memory_reader
 def load_memory_excerpt(*, max_chars: int = 2200) -> str:
     """Render the model-visible memory projection from GOVERNED entries.
 
@@ -856,12 +908,15 @@ def sweep_governed_memory_rows(request_id: str) -> bool:
         return True
 
 
+@_memory_reader
 def list_memory_entries(
     *,
     access_policy: ContextAccessPolicy | None = None,
     chat_id: str | None = None,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
+    from core.memory.revocation import authorize_payload
+
     _ensure_memory_files()
     policy = resolve_memory_access_policy(
         access_policy=access_policy,
@@ -874,6 +929,7 @@ def list_memory_entries(
             row,
             access_policy=policy,
         )
+        and authorize_payload(row, chat_id=policy.chat_id)
     ]
     rows.sort(
         key=lambda row: (
@@ -881,9 +937,11 @@ def list_memory_entries(
             str(row.get("record_id") or ""),
         )
     )
-    return rows[-max(1, int(limit)) :]
+    selected = rows[-max(1, int(limit)) :]
+    return selected if authorize_payload(selected, chat_id=policy.chat_id) else []
 
 
+@_memory_reader
 def summarize_memory(
     *,
     access_policy: ContextAccessPolicy | None = None,
@@ -901,6 +959,7 @@ def summarize_memory(
     ]
 
 
+@_memory_reader
 def recent_conversation_events(
     session_id: str, *, limit: int = 6, include_artifacts: bool = False
 ) -> list[dict[str, Any]]:
@@ -914,6 +973,8 @@ def recent_conversation_events(
     each of them having to know about it. The transcript reader — ``/api/chat/history``,
     which paints the chat log — asks for them explicitly.
     """
+    from core.memory.revocation import authorize_payload
+
     _ensure_memory_files()
     rows = load_jsonl(conversation_log_path())
     out: list[dict[str, Any]] = []
@@ -922,28 +983,30 @@ def recent_conversation_events(
             continue
         if not include_artifacts and str(row.get("artifact_kind") or "").strip():
             continue
+        if not authorize_payload(row, chat_id=session_id):
+            continue
         out.append(row)
         if len(out) >= max(1, int(limit)):
             break
-    return list(reversed(out))
+    selected = list(reversed(out))
+    return selected if authorize_payload(selected, chat_id=session_id) else []
 
 
 # One process, POSTs served on a threadpool — serialize the whole read-modify-write of the meta file
 # so two simultaneous rename/archive actions can't clobber each other (last-writer-wins data loss).
-_SESSION_META_LOCK = threading.Lock()
+_SESSION_META_LOCK = threading.RLock()
 _SESSION_TITLE_MAX = 200
 _SESSION_EMOJI_MAX = 8   # a couple of emoji code points (some emoji are multi-codepoint), never a long string
 _SESSION_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")   # strict #rrggbb only — never arbitrary CSS
 
 
 def _parse_meta_dict(path: Path) -> dict[str, dict[str, Any]]:
-    data = json.loads(path.read_text(encoding="utf-8", errors="replace") or "{}")
-    if not isinstance(data, dict):
-        raise ValueError("session meta is not an object")
-    return {str(sid): meta for sid, meta in data.items() if isinstance(meta, dict)}
+    from core.memory.carriers import read_session_metadata
+
+    return read_session_metadata(path)
 
 
-def load_session_meta() -> dict[str, dict[str, Any]]:
+def _load_session_meta_raw() -> dict[str, dict[str, Any]]:
     """User-set per-session overrides for the /chat sidebar: {session_id: {title?, archived?}}.
 
     Stored in a small JSON file alongside the conversation log. A corrupt/partial file is NOT silently
@@ -957,19 +1020,30 @@ def load_session_meta() -> dict[str, dict[str, Any]]:
         return _parse_meta_dict(path)
     except (json.JSONDecodeError, ValueError, OSError):
         pass
-    # Preserve the corrupt file, then try the backup.
-    with contextlib.suppress(OSError):
-        path.replace(path.with_name(path.name + f".corrupt-{int(time.time())}"))
-    bak = path.with_name(path.name + ".bak")
-    if bak.exists():
-        try:
-            recovered = _parse_meta_dict(bak)
-            with contextlib.suppress(OSError):
-                path.write_text(json.dumps(recovered, ensure_ascii=False), encoding="utf-8")
-            return recovered
-        except (json.JSONDecodeError, ValueError, OSError):
-            return {}
+    # Recovery is a writer too: it may not copy a revoked backup back into
+    # the live document, or create an unchecked corrupt-file carrier.
+    from core.memory.revocation import writing
+
+    try:
+        with writing({}, None), _SESSION_META_LOCK:
+            raw = path.read_text(encoding="utf-8")
+            with writing(raw, None):
+                path.replace(path.with_name(path.name + f".corrupt-{time.time_ns()}"))
+            bak = path.with_name(path.name + ".bak")
+            if bak.exists():
+                recovered = _parse_meta_dict(bak)
+                _write_session_meta_atomic(recovered)
+                return recovered
+    except (ValueError, OSError, RuntimeError):
+        return {}
     return {}
+
+
+@_memory_reader(owner_keys=True)
+def load_session_meta() -> dict[str, dict[str, Any]]:
+    """Serve only metadata whose owning chat still authorizes its content."""
+    return {sid: row for sid, row in _load_session_meta_raw().items()
+            if _authorized_reader_payload(row, chat_id=sid)}
 
 
 def set_session_meta(
@@ -988,10 +1062,12 @@ def set_session_meta(
     sid = str(session_id or "").strip()
     if not sid:
         return {}
-    if load_chat_namespace(sid) is None:
-        ensure_chat_namespace(sid)
-    with _SESSION_META_LOCK:
-        meta = load_session_meta()
+    from core.memory.revocation import writing
+
+    with writing({}, sid), _SESSION_META_LOCK:
+        if load_chat_namespace(sid) is None:
+            ensure_chat_namespace(sid)
+        meta = _load_session_meta_raw()
         entry = dict(meta.get(sid) or {})
         if title is not None:
             clean_title = " ".join(str(title).split()).strip()[:_SESSION_TITLE_MAX]
@@ -1020,17 +1096,7 @@ def set_session_meta(
             else:
                 entry.pop("project_id", None)  # empty -> unbind
         meta[sid] = entry
-        path = chat_session_meta_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = json.dumps(meta, ensure_ascii=False)
-        tmp = path.with_name(path.name + ".tmp")
-        with tmp.open("w", encoding="utf-8") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp, path)
-        with contextlib.suppress(OSError):  # last-good backup for corrupt-recovery on the next load
-            path.with_name(path.name + ".bak").write_text(payload, encoding="utf-8")
+        _write_session_meta_atomic(meta)
         if archived is not None:
             from core.context_namespace import set_chat_namespace_state
 
@@ -1053,6 +1119,22 @@ def set_session_meta(
         return entry
 
 
+def _update_session_meta_fields(session_id: str, fields: dict[str, Any]) -> None:
+    """Persist additional writer-owned metadata through the same carrier fence."""
+    from core.memory.revocation import writing
+
+    sid = str(session_id or "").strip()
+    if not sid:
+        return
+    with writing(fields, sid), _SESSION_META_LOCK:
+        meta = _load_session_meta_raw()
+        if sid not in meta:
+            return
+        meta[sid] = {**meta[sid], **fields}
+        _write_session_meta_atomic(meta)
+
+
+@_memory_reader
 def list_conversation_sessions(*, limit: int = 60) -> list[dict[str, Any]]:
     """Distinct chat sessions from the conversation log, newest-active first.
 
@@ -1086,6 +1168,8 @@ def list_conversation_sessions(*, limit: int = 60) -> list[dict[str, Any]]:
     for row in rows:
         session_id = str(row.get("session_id") or "").strip()
         if not session_id:
+            continue
+        if not _authorized_reader_payload(row, chat_id=session_id):
             continue
         namespace = namespaces.get(session_id)
         if namespace is not None and namespace.lifecycle_state == "deleted":
@@ -1171,6 +1255,7 @@ def list_conversation_sessions(*, limit: int = 60) -> list[dict[str, Any]]:
     return sessions[: max(1, int(limit))]
 
 
+@_memory_reader
 def search_relevant_memory(
     query_text: str,
     *,
@@ -1178,6 +1263,8 @@ def search_relevant_memory(
     topic_hints: list[str] | None = None,
     limit: int = 4,
 ) -> list[dict[str, Any]]:
+    from core.memory.revocation import authorize_payload
+
     try:
         policy = resolve_memory_access_policy(access_policy=access_policy)
     except (TypeError, ValueError):
@@ -1189,6 +1276,7 @@ def search_relevant_memory(
         row
         for row in combined_memory_entries()
         if _memory_row_allowed(row, access_policy=policy)
+        and authorize_payload(row, chat_id=policy.chat_id)
     ]
     ranked: list[tuple[float, dict[str, Any]]] = []
     for row in rows:
@@ -1205,10 +1293,11 @@ def search_relevant_memory(
     ranked.sort(key=lambda item: (item[0], str(item[1].get("created_at") or "")), reverse=True)
     # Same read-point rule as load_memory_excerpt: a stored row saying "**My name**: VOOL" is the
     # user's data and stays on disk, but it must not reach the model as a competing fact.
-    return [
+    selected = [
         {**row, "text": _canonical_agent_name_in_memory(str(row.get("text") or ""))}
         for _, row in ranked[: max(1, int(limit))]
     ]
+    return selected if authorize_payload(selected, chat_id=policy.chat_id) else []
 
 
 _SAFE_DISPUTE_IDENTIFIER_RE = re.compile(
@@ -1216,6 +1305,7 @@ _SAFE_DISPUTE_IDENTIFIER_RE = re.compile(
 )
 
 
+@_memory_reader
 def find_disputed_memory_facts(
     query_text: str,
     *,
@@ -1245,6 +1335,8 @@ def find_disputed_memory_facts(
         list[dict[str, Any]],
     ] = {}
     for row in load_jsonl(memory_entries_path()):
+        if not _authorized_reader_payload(row, chat_id=policy.chat_id):
+            continue
         if not _memory_dispute_row_allowed(
             row,
             access_policy=policy,
@@ -1485,6 +1577,7 @@ def _memory_dispute_descriptor(
     return descriptor
 
 
+@_memory_reader
 def search_session_summaries(
     query_text: str,
     *,
@@ -1537,13 +1630,7 @@ def search_session_summaries(
         if not allowed:
             continue
         # Import grants do not override the source chat's erasure authority.
-        from core.context_retrieval import revoked_tokens_for_chat, text_carries_revoked_token
-
-        try:
-            revoked = revoked_tokens_for_chat(row_session_id)
-        except Exception:
-            continue
-        if text_carries_revoked_token(str(row.get("summary") or ""), revoked):
+        if not _authorized_reader_payload(row, chat_id=policy.chat_id):
             continue
         item_tokens = set(row.get("keywords") or keyword_tokens_filtered(str(row.get("summary") or "")))
         overlap = len(query_tokens & item_tokens) if query_tokens else 0
@@ -1563,6 +1650,7 @@ def search_session_summaries(
     ]
 
 
+@_memory_reader
 def search_user_heuristics(
     query_text: str,
     *,
@@ -1593,6 +1681,8 @@ def search_user_heuristics(
             metadata=metadata,
         )
         if not allowed or not isinstance(row.get("provenance"), dict):
+            continue
+        if not _authorized_reader_payload(row, chat_id=policy.chat_id):
             continue
         from core.vool_memory import memory_payload_is_current
 
@@ -1696,6 +1786,7 @@ def is_user_correction(text: str) -> bool:
     return False
 
 
+@fenced_writer
 def record_memory_entry(
     text: str,
     *,
@@ -1949,6 +2040,8 @@ def forget_structured_memory(
     # (measured on the served candidate: "forget the backup code" removed 1 row while
     # "Current corrected code: XQ-991-VERDE" survived and stayed retrievable). Matching
     # the same key space the writers use closes that gap without loosening value-match.
+    from core.memory.carriers import ROW_IDENTITIES, carries, row_payload
+
     subject_key = _forget_subject_fact_key(clean_token)
     summary_error: Exception | None = None
     with _MEMORY_ENTRY_LOCK:
@@ -1958,13 +2051,10 @@ def forget_structured_memory(
             for row in rows
             if str(row.get("record_id") or "").strip()
             and (
-                clean_token in str(row.get("text") or "").lower()
+                carries(row_payload(row, structural_fields=ROW_IDENTITIES), clean_token)
                 or (subject_key and str(row.get("fact_key") or "").strip().lower() == subject_key)
             )
-            and _memory_command_row_allowed(
-                row,
-                access_policy=policy,
-            )
+            and _memory_erasure_row_owned(row, policy)
         ]
         erased_texts = _erase_rows_locked(target_ids)
         if erased_texts:
@@ -1972,6 +2062,14 @@ def forget_structured_memory(
             if any(str(row.get("record_id") or "") in target_ids
                    and str(row.get("status") or "") != _ERASED_STATUS for row in retained):
                 raise MemoryErasureError("canonical memory still contains an erased record")
+        retained = _load_erasure_rows(memory_entries_path())
+        if any(
+            carries(row_payload(row, structural_fields=ROW_IDENTITIES), clean_token)
+            and (_memory_erasure_row_owned(row, policy)
+                 or not str(row.get("origin_chat_id") or row.get("session_id") or ""))
+            for row in retained
+        ):
+            raise MemoryErasureError("canonical memory retains an unverified payload")
         _record_erasure_store(erasures, "structured_entries", "verified", len(erased_texts))
 
         # A summary is chat-scoped derived data.  Forgetting may clear only
@@ -1984,8 +2082,7 @@ def forget_structured_memory(
                 for row in summaries
                 if not (
                     str(row.get("session_id") or "").strip() == policy.chat_id
-                    and clean_token
-                    in str(row.get("summary") or "").lower()
+                    and carries(row_payload(row, structural_fields=ROW_IDENTITIES), clean_token)
                 )
             ]
             if len(kept_summaries) != len(summaries):
@@ -2010,18 +2107,69 @@ def forget_structured_memory(
     return len(erased_texts)
 
 
+def _memory_erasure_row_owned(row: dict[str, Any], policy: ContextAccessPolicy) -> bool:
+    """Raw ownership selection: pending erasure must not hide its own targets."""
+    origin = str(row.get("origin_chat_id") or row.get("session_id") or "").strip()
+    if origin == policy.chat_id:
+        return True
+    scope = str(row.get("scope") or "").strip().lower()
+    if scope == "user_profile":
+        return bool(policy.allow_user_profile_context)
+    project = str(row.get("origin_project_id") or row.get("project_id") or "").strip()
+    return bool(scope == "project" and project and project == policy.project_id
+                and project in policy.imported_project_ids)
+
+
 def _write_session_meta_atomic(meta: dict[str, Any]) -> None:
-    path = chat_session_meta_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(meta, ensure_ascii=False)
-    tmp = path.with_name(path.name + ".tmp")
-    with tmp.open("w", encoding="utf-8") as handle:
-        handle.write(payload)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(tmp, path)
-    with contextlib.suppress(OSError):
-        path.with_name(path.name + ".bak").write_text(payload, encoding="utf-8")
+    from core.memory.carriers import session_metadata_payload
+    from core.memory.revocation import writing
+
+    with writing({}, None), _SESSION_META_LOCK:
+        path = chat_session_meta_path()
+        # Preserve raw unrelated rows rather than using the serving reader's
+        # filtered view. Every row written to the live/backup copy is checked
+        # in its own scope, including unknown fields from other writers.
+        for sid, row in meta.items():
+            with writing(session_metadata_payload(row), sid):
+                pass
+        payload = json.dumps(meta, ensure_ascii=False)
+        write_text_atomic(path, payload)
+        write_text_atomic(path.with_name(path.name + ".bak"), payload)
+
+
+def _forget_session_metadata(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
+    from core.memory.carriers import (
+        carries,
+        prune_payload,
+        read_session_metadata,
+        session_metadata_carriers,
+        session_metadata_payload,
+    )
+    from core.memory.revocation import serialized
+
+    removed = 0
+    incomplete = False
+    with serialized(), _SESSION_META_LOCK:
+        try:
+            paths = session_metadata_carriers()
+        except Exception:
+            _record_erasure_store(erasures, "chat_session_metadata", "incomplete")
+            return
+        for path in paths:
+            try:
+                meta = read_session_metadata(path)
+                row = meta.get(chat_id, {})
+                payload = session_metadata_payload(row)
+                if carries(payload, token):
+                    meta[chat_id] = prune_payload(payload, token)
+                    write_text_atomic(path, json.dumps(meta, ensure_ascii=False))
+                    removed += 1
+                verified = read_session_metadata(path)
+                if verified != meta or carries(session_metadata_payload(verified.get(chat_id, {})), token):
+                    raise MemoryErasureError("session metadata erasure could not be verified")
+            except Exception:
+                incomplete = True
+    _record_erasure_store(erasures, "chat_session_metadata", "incomplete" if incomplete else "verified", removed)
 
 
 def forget_sessions_memory(session_ids: Any) -> int:
@@ -2226,8 +2374,10 @@ def delete_conversation_session(session_id: str) -> bool:
             _rewrite_memory_mirror_locked()
     if erased_texts:
         _verify_erasure(erased_texts, target_ids)
-    with _SESSION_META_LOCK:
-        meta = load_session_meta()
+    from core.memory.revocation import writing
+
+    with writing({}, sid), _SESSION_META_LOCK:
+        meta = _load_session_meta_raw()
         if sid in meta:
             del meta[sid]
             _write_session_meta_atomic(meta)
@@ -2256,6 +2406,7 @@ def delete_conversation_session(session_id: str) -> bool:
     return removed
 
 
+@_memory_reader
 def combined_memory_entries() -> list[dict[str, Any]]:
     _ensure_memory_files()
     entries = [
@@ -2272,6 +2423,7 @@ def combined_memory_entries() -> list[dict[str, Any]]:
     return entries
 
 
+@_memory_reader
 def legacy_memory_entries() -> list[dict[str, Any]]:
     """Ingest the MEMORY.md projection's unbound legacy lines — through the erasure law.
 

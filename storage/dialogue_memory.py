@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from core.memory.revocation import fenced_writer
 from storage.db import get_connection
 
 
@@ -161,6 +162,7 @@ def session_lexicon(session_id: str) -> dict[str, str]:
         conn.close()
 
 
+@fenced_writer
 def upsert_lexicon_term(term: str, canonical: str, *, scope: str = "global", source: str = "manual", confidence: float = 0.75) -> None:
     _init_tables()
     conn = get_connection()
@@ -215,6 +217,7 @@ def get_dialogue_session(session_id: str) -> dict[str, Any]:
         conn.close()
 
 
+@fenced_writer(on_refused=None)
 def update_dialogue_session(
     session_id: str,
     *,
@@ -292,6 +295,7 @@ def _archive_summary(
     return summary[:280]
 
 
+@fenced_writer(on_refused=None)
 def archive_dialogue_topic(
     session_id: str,
     *,
@@ -523,6 +527,7 @@ def _session_namespace_deleted(session_id: str) -> bool:
         return False
 
 
+@fenced_writer(on_refused=None)
 def record_dialogue_turn(
     session_id: str,
     *,
@@ -589,6 +594,7 @@ def record_dialogue_turn(
 # Response feedback loop
 # ---------------------------------------------------------------------------
 
+@fenced_writer
 def record_response_feedback(
     session_id: str,
     *,

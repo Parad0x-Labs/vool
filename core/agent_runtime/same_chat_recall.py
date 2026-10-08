@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from core.context_history_authority import is_same_chat_history_recall
 from core.task_router import evaluate_direct_math_request, evaluate_word_math_request
@@ -88,6 +88,43 @@ class TranscriptRecall:
     recall_kind: str
     found: bool
     route_reason: str
+    source_exchanges: tuple[tuple[str, str], ...] = field(default=(), repr=False, compare=False)
+
+
+def _authorize_transcript_payload(payload: object, source_context: dict[str, object] | None) -> bool:
+    from core.memory.revocation import authorize_payload
+
+    context = source_context or {}
+    return authorize_payload(
+        payload,
+        chat_id=str(context.get("chat_id") or context.get("session_id") or "") or None,
+        runtime_home=str(context.get("runtime_home") or "") or None,
+    )
+
+
+def _withheld_transcript_recall(kind: str) -> TranscriptRecall:
+    return TranscriptRecall(
+        response="That history is withheld because a memory forget or its erasure could not be verified.",
+        recall_kind=kind,
+        found=False,
+        route_reason="visible_history_revocation_withheld",
+    )
+
+
+def gate_transcript_recall(
+    recalled: TranscriptRecall,
+    *,
+    source_context: dict[str, object] | None,
+    response: str | None = None,
+) -> TranscriptRecall:
+    """Recheck both the source exchanges and the rendered response at the delivery boundary."""
+    if not _authorize_transcript_payload(
+        {"source_exchanges": recalled.source_exchanges,
+         "response": recalled.response if response is None else response},
+        source_context,
+    ):
+        return _withheld_transcript_recall(recalled.recall_kind)
+    return recalled
 
 
 def _display_math_answer(answer: str) -> str:
@@ -117,7 +154,9 @@ def _completed_visible_exchanges(
         if role == "user":
             pending_user = content
         elif pending_user:
-            exchanges.append((pending_user, content))
+            exchange = (pending_user, content)
+            if _authorize_transcript_payload(exchange, source_context):
+                exchanges.append(exchange)
             pending_user = ""
     return tuple(exchanges)
 
@@ -293,6 +332,8 @@ def same_chat_transcript_recall_fast_path(
         return None
     exchanges = _completed_visible_exchanges(source_context)
     if not exchanges:
+        if not _authorize_transcript_payload((source_context or {}).get("conversation_history"), source_context):
+            return _withheld_transcript_recall(_recall_kind(user_input))
         return None
 
     kind = _recall_kind(user_input)
@@ -306,12 +347,13 @@ def same_chat_transcript_recall_fast_path(
         math_answers = _visible_math_answers(exchanges)
         if math_answers:
             response = "\n".join(math_answers) if _PLURAL_RE.search(str(user_input or "")) else math_answers[-1]
-            return TranscriptRecall(
+            return gate_transcript_recall(TranscriptRecall(
                 response=response,
                 recall_kind="number",
                 found=True,
                 route_reason="authoritative_visible_math_history",
-            )
+                source_exchanges=exchanges,
+            ), source_context=source_context)
 
     if not kind:
         return None
@@ -321,19 +363,23 @@ def same_chat_transcript_recall_fast_path(
         exchanges=exchanges,
     )
     if recalled:
-        return TranscriptRecall(
+        return gate_transcript_recall(TranscriptRecall(
             response=recalled,
             recall_kind=kind,
             found=True,
             route_reason="authoritative_visible_text_history",
-        )
+            source_exchanges=exchanges,
+        ), source_context=source_context)
+    if not _authorize_transcript_payload((source_context or {}).get("conversation_history"), source_context):
+        return _withheld_transcript_recall(kind)
     label = "list item" if kind == "item" else kind
-    return TranscriptRecall(
+    return gate_transcript_recall(TranscriptRecall(
         response=f"That {label} does not appear in the visible history of this chat.",
         recall_kind=kind,
         found=False,
         route_reason="authoritative_visible_history_absence",
-    )
+        source_exchanges=exchanges,
+    ), source_context=source_context)
 
 
 def same_chat_math_recall_fast_path(
@@ -356,6 +402,7 @@ def same_chat_math_recall_fast_path(
 
 __all__ = [
     "TranscriptRecall",
+    "gate_transcript_recall",
     "same_chat_math_recall_fast_path",
     "same_chat_transcript_recall_fast_path",
 ]

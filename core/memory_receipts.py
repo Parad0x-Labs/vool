@@ -35,7 +35,7 @@ import re
 import time
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -798,6 +798,69 @@ def head_text(receipt: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def receipt_payload_for_erasure(
+    row: Mapping[str, Any] | Any, *, source_body: str | None = None, json_fields: Sequence[str] = (),
+) -> tuple[str, ...]:
+    """Authored receipt content, including unknown writer fields, without generated coordinates.
+
+    A rendered head is structural only when it exactly reproduces the current
+    source and structured receipt. A stale or edited head remains a carrier.
+    The same projection is used by the writer fence, sweep, and final re-read.
+    """
+    from core.memory.carriers import RECEIPT_IDENTITIES, payload_strings
+
+    receipt = dict(row)
+    for name, value in tuple(receipt.items()):
+        if (name in json_fields or name.endswith("_json")) and isinstance(value, (str, bytes, bytearray)):
+            receipt[name] = json.loads(value)
+    alternate_structures = {}
+    for name in ("facts", "changes", "withdraws", "replaced_by"):
+        encoded = receipt.pop(name + "_json", None)
+        if encoded is not None:
+            if name in receipt:
+                alternate_structures[name] = receipt[name]
+            receipt[name] = json.loads(encoded) if isinstance(encoded, (str, bytes, bytearray)) else encoded
+        value = receipt.get(name, [])
+        if not isinstance(value, list) or any(not isinstance(item, Mapping) for item in value):
+            raise ValueError("memory receipt has an invalid structured shape")
+        receipt[name] = value
+    stored_said = receipt.get("said") if source_body is not None else None
+    if source_body is not None:
+        receipt["said"] = _strip_envelope(source_body)[0]
+
+    def project(values: Mapping[str, Any], known: set[str], structural: set[str]) -> tuple[str, ...]:
+        return tuple(part for name, value in values.items() if name not in structural
+                     for part in payload_strings(value if name in known else {name: value}))
+
+    result: list[str] = []
+    fact_fields = {field.name for field in fields(Fact)}
+    change_fields = {"slot", "old_occurrence", "old_receipt", "old_value", "old_statement_at", "new_value",
+                     "value_type", "kind", "rule", "slot_overlap"}
+    replacement_fields = {"receipt_id", "occurrence_id", "slot", "new_value", "statement_at"}
+    shapes = {
+        "facts": (fact_fields, {"value_type", "event_at", "event_grain", "span", "replaced_by"}),
+        "changes": (change_fields, change_fields - {"slot", "old_value", "new_value"}),
+        "replaced_by": (replacement_fields, replacement_fields - {"slot", "new_value"}),
+        "withdraws": ({"marker", "kind"}, {"kind"}),
+    }
+    for name, (known_fields, coordinates) in shapes.items():
+        for values in (receipt[name], alternate_structures.get(name, [])):
+            if isinstance(values, list) and all(isinstance(item, Mapping) for item in values):
+                for value in values:
+                    result.extend(project(value, known_fields, coordinates))
+            else:
+                result.extend(payload_strings(values))
+    # The source validates the generated head, but may never overwrite a
+    # separately persisted authored copy or a second structured representation.
+    result.extend(payload_strings(stored_said))
+    structural = set(RECEIPT_IDENTITIES) | {"role", "event_grain", "facts", "changes", "withdraws", "replaced_by"}
+    if "said" in receipt and receipt.get("head_text") == head_text(receipt):
+        structural.add("head_text")
+    known = structural | {"speaker", "said", "head_text"}
+    result.extend(project(receipt, known, structural))
+    return tuple(result)
+
+
 # ─── store ─────────────────────────────────────────────────────────────────────────────────────
 
 def ensure_schema(mem: Any) -> bool:
@@ -848,14 +911,15 @@ def rebuild_missing_receipts(mem: Any, chat_scope: str, *, limit: int = 500) -> 
         occurrence = SimpleNamespace(occurrence_id=str(row[0]), role=str(row[1] or "user"), body=str(row[2] or ""),
                                      statement_at=row[3], speaker=str(row[4] or ""))
         try:
-            if write_receipt(mem, occurrence, chat_scope=str(chat_scope or "")) is not None:
+            if write_receipt(mem, occurrence, chat_scope=str(chat_scope or "")).status == "written":
                 written += 1
         except Exception:
             LOGGER.warning("memory receipt rebuild failed for one occurrence", exc_info=True)
     return written
 
 
-def receipts_for_scope(mem: Any, chat_scope: str, *, role: str | None = None) -> list[dict[str, Any]]:
+def receipts_for_scope(mem: Any, chat_scope: str, *, role: str | None = None,
+                       strict: bool = False) -> list[dict[str, Any]]:
     """Every receipt of one chat, in statement order (then write order). Pure read."""
     try:
         with mem._lock:
@@ -867,27 +931,91 @@ def receipts_for_scope(mem: Any, chat_scope: str, *, role: str | None = None) ->
             cols = [d[0] for d in cur.description]
             rows = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
     except Exception:
+        if strict:
+            raise
         LOGGER.debug("memory_receipts read failed", exc_info=True)
         return []
-    return [_row_to_receipt(r) for r in rows]
+    try:
+        receipts = [_row_to_receipt(r) for r in rows]
+    except Exception:
+        if strict:
+            raise
+        LOGGER.warning("memory receipt decoding failed", exc_info=True)
+        return []
+    if strict:
+        return receipts
+    from core.memory.revocation import authorize_payload
+
+    allowed = []
+    for row, receipt in zip(rows, receipts, strict=True):
+        try:
+            from core.memory.carriers import schema_json_fields
+
+            with mem._lock:
+                json_fields = schema_json_fields(mem._conn.execute("PRAGMA table_info(memory_receipts)").fetchall())
+                source = mem._conn.execute(
+                    "SELECT body FROM source_occurrences WHERE agent_id = ? AND occurrence_id = ? AND status = 'active'",
+                    (mem._agent_id, receipt["occurrence_id"]),
+                ).fetchone()
+            payload = receipt_payload_for_erasure(
+                row, source_body=str(source[0]) if source is not None else None, json_fields=json_fields,
+            )
+            if authorize_payload(payload, chat_scope, getattr(mem, "_authority_home", None), owner_memory=mem):
+                allowed.append(receipt)
+        except Exception:
+            LOGGER.warning("memory receipt authority projection failed", exc_info=True)
+    return allowed
 
 
-def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | None = None) -> dict[str, Any] | None:
-    """Write the receipt for one stored occurrence (idempotent per occurrence). Returns the receipt or None."""
+@dataclass(frozen=True)
+class ReceiptWriteResult:
+    """A persisted derivative, an existing derivative, or an observable write failure."""
+
+    status: str
+    receipt: dict[str, Any] | None = None
+    reason: str = ""
+
+
+def receipt_for_occurrence(mem: Any, occurrence_id: str) -> dict[str, Any] | None:
+    """Read one persisted receipt; storage and decoding errors propagate to the caller."""
+    with mem._lock:
+        cur = mem._conn.execute(
+            "SELECT * FROM memory_receipts WHERE agent_id = ? AND occurrence_id = ?",
+            (mem._agent_id, str(occurrence_id)),
+        )
+        columns = [column[0] for column in cur.description]
+        row = cur.fetchone()
+    return _row_to_receipt(dict(zip(columns, row, strict=True))) if row is not None else None
+
+
+def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | None = None) -> ReceiptWriteResult:
+    """Write one receipt atomically and distinguish idempotence from a failed write."""
+    try:
+        from core.memory.revocation import writing
+
+        payload = (said if said is not None else getattr(occurrence, "body", ""),
+                   getattr(occurrence, "speaker", ""))
+        with writing(payload, chat_scope, getattr(mem, "_authority_home", None)):
+            return _write_receipt(mem, occurrence, chat_scope=chat_scope, said=said)
+    except Exception:
+        LOGGER.warning("memory receipt write failed", exc_info=True)
+        return ReceiptWriteResult("failed", reason="receipt_write_error")
+
+
+def _write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | None = None) -> ReceiptWriteResult:
     occ_id = str(getattr(occurrence, "occurrence_id", "") or "")
-    if not occ_id or not ensure_schema(mem):
-        return None
+    if not occ_id:
+        return ReceiptWriteResult("failed", reason="missing_occurrence_id")
+    if not ensure_schema(mem):
+        return ReceiptWriteResult("failed", reason="receipt_schema_error")
     role = str(getattr(occurrence, "role", "") or "user")
     body = str(said if said is not None else getattr(occurrence, "body", "") or "")
     statement_at = getattr(occurrence, "statement_at", None)
-    try:
-        with mem._lock:
-            if mem._conn.execute("SELECT 1 FROM memory_receipts WHERE occurrence_id = ?", (occ_id,)).fetchone():
-                return None
-    except Exception:
-        return None
+    existing = receipt_for_occurrence(mem, occ_id)
+    if existing is not None:
+        return ReceiptWriteResult("already_exists", receipt=existing)
     facts = extract_facts(body, statement_at, role)
-    earlier = receipts_for_scope(mem, chat_scope, role="user") if role == "user" else []
+    earlier = receipts_for_scope(mem, chat_scope, role="user", strict=True) if role == "user" else []
     changes = find_changes(facts, earlier, role=role, statement_at=float(statement_at) if statement_at is not None else None)
     withdraws = []
     marker = retraction_marker(_strip_envelope(body)[0])
@@ -902,8 +1030,12 @@ def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | Non
                "facts": [f.as_dict() for f in facts], "changes": changes, "withdraws": withdraws, "replaced_by": [],
                "said": _strip_envelope(body)[0], "writer": WRITER, "model": "", "cost_calls": 0, "cost_tokens": 0, "created_at": time.time()}
     receipt["head_text"] = head_text(receipt)
-    try:
-        with mem._lock:
+    from core.memory.revocation import writing
+
+    with writing(receipt_payload_for_erasure(receipt), chat_scope, getattr(mem, "_authority_home", None)), mem._lock:
+        savepoint = "receipt_write_" + uuid.uuid4().hex
+        mem._conn.execute("SAVEPOINT " + savepoint)
+        try:
             mem._conn.execute(
                 "INSERT INTO memory_receipts (receipt_id, agent_id, chat_scope, occurrence_id, role, speaker, statement_at, event_at, event_grain,"
                 " facts_json, changes_json, withdraws_json, replaced_by_json, head_text, writer, model, cost_calls, cost_tokens, created_at)"
@@ -925,11 +1057,16 @@ def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | Non
                                "statement_at": receipt["statement_at"]})
                 mem._conn.execute("UPDATE memory_receipts SET facts_json = ?, replaced_by_json = ? WHERE receipt_id = ?",
                                   (json.dumps(old_facts), json.dumps(old_rb), change["old_receipt"]))
+            persisted = receipt_for_occurrence(mem, occ_id)
+            if persisted is None:
+                raise RuntimeError("receipt verification failed")
+            mem._conn.execute("RELEASE SAVEPOINT " + savepoint)
             mem._conn.commit()
-    except Exception:
-        LOGGER.debug("memory_receipts write failed", exc_info=True)
-        return None
-    return receipt
+        except Exception:
+            mem._conn.execute("ROLLBACK TO SAVEPOINT " + savepoint)
+            mem._conn.execute("RELEASE SAVEPOINT " + savepoint)
+            raise
+    return ReceiptWriteResult("written", receipt=persisted)
 
 
 _QUESTION_NOISE = frozenset(["remind", "previous", "conversation", "conversations", "mention", "mentioned", "mentioning", "earlier", "follow", "following", "discussed", "discuss", "told", "said", "ask", "asked", "want", "wanted", "know", "think", "like", "remember", "recall", "recently", "back", "going", "go", "come", "came", "thing", "things", "way", "one", "ones", "still", "now", "long", "many", "much", "time", "times", "first", "last", "ago", "before", "after", "between", "since", "until", "day", "days", "week", "weeks", "month", "months", "year", "years", "hour", "hours", "minute", "minutes", "mins", "did", "do", "does", "have", "has", "had", "was", "were"])

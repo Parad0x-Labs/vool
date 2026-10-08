@@ -23,12 +23,12 @@ def test_legacy_annotation_search_starts_after_the_complete_authored_body(kind, 
     }
     line = _render_line(receipts["r:old"], fact, receipts)
     # Legacy rows lack the renderer's separate body; retain the actual authored line as the oracle.
-    fact.pop("line_without_replacement")
+    bare = fact.pop("line_without_replacement")
     own_line = line.split('  [REPLACED later by "47 crowns"', 1)[0]
     packet = Packet(obligation=obligations("How much was the rent?"),
                     lines=[line if has_note else own_line], facts=[fact])
     filtered = filter_packet(packet, {"u:later": "temporal:withdrawn"})
-    assert filtered.lines == [own_line]
+    assert filtered.lines == [bare]
     assert literal in render(filtered)
 
 
