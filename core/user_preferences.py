@@ -32,6 +32,7 @@ class UserPreferences:
     timezone: str = ""              # IANA timezone identity, e.g. "Europe/Athens"; empty = UTC fallback
     wallet_enabled: bool = False    # 🧪 experimental crypto wallet -- OFF by default; the Settings switch, not an env var
     wallet_enabled_generation: int = 0  # counts changes of the switch; a signed wallet transfer compares it before sending
+    zcash_invoices_enabled: bool = False  # Zcash private invoices (watch-only, core/zcash) -- OFF by default
     speech_notice_dismissed: bool = False  # durable even in private native web sessions
     # First-run setup (core/setup_progress.py). The flow persists ONLY these two: which steps the
     # user skipped and whether the "Complete setup" reminder was dismissed. Done-ness is never
@@ -202,6 +203,7 @@ def load_preferences() -> UserPreferences:
             social_commons=bool(raw.get("social_commons", True)),
             wallet_enabled=bool(raw.get("wallet_enabled", False)),
             wallet_enabled_generation=max(0, int(raw.get("wallet_enabled_generation", 0) or 0)),
+            zcash_invoices_enabled=bool(raw.get("zcash_invoices_enabled", False)),
             ram_reserve_pct=min(80, max(10, int(raw.get("ram_reserve_pct", 20)))),
             daily_token_budget=max(0, int(raw.get("daily_token_budget", 0))),
             timezone=_validate_timezone(str(raw.get("timezone", "") or "")),
@@ -231,6 +233,7 @@ def save_preferences(prefs: UserPreferences) -> Path:
     payload["social_commons"] = bool(payload.get("social_commons", True))
     payload["wallet_enabled"] = bool(payload.get("wallet_enabled", False))
     payload["wallet_enabled_generation"] = max(0, int(payload.get("wallet_enabled_generation", 0) or 0))
+    payload["zcash_invoices_enabled"] = bool(payload.get("zcash_invoices_enabled", False))
     payload["ram_reserve_pct"] = min(80, max(10, int(payload.get("ram_reserve_pct", 20))))
     payload["daily_token_budget"] = max(0, int(payload.get("daily_token_budget", 0)))
     payload["timezone"] = _validate_timezone(str(payload.get("timezone", "") or ""))

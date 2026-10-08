@@ -129,6 +129,11 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("wallet.simulate", "wallet", re.compile(r"\bsimulate\b[^.?!]{0,40}?\b(?:payment|proposal|transaction)\b", re.I)),
     ("x402.propose", "wallet", re.compile(r"\bx402\b[^.?!]{0,80}?\b(?:fetch|get|access|pay|paid|buy|resource|offer)\b|\b(?:fetch|access)\b[^.?!]{0,60}?\bpaid\b", re.I)),
     ("wallet.status", "wallet", re.compile(r"\bwallet\b[^.?!]{0,30}?\b(?:status|balance|limits?)\b|\b(?:my|the)\s+wallet\b", re.I)),
+    # -- Zcash private invoices (core/zcash; seated only when the lane is on, since the contracts exist only then) --
+    # every pattern is anchored on the coin's own name, so no other money talk seats them
+    ("zcash.invoice.create", "wallet", re.compile(r"\b(?:bill|invoice|charge|request)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:zec|zcash|taz)\b|\b(?:zec|zcash)\s+(?:invoice|payment\s+request)\b", re.I)),
+    ("zcash.invoice.unpaid", "wallet", re.compile(r"\b(?:owes?|owing|unpaid|outstanding|not\s+(?:yet\s+)?paid)\b[^.?!]{0,60}?\b(?:zec|zcash)\b|\b(?:zec|zcash)\b[^.?!]{0,60}?\b(?:owes?|owing|unpaid|outstanding|paid\s+yet)\b|\b(?:has|have)\b[^.?!]{0,30}?\bpaid\b[^.?!]{0,60}?\b(?:zec|zcash)\b", re.I)),
+    ("zcash.payment.history", "wallet", re.compile(r"\b(?:pa(?:y|ys|id)|payments?|received|history|export)\b[^.?!]{0,60}?\b(?:zec|zcash)\b|\b(?:zec|zcash)\b[^.?!]{0,60}?\b(?:pa(?:y|ys|id)|payments?|received|history|export)\b", re.I)),
     # -- workspace execution/validation -------------------------------------
     (
         "workspace.run_tests",

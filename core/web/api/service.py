@@ -1053,6 +1053,10 @@ def dispatch_get(
         from core.web.api.mobile_companion_api import handle_mobile_companion_get
 
         return handle_mobile_companion_get(normalized_path, query, runtime=runtime, model_name=model_name, client_host=client_host)
+    if normalized_path.startswith("/api/zcash/"):
+        from core.zcash.page import handle_zcash_get
+
+        return apply_runtime_headers(handle_zcash_get(normalized_path, query, client_host=client_host), runtime)
 
     if normalized_path in {"/task-rail", "/trace"}:
         return apply_runtime_headers(

@@ -3279,6 +3279,10 @@ def _dispatch_runtime_tool(
             return _operator_profile_tool(intent, arguments, source_context)
         if intent in {"wallet.status", "wallet.propose", "wallet.simulate", "wallet.payment_status", "x402.propose"}:
             return _wallet_model_tool(intent, arguments, source_context)
+        if intent in {"zcash.invoice.create", "zcash.invoice.unpaid", "zcash.payment.history"}:
+            from core.zcash.tools import run_tool as _zcash_tool
+
+            return _zcash_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
         if intent == "email.read":
