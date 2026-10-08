@@ -3,7 +3,8 @@
 The drawing routines here are a direct port of the approved prototypes
 (``missions/pet-original-style-20260930/references/collection.html`` lines 324-826). The
 approved art is procedural drawing code -- parameterised ``rect``/``pixelLine`` calls -- not
-palette-indexed bitmaps, so it is ported as code to keep every authored coordinate intact.
+palette-indexed bitmaps, so it is ported as code to keep creature coordinates intact.
+External ground bars and cast shadows are omitted.
 Re-typing it as bitmap rows is exactly how the quartet gets simplified.
 
 ``STYLE-CONTRACT.md`` in this mission's evidence folder is the authority for every rule applied
@@ -37,7 +38,6 @@ function aRect(g,x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y)
 function aLine(g,x0,y0,x1,y1,c,w){w=w||1;const s=Math.max(Math.abs(x1-x0),Math.abs(y1-y0),1),h=(w-1)>>1;
  for(let i=0;i<=s;i++){const t=i/s;aRect(g,x0+(x1-x0)*t-h,y0+(y1-y0)*t-h,w,w,c);}}
 function aMir(side,x,y,dx,dy){return side<0?{x:48-x+(dx||0),y:y+(dy||0)}:{x:x+(dx||0),y:y+(dy||0)};}
-function aShadow(g,p,lift,w){w=Math.max(9,(w||24)-lift*3);aRect(g,(48-w)/2,44,w,1,p.shadow);aRect(g,(48-w)/2+2,45,Math.max(4,w-4),1,p.shadow);}
 /* Outline-then-fill: every limb carries a 1px dark rail on both sides. */
 function aLimb(g,x0,y0,x1,y1,p,w){aLine(g,x0,y0,x1,y1,p.outline,w||3);aLine(g,x0,y0,x1,y1,p.body,(w||3)-2);}
 function aSpark(g,x,y,c,s){s=s||1;aRect(g,x,y,s,1,c);aRect(g,x+(s>>1),y-(s>>1),1,s+1,c);}
@@ -194,7 +194,6 @@ function aBeetleAntenna(g,p,side,lift){
 
 function aBeetle(g,p,P,t){
  const S=P.raw;
- aShadow(g,p,P.lift,24);
  const L=P.lift+P.shake, alift=(S==='approval')?1:0;
  aBeetleAntenna(g,p,-1,alift);aBeetleAntenna(g,p,1,alift);
  aBeetleLeg(g,p,-1,[[13,23],[8,25],[5,30],[3,34]]);aBeetleLeg(g,p,1,[[35,23],[40,25],[43,30],[45,34]]);
@@ -246,7 +245,6 @@ function aRavenWing(g,p,side,pose){
 
 function aRaven(g,p,P,t){
  const S=P.raw;
- aShadow(g,p,P.lift,22);
  const cy=v=>v+P.lift, recoil=P.expr==='low'?(t<420?[0,-1,1,0][Math.floor(t/105)%4]:0):0;
  aRect(g,17,cy(15),15,2,p.outline);aRect(g,15,cy(17),19,16,p.outline);aRect(g,17,cy(33),15,3,p.outline);
  aRect(g,19,cy(16),11,2,p.light);aRect(g,17,cy(19),15,13,p.body);aRect(g,19,cy(32),11,1,p.dark);
@@ -290,7 +288,6 @@ function aGolemArm(g,p,side,pose,tool){
 
 function aGolem(g,p,P,t){
  const S=P.raw;
- aShadow(g,p,P.lift,31);
  const y=v=>v+P.lift;
  aGolemArm(g,p,-1,P.armL,P.toolL);aGolemArm(g,p,1,P.armR,P.toolR);
  aGolemBlock(g,p,11,y(13),26,25,true);
@@ -319,7 +316,6 @@ function aTide(g,p,P,t){
  const S=P.raw;
  /* The tide settles rather than lifts: a late 2px drop, authored on its own clock. */
  if(S==='failure')P.lift=t<500?0:A_EASE_OUT((t-500)/700)*2;
- aShadow(g,p,P.lift,25);
  const y=v=>v+P.lift, sway=P.sway;
  /* The prototype raises only the right-hand reach on approval/success; its leftRaised is
     declared and never used. Reproduced as authored, not "fixed". */
@@ -379,7 +375,6 @@ function aActProp(g,p,P,t){
 
 /* SPARK -- a lamplighter moth. Brass, wax and a glass dome. Small, narrow, tall. */
 function aSparkMoth(g,p,P,t){
- aShadow(g,p,P.lift,15);
  const y=v=>v+P.lift+P.shake, L=aLimbPose(P.arm,t);
  // glass dome over a live wick
  aRect(g,19,y(6),10,2,p.outline);aRect(g,17,y(8),14,3,p.outline);aRect(g,16,y(11),16,7,p.outline);
@@ -419,7 +414,6 @@ function aRascalTail(g,p,side,t){
  for(let i=0;i<pts.length-1;i++){aLine(g,pts[i].x,pts[i].y,pts[i+1].x,pts[i+1].y,p.outline,4);aLine(g,pts[i].x,pts[i].y,pts[i+1].x,pts[i+1].y,p.body,2);}
  const tip=pts[4];aRect(g,tip.x-2,tip.y-2,4,4,p.light);aRect(g,tip.x-1,tip.y-1,2,2,p.body);}
 function aRascal(g,p,P,t){
- aShadow(g,p,P.lift,30);
  const y=v=>v+P.lift+P.shake;
  aRascalTail(g,p,-1,t);aRascalTail(g,p,1,t);
  // low hunched torso
@@ -459,7 +453,6 @@ function aRascal(g,p,P,t){
 
 /* PRIME — a keystone keeper. Polished brass over obsidian. Tall, narrow, formal. */
 function aPrime(g,p,P,t){
- aShadow(g,p,P.lift,22);
  const y=v=>v+P.lift+P.shake;
  // obsidian plinth base
  aRect(g,14,y(38),20,3,p.outline);aRect(g,16,y(41),16,2,p.outline);
@@ -494,7 +487,6 @@ function aPrime(g,p,P,t){
 
 /* PRISM — a faceted lantern-fish. Cut glass, hard facets, internal light. Diamond, tall. */
 function aPrism(g,p,P,t){
- aShadow(g,p,P.lift,20);
  const y=v=>v+P.lift+P.shake, tilt=P.arm==='dig'||P.arm==='run'?1:0;
  // tail fan, drawn as stepped facets
  [[30,36,7,2],[33,39,6,2],[35,42,5,2]].forEach((q,i)=>{
@@ -541,7 +533,6 @@ function aVeilWing(g,p,side,pose,lift){
   aRect(g,side<0?48-q[0]-q[2]+1:q[0]+1,y(q[1])+1,q[2]-2,1,i%2?p.metalLight:p.light);
   aRect(g,side<0?48-q[0]-q[2]+1:q[0]+1,y(q[1])+2,q[2]-2,1,p.dark);});}
 function aVeil(g,p,P,t){
- aShadow(g,p,P.lift,26);
  const y=v=>v+P.lift+P.shake;
  const pose=P.arm==='raised'?'raised':P.arm==='type'||P.arm==='run'?'work':'fold';
  aVeilWing(g,p,-1,pose,P.lift);aVeilWing(g,p,1,pose,P.lift);
@@ -574,7 +565,6 @@ function aVeil(g,p,P,t){
 
 /* EMBER — a kiln sprite carrying a live coal. Terracotta and fire. Round, wide, low. */
 function aEmber(g,p,P,t){
- aShadow(g,p,P.lift,26);
  const y=v=>v+P.lift+P.shake, glow=P.expr==='low'?p.danger:P.expr==='happy'?p.metalLight:p.glow;
  // squat kiln body, stepped silhouette
  aRect(g,19,y(12),10,2,p.outline);aRect(g,16,y(14),16,3,p.outline);
@@ -642,7 +632,6 @@ function vcwDrawPet(g,id,state,activity,elapsed,opts){
  const P=aPose(state,activity,t,reduced,liftAmp);
  const pal=opts.palette||A_PAL[id];
  g.clearRect(0,0,48,48);
- if(opts.ground!==false)aRect(g,0,42,48,6,'#20232b');
  def.draw(g,pal,P,t);
  return true;}
 """

@@ -34,7 +34,7 @@ function vcwMonitor(g,x,y,f){vcwBlock(g,x-6,y-10,12,9,'#252a33');vcwR(g,x-4,y-8,
 function vcwConfetti(g,f){const cs=['#5eead4','#fde047','#c4b5fd','#60a5fa'];for(let i=0;i<11;i++)vcwR(g,(i*13+f*2)%48,(i*7+f)%28,2,2,cs[i%cs.length]);}
 function vcwDude(g,x,pk,o,v){
  o=o||{};v=v||VCW_CHARACTERS.spark;const expr=o.expr||v.defExpr||'neutral',base=42-(o.bob||0),s=pk.skin,d=pk.dark;
- vcwR(g,x-7,base,14,2,'rgba(0,0,0,.35)');const tap=(o.tapFoot&&o.frame%6<3)?1:0,lx=x-v.bodyW/2+1,rx=x+v.bodyW/2-4;
+ const tap=(o.tapFoot&&o.frame%6<3)?1:0,lx=x-v.bodyW/2+1,rx=x+v.bodyW/2-4;
  vcwR(g,lx,base-v.legH+tap,3,v.legH-tap,d);vcwR(g,rx,base-v.legH,3,v.legH,d);vcwR(g,lx-1,base-2,5,2,pk.shoe);vcwR(g,rx-1,base-2,5,2,pk.shoe);
  const slump=o.pose==='slump'?1:0,ty=base-v.legH-v.torsoH,tw=v.bodyW;vcwBlock(g,x-tw/2,ty,tw,v.torsoH,s);vcwR(g,x-tw/2-1,ty,tw+1,2,d);vcwR(g,x-tw/2,ty+v.torsoH-2,tw,2,d);
  if(v.collar){vcwBlock(g,x-3,ty,6,2,d);vcwR(g,x-1,ty+1,2,1,vcwLite(d,24));}
@@ -50,7 +50,7 @@ function vcwDude(g,x,pk,o,v){
  if(v.brow){vcwR(g,le,ey-2,3,1,d);vcwR(g,re,ey-2+(expr==='smirk'?1:0),3,1,d);}if(v.nose)vcwR(g,hx+(v.headW>>1),ey+3,1,2,vcwLite(s,-32));
  if(expr==='happy'||expr==='excited')vcwR(g,hx+7,hy+12,5,1,pk.eye);else if(expr==='smirk')vcwR(g,hx+9,hy+12,4,1,pk.eye);else if(expr==='failed')vcwR(g,hx+7,hy+12,5,1,'#f87171');
  if(v.prime){vcwR(g,hx+2,hy,v.headW-4,1,'#67e8f9');vcwR(g,x-1,ty+2,2,2,'#67e8f9');}}
-function vcwDraw(g,state,frame,opts){opts=opts||{};const pk=VCW_PACKS[opts.pack]||VCW_PACKS.default,v=VCW_CHARACTERS[opts.character]||VCW_CHARACTERS.spark;g.clearRect(0,0,48,48);if(opts.ground!==false)vcwR(g,0,42,48,6,'#20232b');const hero=o=>vcwDude(g,20,pk,Object.assign({frame:frame},o||{}),v);
+function vcwDraw(g,state,frame,opts){opts=opts||{};const pk=VCW_PACKS[opts.pack]||VCW_PACKS.default,v=VCW_CHARACTERS[opts.character]||VCW_CHARACTERS.spark;g.clearRect(0,0,48,48);const hero=o=>vcwDude(g,20,pk,Object.assign({frame:frame},o||{}),v);
  if(state==='tool'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({pose:'type',look:1,expr:'focused'});}else if(state==='thinking'||state==='starting'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({look:1,expr:'focused',bob:frame%10===0?1:0});vcwPips(g,27,8,frame);}else if(state==='waiting'){hero({tapFoot:true});vcwPips(g,30,12,frame,'#fbbf24');}else if(state==='approval'){hero({tapFoot:true});vcwR(g,34,18,7,10,'#e8eaf0');vcwR(g,34,18,7,2,'#94a3b8');vcwR(g,36,22,3,1,'#475569');}else if(state==='retry'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({pose:'type',look:1,expr:'focused'});vcwR(g,8,8,3,7,'#fbbf24');vcwR(g,9,17,2,2,'#fbbf24');}else if(state==='success'){vcwConfetti(g,frame);hero({pose:'armsup',expr:'happy',bob:frame%4===1?3:0});}else if(state==='failure'){hero({pose:'slump',expr:'failed'});vcwR(g,34,9,2,7,'#f87171');vcwR(g,34,18,2,2,'#f87171');}else if(state==='cancelled'){hero({pose:'cross',expr:'smirk'});}else if(state==='unknown'){hero({look:frame%8<4?-1:1});vcwQuestion(g,34,8,frame);}else hero({look:frame%10<5?0:1,bob:frame%16===0?1:0});}
 const VCW_SHEETS = {
   prism: {
@@ -325,7 +325,7 @@ function vcwScene(g,scene,frame,opts){
  opts=opts||{};const pk=VCW_PACKS[opts.pack]||VCW_PACKS.default;
  const v=(VCW_CHARACTERS[opts.character]&&!VCW_CHARACTERS[opts.character].renderer)?VCW_CHARACTERS[opts.character]:VCW_CHARACTERS.spark;
  const mate={skin:'#94a3b8',dark:'#475569',eye:'#0f172a',face:'#cbd5e1',shoe:'#334155'};
- g.clearRect(0,0,48,48);if(opts.ground!==false)vcwR(g,0,42,48,6,'#20232b');
+ g.clearRect(0,0,48,48);
  if(scene==='pair'){
   vcwDesk(g,30,25);vcwMonitor(g,32,22,frame);
   const swap=frame%24<12;
@@ -405,15 +405,12 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
 
     Only the character and deliberately-visible controls draw. What was removed, and why:
 
-    * the ground bar (``ground:false``) -- it spans the whole canvas, so on a transparent window it
-      is a hard rectangular slab, measured 132 pt wide under a ~60 pt character;
+    * decorative ground bars and cast shadows -- all hosts draw only creature pixels and
+      intentional action props, without a platform underneath;
     * the permanent caption card -- it is now a transient bubble, shown on hover or for a moment
       after the state text actually changes, and inert (``pointer-events:none``) at rest;
     * ``-webkit-app-region`` -- an Electron/Chromium-shell property that WKWebView does not
       implement, so it never controlled dragging and never excluded the return button.
-
-    The drop shadow is kept but follows the canvas alpha, so with the slab gone it is
-    character-shaped and has no rectangular boundary.
 
     The initial typed state is embedded in the document so the first frame is correct even when
     pywebview's first ``evaluate_js`` races the secondary window's load event.
@@ -432,8 +429,7 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
         "overflow:hidden;background:transparent;color:#e8eaf0;user-select:none}"
         "#shell{width:100%;height:100%;position:relative;display:flex;flex-direction:column;"
         "align-items:center;justify-content:center;cursor:grab}#shell:active{cursor:grabbing}"
-        f"canvas{{position:absolute;left:50%;bottom:{CANVAS_BOTTOM}px;transform:translateX(-50%);width:{CANVAS_SIZE}px;height:{CANVAS_SIZE}px;image-rendering:pixelated;"
-        "filter:drop-shadow(0 5px 9px rgba(0,0,0,.45))}"
+        f"canvas{{position:absolute;left:50%;bottom:{CANVAS_BOTTOM}px;transform:translateX(-50%);width:{CANVAS_SIZE}px;height:{CANVAS_SIZE}px;image-rendering:pixelated}}"
         # The status bubble sits ABOVE the character, never below. Two grounded lines: the bound
         # chat title, then the real current activity. Inert (pointer-events:none) so the pet
         # stays the handle, and it is inside the window so it cannot be clipped away.
@@ -491,7 +487,7 @@ function vcwPaint(now){
  const key=JSON.stringify([vcwState.state,vcwState.character,vcwState.pack,vcwState.activity,vcwFrame]);
  if(key!==vcwPaintKey){
   VoolCompanionWorld.draw(vcwCtx,vcwState.state,vcwFrame,
-   Object.assign({},vcwState,{ground:false,activity:vcwState.activity,reduced:reduced,
+   Object.assign({},vcwState,{activity:vcwState.activity,reduced:reduced,
     elapsed:now-vcwStarted}));
   vcwPaintKey=key;
  }
