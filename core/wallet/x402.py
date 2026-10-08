@@ -120,6 +120,7 @@ def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: d
 # --- the paid-resource flow: fetch -> 402 -> capped proposal -> (operator approval) -> retry with X-PAYMENT -> bound receipt ---
 
 import uuid
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 from core.wallet import outbound, receipts
@@ -134,10 +135,16 @@ BINDING_PAID = "paid"
 BINDING_DELIVERED = "delivered"
 ALLOW_LOOPBACK_ENV = "VOOL_WALLET_X402_ALLOW_LOOPBACK"
 _BINDING_COLS = "binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, tx_signature, state, resource_status, resource_digest, resource_bytes, created_at, updated_at, version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, nonce, deadline, expires_at, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, fee_asset, max_timeout_seconds, asset_address"
-#: A request's binding is never handed to another proposal while its own proposal waits on its owner, is being paid or
-#: has paid (these states), nor while that proposal still holds reserved spend: see :func:`binding_guard`.
-BINDING_HELD_STATES = (proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE,
+#: A request's binding is never handed to another proposal while its own proposal is being prepared, waits on its
+#: owner, is being paid or has paid (these states: every state but a terminal refusal), nor while that proposal still
+#: holds reserved spend: see :func:`binding_guard`. A door binds its proposal BEFORE preparing it, so the request is
+#: held from the moment a proposal for it exists.
+PREPARING_STATES = (proposals.STATE_PROPOSED, proposals.STATE_SIMULATED, proposals.STATE_LIMITS_CHECKED)
+BINDING_HELD_STATES = (*PREPARING_STATES, proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE,
                        proposals.STATE_SIGNED, proposals.STATE_BROADCAST, proposals.STATE_CONFIRMED)
+#: Preparing moves a proposal on within seconds (each step is a bounded read). One still preparing this long after its
+#: last step was abandoned (its process stopped mid-prepare): see :func:`end_abandoned_prepare`.
+ABANDONED_PREPARE_SECONDS = 300.0
 
 
 @dataclass(frozen=True)
@@ -261,10 +268,56 @@ def binding_guard() -> tuple[str, tuple[Any, ...]]:
 
 def reject_unbound(proposal_id: str, *, bound_proposal_id: str) -> None:
     """A proposal minted for a request that another proposal holds never becomes approvable: it is rejected while still
-    proposed. A proposal that is the bound one, or that was not minted just now, is left as it is."""
+    proposed, and its receipt says so with nothing charged. A proposal that is the bound one, or that was not minted
+    just now, is left as it is."""
     if proposal_id and proposal_id != bound_proposal_id:
-        proposals.transition(proposal_id, proposals.STATE_REJECTED, detail={"reason": "request_bound_to_another_payment", "bound_proposal_id": bound_proposal_id},
-                             expected_state=proposals.STATE_PROPOSED, fault_code="wallet_duplicate_payment")
+        rejected = proposals.transition(proposal_id, proposals.STATE_REJECTED, detail={"reason": "request_bound_to_another_payment", "bound_proposal_id": bound_proposal_id},
+                                        expected_state=proposals.STATE_PROPOSED, fault_code="wallet_duplicate_payment")
+        if rejected is not None:
+            receipts.record_receipt(rejected, state=proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", extra={"refusal": {
+                "reason": "request_bound_to_another_payment", "charged_amount_minor": 0, "charged_fee_minor": 0}})
+
+
+def prepare_bound(proposal_id: str, *, source_context: dict[str, Any] | None) -> proposals.TransactionProposal:
+    """Prepare a proposal a door has just bound to its request. When prepare refuses without having ended the proposal
+    (an inactive network, a missing wallet, an unexpected error), the proposal is rejected here under that fault, with
+    its receipt, so the binding never holds the request for a proposal that cannot become approvable; the refusal is
+    raised as it came. A later fetch of the same request proposes afresh."""
+    from core.wallet import lifecycle
+
+    try:
+        return lifecycle.default_lifecycle(source_context=source_context).prepare(proposal_id)
+    except Exception as exc:
+        current = proposals.get_proposal(proposal_id)
+        if current is not None and current.state in PREPARING_STATES:
+            code = exc.code if isinstance(exc, WalletFault) else "wallet_dependency_unavailable"
+            rejected = proposals.transition(proposal_id, proposals.STATE_REJECTED, detail={"reason": "prepare_refused", "fault": code},
+                                            expected_state=current.state, fault_code=code)
+            if rejected is not None:
+                receipts.record_receipt(rejected, state=proposals.STATE_REJECTED, fault_code=code, extra={"refusal": {
+                    "reason": "prepare_refused", "charged_amount_minor": 0, "charged_fee_minor": 0}})
+        raise
+
+
+def end_abandoned_prepare(proposal: proposals.TransactionProposal | None) -> None:
+    """A request's proposal still preparing :data:`ABANDONED_PREPARE_SECONDS` after its last step was abandoned: it was
+    never approved and never held spend, so it is rejected here, with its receipt and nothing charged, and the request
+    is free for the next fetch instead of closed for good. A younger one, or one whose age cannot be read, keeps the
+    request (fail closed). The move is a compare-and-set on the state it was read in, so a prepare still running
+    cannot be overtaken: if it moved first, nothing changes; if this moves first, its next step finds it ended."""
+    if proposal is None or proposal.state not in PREPARING_STATES:
+        return
+    try:
+        since = datetime.fromisoformat(str(proposal.updated_at))
+    except ValueError:
+        return
+    if since.tzinfo is None or datetime.now(timezone.utc) - since < timedelta(seconds=ABANDONED_PREPARE_SECONDS):
+        return
+    rejected = proposals.transition(proposal.proposal_id, proposals.STATE_REJECTED, detail={"reason": "prepare_abandoned"},
+                                    expected_state=proposal.state, fault_code="wallet_quote_expired")
+    if rejected is not None:
+        receipts.record_receipt(rejected, state=proposals.STATE_REJECTED, fault_code="wallet_quote_expired", extra={"refusal": {
+            "reason": "prepare_abandoned", "charged_amount_minor": 0, "charged_fee_minor": 0}})
 
 
 def _update_binding(request_digest: str, **fields: Any) -> None:
@@ -359,9 +412,7 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     binding = _upsert_binding(request_digest=digest, url=clean_url, method=method, offer=offer, proposal_id=proposal.proposal_id, state=BINDING_PAYMENT_REQUIRED)
     if binding is None:
         return _lost_request(digest, proposal.proposal_id, timeout=timeout, source_context=source_context)
-    from core.wallet import lifecycle
-
-    prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
+    prepared = prepare_bound(proposal.proposal_id, source_context=source_context)
     return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=status, body=body, proposal_id=prepared.proposal_id, binding_id=binding.get("binding_id", ""), offer=offer)
 
 
@@ -388,6 +439,7 @@ def _bound_outcome(binding: dict[str, Any] | None, *, timeout: float, source_con
         return _deliver(binding, proposal, timeout=timeout, source_context=source_context)
     if proposal.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
         return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=PAYMENT_REQUIRED, proposal_id=proposal.proposal_id, binding_id=binding["binding_id"])
+    end_abandoned_prepare(proposal)
     refuse_while_dispatched(proposal, authority=AUTHORITY, source_context=source_context)
     return None
 
@@ -455,9 +507,7 @@ def _fetch_v2(v2_offer, clean_url: str, method: str, wallet_id: str, *, source_c
         entry=entry, facilitator=facilitator,
     ) is None:
         return _lost_request(digest, proposal.proposal_id, timeout=20.0, source_context=source_context)
-    from core.wallet import lifecycle as wallet_lifecycle
-
-    wallet_lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
+    prepare_bound(proposal.proposal_id, source_context=source_context)
     binding = binding_for_digest(digest) or {}
     return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=PAYMENT_REQUIRED, proposal_id=proposal.proposal_id, binding_id=binding.get("binding_id", ""), offer=_v2_to_v1_view(v2_offer))
 

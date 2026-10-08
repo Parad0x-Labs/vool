@@ -146,6 +146,119 @@ def test_a_late_challenge_cannot_rebind_a_request_its_payment_holds(wallet_env, 
     assert x402.binding_for_proposal(parked.proposal_id)["proposal_id"] == parked.proposal_id
     others = [p for p in proposals.list_proposals() if p.proposal_id != parked.proposal_id]
     assert [(p.state, p.amount_minor) for p in others] == [(proposals.STATE_REJECTED, 1400)]
+    from core.wallet import receipts
+
+    refused = [r for r in receipts.list_receipts() if r["proposal_id"] == others[0].proposal_id]
+    assert [(r["state"], r["fault_code"], r["refusal"]["reason"], r["refusal"]["charged_amount_minor"]) for r in refused] == [
+        (proposals.STATE_REJECTED, "wallet_duplicate_payment", "request_bound_to_another_payment", 0)]
+
+
+def test_a_challenge_that_arrives_while_the_first_payment_is_prepared_cannot_take_its_request(wallet_env, resource, monkeypatch):
+    """The first caller has bound the request and is still preparing its proposal (simulating it) when a second
+    caller's 402 arrives on other terms. The request stays the first proposal's: the second proposal is rejected and
+    never approvable, and one payment waits for the owner."""
+    from core.wallet import custody, lifecycle, proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket(custody)
+    asked = resource.amount_minor
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+    late: list[WalletFault] = []
+
+    def prepare_as_another_caller_arrives(self, proposal_id):
+        if not late:
+            late.append(None)
+            resource.amount_minor = asked - 100
+            with pytest.raises(WalletFault) as exc:
+                x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+            late[0] = exc.value
+        return real_prepare(self, proposal_id)
+
+    monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", prepare_as_another_caller_arrives)
+    first = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert (late[0].code, late[0].context["reason"]) == ("wallet_duplicate_payment", "request_bound_to_another_payment")
+    assert x402.binding_for_proposal(first.proposal_id)["proposal_id"] == first.proposal_id
+    assert sorted((p.amount_minor, p.state) for p in proposals.list_proposals()) == [
+        (asked - 100, proposals.STATE_REJECTED), (asked, proposals.STATE_PENDING_APPROVAL)]
+    assert wallet_env["rpc"].send_count() == 0
+
+
+def _refusal_reasons(proposal_id):
+    from core.wallet import receipts
+
+    return [(r["state"], r["fault_code"], r["refusal"]["reason"], r["refusal"]["charged_amount_minor"], r["refusal"]["charged_fee_minor"])
+            for r in receipts.list_receipts() if r["proposal_id"] == proposal_id]
+
+
+def test_a_payment_whose_prepare_refuses_frees_its_request(wallet_env, resource, monkeypatch):
+    """The owner switches the wallet's network environment between the 402 and its prepare: prepare refuses before the
+    proposal could become approvable. That proposal is ended with its receipt (nothing charged), so it does not keep
+    the request; once the environment is back, the same request parks a fresh payment."""
+    from core.wallet import custody, lifecycle, proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket(custody)
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+
+    def prepare_after_the_switch(self, proposal_id):
+        monkeypatch.setenv("VOOL_WALLET_NETWORK_ENVIRONMENT", "mainnet")
+        return real_prepare(self, proposal_id)
+
+    monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", prepare_after_the_switch)
+    with pytest.raises(WalletFault) as exc:
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert exc.value.code == "wallet_environment_inactive"
+    [refused] = proposals.list_proposals()
+    assert refused.state == proposals.STATE_REJECTED
+    assert _refusal_reasons(refused.proposal_id) == [(proposals.STATE_REJECTED, "wallet_environment_inactive", "prepare_refused", 0, 0)]
+    monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", real_prepare)
+    monkeypatch.setenv("VOOL_WALLET_NETWORK_ENVIRONMENT", "testnet")
+    fresh = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert fresh.status == x402.OUTCOME_PAYMENT_REQUIRED and fresh.proposal_id != refused.proposal_id
+    assert proposals.get_proposal(fresh.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+    assert x402.binding_for_proposal(fresh.proposal_id)["proposal_id"] == fresh.proposal_id
+    assert wallet_env["rpc"].send_count() == 0
+
+
+class _ProcessStopped(BaseException):
+    """The process stopping mid-prepare: nothing after the raise runs, as after a kill."""
+
+
+def test_a_payment_abandoned_mid_prepare_frees_its_request_only_after_the_prepare_window(wallet_env, resource, monkeypatch):
+    """The process stopped while the first payment was being prepared: the proposal was never approvable and nothing
+    was held. Within the prepare window its request stays its own (a prepare may still be running). Past it, the next
+    fetch ends the abandoned proposal with its receipt (nothing charged) and parks a fresh payment."""
+    from datetime import datetime, timedelta, timezone
+
+    from core.wallet import custody, lifecycle, proposals, x402
+    from core.wallet.errors import WalletFault
+    from core.wallet.store import connection
+
+    profile = _pocket(custody)
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+
+    def stop(self, proposal_id):
+        raise _ProcessStopped
+
+    monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", stop)
+    with pytest.raises(_ProcessStopped):
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", real_prepare)
+    [abandoned] = proposals.list_proposals()
+    assert abandoned.state == proposals.STATE_PROPOSED
+    with pytest.raises(WalletFault) as exc:
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert exc.value.code == "wallet_duplicate_payment"
+    assert [(p.proposal_id, p.state) for p in proposals.list_proposals()] == [(abandoned.proposal_id, proposals.STATE_PROPOSED)]
+    past = (datetime.now(timezone.utc) - timedelta(seconds=x402.ABANDONED_PREPARE_SECONDS + 1)).isoformat()
+    with connection() as conn:
+        conn.execute("UPDATE wallet_proposals SET updated_at = ? WHERE proposal_id = ?", (past, abandoned.proposal_id))
+    fresh = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert fresh.status == x402.OUTCOME_PAYMENT_REQUIRED and fresh.proposal_id != abandoned.proposal_id
+    assert proposals.get_proposal(fresh.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+    assert proposals.get_proposal(abandoned.proposal_id).state == proposals.STATE_REJECTED
+    assert _refusal_reasons(abandoned.proposal_id) == [(proposals.STATE_REJECTED, "wallet_quote_expired", "prepare_abandoned", 0, 0)]
+    assert wallet_env["rpc"].send_count() == 0
 
 
 @pytest.mark.parametrize("first_check", ["current", "stale"])
