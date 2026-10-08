@@ -99,25 +99,24 @@ GROUND_BAR = "vcwR(g,0,42,48,6,'#20232b')"
 
 
 def test_desktop_surface_suppresses_the_full_width_ground_bar() -> None:
-    """RC-2a: the ground bar spans the whole 48px canvas, so on a transparent window it is a hard
-    rectangular slab -- measured 132pt wide under a character roughly half that."""
+    """Every host now omits decorative ground, including native canvas shadows."""
     html = render_desktop_companion_html()
-    assert "ground:false" in html
+    assert GROUND_BAR not in html
+    assert "aRect(g,0,42,48,6,'#20232b')" not in html
+    canvas_rule = html.split("canvas{", 1)[1].split("}", 1)[0]
+    assert "drop-shadow" not in canvas_rule
 
 
-def test_the_in_app_artwork_keeps_its_ground_bar() -> None:
-    """The repair removes a backdrop, not the character's identity. The bar is still painted for the
-    docked companion, where it is part of the scene rather than a slab on the desktop."""
+def test_all_renderers_omit_decorative_ground_bar() -> None:
+    """The owner requested bare creatures in chat, chooser, scenes and desktop alike.
+
+    Real-browser checks in test_companion_no_ground cover every pet/state/action and retain
+    intentional action props. There is no automatic platform in either shared draw path.
+    """
     from core.companion_world_fragment import COMPANION_WORLD_JS
 
-    # BOTH draw paths, named separately. Asserting only that the guarded bar appears "somewhere"
-    # let a mutation delete it from the character path and still pass on the strength of the scene
-    # path -- caught by tools/pet_sabotage_driver.py, which is why this is spelled out.
-    guarded = "if(opts.ground!==false)" + GROUND_BAR
-    assert guarded + ";const hero=" in COMPANION_WORLD_JS, "the character path lost its ground"
-    assert COMPANION_WORLD_JS.count(guarded) == 2, "the multi-worker scene path lost its ground"
-    # the guard must be opt-OUT: a caller that passes nothing still gets the bar
-    assert "opts.ground===false" not in COMPANION_WORLD_JS
+    assert GROUND_BAR not in COMPANION_WORLD_JS
+    assert "aRect(g,0,42,48,6,'#20232b')" not in COMPANION_WORLD_JS
 
 
 def test_desktop_document_paints_no_permanent_status_card() -> None:
