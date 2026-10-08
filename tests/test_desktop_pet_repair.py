@@ -269,7 +269,8 @@ def test_the_payload_allowlist_still_drops_everything_it_does_not_name() -> None
     clean = normalise_companion_payload(
         {"state": "idle", "evil": "rm -rf", "character": "spark", "url": "http://x"}
     )
-    assert set(clean) <= {"state", "character", "pack", "caption", "desktop_position"}
+    assert set(clean) <= {"state", "character", "pack", "caption", "chatTitle", "activity", "desktop_position"}
+    assert clean["chatTitle"] == clean["activity"] == ""
 
 
 # --------------------------------------------------------------------------- lifecycle
