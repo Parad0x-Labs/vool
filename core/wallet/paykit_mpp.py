@@ -69,6 +69,16 @@ def solana_challenges(headers: dict[str, Any] | None) -> list[Any]:
     return [c for c in found if str(c.method) == METHOD_SOLANA]
 
 
+def names_solana_challenge(headers: dict[str, Any] | None) -> bool:
+    """Whether a 402 carries a ``Payment`` challenge naming ``method="solana"``, read WITHOUT pay-kit (the scheme token
+    and the method parameter only), so a door that cannot pay it can still say what it needs. Reads only."""
+    lowered = {str(k).lower(): v for k, v in (headers or {}).items()}
+    compact = "".join(str(lowered.get(_WWW_AUTHENTICATE) or "").lower().split())
+    if not (compact.startswith("payment") or ",payment" in compact):
+        return False
+    return 'method="solana"' in compact or "method=solana," in compact or compact.endswith("method=solana")
+
+
 def claims_challenge(headers: dict[str, Any] | None, *, wallet_id: str) -> bool:
     """Whether a 402 the ordinary x402 door met is an MPP Solana challenge for this lane: pay-kit is installed, the
     wallet is a Solana wallet, and the 402 names a Solana Payment challenge. Reads only."""
