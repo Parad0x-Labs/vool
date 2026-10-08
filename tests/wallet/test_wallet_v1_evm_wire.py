@@ -287,6 +287,38 @@ def test_new_v1_terms_for_the_same_request_do_not_park_a_second_payment(rig, ans
         assert (x402.binding_for_proposal(proposal_id) or {}).get("proposal_id") == proposal_id
 
 
+@pytest.mark.parametrize("answer", ["drop", "unproven"])
+def test_a_late_v1_challenge_cannot_rebind_a_request_its_unproven_payment_holds(rig, monkeypatch, answer):
+    """The second caller's first check was stale (it passed before the first payment left), so its request goes out
+    and its 402 on other terms arrives while the first payment is unproven, settled or not. The binding's own
+    compare-and-set keeps the request: the late proposal is rejected and nothing else can be signed."""
+    from core.wallet import proposals, x402
+
+    rpc, facilitator = rig
+    with X402V1EvmResource(facilitator, rpc, paid_answer=answer) as resource, EvmExtensionSigner() as signer:
+        wallet_id, proposal_id, engine, request_id, signature = _parked_and_signed(resource, signer)
+        if answer == "drop":
+            with pytest.raises(WalletFault):
+                engine.submit_external_signature(request_id, signature_hex=signature)
+        else:
+            assert engine.submit_external_signature(request_id, signature_hex=signature).state == proposals.STATE_BROADCAST
+        resource.amount_minor = AMOUNT + 1
+        real = x402._bound_outcome
+        calls = []
+
+        def stale_once(binding, **kwargs):
+            calls.append(binding)
+            return None if len(calls) == 1 else real(binding, **kwargs)
+
+        monkeypatch.setattr(x402, "_bound_outcome", stale_once)
+        with pytest.raises(WalletFault) as late:
+            x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert late.value.code == "wallet_duplicate_payment" and late.value.context["reason"] == "payment_outcome_unknown"
+        assert resource.challenges == 2, "the late caller's request did go out: its first check was stale"
+        assert (x402.binding_for_proposal(proposal_id) or {}).get("proposal_id") == proposal_id
+        others = [p for p in proposals.list_proposals() if p.proposal_id != proposal_id]
+        assert [(p.state, p.amount_minor) for p in others] == [(proposals.STATE_REJECTED, AMOUNT + 1)]
+
 def _sign(signer: EvmExtensionSigner, typed: dict[str, Any]) -> str:
     import http.client
     from urllib.parse import urlsplit

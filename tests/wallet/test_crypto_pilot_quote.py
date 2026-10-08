@@ -470,6 +470,27 @@ def test_each_refused_approval_on_the_sheet_leaves_a_receipt_and_the_lock_reject
     ]
 
 
+def test_a_wrong_credential_on_a_row_whose_lane_is_not_ready_leaves_its_receipt(quote_home, monkeypatch):
+    """The credential is proven before the lane stops a row whose transfer lane has not landed: a wrong one is a counted
+    attempt with its receipt under the fault the owner was shown; the right one meets the typed lane stop, which is not
+    a refusal of the owner's approval and leaves no receipt. Nothing is charged and nothing is sent."""
+    from core.wallet import approval, capabilities, proposals
+
+    wallet = _ready_pilot_wallet(SOLANA_MAINNET)
+    with ScriptedRpc(genesis_hash=MAINNET_GENESIS) as node:
+        engine, proposal, quote = _prepared_quote(monkeypatch, node, wallet)
+        monkeypatch.setattr(capabilities, "PILOT_TRANSFER_READY_ROWS", frozenset())
+        with pytest.raises(WalletFault) as wrong:
+            engine.approve_pilot_transfer(proposal.proposal_id, quote_id=quote["quote_id"], quote_digest=quote["digest"], approver=approval.PinApprover("593027"))
+        assert wrong.value.code == "wallet_pin_invalid"
+        with pytest.raises(WalletFault) as stopped:
+            engine.approve_pilot_transfer(proposal.proposal_id, quote_id=quote["quote_id"], quote_digest=quote["digest"], approver=approval.PinApprover(PIN))
+        assert (stopped.value.code, stopped.value.context.get("reason")) == ("wallet_network_disabled", capabilities.REASON_PILOT_LANE_INCOMPLETE)
+        assert "sendTransaction" not in [call.get("method") for call in node.calls]
+    assert proposals.get_proposal(proposal.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+    assert _sheet_receipts(proposal.proposal_id) == [(proposals.STATE_PENDING_APPROVAL, "wallet_pin_invalid", "wallet_pin_invalid", 1, 0, 0)]
+
+
 def test_the_owners_rejection_on_the_sheet_before_the_claim_leaves_a_receipt(quote_home, monkeypatch):
     from core.wallet import proposals, settlement
 
