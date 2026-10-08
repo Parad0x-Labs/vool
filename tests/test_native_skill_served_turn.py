@@ -180,8 +180,15 @@ def test_model_switch_invariance_between_provider_lanes(served_rig, tmp_path) ->
             surface="api",
             source_context=source_context,
         )
-        system = request.system_prompt()
-        return system[system.index(guidance_marker):] if guidance_marker in system else ""
+        # Skill guidance is per-turn content: it rides the "Context for this turn:" system
+        # message after the history, and the leading system message stays byte-stable for
+        # provider prompt caching (main 00ba5bd5, ported in dc937f7). Read it from whichever
+        # system message carries it, exactly as the wire side above does.
+        for message in request.messages:
+            content = str(message.content or "")
+            if message.role == "system" and guidance_marker in content:
+                return content[content.index(guidance_marker):]
+        return ""
 
     _FOLLOWING_SEGMENT_HEADS = (
         "User-stipulated assumptions",
