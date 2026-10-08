@@ -45,6 +45,9 @@ ONE_OFF_REQUESTS = [
     "show me settings.yaml in markdown",
     "read setup.py, answer in bullet points",
     "joke, short",
+    "poem, formal tone",
+    "limerick, British English",
+    "summary, bullet points",
 ]
 
 
