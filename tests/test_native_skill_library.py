@@ -534,7 +534,7 @@ def test_prompt_seam_injects_the_selected_native_skill(native_world) -> None:
         surface="api",
         source_context={"surface": "api"},
     )
-    system_prompt = request.system_prompt()
+    system_prompt = request.instructions()
     assert "NATIVE_PROMPT_MARKER" in system_prompt
     assert "grants no permissions" in system_prompt
 

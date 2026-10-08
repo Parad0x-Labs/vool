@@ -120,15 +120,16 @@ def test_a_self_declared_crash_over_an_unprovable_nit_is_rejected_and_downgraded
 
     defect = _finding_defect(candidate, _evidence(), TARGET, allow_observations=False)
 
-    assert defect != "", (
-        "a readability nit self-declared as harm_class='crash' must be rejected as the primary "
-        "finding, not waved through into the tier that maps to High severity"
+    # 2026-10-07 (series N): the primary gate no longer decides this by vocabulary, because it also
+    # refused real bugs worded in plain language (12/14 of Pack 1's real cases). The declared class
+    # now goes to the source challenge, which is fail-closed: the nit reaches High only on a clean
+    # `supported`, and tests/test_a_real_bug_in_plain_words_reaches_the_challenge.py pins that a nit
+    # declared as a crash is not shown when the challenge refutes it or is unsure. Survey rows, which are
+    # shown without a challenge, are still downgraded (test below).
+    assert defect == "", defect
+    assert candidate.get("claim_needs_challenge") is True, (
+        "a declared crash without crash words must be marked for the challenge, not trusted"
     )
-    assert candidate["harm_class"] != "crash", (
-        "the resolved (downgraded) harm_class must be written back to the candidate; a downstream "
-        "reader must not still see the model's unearned 'crash' label"
-    )
-    assert candidate["harm_class"] not in PROVABLE_HARM_CLASSES
 
 
 def test_a_genuine_crash_claim_declaring_crash_is_still_accepted() -> None:

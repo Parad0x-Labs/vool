@@ -63,6 +63,23 @@ def _bound_prompts(state: ProviderState) -> list[str]:
     return state.system_prompts()
 
 
+def _bound_instructions(state: ProviderState) -> list[str]:
+    """The provider-bound system INSTRUCTIONS: every system message except retrieved evidence.
+
+    Since the memory capsule became the shipped default (033e170), a turn's retrieved context
+    recalls the user's own earlier chat turns -- here "create a skill ... that echoes a greeting
+    twice" -- which is the very text the conversational draft wrote into the skill. Recalled
+    evidence is not skill influence; skill guidance rides the instructions
+    (``InternalModelRequest.instructions`` draws the same line).
+    """
+    return [prompt for prompt in state.system_prompts() if "<retrieved_context>" not in prompt]
+
+
+def _skill_header(name: str) -> str:
+    """The attribution line every bound skill body carries (core.tool_offer_assembly._skill_header)."""
+    return f"[skill '{name}' from "
+
+
 def _recorded_skill_versions(daemon: ServedDaemon, session: str, name: str):
     """The version the durable ledger recorded for `name` on ANY offer event of the session.
 
@@ -378,8 +395,9 @@ def test_served_lifecycle_create_validate_install_edit_rollback_disable(family_r
     family_rig.state.requests.clear()
     family_rig.state.script = [{"final": "Hello, hello."}]
     _chat(daemon, "please echo a greeting twice for me", session, "turn-life-use-1")
-    bound = "\n".join(_bound_prompts(family_rig.state))
-    assert "echoes a greeting twice" in bound, "the activated skill never influenced a turn"
+    instructions = "\n".join(_bound_instructions(family_rig.state))
+    assert _skill_header("served-echo-skill") in instructions, "the activated skill never influenced a turn"
+    assert "echoes a greeting twice" in instructions, "the activated skill never influenced a turn"
     # The durable version record for the skill that influenced this turn:
     assert history()["head_version"] == 1
 
@@ -422,14 +440,17 @@ def test_served_lifecycle_create_validate_install_edit_rollback_disable(family_r
     family_rig.state.script = [{"final": "Hello once."}]
     _chat(daemon, "please echo a greeting twice for me", session, "turn-life-use-2")
     bound = "\n".join(_bound_prompts(family_rig.state))
-    assert "echoes a greeting" not in bound, "a disabled skill still influenced a served turn"
+    instructions = "\n".join(_bound_instructions(family_rig.state))
+    assert _skill_header("served-echo-skill") not in bound, "a disabled skill still influenced a served turn"
+    assert "echoes a greeting" not in instructions, "a disabled skill still influenced a served turn"
 
     assert daemon.post("/api/skills/enable", {"id": "served-echo-skill", "enabled": True})["ok"]
     family_rig.state.requests.clear()
     family_rig.state.script = [{"final": "Hello, hello again."}]
     _chat(daemon, "please echo a greeting twice for me", session, "turn-life-use-3")
-    bound = "\n".join(_bound_prompts(family_rig.state))
-    assert "echoes a greeting" in bound, "re-enabling did not restore the skill"
+    instructions = "\n".join(_bound_instructions(family_rig.state))
+    assert _skill_header("served-echo-skill") in instructions, "re-enabling did not restore the skill"
+    assert "echoes a greeting" in instructions, "re-enabling did not restore the skill"
 
 
 def test_versions_and_disable_survive_a_served_restart(tmp_path_factory) -> None:
@@ -492,7 +513,9 @@ def test_versions_and_disable_survive_a_served_restart(tmp_path_factory) -> None
         fresh.pin_provider_model()
         _chat(fresh, "please echo a farewell twice for me", session, "turn-rs-use")
         bound = "\n".join(state.system_prompts())
-        assert "echoes a farewell" not in bound, "the disable did not survive the restart"
+        instructions = "\n".join(_bound_instructions(state))
+        assert _skill_header("restart-proof-skill") not in bound, "the disable did not survive the restart"
+        assert "echoes a farewell" not in instructions, "the disable did not survive the restart"
         history = json.loads((skill_dir / "versions" / "history.json").read_text(encoding="utf-8"))
         assert history["head_version"] == 1, "the version history did not survive the restart"
     finally:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from typing import Any
 
@@ -17,7 +19,13 @@ from core.context_history_authority import (
     select_history_policy,
 )
 from core.context_namespace import load_chat_namespace
-from core.context_retrieval import resolve_semantic_access_policy
+from core.context_retrieval import (
+    resolve_semantic_access_policy,
+    revoked_tokens_for_chat,
+)
+from core.context_retrieval import (
+    text_carries_revoked_token as _carries_revoked_token,
+)
 from core.context_scope import ContextAccessPolicy, current_turn_corrections
 from core.conversation_summarizer import KEEP_RECENT, SUMMARY_THRESHOLD, compress_if_needed
 from core.persistent_memory import describe_session_memory_policy, load_memory_excerpt
@@ -362,7 +370,476 @@ def _log_transcript_assembled(source: str, transcript: list[dict[str, str]], ses
     return transcript
 
 
+def _with_semantic_memory_capsule(
+    transcript: list[dict[str, str]],
+    *,
+    session_id: str | None,
+    current_user_text: str,
+    source_context: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
+    """Insert the session-scoped semantic-memory capsule into a chat transcript.
+
+    The request assembler's consumer side already exists:
+    ``prompt_normalizer._build_conversational_request`` separates
+    ``<retrieved_context>`` system messages into their own payload category
+    (``retrieved_capsule``), gives them their own history budget slot and switches
+    the context profile to ``chat_capsule``. This is the missing producer side of
+    that contract — before it, ``inject_retrieved``'s only production caller
+    (turn_reasoning's exact-recall branch) discarded the injected transcript, so
+    the repaired capsule never reached an ordinary chat turn's provider request.
+
+    Scope/authority: ``inject_retrieved`` re-resolves the persisted namespace
+    policy itself and drops foreign-session nodes, so nothing here bypasses the
+    transcript's own scope decision; a denied/failed lookup returns the transcript
+    unchanged. Runs ONLY under ``VOOL_CONTEXT_CAPSULE_V2`` (same default-off flag
+    as the capsule path itself): flag-off turns assemble exactly the transcript
+    they assembled before. The block is injected during prompt assembly — before
+    the adapter seals the request — never appended after sealing.
+    """
+    import os
+
+    clean_session = str(session_id or "").strip()
+    query = str(current_user_text or "").strip()
+    base = list(transcript or [])
+    if not clean_session or not query:
+        return base
+    try:
+        from core.local_ollama_inventory import env_flag_enabled
+
+        if not env_flag_enabled(os.environ, "VOOL_CONTEXT_CAPSULE_V2", default=False):
+            return base
+        from core import context_retrieval as _context_retrieval
+
+        # The turn-level retrieval telemetry is owned by the turn's own inject
+        # (turn_reasoning's exact-recall branch, K-08 post-seal verification).
+        # Transcript assembly can run several times per turn; each run must not
+        # clobber that state with its own capsule result, or the K-08 verify-only
+        # re-check would see facts from a different assembly pass and (correctly)
+        # refuse. Restore the prior state after harvesting the injected block.
+        prior_telemetry = dict(_context_retrieval.get_last_retrieval_telemetry())
+        try:
+            # Carrier turn gives the injector its before-last-user placement
+            # anchor; it is removed again because the assembler appends the real
+            # current user message itself (with its payload labels).
+            carrier_turn = {"role": "user", "content": query}
+            injection_context = {"chat_id": clean_session}
+            for field in ("runtime_home", "question_as_of", "search_expansions"):
+                if field in (source_context or {}):
+                    injection_context[field] = source_context[field]
+            injection_args = {"source_context": injection_context}
+            if _context_retrieval.query_requests_complete_collection(query):
+                from core.context_capsule_v2 import estimate_tokens, resolve_budget
+
+                # This producer injects semantic evidence only. The existing
+                # transcript and current question are already reserved here;
+                # pin/recent pools must not reserve those same turns again.
+                injection_args["budget"] = resolve_budget(
+                    bucket="B",
+                    role="general",
+                    output_reserve_tokens=2048,
+                    transcript_tokens=estimate_tokens(
+                        json.dumps([*base, carrier_turn], ensure_ascii=False)
+                    ),
+                    pin_ceiling_frac=0.0,
+                    recent_floor_frac=0.0,
+                    evidence_target_tokens=2048,
+                    retrieval_ceiling_tokens=2048,
+                )
+            injected = _context_retrieval.inject_retrieved(
+                clean_session,
+                query,
+                [*base, carrier_turn],
+                **injection_args,
+            )
+        finally:
+            _context_retrieval._set_retrieval_telemetry(prior_telemetry)
+        return [dict(message) for message in injected if message is not carrier_turn]
+    except Exception:
+        return base
+
+
+def _harvest_admitted_capsule_evidence(
+    base_transcript: list[dict[str, str]],
+    final_transcript: list[dict[str, str]],
+) -> str:
+    """The ``<retrieved_context>`` block(s) THIS assembly pass injected, as one text.
+
+    Only messages that were not in the base transcript count, so a stored history
+    echo can never masquerade as this turn's admitted capsule. The harvested text
+    is exactly what the provider request carried — the same scope-valid, redacted,
+    budgeted capsule the reader saw, byte for byte.
+    """
+
+    base_keys = [
+        (str(item.get("role") or ""), str(item.get("content") or ""))
+        for item in base_transcript
+        if isinstance(item, dict)
+    ]
+    blocks: list[str] = []
+    for item in final_transcript:
+        if not isinstance(item, dict) or item.get("role") != "system":
+            continue
+        content = str(item.get("content") or "")
+        if "<retrieved_context>" not in content:
+            continue
+        if (str(item.get("role") or ""), content) in base_keys:
+            continue
+        blocks.append(content.strip())
+    return "\n".join(block for block in blocks if block).strip()
+
+
+def _record_admitted_capsule_evidence(
+    source_context: dict[str, Any] | None,
+    *,
+    session_id: str | None,
+    capsule_text: str,
+) -> None:
+    """Publish the admitted capsule this turn's provider request actually carried.
+
+    WHY this exists (measured 2026-09-30, LongMemEval case q3a7331b8fd7279ce): the
+    capsule reaches the provider through transcript assembly, but the post-
+    generation guards built their evidence from the tiered context, hydrated
+    history and local candidates instead — so a reader answer supported by an
+    admitted capsule fact ("using my Fitbit Charge 3 for 9 months", stated
+    2023-09-02) was withdrawn by the past-time guard as an invented time. One
+    canonical authority: this records the SAME admitted block the reader
+    received; consumers must not re-derive a second factual view.
+
+    Two additive channels, same value: the caller's ``source_context`` (the
+    established copy-back channel provider-execution receipts already use) and
+    the retrieval telemetry (an additive key, never overwriting the turn-level
+    fields the K-08 verification reads). Both are best-effort and fail-soft —
+    absent evidence leaves every consumer exactly at its prior behavior.
+
+    FRESHNESS: the record is written on EVERY assembly pass for a bound session —
+    including a pass that injected nothing (flag off, denied lookup, empty
+    capsule), which clears both channels. Without the clear, turn N's telemetry
+    could authorize turn N+1's claims with turn N's evidence.
+    """
+
+    clean_session = str(session_id or "").strip()
+    text = str(capsule_text or "").strip()
+    if not clean_session:
+        return
+    record = (
+        {
+            "text": text,
+            "chat_id": clean_session,
+            "source": "canonical_runtime_transcript",
+        }
+        if text
+        else None
+    )
+    if isinstance(source_context, dict):
+        source_context["admitted_capsule_evidence"] = record
+    try:
+        from core.context_retrieval import update_retrieval_telemetry
+
+        update_retrieval_telemetry(last_admitted_capsule=record)
+    except Exception:
+        pass
+
+
+def admitted_capsule_evidence_text(
+    source_context: dict[str, Any] | None,
+    session_id: str | None = None,
+    *, question: str | None = None,
+) -> str:
+    """The admitted capsule evidence bound to THIS session, as text ("" when none).
+
+    The single reader for the admitted-evidence record: the past-time guard and
+    the final live-claim seam both call this, so reader and guards can never
+    diverge on which capsule counts. Session binding is enforced at consumption —
+    a record harvested for a different chat is refused, never borrowed. Fail-soft
+    in the refusing direction: absent, foreign, stale-cleared or malformed
+    evidence returns "" and every consumer behaves exactly as before this
+    channel existed.
+    """
+
+    context = source_context if isinstance(source_context, dict) else {}
+    clean_session = str(
+        session_id
+        or context.get("runtime_session_id")
+        or context.get("session_id")
+        or context.get("chat_id")
+        or ""
+    ).strip()
+    if not clean_session:
+        return ""
+    records: list[Any] = []
+    context_record = context.get("admitted_capsule_evidence")
+    if isinstance(context_record, dict):
+        records.append(context_record)
+    try:
+        from core.context_retrieval import get_last_retrieval_telemetry
+
+        telemetry_record = dict(get_last_retrieval_telemetry() or {}).get(
+            "last_admitted_capsule"
+        )
+        if "admitted_capsule_evidence" not in context and isinstance(telemetry_record, dict):
+            records.append(telemetry_record)
+    except Exception:
+        pass
+    for record in records:
+        if str(record.get("chat_id") or "").strip() != clean_session:
+            continue
+        if record.get("request_sha256") and not _request_evidence_binding_valid(record, context, question):
+            continue
+        text = str(record.get("text") or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _evidence_digest(value: Any) -> str:
+    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _request_evidence_context_ids(context: dict) -> dict[str, str]:
+    # Canonical dialogue identity, client cancellation and API request identity
+    # are separate namespaces. Capture existing producer values; never invent one.
+    return {
+        key: str(context.get(key) or "").strip()
+        for key in ("_canonical_user_turn_id", "current_turn_id", "cancel_turn_id", "request_id", "turn_id")
+        if str(context.get(key) or "").strip()
+    }
+
+
+def seal_request_evidence(
+    source_context: dict[str, Any] | None, *, session_id: str,
+    question: str, turn_id: str, messages: list[dict[str, str]],
+    evidence_texts: list[str], capsule_text: str,
+    evidence_message_indices: list[int] | None = None,
+    reference_clock: dict[str, str] | None = None,
+) -> None:
+    """Seal the existing carrier AFTER final budget and memory policy.
+
+    The normalizer supplies only surviving evidence messages. This does not
+    read another store, expand scope or claim an omitted candidate was sent.
+    Every request gets a new record, including requests with no evidence.
+    """
+    clean_session = str(session_id or "").strip()
+    if not clean_session:
+        return
+    texts = [str(text) for text in evidence_texts if str(text).strip()]
+    text = str(capsule_text or "").strip()
+    record = {
+        "text": text, "chat_id": clean_session, "source": "canonical_runtime_transcript",
+        "turn_id": str(turn_id or "").strip(),
+        "query_sha256": _evidence_digest(str(question or "").strip()),
+        "request_sha256": _evidence_digest(messages),
+        "text_sha256": _evidence_digest(text),
+        "evidence_texts": texts, "evidence_sha256": _evidence_digest(texts),
+        "evidence_message_indices": list(evidence_message_indices or []),
+    }
+    bindings = {"canonical_turn_id": record["turn_id"],
+                "context_ids": _request_evidence_context_ids(source_context if isinstance(source_context, dict) else {})}
+    record["identity_bindings"] = bindings
+    record["identity_sha256"] = _evidence_digest(bindings)
+    # Only the runtime producer supplies this separate reference fact. Arbitrary
+    # system instructions and current-user presuppositions are not source evidence.
+    if isinstance(reference_clock, dict) and reference_clock.get("source") == "runtime_clock":
+        clock_text = str(reference_clock.get("text") or "")
+        carrier = next((message for message in messages if message.get("role") == "system"
+                        and clock_text and clock_text in str(message.get("content") or "")), None)
+        if carrier is not None:
+            clock = {"source": "runtime_clock", "date": str(reference_clock.get("date") or ""),
+                     "text": clock_text, "text_sha256": _evidence_digest(clock_text),
+                     "carrier_sha256": _evidence_digest(carrier)}
+            record["reference_clock"] = clock
+            record["reference_clock_sha256"] = _evidence_digest(clock)
+    if isinstance(source_context, dict):
+        source_context["admitted_capsule_evidence"] = record
+    from core.context_retrieval import update_retrieval_telemetry
+
+    update_retrieval_telemetry(last_admitted_capsule=record)
+
+
+def _request_evidence_binding_valid(
+    record: dict, context: dict, question: str | None, *, validate_context_identity: bool = True,
+) -> bool:
+    if question is not None and record.get("query_sha256") != _evidence_digest(str(question).strip()):
+        return False
+    bindings = record.get("identity_bindings")
+    if bindings is not None:
+        if (not isinstance(bindings, dict)
+                or record.get("identity_sha256") != _evidence_digest(bindings)
+                or bindings.get("canonical_turn_id") != str(record.get("turn_id") or "").strip()
+                or not isinstance(bindings.get("context_ids"), dict)):
+            return False
+        if validate_context_identity and bindings["context_ids"] != _request_evidence_context_ids(context):
+            return False
+    elif "identity_sha256" in record:
+        return False
+    elif validate_context_identity:
+        # Legacy receipts cannot acquire client/request authority they never bound.
+        if any(str(context.get(key) or "").strip() for key in ("cancel_turn_id", "request_id")):
+            return False
+        legacy_turn = str(context.get("turn_id") or "").strip()
+        canonical_turn = str(context.get("_canonical_user_turn_id") or context.get("current_turn_id") or "").strip()
+        if legacy_turn and (not canonical_turn or legacy_turn != canonical_turn):
+            return False
+    if validate_context_identity:
+        turn = str(context.get("_canonical_user_turn_id") or context.get("current_turn_id") or "").strip()
+        if turn and record.get("turn_id") and turn != record["turn_id"]:
+            return False
+    if "reference_clock" in record and record.get("reference_clock_sha256") != _evidence_digest(record.get("reference_clock")):
+        return False
+    return (record.get("text_sha256") == _evidence_digest(str(record.get("text") or "").strip())
+            and isinstance(record.get("evidence_texts"), list)
+            and record.get("evidence_sha256") == _evidence_digest(record["evidence_texts"]))
+
+
+def finalize_request_evidence(
+    record: Any, final_messages: list[dict[str, Any]], *,
+    evidence_messages: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """Bind previously admitted units to their surviving provider carriers.
+
+    The transport supplies eligible source messages after its final budget.
+    Drafts, retry instructions and the current request cannot grant support.
+    Whole units that no longer survive are omitted; this never hydrates a new
+    source or promotes a matching value elsewhere in the request.
+    """
+    if not isinstance(record, dict) or not record.get("request_sha256"):
+        return None
+    texts = record.get("evidence_texts") or []
+    if not _request_evidence_binding_valid(record, {}, None, validate_context_identity=False):
+        texts = []
+    carriers = [str(message.get("content") or "") for message in evidence_messages or []]
+    included = [str(text) for text in texts if text and any(str(text) in carrier for carrier in carriers)]
+    clock_fields = {}
+    if "reference_clock" in record:
+        clock = record.get("reference_clock") if _request_evidence_binding_valid(record, {}, None, validate_context_identity=False) else None
+        # The existing origin whitelist survives legitimate adapter wrapping.
+        # Only the exact runtime-generated fact in an eligible system carrier
+        # remains support; arbitrary date text/drafts cannot replace that fact.
+        if not isinstance(clock, dict) or not any(
+            message.get("role") == "system"
+            and clock.get("text_sha256") == _evidence_digest(str(clock.get("text") or ""))
+            and bool(clock.get("text"))
+            and str(clock["text"]) in str(message.get("content") or "")
+            for message in evidence_messages or []
+        ):
+            clock = None
+        clock_fields = {"reference_clock": clock, "reference_clock_sha256": _evidence_digest(clock)}
+    capsule_text = "\n".join(text for text in included if "<retrieved_context>" in text).strip()
+    return {
+        **record, **clock_fields, "text": capsule_text, "text_sha256": _evidence_digest(capsule_text),
+        "evidence_texts": included, "evidence_sha256": _evidence_digest(included),
+        "request_sha256": _evidence_digest(final_messages),
+    }
+
+
+def admitted_request_evidence_texts(
+    source_context: dict[str, Any] | None, session_id: str | None = None,
+    *, question: str | None = None,
+) -> tuple[str, ...] | None:
+    """Final included support, or None for the legacy unsealed interface.
+
+    An invalid sealed record returns empty support, never legacy candidates.
+    A caller-owned cleared record also prevents borrowing telemetry.
+    """
+    context = source_context if isinstance(source_context, dict) else {}
+    record = context.get("admitted_capsule_evidence")
+    if "admitted_capsule_evidence" not in context:
+        from core.context_retrieval import get_last_retrieval_telemetry
+
+        record = get_last_retrieval_telemetry().get("last_admitted_capsule")
+    if "admitted_capsule_evidence" in context and record is None:
+        return ()
+    if not isinstance(record, dict) or not record.get("request_sha256"):
+        return None
+    chat = str(session_id or context.get("runtime_session_id") or context.get("session_id") or context.get("chat_id") or "").strip()
+    if not chat or record.get("chat_id") != chat or not _request_evidence_binding_valid(record, context, question):
+        return ()
+    return tuple(str(text) for text in record["evidence_texts"])
+
+
+def admitted_request_reference_clock(
+    source_context: dict[str, Any] | None, session_id: str | None = None,
+    *, question: str | None = None,
+):
+    """Typed runtime reference fact from the same session/query/turn request seal.
+
+    No legacy/history fallback and no arbitrary system-text harvesting. The
+    provider finalizer retains only the exact runtime fact in an origin-stamped
+    surviving system carrier, including legitimate provider wrapping.
+    """
+    from datetime import date
+
+    from core.model_output_guard import ReferenceClock
+
+    context = source_context if isinstance(source_context, dict) else {}
+    record = context.get("admitted_capsule_evidence")
+    chat = str(session_id or context.get("runtime_session_id") or context.get("session_id") or context.get("chat_id") or "").strip()
+    if not isinstance(record, dict) or not record.get("request_sha256") or not chat or record.get("chat_id") != chat:
+        return None
+    if not _request_evidence_binding_valid(record, context, question):
+        return None
+    clock = record.get("reference_clock")
+    if not isinstance(clock, dict) or clock.get("source") != "runtime_clock":
+        return None
+    if clock.get("text_sha256") != _evidence_digest(str(clock.get("text") or "")):
+        return None
+    try:
+        day = date.fromisoformat(str(clock.get("date") or ""))
+    except ValueError:
+        return None
+    return ReferenceClock(day, str(record["request_sha256"]), str(clock["text_sha256"]), str(record.get("turn_id") or ""))
+
+
 def canonical_runtime_transcript(
+    *,
+    session_id: str | None,
+    source_context: dict[str, Any] | None,
+    current_user_text: str,
+    current_user_raw_text: str = "",
+    current_turn_id: str = "",
+    access_policy: ContextAccessPolicy | None = None,
+    expansion_hint: bool | None = None,
+    max_messages: int = 10,
+    max_chars: int = 5000,
+) -> tuple[list[dict[str, str]], str]:
+    transcript, source = _assemble_runtime_transcript(
+        session_id=session_id,
+        source_context=source_context,
+        current_user_text=current_user_text,
+        current_user_raw_text=current_user_raw_text,
+        current_turn_id=current_turn_id,
+        access_policy=access_policy,
+        expansion_hint=expansion_hint,
+        max_messages=max_messages,
+        max_chars=max_chars,
+    )
+    if source == "scope_denied":
+        # No capsule was injected for this session on this pass; clear any stale
+        # record so no consumer of this turn can borrow an earlier pass's evidence.
+        _record_admitted_capsule_evidence(
+            source_context, session_id=session_id, capsule_text=""
+        )
+        return transcript, source
+    base_snapshot = list(transcript)
+    injected = _with_semantic_memory_capsule(
+        transcript,
+        session_id=session_id,
+        current_user_text=current_user_text,
+        source_context=source_context,
+    )
+    # Same admitted evidence for the reader and the post-generation guards: record
+    # what THIS assembly actually injected. A pass that injected nothing (flag off,
+    # denied lookup, empty capsule) records the cleared state, and every consumer
+    # stays exactly at its prior behavior.
+    _record_admitted_capsule_evidence(
+        source_context,
+        session_id=session_id,
+        capsule_text=_harvest_admitted_capsule_evidence(base_snapshot, injected),
+    )
+    return injected, source
+
+
+def _assemble_runtime_transcript(
     *,
     session_id: str | None,
     source_context: dict[str, Any] | None,
@@ -432,6 +909,13 @@ def canonical_runtime_transcript(
             limit=max(12, int(max_messages) * 2, SUMMARY_THRESHOLD + KEEP_RECENT + 1),
             speaker_roles=("user", "assistant"),
         )
+        # Forget law (F14-01): consult the durable revocation ledger once per
+        # assembly so a token the user revoked for this chat can never re-
+        # enter the prompt from dialogue_turns — a surface the point-in-time
+        # forget sweep intentionally does not delete (turn rows keep
+        # referential identity for checkpoints/learning). Same belt-and-
+        # braces law as the A8 availability gate below.
+        revoked = revoked_tokens_for_chat(normalized_session_id)
         transcript: list[dict[str, str]] = []
         for turn in reversed(turns):
             if current_turn_id and str(turn.get("turn_id") or "").strip() == current_turn_id:
@@ -448,6 +932,8 @@ def canonical_runtime_transcript(
             )
             content = _normalized_dialogue_text(raw_stored)
             if role not in {"user", "assistant"} or not content:
+                continue
+            if _carries_revoked_token(content, revoked):
                 continue
             # A9 RC-8 pass-003 (F2): persisted dialogue rows are a carrier into the
             # canonical transcript and MUST clear the same A8 availability gate as
@@ -753,6 +1239,15 @@ def build_bootstrap_context(
     topic_hints = list(getattr(interpretation, "topic_hints", []) or [])
     references = list(getattr(interpretation, "reference_targets", []) or [])
     continuity_lines = _continuity_lines(session_state)
+    # The name anchors inside the continuity item, so a memory-QA turn can leave them out (see
+    # `tiered_context_loader._memory_qa_view`). A turn that asks about a name never takes that
+    # profile, so the anchors still reach every name question.
+    try:
+        from core.user_identity_authority import identity_context_lines as _identity_lines
+
+        identity_anchor_lines = [line for line in _identity_lines() if line in continuity_lines]
+    except Exception:
+        identity_anchor_lines = []
 
     active_mission_block = ""
     if include_private_context and include_mission_context:
@@ -867,6 +1362,7 @@ def build_bootstrap_context(
                     confidence=0.84,
                     must_keep=True,
                     include_reason="continuity_state",
+                    metadata={"memory_qa_strip": list(identity_anchor_lines)},
                 )
             ]
             if continuity_lines
@@ -924,6 +1420,9 @@ def build_bootstrap_context(
             confidence=float(classification.get("confidence_hint", 0.0) or 0.0),
             must_keep=True,
             include_reason="task_constraints",
+            # The summary restates the user's message, which a memory-QA request already carries
+            # verbatim as its user turn.
+            metadata={"memory_qa_strip": [f"Summary: {getattr(task, 'task_summary', '')}. "]},
         ),
         ContextItem(
             item_id="bootstrap-safety",
@@ -1044,7 +1543,7 @@ def build_bootstrap_context(
                     priority=0.965,
                     confidence=1.0,
                     include_reason="tooling_behavior_contract",
-                    metadata={"exclude_from_chat_minimal_system_prompt": True},
+                    metadata={"exclude_from_chat_minimal_system_prompt": True, "memory_qa_omit": True},
                 )
             )
 
@@ -1170,7 +1669,7 @@ def build_bootstrap_context(
                         confidence=1.0,
                         must_keep=True,
                         include_reason="memory_sharing_scope",
-                        metadata={"exclude_from_chat_minimal_system_prompt": True},
+                        metadata={"exclude_from_chat_minimal_system_prompt": True, "memory_qa_omit": True},
                     )
                 )
         except Exception:

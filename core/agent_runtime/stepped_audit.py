@@ -53,6 +53,7 @@ import os
 import posixpath
 import re
 import time
+import uuid
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
@@ -448,9 +449,6 @@ def _call_step(
     `justification` are what make the row answer "what was this given?" and "why was another one
     necessary?" — the two questions a nine-call audit could not answer about itself.
     """
-    from adapters.base_adapter import ModelRequest
-    from core.agent_runtime.builder.app_builder import strip_reasoning_monologue
-
     if budget.exhausted():
         return SteppedCallResult(error="stepped_audit_budget_exhausted")
     if budget.ledger is not None and not budget.ledger.may_call(step):
@@ -466,6 +464,131 @@ def _call_step(
             return SteppedCallResult(
                 error="local_only_routing_forbids_cloud_model_call",
             )
+    # A paid cloud manifest is dispatched only under its own reservation, from the same authority the
+    # router's pick lane and the builder use (`reserve_owner_pick_paid_call`), so every audit step
+    # stays inside the per-call, per-task, daily and monthly caps. Without one, `_invoke_manifest`
+    # refused every step with `paid_call_not_authorized_or_reserved`, and an audit on a paid cloud
+    # model never got past its first nomination (VOOL-only coordination pass u2, 2026-10-07).
+    call_context = {
+        key: value for key, value in source_context.items() if key != "runtime_event_stream_id"
+    }
+    authorization = None
+    from core.agent_runtime.builder.pinned_generation import _manifest_needs_paid_reservation
+
+    if _manifest_needs_paid_reservation(manifest):
+        from core.memory_first_router import _operator_cancel_marker_fired
+        from core.paid_call_reservation import reserve_owner_pick_paid_call
+
+        if _operator_cancel_marker_fired(source_context):
+            return SteppedCallResult(error="turn_cancelled")  # nothing is reserved for a cancelled turn
+        # Unique per attempt: the orchestration store keys runs UNIQUE(task_id, turn_id, subtask_id),
+        # so a retried step must not reuse the id of one whose reservation was refused.
+        subtask = f"stepped_audit_{step}_{uuid.uuid4().hex[:12]}"
+        # The hold is sized for THIS step (its prompt and its output ceiling), not for the turn's
+        # task: a turn-sized hold let one step settle above the per-call cap (review of series L).
+        step_task = _AuditStepTask(
+            task_id=str(getattr(task, "task_id", "") or ""),
+            task_summary=f"bounded audit {step} step on an explicit paid pin",
+            prompt_tokens=_prompt_token_ceiling(prompt + system_prompt),
+            max_output_tokens=max(1, int(max_output_tokens or 1)),
+        )
+        denial: dict[str, str] = {}
+        authorization = reserve_owner_pick_paid_call(
+            manifest=manifest,
+            task=step_task,
+            source_context={**call_context, "subtask_id": subtask},
+            task_kind="normalization_assist",
+            call_role="audit_step",
+            denial=denial,
+        )
+        if authorization is None:
+            reason = denial.get("reason") or "not_authorized_or_reserved"
+            budget.last_error = f"paid_call_refused:{reason}"
+            return SteppedCallResult(error=f"paid_call_refused:{reason}")
+        call_context = {**call_context, "authorized_paid_call": authorization,
+                        "model_call_role": "audit_step", "subtask_id": subtask}
+    dispatch = {"started": False}
+    try:
+        return _dispatch_step(
+            agent, manifest=manifest, task=task, call_context=call_context, step=step, prompt=prompt,
+            system_prompt=system_prompt, max_output_tokens=max_output_tokens, output_mode=output_mode,
+            budget=budget, context_source=context_source, justification=justification,
+            authorization=authorization, dispatch=dispatch,
+        )
+    except BaseException:
+        # Anything that escapes must not strand the reservation: a held reservation counts against
+        # the daily and monthly caps and never expires. After the router was called the dispatch
+        # state is unknown, so the conservative release holds it as possibly billed; before, nothing
+        # can have been sent and it is handed back.
+        if dispatch["started"]:
+            _release_audit_reservation(authorization, call_context)
+        else:
+            _hand_back_unsent_reservation(authorization, call_context)
+        raise
+
+
+def _prompt_token_ceiling(text: str) -> int:
+    """An upper estimate of a prompt's tokens for sizing a paid hold: four ASCII characters per token,
+    and one token for every other character. Characters / 4 alone undercounts dense CJK or emoji text
+    about fourfold, which let such a step settle above the per-call cap (review of series L v3)."""
+    ascii_chars = sum(1 for ch in text if ord(ch) < 128)
+    return max(1, (ascii_chars + 3) // 4 + (len(text) - ascii_chars))
+
+
+@dataclass(frozen=True)
+class _AuditStepTask:
+    """The identity and size one paid audit step's reservation binds to (same task id as the turn)."""
+
+    task_id: str
+    task_summary: str
+    prompt_tokens: int
+    max_output_tokens: int
+
+
+def _release_audit_reservation(authorization: Any, call_context: dict[str, Any]) -> None:
+    """Release after a possible dispatch: `call_failed` keeps an unknown outcome held as possibly billed."""
+    if authorization is None:
+        return
+    from core.paid_call_reservation import release_owner_pick_paid_call
+
+    release_owner_pick_paid_call(authorization, reason="call_failed", source_context=call_context, call_role="audit_step")
+
+
+def _hand_back_unsent_reservation(authorization: Any, call_context: dict[str, Any]) -> None:
+    """Hand back a reservation still `reserved` after the router returned without a response.
+
+    The router's own guarded helper: a no-op on any reservation the invoke loop already settled or
+    released (so the accounting of a call that did reach the provider is never erased), and a full
+    release of one it refused before building a request (turn cancelled, local-only, routing plan,
+    authorship fence).
+    """
+    if authorization is None:
+        return
+    from core.memory_first_router import _release_undispatched_pin_reservation
+
+    _release_undispatched_pin_reservation(authorization, source_context=call_context)
+
+
+def _dispatch_step(
+    agent: Any,
+    *,
+    manifest: Any,
+    task: Any,
+    call_context: dict[str, Any],
+    step: str,
+    prompt: str,
+    system_prompt: str,
+    max_output_tokens: int,
+    output_mode: str,
+    budget: SteppedAuditBudget,
+    context_source: str,
+    justification: str,
+    authorization: Any,
+    dispatch: dict[str, bool],
+) -> SteppedCallResult:
+    from adapters.base_adapter import ModelRequest
+    from core.agent_runtime.builder.app_builder import strip_reasoning_monologue
+
     budget.calls += 1
     row = None
     if budget.ledger is not None:
@@ -504,9 +627,7 @@ def _call_step(
     # while the runtime's composed report was the thing actually stored. Measured live 2026-08-01.
     # The stream id is dropped for the model call only; the tool receipts the honesty guards read
     # are written through the caller's own dict on a different path and are untouched.
-    call_context = {
-        key: value for key, value in source_context.items() if key != "runtime_event_stream_id"
-    }
+    dispatch["started"] = True
     try:
         _adapter, response, error = agent.memory_router._invoke_manifest(
             manifest=manifest,
@@ -517,11 +638,16 @@ def _call_step(
         )
     except Exception as exc:  # one provider fault must not take the whole audit down
         budget.last_error = type(exc).__name__
+        # The invoke loop settles or releases a reservation it handled; one that escaped it is still
+        # standing. Its dispatch state is unknown, so the conservative release is used.
+        _release_audit_reservation(authorization, call_context)
         if budget.ledger is not None:
             budget.ledger.close_call(row, result=f"error:{type(exc).__name__}")
         return SteppedCallResult(error=type(exc).__name__, attempted=True, ledger_row=row)
     if error or response is None:
         budget.last_error = str(error or "no_response")
+        # A refusal that returned before any request was built left the reservation standing.
+        _hand_back_unsent_reservation(authorization, call_context)
         if budget.ledger is not None:
             budget.ledger.close_call(row, result=f"error:{str(error or 'no_response')[:80]}")
         return SteppedCallResult(error=str(error or "no_response"), attempted=True, ledger_row=row)
@@ -852,11 +978,18 @@ def _finding_defect(
         return f"harm_class {declared!r} is not one of {', '.join(HARM_CLASSES)}"
     provable = bool(_OUTPUT_INTEGRITY_HARM_RE.search(claim_text))
     if declared in PROVABLE_HARM_CLASSES and not provable:
-        # Self-declaring crash/integrity is not enough on its own to occupy the tier that maps to
-        # High severity -- the claim text has to actually allege the kind of harm that tier promises,
-        # or a model can pick "crash" to buy High severity (and a bigger score deduction) with no
-        # content behind it. Fall through to the same undeclared-inference rule below.
-        declared = ""
+        if allow_observations:
+            # A survey row is shown without any challenge, so its declared crash/integrity has to be
+            # backed by its words or it is downgraded to the undeclared-inference rule below.
+            declared = ""
+        else:
+            # The PRIMARY candidate keeps its declared class, and the source challenge decides
+            # (`_challenge_finding`, fail-closed: only a clean `supported` is ever shown). The vocabulary
+            # used to decide instead, and refused real bugs worded in plain language: VOOL-only pass u3,
+            # 2026-10-07, refused the right orders.py bug three times ("the 2 cancelled units stay
+            # reserved forever"). Measured on Pack 1's 42 cases through the real challenge on a paid
+            # model: 1/28 non-bugs and 12/14 real bugs shown, against 0/28 and 0/14 for the vocabulary.
+            candidate["claim_needs_challenge"] = True
     if not declared:
         # An undeclared class falls back to the historical rule, so a model that ignores the field
         # cannot smuggle an unprovable claim into the provable tier by omission.
@@ -1627,7 +1760,10 @@ def _source_window(evidence: Any, path: str, start: int, end: int, *, pad: int =
         return ""
     span = max(1, int(end or start or 1) - int(start or 1)) + 2 * pad
     first = max(1, min(int(start or 1) - pad, len(lines) - span))
-    last = min(len(lines), max(first + 1, int(end or start or 1) + pad))
+    # The window is `span` lines from `first`, however near the top the citation sits. Ending it at
+    # `end + pad` cut a citation of line 1 in a 35-line file off at line 21, and the model was told its
+    # source was "truncated at line 21" (live agent-team comparison, 2026-10-07).
+    last = min(len(lines), max(first + span, int(end or start or 1) + pad))
     return "\n".join(f"{number:>6}: {lines[number - 1]}" for number in range(first, last + 1))
 
 
@@ -3268,6 +3404,9 @@ def run_stepped_audit(
     # this the search stopped at the FIRST supported candidate, so "audit this file, tell me pros
     # and cons" was answered with one defect and the rest of the pass was discarded.
     extra_findings: list[Any] = []
+    # Ids of candidates that survived the source challenge on this turn (or on the turn that displayed
+    # a carried one). In a read-only review these are listed, labelled unproven.
+    challenge_supported_ids: set[str] = set()
     survey_rows: list[dict[str, Any]] = []
 
     # Everything above this point (evidence/policy/capsule/routing resolution) is the closest this
@@ -3496,6 +3635,8 @@ def run_stepped_audit(
                 continue
 
         if not policy.proof_authorized:
+            # Reaching here without proof authority means the challenge above said `supported`.
+            challenge_supported_ids.add(finding.id)
             # Rule 2/3: no execution was authorized, so this is a CANDIDATE and is labelled one.
             terminal = CANDIDATE_UNPROVEN
             proof = None
@@ -3932,6 +4073,15 @@ def run_stepped_audit(
         # and could -- a real, executed falsification that previously reached only internal
         # telemetry (`details.stepped_audit.screened_out` below) and never the visible report.
         challenged_out=list(screened_rows),
+        supported_unproven=[
+            rendered
+            for rendered in (
+                _verdict_finding(item)
+                for item in ([finding] if finding is not None else []) + list(extra_findings)
+                if item is not None and item.id in challenge_supported_ids
+            )
+            if rendered is not None
+        ],
     )
     _render_started = time.monotonic()
     report = render_audit_report(verdict)

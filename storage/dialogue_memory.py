@@ -432,7 +432,7 @@ def recent_dialogue_turns(
                 FROM dialogue_turns
                 WHERE session_id = ?
                   AND lower(speaker_role) IN ({placeholders})
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, rowid DESC
                 LIMIT ?
                 """,
                 (session_id, *normalized_roles, limit),
@@ -443,7 +443,7 @@ def recent_dialogue_turns(
                 SELECT *
                 FROM dialogue_turns
                 WHERE session_id = ?
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, rowid DESC
                 LIMIT ?
                 """,
                 (session_id, limit),
@@ -481,7 +481,7 @@ def recent_dialogue_turns_any(
                 SELECT *
                 FROM dialogue_turns
                 WHERE lower(speaker_role) IN ({placeholders})
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, rowid DESC
                 LIMIT ?
                 """,
                 (*normalized_roles, limit),
@@ -491,7 +491,7 @@ def recent_dialogue_turns_any(
                 """
                 SELECT *
                 FROM dialogue_turns
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, rowid DESC
                 LIMIT ?
                 """,
                 (limit,),

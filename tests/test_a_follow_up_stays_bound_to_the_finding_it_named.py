@@ -715,11 +715,11 @@ def test_the_answer_is_prose_while_the_structured_record_stays_internal() -> Non
     assert "unittest.TestCase" not in report
     assert "workspace.write_file" not in report
     assert looks_like_internal_payload(report) is False
-    # 2026-08-06: the candidate's own title no longer reaches chat for CANDIDATE_UNPROVEN (the
-    # concise NOT-PROVEN contract) — it lives in the structured record checked above instead. The
-    # chat answer is still real prose, not empty or malformed.
+    # 2026-10-07 (sls, "Show in v0.7"): a candidate that passed the source challenge is listed in
+    # chat, labelled unproven, instead of only living in the structured record (the 2026-08-06
+    # concise contract hid it). The answer is still prose, still NOT PROVEN, and makes no claim.
     assert "NOT PROVEN" in report
-    assert "A zero ttl issues a token" not in report
+    assert "A zero ttl issues a token" in report and "confidence: unproven" in report
 
 
 def test_a_bare_internal_record_can_never_be_an_answer() -> None:

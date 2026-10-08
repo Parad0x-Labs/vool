@@ -889,7 +889,7 @@ class OpenClawToolingContextTests(unittest.TestCase):
                 source_context={"operating_mode": "auto", "surface": "openclaw", "platform": "openclaw"},
             )
 
-        system_prompt = request.system_prompt().lower()
+        system_prompt = request.instructions().lower()
         self.assertEqual(request.output_mode, "tool_intent")
         self.assertIn("web.search", system_prompt)
         # Initial offers are navigators; domain tools appear after expansion.

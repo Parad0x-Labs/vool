@@ -70,6 +70,7 @@ class PlannerCallKind(str, Enum):
 
     CLAUSE_DECOMPOSITION = "clause_decomposition"
     SEMANTIC_PROOF = "semantic_proof"
+    SEARCH_EXPANSION = "search_expansion"
 
 
 @dataclass
@@ -140,6 +141,12 @@ class SharedPlannerArtifact:
                 record.failed = True
             return record.raw
 
+    def recorded(self, kind: PlannerCallKind = PlannerCallKind.CLAUSE_DECOMPOSITION) -> str | None:
+        """This turn's answer to `kind`, or None when it was not asked. Never calls a provider."""
+        with self._lock:
+            record = self._records.get(PlannerCallKind(kind).value)
+            return record.raw if record is not None and record.attempted and not record.failed else None
+
     def attempted_kinds(self) -> frozenset[str]:
         """Which questions have been asked this turn. For receipts and for tests."""
         with self._lock:
@@ -207,6 +214,34 @@ def ensure_shared_planner_artifact(
             _ARTIFACTS_BY_TURN.clear()  # bounded: stale turns are never valid to reuse anyway
         _ARTIFACTS_BY_TURN[turn_id] = artifact
     return artifact
+
+
+def decomposition_groups_whole_turn(source_context: dict[str, Any] | None, text: str) -> bool:
+    """Whether this turn's clause decomposition, already asked, read the whole message as ONE request.
+
+    The decomposition is the turn's one model reading of how many requests the message makes; when it
+    grouped every clause into a single request (as it does for "Review the three files ... For each file,
+    find the bug ... Read the code; do not change any file."), no later deterministic cut may split the
+    turn again. Reads only what was already asked: no provider call is made here.
+    """
+    import json as _json
+
+    from core.turn_ir import parse_turn_ir
+
+    if not isinstance(source_context, dict):
+        return False
+    raw = ensure_shared_planner_artifact(source_context).recorded(PlannerCallKind.CLAUSE_DECOMPOSITION)
+    if not raw:
+        return False
+    try:
+        entries = _json.loads(raw)
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(entries, list) or len(entries) != 1 or not isinstance(entries[0], dict):
+        return False
+    grouped = " ".join(str(entries[0].get("request") or "").split())
+    clauses = [" ".join(c.request_text.split()) for c in parse_turn_ir(str(text or "")).clauses]
+    return bool(grouped) and len(clauses) >= 2 and all(clause in grouped for clause in clauses)
 
 
 def _strict_json_array(text: str) -> str:
@@ -821,6 +856,82 @@ def _build_auxiliary_ask_model(
         return artifact.resolve(_invoke_once, kind=kind)
 
     return _ask
+
+
+_SEARCH_EXPANSION_MAX_OUTPUT_TOKENS = 200
+_SEARCH_EXPANSION_TIMEOUT_SECONDS = 20.0
+_SEARCH_EXPANSION_MAX_PHRASES = 4
+#: The recall search-expansion call (v9). The answer turns of a memory question often share few
+#: words with the ask ("health issue" asked, "check-up with my doctor ... the weight" said); the
+#: phrases are searched beside the question by the recall supplement and only rank turns -- they are
+#: never shown to the reader and never answer anything.
+SEARCH_EXPANSION_SYSTEM_PROMPT = (
+    "You help search a stored record of past conversations. Given a question about what people "
+    "said or did, write up to four short search phrases (two to six words each) that would appear "
+    "in the conversation lines holding the answer: the words the speakers themselves would use, "
+    "synonyms, and the related activities, objects, places or feelings. Do not answer the question "
+    "and do not repeat it. Return only a JSON array of strings."
+)
+
+
+def _search_expansion_json_schema() -> dict[str, Any]:
+    return {"type": "array", "minItems": 1, "maxItems": _SEARCH_EXPANSION_MAX_PHRASES,
+            "items": {"type": "string"}}
+
+
+def _strict_search_phrases(text: str) -> str:
+    """Exact JSON array of strings, or empty for anything else (prose, fences, objects, numbers)."""
+
+    body = str(text or "").strip()
+    if not body.startswith("[") or not body.endswith("]"):
+        return ""
+    try:
+        payload = json.loads(body)
+    except (TypeError, ValueError):
+        return ""
+    if not isinstance(payload, list) or not payload or not all(isinstance(item, str) for item in payload):
+        return ""
+    return body
+
+
+def build_search_expansion_ask_model(
+    agent: Any,
+    source_context: dict[str, Any] | None,
+) -> Callable[[str, str], str]:
+    """The SEARCH EXPANSION call: one single-attempt phrase list for the turn's memory recall."""
+
+    return _build_auxiliary_ask_model(
+        agent,
+        source_context,
+        kind=PlannerCallKind.SEARCH_EXPANSION,
+        json_schema=_search_expansion_json_schema(),
+        parse=_strict_search_phrases,
+        max_output_tokens=_SEARCH_EXPANSION_MAX_OUTPUT_TOKENS,
+        timeout_seconds=_SEARCH_EXPANSION_TIMEOUT_SECONDS,
+    )
+
+
+def search_expansions_for_turn(
+    agent: Any,
+    source_context: dict[str, Any] | None,
+    question: str,
+) -> tuple[str, ...]:
+    """Up to four distinct short search phrases for this turn's question; () on any failure."""
+
+    if not str(question or "").strip():
+        return ()
+    try:
+        raw = build_search_expansion_ask_model(agent, source_context)(
+            SEARCH_EXPANSION_SYSTEM_PROMPT, str(question))
+        payload = json.loads(raw) if raw else []
+    except Exception:
+        return ()
+    phrases: list[str] = []
+    for item in list(payload)[:_SEARCH_EXPANSION_MAX_PHRASES]:
+        phrase = " ".join(str(item or "").split())[:80]
+        if phrase and phrase.casefold() not in {existing.casefold() for existing in phrases}:
+            phrases.append(phrase)
+    return tuple(phrases)
 
 
 def build_planner_ask_model(

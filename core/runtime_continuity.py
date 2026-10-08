@@ -3510,6 +3510,54 @@ def load_tool_receipt(receipt_key: str) -> dict[str, Any] | None:
     return data
 
 
+def _preserve_tool_receipt_structure(*, original, scrubbed, raw_arguments, safe_arguments,
+                       receipt_key, session_id, checkpoint_id, tool_name, idempotency_key):
+    """Keep verified structural metadata; never reseal altered semantic content."""
+    from core.agent_runtime.orchestrator import _stable_json_hash
+    if not isinstance(original, dict) or not isinstance(scrubbed, dict):
+        return scrubbed
+    parameters = original.get("parameters")
+    result = original.get("result")
+    origin = original.get("origin")
+    identifiers = original.get("identifiers")
+    if not (original.get("schema") == "tool_action_receipt_v1"
+            and original.get("action_type") in {"tool_executed", "tool_failed", "tool_preview"}
+            and isinstance(parameters, dict) and isinstance(result, dict)
+            and isinstance(origin, dict) and isinstance(identifiers, dict)
+            and str(session_id or "").strip()
+            and original.get("receipt_id") == str(receipt_key or "").strip()
+            and original.get("tool_name") == str(tool_name or "").strip()
+            and original.get("action_id") == str(idempotency_key or "").strip()
+            and str(identifiers.get("checkpoint_id") or "").strip()
+            == str(checkpoint_id or "").strip()):
+        return scrubbed
+    parameters_hash = _stable_json_hash(parameters)
+    result_hash = _stable_json_hash(result)
+    record_hash = _stable_json_hash({key:value for key,value in original.items()
+                                   if key not in {"occurred_at","record_hash"}})
+    if not (original.get("parameters_hash") == parameters_hash
+            and original.get("result_hash") == result_hash
+            and original.get("record_hash") == record_hash
+            and _stable_json_hash(raw_arguments) == parameters_hash
+            and _stable_json_hash(safe_arguments) == parameters_hash):
+        return scrubbed
+    identity_payload = {"chat_id":origin.get("chat_id"), "project_id":origin.get("project_id"),
+                        "tool_name":original["tool_name"], "parameters_hash":parameters_hash,
+                        "identifiers":identifiers}
+    generated_action = "tool-action-" + _stable_json_hash(identity_payload)
+    generated_receipt = "tool-receipt-" + _stable_json_hash({"action_id":original["action_id"]})
+    structural = {"parameters_hash":parameters_hash, "result_hash":result_hash,
+                  "record_hash":record_hash}
+    if original.get("action_id") == generated_action:
+        structural["action_id"] = generated_action
+    if original.get("receipt_id") == generated_receipt:
+        structural["receipt_id"] = generated_receipt
+    candidate = {**scrubbed, **structural}
+    # No semantic field is restored. Any semantic redaction/truncation remains
+    # visible and invalid for canonical authority, with no new digest generated.
+    return candidate if _stable_json_hash(candidate) == _stable_json_hash(original) else scrubbed
+
+
 def store_tool_receipt(
     *,
     receipt_key: str,
@@ -3525,12 +3573,23 @@ def store_tool_receipt(
     clean_receipt_key = str(receipt_key or "").strip()
     if not clean_receipt_key:
         raise ValueError("receipt_key is required")
-    safe_arguments = _scrub_persisted(redact_tool_arguments(dict(arguments or {})))
-    safe_execution = _scrub_persisted(redact_tool_arguments(dict(execution or {})))
+    raw_arguments = dict(arguments or {})
+    raw_execution = dict(execution or {})
+    safe_arguments = _scrub_persisted(redact_tool_arguments(raw_arguments))
+    safe_execution = _scrub_persisted(redact_tool_arguments(raw_execution))
     if not isinstance(safe_arguments, dict):
         safe_arguments = {}
     if not isinstance(safe_execution, dict):
         safe_execution = {}
+    if "action_record" in safe_execution:
+        safe_execution["action_record"] = _preserve_tool_receipt_structure(
+            original=raw_execution.get("action_record"),
+            scrubbed=safe_execution["action_record"],
+            raw_arguments=raw_arguments, safe_arguments=safe_arguments,
+            receipt_key=clean_receipt_key, session_id=session_id,
+            checkpoint_id=checkpoint_id, tool_name=tool_name,
+            idempotency_key=idempotency_key,
+        )
     timestamp = _utcnow()
     payload = {
         "receipt_key": clean_receipt_key,

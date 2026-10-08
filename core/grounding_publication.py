@@ -72,6 +72,7 @@ from core.grounding_lifecycle import (
     EXIT_REFUSED,
     ORIGIN_BOUND_EVIDENCE,
     ORIGIN_COMPUTED_VALUE,
+    ORIGIN_MEMORY_RECORD,
     ORIGIN_TYPED_OBSERVATION,
     STAGE_BOUND,
     STAGE_PUBLISHED,
@@ -89,6 +90,13 @@ UNSUPPORTED_WORK_NOTICE_LEAD = "Withheld from this answer:"
 _REFUSAL_LEAD = (
     "I can't publish an answer to this: it needed current information, and nothing in what "
     "this turn actually retrieved supports the answer that was written."
+)
+
+#: The same refusal for a turn whose only support was this chat's own records: the answer was checked against what
+#: the user's conversations hold, not against a live lookup, so the notice says so instead of "current information".
+_RECORDS_REFUSAL_LEAD = (
+    "That is not mentioned in the records I have from our conversations, so I can't publish the answer that was "
+    "written."
 )
 
 _RE_PRESENTATION_REFUSAL_LEAD = (
@@ -232,6 +240,20 @@ def _support_rows(lifecycle: GroundingLifecycle) -> tuple[list[dict[str, Any]], 
     if computed:
         rows.extend(computed)
         origin = origin or ORIGIN_COMPUTED_VALUE
+    # This chat's own memory records, as the reader received them for this turn. A question about
+    # what someone in this chat said ("When will Tim leave for Ireland?") reads to the current-
+    # information signals like a schedule or price lookup, opens this lifecycle, and retrieves
+    # nothing from the web -- yet its answer is a restatement of the records, and refusing it as
+    # "nothing retrieved supports it" withholds a remembered fact. The rows are matched claim by
+    # claim like any other: what the records state publishes, what they do not is withheld.
+    remembered = [
+        dict(entry)
+        for entry in getattr(lifecycle, "memory_records", ()) or ()
+        if isinstance(entry, dict) and not entry.get("withheld") and _row_carries_content(entry)
+    ]
+    if remembered:
+        rows.extend(remembered)
+        origin = origin or ORIGIN_MEMORY_RECORD
     return rows, origin
 
 
@@ -690,6 +712,8 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
         # and the reformatted bytes restated only what that answer had withheld.
         lead = _RE_PRESENTATION_REFUSAL_LEAD
         return lead if not subject else f'{lead} (request: "{subject[:160]}")'
+    if _records_only_support(lifecycle):
+        return _RECORDS_REFUSAL_LEAD if not subject else f'{_RECORDS_REFUSAL_LEAD} (request: "{subject[:160]}")'
     parts = [_REFUSAL_LEAD if not subject else f'{_REFUSAL_LEAD} (request: "{subject[:160]}")']
     explanation = _STAGE_EXPLANATION.get(failed_stage or "")
     if explanation:
@@ -698,6 +722,26 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
     if report:
         parts.append(report)
     return "\n\n".join(parts)
+
+
+def _records_only_support(lifecycle: GroundingLifecycle) -> bool:
+    """The turn's support was this chat's memory records and nothing a lookup returned, and the question asks about
+    someone those records name (a live ask in a chat that happens to have records keeps the live notice)."""
+
+    records = tuple(getattr(lifecycle, "memory_records", ()) or ())
+    if not records or (
+        lifecycle.bound_notes
+        or lifecycle.retrieved_notes
+        or lifecycle.typed_observations
+        or lifecycle.computed_values
+        or lifecycle.retrieved_source_count
+    ):
+        return False
+    from core.memory_grounding import question_names_someone_in_the_records
+
+    return question_names_someone_in_the_records(
+        lifecycle.request_text, [row for row in records if isinstance(row, dict)]
+    )
 
 
 def already_gated(content: str) -> bool:

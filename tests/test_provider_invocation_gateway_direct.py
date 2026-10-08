@@ -31,6 +31,7 @@ class _CallSite(NamedTuple):
     qualname: str
     seal_call: str
     transport_call: str
+    delegates: tuple[str, ...] = ()
 
 
 _SEALED_CALL_SITES = (
@@ -129,6 +130,7 @@ _SEALED_CALL_SITES = (
         "_ollama_embed",
         "seal_direct_provider_invocation(",
         "urllib.request.urlopen(",
+        ("_embed_chunks_resilient", "_ollama_embed_batch"),
     ),
     _CallSite(
         "core/fact_extractor.py",
@@ -218,7 +220,12 @@ def provider_home(tmp_path):
 
 
 def _qualified_node_source(path: str, qualname: str) -> str:
-    source = (_REPO_ROOT / path).read_text(encoding="utf-8")
+    return _qualified_source_segment(
+        (_REPO_ROOT / path).read_text(encoding="utf-8"), qualname
+    )
+
+
+def _qualified_source_segment(source: str, qualname: str) -> str:
     parent: ast.AST = ast.parse(source)
     for part in qualname.split("."):
         children = getattr(parent, "body", ())
@@ -525,14 +532,42 @@ def test_legacy_user_heuristic_is_normalized_before_manifest_sealing(
 def test_identified_inference_call_site_seals_before_transport(
     call_site: _CallSite,
 ) -> None:
-    source = _qualified_node_source(call_site.path, call_site.qualname)
+    module_source = (_REPO_ROOT / call_site.path).read_text(encoding="utf-8")
+    _assert_call_site_seals_before_transport(call_site, module_source)
+
+
+def _assert_call_site_seals_before_transport(
+    call_site: _CallSite, module_source: str
+) -> None:
+    source = _qualified_source_segment(module_source, call_site.qualname)
+    for delegate in call_site.delegates:
+        calls = (
+            node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Call)
+        )
+        assert any(
+            isinstance(node.func, ast.Name) and node.func.id == delegate for node in calls
+        ), f"missing delegated invocation: {delegate}"
+        assert call_site.transport_call not in source
+        source = _qualified_source_segment(module_source, delegate)
     seal_offset = source.find(call_site.seal_call)
     transport_offset = source.find(call_site.transport_call)
-
-    assert seal_offset >= 0
+    assert seal_offset >= 0, "transport owner has no provider seal"
     assert transport_offset >= 0
     assert seal_offset < transport_offset
     assert "permit.consume()" in source
+
+
+def test_delegated_embedding_transport_rejects_missing_owner_seal() -> None:
+    call_site = next(
+        item for item in _SEALED_CALL_SITES if item.qualname == "_ollama_embed"
+    )
+    source = (_REPO_ROOT / call_site.path).read_text(encoding="utf-8")
+    owner = _qualified_source_segment(source, call_site.delegates[-1])
+    assert call_site.seal_call in owner
+    unsealed_owner = owner.replace(call_site.seal_call, "bypass_gateway(", 1)
+    unsealed_source = source.replace(owner, unsealed_owner, 1)
+    with pytest.raises(AssertionError, match="transport owner has no provider seal"):
+        _assert_call_site_seals_before_transport(call_site, unsealed_source)
 
 
 @pytest.mark.parametrize(

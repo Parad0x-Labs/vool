@@ -6930,9 +6930,14 @@ def _dispatch_post_inner(
             admit_semantic_result(dict(null_result or {}))
             from core.finalization import finalize_answer
 
+            # Imported under its own name here: the late import of the same alias further down
+            # this function made the name local to the whole function, so this earlier use raised
+            # UnboundLocalError on every NULL-protocol local fallback.
+            from core.response_provenance import strip_provenance_footer as _strip_null_footer
+
             null_commit = finalize_answer(
                 turn_id=str(null_req.session_id or ""),
-                canonical_content=strip_provenance_footer_str(str(null_result.get("response") or "")),
+                canonical_content=_strip_null_footer(str(null_result.get("response") or "")),
                 source_context={"surface": "null_protocol"},
                 display_metadata={"route": "null_protocol_local"},
             )
@@ -7131,6 +7136,11 @@ def _dispatch_post_inner(
             "workspace_binding": workspace_binding,
             "request_id": str(request_id or "").strip(),
         }
+        # Who wrote this message: an agent team's agent session declares "agent", and its brief must
+        # never become the owner's memory (core.request_trust.turn_is_owner_authored).
+        from core.request_trust import TURN_AUTHOR_KEY, turn_author_from_request
+
+        source_context[TURN_AUTHOR_KEY] = turn_author_from_request(body, inbound_source_context)
         source_context["chat_id"] = context_namespace.chat_id
         if context_namespace.project_id:
             source_context["_trusted_project_id"] = context_namespace.project_id

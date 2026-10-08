@@ -4,6 +4,7 @@ import logging
 import re
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from core.context_scope import ContextAccessPolicy
@@ -155,11 +156,49 @@ __all__ = [
 
 _REMEMBER_RE = re.compile(r"^(?:remember(?: that)?|note(?: that)?|store(?: this)?)\s+(.+)$", re.IGNORECASE)
 _MEMORY_CAPTURE_RE = re.compile(
-    r"^(?:(?:this is|in this)\b[^.!?]*(?:[.!?]\s*|,\s*))?"
+    # The lead-in's words ("This is important," / "In this chat,") stay on one line: crossing a line break they took
+    # a comma inside quoted material for their end and read the material's verb as the command's.
+    r"^(?:(?:this is|in this)\b[^.!?\n]*(?:[.!?]\s*|,\s*))?"
     r"(?:please\s+)?(?P<verb>remember(?: that)?|note(?: that)?|store(?: this)?|keep|retain|save)\s+"
     r"(?P<fact>.+)$",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class _MaterialCapture:
+    """A capture command on its first line with the material under it: the verb and the fact's opening are read from
+    that line alone, so nothing inside the material can be taken for the command; the material follows the fact."""
+
+    verb: str
+    fact: str
+
+    def group(self, name: str) -> str:
+        return {"verb": self.verb, "fact": self.fact}[name]
+
+
+def _memory_capture_match(text: str) -> re.Match[str] | _MaterialCapture | None:
+    """The capture command, on one line -- or on its first line followed only by the material it names.
+
+    "Remember this template:" with a fenced or quoted block under it is one command: the block is what to remember
+    (and admission keeps it source material, never the owner's profile). Any other later line is a separate turn
+    for the model, so a multi-line message is only a capture when everything after its first line is material.
+    """
+    match = _MEMORY_CAPTURE_RE.match(text)
+    if match is not None or "\n" not in text:
+        return match
+    first, rest = text.split("\n", 1)
+    head = _MEMORY_CAPTURE_RE.match(first.strip())
+    if head is None or not rest.strip():
+        return None
+    from core.memory.admission import classify_user_text
+
+    origin = classify_user_text(rest)
+    if not origin.has_source_material or origin.authored_text.strip():
+        return None
+    return _MaterialCapture(verb=head.group("verb"), fact=head.group("fact") + "\n" + rest)
+
+
 _MEMORY_CAPTURE_TRAILER_RE = re.compile(
     r"\s+reply\s+with\s+(?:only\s+)?stored\.?$",
     re.IGNORECASE,
@@ -428,7 +467,9 @@ def _split_explicit_memory_facts(raw_fact: str) -> list[str]:
     parts = _MEMORY_CONTINUATION_RE.split(str(raw_fact or "").strip())
     facts: list[str] = []
     for index, part in enumerate(parts[:4]):
-        clean = " ".join(str(part or "").split()).strip()
+        # Spaces are normalized within each line; line breaks stay, because a fence or a quote block is only
+        # recognisable by its lines and admission must still see it as source material, not the owner's words.
+        clean = "\n".join(" ".join(line.split()) for line in str(part or "").splitlines() if line.strip()).strip()
         if index:
             clean = _MEMORY_CONTINUATION_PREFIX_RE.sub("", clean).strip()
         if clean:
@@ -436,15 +477,62 @@ def _split_explicit_memory_facts(raw_fact: str) -> list[str]:
     return facts
 
 
+#: A reason the user appends to a forget ("..., it is wrong", "... it was a typo", "...? its wrong", "... lol") is not
+#: part of the named target: left on, it made the whole sentence the keyword, nothing matched, and the reply still
+#: said "Forget applied" (served check 2026-10-07).
+#: A reason or courtesy the user appends to a forget is not part of the named target (review 2026-10-07, twice):
+#: a courtesy word counts only at the very end of the text; a clause word counts only after punctuation or a dash,
+#: or after a head of two or more content words; and a head that keeps no content word is no target at all
+#: (measured: "Forget my Thanks Giving plans" stripped to "my" and the keyword path removed every entry with "my").
+_FORGET_COURTESY_TAIL_RE = re.compile(r"^(?P<head>.+?)[\s,;:!?.]*\b(?:thanks|thank\s+you|please|pls|lol)[\s.!?]*$", re.IGNORECASE)
+_FORGET_CLAUSE_WORDS = (r"(?:it(?:'s|\s+is|\s+was)|that(?:'s|\s+is|\s+was)|this\s+(?:is|was)|which\s+(?:is|was)|its|because|since"
+                        r"|as\s+it)")
+_FORGET_CLAUSE_AFTER_PUNCT_RE = re.compile(r"^(?P<head>.+?)(?:\s*[,;:?!]+\s*|\s+[-\u2013\u2014]\s*)" + _FORGET_CLAUSE_WORDS + r"\b.*$",
+                                           re.IGNORECASE)
+_FORGET_CLAUSE_AFTER_WORDS_RE = re.compile(r"^(?P<head>.+?)\s+" + _FORGET_CLAUSE_WORDS + r"\b.*$", re.IGNORECASE)
+_FORGET_TARGET_STOPWORDS = frozenset({
+    "my", "our", "your", "his", "her", "their", "its", "the", "a", "an", "this", "that", "these", "those", "old",
+    "new", "previous", "exact", "current", "of", "for", "to", "in", "on", "at", "and", "or", "about", "from", "with",
+    "i", "you", "we", "it", "is", "was", "be", "gave", "told",
+})
+
+
+def _forget_content_words(text: str) -> list[str]:
+    return [w for w in re.findall(r"[A-Za-z0-9][\w'\-]*", str(text or "")) if w.lower() not in _FORGET_TARGET_STOPWORDS]
+
+
+def _without_forget_reason_tail(target: str) -> str:
+    """The target before an appended courtesy or reason clause; the target itself when the strip would leave no
+    content word or would shorten the target's own first content word."""
+    original_words = _forget_content_words(target)
+    candidate = target
+    courtesy = _FORGET_COURTESY_TAIL_RE.match(candidate)
+    if courtesy is not None:
+        candidate = courtesy.group("head")
+    clause = _FORGET_CLAUSE_AFTER_PUNCT_RE.match(candidate)
+    if clause is None:
+        clause = _FORGET_CLAUSE_AFTER_WORDS_RE.match(candidate)
+        if clause is not None and len(_forget_content_words(clause.group("head"))) < 2:
+            clause = None
+    if clause is not None:
+        candidate = clause.group("head")
+    head = candidate.strip(" .,!?;:-")
+    head_words = _forget_content_words(head)
+    if not head_words or (original_words and head_words[0].lower() != original_words[0].lower()):
+        return target
+    return head
+
+
 def _forget_target_without_preservation_clause(raw_target: str) -> str:
-    """Remove a trailing keep-clause without changing the named forget target."""
+    """Remove a trailing keep-clause or reason clause without changing the named forget target."""
     target = " ".join(str(raw_target or "").strip().strip(".!?").split())
-    return re.sub(
+    target = re.sub(
         r",?\s+but\s+keep\b.*$",
         "",
         target,
         flags=re.IGNORECASE,
     ).strip()
+    return _without_forget_reason_tail(target).strip(" .,!?;:")
 
 
 def _normalize_forget_target(raw_target: str) -> str:
@@ -484,6 +572,10 @@ def _referential_forget_token(
             for token in row.get("keywords") or []
         }
     ]
+    if not rows:
+        # Nothing stored under that name: the referential reading resolves nothing, so the keyword
+        # path decides (and says so when it removes nothing). "More than one" was never true here.
+        return False, ""
     if len(rows) != 1:
         return True, ""
     return True, _memory_recall_value(str(rows[0].get("text") or ""))
@@ -1036,37 +1128,32 @@ def _write_conversation_event(
                 session_id,
                 type(exc).__name__,
             )
-        if not is_image_turn:
-            # This is the single finalized-turn seam for every route, including
-            # fast paths.  Keeping semantic persistence here prevents the
-            # model-wording chat surface from becoming an accidental special
-            # case and carries the same server-resolved policy/runtime home to
-            # both write and later retrieval.
-            try:
-                from core.context_retrieval import store_turn
+        # Every finalized turn retains its attributed source, including an
+        # image brief. A fictional render subject remains evidence of an ask;
+        # it is neither mined above nor indexed as a standing user assertion.
+        try:
+            from core.context_retrieval import store_turn
 
-                semantic_result = store_turn(
-                    session_id,
-                    redacted_user,
-                    redacted_assistant,
-                    access_policy=resolved_policy,
-                    source_context=source_context,
-                )
-                if semantic_result.get("status") == "failed":
-                    LOGGER.warning(
-                        "semantic memory write rejected for chat %s: %s",
-                        session_id,
-                        semantic_result.get("reason", "unknown"),
-                    )
-            except Exception as exc:
-                # Semantic memory is fail-soft for the response path, but the
-                # failure must be visible to diagnostics rather than silently
-                # making the round trip appear successful.
+            semantic_result = store_turn(
+                session_id,
+                redacted_user,
+                redacted_assistant,
+                access_policy=resolved_policy,
+                source_context=source_context,
+                index_user_statements=not is_image_turn,
+            )
+            if semantic_result.get("status") == "failed":
                 LOGGER.warning(
-                    "semantic memory write unavailable for chat %s: %s",
+                    "semantic memory write rejected for chat %s: %s",
                     session_id,
-                    type(exc).__name__,
+                    semantic_result.get("reason", "unknown"),
                 )
+        except Exception as exc:
+            LOGGER.warning(
+                "semantic memory write unavailable for chat %s: %s",
+                session_id,
+                type(exc).__name__,
+            )
 
 
 #: Assistant-authored artifacts that belong in a chat's TRANSCRIPT but in none of the
@@ -1558,13 +1645,13 @@ def maybe_handle_memory_command(
     if not (
         scope_command is not None
         or lowered in {"/memory", "what do you remember", "show memory"}
-        or _MEMORY_CAPTURE_RE.match(text)
+        or _memory_capture_match(text)
         or _CORRECTION_RE.match(text)
         or _FORGET_RE.match(text)
         or _is_memory_recall_question(text)
     ):
         return False, ""
-    capture_match = _MEMORY_CAPTURE_RE.match(text)
+    capture_match = _memory_capture_match(text)
     if capture_match and _ANSWER_REQUEST_RE.search(capture_match.group("fact")):
         return False, ""
     if capture_match:
@@ -1734,19 +1821,20 @@ def maybe_handle_memory_command(
         facts = _split_explicit_memory_facts(fact)
         added_count = 0
         for memory_fact in facts:
-            memory_scope = _memory_scope_for_user_fact(
+            for eligible_fact, eligible_scope, eligible_source in _admitted_remember_facts(
                 memory_fact,
                 policy=resolved_policy,
-            )
-            added_count += int(
-                add_memory_fact(
-                    memory_fact,
-                    session_id=resolved_session,
-                    scope=memory_scope,
-                    authority="confirmed_memory",
-                    access_policy=resolved_policy,
+            ):
+                added_count += int(
+                    add_memory_fact(
+                        " ".join(eligible_fact.split()),
+                        session_id=resolved_session,
+                        scope=eligible_scope,
+                        authority="confirmed_memory",
+                        source=eligible_source,
+                        access_policy=resolved_policy,
+                    )
                 )
-            )
         if added_count:
             return True, "Locked in. I’ll remember that."
         return True, "I already had that in memory."
@@ -1763,6 +1851,20 @@ def maybe_handle_memory_command(
             token = _normalize_forget_target(forget.group(1))
         if len(token) < 2:
             return True, "Forget command skipped: provide a clearer keyword."
+        # Already forgotten (review 2026-10-07, crash-heal path): the canonical row is a tombstone, so the forget
+        # removes 0, but the mirror may still carry the plaintext and is healed by this very forget. That outcome
+        # is confirmed as "already forgotten", never reported as a no-match and never as "Forget applied".
+        from core.memory.entries import _text_is_erased
+        from core.memory.files import memory_path
+
+        def _mirror_text() -> str:
+            try:
+                return memory_path().read_text(encoding="utf-8")
+            except OSError:
+                return ""
+
+        mirror_before = _mirror_text().lower()
+        already_erased = _text_is_erased(token) or _text_is_erased(token.rstrip(".!?") + ".")
         try:
             removed = forget_memory(
                 token,
@@ -1778,6 +1880,7 @@ def maybe_handle_memory_command(
                 "erased on every memory path. Please retry the forget."
             )
         semantic_removed = 0
+        erasures: dict[str, int] = {}
         try:
             from core.context_retrieval import forget_session_memory
 
@@ -1786,10 +1889,22 @@ def maybe_handle_memory_command(
                 token,
                 access_policy=resolved_policy,
                 source_context=source_context,
+                erasures=erasures,
             )
         except Exception as exc:
             LOGGER.warning("semantic memory forget unavailable: %s", type(exc).__name__)
-        total_removed = max(int(removed), int(semantic_removed))
+        total_removed = max(int(removed), int(semantic_removed), *(int(count or 0) for count in erasures.values()))
+        if total_removed <= 0:
+            mirror_after = _mirror_text().lower()
+            healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
+            if already_erased or healed:
+                return True, ("That was already forgotten; a stale copy of it has now been cleared as well."
+                              if healed else "That was already forgotten.")
+            # Never "Forget applied" over nothing removed (served check 2026-10-07: "Forget the storage
+            # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
+            # command is answered with the truth; the turn is still recorded by the fast path, so the
+            # capsule's temporal law withdraws the record it names on the next recall.
+            return True, f"Nothing was removed: no stored memory in this chat matched \"{token}\"."
         return True, f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}."
 
     return False, ""
@@ -1806,8 +1921,84 @@ def _memory_scope_for_user_fact(
     not make every user-authored fact a profile preference.  Only explicit
     preference/identity language is eligible for profile scope; all other
     captures stay bound to their originating chat.
+
+    Eligibility is decided on the fact's AUTHORED portion only: an explicitly
+    remembered quotation ("Remember this article excerpt: \"My name is Petra.
+    …\"") is retained in the chat as source material, and its embedded
+    identity/preference markers never promote the quoted speaker into the
+    user's profile.  A direct authored declaration ("my preferred name is …")
+    keeps its existing profile eligibility.
     """
     if not policy.allow_user_profile_context:
         return "chat"
-    lowered = " ".join(str(fact or "").casefold().split())
+    from core.memory.admission import classify_user_text
+
+    authored = classify_user_text(fact).authored_text
+    if not authored:
+        # The entire fact is quoted/fenced source material.
+        return "chat"
+    lowered = " ".join(authored.casefold().split())
     return "user_profile" if any(marker in lowered for marker in _PROFILE_MEMORY_MARKERS) else "chat"
+
+
+#: Trailing connective framing that introduces quoted/pasted source material
+#: inside an otherwise personal declaration ("…, and this article excerpt:").
+#: Stripped only when the authored remainder is an attributable declaration and
+#: the quote is stored separately; never used to delete content outright.
+_REMEMBERED_SOURCE_FRAMING_TAIL_RE = re.compile(
+    r"[,;:]?\s*(?:and\s+|also\s+|plus\s+|with\s+|alongside\s+)?"
+    r"(?:this|that|these|those|the\s+(?:following|attached|pasted))?\s*"
+    r"(?:[a-z-]+\s+from\s+(?:the|this|that)\s+[a-z-]+"
+    r"|article|excerpt|quote|quotation|passage|snippet|post|note|text|"
+    r"template|bit|words|lines|phrases|fragments)\b[^a-z0-9]*:?\s*(?:and\s+)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _attributable_declaration(text: str) -> bool:
+    """Whether authored text itself asserts a personal declaration/instruction."""
+    lowered = " ".join(str(text or "").casefold().split())
+    if not lowered:
+        return False
+    if any(marker in lowered for marker in _PROFILE_MEMORY_MARKERS):
+        return True
+    from core.memory.learning import extract_memory_candidates
+
+    return bool(extract_memory_candidates(text))
+
+
+def _admitted_remember_facts(
+    fact: str,
+    *,
+    policy: ContextAccessPolicy,
+) -> list[tuple[str, str, str]]:
+    """Split one explicitly remembered fact into admissible (content, scope, source).
+
+    The persisted content and its scope must agree: a genuine personal marker
+    in the authored portion never authorizes storing the third-party material
+    quoted beside it at profile scope.  When the authored portion is an
+    unambiguous personal declaration, the declaration is stored through the
+    normal scope decision and the quoted source material is retained
+    chat-scoped as source.  Mixed content without an attributable declaration
+    stays whole and chat-scoped.  Nothing is discarded.
+    """
+    from core.memory.admission import classify_user_text
+
+    origin = classify_user_text(fact)
+    if not origin.has_source_material:
+        return [(fact, _memory_scope_for_user_fact(fact, policy=policy), "manual")]
+    authored = " ".join(origin.authored_text.split())
+    source_material = " ".join(origin.source_text.split())
+    if not _attributable_declaration(authored):
+        return [(fact, "chat", "manual")]
+    attributable = _REMEMBERED_SOURCE_FRAMING_TAIL_RE.sub("", authored).strip() or authored
+    pairs = [
+        (
+            attributable,
+            _memory_scope_for_user_fact(attributable, policy=policy),
+            "manual",
+        )
+    ]
+    if source_material:
+        pairs.append((source_material, "chat", "remembered_source_material"))
+    return pairs

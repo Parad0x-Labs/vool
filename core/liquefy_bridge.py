@@ -3,10 +3,12 @@ from __future__ import annotations
 import contextlib
 import gzip
 import hashlib
+import io
 import json
 import os
 import tempfile
 import threading
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -287,7 +289,10 @@ def lookup_cold_archive_candidates(query_text: str, *, limit: int = 3) -> list[d
                 {
                     "archive_id": row["parent_task_id"],
                     "source_type": "cold_archive",
-                    "storage_backend": "liquefy" if liquefy_available() else "local_archive",
+                    # These rows ARE local finalized_responses records; a Liquefy
+                    # binary existing on PATH says nothing about where these bytes
+                    # live. Label the actual store, never the installed tooling.
+                    "storage_backend": "local_archive",
                     "status_marker": row["status_marker"],
                     "confidence_score": float(row["confidence_score"] or 0.0),
                     "created_at": row["created_at"],
@@ -319,14 +324,24 @@ def pack_bytes_artifact(
     safe_stem = _safe_file_stem(file_stem or clean_artifact_id)
     out_dir = _vault_dir(str(category or "artifacts"))
     level = int(compression_level or (_DEFAULT_KNOWLEDGE_LEVEL if profile == "knowledge" else _DEFAULT_ARCHIVE_LEVEL))
+    # Truthful receipts (F14 repair): record the codec actually used, the engine
+    # that ran it, and the EFFECTIVE level the codec received after clamping —
+    # the backend label 'liquefy' is a storage vocabulary kept for old manifests;
+    # it has never meant the external Liquefy CLI executed anything here.
     if _ZSTD_AVAILABLE and zstd is not None:
-        compressed = zstd.ZstdCompressor(level=max(1, min(19, level))).compress(raw)
+        effective_level = max(1, min(19, level))
+        compressed = zstd.ZstdCompressor(level=effective_level).compress(raw)
         suffix = ".zst"
         storage_backend = "liquefy"
+        codec = "zstd"
+        codec_library = f"python-zstandard {getattr(zstd, '__version__', 'unknown')}"
     else:
-        compressed = gzip.compress(raw, compresslevel=max(1, min(9, level)))
+        effective_level = max(1, min(9, level))
+        compressed = gzip.compress(raw, compresslevel=effective_level)
         suffix = ".gz"
         storage_backend = "local_archive"
+        codec = "gzip"
+        codec_library = "stdlib-gzip"
     compressed_digest = hashlib.sha256(compressed).hexdigest()
     out_path = (out_dir / f"{safe_stem}{suffix}").resolve()
     out_path.write_bytes(compressed)
@@ -334,12 +349,16 @@ def pack_bytes_artifact(
         "artifact_id": clean_artifact_id,
         "path": str(out_path),
         "storage_backend": storage_backend,
+        "engine": "python-byte-compression",
+        "codec": codec,
+        "codec_library": codec_library,
         "content_sha256": raw_digest,
         "compressed_sha256": compressed_digest,
         "raw_bytes": len(raw),
         "compressed_bytes": len(compressed),
         "compression_ratio": round(len(raw) / max(1, len(compressed)), 4),
-        "compression_level": max(1, level),
+        "compression_level": effective_level,
+        "effective_compression_level": effective_level,
         "profile": profile,
         "compressed_payload": compressed,
     }
@@ -350,10 +369,59 @@ def load_packed_bytes(*, payload: bytes, storage_backend: str) -> bytes:
     if clean_backend == "liquefy":
         if not _ZSTD_AVAILABLE or zstd is None:
             raise RuntimeError("Liquefy payload requested but zstandard runtime is unavailable.")
-        return zstd.ZstdDecompressor().decompress(payload)
+        return _bounded_zstd_decompress(payload)
     if clean_backend in {"local_archive", "gzip"}:
-        return gzip.decompress(payload)
+        return _bounded_gzip_decompress(payload)
     raise ValueError(f"Unsupported packed payload backend: {storage_backend}")
+
+
+#: Decompression is memory-bounded: a few-KiB compressed payload must never be
+#: able to force an unbounded allocation on a reader (zip-bomb class). Archives
+#: built by this module are single frames/members; the cap is global for both codecs.
+_MAX_DECOMPRESSED_BYTES = 32 * 1024 * 1024
+_DECOMPRESS_CHUNK = 256 * 1024
+
+
+def _bounded_zstd_decompress(payload: bytes) -> bytes:
+    """Stream-decompress with a hard output cap. zstandard's one-shot
+    ``decompress(max_output_size=...)`` does NOT bound frames that embed their
+    content size (measured: a 70 MiB bomb returned in full), so the bound has
+    to be enforced while streaming the output."""
+    reader = zstd.ZstdDecompressor().stream_reader(io.BytesIO(payload))
+    parts: list[bytes] = []
+    total = 0
+    while True:
+        chunk = reader.read(_DECOMPRESS_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > _MAX_DECOMPRESSED_BYTES:
+            raise ValueError(
+                f"decompressed payload exceeds the {_MAX_DECOMPRESSED_BYTES}-byte bound"
+            )
+        parts.append(chunk)
+    return b"".join(parts)
+
+
+def _bounded_gzip_decompress(payload: bytes) -> bytes:
+    """gzip.decompress is unbounded; enforce the cap with zlib streaming
+    (wbits=31 reads the gzip container) across all members of the stream."""
+    parts: list[bytes] = []
+    total = 0
+    pending = payload
+    while pending:
+        decoder = zlib.decompressobj(31)
+        out = decoder.decompress(pending, _MAX_DECOMPRESSED_BYTES + 1)
+        total += len(out)
+        if total > _MAX_DECOMPRESSED_BYTES:
+            raise ValueError(
+                f"decompressed payload exceeds the {_MAX_DECOMPRESSED_BYTES}-byte bound"
+            )
+        parts.append(out)
+        if not decoder.eof:
+            raise EOFError("truncated gzip stream")
+        pending = decoder.unused_data
+    return b"".join(parts)
 
 
 def pack_json_artifact(

@@ -155,6 +155,42 @@ def test_session_summary_items_are_sealable(monkeypatch) -> None:
         assert not missing, f"session_summary item is unsealable, missing {missing}"
 
 
+def test_recent_dialogue_turn_items_are_sealable(monkeypatch) -> None:
+    """`dialogue-*`: the recent-dialogue leg rides on any turn of a chat with history."""
+
+    monkeypatch.setattr(tiered_context_loader, "revoked_tokens_for_chat", lambda *a, **k: ())
+    monkeypatch.setattr(
+        tiered_context_loader,
+        "recent_dialogue_turns",
+        lambda *a, **k: [{"turn_id": "t-1", "normalized_input": "the shed key is under the blue pot",
+                          "created_at": "2026-10-01T09:00:00Z", "understanding_confidence": 0.7}],
+    )
+    items = tiered_context_loader._dialogue_items("openclaw:abcdef0123456789abcd")
+    assert items, "fixture must produce an item or this test proves nothing"
+    for item in items:
+        missing = [key for key, value in _sealed_fields(item).items() if not value]
+        assert not missing, f"dialogue_turn item is unsealable, missing {missing}"
+        assert item.metadata["content_hash"] == hashlib.sha256(item.content.encode()).hexdigest()
+
+
+def test_a_memory_qa_stripped_item_is_sealed_with_the_hash_of_what_remains() -> None:
+    """A stripped item reaches the provider with new bytes: its hash is of those bytes, and it always has one."""
+
+    from core.prompt_assembly_report import ContextItem
+
+    original = "Continuity: Ines. The owner asked about the lantern. Task summary: what was the lantern for?"
+    unhashed = ContextItem(item_id="continuity", layer="bootstrap", source_type="continuity", title="Continuity",
+                           content=original, metadata={"memory_qa_strip": ["Ines.", "Task summary: what was the lantern for?"]})
+    hashed = ContextItem(item_id="task", layer="bootstrap", source_type="task_summary", title="Task",
+                         content=original, metadata={"memory_qa_strip": ["Ines."]},
+                         provenance={"content_hash": hashlib.sha256(original.encode()).hexdigest()})
+    for item in tiered_context_loader._memory_qa_view([unhashed, hashed]):
+        expected = hashlib.sha256(item.content.encode()).hexdigest()
+        assert item.content != original
+        assert _sealed_fields(item)["content_hash"] == expected
+        assert item.provenance.get("content_hash", expected) == expected
+
+
 # --------------------------------------------------------------------------------------
 # The hash must describe the content, not merely exist
 # --------------------------------------------------------------------------------------

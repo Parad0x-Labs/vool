@@ -15,7 +15,18 @@ __vool_pick_install_dir() {
   fi
 }
 INSTALL_DIR="$(__vool_pick_install_dir)"
-ARCHIVE_URL="${VOOL_ARCHIVE_URL:-https://github.com/${OWNER}/${REPO}/archive/refs/heads/${REF}.tar.gz}"
+# A release tag (v0.7.0, 0.7.0, v0.7.0-beta) lives under refs/tags: GitHub answers refs/heads/<tag> with 404.
+ref_is_release_tag() {
+  [[ "$1" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]
+}
+archive_url_for_ref() {
+  if ref_is_release_tag "$1"; then
+    printf 'https://github.com/%s/%s/archive/refs/tags/%s.tar.gz' "${OWNER}" "${REPO}" "$1"
+  else
+    printf 'https://github.com/%s/%s/archive/refs/heads/%s.tar.gz' "${OWNER}" "${REPO}" "$1"
+  fi
+}
+ARCHIVE_URL="${VOOL_ARCHIVE_URL:-$(archive_url_for_ref "${REF}")}"
 ARCHIVE_SHA256="${VOOL_ARCHIVE_SHA256:-}"
 SOURCE_COMMIT="${VOOL_BUILD_COMMIT:-}"
 SOURCE_DIRTY_STATE="${VOOL_BUILD_DIRTY_STATE:-}"
@@ -98,7 +109,7 @@ parse_args() {
         shift
         [[ $# -gt 0 ]] || { say "ERROR: --ref requires a value."; exit 2; }
         REF="$1"
-        ARCHIVE_URL="https://github.com/${OWNER}/${REPO}/archive/refs/heads/${REF}.tar.gz"
+        ARCHIVE_URL="$(archive_url_for_ref "${REF}")"
         ;;
       --dir)
         shift
@@ -277,7 +288,7 @@ write_build_metadata() {
   cat > "${metadata_path}" <<EOF
 {
   "ref": "$(json_escape "${REF}")",
-  "branch": "$(json_escape "${REF}")",
+  "branch": "$(ref_is_release_tag "${REF}" || json_escape "${REF}")",
   "commit": "$(json_escape "${BUILD_COMMIT}")",
   "dirty_state": $(json_bool_or_null "${SOURCE_DIRTY_STATE}"),
   "source_kind": "archive",

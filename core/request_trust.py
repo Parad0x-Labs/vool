@@ -143,10 +143,40 @@ def request_is_owner_local(source_context: Any) -> bool:
     return surface in _OWNER_SURFACES
 
 
+#: Who wrote this turn's user message. A turn an agent sends (an agent team's agent session) carries
+#: ``"agent"``: the words are an agent's brief, not the owner speaking, so they never become the owner's memory.
+#: Deny-only: any value other than ``"owner"`` or absent counts as not the owner, and claiming ``"owner"``
+#: grants nothing (owner-local trust stays the server-stamped flag).
+TURN_AUTHOR_KEY = "turn_author"
+
+
+def turn_author_from_request(body: Any, inbound_source_context: Any = None) -> str:
+    """The turn author a request declares, normalised: ``"owner"`` unless the body says otherwise."""
+
+    values = []
+    for carrier in (body, inbound_source_context):
+        if isinstance(carrier, dict):
+            values.append(str(carrier.get(TURN_AUTHOR_KEY) or "").strip().lower())
+    declared = [value for value in values if value]
+    if any(value != "owner" for value in declared):
+        return next(value for value in declared if value != "owner")[:40]
+    return "owner"
+
+
+def turn_is_owner_authored(source_context: Any) -> bool:
+    """Whether this turn's user message is the owner's own words (and may become the owner's memory)."""
+
+    sc = source_context if isinstance(source_context, dict) else {}
+    return str(sc.get(TURN_AUTHOR_KEY) or "owner").strip().lower() == "owner"
+
+
 __all__ = [
     "OWNER_LOCAL_KEY",
     "RESERVED_TRUST_KEYS",
+    "TURN_AUTHOR_KEY",
     "is_loopback_host",
     "request_is_owner_local",
     "strip_reserved_trust_keys",
+    "turn_author_from_request",
+    "turn_is_owner_authored",
 ]

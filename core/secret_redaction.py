@@ -324,6 +324,132 @@ def redact_url_path_tokens(text: str) -> str:
         return text
     return _PATH_TOKEN_RE.sub(lambda match: f"{match.group(1)}[redacted-path-token]", str(text))
 
+# Phrase-shaped secrets (recovery/seed/mnemonic phrases) are MULTI-WORD values: the
+# single-token labelled rule above can only mask "label: <one-word>", so an explicitly
+# recovery-phrase-framed 8/12/24-word phrase sailed through verbatim into embedding,
+# VoolMemory and the FTS index (measured 2026-09-27: the mnemonic-like canary was
+# stored and re-injected word-for-word). Only the LABEL authorises masking here — an
+# unlabelled word list is never touched. The value must be WORDLIST-SHAPED: 4-24
+# tokens separated by whitespace OR commas (both ordinary ways users paste a phrase),
+# each token purely alphabetic and 3-8 characters (the BIP39/Electrum word shape),
+# optionally wrapped in straight or curly quotes — so ordinary prose after the label
+# keeps its existing behaviour whenever it contains a short function word ("is stored
+# in the vault" — "in"), a longer word ("written on the whiteboard") or fewer than
+# four such tokens ("my passphrase is fine"). Deliberate trade-off: a benign
+# four-word run of short alpha words directly after an explicit phrase-secret label
+# can be masked — under-masking here was the measured product failure, and the label
+# requirement keeps prose without a labelled value untouched. The trailing
+# (?![A-Za-z0-9'-]) guard keeps the value from ending MID-WORD inside a longer
+# following token ("flute" inside "flute-something"): the value either ends at a
+# real token boundary or the whole match is refused, never mangled.
+_PHRASE_SECRET_LABEL = (
+    r"recovery\s+phrase|recovery\s+seed|recovery\s+words|seed\s+phrase|seed\s+words"
+    r"|backup\s+phrase|backup\s+seed|backup\s+words|mnemonic(?:\s+(?:phrase|words|seed))?"
+    r"|passphrase|secret\s+phrase|secret\s+words"
+)
+_LABELED_PHRASE_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9])((?:[A-Za-z0-9]+[_-])*(?:" + _PHRASE_SECRET_LABEL + r")(?:[_-][A-Za-z0-9]+)*)"
+    r"\s*(?:[:=]|(?:\bis\b|\bare\b)\s*[:=]?)\s*[\u201c\u2018\"']?"
+    r"([A-Za-z]{3,8}(?:(?:\s+|\s*,\s*)[A-Za-z]{3,8}){3,23})"
+    r"[\u201d\u2019\"']?(?![A-Za-z0-9'\-])"
+)
+
+# Benign-public declaration. "mnemonic" alone is AMBIGUOUS: it names both wallet
+# seed phrases and legitimate shared memory aids ("every good bird dances softly").
+# An explicit publicity qualifier attached to the label noun ("our public mnemonic")
+# resolves the ambiguity toward the memory-aid sense and preserves the value.
+# Coherence rules, so one word can never launder a secret class:
+#   * only the BARE "mnemonic" label is overridable — labels that name wallet
+#     recovery material (recovery/seed/backup/secret/passphrase) keep their secret
+#     classification no matter what qualifier precedes them;
+#   * the qualifier must govern the label noun directly (same noun phrase, at most
+#     two words between qualifier and label) — a stray "public" elsewhere in the
+#     sentence proves nothing;
+#   * the declaration must be AFFIRMATIVE: a negation, uncertainty hedge or
+#     secrecy contradiction governing the qualifier ("not public", "non-public",
+#     "maybe public", "public but private") withholds the exemption. The first
+#     version matched the qualifier on a bare word boundary, which fires after
+#     "not" and after a hyphen — measured (review N1/N2, 2026-09-27): both
+#     "not public mnemonic" and "non-public mnemonic" leaked all eight words.
+_PUBLIC_QUALIFIER_TAIL_RE = re.compile(
+    r"\b(?:public|well[- ]known|famous)\s+(?:[A-Za-z]+\s+){0,2}$",
+    re.IGNORECASE,
+)
+#: Negation governing a publicity qualifier, in the words of its own clause.
+_PUBLICITY_NEGATION_RE = re.compile(
+    r"\b(?:not|no|never|none|nor|isn'?t|aren'?t|wasn'?t|weren'?t|don'?t|doesn'?t|"
+    r"didn'?t|won'?t|wouldn'?t|can'?t|cannot|couldn'?t|shouldn'?t|hardly|barely|"
+    r"scarcely|without)\b|n't\b",
+    re.IGNORECASE,
+)
+#: Uncertainty/contradiction vocabulary that makes a declared publicity tentative.
+_PUBLICITY_UNCERTAIN_RE = re.compile(
+    r"\b(?:maybe|perhaps|possibly|probably|apparently|seemingly|arguably|somewhat|"
+    r"kind\s+of|sort\s+of|allegedly|supposedly|reportedly|unclear|unsure)\b",
+    re.IGNORECASE,
+)
+#: Secrecy contradiction between the qualifier and the label it governs.
+_PUBLICITY_CONTRADICTION_RE = re.compile(
+    r"\b(?:private|secret|sensitive|confidential|hidden)\b",
+    re.IGNORECASE,
+)
+#: Clause boundaries delimiting how far back a governing negation can reach.
+_CLAUSE_BOUNDARY_RE = re.compile(r"[.;:!?\u2014\n]")
+
+#: Typography equivalence for the ANALYSIS copy only (same convention as
+#: core/memory/admission.py's possessive normalization): apostrophe-family
+#: characters fold to ASCII ' so "isn\u2019t" analyses as "isn't". Stored user
+#: text is never rewritten — only the slices the publicity checks inspect.
+_ANALYSIS_APOSTROPHES = str.maketrans({
+    "\u2018": "'", "\u2019": "'", "\u02bc": "'", "\uff07": "'",
+})
+
+
+def _publicity_analysis_text(text: str) -> str:
+    """Lower-cased, ASCII-apostrophe analysis copy of a publicity-declaration slice.
+
+    Case and typography must never decide whether a NEGATIVE declaration is
+    treated as affirmative (review C2/C3, 2026-09-27: 'NON-public' passed the
+    case-sensitive hyphen guard and 'isn\u2019t public' missed the ASCII-only
+    contraction negation — both leaked). Containment-only checks consume this;
+    every match span stays in the original prefix, which is never rewritten.
+    """
+    return str(text or "").translate(_ANALYSIS_APOSTROPHES).lower()
+
+
+def _label_declared_public(label: str, text: str, start: int) -> bool:
+    """Whether an AFFIRMATIVE publicity declaration directly governs this labelled value."""
+    if str(label or "").strip().lower() != "mnemonic":
+        return False
+    prefix = str(text or "")[: max(0, int(start))]
+    match = _PUBLIC_QUALIFIER_TAIL_RE.search(prefix)
+    if match is None:
+        return False
+    before = prefix[: match.start()]
+    # The clause whose tail the qualifier completes: a governing negation or hedge
+    # anywhere in it ("my not public", "not really famous", "definitely not
+    # well-known") makes the declaration non-affirmative. A hyphenated negation
+    # prefix ("non-public" — in ANY letter case) is the same government without
+    # a space. All content checks run on the normalized analysis copy so case
+    # and apostrophe typography cannot flip a negative to affirmative.
+    clause = _CLAUSE_BOUNDARY_RE.split(before)[-1]
+    clause_analysis = _publicity_analysis_text(clause)
+    if _PUBLICITY_NEGATION_RE.search(clause_analysis) or _PUBLICITY_UNCERTAIN_RE.search(clause_analysis):
+        return False
+    if clause_analysis.rstrip().endswith(("non-", "not-", "never-", "un-")):
+        return False
+    # Contradiction between qualifier and label ("public but private mnemonic").
+    # The qualifier span itself consumes up to two filler words, so the whole
+    # stretch from the qualifier to the label is checked (analysis copy again;
+    # the span bounds remain the original prefix's).
+    return not _PUBLICITY_CONTRADICTION_RE.search(_publicity_analysis_text(prefix[match.start():]))
+
+
+def _mask_secret_label(match: re.Match) -> str:
+    if _label_declared_public(match.group(1), match.string, match.start()):
+        return match.group(0)
+    return f"{match.group(1)}: [redacted]"
+
 
 def redact_secrets(text: str) -> str:
     """Return `text` with high-confidence secrets masked and everything else untouched. Never raises.
@@ -351,8 +477,12 @@ def redact_secrets(text: str) -> str:
     value = _WIF_RE.sub(_mask_key_shaped, value)
     value = _EVM_HEX64_RE.sub(_mask_key_shaped, value)
     value = _BEARER_RE.sub("Bearer [redacted]", value)
+    # Multi-word phrase secrets before the single-token rule: a masked first word
+    # ("ostrich" -> "[redacted]") must not truncate the phrase match mid-list.
+    # Both labelled rules honour the public-mnemonic declaration in _mask_secret_label.
+    value = _LABELED_PHRASE_RE.sub(_mask_secret_label, value)
     # Run labelled last so "api_key: sk-..." collapses cleanly even after the value was masked above.
-    value = _LABELED_RE.sub(lambda m: f"{m.group(1)}: [redacted]", value)
+    value = _LABELED_RE.sub(_mask_secret_label, value)
     return value
 
 
@@ -378,7 +508,13 @@ def contains_secret(text: str) -> bool:
             if pattern in (_B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE) and _is_public_identifier(match.group(0)):
                 continue
             return True
-    return bool(_LABELED_RE.search(value))
+    for match in _LABELED_RE.finditer(value):
+        if not _label_declared_public(match.group(1), value, match.start()):
+            return True
+    for match in _LABELED_PHRASE_RE.finditer(value):
+        if not _label_declared_public(match.group(1), value, match.start()):
+            return True
+    return False
 
 
 __all__ = [

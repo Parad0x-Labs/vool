@@ -167,6 +167,116 @@ def _host_owned_topic(lowered: str, topic_re: re.Pattern[str]) -> bool:
         return False
 
 
+# The user's OWN past, as opposed to this host's present. Rule (c) above promised "not asking about
+# the past", and `_GENERAL_KNOWLEDGE_RE` kept that promise only for the textbook past ("historically",
+# "used to", "in the 1990s"). The past people actually ask an assistant about is their own: what they
+# bought, upgraded, said, or were told. Only the conversation holds that; a reading of this machine
+# answers a different question with a confident number.
+#
+# Measured 2026-10-05 on the fresh memory benchmark (run 2): "How much RAM did I upgrade my laptop
+# to?" was answered "Machine specs for this host: ... RAM: 24.0 GiB". The specs family saw " ram "
+# and the possessive "my laptop", and this gate had nothing that read "did I upgrade".
+#
+# Something said earlier in this conversation, by either side.
+_CONVERSATION_RECALL_RE = re.compile(
+    r"\b(?:you|u)\s+(?:(?:just|already|once|earlier|also)\s+)?(?:told|said|mentioned|recommended|"
+    r"suggested|advised|gave|listed|explained|wrote|showed|promised)\b"
+    r"|\bdid\s+(?:you|u)\s+(?:tell|say|mention|recommend|suggest|advise|give|list|explain|write|show)\b"
+    r"|\b(?:i|we)\s+(?:(?:just|already|once|earlier|also)\s+)?(?:told\s+(?:you|u)|said|mentioned|discussed|"
+    r"talked\s+about|brought\s+up|shared)\b"
+    r"|\b(?:do|did)\s+(?:you|u)\s+(?:remember|recall)\b"
+    r"|\b(?:our|this|the|that)\s+(?:previous|last|earlier|past|other)\s+(?:chat|conversation|session|"
+    r"discussion)s?\b"
+    r"|\b(?:earlier|before)\s+in\s+(?:our|this|the)\s+(?:chat|conversation|session)\b",
+    re.IGNORECASE,
+)
+# Something the user did. "did I", "was I", "I bought", "I upgraded", or a past time anchor
+# ("last month", "yesterday", "two weeks ago"). Present forms -- "do I have", "am I on", "have I got"
+# -- are untouched, and so is the present perfect ("how long has it been up").
+_USERS_OWN_PAST_RE = re.compile(
+    r"\b(?:did|had|was|were)\s+(?:i|we)\b"
+    # Inverted after "am/are/have/has", the participle is a present state, not a past act: "am i
+    # connected", "how much of the ssd have i used up".
+    r"|(?<!\bam )(?<!\bare )(?<!\bhave )(?<!\bhas )\b(?:i|we)\s+(?:(?:just|recently|finally|already|eventually|also|first|originally|initially|"
+    r"then|later|once)\s+)?(?:ended\s+up|\w+(?<!e)ed|bought|had|was|were|built|chose|ran|took|went|"
+    r"made|sold|spent|paid|found|kept|gave|drove|flew|won|lost|met|began|did)\b"
+    r"|\b(?:last|previous)\s+(?:week|weekend|month|year|night|summer|winter|spring|fall|autumn|monday|"
+    r"tuesday|wednesday|thursday|friday|saturday|sunday)\b"
+    r"|\byesterday\b|\bago\b"
+    # A habit is no more a present reading than an event is: "is my laptop plugged in when i work at
+    # the cafe?" asks what the user does there, which only the conversation can say.
+    r"|\b(?:when|whenever)\s+(?:i|we)\s+(?:usually\s+|normally\s+|always\s+)?(?!last\b)\w+",
+    re.IGNORECASE,
+)
+# Past-tense lead-ins to a PRESENT question: "i was wondering how much ram i have", "i noticed the
+# fans spinning, what is eating my cpu". They describe the user's state of mind, not an event to
+# recall, so they are taken out before the past test runs.
+_PAST_LEAD_IN_RE = re.compile(
+    r"\bi\s+(?:was|were)\s+(?:just\s+)?(?:wondering|hoping|curious|thinking|asking|trying)\b"
+    r"|\bi\s+(?:just\s+)?(?:wanted|needed|hoped|meant|wondered|asked|tried|noticed|realized|realised|"
+    r"figured|heard|saw|thought)\b",
+    re.IGNORECASE,
+)
+# A past act that IS a fact this host records: when it last booted. "when did i last restart my mac"
+# is answered by the uptime read, so the user's own past does not stand that family down.
+_HOST_LIFECYCLE_EVENT_RE = re.compile(
+    r"\b(?:reboot(?:ed)?|restart(?:ed)?|boot(?:ed)?|power(?:ed)?\s+(?:it\s+)?on|turn(?:ed)?\s+(?:it\s+)?on)\b",
+    re.IGNORECASE,
+)
+
+
+def _ask_or_whole(text: str) -> str:
+    lowered = " ".join(str(text or "").strip().lower().split())
+    return _ask_clause(lowered) or lowered
+
+
+def users_own_past_is_asked(text: str) -> bool:
+    """True when the ask is about something the user did (not something this host recorded).
+
+    Read on the clause that carries the ask, so a past-tense remark beside a present question ("i
+    upgraded my ram yesterday, how much do i have now?") still reaches the live read.
+    """
+    ask = _PAST_LEAD_IN_RE.sub(" ", _ask_or_whole(text))
+    if not _USERS_OWN_PAST_RE.search(ask):
+        return False
+    return _HOST_LIFECYCLE_EVENT_RE.search(ask) is None
+
+
+def recalls_the_users_own_history(text: str) -> bool:
+    """True when the ask is about something said earlier in the conversation or the user's past."""
+    ask = _ask_or_whole(text)
+    if not ask:
+        return False
+    return _CONVERSATION_RECALL_RE.search(ask) is not None or users_own_past_is_asked(ask)
+
+
+# A device the sentence itself marks as NOT this host: another kind of device ("my phone", "her
+# tablet"), another person's ("my son's laptop"), or one of several the user owns ("my new laptop",
+# "my work pc"). The host is "this machine"; a qualifier that picks one device out of the user's
+# life is how people talk about the others. Standing down sends the turn to the model lane, which
+# keeps the machine tools and the conversation -- the safe direction for every family behind the
+# gate below.
+_OTHER_DEVICE_NOUN = (
+    r"phone|phones|iphone|smartphone|android|tablet|ipad|kindle|e-?reader|smartwatch|apple\s+watch|"
+    r"tv|television|console|playstation|ps5|xbox|car|camera|router|printer|headphones|earbuds|"
+    r"airpods|drone"
+)
+_COMPUTER_NOUN = r"laptop|notebook|desktop|computer|pc|mac|macbook|imac|machine|rig|build|server"
+_NOT_THIS_HOST_DEVICE_RE = re.compile(
+    rf"\b(?:my|our|his|her|their|your)\s+(?:[\w-]+\s+){{0,2}}?(?:{_OTHER_DEVICE_NOUN})\b"
+    rf"|\b(?:my|our)\s+(?:brand\s+new|new|old|older|previous|former|other|second|spare|backup|work|"
+    rf"office|school|gaming|home|personal|family)\s+(?:\w+\s+)?(?:{_COMPUTER_NOUN})\b"
+    rf"|\b(?!(?:what|that|it|there|here|who|let|he|she|where|how|this|machine|host|system)'s)"
+    rf"[a-z]+'s\s+(?:new\s+|old\s+)?(?:{_COMPUTER_NOUN}|{_OTHER_DEVICE_NOUN})\b",
+    re.IGNORECASE,
+)
+
+
+def names_a_device_other_than_this_host(text: str) -> bool:
+    """True when the ask clause is about a device the sentence marks as not this machine."""
+    return _NOT_THIS_HOST_DEVICE_RE.search(_ask_or_whole(text)) is not None
+
+
 def asks_runtime_for_a_fact(
     text: str,
     topic_re: re.Pattern[str],
@@ -196,6 +306,10 @@ def asks_runtime_for_a_fact(
     if _PRODUCE_OR_TEACH_RE.search(lowered):
         return False
     if _GENERAL_KNOWLEDGE_RE.search(lowered):
+        return False
+    # Ahead of the possessive anchor below on purpose: "my new laptop" and "the laptop i bought"
+    # both carry a possessive or a topic word, and neither is this machine now.
+    if recalls_the_users_own_history(lowered) or names_a_device_other_than_this_host(lowered):
         return False
     if _topic_is_the_whole_message(lowered, topic_re):
         return True
@@ -914,13 +1028,95 @@ _LOCAL_FACT_ADVISORY_RE = re.compile(
     r"advice|explain|what is a|what's a|difference between)\b",
     re.IGNORECASE,
 )
+# A display word or a singular "spec" can be a plain modifier of some other noun: "display
+# falcons" and "display cabinet" are arrangements of things, a "thread spec" or "battery spec"
+# describes that thing. The topic must be what the ask is ABOUT -- a display property, the
+# display word itself interrogated as the head, or a "spec" anchored to a machine noun.
+# Measured 2026-09-29 (q90 dev corpus F02-07/F08-10): "which linen thread spec was suggested
+# for my atlas?" was refused as a this-machine hardware fact, and "how many of the display
+# falcons are molting?" was answered with this host's display specs. Declining is the safe
+# direction of error: the model lane can still call the tool, a false positive hijacks or
+# refuses a memory question outright.
+_DISPLAY_PROPERTY_WORD_RE = re.compile(
+    r"\b(?:resolution|refresh(?:\s+rate)?|brightness|pixel(?:s|\s+density)?|hz|hertz|"
+    r"aspect(?:\s+ratio)?|scal(?:e|es|ing)|diagonal|dimensions?|retina|sizes?)\b",
+    re.IGNORECASE,
+)
+#: A display PROPERTY word ("size", "resolution", "dimensions") names this host's display only
+#: when a display or host noun carries the same clause. "What size was the rug my aunt picked?"
+#: has a property word and no display/host noun: it is a fact about something the user told us
+#: about, not about this machine (measured: such turns were refused as display inspection with 0
+#: model calls on the original and the repaired builds).
+_DISPLAY_OR_HOST_NOUN = (
+    r"(?:screen|screens|display|displays|monitor|monitors|pc|machine|computer|laptop|mac|macbook|"
+    r"host|system)"
+)
+#: A property only a display has, possessed directly by the user ("what's my refresh rate?"), still
+#: names this host's display. The generic measures (size, dimensions, scale, diagonal) are left out:
+#: "my size" is as likely a shoe as a screen.
+_DISPLAY_ONLY_PROPERTY_POSSESSED = (
+    r"\bmy\s+(?:current\s+)?(?:resolution|refresh(?:\s+rate)?|brightness|pixel\s+density|"
+    r"aspect\s+ratio|scaling|retina)\b"
+)
+_DISPLAY_PROPERTY_ANCHORED = (
+    r"(?:" + _DISPLAY_PROPERTY_WORD_RE.pattern + r")[\w\s'’]{0,24}?\b" + _DISPLAY_OR_HOST_NOUN + r"\b"
+    r"|\b" + _DISPLAY_OR_HOST_NOUN + r"\b[\w\s'’]{0,24}?(?:" + _DISPLAY_PROPERTY_WORD_RE.pattern + r")"
+    r"|" + _DISPLAY_ONLY_PROPERTY_POSSESSED
+)
+_DISPLAY_BOUND_RE = re.compile(
+    _DISPLAY_PROPERTY_ANCHORED
+    + r"|\b(?:what|whats|what's|which)\s+(?:my\s+|the\s+|a\s+)?"
+    r"(?:screen|display|displays|monitor|monitors)\b"
+    r"|\b(?:screen|display|displays|monitor|monitors)\s+"
+    r"(?:do|does|did|am|is|are|was|were|have|has|had|can|could|should|would|will)\b",
+    re.IGNORECASE,
+)
+# Singular "spec" only names this machine's hardware when a machine noun carries the same
+# clause ("what spec is my computer", "the laptop's spec"); plural "specs" is unambiguous.
+_SPEC_MACHINE_ANCHOR_RE = re.compile(
+    r"\bspec\b[\w\s'’]{0,24}?\b(?:pc|machine|computer|laptop|mac|host|system|build)\b"
+    r"|\b(?:pc|machine|computer|laptop|mac|host|system|build)\b[\w\s'’]{0,24}?\bspec\b",
+    re.IGNORECASE,
+)
 _LOCAL_FACT_TOPICS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("the display", re.compile(r"\b(?:screen|resolution|display|displays|monitor|monitors)\b", re.IGNORECASE)),
+    ("the display", _DISPLAY_BOUND_RE),
     ("your drives", re.compile(r"\b(?:drive|drives|disk|disks|free\s+space|storage|volume|volumes|partition|partitions)\b", re.IGNORECASE)),
     ("a local folder or file search", re.compile(r"\b(?:folder|folders|directory|directories)\b", re.IGNORECASE)),
     ("running processes", re.compile(r"\b(?:processes|running programs|task manager)\b", re.IGNORECASE)),
-    ("this machine's hardware", re.compile(r"\b(?:cpu|gpu|ram|cores|vram|specs?)\b", re.IGNORECASE)),
+    ("this machine's hardware", re.compile(
+        r"\b(?:cpu|gpu|ram|cores|vram|specs)\b" + r"|" + _SPEC_MACHINE_ANCHOR_RE.pattern,
+        re.IGNORECASE)),
 )
+#: A question about what was SAID in the conversation ("how much RAM did I say my old laptop had?",
+#: "what monitor did you recommend?") asks the conversation record, never the host. The runtime
+#: can measure this machine; it cannot measure a past utterance.
+_CONVERSATION_REPORT_FRAME_RE = re.compile(
+    r"\b(?:did|have|had)\s+(?:i|we)\s+(?:say|tell|mention|ask|write|note|share|describe)\b"
+    r"|\b(?:i|we)\s+(?:said|told\s+you|mentioned|wrote|noted|described)\b"
+    r"|\byou\s+(?:said|told\s+me|mentioned|recommended|suggested|gave\s+me|provided)\b",
+    re.IGNORECASE,
+)
+_CLAUSE_SPLIT_RE = re.compile(r"[.;!?,]+|\s[-–—]\s")
+
+
+def _question_clause_reports_conversation(lowered: str) -> bool:
+    """True when the clause that ASKS carries the conversation-report frame.
+
+    "How much RAM did I say my old laptop had?" asks about the utterance. "You said my disk was
+    nearly full; how much free space is left now?" reports an utterance in one clause and asks
+    about this machine in another, so it stays a machine fact.
+    """
+    clauses = [clause.strip() for clause in _CLAUSE_SPLIT_RE.split(lowered)]
+    clauses = [clause for clause in clauses if clause]
+    for index, clause in enumerate(clauses):
+        asks = _LOCAL_FACT_QUESTION_RE.search(clause) or (
+            index == len(clauses) - 1 and lowered.rstrip().endswith("?")
+        )
+        if asks and _CONVERSATION_REPORT_FRAME_RE.search(clause):
+            return True
+    return False
+
+
 _LOCAL_FACT_MOST_SPACE_RE = re.compile(
     # "taking up the most space", but also "takes the most space", "uses / eats / hogs / consumes /
     # fills the most (disk) space" — the verb may be bare (no "up") and any tense.
@@ -1009,6 +1205,11 @@ def machine_display_intent(
         return None
     if _DISPLAY_GENERAL_RE.search(lowered):
         return None
+    # This family does not go through `asks_runtime_for_a_fact`, so it reads the same two guards
+    # itself: "what resolution did i set my monitor to?" and "the screen size of the monitor i
+    # bought" ask the conversation, not the display this host is driving.
+    if recalls_the_users_own_history(lowered) or names_a_device_other_than_this_host(lowered):
+        return None
     if not _LOCAL_FACT_QUESTION_RE.search(lowered):
         return None
     if bound_chat_attachment_present(source_context):
@@ -1016,6 +1217,12 @@ def machine_display_intent(
             return None
         if whole_turn and not _topic_is_the_whole_message(lowered, _DISPLAY_RE):
             return None
+    # The display word must be what the ask is about, not a modifier of another noun
+    # ("display falcons", "screen door"): a property word, or the display word itself
+    # interrogated as the head. Declining hands the turn to the model lane, which can still
+    # call the tool; matching hijacks a memory question with hardware output (F08-10).
+    if not _DISPLAY_BOUND_RE.search(lowered):
+        return None
     return "machine.display_inspect"
 
 
@@ -1318,8 +1525,44 @@ def machine_host_state_intent(text: str) -> str | None:
     if len(lowered.split()) > _MAX_HOST_STATE_QUESTION_WORDS:
         return None
     if _UPTIME_RE.search(lowered) or _BATTERY_RE.search(lowered) or _CHASSIS_QUESTION_RE.search(lowered):
+        if _battery_ask_is_domain_object(lowered):
+            return None
         return "machine.host_state"
     return None
+
+
+# A battery that is ONE OF SEVERAL, or that belongs to another named thing, is
+# a domain object — not this host's single battery. The host has exactly one
+# battery, so a numbered battery ("battery 5") can never be a host read, and a
+# which/what-battery question only reads this host when its subject (the words
+# right after the ask) is the machine itself. Measured 2026-09-29 (q90 dev
+# corpus F05-03, served): "Which battery does row B top up?" was answered with
+# this Mac's host state while the stored solar-row facts sat unclaimed.
+_NUMBERED_BATTERY_RE = re.compile(
+    r"\bbatter(?:y|ies)\s+(?:number\s+|no\.?\s*|#\s*)?\d+\b"
+    r"|\b\d+\s+batter(?:y|ies)\b",
+    re.IGNORECASE,
+)
+_WHICH_BATTERY_RE = re.compile(r"\b(?:which|what)\s+batter(?:y|ies)\b", re.IGNORECASE)
+_HOST_SUBJECT_WORDS_RE = re.compile(
+    r"\b(?:machine|computer|pc|mac|laptop|desktop|notebook|macbook|imac|"
+    r"host|system|box|it|this|that|i|we|you)\b",
+    re.IGNORECASE,
+)
+
+
+def _battery_ask_is_domain_object(lowered: str) -> bool:
+    """True when the battery the question asks about is a named domain
+    object (enumerated, or owned by a non-host subject)."""
+    if _NUMBERED_BATTERY_RE.search(lowered):
+        return True
+    m = _WHICH_BATTERY_RE.search(lowered)
+    if m is None:
+        return False
+    # "which battery is the laptop on" / "which battery am I on" ask about
+    # THIS host; "which battery does row B top up" asks about row B's battery.
+    tail = lowered[m.end(): m.end() + 48]
+    return _HOST_SUBJECT_WORDS_RE.search(tail) is None
 
 
 # A concrete filesystem path inside a sentence: absolute, home-rooted, or ./ prefixed. Trailing
@@ -1590,6 +1833,8 @@ def local_fact_capability_required(text: str) -> str | None:
         return None
     if _LOCAL_FACT_ADVISORY_RE.search(lowered):
         return None
+    if _question_clause_reports_conversation(lowered):
+        return None
     if not _LOCAL_FACT_QUESTION_RE.search(lowered):
         return None
     if _NON_LOCAL_SPACE_CONTEXT_RE.search(lowered):
@@ -1723,41 +1968,45 @@ _IMAGE_GEN_ABSTRACT_SUBJECT_RE = re.compile(
     r"story|narrative|trend|trends|outlook|climate|industry|sector|company|business|team|"
     r"process|problem|problems|issue|issues|scenario|context|background|state|status|progress|"
     r"performance|risk|risks|impact|relationship|dynamic|dynamics|picture|"
+    # Planning nouns: "sketch a bot plan", "draw up an outline" ask for a plan, not a picture.
+    r"plan|plans|outline|outlines|idea|ideas|strategy|strategies|approach|roadmap|proposal|"
+    r"workflow|schedule|budget|agenda|checklist|"
     r"you|me|us|them|him|her|it)\b"
     r"(?:\s+(?:of|in|for|with|about|around)\b.*)?$",
     re.IGNORECASE,
 )
 
 
-def image_generation_intent(text: str) -> str | None:
-    """Return the image PROMPT when the text asks to generate/draw an image, else None. A how-to or
-    advisory question ("how do I generate images?") is chat, not a generation call."""
-    raw = " ".join(str(text or "").split())
-    if not raw:
-        return None
-    lowered = raw.lower()
-    if _IMAGE_GEN_ADVISORY_RE.search(lowered):
-        return None
-    # "draw your own conclusions" / "the report paints a grim picture" are ordinary English.
-    if _IMAGE_GEN_FIGURATIVE_RE.search(lowered):
-        return None
+_IMAGE_REQUEST_VERB_RE = re.compile(
+    r"(?:generate|make|create|draw|paint|render|design|produce|give\s+me|"
+    r"whip\s+up|cook\s+up|imagine|sketch|illustrate|doodle)\b",
+    re.IGNORECASE,
+)
 
-    prompt = ""
-    if _IMAGE_GEN_ACTION_RE.search(lowered):
-        match = _IMAGE_GEN_PROMPT_RE.search(raw)
-        prompt = (match.group(1).strip(" .!?,:;\"'") if match else "")
-    if not prompt:
-        # No media noun named -- "draw me a cat" is still a picture request.
-        depicted = _IMAGE_GEN_DEPICT_RE.search(raw)
-        if depicted:
-            prompt = depicted.group(1).strip(" .!?,:;\"'")
-    # A bare "make an image" with no subject is not actionable — let it fall through to chat.
-    if len(prompt) < 2:
-        return None
-    # A media noun aimed at an abstract subject is a figure of speech, not a render.
-    if _IMAGE_GEN_ABSTRACT_SUBJECT_RE.match(prompt):
-        return None
-    return prompt
+
+def image_generation_intent(text: str) -> str | None:
+    """Return a requested image prompt; mentions of creating images are information."""
+    from core.instructional_request import requested_action_clauses
+
+    for clause in requested_action_clauses(text, _IMAGE_REQUEST_VERB_RE):
+        raw = " ".join(clause.split())
+        # Only the requested clause can veto itself. A historical or advisory
+        # description inside the depicted subject does not cancel the request.
+        if _IMAGE_GEN_ADVISORY_RE.match(raw) or _IMAGE_GEN_FIGURATIVE_RE.match(raw):
+            continue
+        prompt = ""
+        if _IMAGE_GEN_ACTION_RE.search(raw):
+            match = _IMAGE_GEN_PROMPT_RE.search(raw)
+            prompt = match.group(1).strip(" .!?,:;") if match else ""
+        if not prompt:
+            depicted = _IMAGE_GEN_DEPICT_RE.search(raw)
+            if depicted:
+                prompt = depicted.group(1).strip(" .!?,:;")
+        if len(prompt) >= 2 and prompt[0] == prompt[-1] and prompt[0] in {"'", '"'}:
+            prompt = prompt[1:-1].strip()
+        if len(prompt) >= 2 and not _IMAGE_GEN_ABSTRACT_SUBJECT_RE.match(prompt):
+            return prompt
+    return None
 
 
 _TOOL_INVENTORY_MARKERS = (

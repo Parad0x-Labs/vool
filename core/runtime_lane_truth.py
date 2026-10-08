@@ -36,6 +36,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from core.execution.constants import users_own_past_is_asked
 from core.secret_redaction import redact_secrets
 
 # Which facet of the runtime the question is aimed at. All four are answered from the same
@@ -146,10 +147,16 @@ _FACET_PATTERNS: tuple[tuple[str, re.Pattern[str], bool], ...] = (
     # followed by "right now", which swallowed "what can you do locally on this machine right now?"
     # — a capability-inventory prompt owned elsewhere, and the one false positive the full suite
     # found. A bare adverb plus a time word is not a question about the lane.
+    #
+    # The gap after the serve verb may not open a purpose or reason clause ("to", "for", "because",
+    # "which", "who"): past one of those the locality word belongs to a different predicate. Measured
+    # 2026-10-05 (memory benchmark run 2): "...the charity 5K run to raise money for a local
+    # children's hospital?" matched "run ... local" and shipped the runtime status block.
     (
         FACET_LANE,
         re.compile(
-            rf"\b{_SERVE_VERB}\b[^.?!]{{0,30}}\b(?:{_LOCAL_WORD}|in the cloud|on the cloud|remotely)\b"
+            rf"\b{_SERVE_VERB}\b(?:(?!\b(?:to|for|because|which|who)\b)[^.?!]){{0,30}}"
+            rf"\b(?:{_LOCAL_WORD}|in the cloud|on the cloud|remotely)\b"
             rf"|\b(?:are you|are we|am i|is (?:this|it|that)|is vool|is vool)\b[^.?!]{{0,20}}"
             rf"\b(?:{_LOCAL_WORD}|in the cloud|on the cloud|remote|cloud[- ]based)\b",
             re.IGNORECASE,
@@ -174,11 +181,16 @@ _FACET_PATTERNS: tuple[tuple[str, re.Pattern[str], bool], ...] = (
     (
         FACET_KEY,
         re.compile(
-            r"\b(?:api[- ]?key|key|token|credential)s?\b[^.?!]{0,40}"
-            r"\b(?:work(?:s|ing)?|valid|invalid|ok|okay|good|live|active|authori[sz]ed|accepted|"
-            r"expired|set|configured|connected|fail(?:ed|ing)?)\b"
-            r"|\b(?:work(?:s|ing)?|valid|authori[sz]ed|configured|expired)\b[^.?!]{0,30}"
-            r"\b(?:api[- ]?key|key|token|credential)s?\b",
+            # Bind a state predicate to a runtime credential subject. A JSON field
+            # called "key", a house key, or an arbitrary token is a different subject.
+            r"\b(?:is|are|was|were|does|do|did|has|have)\s+"
+            r"(?:(?:my|your|our|the|this|that)\s+)?"
+            r"(?:(?:openrouter|cloud|provider|runtime|llm|inference|backend|endpoint|api)\s+)?"
+            r"(?:api[- ]?key|key|token|credential)s?\b\s+"
+            r"(?:(?:still|currently|now|actually|already|properly)\s+)*"
+            r"(?:been\s+)?"
+            r"(?:work(?:s|ing)?|valid|invalid|ok|okay|good|live|active|authori[sz]ed|accepted|"
+            r"expired|set|configured|connected|fail(?:ed|ing)?)\b",
             re.IGNORECASE,
         ),
         True,
@@ -240,6 +252,14 @@ def runtime_lane_question(text: str) -> str:
     if _EXPLANATION_INTENT.search(cleaned):
         return ""
     if _CAPABILITY_INVENTORY.search(cleaned):
+        return ""
+    # Every facet here is a PRESENT fact of this runtime. A question about something the user did
+    # ("which event did i participate in first, the volleyball league or the charity 5k run") asks
+    # the conversation, and a status block is no answer to it. Measured 2026-10-05 on the fresh
+    # memory benchmark (run 2): that question shipped "Last model call: none recorded on this
+    # runtime yet." Only the user's own past stands this lane down; a quoted earlier claim ("you
+    # said you run locally, is that true?") is still a question about the runtime now.
+    if users_own_past_is_asked(cleaned):
         return ""
     about_this_runtime = bool(_SELF_REFERENCE.search(cleaned))
     if _DEPLETION_IDIOM_RE.search(cleaned):

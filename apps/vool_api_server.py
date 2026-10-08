@@ -368,6 +368,18 @@ def create_app(runtime: RuntimeServices | None = None):
     from core.council import pin_lock
 
     pin_lock.reset_on_startup()
+    # Agent teams outlive this process: their agents run in their own sessions. Re-open every
+    # team that still had live agents so its coordinator re-adopts the ones that are provably
+    # the same processes (pid + create time), reports the rest lost, and resumes the overlap
+    # watch. Nothing is relaunched. A failure here is logged, never fatal to the server.
+    try:
+        from core.agent_team import service as agent_team_service
+
+        agent_team_service.recover_all()
+    except Exception as exc:  # pragma: no cover - recovery is best-effort at boot
+        import logging
+
+        logging.getLogger(__name__).warning("agent team recovery at boot failed: %s", exc)
     return create_api_app(
         runtime=runtime or _legacy_handler_runtime(),
         model_name=MODEL_NAME,
@@ -583,6 +595,9 @@ def main() -> int:
     from core.unattended_preflight import preflight
 
     preflight("apps.vool_api_server")
+    from core.runtime_provider_defaults import apply_product_runtime_defaults
+
+    apply_product_runtime_defaults()
     # Environment conformance (P0 release proof 2026-09-05): an under-installed
     # runtime must fail HERE — typed, naming the missing module and the repair —
     # never as a mid-request HTTP 500 from the command registry's import closure

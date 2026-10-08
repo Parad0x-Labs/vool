@@ -938,6 +938,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             context_window=context_window,
             output_reserve_tokens=max_output_tokens,
             supports_images=self._supports_image_input(),
+            _include_evidence_origin=True,
         )
         # R-9/H-9 ADAPTER-IS-PROJECTION: this class serves BOTH a loopback
         # Ollama and remote BYOK endpoints. A NON-LOCAL destination is a cloud
@@ -956,6 +957,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             messages = project_messages_for_destination(
                 messages, destination_class="cloud_provider"
             )
+        messages = _finalize_provider_evidence_messages(request, messages)
         payload: dict[str, Any] = {
             "model": self.manifest.model_name,
             "messages": messages,
@@ -1068,7 +1070,9 @@ class OpenAICompatibleAdapter(ModelAdapter):
             context_window=context_window,
             output_reserve_tokens=int(options.get("num_predict") or 0),
             supports_images=self._supports_image_input(),
+            _include_evidence_origin=True,
         )
+        messages = _finalize_provider_evidence_messages(request, messages)
         # Native Ollama speaks a string `content` plus a separate `images` list; the OpenAI content
         # parts the authority rendered are flattened into exactly that shape here, at the wire.
         from core.chat_attachments import flatten_message_for_ollama
@@ -2015,12 +2019,43 @@ def _build_messages(system_prompt: str | None, prompt: str, *, attachments: list
     return messages
 
 
+def _finalize_provider_evidence_messages(
+    request: ModelRequest, messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Bind this lane's support after fitting and destination projection.
+
+    A current failed draft can repeat a source verbatim. Only origin-stamped
+    surviving source carriers authorize the already admitted evidence units.
+    The record is replaced rather than mutated, so candidate lanes cannot
+    modify another request's carrier through a shared nested metadata value.
+    """
+    final_messages: list[dict[str, Any]] = []
+    evidence_messages: list[dict[str, Any]] = []
+    for message in messages:
+        clean_message = dict(message)
+        eligible = clean_message.pop("_vool_evidence_support", False) is True
+        final_messages.append(clean_message)
+        if eligible:
+            evidence_messages.append(clean_message)
+    from core.bootstrap_context import finalize_request_evidence
+
+    record = finalize_request_evidence(
+        request.metadata.get("admitted_capsule_evidence"), final_messages,
+        evidence_messages=evidence_messages,
+    )
+    if record is not None:
+        request.metadata["admitted_capsule_evidence"] = record
+        request.metadata["request_evidence_finalized"] = True
+    return final_messages
+
+
 def _request_messages_with_memory(
     request: ModelRequest,
     *,
     context_window: int = 0,
     output_reserve_tokens: int = 0,
     supports_images: bool | None = None,
+    _include_evidence_origin: bool = False,
 ) -> list[dict[str, Any]]:
     if request.messages:
         # The chat lane always arrives with its messages built. The turn's attachments (the
@@ -2036,6 +2071,16 @@ def _request_messages_with_memory(
             request.metadata["attachment_delivery"] = delivery
     else:
         messages = _build_messages(request.system_prompt, request.prompt, attachments=request.attachments)
+    if _include_evidence_origin and isinstance(request.metadata.get("admitted_capsule_evidence"), dict):
+        eligible_indices = {
+            index for index in request.metadata.get("request_evidence_message_indices") or ()
+            if isinstance(index, int) and not isinstance(index, bool)
+        }
+        # Payload builders opt into transient origin stamps before fitting.
+        # Other callers retain the helper’s exact plain-message contract.
+        # Stamps survive fitter copies/shedding and are removed before wire.
+        messages = [{**message, "_vool_evidence_support": index in eligible_indices}
+                    for index, message in enumerate(messages)]
     memory_prefix = build_memory_prefix_for_request(request)
     messages = apply_memory_prefix_to_messages(messages, request, prefix=memory_prefix)
     if context_window <= 0:

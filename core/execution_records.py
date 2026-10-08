@@ -372,6 +372,9 @@ def verify_claim(session_id: str, *, target: str = "") -> dict[str, Any]:
             "executed": executed,
         }
 
+    # A real action on the target wins wherever it sits in the session. The scan used to stop at the first
+    # listing that named the file, so a file listed BEFORE it was read was reported as never opened (live
+    # agent-team comparison, 2026-10-07: "I did not actually open `pricing.py`" after the audit had read it).
     for entry in entries:
         if entry.has_target and _target_matches(wanted, entry.resolved_target):
             return {
@@ -381,6 +384,7 @@ def verify_claim(session_id: str, *, target: str = "") -> dict[str, Any]:
                 "matched_intent": entry.intent,
                 "executed": executed,
             }
+    for entry in entries:
         # A listing that returned the file counts as having seen it, but not as having read it.
         if any(_target_matches(wanted, name) for name in entry.items):
             return {

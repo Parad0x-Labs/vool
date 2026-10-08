@@ -447,6 +447,14 @@ def compress_if_needed(
     summary_turn: dict = {
         "role": "assistant",
         "content": f"<context_summary>\n{summary_text}\n</context_summary>",
+        # TRUSTED retention metadata, stamped here at the producing boundary.
+        # This turn is the compressed stand-in for every dropped older turn, so
+        # the final history budget must shed removable verbatim units before it
+        # (mirroring the token layer's hold-back in prompt_budget).  Only this
+        # producer sets the field: client-carried and stored-turn ingress build
+        # fresh {role, content} dicts, so a forged "<context_summary>" string
+        # in user text never gains retention authority.
+        "_history_retention_priority": 1,
     }
 
     return [*system_prefix, summary_turn, *recent_messages], True

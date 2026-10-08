@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vool"
-version = "0.6.0"
+version = "0.7.0"
 description = "VOOL — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
 readme = "README.md"
 license = "MIT"
@@ -97,6 +97,12 @@ runtime = [
     "playwright>=1.52,<2.0",
     "zstandard>=0.22.0",
     "xxhash>=3.4.0",
+]
+# The native desktop window (installer/bundle/vool_window.py). Pinned: unpinned, the bundle's
+# wheel-only resolve fell back to pywebview 3.4 (2021) because every later release needs the
+# sdist-only proxy-tools, whose wheel the bundle now supplies through built_wheels.json.
+desktop = [
+    "pywebview==6.2.1",
 ]
 proof = [
     "pytest>=7.0",

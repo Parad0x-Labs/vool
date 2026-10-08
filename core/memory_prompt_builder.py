@@ -5,6 +5,7 @@ from typing import Any
 from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
 from core.context_scope import ContextAccessPolicy
 from core.fact_extractor import stable_text_embedding
+from core.internal_message_schema import TURN_DIRECTIVES_HEADER, is_turn_directives_message
 from core.vool_memory import VoolMemory
 
 MAX_MEMORY_CHARS = 2000
@@ -96,6 +97,14 @@ def apply_memory_prefix_to_messages(
     if not prefix:
         return messages
     augmented = [dict(message) for message in list(messages or [])]
+    # The recalled memory depends on this turn's query, so it joins the per-turn system message
+    # after the history. Prepending it to the leading system message changed byte 0 of every
+    # request and defeated provider prompt caching for the whole prompt. (Ported from 00ba5bd.)
+    for message in augmented:
+        if is_turn_directives_message(message):
+            body = str(message["content"])[len(TURN_DIRECTIVES_HEADER):].lstrip("\n")
+            message["content"] = f"{TURN_DIRECTIVES_HEADER}\n{prefix}\n\n---\n\n{body}"
+            return augmented
     for message in augmented:
         if str(message.get("role") or "").strip().lower() != "system":
             continue

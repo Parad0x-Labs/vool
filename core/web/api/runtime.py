@@ -2033,8 +2033,12 @@ def schedule_memory_extraction(
 ) -> None:
     if not _memory_capture_allowed(source_context):
         return
-    from core.request_trust import request_is_owner_local
+    from core.request_trust import request_is_owner_local, turn_is_owner_authored
 
+    if not turn_is_owner_authored(source_context):
+        # An agent's turn (an agent team's brief and its reply) is not the owner speaking: measured on the
+        # live agent-team run (2026-10-07), an agent brief's reply format was stored as the owner's preference.
+        return
     if not request_is_owner_local(source_context):
         # This legacy extractor writes user-profile blocks. Until those blocks
         # carry per-user provenance, only the trusted private desktop owner may
@@ -2507,6 +2511,13 @@ def _finalize_turn_usage(
         usage,
         accounting,
     ).as_dict()
+    from core.raw_output_contract import raw_output_contract_from_metadata
+
+    if raw_output_contract_from_metadata(source_context) is not None:
+        # The agent derives this contract from the current user request. Keep
+        # execution provenance in metadata without appending it to the deliverable.
+        result["response_presentation"] = {"raw_only": True}
+        return result
     if not _usage_footer_enabled():
         return result
     result["response"] = append_provenance_footer(
@@ -2842,7 +2853,8 @@ def _response_commit(
         if isinstance(result_payload.get("answer_provenance"), dict)
         else {}
     )
-    footer = format_provenance_footer(result_payload, usage) if _usage_footer_enabled() else ""
+    raw_only = dict(result_payload.get("response_presentation") or {}).get("raw_only") is True
+    footer = format_provenance_footer(result_payload, usage) if _usage_footer_enabled() and not raw_only else ""
     verifier_presentation = dict(
         dict((source_context or {}).get("response_control") or {}).get(
             "verifier_presentation"
@@ -2897,7 +2909,8 @@ def _response_commit(
             root_cause = riding.to_dict()
         elif isinstance(riding, dict):
             root_cause = riding
-    canonical_content = strip_provenance_footer(str(result_payload.get("response") or ""))
+    response_text = str(result_payload.get("response") or "")
+    canonical_content = response_text if raw_only else strip_provenance_footer(response_text)
     # Legacy/fast providers can reach this transport seam without an attached A7 commit. This is
     # their final pre-seal choke point: remove only mechanically detected foreign tool envelopes,
     # preserving ordinary clean bytes exactly. A pure envelope becomes typed no-answer failure.

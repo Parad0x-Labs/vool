@@ -160,6 +160,19 @@ def observe_profile_turn(
     principal = profile.principal_for_request(source_context)
     project_id = str(getattr(access_policy, "project_id", "") or (source_context or {}).get("_trusted_project_id") or "")
     bind_turn_scope(principal, session_id, project_id)
+    # Standing instructions ("from now on …", "always …", a correction of how answers look) are saved here,
+    # on the same seat as the profile, so they reach every later chat in this workspace. Owner turns only; a
+    # turn that only states an instruction still gets an answer (this never claims the turn).
+    if principal:
+        try:
+            from core.standing_instructions import observe_turn as _observe_standing
+
+            standing = _observe_standing(raw_user_input, source_context, principal=principal,
+                                         project_id=project_id, session_id=session_id)
+            if (standing["saved"] or standing["taken_back"]) and isinstance(source_context, dict):
+                _observation(source_context)["standing_instructions"] = standing
+        except Exception:
+            pass
     try:
         proposals = interpret_profile_turn(raw_user_input)
     except Exception:
@@ -316,4 +329,12 @@ def profile_frame_for_result(result: dict[str, Any] | None) -> dict[str, Any] | 
         values = [v for v in list(obs.get(key) or []) if v]
         if values:
             frame[key] = values
+    # A standing instruction is saved for every later chat in the workspace; without its own line
+    # the user never learns it was kept, or that a take-back worked. It rides the "saved" list the
+    # chat page already renders as the confirmation line (no item_id: undo is a take-back in chat).
+    standing = obs.get("standing_instructions") if isinstance(obs.get("standing_instructions"), dict) else {}
+    lines = [{"report": f"Saved for every chat: {text}"} for text in standing.get("saved") or [] if text]
+    lines += [{"report": f"No longer following: {text}"} for text in standing.get("taken_back") or [] if text]
+    if lines:
+        frame["saved"] = list(frame.get("saved") or []) + lines
     return frame or None

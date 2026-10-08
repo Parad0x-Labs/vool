@@ -4,7 +4,7 @@ import re
 from typing import Any
 
 from core.plain_task_routing import plain_task_kind
-from core.reasoning_engine import explicit_planner_style_requested
+from core.reasoning_engine import resolve_requested_answer_contract
 from core.runtime_execution_tools import looks_like_advice_only_execution_prompt, looks_like_execution_request
 from core.task_router import (
     build_task_envelope_for_request,
@@ -25,7 +25,8 @@ def model_routing_profile(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     routed = dict(classification or {})
     is_chat_surface = agent._is_chat_truth_surface(source_context)
-    planner_style_requested = bool(is_chat_surface and explicit_planner_style_requested(user_input))
+    answer_contract = resolve_requested_answer_contract(user_input)
+    planner_style_requested = bool(is_chat_surface and answer_contract.planner_style)
     if is_chat_surface:
         routed["task_class"] = chat_surface_execution_task_class(
             str(classification.get("task_class") or "unknown"),
@@ -38,7 +39,13 @@ def model_routing_profile(
         str(routed.get("task_class") or "unknown"),
         chat_surface=is_chat_surface,
         planner_style_requested=planner_style_requested,
+        requested_output_mode=answer_contract.output_mode,
     )
+    routed["requested_answer_contract"] = answer_contract.to_dict()
+    profile["requested_answer_contract"] = answer_contract.to_dict()
+    if isinstance(source_context, dict):
+        # A typed instance is server-derived; inbound JSON cannot forge this authority.
+        source_context["_requested_answer_contract"] = answer_contract
     plain_kind = (
         plain_task_kind(user_input)
         if is_chat_surface

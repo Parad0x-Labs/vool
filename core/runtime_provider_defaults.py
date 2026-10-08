@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from pathlib import Path
 from typing import Any
 
@@ -400,6 +400,33 @@ def _runtime_provider_model_roles(
             installed_ollama_role_for_model(model_name=installed_model, primary_model=primary_model),
         )
     return tuple(model_roles)
+
+
+# The memory context capsule (hybrid recall, dated evidence, redaction) is the product's memory
+# path. Its readers keep a default-off flag so a bare import -- tests, tools, embedders -- assembles
+# the legacy transcript unless it asks; every VOOL process entry point applies this default
+# instead. Before it, only the source installers exported the flag, so the macOS app and the
+# Windows bundle (whose supervisors never ran those installers) started every chat on the
+# legacy recall path. An explicit value, including "0", always wins.
+# The memory path a shipped process runs is the path the memory benchmarks measure: Context Capsule 2.0 plus the
+# memory kernel (receipts at ingest, the evidence compiler packet with one hop, the withdrawn-answer verifier and
+# kernel receipts). Each switch is a default only: an explicit value, 0 included, wins.
+_PRODUCT_RUNTIME_ENV_DEFAULTS: tuple[tuple[str, str], ...] = (
+    ("VOOL_CONTEXT_CAPSULE_V2", "1"),
+    ("VOOL_MEMORY_RECEIPTS", "1"),
+    ("VOOL_EVIDENCE_COMPILER", "1"),
+    ("VOOL_EVIDENCE_HOP", "1"),
+    ("VOOL_EVIDENCE_VERIFY", "1"),
+    ("VOOL_EVIDENCE_KERNEL", "1"),
+)
+
+
+def apply_product_runtime_defaults(env: MutableMapping[str, str] | None = None) -> None:
+    """Set the product's runtime defaults for a VOOL process entry point; explicit values win."""
+    env_map = os.environ if env is None else env
+    for name, value in _PRODUCT_RUNTIME_ENV_DEFAULTS:
+        if name not in env_map:
+            env_map[name] = value
 
 
 _ADAPTIVE_CONTEXT_ENV = "VOOL_ADAPTIVE_CONTEXT"

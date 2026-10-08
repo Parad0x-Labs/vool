@@ -6,6 +6,8 @@ import contextlib
 import copy
 import hashlib
 import json
+import logging
+import os
 import re
 import threading
 import uuid
@@ -51,6 +53,10 @@ _TUPLE_MANIFEST_FIELDS = frozenset(
 
 class ProviderInvocationValidationError(ValueError):
     """A local manifest preflight failure, never evidence of provider health."""
+
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _utcnow() -> str:
@@ -905,6 +911,40 @@ def load_provider_manifest(
     return canonical
 
 
+def _finalize_request_evidence_payload(request: Any, payload: dict[str, Any]) -> None:
+    """Bind ephemeral support to the exact payload this gateway will seal."""
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return
+    clean_messages: list[dict[str, Any]] = []
+    evidence_messages: list[dict[str, Any]] = []
+    stamped = False
+    for message in messages:
+        if not isinstance(message, dict):
+            return
+        clean = dict(message)
+        stamped = stamped or "_vool_evidence_support" in clean
+        if clean.pop("_vool_evidence_support", False) is True:
+            evidence_messages.append(clean)
+        clean_messages.append(clean)
+    payload["messages"] = clean_messages
+    metadata = getattr(request, "metadata", None)
+    if not isinstance(metadata, dict) or "admitted_capsule_evidence" not in metadata:
+        return
+    from core.bootstrap_context import _evidence_digest, finalize_request_evidence
+
+    prior = metadata.get("admitted_capsule_evidence")
+    if (not stamped and metadata.get("request_evidence_finalized")
+            and isinstance(prior, dict) and prior.get("request_sha256") == _evidence_digest(clean_messages)):
+        # An earlier adapter bind is reusable only for exactly the same wire
+        # messages; its already filtered unit whitelist cannot gain donors.
+        evidence_messages = clean_messages
+    finalized = finalize_request_evidence(prior, clean_messages, evidence_messages=evidence_messages)
+    if finalized is not None:
+        metadata["admitted_capsule_evidence"] = finalized
+        metadata["request_evidence_finalized"] = True
+
+
 @provider_execution_boundary
 def seal_provider_invocation(
     *,
@@ -917,6 +957,7 @@ def seal_provider_invocation(
     monetary: Any = None,
     require_monetary_authority: bool = False,
 ) -> ProviderInvocationPermit:
+    _finalize_request_evidence_payload(request, payload)
     metadata = dict(getattr(request, "metadata", None) or {})
     context = dict(
         getattr(request, "context", None)
@@ -1024,6 +1065,109 @@ def seal_provider_invocation(
         str(source.get("reason") or "").strip().lower()
         for source in selected_sources
     }
+    # ── exact-closure delivery ledger (pre-hash, pre-send) ────────────────
+    # Measure the exact payload the provider will receive, reconcile against
+    # the chain's estimates, record the receipt, and (behind the enforcement
+    # flag) refuse before any manifest exists when the payload's token
+    # estimate exceeds the resolved window envelope. Placed before the
+    # payload hash so a refused attempt never mints a manifest row.
+    #
+    # Two lanes, never conflated: the MEASUREMENT drives the mandatory
+    # enforcement decision (a measurement failure with enforcement on fails
+    # the seal — an unmeasurable payload cannot be proven to fit); the
+    # RECEIPT is observability (build/persist/attach failures debug-log and
+    # never disable enforcement and never fail the seal).
+    try:
+        from core.context_delivery_ledger import (
+            ProviderPayloadMeasurementFailedError as _CdlMeasurementFailedError,
+        )
+        from core.context_delivery_ledger import (
+            build_receipt as _cdl_build,
+        )
+        from core.context_delivery_ledger import (
+            enforcement_enabled as _cdl_enforcement_enabled,
+        )
+        from core.context_delivery_ledger import (
+            maybe_refuse as _cdl_refuse,
+        )
+        from core.context_delivery_ledger import (
+            measure_provider_payload as _cdl_measure,
+        )
+        from core.context_delivery_ledger import (
+            record_delivery_receipt as _cdl_record,
+        )
+    except Exception:
+        # The ledger module itself is unavailable. If the operator explicitly
+        # enabled enforcement, that lane is mandatory and missing — refuse.
+        # With the flag off this stays observability-only and never breaks
+        # the seal. (Name duplicated here because the constant lives in the
+        # module that failed to load.)
+        if os.environ.get(
+                "VOOL_CONTEXT_ENVELOPE_ENFORCE",
+                "").strip() not in ("", "0", "false"):
+            LOGGER.exception(
+                "context delivery enforcement requested but its ledger "
+                "module failed to load; refusing pre-send")
+            raise ProviderInvocationValidationError(
+                "prompt_enforcement_unavailable: the context delivery "
+                "ledger could not be loaded while "
+                "VOOL_CONTEXT_ENVELOPE_ENFORCE is enabled")
+        LOGGER.debug("context delivery ledger unavailable", exc_info=True)
+    else:
+        _cdl_enforce = _cdl_enforcement_enabled()
+        _cdl_budget = metadata.get("prompt_budget")
+        try:
+            _cdl_measurement = _cdl_measure(
+                payload,
+                metadata_num_ctx=(
+                    _cdl_budget.get("num_ctx")
+                    if isinstance(_cdl_budget, dict) else None),
+                max_output_tokens=getattr(request, "max_output_tokens", None),
+            )
+        except Exception:
+            if _cdl_enforce:
+                # The mandatory lane: enforcement was explicitly enabled, so a
+                # payload this seal cannot measure is refused rather than
+                # permitted unproven.
+                LOGGER.exception(
+                    "context delivery enforcement refused an unmeasurable "
+                    "payload")
+                raise _CdlMeasurementFailedError(
+                    "prompt_enforcement_unavailable: the sealed payload could "
+                    "not be measured while VOOL_CONTEXT_ENVELOPE_ENFORCE is "
+                    "enabled; refusing pre-send")
+            LOGGER.debug(
+                "context delivery ledger measurement failed; enforcement off",
+                exc_info=True)
+        else:
+            try:
+                _cdl_receipt = _cdl_build(
+                    _cdl_measurement,
+                    request_id=request_id,
+                    provider_id=clean_provider_id,
+                    model_id=clean_model_id,
+                    operation=clean_operation,
+                    prompt_budget=(
+                        _cdl_budget if isinstance(_cdl_budget, dict) else None),
+                    enforcement_enabled_at_seal=_cdl_enforce,
+                )
+                # Receipt truth: `refused` records an actual refusal, never
+                # the mere observation of an over-estimate. maybe_refuse
+                # below uses the same flag reading, so receipt and refusal
+                # cannot disagree.
+                if _cdl_measurement["over_envelope"] and _cdl_enforce:
+                    _cdl_receipt["refused"] = True
+                    _cdl_receipt["refusal_reason"] = (
+                        "payload_exceeds_window_envelope")
+                _cdl_record(_cdl_receipt)
+                request_metadata = getattr(request, "metadata", None)
+                if isinstance(request_metadata, dict):
+                    request_metadata["context_delivery_ledger"] = _cdl_receipt
+            except Exception:
+                LOGGER.debug("context delivery ledger receipt skipped",
+                             exc_info=True)
+            _cdl_refuse(_cdl_measurement, enforce=_cdl_enforce)
+
     manifest_id = f"provider-manifest-{uuid.uuid4().hex}"
     unsigned = _canonical_manifest_fields({
         "manifest_id": manifest_id,

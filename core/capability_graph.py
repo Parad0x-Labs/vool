@@ -1612,6 +1612,24 @@ def family_hint_from_task_class(task_class: str) -> str | None:
     return family_for_task_class(task_class)
 
 
+def capability_hint_from_task_class(task_class: str) -> str | None:
+    """The capability a task class needs first; the family hint supplies the rest of the bound."""
+    _TASK_CLASS_TO_CAPABILITY: dict[str, str] = {
+        "file_read": "filesystem.read",
+        "file_write": "filesystem.write",
+        "file_edit": "workspace.write",
+        "code_design": "workspace.write",
+        "code_review": "workspace.read",
+        "debugging": "workspace.read",
+        "shell": "sandbox.command",
+        "web_search": "web.search",
+        "web_fetch": "web.read",
+        "research": "web.search",
+        # "hive" reads or writes (list topics vs research one): family only, no read-only bound.
+    }
+    return _TASK_CLASS_TO_CAPABILITY.get(str(task_class or "").strip().lower())
+
+
 # Auto-initialise on import
 _init_count = init_graph()
 
@@ -1650,6 +1668,7 @@ __all__ = [
     "capabilities_for_skill",
     "capabilities_in_family",
     "capability_for_intent",
+    "capability_hint_from_task_class",
     "discover",
     "ensure_registry_bootstrap",
     "family_for_capability",

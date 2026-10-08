@@ -84,10 +84,10 @@ def test_resolve_budget_monotonic_and_min_score_bands() -> None:
     assert packs["E"] >= packs["D"] >= packs["C"] >= packs["B"] >= packs["A"]
     # utility role never exceeds the general pack_target at the same bucket
     assert _budget(bucket="C", role="lightweight_utility").pack_target_tokens <= _budget(bucket="C", role="general").pack_target_tokens
-    assert _budget(bucket="A").min_score == 0.46
-    assert _budget(bucket="B").min_score == 0.42
-    assert _budget(bucket="D").min_score == 0.38
-    assert _budget(bucket="E").min_score == 0.38
+    assert _budget(bucket="A").min_score == 0.45
+    assert _budget(bucket="B").min_score == 0.25
+    assert _budget(bucket="D").min_score == 0.20
+    assert _budget(bucket="E").min_score == 0.20
 
 
 # ============================================================================================
@@ -300,7 +300,7 @@ def test_flagship_bucket_b_budget_regression() -> None:
     bud = resolve_budget(bucket="B", role="general", kv_quant="fp16", transcript_tokens=1500)
     assert bud.num_ctx == 6144
     assert bud.pack_target_tokens == 3396          # ~5x the shipped 350-token injection cap
-    assert bud.min_score == 0.42
+    assert bud.min_score == 0.25
     # with q8_0 KV (P0 on) the window doubles but retrieval stays bounded by the 2048 ceiling
     bud_q = resolve_budget(bucket="B", role="general", kv_quant="q8_0", transcript_tokens=1500)
     assert bud_q.num_ctx == 12288

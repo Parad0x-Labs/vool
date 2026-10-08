@@ -724,6 +724,23 @@ def audit_target_in(text: str) -> str:
     return found
 
 
+def audit_targets_in(text: str) -> tuple[str, ...]:
+    """Every file the request names, in the order named, without repeats.
+
+    `audit_target_in` keeps the LAST name, which is right for "run audit for this - app-landing/index.html"
+    and wrong for "review pricing.py, stock.py and orders.py": the audit then read `orders.py` alone and
+    reported "Opened 1 of 3 source files in this pass" (live agent-team comparison, 2026-10-07). Same
+    extraction and the same real-file contract as `audit_target_in`; it only keeps every match.
+    """
+
+    found: list[str] = []
+    for match in _AUDIT_TARGET_RE.finditer(str(text or "")):
+        candidate = match.group(1).strip("-*•·>–—,;:'\"()[]{}").strip()
+        if is_real_file_target(candidate) and candidate not in found:
+            found.append(candidate)
+    return tuple(found)
+
+
 def _match_target_path(target_path: str, all_paths: tuple[str, ...] | list[str]) -> str:
     """Resolve a named target against the paths the inventory actually found.
 
@@ -943,6 +960,7 @@ def run_workspace_audit(
     execute_tool: Callable[..., Any],
     emit: Callable[..., None] | None = None,
     target_path: str = "",
+    extra_target_paths: tuple[str, ...] = (),
 ) -> tuple[str, list[dict[str, Any]]]:
     """Run the read-only audit sequence. Returns (report_text, steps); each step is a real tool
     receipt. `execute_tool(intent, arguments, source_context=...)` and `emit` are injected so this is
@@ -1041,6 +1059,8 @@ def run_workspace_audit(
     # that is not there produced a full sweep headed "COMPLETE source coverage · validation PASSED"
     # that never mentioned the file the operator asked about. Answering a question nobody asked,
     # and calling it complete, is worse than saying the file is missing.
+    # Other names in the request that match no file: said in the report, never silently left out.
+    missing_named: list[str] = []
     if not wanted and str(target_path or "").strip():
         asked = str(target_path).strip()
         near = _nearby_path_suggestions(asked, all_paths)
@@ -1112,6 +1132,18 @@ def run_workspace_audit(
             for path in _detail_paths(hits):
                 referencing.add(str(path).replace("\\", "/"))
         scoped = _related_to_target(wanted, all_paths, referencing)
+        # Every OTHER file the request named is in scope too, right after the primary target and in the
+        # order named, so none of them is the one a limit drops. A name that resolves to nothing stays out
+        # (the primary target's missing-file answer above already covers the case the operator sees).
+        named: list[str] = []
+        for extra in extra_target_paths:
+            resolved = _match_target_path(extra, all_paths) or _match_target_path_on_disk(extra, workspace_root)
+            if resolved and resolved != wanted and resolved not in named:
+                named.append(resolved)
+            elif not resolved and extra not in missing_named:
+                missing_named.append(extra)
+        if named:
+            scoped = [scoped[0], *named, *[path for path in scoped[1:] if path not in named]]
         audit_scope_paths = tuple(scoped)
         selected_source_paths = tuple(scoped[:_SOURCE_FILE_LIMIT])
     else:
@@ -1402,6 +1434,12 @@ def run_workspace_audit(
             # our own evidence, and flagging the second would be the verifier lying about the model.
             "incomplete_files": tuple(incomplete_files),
         }
+    if missing_named:
+        sections += [
+            "",
+            "## Named but not found",
+            *(f"- `{name}` was not found in this project, so it was not read or audited." for name in missing_named),
+        ]
     return "\n".join(sections).strip(), steps
 
 
@@ -1582,6 +1620,7 @@ def maybe_handle_workspace_audit_request(
         workspace_root, source_context=source_context,
         execute_tool=execute_runtime_tool, emit=emit_runtime_event,
         target_path=audit_target_in(text),
+        extra_target_paths=audit_targets_in(text),
     )
     if isinstance(source_context, dict):
         observations = [

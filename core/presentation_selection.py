@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from typing import Any
 
 from core.incomplete_answer import inspect_answer_completeness
@@ -115,6 +116,8 @@ DISABLE_REASONS: tuple[str, ...] = (
     "grounding_gate",
     "x_editorial",
     "ordinary_chat_guard",
+    "agent_turn",
+    "request_format",
 )
 
 #: Schema tag of the selection record. Sibling of ``vool.turn_proof.v1`` in
@@ -632,6 +635,30 @@ def refusal_signal(text: str, source_context: dict[str, Any] | None) -> bool:
 # ---------------------------------------------------------------------------
 
 
+_REQUEST_FORMAT_RE = re.compile(
+    r"\b(?:report|format|write|answer|reply|respond|return|give)\b[^.?!\n]{0,40}\b(?:as|in|with)\s+[`\"“]"
+    r"|\bbegin(?:ning)?\s+(?:your\s+|the\s+)?(?:reply|answer|response)\s+with\b"
+    r"|\bstart\s+(?:your\s+|the\s+)?(?:reply|answer|response)\s+with\b"
+    r"|\bone\s+line\s+(?:per|for\s+each)\b",
+    re.IGNORECASE,
+)
+
+
+def _request_states_its_own_format(text: str) -> bool:
+    """Whether the person's request spells out the reply's own shape (a template, a first line, one line each)."""
+    return bool(_REQUEST_FORMAT_RE.search(str(text or "")))
+
+
+def _current_user_text(context: Mapping[str, Any]) -> str:
+    for key in ("conversation_history", "client_conversation_history"):
+        history = context.get(key)
+        if isinstance(history, list):
+            for item in reversed(history):
+                if isinstance(item, Mapping) and str(item.get("role") or "") == "user":
+                    return str(item.get("content") or "")
+    return ""
+
+
 def select_presentation(
     candidate_bytes: str,
     source_context: dict[str, Any] | None = None,
@@ -671,6 +698,16 @@ def select_presentation(
 
     if context.get("raw_output_contract"):
         return _record(turn_id, disabled_by="exact_contract")
+
+    if str(context.get("turn_author") or "owner").strip().lower() != "owner":
+        # An agent's turn is read by a machine that asked for its own report shape; reshaping it is a fault.
+        return _record(turn_id, disabled_by="agent_turn")
+
+    if _request_states_its_own_format(_current_user_text(context)):
+        # The person spelled out the shape ("report it as `file:line — what is wrong — the fix`, one line per
+        # file"). A reply that followed it is not a presentation gap; measured on the live agent-team comparison
+        # (2026-10-07), the automatic table repair replaced such replies and dropped their required report lines.
+        return _record(turn_id, disabled_by="request_format")
 
     if context.get("x_editorial_turn"):
         return _record(turn_id, disabled_by="x_editorial")

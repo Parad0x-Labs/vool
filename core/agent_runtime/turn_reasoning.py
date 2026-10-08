@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from contextlib import suppress
 from typing import Any
 
@@ -35,6 +36,44 @@ def _canonical_current_required(effective_input: str, source_context: Any) -> bo
     except Exception:
         return False
 
+def _kernel_temporal_decision(question: str, raw_reply: str, packet_facts: list, reference_day) -> dict | None:
+    """v14.3 (VOOL_EVIDENCE_KERNEL=1): the temporal claim binder's decision on a memory answer the past-time guard
+    withdrew. None when the kernel is off or the binder did not attempt (no packet, no temporal value), so the v14.1
+    verifier keeps its job. The decision carries the qualified text, every value with its rule and operands, and the
+    dropped clauses, beside the guard's own receipt (core/evidence_kernel/temporal_binder.py)."""
+    try:
+        from core.evidence_kernel.receipts import kernel_enabled
+        from core.evidence_kernel.temporal_binder import bind_temporal_claims
+    except Exception:
+        return None
+    if not kernel_enabled():
+        return None
+    binding = bind_temporal_claims(question=question, reply=raw_reply, packet_facts=packet_facts, reference_day=reference_day)
+    if not binding.attempted:
+        return None
+    decision = binding.as_dict()
+    decision.update({"execution": "executed", "owner": "core.evidence_kernel.temporal_binder.bind_temporal_claims",
+                     "guard_withdrew": True, "packet_facts": len(packet_facts), "text": binding.text,
+                     "verified": binding.restored, "supported": binding.restored, "rule": "clause_level_binding",
+                     # v14.6 item 8: 'verified' is kept for readers of older receipts; it means SUPPORTED (by an
+                     # occurrence or a derivation over the packet), never that the statement is true
+                     "chain_stage": "SUPPORTED" if binding.restored else "ASSERTED"})
+    return decision
+
+
+def _memory_route_receipt(capsule_mode: str) -> dict:
+    """The memory route this turn ran (core.memory_route), for the turn's receipt. A turn whose retrieval took the
+    legacy path ("disabled" capsule mode) says so whatever the switches read now."""
+    try:
+        from core.memory_route import memory_route
+
+        route = memory_route()
+    except Exception:
+        return {"route": "unknown", "switches": []}
+    if capsule_mode == "disabled":
+        return {"route": "legacy_semantic", "switches": []}
+    return route
+
 
 def _internal_payload(text: str) -> bool:
     """Machine scaffolding or a bare monologue, never an answer to a person.
@@ -55,11 +94,156 @@ def _internal_payload(text: str) -> bool:
         return False
 
 
+def _plan_render_drops_model_steps(model_execution: Any, plan: Any) -> bool:
+    """Would rendering ``plan`` lose a step of the model's own structured plan?
+
+    The planner renderer re-presents the model's plan through ``plan.abstract_steps``, which the
+    plan builder bounds (eight steps). That is the right presentation for an explicit plan request
+    while it carries the whole answer. When the model's step list is longer than, or different
+    from, what the plan carries, rendering would silently drop requested content, so the model's
+    validated wording stays the answer instead.
+    """
+
+    structured = getattr(model_execution, "structured_output", None)
+    if not isinstance(structured, dict):
+        return False
+    model_steps = structured.get("steps")
+    if not isinstance(model_steps, list):
+        return False
+    carried = {str(step).strip() for step in list(getattr(plan, "abstract_steps", None) or [])}
+    return any(str(step).strip() not in carried for step in model_steps if str(step).strip())
+
+
 def _safe_active_mission_slots(session_id: Any) -> list[Any]:
     try:
         return current_active_mission_slots(session_id)
     except Exception:
         return []
+
+
+def _admitted_capsule_evidence_text(
+    source_context: Any, session_id: Any, *, question: str | None = None
+) -> str:
+    """The admitted capsule evidence this turn's provider request actually carried.
+
+    Delegates to the single reader at the producer (core.bootstrap_context) so the
+    past-time guard here and the live-claim seam in core.agent_runtime.response
+    consume the SAME admitted-evidence authority — never a second derivation.
+    """
+
+    from core.bootstrap_context import admitted_capsule_evidence_text
+
+    return admitted_capsule_evidence_text(
+        source_context if isinstance(source_context, dict) else None,
+        session_id,
+        question=question,
+    )
+
+
+def _past_time_guard_evidence(
+    *,
+    context_result: Any,
+    source_context: Any,
+    web_notes: Any,
+    session_id: Any,
+    question: str | None = None,
+) -> list[str]:
+    """The past-time guard reads the final request's admitted evidence texts.
+
+    A sealed request is authoritative after final history budgeting and memory
+    suppression. An invalid or empty seal supplies no evidence; candidate and
+    history channels cannot restore facts the reader never received. Only a
+    context without a final seal uses the legacy assembly below.
+
+    This function selects material, not supported values. The output guard
+    preserves actor/event clauses and their own statement dates, with bounded
+    English relative-day and unambiguous day/week derivation support.
+    """
+
+    from core.bootstrap_context import admitted_request_evidence_texts
+
+    sealed = admitted_request_evidence_texts(
+        source_context if isinstance(source_context, dict) else None,
+        session_id,
+        question=question,
+    )
+    if sealed is not None:
+        return list(sealed)
+
+    evidence: list[str] = [str(getattr(context_result, "assembled_context", lambda: "")() or "")]
+    _admitted_capsule = _admitted_capsule_evidence_text(
+        source_context, session_id, question=question
+    )
+    if _admitted_capsule:
+        evidence.append(_admitted_capsule)
+    context = source_context if isinstance(source_context, dict) else {}
+    evidence.extend(
+        str(item.get("content") or "")
+        for item in list(context.get("conversation_history") or [])
+        + list(context.get("client_conversation_history") or [])
+        if isinstance(item, dict)
+    )
+    evidence.extend(
+        str(
+            (candidate.get("summary") if isinstance(candidate, dict) else None)
+            or (candidate.get("content") if isinstance(candidate, dict) else None)
+            or getattr(candidate, "content", "")
+            or ""
+        )
+        for candidate in list(getattr(context_result, "local_candidates", None) or [])
+    )
+    evidence.extend(str(note or "") for note in list(web_notes or []) if not isinstance(note, dict))
+    evidence.extend(
+        str(note.get("summary") or note.get("result_title") or note.get("live_quote") or "")
+        for note in list(web_notes or [])
+        if isinstance(note, dict)
+    )
+    evidence.extend(
+        str(obs.get("summary") or obs.get("result") or obs.get("content") or "")
+        for obs in list(context.get("runtime_tool_observations") or [])
+        if isinstance(obs, dict)
+    )
+    return evidence
+
+
+def _past_time_check_within_format(response: str, contract: Any, check: Any, receipt: dict) -> str:
+    """Run the past-time support check without breaking a requested JSON deliverable.
+
+    A JSON answer is checked value by value: each string value passes through the same check, and
+    an unsupported value is replaced inside the object, so the reply stays the JSON the user asked
+    for. Any other reply -- including JSON that does not parse -- is checked as text.
+    """
+    if contract is None or not (getattr(contract, "json_required", False) or getattr(contract, "json_object", False)):
+        return check(response, receipt)
+    try:
+        parsed = json.loads(response)
+    except (TypeError, ValueError):
+        return check(response, receipt)
+    receipt.setdefault("checks", [])
+    receipt.setdefault("unsupported_values", [])
+
+    def walk(node):
+        if isinstance(node, str):
+            value_receipt: dict = {}
+            checked = check(node, value_receipt)
+            receipt["checks"].extend(value_receipt.get("checks", []))
+            receipt["unsupported_values"] = sorted(set(receipt["unsupported_values"]) | set(value_receipt.get("unsupported_values", [])))
+            return checked
+        if isinstance(node, list):
+            return [walk(item) for item in node]
+        if isinstance(node, dict):
+            return {key: walk(value) for key, value in node.items()}
+        return node
+
+    rewritten = walk(parsed)
+    return response if rewritten == parsed else json.dumps(rewritten, ensure_ascii=False)
+
+
+def _past_time_guard_reference_clock(source_context: Any, session_id: Any, *, question: str):
+    from core.bootstrap_context import admitted_request_reference_clock
+    return admitted_request_reference_clock(
+        source_context if isinstance(source_context, dict) else None, session_id, question=question,
+    )
 
 
 def _dispatch_background_swarm_query(
@@ -450,6 +634,23 @@ def execute_grounded_turn(
             source_context=source_context,
         )
     else:
+        # Search expansion (v9): one small auxiliary call writes the search phrases the recall
+        # supplement uses beside the question. Only when the context capsule runs (it is the only
+        # consumer); VOOL_CAPSULE_SEARCH_EXPANSION=0 turns it off; a failed call adds nothing.
+        import os as _os
+
+        from core.context_retrieval import search_expansion_wanted as _search_expansion_wanted
+        from core.local_ollama_inventory import env_flag_enabled as _env_flag_enabled
+
+        if (_env_flag_enabled(_os.environ, "VOOL_CONTEXT_CAPSULE_V2", default=False)
+                and _env_flag_enabled(_os.environ, "VOOL_CAPSULE_SEARCH_EXPANSION", default=True)
+                and not (source_context or {}).get("search_expansions")
+                and _search_expansion_wanted(session_id, effective_input, source_context=source_context)):
+            from core.agent_runtime.turn_planner_hook import search_expansions_for_turn
+
+            _phrases = search_expansions_for_turn(agent, source_context, effective_input)
+            if _phrases:
+                source_context = {**dict(source_context or {}), "search_expansions": list(_phrases)}
         # The answering model is resolved only AFTER this context exists (memory_router.resolve
         # below), but the loader needs that model's window NOW to size its layer budgets. The
         # router pre-resolves the ranking it will run later and stamps the planned window into
@@ -953,6 +1154,11 @@ def execute_grounded_turn(
             "ordinary_chat_output_policy",
             "provider_manifest_links",
             "response_control",
+            # The admitted capsule the provider request actually carried, harvested
+            # at transcript assembly (core.bootstrap_context). The post-generation
+            # guards below and the final response seam read it off the turn's own
+            # context so reader and guards share ONE admitted-evidence authority.
+            "admitted_capsule_evidence",
         ):
             if key in model_source_context:
                 source_context[key] = model_source_context[key]
@@ -1087,6 +1293,19 @@ def execute_grounded_turn(
         if is_chat_surface
         else agent._model_final_response_text(model_execution)
     )
+    # The JSON plan wrapper on a chat turn nobody asked a plan of is the classifier's choice, not
+    # the user's: a plain answer that misses that internal wrapper is still the answer (main's
+    # behaviour). Only an explicitly requested plan keeps contract-failed text out.
+    internal_wrapper_contract_miss = bool(
+        not model_final_text
+        and is_chat_surface
+        and not planner_style_requested
+        and str(getattr(model_execution, "source", "") or "").lower() == "provider_execution"
+        and str(getattr(model_execution, "validation_state", "") or "").lower() == "contract_failed"
+        and str(getattr(model_execution, "output_text", "") or "").strip()
+    )
+    if internal_wrapper_contract_miss:
+        model_final_text = str(getattr(model_execution, "output_text", "") or "").strip()
     model_final_answer_hit = bool(model_final_text)
     rendered_via = "model_final_wording"
     response_reason = "grounded_model_response"
@@ -1114,7 +1333,36 @@ def execute_grounded_turn(
                     (_completion.get("final") or {}).get("incomplete")
                 )
 
-    if planner_renderer_allowed and (not is_chat_surface or bool(model_execution.used_model)):
+    final_contract_failed = bool(
+        model_execution.used_model
+        and str(getattr(model_execution, "validation_state", "") or "").lower() == "contract_failed"
+        and not internal_wrapper_contract_miss
+    )
+    if final_contract_failed:
+        response = agent._chat_surface_honest_degraded_response(
+            model_execution, user_input=effective_input, interpretation=interpreted,
+        )
+        rendered_via = "output_contract_failed_refused"
+        response_reason = "model_output_contract_failed"
+        model_final_answer_hit = False
+        if isinstance(source_context, dict):
+            control = dict(source_context.get("response_control") or {})
+            control["fallback_applied"] = True
+            control["fulfillment_outcome"] = {
+                "fulfillment_status": "failed", "failure_stage": "output_validation",
+                "failure_codes": ["model_output_contract_failed"], "retryable": True,
+            }
+            source_context["response_control"] = control
+            source_context["runtime_notice_not_an_answer"] = True
+    elif (
+        planner_renderer_allowed
+        and (not is_chat_surface or bool(model_execution.used_model))
+        and not (
+            is_chat_surface
+            and model_final_answer_hit
+            and _plan_render_drops_model_steps(model_execution, plan)
+        )
+    ):
         response = render_response_fn(
             plan,
             gate,
@@ -1327,14 +1575,20 @@ def execute_grounded_turn(
     # same frozen record every scheduler read (`requirements_for` returns the record for
     # this text), never a fresh reclassification that could disagree with what scheduled.
     begin_synthesis_freeze(source_context, effective_input)
+    _requirements = None
+    _requirements_capture_error = ""
     try:
-        _requires_current = bool(
-            requirements_for(
-                effective_input, source_context=source_context
-            ).current_information_required
-        )
-    except Exception:
+        _requirements = requirements_for(effective_input, source_context=source_context)
+        _requires_current = bool(_requirements.current_information_required)
+    except Exception as exc:
         _requires_current = False
+        _requirements_capture_error = type(exc).__name__
+    if isinstance(source_context, dict):
+        from dataclasses import asdict
+        source_context["execution_requirements"] = asdict(_requirements) if _requirements is not None else None
+        source_context["execution_requirements_capture_error"] = _requirements_capture_error or None
+        source_context["current_information_required"] = _requires_current if _requirements is not None else None
+    _before_current_guard = response
     _current_claim = inspect_unsourced_current_claim(
         answer=response,
         requires_current=_requires_current,
@@ -1342,9 +1596,214 @@ def execute_grounded_turn(
         session_id=str(session_id or ""),
         turn_id=str((source_context or {}).get("cancel_turn_id") or ""),
         source_context=source_context,
+        user_turn_text=effective_input,
     )
     if _current_claim.unsupported:
-        response = unverified_current_answer(effective_input)
+        # Delivery granularity: the VERDICT is whole-answer (a fabricated current value
+        # convicts the turn -- unchanged, pinned), but the DELIVERY keeps separable
+        # supported sentences when the splitter can separate them: "The 2019 survey
+        # counted 11,000 tonnes. The yard currently holds 12,400 tonnes." must not lose
+        # its supported half to the invented one (the mission's mixed-clause retention
+        # contract, the same law the render seam already applies for the price and
+        # temperature kinds). Never weaker than before: nothing separable surviving
+        # means the whole-answer notice, exactly as before.
+        from core.model_output_guard import replace_unobserved_live_claims
+
+        _split = replace_unobserved_live_claims(response, user_turn_text=effective_input)
+        if _split != response:
+            response = _split
+        else:
+            response = unverified_current_answer(effective_input)
+            # A question about someone this chat's records name was answered from those records, not from a
+            # lookup: the withdrawal says the value is not in the records.
+            try:
+                from core.bootstrap_context import admitted_capsule_evidence_text
+                from core.memory_grounding import question_names_someone_in_the_records
+                from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
+
+                if question_names_someone_in_the_records(
+                    effective_input, admitted_capsule_evidence_text(source_context or {}, str(session_id or ""))
+                ):
+                    response = RECORDS_WITHDRAWAL_NOTICE
+            except Exception:
+                pass
+    elif _current_claim.qualify_only:
+        # v14.6 (ASTRA item 2): the binder found no CONTRADICTED claim; UNSUPPORTED and AMBIGUOUS values ship marked as
+        # not found in the records instead of the whole answer being withdrawn. Only a contradiction removes a claim.
+        _qualified = str((_current_claim.claim_binding or {}).get("qualified_text") or "")
+        if _qualified:
+            response = _qualified
+
+    if isinstance(source_context, dict):
+        from hashlib import sha256
+        source_context["claim_conviction"] = {
+            "execution": "executed", "owner": "core.unsourced_current_claim.inspect_unsourced_current_claim",
+            "verdict": _current_claim.as_dict(),
+            "notes_sha256": [sha256(str(note).encode()).hexdigest() for note in web_notes],
+            "before_sha256": sha256(_before_current_guard.encode()).hexdigest(),
+            "after_sha256": sha256(response.encode()).hexdigest(),
+            "changed": response != _before_current_guard,
+            "evidence_capture": "supplied note hashes; internal observation-store view not separately captured",
+        }
+
+    # v14.6 (ASTRA item 5): a scope-wide conclusion ("never", "the first", "the latest", "all") on a partial view of the
+    # scoped candidate set is not delivered as fact; the compiler's typed completeness decides (coverage_guard)
+    try:
+        from core.evidence_kernel.coverage_guard import guard_coverage as _guard_coverage
+        from core.evidence_kernel.receipts import kernel_enabled as _kernel_on
+
+        if _kernel_on():
+            from core.context_retrieval import get_last_retrieval_telemetry as _cov_telemetry
+
+            _cov = _guard_coverage(reply=response, compiler_telemetry=_cov_telemetry().get("evidence_compiler"))
+            if _cov.changed:
+                response = _cov.text
+            if isinstance(source_context, dict):
+                source_context["coverage_guard"] = _cov.as_dict()
+    except Exception:
+        import logging as _logging
+
+        _logging.getLogger(__name__).debug("coverage guard failed", exc_info=True)
+
+    # The PAST-event twin of that guard. A question anchored to a past event, answered
+    # with a specific time/date/duration the request's own material never carried, is a
+    # fabricated recall: measured live on the served path (2026-09-29 demo, provider tap,
+    # real local model), "What time did I reach the clinic on Monday?" was answered
+    # "8:30 AM" and then "9:45 AM" on separate runs with no clinic record anywhere --
+    # the clock misroute was already fixed, and the model invented the time anyway,
+    # against an explicit instruction to say so plainly. Same three-conjunct law as the
+    # current-claim guard: past-anchored question (the one temporal-scope authority),
+    # a stated past-time value that does not merely echo the question, and NOTHING the
+    # request carried -- hydrated history, retrieved memory candidates, assembled
+    # context, web/tool notes -- containing that value in any tolerant normalization.
+    # An exact-output contract wins as it does for every other rewrite on this path.
+    from core.model_output_guard import replace_unsupported_past_time_claims
+    from core.raw_output_contract import raw_output_contract_from_metadata
+    from core.temporal_question_scope import question_time_scope
+
+    # Only an exact-reproduction contract (the user supplied the literal output) exempts the
+    # answer. A formatting requirement -- "Return one valid JSON object.", "Answer only." -- does
+    # not change whether a stated past time is supported; skipping the check there let the format
+    # instruction decide the truth check. A JSON deliverable is checked inside its string values
+    # so a truthful unsupported outcome keeps the requested shape.
+    _format_contract = raw_output_contract_from_metadata(source_context)
+    _exact_reproduction = _format_contract is not None and _format_contract.exact_text is not None
+    if (
+        not _exact_reproduction
+        and question_time_scope(effective_input).asks_past
+    ):
+        past_time_receipt = {}
+        before_past_time_guard = response
+        past_time_evidence = _past_time_guard_evidence(
+            context_result=context_result, source_context=source_context,
+            web_notes=web_notes, session_id=session_id, question=effective_input,
+        )
+        past_time_clock = _past_time_guard_reference_clock(source_context, session_id, question=effective_input)
+        response = _past_time_check_within_format(
+            response, _format_contract,
+            lambda text, receipt: replace_unsupported_past_time_claims(
+                text, question=effective_input, evidence_texts=past_time_evidence,
+                reference_clock=past_time_clock, decision_receipt=receipt,
+            ),
+            past_time_receipt,
+        )
+        if isinstance(source_context, dict):
+            from hashlib import sha256
+            record = source_context.get("admitted_capsule_evidence")
+            record = record if isinstance(record, dict) else {}
+            source_context["past_time_support_decision"] = {
+                **past_time_receipt, "execution": "executed",
+                "owner": "core.model_output_guard.replace_unsupported_past_time_claims",
+                "supplied_evidence_sha256": [sha256(text.encode()).hexdigest() for text in past_time_evidence],
+                "reference_clock_supplied": {
+                    "date": past_time_clock.day.isoformat(),
+                    "request_sha256": past_time_clock.request_sha256,
+                    "clock_sha256": past_time_clock.clock_sha256,
+                    "turn_id": past_time_clock.turn_id,
+                } if past_time_clock is not None else None,
+                "request_sha256": record.get("request_sha256", ""),
+                "evidence_sha256": record.get("evidence_sha256", ""),
+                "before_sha256": sha256(before_past_time_guard.encode()).hexdigest(),
+                "after_sha256": sha256(response.encode()).hexdigest(),
+                "changed": response != before_past_time_guard,
+            }
+
+        # Evidence verification (VOOL_EVIDENCE_VERIFY=1, core.evidence_compiler): a computed interval or
+        # duration the guard withdrew is restored when the turn's receipt packet derives it (two event days,
+        # or two durations). Labelling, never deletion: the decision is recorded beside the guard's.
+        if response != before_past_time_guard:
+            try:
+                from core.evidence_compiler import verify_enabled as _verify_enabled
+
+                if _verify_enabled():
+
+                    from core.bootstrap_context import admitted_capsule_evidence_text as _admitted_text
+                    from core.evidence_kernel.snapshot import packet_facts_for as _packet_facts_for
+
+                    _facts = _packet_facts_for(
+                        _admitted_text(source_context or {}, str(session_id or ""), question=str(effective_input or "")),
+                        str(session_id or ""),
+                    )
+                    from core.evidence_kernel.revocation import without_revoked as _without_revoked
+
+                    _facts = _without_revoked("", _facts, str(session_id or ""))[1]
+                    _ref_day = past_time_clock.day if past_time_clock is not None else None
+                    _decision = _kernel_temporal_decision(effective_input, before_past_time_guard, _facts, _ref_day)
+                    if _decision is None:
+                        # v14.1: a computed interval or duration the guard withdrew is restored whole when the packet
+                        # derives it (labelling, never deletion)
+                        from core.evidence_compiler import verify_answer as _verify_answer
+
+                        _decision = _verify_answer(effective_input, before_past_time_guard, _facts, reference_day=_ref_day)
+                        _decision.update({"execution": "executed", "owner": "core.evidence_compiler.verify_answer",
+                                          "guard_withdrew": True, "packet_facts": len(_facts)})
+                        if _decision.get("verified"):
+                            response = before_past_time_guard
+                            _decision["restored"] = True
+                    elif _decision.get("restored"):
+                        # v14.3 kernel: every temporal value bound to the typed receipts; clauses whose values nothing
+                        # supports are dropped, the answering clause ships when it is supported
+                        response = str(_decision["text"])
+                    if isinstance(source_context, dict):
+                        source_context["evidence_verification"] = _decision
+            except Exception:
+                import logging as _logging
+
+                _logging.getLogger(__name__).debug("evidence verification failed", exc_info=True)
+    elif isinstance(source_context, dict):
+        source_context["past_time_support_decision"] = {
+            "execution": "not_executed",
+            "reason": "exact_output_contract" if _exact_reproduction else "question_not_past_anchored",
+            "owner": "core.agent_runtime.turn_reasoning",
+        }
+
+    # The wrong-relation twin: a MONETARY ask answered with a delivered date and no cost
+    # anywhere in the request material. V corpus F11-03 on the frozen head 9174b42c:
+    # "What did the ridge mast anemometer cost to service?" -- the maintenance log records
+    # only a recalibration date (right subject, wrong relation), and a reply delivering
+    # the date as the answer answers a different question. The related record stays in
+    # the capsule (no evidence suppression); this is the ANSWER contract the owner review
+    # directed. Same three-conjunct law: monetary ask with no temporal half, date values
+    # with no monetary value in the reply, and no monetary value in anything the request
+    # carried. Sentences that decline the asked relation keep their labeled context.
+    from core.model_output_guard import replace_wrong_relation_cost_answers
+
+    _cost_material: list[str] = [str(context_result.assembled_context() or "")]
+    _cost_material.extend(
+        str(item.get("content") or "")
+        for item in list((source_context or {}).get("conversation_history") or [])
+        + list((source_context or {}).get("client_conversation_history") or [])
+        if isinstance(item, dict)
+    )
+    _cost_material.extend(
+        str(getattr(candidate, "content", "") or "")
+        for candidate in list(getattr(context_result, "local_candidates", None) or [])
+    )
+    response = replace_wrong_relation_cost_answers(
+        response,
+        question=effective_input,
+        evidence_texts=_cost_material,
+    )
 
     # A question about this turn's token cost is answered from MEASURED values, appended after the
     # decoration so nothing downstream can drop it and everything downstream — transcript,
@@ -1633,6 +2092,7 @@ def execute_grounded_turn(
         "web_calls": web_calls,
         "evidence_binding": evidence_binding,
         "capsule_mode": capsule_mode,
+        "memory_route": _memory_route_receipt(capsule_mode),
         "exact_response_control": False,
         "fast_path_hit": False,
     }
