@@ -405,10 +405,11 @@ _GLAZE = ("The glaze workshop is on Sunday at 11 am.", "When is the glaze worksh
 
 
 def _contract_part(capsule: str) -> str:
-    """The capsule records the temporal contract lets ride. The whole-turn lane
-    appended after them (core/context_retrieval.py _TURN_LANE_HEADER) delivers
-    whole turns of both speakers whatever their temporal verdict, so a withdrawn
-    record reappears there; this contract is about the part above it."""
+    """The capsule records the temporal contract lets ride, above the whole-turn
+    lane (core/context_retrieval.py _TURN_LANE_HEADER). Since 2026-10-08 the lane
+    honours a retraction too (a withdrawn record rides no carrier, the law the
+    retraction-grammar capsule cases state), so for a real correction the claim
+    is retrieved and withdrawn everywhere; the idiom cases still keep it whole."""
     return capsule.split(cr._TURN_LANE_HEADER)[0]
 
 
@@ -421,8 +422,8 @@ def _chat_capsule(tmp_path, first: str, later: str, question: str) -> str:
         (_ts("2026-02-20T09:00:00"), "The hallway lamp needs a new bulb."),
         (_ts("2026-03-05T09:00:00"), later),
     ])
-    capsule, _telemetry = _capsule(profile, "plainchat", question)
-    return capsule
+    capsule, telemetry = _capsule(profile, "plainchat", question)
+    return capsule, telemetry
 
 
 @pytest.mark.usefixtures("_hash_backend")
@@ -439,9 +440,13 @@ def _chat_capsule(tmp_path, first: str, later: str, question: str) -> str:
 def test_an_ordinary_chat_capsule_reads_the_idiom_as_an_assertion(tmp_path, fact, later,
                                                                   withdrawn):
     first, question, value = fact
-    capsule = _chat_capsule(tmp_path, first, later, question)
-    assert first in capsule, capsule  # precondition: the claim was retrieved
+    capsule, telemetry = _chat_capsule(tmp_path, first, later, question)
+    # precondition: the claim was retrieved (delivered whole when kept; refused by the retraction when withdrawn)
+    retrieved = {str(r.get("occurrence_id") or "") for r in telemetry.get("evidence_refs", [])}
+    assert first in capsule or (withdrawn and any(
+        r.get("reason") == "temporal:withdrawn" for r in telemetry.get("whole_turn_lane_refused", []))), capsule
     assert (value not in _contract_part(capsule)) is withdrawn, (later, capsule)
+    assert (value not in capsule) is withdrawn, (later, capsule)  # the lane honours the retraction too
 
 
 # ── 3a. a retraction's act words are not what it is about ────────────────────

@@ -883,8 +883,8 @@ def test_collision_classes_prefix_suffix_unicode_casefold(isolated_home: Path) -
     )
     # Contract since 2026-10-07: a forget that removes nothing is never answered "Forget applied"
     # (it answered "Removed 0" while the value stayed served). Nothing is stored under the NFC form,
-    # so the command is not handled here and the turn goes to the ordinary path as a retraction.
-    assert not handled and reply == "", (handled, reply)
+    # so the reply says that nothing was removed.
+    assert handled and reply.startswith("Nothing was removed") and "Forget applied" not in reply, reply
     texts = [str(r.get("text") or "") for r in list_memory_entries(access_policy=policy, limit=20)]
     assert any("Cafe\u0301 Central" in t for t in texts)
 
