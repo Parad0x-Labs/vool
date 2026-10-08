@@ -114,7 +114,7 @@ def fresh_profile(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_HOME", str(home))
     monkeypatch.setenv("VOOL_CONTEXT_CAPSULE_V2", "1")
     configure_runtime_home(home)
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()

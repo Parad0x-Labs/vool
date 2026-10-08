@@ -15,6 +15,7 @@ from urllib.request import urlopen
 from core.agent_runtime import fast_paths_utility as greetings
 from tests import _reader_served_rig as rig
 from tests import served_browser
+from tests._auxiliary_calls import is_search_expansion
 
 
 def _production_greeting_prefixes(phrase: str, monkeypatch) -> tuple[str, ...]:
@@ -253,7 +254,11 @@ def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeyp
                           page.locator(".msg.assistant .msg-text").all_text_contents(),
                           "PROVIDER_CALLS", len(provider.calls), "ERRORS", errors, flush=True)
                     raise
-                assert len(provider.calls) == 1, "the queued turn must run exactly once"
+                # The chat now holds the greeting turn, so the queued turn may first make its one
+                # search-expansion call (tests/_auxiliary_calls.py); the answer itself runs exactly once.
+                answers = [call for call in provider.calls if not is_search_expansion(call)]
+                assert len(answers) == 1, "the queued turn must run exactly once"
+                assert len(provider.calls) - len(answers) <= 1, "at most one search-expansion call per turn"
                 trace = page.evaluate("window.__queueTrace")
                 assert trace.count("claim") >= 2, f"the stranded item was never re-claimed: {trace}"
                 # The complete op is fire-and-forget at run release, so the drained-queue read

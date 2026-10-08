@@ -131,12 +131,12 @@ def test_the_embedding_service_goes_where_the_environment_points(stub, trap, mon
     monkeypatch.setattr("core.local_model_policy.local_models_enabled", lambda *a, **k: True)
     from core import embedding_service
 
-    embedding_service._best_embed_model.cache_clear()
+    # The model probe is cached for a short TTL, process-wide: start from an empty cache, and restore it after.
+    monkeypatch.setattr(embedding_service, "_model_cache", (None, 0.0))
     vec = embedding_service.embed("one message with two intents")
     assert len(vec) == embedding_service.EMBED_DIM
     assert any(p.startswith("/api/tags") for p in _Stub.seen) and any(p.startswith("/api/embed") for p in _Stub.seen), _Stub.seen
     assert trap == [], f"the embedding service reached for the real Ollama port: {trap}"
-    embedding_service._best_embed_model.cache_clear()
 
 
 def test_a_dead_port_makes_the_embedding_service_fall_back_without_a_network_reach(trap, monkeypatch):
@@ -145,11 +145,11 @@ def test_a_dead_port_makes_the_embedding_service_fall_back_without_a_network_rea
     monkeypatch.setattr("core.local_model_policy.local_models_enabled", lambda *a, **k: True)
     from core import embedding_service
 
-    embedding_service._best_embed_model.cache_clear()
+    # The model probe is cached for a short TTL, process-wide: start from an empty cache, and restore it after.
+    monkeypatch.setattr(embedding_service, "_model_cache", (None, 0.0))
     vec = embedding_service.embed("still answers, from the hash fallback")
     assert len(vec) == embedding_service.EMBED_DIM and embedding_service.embedding_backend()
     assert trap == []
-    embedding_service._best_embed_model.cache_clear()
 
 
 def test_the_conversation_summarizer_goes_where_the_environment_points(stub, trap, monkeypatch):

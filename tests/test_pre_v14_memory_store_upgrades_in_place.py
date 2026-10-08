@@ -40,7 +40,7 @@ def old_store(tmp_path, monkeypatch):
     finally:
         con.close()
     configure_runtime_home(profile)
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._restart_child_env import scrub_child_env
+from tests._restart_child_env import isolated_child_command, scrub_child_env
 
 REPO=Path(__file__).resolve().parents[1]
 DRIVER=REPO/"tests/_memory_source_restart_driver.py"
@@ -52,13 +52,14 @@ def restarted_sources(tmp_path_factory):
     phases=[];data={};writer=work/"writer.json"
     for phase in ("writer","reader-backfill","mutator","reader-final"):
         out=work/(phase+".json")
-        cmd=["/usr/bin/sandbox-exec","-f",str(policy),native_python,"-B",str(DRIVER),"--home",str(profile),"--home-root",str(profiles),"--out",str(out),"--phase",phase]
-        if phase!="writer":cmd.extend(["--manifest",str(writer)])
+        argv=[native_python,"-B",str(DRIVER),"--home",str(profile),"--home-root",str(profiles),"--out",str(out),"--phase",phase]
+        if phase!="writer":argv.extend(["--manifest",str(writer)])
+        cmd,isolation=isolated_child_command(policy,argv)
         start=time.time();proc=subprocess.run(cmd,cwd=REPO,env=env,text=True,capture_output=True,timeout=90)
         (artifact/(phase+".stdout.log")).write_text(proc.stdout);(artifact/(phase+".stderr.log")).write_text(proc.stderr)
         assert proc.returncode==0, {"phase":phase,"code":proc.returncode,"stderr":proc.stderr[-4000:],"artifact":str(artifact)}
         result=json.loads(out.read_text());(artifact/(phase+".json")).write_text(json.dumps(result,indent=2)+"\n")
-        phases.append({"phase":phase,"pid":result["pid"],"started_epoch":start,"finished_epoch":time.time(),"exit_code":proc.returncode})
+        phases.append({"phase":phase,"pid":result["pid"],"started_epoch":start,"finished_epoch":time.time(),"exit_code":proc.returncode,"isolation":isolation})
         data[phase]=result
     receipt={"phases":phases,"profile":str(profile),"provider_spending_usd":0,"live_model_quality":"not_measured"}
     (artifact/"PROCESS-RECEIPT.json").write_text(json.dumps(receipt,indent=2)+"\n")
