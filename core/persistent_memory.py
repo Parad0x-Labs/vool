@@ -4,6 +4,7 @@ import logging
 import re
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from core.context_scope import ContextAccessPolicy
@@ -155,11 +156,49 @@ __all__ = [
 
 _REMEMBER_RE = re.compile(r"^(?:remember(?: that)?|note(?: that)?|store(?: this)?)\s+(.+)$", re.IGNORECASE)
 _MEMORY_CAPTURE_RE = re.compile(
-    r"^(?:(?:this is|in this)\b[^.!?]*(?:[.!?]\s*|,\s*))?"
+    # The lead-in's words ("This is important," / "In this chat,") stay on one line: crossing a line break they took
+    # a comma inside quoted material for their end and read the material's verb as the command's.
+    r"^(?:(?:this is|in this)\b[^.!?\n]*(?:[.!?]\s*|,\s*))?"
     r"(?:please\s+)?(?P<verb>remember(?: that)?|note(?: that)?|store(?: this)?|keep|retain|save)\s+"
     r"(?P<fact>.+)$",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class _MaterialCapture:
+    """A capture command on its first line with the material under it: the verb and the fact's opening are read from
+    that line alone, so nothing inside the material can be taken for the command; the material follows the fact."""
+
+    verb: str
+    fact: str
+
+    def group(self, name: str) -> str:
+        return {"verb": self.verb, "fact": self.fact}[name]
+
+
+def _memory_capture_match(text: str) -> re.Match[str] | _MaterialCapture | None:
+    """The capture command, on one line -- or on its first line followed only by the material it names.
+
+    "Remember this template:" with a fenced or quoted block under it is one command: the block is what to remember
+    (and admission keeps it source material, never the owner's profile). Any other later line is a separate turn
+    for the model, so a multi-line message is only a capture when everything after its first line is material.
+    """
+    match = _MEMORY_CAPTURE_RE.match(text)
+    if match is not None or "\n" not in text:
+        return match
+    first, rest = text.split("\n", 1)
+    head = _MEMORY_CAPTURE_RE.match(first.strip())
+    if head is None or not rest.strip():
+        return None
+    from core.memory.admission import classify_user_text
+
+    origin = classify_user_text(rest)
+    if not origin.has_source_material or origin.authored_text.strip():
+        return None
+    return _MaterialCapture(verb=head.group("verb"), fact=head.group("fact") + "\n" + rest)
+
+
 _MEMORY_CAPTURE_TRAILER_RE = re.compile(
     r"\s+reply\s+with\s+(?:only\s+)?stored\.?$",
     re.IGNORECASE,
@@ -428,7 +467,9 @@ def _split_explicit_memory_facts(raw_fact: str) -> list[str]:
     parts = _MEMORY_CONTINUATION_RE.split(str(raw_fact or "").strip())
     facts: list[str] = []
     for index, part in enumerate(parts[:4]):
-        clean = " ".join(str(part or "").split()).strip()
+        # Spaces are normalized within each line; line breaks stay, because a fence or a quote block is only
+        # recognisable by its lines and admission must still see it as source material, not the owner's words.
+        clean = "\n".join(" ".join(line.split()) for line in str(part or "").splitlines() if line.strip()).strip()
         if index:
             clean = _MEMORY_CONTINUATION_PREFIX_RE.sub("", clean).strip()
         if clean:
@@ -1553,13 +1594,13 @@ def maybe_handle_memory_command(
     if not (
         scope_command is not None
         or lowered in {"/memory", "what do you remember", "show memory"}
-        or _MEMORY_CAPTURE_RE.match(text)
+        or _memory_capture_match(text)
         or _CORRECTION_RE.match(text)
         or _FORGET_RE.match(text)
         or _is_memory_recall_question(text)
     ):
         return False, ""
-    capture_match = _MEMORY_CAPTURE_RE.match(text)
+    capture_match = _memory_capture_match(text)
     if capture_match and _ANSWER_REQUEST_RE.search(capture_match.group("fact")):
         return False, ""
     if capture_match:
@@ -1735,7 +1776,7 @@ def maybe_handle_memory_command(
             ):
                 added_count += int(
                     add_memory_fact(
-                        eligible_fact,
+                        " ".join(eligible_fact.split()),
                         session_id=resolved_session,
                         scope=eligible_scope,
                         authority="confirmed_memory",
