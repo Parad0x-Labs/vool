@@ -138,7 +138,7 @@ def list_proposals(*, state: str = "", limit: int = 50) -> list[TransactionPropo
 
 
 def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, asset: str, origin: str, memo: str = "", idempotency_key: str = "", source_context: dict[str, Any] | None = None, network: str = "", recipient: dict[str, Any] | None = None,
-                        claim: Callable[[Any, TransactionProposal], None] | None = None) -> TransactionProposal:
+                        claim: Callable[[Any, TransactionProposal, bool], None] | None = None) -> TransactionProposal:
     """Mint a typed proposal in state ``proposed``. Idempotent under ``idempotency_key``.
 
     ``network`` is the chain-qualified identity the payment rides (CAIP-2 or a declared
@@ -150,10 +150,14 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
     quote binds it, approval re-checks it); it must name exactly this destination, and a saved contact's address must
     have been saved for this very network.
 
-    ``claim`` is a door's claim on what a NEW proposal is for (an x402 door: the request it pays). It runs on the new
-    proposal inside the transaction that inserts it, on that transaction's connection, so the proposal and its claim
-    commit together or not at all and nothing ever reads the proposal without it; it may end the proposal there. It
-    does not run when an existing proposal is returned."""
+    ``claim`` is a door's claim on what the proposal is for (an x402 door: the request it fetched), called as
+    ``claim(conn, proposal, minted)``. On a NEW proposal (``minted``) it runs inside the transaction that inserts it, on
+    that transaction's connection, so the proposal and its claim commit together or not at all and nothing ever reads
+    the proposal without it; it may end the proposal there. When the key returns an EXISTING live proposal (the same
+    offer reached again, through another door or at another spelling, or by a concurrent proposer), it runs on that
+    proposal too, in one immediate transaction that re-reads it, so the door learns whether that proposal is its
+    payment as well; it may end an existing proposal that can no longer be paid, and one that ended is superseded and a
+    new one minted, as after a terminal refusal."""
     custody.require_enabled(source_context=source_context)
     profile = custody.require_wallet(wallet_id, source_context=source_context)
     requested = str(network or "").strip() or profile.network
@@ -202,12 +206,15 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
         if existing["content_digest"] != digest:
             raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"idempotency_key": key, "reason": "same_key_different_content", "proposal_id": existing["proposal_id"]}, source_context=source_context)
         found = get_proposal(existing["proposal_id"])
+        if found is not None and found.state not in TERMINAL_REFUSAL_STATES:
+            live = _existing_claimed(found, claim)
+            if live is not None:
+                return live
+            found = get_proposal(found.proposal_id)
         if found is not None and found.state in TERMINAL_REFUSAL_STATES:
             # a terminal REFUSAL is not a payment: the same lawful request may be proposed
             # again. The dead row keeps its audit trail under a superseded key.
             supersede_id = found.proposal_id
-        elif found is not None:
-            return found
 
     from core.wallet import transfers
 
@@ -236,16 +243,34 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
             )
             conn.execute("INSERT INTO wallet_proposal_events (proposal_id, state, detail_json, created_at) VALUES (?, ?, ?, ?)", (proposal_id, STATE_PROPOSED, dumps({"origin": origin}), now))
             if claim is not None:
-                claim(conn, _get(conn, proposal_id))
+                claim(conn, _get(conn, proposal_id), True)
     except sqlite3.IntegrityError:
         # a concurrent proposer won the unique index: converge on their proposal
         existing = idempotency.existing_for_key(profile.wallet_id, key)
         if existing is not None and existing["content_digest"] == digest:
             found = get_proposal(existing["proposal_id"])
-            if found is not None:
-                return found
+            live = _existing_claimed(found, claim) if found is not None else None
+            if live is not None:
+                return live
         raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"idempotency_key": key, "reason": "concurrent_conflict"}, source_context=source_context) from None
     return get_proposal(proposal_id)  # type: ignore[return-value]
+
+
+def _existing_claimed(found: TransactionProposal, claim: Callable[[Any, TransactionProposal, bool], None] | None) -> TransactionProposal | None:
+    """The existing proposal a key returned, with the door's ``claim`` run on it in one immediate transaction that
+    re-reads it: None when it has ended (meanwhile, or by the claim), so the caller mints afresh."""
+    if claim is None:
+        return found
+    from core.wallet import limits
+
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        current = _get(conn, found.proposal_id)
+        if current is None or current.state in TERMINAL_REFUSAL_STATES:
+            return None
+        claim(conn, current, False)
+        current = _get(conn, found.proposal_id)
+    return None if current is None or current.state in TERMINAL_REFUSAL_STATES else current
 
 
 def _canonical_network(name: str) -> str:

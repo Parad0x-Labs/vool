@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from tests.wallet._rig import DESTINATION, ScriptedX402Resource
+from tests.wallet._rig import DESTINATION, ScriptedX402Resource, x402_body
 
 pytestmark = [pytest.mark.safety]
 PIN = "246810"
@@ -72,6 +72,76 @@ def test_duplicate_retries_and_refetches_never_repay(wallet_env, resource):
     assert first.tx_signature == second.tx_signature == third.tx_signature
     assert wallet_env["rpc"].send_count() == 1, "one payment, however many retries"
     assert third.repaid is False and third.proposal_id == parked.proposal_id
+
+
+def _proposed_through_an_offer_door(door, body):
+    """The 402 an agent was shown, proposed through a door that names no request: the owner-local API (which prepares
+    the proposal), or the model's ``x402.propose`` followed by its own ``wallet.simulate`` (which prepares it). Returns
+    the proposal's id."""
+    if door == "api":
+        from apps.vool_api_server import create_app
+        from core.web.api.runtime import RuntimeServices
+        from tests.asgi_harness import asgi_request
+
+        app = create_app(RuntimeServices(display_name="VOOL"))
+        _status, _headers, raw = asgi_request(app, method="POST", path="/api/wallet/x402/propose", body=json.dumps({"status": 402, "headers": {}, "body": body}).encode(),
+                                             headers={"Host": "127.0.0.1", "Content-Type": "application/json", "Origin": "http://127.0.0.1"})
+        return json.loads(raw)["proposal"]["proposal_id"]
+    from core.runtime_execution_tools import _dispatch_runtime_tool
+
+    proposed = _dispatch_runtime_tool("x402.propose", {"status": 402, "body": body}, source_context={"session_id": "s1"})
+    proposal_id = proposed.details["proposal"]["proposal_id"]
+    assert _dispatch_runtime_tool("wallet.simulate", {"proposal_id": proposal_id}, source_context={"session_id": "s1"}).ok
+    return proposal_id
+
+
+def _approvable():
+    from core.wallet import proposals
+
+    return [p.proposal_id for p in proposals.list_proposals() if p.state == proposals.STATE_PENDING_APPROVAL]
+
+
+@pytest.mark.parametrize("door", ["api", "model"])
+@pytest.mark.parametrize("order", ["fetch_first", "offer_door_first"])
+def test_one_offer_reached_through_the_fetch_door_and_an_offer_door_is_one_payment(wallet_env, resource, order, door):
+    """The offer a fetch received can also reach the wallet through a door that names no request: the owner-local API,
+    or the model proposing the 402 it was shown. Every door keys a proposal by the offer, so in either order both doors
+    name the same proposal: one approvable payment, paid once, and the fetched request is bound to it and delivered."""
+    from core.wallet import approval, custody, lifecycle, x402
+
+    profile = _pocket(custody)
+    shown = x402_body(amount_minor=resource.amount_minor)
+    if order == "fetch_first":
+        fetched = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        offered = _proposed_through_an_offer_door(door, shown)
+    else:
+        offered = _proposed_through_an_offer_door(door, shown)
+        fetched = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert fetched.status == x402.OUTCOME_PAYMENT_REQUIRED and offered == fetched.proposal_id
+    assert _approvable() == [fetched.proposal_id], "one offer, one approvable payment"
+    receipt = lifecycle.default_lifecycle().approve_and_execute(fetched.proposal_id, approver=approval.PinApprover(PIN))
+    delivered = x402.retry_paid_resource(fetched.proposal_id)
+    assert delivered.status == x402.OUTCOME_DELIVERED and delivered.tx_signature == receipt.tx_signature
+    assert wallet_env["rpc"].send_count() == 1 and len(resource.deliveries) == 1
+
+
+def test_two_spellings_of_one_resource_are_one_payment(wallet_env, resource):
+    """One resource reached at two spellings of its URL (a query string it ignores) answers with one offer. The offer
+    keys the proposal, so the second fetch binds its request to the first one's proposal: one approvable payment, paid
+    once, and a fetch at either spelling then gets that payment's delivery without paying again."""
+    from core.wallet import approval, custody, lifecycle, x402
+
+    profile = _pocket(custody)
+    spellings = (resource.url, resource.url + "?ref=agent")
+    first, second = (x402.fetch_paid_resource(url, wallet_id=profile.wallet_id) for url in spellings)
+    assert first.status == second.status == x402.OUTCOME_PAYMENT_REQUIRED and second.proposal_id == first.proposal_id
+    assert _approvable() == [first.proposal_id], "one offer for one resource, one approvable payment"
+    receipt = lifecycle.default_lifecycle().approve_and_execute(first.proposal_id, approver=approval.PinApprover(PIN))
+    for url in spellings:
+        delivered = x402.fetch_paid_resource(url, wallet_id=profile.wallet_id)
+        assert (delivered.status, delivered.tx_signature, delivered.repaid) == (x402.OUTCOME_DELIVERED, receipt.tx_signature, False)
+    assert wallet_env["rpc"].send_count() == 1, "one offer, one payment"
+    assert {d["signature"] for d in resource.deliveries} == {receipt.tx_signature}
 
 
 @pytest.mark.parametrize("price", [1500, 1400], ids=["same-price", "other-price"])
@@ -227,6 +297,34 @@ def test_concurrent_callers_cannot_pay_in_proposal_creation_before_binding_windo
     assert x402.binding_for_proposal(paid.proposal_id)["state"] == x402.BINDING_DELIVERED
 
 
+def test_a_fetched_proposal_whose_claim_cannot_be_written_is_never_left_behind(wallet_env, resource, monkeypatch):
+    """The store refuses the write that binds the request (a disk error) while the fetch door mints the offer's
+    proposal. The proposal and its claim commit together or not at all: no proposal is left that a door could prepare
+    or approve without its request, and once the store is back the same request parks one payment."""
+    import sqlite3
+
+    from core.wallet import custody, proposals, x402
+    from core.wallet.store import connection
+
+    profile = _pocket(custody)
+    real_claim = x402._claim_request
+
+    def disk_error(conn, **kwargs):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(x402, "_claim_request", disk_error)
+    with pytest.raises(sqlite3.OperationalError):
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    with connection() as conn:
+        bindings = conn.execute("SELECT COUNT(*) FROM wallet_x402_bindings").fetchone()[0]
+    assert proposals.list_proposals() == [] and bindings == 0, "nothing minted without its claim"
+    monkeypatch.setattr(x402, "_claim_request", real_claim)
+    parked = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert parked.status == x402.OUTCOME_PAYMENT_REQUIRED and _approvable() == [parked.proposal_id]
+    assert x402.binding_for_proposal(parked.proposal_id)["proposal_id"] == parked.proposal_id
+    assert wallet_env["rpc"].send_count() == 0
+
+
 @pytest.mark.parametrize("stage", ["prepare", "approve", "while_the_owner_approves"])
 def test_a_fetched_payment_that_does_not_own_its_request_is_never_prepared_or_approved(wallet_env, resource, monkeypatch, stage):
     """A proposal the fetch door minted is paid only as its request's one payment. If the store says another payment
@@ -348,7 +446,7 @@ def test_a_payment_abandoned_mid_prepare_frees_its_request_only_after_the_prepar
     assert abandoned.state == proposals.STATE_PROPOSED
     with pytest.raises(WalletFault) as exc:
         x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
-    assert exc.value.code == "wallet_duplicate_payment"
+    assert (exc.value.code, exc.value.context["reason"]) == ("wallet_duplicate_payment", "payment_still_preparing")
     assert [(p.proposal_id, p.state) for p in proposals.list_proposals()] == [(abandoned.proposal_id, proposals.STATE_PROPOSED)]
     past = (datetime.now(timezone.utc) - timedelta(seconds=x402.ABANDONED_PREPARE_SECONDS + 1)).isoformat()
     with connection() as conn:
@@ -359,6 +457,30 @@ def test_a_payment_abandoned_mid_prepare_frees_its_request_only_after_the_prepar
     assert proposals.get_proposal(abandoned.proposal_id).state == proposals.STATE_REJECTED
     assert _refusal_reasons(abandoned.proposal_id) == [(proposals.STATE_REJECTED, "wallet_quote_expired", "prepare_abandoned", 0, 0)]
     assert wallet_env["rpc"].send_count() == 0
+
+
+def test_an_abandoned_payment_reached_at_another_spelling_is_ended_and_its_offer_parked_once(wallet_env, resource, monkeypatch):
+    """The first fetch's process stopped mid-prepare. Past the prepare window the same offer is fetched at another
+    spelling of its URL: that request's claim finds the offer's abandoned proposal, ends it with its receipt (nothing
+    charged) and parks a fresh one. A fetch at the first spelling then reaches that same fresh proposal: one payment."""
+    from datetime import datetime, timedelta, timezone
+
+    from core.wallet import approval, custody, lifecycle, proposals, x402
+    from core.wallet.store import connection
+
+    profile = _pocket(custody)
+    abandoned = _abandoned_mid_prepare(resource, profile, monkeypatch)
+    past = (datetime.now(timezone.utc) - timedelta(seconds=x402.ABANDONED_PREPARE_SECONDS + 1)).isoformat()
+    with connection() as conn:
+        conn.execute("UPDATE wallet_proposals SET updated_at = ? WHERE proposal_id = ?", (past, abandoned.proposal_id))
+    fresh = x402.fetch_paid_resource(resource.url + "?ref=agent", wallet_id=profile.wallet_id)
+    assert fresh.status == x402.OUTCOME_PAYMENT_REQUIRED and fresh.proposal_id != abandoned.proposal_id
+    assert _refusal_reasons(abandoned.proposal_id) == [(proposals.STATE_REJECTED, "wallet_quote_expired", "prepare_abandoned", 0, 0)]
+    again = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert (again.status, again.proposal_id) == (x402.OUTCOME_PAYMENT_REQUIRED, fresh.proposal_id)
+    assert _approvable() == [fresh.proposal_id]
+    lifecycle.default_lifecycle().approve_and_execute(fresh.proposal_id, approver=approval.PinApprover(PIN))
+    assert wallet_env["rpc"].send_count() == 1
 
 
 def _abandoned_mid_prepare(resource, profile, monkeypatch):

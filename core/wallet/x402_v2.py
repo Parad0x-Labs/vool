@@ -22,7 +22,6 @@ material.
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 from dataclasses import dataclass, field
 from typing import Any
@@ -242,23 +241,18 @@ def select_offer(offer: V2Offer, *, wallet_id: str, source_context: dict[str, An
     return None, "refused:no_admissible_entry"
 
 
-def propose_from_v2_offer(offer: V2Offer, entry: V2Requirements, *, wallet_id: str, source_context: dict[str, Any] | None = None, request_digest: str = "", claim: Any = None) -> proposals.TransactionProposal:
-    """Turn the SELECTED entry into a typed proposal of origin x402. Never pays; above the
-    configured cap refuses before a proposal exists. With ``request_digest`` (the fetch door) the
-    proposal is keyed to that request and ``claim`` binds the request in the proposal's own
-    insert, as ``x402.propose_from_x402`` does."""
+def propose_from_v2_offer(offer: V2Offer, entry: V2Requirements, *, wallet_id: str, source_context: dict[str, Any] | None = None, claim: Any = None) -> proposals.TransactionProposal:
+    """Turn the SELECTED entry into a typed proposal of origin x402, keyed by the offer (``x402.offer_key``) at every
+    door. Never pays; above the configured cap refuses before a proposal exists. The fetch door passes its ``claim``
+    on the request it fetched, as ``x402.propose_from_x402`` does."""
     custody.require_enabled(source_context=source_context)
     spec = chains.resolve_network(entry.network)
     if entry.amount_minor > config.x402_cap_minor():
         raise wallet_fault("wallet_x402_cap_exceeded", authority=AUTHORITY, context={"amount_minor": entry.amount_minor, "limit": str(config.x402_cap_minor()), "reason": "above_automatic_cap"}, source_context=source_context)
     asset = chains.asset_for(entry.network, entry.asset)
-    key_terms = (entry.resource_url, entry.pay_to, str(entry.amount_minor), entry.asset, entry.network)
-    if request_digest:
-        from core.wallet import x402 as wallet_x402
+    from core.wallet import x402 as wallet_x402
 
-        idempotency_key = wallet_x402.fetched_key(request_digest, "v2", *key_terms)
-    else:
-        idempotency_key = "x402v2:" + hashlib.sha256("|".join(key_terms).encode("utf-8")).hexdigest()[:24]
+    idempotency_key = wallet_x402.offer_key("v2", entry.resource_url, entry.pay_to, str(entry.amount_minor), entry.asset, entry.network)
     return proposals.propose_transaction(
         wallet_id=wallet_id, destination=entry.pay_to, amount_minor=entry.amount_minor, asset=asset.symbol,
         origin=proposals.ORIGIN_X402, memo=f"x402v2 {entry.resource_url}"[:200], idempotency_key=idempotency_key,

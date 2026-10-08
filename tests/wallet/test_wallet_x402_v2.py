@@ -599,6 +599,85 @@ def test_e5d5_an_unknown_submission_leaves_its_payment_effect_unresolved(wallet_
         assert list_unresolved_effect_resolutions(reconciliation.logical_effect_id(proposal_id)) == []
 
 
+def test_e5d6_two_spellings_of_one_resource_are_one_payment(wallet_env, evm_rig, monkeypatch):
+    """One resource reached at two spellings of its URL (a query string it ignores) answers with one v2 offer. The offer
+    keys the proposal, so the second fetch binds its request to the first one's proposal: one signable payment, paid
+    once, and a fetch at the other spelling afterwards pays nothing more."""
+    from core.wallet import custody, proposals
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", rpc=evm_rig.rpc) as resource:
+        resource.settlement_tx = "0x" + ("cd" * 32)
+        evm_rig.rpc.add_transfer_receipt(resource.settlement_tx, contract_address=USDC_BASE, from_address=signer.address, to_address=PAY_TO, amount_int=10000)
+        profile = custody.register_external_signer_wallet(signer.address, network=BASE_SEPOLIA)
+        spellings = (resource.url, resource.url + "?ref=agent")
+        first, second = (wallet_x402.fetch_paid_resource(url, wallet_id=profile.wallet_id) for url in spellings)
+        assert first.status == second.status == wallet_x402.OUTCOME_PAYMENT_REQUIRED and second.proposal_id == first.proposal_id
+        assert [p.proposal_id for p in proposals.list_proposals() if p.state == proposals.STATE_PENDING_APPROVAL] == [first.proposal_id]
+        engine = wallet_x402.lifecycle_default_engine()
+        view = engine.request_external_signature(first.proposal_id)
+        signature = signer_sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+        resource.settled_signatures.add(signature)
+        assert engine.submit_external_signature(view["request_id"], signature_hex=signature).state == proposals.STATE_CONFIRMED
+        with pytest.raises(WalletFault) as again:
+            wallet_x402.fetch_paid_resource(spellings[1], wallet_id=profile.wallet_id)
+        assert again.value.code == "wallet_duplicate_payment"
+        assert len(resource.deliveries) == 1, "one offer, one payment"
+
+
+def _proposed_through_an_offer_door(door: str, body: dict) -> str:
+    """The v2 402 an agent was shown, proposed through a door that names no request: the owner-local API (which
+    prepares it), or the model's ``x402.propose`` followed by its own ``wallet.simulate``. Returns the proposal's id."""
+    if door == "api":
+        from apps.vool_api_server import create_app
+        from core.web.api.runtime import RuntimeServices
+        from tests.asgi_harness import asgi_request
+
+        app = create_app(RuntimeServices(display_name="VOOL"))
+        _status, _headers, raw = asgi_request(app, method="POST", path="/api/wallet/x402/propose", body=json.dumps({"status": 402, "headers": {}, "body": body}).encode(),
+                                             headers={"Host": "127.0.0.1", "Content-Type": "application/json", "Origin": "http://127.0.0.1"})
+        return json.loads(raw)["proposal"]["proposal_id"]
+    from core.runtime_execution_tools import _dispatch_runtime_tool
+
+    proposed = _dispatch_runtime_tool("x402.propose", {"status": 402, "body": body}, source_context={"session_id": "s1"})
+    proposal_id = proposed.details["proposal"]["proposal_id"]
+    assert _dispatch_runtime_tool("wallet.simulate", {"proposal_id": proposal_id}, source_context={"session_id": "s1"}).ok
+    return proposal_id
+
+
+@pytest.mark.parametrize("door", ["api", "model"])
+@pytest.mark.parametrize("order", ["fetch_first", "offer_door_first"])
+def test_e5d7_one_offer_through_the_fetch_door_and_an_offer_door_is_one_payment(wallet_env, evm_rig, monkeypatch, order, door):
+    """The v2 offer a fetch received can also reach the wallet through a door that names no request (the owner-local
+    API, or the model proposing the 402 it was shown). Every door keys a proposal by the offer, so in either order both
+    doors name the same proposal: one signable payment, signed and paid once."""
+    from core.wallet import custody, proposals
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", rpc=evm_rig.rpc) as resource:
+        resource.settlement_tx = "0x" + ("ce" * 32)
+        evm_rig.rpc.add_transfer_receipt(resource.settlement_tx, contract_address=USDC_BASE, from_address=signer.address, to_address=PAY_TO, amount_int=10000)
+        profile = custody.register_external_signer_wallet(signer.address, network=BASE_SEPOLIA)
+        if order == "fetch_first":
+            fetched = wallet_x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+            offered = _proposed_through_an_offer_door(door, resource.payment_required())
+        else:
+            offered = _proposed_through_an_offer_door(door, resource.payment_required())
+            fetched = wallet_x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert fetched.status == wallet_x402.OUTCOME_PAYMENT_REQUIRED and offered == fetched.proposal_id
+        assert [p.proposal_id for p in proposals.list_proposals() if p.state == proposals.STATE_PENDING_APPROVAL] == [fetched.proposal_id]
+        engine = wallet_x402.lifecycle_default_engine()
+        view = engine.request_external_signature(fetched.proposal_id)
+        signature = signer_sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+        resource.settled_signatures.add(signature)
+        assert engine.submit_external_signature(view["request_id"], signature_hex=signature).state == proposals.STATE_CONFIRMED
+        assert len(resource.deliveries) == 1, "one offer, one payment"
+
+
 @pytest.mark.parametrize("refusal", ["loopback_off", "loopback_name", "dns_failure"])
 def test_e5e_a_payment_refused_before_its_socket_is_released_and_can_be_parked_again(wallet_env, evm_rig, monkeypatch, refusal):
     """A refusal the target check raises before the payment hop's socket opens proves nothing was sent: the hold is
