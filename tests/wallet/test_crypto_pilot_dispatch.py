@@ -349,6 +349,60 @@ def test_an_environment_switch_after_the_credential_refuses_the_claim(pilot, mon
     assert quotes.get_quote(quote["quote_id"])["state"] in {"open", "superseded"}
 
 
+@pytest.mark.parametrize("binding", ["kept", "moved", "moved_while_the_owner_approves"])
+def test_a_fetched_x402_payment_is_sent_from_the_pilot_sheet_only_while_it_owns_its_request(pilot, monkeypatch, binding):
+    """A Crypto Pilot wallet approves through its own door (the quote sheet, one credential, its own claim). A payment
+    the x402 fetch door parked is sent there only as its request's payment, as at every other approval door: when the
+    store says another payment holds the request (restored or edited behind the wallet's back), before the sheet asks
+    for the credential or while the owner gives it, the payment is refused before anything is consumed, held or sent,
+    and ended with its receipt."""
+    from core.wallet import lifecycle, pilot_custody, proposals, quotes, transfers, x402
+    from core.wallet.store import connection
+    from tests.wallet._rig import DESTINATION, ScriptedX402Resource
+
+    node = pilot
+    monkeypatch.setenv("VOOL_WALLET_X402_CAP_MINOR", "200000")
+    wallet = _ready_pilot_wallet()
+    with ScriptedX402Resource(node, amount_minor=1500, pay_to=DESTINATION) as resource:
+        parked = x402.fetch_paid_resource(resource.url, wallet_id=wallet["wallet_id"])
+    proposal = proposals.get_proposal(parked.proposal_id)
+    assert transfers.is_pilot_transfer(proposal) and proposal.state == proposals.STATE_PENDING_APPROVAL
+
+    def move_the_binding():
+        with connection() as conn:
+            conn.execute("UPDATE wallet_x402_bindings SET proposal_id = ? WHERE proposal_id = ?", ("pay-another-payment", proposal.proposal_id))
+
+    real_verify = pilot_custody._verify
+    asked = []
+
+    def verify(row, credential, *, source_context=None):
+        asked.append(row)
+        secret = real_verify(row, credential, source_context=source_context)
+        if binding == "moved_while_the_owner_approves":
+            move_the_binding()
+        return secret
+
+    monkeypatch.setattr(pilot_custody, "_verify", verify)
+    if binding == "moved":
+        move_the_binding()
+    engine = lifecycle.default_lifecycle()
+    quote = _quote(proposal.proposal_id)
+    if binding == "kept":
+        assert _approve(engine, proposal.proposal_id, quote)["transfer"]["state"] == "confirmed"
+        assert node.send_count() == 1 and len(asked) == 1
+        return
+    with pytest.raises(WalletFault) as refused:
+        _approve(engine, proposal.proposal_id, quote)
+    assert (refused.value.code, refused.value.context.get("reason")) == ("wallet_duplicate_payment", "request_bound_to_another_payment")
+    assert len(asked) == (0 if binding == "moved" else 1), "refused before the credential, or inside the claim after it"
+    assert node.send_count() == 0 and transfers.get_transfer_by_id(proposal.proposal_id) is None and _hold(proposal.proposal_id) is None
+    assert quotes.get_quote(quote["quote_id"])["state"] == "open", "nothing consumed"
+    assert proposals.get_proposal(proposal.proposal_id).state == proposals.STATE_REJECTED
+    [receipt] = [json.loads(r["payload_json"]) for r in _receipt_rows(proposal.proposal_id)]
+    assert (receipt["state"], receipt["fault_code"], receipt["refusal"]["reason"], receipt["refusal"]["charged_amount_minor"]) == (
+        proposals.STATE_REJECTED, "wallet_duplicate_payment", "request_bound_to_another_payment", 0)
+
+
 def test_the_legacy_doors_refuse_a_pilot_transfer_on_a_ready_row_by_name(pilot):
     from core.wallet import approval, proposals
 

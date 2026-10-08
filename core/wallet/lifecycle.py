@@ -656,9 +656,10 @@ class PaymentLifecycle:
         return attempts
 
     def _require_owns_request(self, proposal: proposals.TransactionProposal) -> None:
-        """A proposal the x402 fetch door minted is paid only as its request's one payment. One whose request the store
-        says another payment holds is refused before anything is simulated, asked, held or sent, and ended with its
-        receipt."""
+        """A proposal a request was bound to is paid only as a request's payment, at every door that prepares, approves
+        or claims one (prepare, the pocket and external-signer approvals and their claim, the Crypto Pilot approval and
+        its claim). One that no request's binding names any more is refused before anything is simulated, asked, held
+        or sent, and ended with its receipt."""
         from core.wallet import x402 as wallet_x402
 
         if wallet_x402.owns_its_request(proposal):
@@ -688,6 +689,7 @@ class PaymentLifecycle:
             raise self._fault("wallet_duplicate_payment", proposal, reason="not_awaiting_approval", status=proposal.state)
         if not transfers.is_pilot_transfer(proposal):
             raise self._fault("wallet_quote_mismatch", proposal, reason="not_a_pilot_transfer")
+        self._require_owns_request(proposal)
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         quote = quotes.require_open_quote(quote_id, proposal=proposal, quote_digest=quote_digest, account_address=profile.public_key, source_context=self.source_context)
@@ -873,7 +875,9 @@ class PaymentLifecycle:
         quote, moves the proposal, holds the amount plus the fee ceiling and inserts the transfer row -- and, when the
         approval covers a fee collection, claims that collection in the SAME transaction (its ledger record at the
         version the sheet showed, its own hold, its own transfer row under the same challenge). A refusal rolls
-        everything back, so the quote stays open, the proposal stays approvable and the collection stays offered."""
+        everything back, so the quote stays open, the proposal stays approvable and the collection stays offered; only
+        a fetched x402 payment that no longer owns its request is ended there, with its receipt, before anything is
+        consumed or held."""
         from core.wallet import controls, environment, quotes, settlement, transfers
         from core.wallet.store import connection
 
@@ -889,6 +893,15 @@ class PaymentLifecycle:
             epochs = controls.epochs(conn)
             if epochs != baseline["epochs"]:
                 raise self._fault("wallet_approval_rejected", proposal, reason="controls_changed_during_approval")
+            from core.wallet import x402 as wallet_x402
+
+            if not wallet_x402.owns_its_request(proposal, conn=conn):
+                # the rule of every approval door, read inside the claim before anything is consumed or held: the
+                # proposal is ended with its receipt, as the pocket and external-signer claims end it
+                end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", expected_state=proposals.STATE_PENDING_APPROVAL,
+                            detail={"reason": "request_bound_to_another_payment"}, conn=conn, reason="request_bound_to_another_payment")
+                conn.commit()
+                raise self._fault("wallet_duplicate_payment", proposal, reason="request_bound_to_another_payment", status=proposal.state)
             try:
                 quotes._consume(conn, quote["quote_id"], quote["digest"], now)
             except quotes.QuoteConsumeError:
