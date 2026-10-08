@@ -18,7 +18,15 @@ from typing import Any
 
 import pytest
 
-from tests.wallet._rig_evm import EvmExtensionSigner, FacilitatorSimulator, ScriptedEvmRpc, pad_address_topic
+from core.wallet.errors import WalletFault
+from tests.wallet._rig_evm import (
+    ANSWERS_AFTER_PAYMENT,
+    EvmExtensionSigner,
+    FacilitatorSimulator,
+    ScriptedEvmRpc,
+    _answer_oddly,
+    pad_address_topic,
+)
 
 pytestmark = [pytest.mark.safety]
 
@@ -31,9 +39,11 @@ AMOUNT = 1000
 class X402V1EvmResource:
     """A paid resource speaking the OFFICIAL v1 wire: a 402 body with accepts[], a paid 200
     carrying X-PAYMENT-RESPONSE. Settlement runs through the facilitator simulator and
-    seeds the chain receipt the wallet's independent (payer-bound) verification reads."""
+    seeds the chain receipt the wallet's independent (payer-bound) verification reads.
+    `paid_answer` (see `_answer_oddly`) makes every settled paid request answer that way
+    instead of delivering, counted in `unanswered`."""
 
-    def __init__(self, facilitator: FacilitatorSimulator, rpc: ScriptedEvmRpc, *, amount_minor: int = AMOUNT, network_name: str = "base-sepolia", extra: dict[str, Any] | None = None, asset: str = USDC) -> None:
+    def __init__(self, facilitator: FacilitatorSimulator, rpc: ScriptedEvmRpc, *, amount_minor: int = AMOUNT, network_name: str = "base-sepolia", extra: dict[str, Any] | None = None, asset: str = USDC, paid_answer: str = "") -> None:
         self.facilitator = facilitator
         self.rpc = rpc
         self.amount_minor = amount_minor
@@ -42,6 +52,8 @@ class X402V1EvmResource:
         self.extra = extra if extra is not None else {"name": "USDC", "version": "2"}
         self.deliveries: list[dict[str, Any]] = []
         self.payment_headers: list[dict[str, Any]] = []
+        self.paid_answer = paid_answer
+        self.unanswered: list[str] = []
         self.challenges = 0
         self._lock = threading.Lock()
         resource = self
@@ -68,6 +80,10 @@ class X402V1EvmResource:
                 settled = resource._settle_via_facilitator(payload, signature, payer)
                 if not settled:
                     return self._challenge()
+                if resource.paid_answer:
+                    with resource._lock:
+                        resource.unanswered.append(signature)
+                    return _answer_oddly(self, resource.paid_answer)
                 with resource._lock:
                     resource.deliveries.append({"from": payer, "value": int(str(authorization.get("value"))), "nonce": str(authorization.get("nonce"))})
                 response = {"success": True, "errorReason": "", "payer": payer, "transaction": resource._last_tx, "network": resource.network_name}
@@ -205,6 +221,70 @@ def test_a_v1_offer_without_a_pinned_domain_on_an_unpinned_asset_refuses(rig):
             engine.request_external_signature(prepared.proposal_id)
         assert exc.value.code == "x402_scheme_unavailable" and exc.value.context["reason"] == "eip712_domain_unpinned"
         assert resource.deliveries == []
+
+
+def _parked_and_signed(resource: X402V1EvmResource, signer: EvmExtensionSigner) -> tuple[str, str, Any, str, str]:
+    """Park one v1 payment for ``resource`` and sign it: (wallet_id, proposal_id, engine, request_id, signature)."""
+    from core.wallet import custody, lifecycle, x402
+
+    profile = custody.register_external_signer_wallet(signer.address, network=NETWORK)
+    outcome = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    engine = lifecycle.default_lifecycle()
+    engine.prepare(outcome.proposal_id)
+    view = engine.request_external_signature(outcome.proposal_id)
+    signature = _sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+    return profile.wallet_id, outcome.proposal_id, engine, view["request_id"], signature
+
+
+@pytest.mark.parametrize("answer", ANSWERS_AFTER_PAYMENT)
+def test_a_v1_request_whose_payment_may_have_settled_is_never_paid_again(rig, answer):
+    """The v1 wire submits through the same door as v2. The resource settled the payment and then answered without
+    delivering, so the outcome is unknown and no transaction id was learned: the hold stays, and fetching the same
+    request again refuses before anything is sent."""
+    from core.wallet import limits, proposals, x402
+
+    rpc, facilitator = rig
+    with X402V1EvmResource(facilitator, rpc, paid_answer=answer) as resource, EvmExtensionSigner() as signer:
+        wallet_id, proposal_id, engine, request_id, signature = _parked_and_signed(resource, signer)
+        with pytest.raises(WalletFault) as submitted:
+            engine.submit_external_signature(request_id, signature_hex=signature)
+        assert str(submitted.value.context.get("reason") or "").startswith("submit_unknown:")
+        assert resource.unanswered == [signature]  # the payment reached the resource, which settled it
+        proposal = proposals.get_proposal(proposal_id)
+        assert proposal.state == proposals.STATE_BROADCAST and proposal.tx_signature == ""
+        assert limits.reservation_state(proposal_id) == limits.RESERVATION_RESERVED
+        with pytest.raises(WalletFault) as again:
+            x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert again.value.code == "wallet_duplicate_payment" and again.value.context["reason"] == "payment_outcome_unknown"
+        assert resource.challenges == 1  # the first fetch's challenge is the only request without a payment
+        assert (x402.binding_for_proposal(proposal_id) or {}).get("proposal_id") == proposal_id
+
+
+@pytest.mark.parametrize("answer", ["drop", "unproven"])
+def test_new_v1_terms_for_the_same_request_do_not_park_a_second_payment(rig, answer):
+    """A resource that asks again on other terms (here another price) would get a fresh proposal, with the request
+    rebound to it one approval away from a second payment. While the first payment is unproven, settled or not, the
+    request is refused before it is sent. An answered payment the chain does not prove still counts as spent."""
+    from core.wallet import limits, proposals, x402
+
+    rpc, facilitator = rig
+    with X402V1EvmResource(facilitator, rpc, paid_answer=answer) as resource, EvmExtensionSigner() as signer:
+        wallet_id, proposal_id, engine, request_id, signature = _parked_and_signed(resource, signer)
+        if answer == "drop":
+            with pytest.raises(WalletFault):
+                engine.submit_external_signature(request_id, signature_hex=signature)
+            assert limits.reservation_state(proposal_id) == limits.RESERVATION_RESERVED
+        else:
+            receipt = engine.submit_external_signature(request_id, signature_hex=signature)
+            assert receipt.state == proposals.STATE_BROADCAST
+            assert limits.reservation_state(proposal_id) == limits.RESERVATION_SETTLED
+        assert proposals.get_proposal(proposal_id).tx_signature == ""
+        resource.amount_minor = AMOUNT + 1
+        with pytest.raises(WalletFault) as again:
+            x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert again.value.code == "wallet_duplicate_payment" and again.value.context["reason"] == "payment_outcome_unknown"
+        assert resource.challenges == 1 and resource.unanswered == [signature]
+        assert (x402.binding_for_proposal(proposal_id) or {}).get("proposal_id") == proposal_id
 
 
 def _sign(signer: EvmExtensionSigner, typed: dict[str, Any]) -> str:
