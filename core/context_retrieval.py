@@ -3471,6 +3471,48 @@ def _whole_turn_units(
     return units
 
 
+#: The question itself sets its as-of day ("as of mid August", "as at 1 March"). A date the question merely names
+#: ("the open day on December 12", "in 2024") is what it asks about, not the day its knowledge stops.
+_EXPLICIT_AS_OF_RE = re.compile(r"\bas\s+(?:of|at)\b", re.IGNORECASE)
+
+
+def _whole_turn_units_known_by_as_of(units: list[list[Any]], query: str, question_as_of: object) -> list[list[Any]]:
+    """The lane's units without any turn stated after the question's as-of day; unchanged for a question with no
+    as-of day (none plumbed, none set by the question's own "as of"). Any doubt keeps the units: an unreadable intent,
+    or a turn whose statement time cannot be read. This filter only ever refuses by the as-of law."""
+    if not units or (question_as_of in (None, "") and not _EXPLICIT_AS_OF_RE.search(str(query or ""))):
+        return units
+    try:
+        from core.temporal_selection import TemporalCandidate, resolve_question_as_of, stated_after_as_of
+
+        intent = resolve_question_as_of(query, plumbed=question_as_of)
+    except Exception:
+        LOGGER.debug("whole-turn as-of read failed", exc_info=True)
+        return units
+    as_of_end = getattr(intent, "as_of_end", None)
+    if as_of_end is None:
+        return units
+
+    def _after(occurrence: Any) -> bool:
+        try:
+            return _stated_after(occurrence)
+        except Exception:
+            LOGGER.debug("whole-turn statement time unreadable", exc_info=True)
+            return False
+
+    def _stated_after(occurrence: Any) -> bool:
+        return stated_after_as_of(TemporalCandidate(
+            key=str(getattr(occurrence, "occurrence_id", "") or ""),
+            body=str(getattr(occurrence, "body", "") or ""),
+            role=str(getattr(occurrence, "role", "user") or "user"),
+            statement_at=getattr(occurrence, "statement_at", None),
+            event_at=getattr(occurrence, "event_at", None),
+            recorded_at=getattr(occurrence, "recorded_at", None),
+        ), as_of_end)
+
+    return [unit for unit in units if not any(_after(occurrence) for occurrence in unit)]
+
+
 #: Query-centred cut of a turn longer than its bound (v13). The bound used to keep the turn's PREFIX,
 #: so an answer past it never reached the reader however well the turn ranked: item 31 of a long
 #: assistant list, an amount at the end of a long user story. A longer turn now keeps the region the
@@ -12068,6 +12110,11 @@ def _capsule_v2_inject_retrieved(
                             str(getattr(occurrence, "body", "") or ""))
             for occurrence in unit)
     ]
+    # The as-of law binds the lane too: an as-of question ("as of mid August, what did the day pass cost?") never
+    # receives a record whose content became true after that day ("And to 38 marks from October."). The lane ranks
+    # every turn a search leg returns, so it handed such a record back whole after the capsule had refused it. Only
+    # the as-of law is applied here; which earlier values ride beside their corrections is the lane's own law.
+    whole_turn_units = _whole_turn_units_known_by_as_of(whole_turn_units, query, question_as_of)
     turn_lines, turn_tokens = ([], 0)
     lane_rendered: list[tuple[Any, str]] = []
     try:
