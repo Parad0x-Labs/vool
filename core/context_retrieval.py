@@ -7359,8 +7359,14 @@ def forget_session_memory(
     *,
     access_policy: ContextAccessPolicy | None = None,
     source_context: Mapping[str, Any] | None = None,
+    erasures: dict[str, int] | None = None,
 ) -> int:
     """Invalidate semantic-memory nodes containing ``token`` in one chat.
+
+    Returns the semantic node count. ``erasures``, when given, receives each count
+    as soon as it is made (``semantic_nodes``, ``source_occurrences``), so the forget
+    lane can say what it removed from a plain chat turn, or before a later scrub
+    step failed, without changing the returned count.
 
     Structured memory and semantic memory are separate persistence layers. A
     forget command must retire both, otherwise the semantic index can recall a
@@ -7381,6 +7387,8 @@ def forget_session_memory(
             token,
             session_id=policy.chat_id,
         )
+        if erasures is not None:
+            erasures["semantic_nodes"] = int(invalidated or 0)
         # The forget law covers the source layer too: otherwise the semantic
         # index would forget a value the evidence archive still recalls
         # verbatim (CONTRACT mr29/1 §1.5 — deletion covers source bodies and
@@ -7391,6 +7399,9 @@ def forget_session_memory(
             token,
             chat_scope=policy.chat_id,
         ) or 0)
+        if erasures is not None:
+            # recorded at once: a later scrub step that raises must not hide an erasure already made
+            erasures["source_occurrences"] = occurrences_invalidated
         # ... and the conversation log is a reachable re-serving cache for
         # the same body (augment_history_from_session_log hydrates prompts
         # from it): a forgotten value that the log still serves is not
@@ -7462,10 +7473,10 @@ def forget_session_memory(
         # request after the log scrub had already run).
         mem.record_revocation(token, chat_id=policy.chat_id)
         _sweep_derived_dialogue_surfaces(policy.chat_id, token)
-        # The count the forget lane reads: a value erased only from the source layer (a plain chat turn, never a
-        # ledger entry) is an erasure all the same, and the lane must say so rather than "nothing was removed"
-        # (tests/lifecycle/test_forget_revocation_law_20260929.py: "forget Cedar clinic" after a plain turn).
-        return max(int(invalidated or 0), occurrences_invalidated)
+        # A value erased only from the source layer (a plain chat turn, never a ledger entry) is an erasure all
+        # the same, and the forget lane must say so rather than "nothing was removed"; it reads that through
+        # ``erasures``. The return stays the node count (tests/lifecycle/test_forget_sibling_salvage_20260929.py).
+        return int(invalidated or 0)
     except (TypeError, ValueError):
         return 0
     except Exception as exc:
