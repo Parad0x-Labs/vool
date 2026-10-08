@@ -1,6 +1,7 @@
 """Zcash private invoices: the switch and the operator knobs, read on every call."""
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 
@@ -97,8 +98,8 @@ def stale_after_seconds() -> int:
     return _int_env(STALE_AFTER_ENV, DEFAULT_STALE_AFTER_SECONDS, lo=30, hi=7 * 24 * 3600)
 
 
-def data_dir() -> Path:
-    """Where the view-only wallet and the invoice store live: under VOOL's data dir, per network."""
+def data_root() -> Path:
+    """VOOL's Zcash folder (owner-only): one subfolder per network, plus the pinned tool copy."""
     override = str(os.environ.get(DATA_DIR_ENV) or "").strip()
     if override:
         root = Path(override)
@@ -106,6 +107,16 @@ def data_dir() -> Path:
         from core.runtime_paths import data_path
 
         root = data_path("zcash")
-    path = root / network()
+    return _owner_only(root)
+
+
+def data_dir() -> Path:
+    """Where the view-only wallet and the invoice store live: under VOOL's data dir, per network."""
+    return _owner_only(data_root() / network())
+
+
+def _owner_only(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
+    with contextlib.suppress(OSError):
+        os.chmod(path, 0o700)
     return path
