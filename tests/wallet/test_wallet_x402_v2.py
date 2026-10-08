@@ -742,6 +742,81 @@ def test_e5d8_the_signed_authorization_goes_to_the_request_its_payment_was_parke
         assert evm_rig.facilitator.settle_count() == 1
 
 
+@pytest.mark.parametrize("interruption", ["a_stop", "a_store_error"])
+def test_e5d9_an_x402_payments_approval_and_its_hold_commit_together(wallet_env, evm_rig, monkeypatch, interruption):
+    """The EVM lane's approval holds the payment against the spend limits in the transaction that approves it. A stop or
+    a store error at the hold's write leaves the fetched payment awaiting approval, still its request's, nothing held
+    and nothing handed to the signer. The next approval claims it whole, not as a resumed approval: it is paid once and
+    its hold settles, so the limits count it."""
+    import sqlite3
+
+    from core.wallet import custody, external_signing, limits, proposals
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+    from tests.wallet.test_wallet_refusal_receipts import (
+        _a_store_error,
+        _interrupt_the_statement,
+        _ProcessStopped,
+        _the_hold_write,
+    )
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", rpc=evm_rig.rpc) as resource:
+        resource.settlement_tx = "0x" + ("d9" * 32)
+        evm_rig.rpc.add_transfer_receipt(resource.settlement_tx, contract_address=USDC_BASE, from_address=signer.address, to_address=PAY_TO, amount_int=10000)
+        profile = custody.register_external_signer_wallet(signer.address, network=BASE_SEPOLIA)
+        parked = wallet_x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        engine = wallet_x402.lifecycle_default_engine()
+        with monkeypatch.context() as interrupting:
+            interrupted = _interrupt_the_statement(interrupting, _the_hold_write, _ProcessStopped if interruption == "a_stop" else _a_store_error)
+            with pytest.raises(_ProcessStopped if interruption == "a_stop" else sqlite3.OperationalError):
+                engine.request_external_signature(parked.proposal_id)
+        assert interrupted, "the approval reached the hold's write"
+        assert (proposals.get_proposal(parked.proposal_id).state, limits.reservation_state(parked.proposal_id)) == (proposals.STATE_PENDING_APPROVAL, "")
+        assert external_signing.open_request_for_proposal(parked.proposal_id) is None
+        assert wallet_x402.binding_for_proposal(parked.proposal_id)["url"] == resource.url
+        view = engine.request_external_signature(parked.proposal_id)
+        assert view.get("resume") is None, "claimed whole, not resumed"
+        signature = signer_sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+        resource.settled_signatures.add(signature)
+        assert engine.submit_external_signature(view["request_id"], signature_hex=signature).state == proposals.STATE_CONFIRMED
+        assert limits.reservation_state(parked.proposal_id) == limits.RESERVATION_SETTLED, "the payment that left is counted"
+        assert len(resource.deliveries) == 1, "one payment"
+
+
+def test_e5d9b_an_x402_payment_approved_with_nothing_held_is_ended_not_signed(wallet_env, evm_rig, monkeypatch):
+    """A fetched payment left approved with nothing held (a release before this one stopped between the approval and its
+    hold) is never handed to the signer: no authorization is made for it, it is ended with its receipt, and no payment
+    reaches the resource. Fetched again, the request is parked as a new payment and paid once."""
+    from core.wallet import custody, external_signing, limits, proposals, receipts
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", rpc=evm_rig.rpc) as resource:
+        resource.settlement_tx = "0x" + ("db" * 32)
+        evm_rig.rpc.add_transfer_receipt(resource.settlement_tx, contract_address=USDC_BASE, from_address=signer.address, to_address=PAY_TO, amount_int=10000)
+        profile = custody.register_external_signer_wallet(signer.address, network=BASE_SEPOLIA)
+        parked = wallet_x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        engine = wallet_x402.lifecycle_default_engine()
+        assert proposals.transition(parked.proposal_id, proposals.STATE_APPROVED, detail={"method": "external_signer"}, expected_state=proposals.STATE_PENDING_APPROVAL)
+        with pytest.raises(WalletFault) as refused:
+            engine.request_external_signature(parked.proposal_id)
+        assert (refused.value.code, refused.value.context["reason"]) == ("wallet_approval_rejected", "spend_not_held")
+        assert (proposals.get_proposal(parked.proposal_id).state, limits.reservation_state(parked.proposal_id)) == (proposals.STATE_REJECTED, "")
+        [receipt] = [r for r in receipts.list_receipts() if r["proposal_id"] == parked.proposal_id]
+        assert (receipt["state"], receipt["fault_code"], receipt["refusal"]["reason"]) == (proposals.STATE_REJECTED, "wallet_approval_rejected", "spend_not_held")
+        assert external_signing.open_request_for_proposal(parked.proposal_id) is None
+        assert resource.deliveries == []
+        again = wallet_x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert again.status == wallet_x402.OUTCOME_PAYMENT_REQUIRED and again.proposal_id != parked.proposal_id
+        view = engine.request_external_signature(again.proposal_id)
+        signature = signer_sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+        resource.settled_signatures.add(signature)
+        assert engine.submit_external_signature(view["request_id"], signature_hex=signature).state == proposals.STATE_CONFIRMED
+        assert len(resource.deliveries) == 1, "one payment"
+
+
 @pytest.mark.parametrize("refusal", ["loopback_off", "loopback_name", "dns_failure"])
 def test_e5e_a_payment_refused_before_its_socket_is_released_and_can_be_parked_again(wallet_env, evm_rig, monkeypatch, refusal):
     """A refusal the target check raises before the payment hop's socket opens proves nothing was sent: the hold is

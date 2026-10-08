@@ -72,9 +72,13 @@ def get_signing_request(request_id: str) -> dict[str, Any] | None:
     return _row(row) if row else None
 
 
-def open_request_for_proposal(proposal_id: str) -> dict[str, Any] | None:
-    with connection() as conn:
-        row = conn.execute(f"SELECT {_COLS} FROM wallet_signing_requests WHERE proposal_id = ? AND state = ? ORDER BY created_at DESC LIMIT 1", (str(proposal_id), STATE_OPEN)).fetchone()
+def open_request_for_proposal(proposal_id: str, *, conn: Any = None) -> dict[str, Any] | None:
+    """The proposal's newest open signing request, or None. On ``conn`` when given, so it reads inside the caller's
+    transaction."""
+    if conn is None:
+        with connection() as own:
+            return open_request_for_proposal(proposal_id, conn=own)
+    row = conn.execute(f"SELECT {_COLS} FROM wallet_signing_requests WHERE proposal_id = ? AND state = ? ORDER BY created_at DESC LIMIT 1", (str(proposal_id), STATE_OPEN)).fetchone()
     return _row(row) if row else None
 
 

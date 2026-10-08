@@ -58,6 +58,8 @@ EFFECT_CLASS = EFFECT_CLASS_TRANSACTION
 #: Refused approvals tolerated per proposal before it locks; the same order as a phone's PIN screen.
 MAX_APPROVAL_ATTEMPTS = 5
 ZERO_SIGNATURE = bytes(64)
+#: The refusal of a payment that holds nothing against the spend limits: it is ended, never handed to a signer.
+SPEND_NOT_HELD = "spend_not_held"
 
 
 class RpcRejected(RuntimeError):
@@ -534,13 +536,30 @@ class PaymentLifecycle:
         self._require_signable_row(proposal)
         self._require_owns_request(proposal)
         self._require_names_a_request(proposal)
-        claimed = proposals.transition(proposal.proposal_id, proposals.STATE_APPROVED, detail={"method": method}, expected_state=proposals.STATE_PENDING_APPROVAL)
+        from core.wallet.store import connection
+
+        # The approval and its hold are ONE transaction. The hold is what the spend limits count, so an approved payment
+        # always holds its amount and its fee: a stop or a store error before the commit leaves it awaiting approval with
+        # nothing held, and a ceiling ends it with its receipt in the same transaction.
+        claimed = None
+        with connection() as conn:
+            limits._begin_immediate(conn)
+            try:
+                proposals._cas(conn, proposal.proposal_id, proposals.STATE_APPROVED, expected_state=proposals.STATE_PENDING_APPROVAL, edges=proposals.TRANSITIONS,
+                               detail={"method": method}, columns={})
+            except proposals.ProposalTransitionError:
+                pass
+            else:
+                claimed = proposals._get(conn, proposal.proposal_id)
+                verdict = limits.reserve_spend(wallet_id=proposal.wallet_id, asset=proposal.asset, amount_minor=proposal.amount_minor, destination=proposal.destination,
+                                               proposal_id=proposal.proposal_id, fee_minor=fee_minor, chain=str(chain or spec_network(proposal.network)), conn=conn)
+                if not verdict.ok:
+                    end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", expected_state=proposals.STATE_APPROVED,
+                                detail={"limit": verdict.limit, "reason": verdict.reason}, conn=conn, limit=verdict.limit, reason=verdict.reason)
         if claimed is None:
             raise self._fault("wallet_duplicate_payment", proposal, reason="already_claimed_by_another_approval")
         proposal = claimed
-        verdict = limits.reserve_spend(wallet_id=proposal.wallet_id, asset=proposal.asset, amount_minor=proposal.amount_minor, destination=proposal.destination, proposal_id=proposal.proposal_id, fee_minor=fee_minor, chain=str(chain or spec_network(proposal.network)))
         if not verdict.ok:
-            end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", detail={"limit": verdict.limit, "reason": verdict.reason}, limit=verdict.limit, reason=verdict.reason)
             raise self._fault("wallet_limit_exceeded", proposal, limit=verdict.limit, reason=verdict.reason, amount_minor=proposal.amount_minor, asset=proposal.asset)
         if not message_digest:
             message_digest = hashlib.sha256(bytes(payer_message or b"")).hexdigest()
@@ -679,6 +698,22 @@ class PaymentLifecycle:
 
         if not wallet_x402.names_a_request(proposal):
             raise self._fault("wallet_approval_rejected", proposal, reason="no_x402_binding", status=proposal.state)
+
+    def _require_held(self, proposal: proposals.TransactionProposal, *, request_id: str = "") -> None:
+        """A claimed payment is handed to a signer, or its signature submitted, only while it holds its amount and its
+        fee against the spend limits: the hold is what the limits count. The claim holds them in the transaction that
+        approves the payment, so one that holds nothing was left by an older release that stopped between its approval
+        and its hold, or by an ending that released the hold and stopped before it ended the payment. Signed, it would
+        leave uncounted. It is ended here with its receipt instead, nothing sent: with its open signing request closed
+        in the same transaction (``request_id``, :func:`end_unsent`), or, approved with no request, :func:`end_unheld`."""
+        if limits.reservation_state(proposal.proposal_id) == limits.RESERVATION_RESERVED:
+            return
+        evidence = "the payment holds nothing against the spend limits"
+        if request_id:
+            end_unsent(proposal.proposal_id, request_id, evidence=evidence, state=proposals.STATE_REJECTED, reason=SPEND_NOT_HELD)
+        else:
+            end_unheld(proposal.proposal_id, evidence=evidence)
+        raise self._fault("wallet_approval_rejected", proposal, reason=SPEND_NOT_HELD)
 
     def _refuse_pilot_approval(self, proposal: proposals.TransactionProposal, decision: Any, *, reason: str) -> None:
         attempts = self._count_approval_refusal(proposal, decision, reason=reason)
@@ -1343,12 +1378,14 @@ class PaymentLifecycle:
         one-consume fence) — the recovery seam for a process or UI that died between approve
         and submit. A proposal stranded at ``approved`` with no open request (a crash between
         the claim and the request opening) re-opens the request the claim already paid for.
-        Neither path releases or re-reserves anything."""
+        Neither path releases or re-reserves anything, and neither hands out a payment that
+        holds nothing against the spend limits (:meth:`_require_held` ends it instead)."""
         proposal = self._load(proposal_id)
         self._require_signable_row(proposal)
         if proposal.state == proposals.STATE_AWAITING_SIGNATURE and not proposal.tx_signature:
             record = external_signing.open_request_for_proposal(proposal.proposal_id)
             if record is not None and not external_signing.is_expired(record):
+                self._require_held(proposal, request_id=record["request_id"])
                 view = external_signing.request_view(record)
                 view["resume"] = True
                 return view
@@ -1383,10 +1420,12 @@ class PaymentLifecycle:
 
     def _open_external_request_after_claim(self, proposal: proposals.TransactionProposal) -> dict[str, Any]:
         """Resume a crash between the claim and the request opening: the hold and the A6
-        reservation already exist, so this only opens the request and walks the state."""
+        reservation already exist, so this only opens the request and walks the state. A payment that
+        holds nothing is ended instead (:meth:`_require_held`)."""
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         if profile.mode != custody.MODE_EXTERNAL_SIGNER:
             raise self._fault("wallet_signing_unavailable", proposal, reason="not_an_external_signer_wallet")
+        self._require_held(proposal)
         if chains.resolve_network(proposal.network).is_evm:
             return self._request_evm_signature_opened(proposal, profile)
         message = self._message_for(proposal, profile.public_key)
@@ -1449,6 +1488,8 @@ class PaymentLifecycle:
         if proposal_for_freeze is not None:
             self._require_not_frozen(proposal_for_freeze, door="submission")
             self._require_signable_row(proposal_for_freeze)
+            if record["state"] == external_signing.STATE_OPEN and proposal_for_freeze.state == proposals.STATE_AWAITING_SIGNATURE and not proposal_for_freeze.tx_signature:
+                self._require_held(proposal_for_freeze, request_id=record["request_id"])
         if record.get("family") == external_signing.FAMILY_EVM:
             return self._submit_evm_signature(record, signature_hex=signature_hex)
         proposal = self._load(record["proposal_id"])
@@ -1951,6 +1992,27 @@ def end_unsent(proposal_id: str, request_id: str, *, evidence: str, state: str =
     if ended is not None:
         reconciliation.resolve_payment_effect(ended.proposal_id, applied=False, evidence=evidence, source="mechanical")
     return True, ended
+
+
+def end_unheld(proposal_id: str, *, evidence: str) -> proposals.TransactionProposal | None:
+    """End an approved payment that holds nothing against the spend limits and has no open signing request, with its
+    receipt, in ONE transaction that re-reads all three: no signer was handed it, so nothing was sent. None when the
+    payment moved on, holds after all or opened a request: nothing is written then. Its effect is resolved as not
+    applied once that commits; a stop before that leaves it to the effect resolver, which reads the ended payment."""
+    from core.wallet.store import connection
+
+    ended = None
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        current = proposals._get(conn, str(proposal_id))
+        if (current is not None and current.state == proposals.STATE_APPROVED and not current.tx_signature
+                and limits.reservation_state(current.proposal_id, conn=conn) != limits.RESERVATION_RESERVED
+                and external_signing.open_request_for_proposal(current.proposal_id, conn=conn) is None):
+            ended = end_refused(current.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", expected_state=proposals.STATE_APPROVED,
+                                detail={"reason": SPEND_NOT_HELD}, conn=conn, reason=SPEND_NOT_HELD)
+    if ended is not None:
+        reconciliation.resolve_payment_effect(ended.proposal_id, applied=False, evidence=evidence, source="mechanical")
+    return ended
 
 
 def end_refused(proposal_id: str, state: str, *, fault_code: str, expected_state: str | None = None, detail: dict[str, Any] | None = None,

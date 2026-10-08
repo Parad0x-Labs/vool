@@ -385,3 +385,164 @@ def test_a_stop_after_an_unsent_payment_is_ended_leaves_no_hold_behind(wallet_en
     else:
         assert active is None, "the effect was resolved as not applied"
     assert wallet_env["rpc"].send_count() == 0
+
+
+def _interrupt_the_statement(monkeypatch, matches, interruption):
+    """Every wallet store connection, wrapped: the first statement that ``matches`` (its SQL with whitespace collapsed,
+    and its parameters) raises ``interruption()`` in place of running, whatever code issues it and on whatever
+    connection. A stop (:class:`_ProcessStopped`) skips every handler, and its connection closes without a commit, as
+    when the process dies there; a store error is what a lock timeout raises. Returns the statements it interrupted."""
+    from core.wallet import store
+
+    real = store._raw_conn
+    interrupted: list[str] = []
+
+    class _Interrupting:
+        def __init__(self, conn):
+            object.__setattr__(self, "_conn", conn)
+
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
+        def __setattr__(self, name, value):
+            setattr(self._conn, name, value)
+
+        def execute(self, sql, *args):
+            if not interrupted and matches(" ".join(str(sql).split()), tuple(args[0]) if args else ()):
+                interrupted.append(str(sql))
+                raise interruption()
+            return self._conn.execute(sql, *args)
+
+    monkeypatch.setattr(store, "_raw_conn", lambda: _Interrupting(real()))
+    return interrupted
+
+
+def _the_hold_write(sql, _params):
+    return sql.startswith("INSERT INTO wallet_spend_ledger")
+
+
+def _a_store_error():
+    import sqlite3
+
+    return sqlite3.OperationalError("database is locked")
+
+
+def _external_wallet():
+    """An external signer's wallet whose key this test holds, so it can answer the signing request."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from core.vool_wallet import b58encode
+    from core.wallet import custody
+
+    key = Ed25519PrivateKey.generate()
+    return custody.register_external_signer_wallet(b58encode(key.public_key().public_bytes_raw()), label="ext"), key
+
+
+def _approve_and_pay(engine, lane, proposal_id, key):
+    from core.vool_wallet import b58decode, b58encode
+    from core.wallet import approval
+
+    if lane == "pocket":
+        return engine.approve_and_execute(proposal_id, approver=approval.PinApprover(PIN))
+    view = engine.request_external_signature(proposal_id)
+    return engine.submit_external_signature(view["request_id"], signature_b58=b58encode(key.sign(b58decode(view["message_b58"]))))
+
+
+def _one_payment_a_day(profile):
+    """A daily limit of one 10_000 payment and its 5_000 fee."""
+    from core.wallet import limits
+
+    limits.set_limits(profile.wallet_id, "SOL", limits.SpendLimits(per_tx_minor=1_000_000, daily_minor=15_000, per_destination_daily_minor=1_000_000))
+
+
+@pytest.mark.parametrize("lane", ["external_signer", "pocket"])
+@pytest.mark.parametrize("interruption", ["a_stop", "a_store_error"])
+def test_an_approval_and_its_hold_commit_together(wallet_env, monkeypatch, lane, interruption):
+    """The approval moves the payment to approved and holds its amount and its fee against the spend limits in one
+    transaction. The hold is what the limits count, so an approved payment always holds. A stop or a store error (a
+    lock timeout) at the hold's write leaves the payment awaiting approval, nothing held, no signing request and no
+    receipt. The next approval claims it whole and pays it, and the limits count it: under a daily limit of one payment
+    and its fee, a second payment is refused."""
+    import sqlite3
+
+    from core.wallet import external_signing, lifecycle, limits, proposals
+    from core.wallet.errors import WalletFault
+
+    profile, key = (_pocket(), None) if lane == "pocket" else _external_wallet()
+    _one_payment_a_day(profile)
+    engine = lifecycle.default_lifecycle()
+    proposal = engine.prepare(_propose(profile).proposal_id)
+    with monkeypatch.context() as interrupting:
+        interrupted = _interrupt_the_statement(interrupting, _the_hold_write, _ProcessStopped if interruption == "a_stop" else _a_store_error)
+        with pytest.raises(_ProcessStopped if interruption == "a_stop" else sqlite3.OperationalError):
+            _approve_and_pay(engine, lane, proposal.proposal_id, key)
+    assert interrupted, "the approval reached the hold's write"
+    assert (proposals.get_proposal(proposal.proposal_id).state, limits.reservation_state(proposal.proposal_id)) == (proposals.STATE_PENDING_APPROVAL, "")
+    assert external_signing.open_request_for_proposal(proposal.proposal_id) is None and _receipts(proposal.proposal_id) == []
+    restarted = lifecycle.default_lifecycle()
+    assert _approve_and_pay(restarted, lane, proposal.proposal_id, key).state == proposals.STATE_CONFIRMED
+    assert limits.reservation_state(proposal.proposal_id) == limits.RESERVATION_SETTLED
+    second = _propose(profile)
+    with pytest.raises(WalletFault) as refused:
+        restarted.prepare(second.proposal_id)
+        _approve_and_pay(restarted, lane, second.proposal_id, key)
+    assert refused.value.code == "wallet_limit_exceeded"
+    assert wallet_env["rpc"].send_count() == 1
+
+
+@pytest.mark.parametrize("left", ["nothing_held", "its_hold_released"])
+def test_an_approved_payment_that_holds_nothing_is_ended_not_handed_to_the_signer(wallet_env, left):
+    """A payment can be left approved with nothing held: a release before this one stopped between the approval and the
+    hold (two transactions then), or an ending released the hold and stopped before it ended the payment. The limits
+    never counted it. Resuming that approval would hand the payment to the signer and it would leave uncounted, past the
+    limits. The wallet ends it instead, with its receipt: no signing request, nothing sent. The limits are as they
+    were, so a payment of the same size is approved and paid."""
+    from core.wallet import external_signing, lifecycle, limits, proposals
+    from core.wallet.errors import WalletFault
+
+    profile, key = _external_wallet()
+    _one_payment_a_day(profile)
+    engine = lifecycle.default_lifecycle()
+    proposal = engine.prepare(_propose(profile).proposal_id)
+    assert proposals.transition(proposal.proposal_id, proposals.STATE_APPROVED, detail={"method": "external_signer"}, expected_state=proposals.STATE_PENDING_APPROVAL)
+    if left == "its_hold_released":
+        assert limits.reserve_spend(wallet_id=profile.wallet_id, asset="SOL", amount_minor=10_000, destination=DESTINATION, proposal_id=proposal.proposal_id, fee_minor=5_000,
+                                    chain=proposal.network).ok
+        limits.release_spend(proposal.proposal_id)
+    with pytest.raises(WalletFault) as refused:
+        engine.request_external_signature(proposal.proposal_id)
+    assert (refused.value.code, refused.value.context["reason"]) == ("wallet_approval_rejected", "spend_not_held")
+    _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_REJECTED, fault_code="wallet_approval_rejected",
+                            hold="" if left == "nothing_held" else limits.RESERVATION_RELEASED, reason="spend_not_held")
+    assert external_signing.open_request_for_proposal(proposal.proposal_id) is None
+    next_one = engine.prepare(_propose(profile).proposal_id)
+    assert _approve_and_pay(engine, "external_signer", next_one.proposal_id, key).state == proposals.STATE_CONFIRMED
+    assert wallet_env["rpc"].send_count() == 1
+
+
+@pytest.mark.parametrize("door", ["the_request_asked_again", "the_signature_submitted"])
+def test_a_signing_request_for_a_payment_that_holds_nothing_is_ended_not_signed_or_sent(wallet_env, monkeypatch, door):
+    """A release before this one resumed such an approval and opened its signing request: the payment waits for its
+    signature with nothing held. Neither door hands it on. Asked for the request again, or given the signature, the
+    wallet ends the payment with its receipt and closes its request in the same transaction. Nothing is sent."""
+    from core.vool_wallet import b58decode, b58encode
+    from core.wallet import external_signing, lifecycle, limits, proposals
+    from core.wallet.errors import WalletFault
+
+    profile, key = _external_wallet()
+    engine = lifecycle.default_lifecycle()
+    proposal = engine.prepare(_propose(profile).proposal_id)
+    approved = proposals.transition(proposal.proposal_id, proposals.STATE_APPROVED, detail={"method": "external_signer"}, expected_state=proposals.STATE_PENDING_APPROVAL)
+    with monkeypatch.context() as older_release:
+        older_release.setattr(engine, "_require_held", lambda *_args, **_kwargs: None, raising=False)  # that release's resume had no hold check
+        view = engine._open_external_request_after_claim(approved)
+    assert (proposals.get_proposal(proposal.proposal_id).state, limits.reservation_state(proposal.proposal_id)) == (proposals.STATE_AWAITING_SIGNATURE, "")
+    with pytest.raises(WalletFault) as refused:
+        if door == "the_request_asked_again":
+            engine.request_external_signature(proposal.proposal_id)
+        else:
+            engine.submit_external_signature(view["request_id"], signature_b58=b58encode(key.sign(b58decode(view["message_b58"]))))
+    assert (refused.value.code, refused.value.context["reason"]) == ("wallet_approval_rejected", "spend_not_held")
+    _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", reason="spend_not_held")
+    assert external_signing.get_signing_request(view["request_id"])["state"] == external_signing.STATE_EXPIRED
+    assert wallet_env["rpc"].send_count() == 0
