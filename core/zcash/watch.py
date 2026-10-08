@@ -24,6 +24,7 @@ import re
 import sqlite3
 import stat
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,7 +48,8 @@ _ADDRESS_PREFIXES = {
     config.NETWORK_TEST: ("utest1", "ztestsapling1"),
 }
 _TXID = re.compile(r"^[0-9a-f]{64}$")
-_KEY_SHAPED = re.compile(r"(?i)\b(?:uview|uivk|zxview|secret-extended-key)[0-9a-z-]*1[0-9a-z]{20,}")
+#: Key-shaped text in tool output. No leading word boundary: a key glued to "FVK_" or an escaped "\n" is still a key.
+_KEY_SHAPED = re.compile(r"(?i)(?:uview|uivk|zxview|secret-extended-key|secret-spending-key)[0-9a-z-]*1[0-9a-z]{20,}")
 
 
 class ZcashWatchError(Exception):
@@ -97,11 +99,14 @@ def sha256_file(path: Path) -> str:
 
 def _private_dir(path: Path) -> Path:
     """Create ``path`` owner-only, and refuse one that someone else owns or can write."""
-    path.mkdir(parents=True, exist_ok=True)
-    with contextlib.suppress(OSError):
-        os.chmod(path, 0o700)
-    if os.name == "posix":
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        with contextlib.suppress(OSError):
+            os.chmod(path, 0o700)
         info = os.stat(path)
+    except OSError:
+        raise ZcashWatchError("data_dir_unavailable", "The Zcash data folder could not be prepared, so nothing was run.") from None
+    if os.name == "posix":
         if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
             raise ZcashWatchError("data_dir_unsafe", "The Zcash data folder is not private to this user, so nothing was run.")
     return path
@@ -154,10 +159,11 @@ class Devtool:
             raise ZcashWatchError("devtool_missing", "The Zcash watch tool binary was not found.") from None
         if hashlib.sha256(blob).hexdigest() != self.sha256:
             raise mismatch
-        tmp = target.with_name(f".{self.sha256}.{os.getpid()}.tmp")
-        with contextlib.suppress(OSError):
-            tmp.unlink()
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o700)
+        try:  # a temp name unique to this call: two threads preparing the copy never touch each other's file
+            fd, tmp_name = tempfile.mkstemp(dir=target.parent, prefix=f".{self.sha256}.", suffix=".tmp")
+        except OSError:
+            raise ZcashWatchError("devtool_failed", "The Zcash watch tool could not be prepared.") from None
+        tmp = Path(tmp_name)
         try:
             with os.fdopen(fd, "wb") as handle:
                 handle.write(blob)
@@ -169,7 +175,11 @@ class Devtool:
             with contextlib.suppress(OSError):
                 tmp.unlink()
             raise ZcashWatchError("devtool_failed", "The Zcash watch tool could not be prepared.") from None
-        if hashlib.sha256(target.read_bytes()).hexdigest() != self.sha256:
+        try:
+            prepared = hashlib.sha256(target.read_bytes()).hexdigest()
+        except OSError:
+            raise ZcashWatchError("devtool_failed", "The Zcash watch tool could not be prepared.") from None
+        if prepared != self.sha256:
             raise mismatch
         return target
 
@@ -201,7 +211,7 @@ class Devtool:
             lines = [line.strip() for line in (done.stderr or done.stdout or "").splitlines() if line.strip()]
             text = next((line for line in lines if line.startswith("Error:")), lines[0] if lines else "")
             if secret:
-                text = text.replace(secret, "[viewing key]")
+                text = re.sub(re.escape(secret), "[viewing key]", text, flags=re.IGNORECASE)
             text = _KEY_SHAPED.sub("[viewing key]", text)[:300]  # redact before cutting, so no fragment survives
             raise ZcashWatchError("devtool_failed", f"The Zcash watch tool failed on '{subcommand}': {text or 'no detail'}")
         return done.stdout or ""
@@ -321,7 +331,10 @@ class Devtool:
 
     def _write_state(self, state: dict[str, Any]) -> None:
         _private_dir(self.wallet_dir)
-        write_private(self.wallet_dir / STATE_FILE, json.dumps(state, sort_keys=True))
+        try:
+            write_private(self.wallet_dir / STATE_FILE, json.dumps(state, sort_keys=True))
+        except OSError:
+            raise ZcashWatchError("state_unwritable", "The Zcash watch state could not be saved, so nothing is confirmed.") from None
 
     def listed_transactions(self) -> dict[str, int | None]:
         out = self.run("list-tx", ["--json"])
@@ -375,14 +388,17 @@ class Devtool:
 
 
 def write_private(path: Path, text: str) -> None:
-    """Write a file owner-only (0600) atomically."""
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    with contextlib.suppress(OSError):
-        tmp.unlink()
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(text)
-    os.replace(tmp, path)
+    """Write a file owner-only (0600) atomically. The temp name is unique to this call (mkstemp), so concurrent
+    writers in one process never unlink or replace each other's temp file; the last complete write wins."""
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp_name, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 
 def _local_only() -> bool:

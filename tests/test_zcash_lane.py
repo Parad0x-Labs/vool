@@ -14,6 +14,7 @@ import os
 import sqlite3
 import stat
 import sys
+import threading
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -231,6 +232,34 @@ def test_a_failing_tool_reports_its_error_without_the_viewing_key(chain) -> None
         _lane(chain).set_viewing_key(UFVK_TEST)
     assert failed.value.code == "devtool_failed"
     assert UFVK_TEST not in failed.value.message and "[viewing key]" in failed.value.message
+
+
+def test_a_key_echoed_in_another_case_or_glued_to_a_word_is_still_redacted(chain) -> None:
+    for echo in (f"Error: FVK_{UFVK_TEST.upper()}", f"Error: key\\n{UFVK_TEST}", f"Error: fvk={UFVK_TEST.upper()[:200]}"):
+        chain.overrides["init-fvk"] = {"rc": 1, "err": echo + "\n"}
+        chain.write()
+        with pytest.raises(ZcashWatchError) as failed:
+            _lane(chain).set_viewing_key(UFVK_TEST)
+        assert UFVK_TEST[20:60] not in failed.value.message.lower() and "[viewing key]" in failed.value.message, echo
+
+
+def test_concurrent_private_writes_never_collide(tmp_path) -> None:
+    from core.zcash.watch import write_private
+
+    target, errors = tmp_path / "state.json", []
+
+    def writer(n: int) -> None:
+        for i in range(40):
+            try:
+                write_private(target, json.dumps({"writer": n, "i": i}))
+            except Exception as exc:  # what used to escape as FileExistsError / FileNotFoundError
+                errors.append(type(exc).__name__)
+
+    threads = [threading.Thread(target=writer, args=(n,)) for n in range(8)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert errors == [] and set(json.loads(target.read_text())) == {"writer", "i"}
+    assert [p.name for p in tmp_path.iterdir()] == ["state.json"] and stat.S_IMODE(target.stat().st_mode) == 0o600
 
 
 def test_a_hung_tool_times_out(chain) -> None:
@@ -591,6 +620,65 @@ def test_a_failed_journal_write_leaves_no_paid_state_and_the_next_refresh_receip
     assert [r["invoice_id"] for r in second["receipted"]] == [invoice.invoice_id]
     assert [s.state for s in second["statuses"]] == ["paid"] and len(_journal()) == 1
     assert lane.refresh()["receipted"] == [] and len(_journal()) == 1
+
+
+def test_two_refreshes_at_once_journal_a_staged_receipt_once(chain, monkeypatch) -> None:
+    """The reviewer's barrier probe: both refreshes have read the journal before either appends."""
+    import core.blackbox.store as blackbox
+
+    lane = _ready_lane(chain)
+    invoice = lane.create_invoice("0.05")
+    chain.pay(invoice.memo, 5_000_000, height=990)
+    with monkeypatch.context() as broken:
+        broken.setattr(blackbox, "default_store", lambda: (_ for _ in ()).throw(OSError("disk full")))
+        lane.refresh()  # staged, not journaled
+    store = blackbox.default_store()
+    barrier = threading.Barrier(2)
+    original = type(store).entries
+
+    def entries_then_wait(self):
+        rows = original(self)
+        if threading.current_thread().name.startswith("zcash-refresh"):
+            try:
+                barrier.wait(timeout=3)  # with the journal lock held, the second refresh never gets here in time
+            except threading.BrokenBarrierError:
+                pass
+        return rows
+
+    monkeypatch.setattr(type(store), "entries", entries_then_wait)
+    lanes = [ZcashLane(devtool=Devtool(wallet_dir=chain.wallet)) for _ in range(2)]
+    threads = [threading.Thread(target=lambda ln=ln: ln.refresh(sync=False), name=f"zcash-refresh-{i}") for i, ln in enumerate(lanes)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    monkeypatch.setattr(type(store), "entries", original)
+    assert [e["invoice_id"] for e in _journal()] == [invoice.invoice_id]
+    assert lane.store.get(invoice.invoice_id).paid_receipt_id == _journal()[0]["receipt_id"]
+
+
+def test_the_turn_planner_running_both_tools_at_once_receipts_each_payment_once(chain) -> None:
+    import collections
+
+    from core.agent_runtime.turn_planner import PlannedTask, run_plan
+    from core.zcash.tools import run_tool
+
+    lane = _ready_lane(chain)
+    intents = {0: "zcash.invoice.unpaid", 1: "zcash.payment.history"}
+    escaped: list[str] = []
+    for trial in range(10):
+        invoice = lane.create_invoice("0.05", label=f"trial {trial}")
+        chain.pay(invoice.memo, 5_000_000, height=990)
+
+        def run_one(task, done):
+            try:
+                return run_tool(intents[task.index], {}, {"session_id": "zcash-planner"}).response_text
+            except Exception as exc:
+                escaped.append(type(exc).__name__)
+                raise
+
+        run_plan([PlannedTask(0, "who still owes me ZEC"), PlannedTask(1, "what ZEC was paid")], run_one=run_one, max_workers=4)
+    lane.refresh()
+    counts = collections.Counter(e["receipt_id"] for e in _journal())
+    assert escaped == [] and len(counts) == 10 and set(counts.values()) == {1}
 
 
 @pytest.mark.parametrize("where", ["before_journal", "after_journal"])

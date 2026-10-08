@@ -91,6 +91,7 @@ def test_viewing_keys_are_accepted_on_their_own_network_only() -> None:
         (UFVK_MAIN[:-1] + ("q" if UFVK_MAIN[-1] != "q" else "p"), "viewing_key_malformed"),  # one character off
         ("zxviews1" + "q" * 120, "viewing_key_unsupported"),
         ("secret-extended-key-main1" + "q" * 120, "spending_key_refused"),
+        ("secret-spending-key-main1" + "q" * 120, "spending_key_refused"),
         ("tprv8ZgxMBicQKsPd7Uf69XL1XwhmjHopUGep8GuEiJDZmbQz6o58LninorQAfcKZWARbtRtfnLcJ5MQ2AtHcQJCCRUcMRvmDUjyEmNUWwx8UbK", "spending_key_refused"),
         ("uview1short", "viewing_key_malformed"),
         ("", "viewing_key_missing"),
@@ -115,8 +116,14 @@ def test_zcash_key_shapes_are_masked_by_the_shared_redactor() -> None:
 
     parse_viewing_key(UFVK_TEST, expected_network="test")
     assert UFVK_TEST not in redact_secrets(f"my viewing key is {UFVK_TEST}")
-    for shape in ("secret-extended-key-main1" + "q" * 80, "uview1" + "q" * 80, "uivktest1" + "q" * 80, "zxviews1" + "q" * 80):
+    for shape in ("secret-extended-key-main1" + "q" * 80, "uview1" + "q" * 80, "uivktest1" + "q" * 80, "zxviews1" + "q" * 80,
+                  "secret-spending-key-main1" + "q" * 80, "secret-extended-key-regtest1" + "q" * 80, "uviewregtest1" + "q" * 80):
         assert shape not in redact_secrets(f"key {shape} here") and contains_secret(shape), shape
+        for glued in (f'{{"k": "key:\\n{shape}"}}', f"fvk_{shape}", f"x{shape.upper()}"):  # escaped newline in JSON, "_", a letter
+            assert shape[-40:] not in redact_secrets(glued).lower(), glued[:40]
+    address = "utest1rfz5kscxeqmr73uq0ujm4j60jc49fvcjatcy5p2485t5tpzzh3c5uxqvttqukr6yp0ryvfj7sar4um4skuqsdgt8nkprkr82y5865z5j"
+    uri = f"pay to zcash:{address}?amount=0.05"
+    assert redact_secrets(uri) == uri  # a payment address is not a key
 
 
 def test_the_viewing_key_round_trips_through_the_credential_store() -> None:

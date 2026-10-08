@@ -26,9 +26,9 @@ _UNIFIED_HRPS = {"uview": config.NETWORK_MAIN, "uviewtest": config.NETWORK_TEST}
 _ITEM_LENGTHS = {0x00: 65, 0x02: 128, 0x03: 96}
 _SHIELDED_ITEMS = frozenset({0x02, 0x03})
 #: Encodings that carry spending authority. BIP32 private keys are recognised by their PREFIX only; a Sapling
-#: extended spending key by its human-readable part (a dash can never occur inside a bech32 body).
+#: spending key (extended or not) by its human-readable part (a dash can never occur inside a bech32 body).
 _BIP32_PRIVATE_PREFIXES = ("xprv", "tprv", "zprv")
-_SAPLING_SPENDING_HRP = "secret-extended-key"
+_SAPLING_SPENDING_HRPS = ("secret-extended-key", "secret-spending-key")
 _INCOMING_ONLY_PREFIXES = ("uivk1", "uivktest1")
 _SAPLING_VIEWING_PREFIXES = ("zxviews1", "zxviewtestsapling1")
 _HEX_SECRET = re.compile(r"^(?:0x)?[0-9a-fA-F]{64,128}$")
@@ -167,7 +167,7 @@ def parse_viewing_key(raw: str, *, expected_network: str | None = None) -> Viewi
     lowered = text.lower()
     if _looks_like_seed_phrase(text):
         raise ZcashKeyRefused("seed_phrase_refused", "That looks like a recovery phrase. VOOL never takes one for Zcash: give the unified full viewing key instead (it starts with uview1). Nothing was stored.")
-    if lowered.startswith(_BIP32_PRIVATE_PREFIXES) or _SAPLING_SPENDING_HRP in lowered or _HEX_SECRET.match(text) or _WIF.match(text):
+    if lowered.startswith(_BIP32_PRIVATE_PREFIXES) or any(hrp in lowered for hrp in _SAPLING_SPENDING_HRPS) or _HEX_SECRET.match(text) or _WIF.match(text):
         raise ZcashKeyRefused("spending_key_refused", "That looks like a spending key. VOOL only takes a viewing key for Zcash, which cannot move money. Nothing was stored.")
     if lowered.startswith(_INCOMING_ONLY_PREFIXES):
         raise ZcashKeyRefused("incoming_viewing_key_unsupported", "That is an incoming viewing key; this lane needs the unified full viewing key (it starts with uview1). Nothing was stored.")
