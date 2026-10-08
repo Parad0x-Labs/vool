@@ -403,6 +403,41 @@ def test_a_fetched_x402_payment_is_sent_from_the_pilot_sheet_only_while_it_owns_
         proposals.STATE_REJECTED, "wallet_duplicate_payment", "request_bound_to_another_payment", 0)
 
 
+def test_an_x402_offer_proposed_on_its_own_is_sent_from_the_pilot_sheet_only_once_a_fetch_binds_it(pilot, monkeypatch):
+    """An x402 offer proposed on its own (the 402 the model was shown) names no request, and an x402 offer is paid only
+    as a fetched request's payment. The Crypto Pilot sheet refuses it before the credential, consuming, holding and
+    ending nothing. Once the wallet fetches a request whose 402 is that offer, the request is bound to it and the sheet
+    sends it, once."""
+    from core.wallet import lifecycle, pilot_custody, proposals, quotes, transfers, x402
+    from tests.wallet._rig import DESTINATION, ScriptedX402Resource, x402_body
+
+    node = pilot
+    monkeypatch.setenv("VOOL_WALLET_X402_CAP_MINOR", "200000")
+    wallet = _ready_pilot_wallet()
+    offered = x402.propose_from_x402(x402.detect_x402(402, {}, x402_body(amount_minor=1500, pay_to=DESTINATION)), wallet_id=wallet["wallet_id"])
+    engine = lifecycle.default_lifecycle()
+    assert engine.prepare(offered.proposal_id).state == proposals.STATE_PENDING_APPROVAL and transfers.is_pilot_transfer(offered)
+    real_verify = pilot_custody._verify
+    asked = []
+
+    def verify(row, credential, *, source_context=None):
+        asked.append(row)
+        return real_verify(row, credential, source_context=source_context)
+
+    monkeypatch.setattr(pilot_custody, "_verify", verify)
+    quote = _quote(offered.proposal_id)
+    with pytest.raises(WalletFault) as refused:
+        _approve(engine, offered.proposal_id, quote)
+    assert (refused.value.code, refused.value.context.get("reason")) == ("wallet_approval_rejected", "no_x402_binding")
+    assert asked == [] and node.send_count() == 0 and _hold(offered.proposal_id) is None and _receipt_rows(offered.proposal_id) == []
+    assert quotes.get_quote(quote["quote_id"])["state"] == "open" and proposals.get_proposal(offered.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+    with ScriptedX402Resource(node, amount_minor=1500, pay_to=DESTINATION) as resource:
+        parked = x402.fetch_paid_resource(resource.url, wallet_id=wallet["wallet_id"])
+    assert parked.proposal_id == offered.proposal_id
+    assert _approve(engine, offered.proposal_id, quote)["transfer"]["state"] == "confirmed"
+    assert node.send_count() == 1 and len(asked) == 1
+
+
 def test_the_legacy_doors_refuse_a_pilot_transfer_on_a_ready_row_by_name(pilot):
     from core.wallet import approval, proposals
 

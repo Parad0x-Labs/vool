@@ -2664,6 +2664,10 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
                     raise WalletFault("wallet_not_found", context={"reason": "x402_not_detected"}, message="That response carried no x402 offer, so nothing was proposed.")
                 proposal = wallet_x402.propose_from_x402(request, wallet_id=wallet_id, source_context=context)
             text = f"x402 offer parked as proposal {proposal.proposal_id} on {proposal.network}. Nothing has been signed; approve it in your wallet; I cannot approve, sign or broadcast."
+            if not wallet_x402.names_a_request(proposal):
+                # an x402 offer is paid only as the payment of a request the wallet fetched: this one waits for that fetch
+                text = (f"x402 offer parked as proposal {proposal.proposal_id} on {proposal.network}. Nothing has been signed. It can be approved once the wallet "
+                        "fetches the resource that asked for it (x402.propose with its resource_url); I cannot approve, sign or broadcast.")
             return RuntimeExecutionResult(handled=True, ok=True, status=proposal.state, response_text=text, details={"proposal": proposal.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status=proposal.state, proposal_id=proposal.proposal_id)})
         proposal_id = str(args.get("proposal_id") or "").strip()
         proposal = proposals.get_proposal(proposal_id)

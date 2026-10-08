@@ -151,6 +151,7 @@ def test_served_daemon_journey_watch_only_default_pocket_opt_in_capped_x402_and_
             "VOOL_WALLET_NETWORK_ENVIRONMENT": "testnet",
             "VOOL_WALLET_TESTNET_RPC_URL": rpc.url,
             "VOOL_WALLET_X402_CAP_MINOR": "2000",
+            "VOOL_WALLET_X402_ALLOW_LOOPBACK": "1",
             "VOOL_BLACKBOX_DIR": str(store_dir),
             "OLLAMA_HOST": provider.base_url,
             "VOOL_OLLAMA_URL": provider.base_url,
@@ -181,13 +182,19 @@ def test_served_daemon_journey_watch_only_default_pocket_opt_in_capped_x402_and_
         _s, created = _http(f"{base}/api/wallet/pocket/create", {"pin": "246810", "acknowledged_warning": True, "confirmation_phrase": custody.POCKET_CONFIRMATION_PHRASE})
         phrase = created["recovery_phrase"]
         assert created["shown_once"] is True and len(phrase.split()) >= 12
-        # 4. an x402 challenge captured by the runtime becomes a capped, approvable proposal
-        from tests.wallet._rig import x402_body
+        # 4. an x402 challenge captured by the runtime becomes a capped proposal, approved only as the payment of a
+        #    request the wallet fetched: until the wallet fetches the resource that asked for it, approval is refused
+        from tests.wallet._rig import ScriptedX402Resource, x402_body
 
         _s, x = _http(f"{base}/api/wallet/x402/propose", {"status": 402, "headers": {}, "body": x402_body(amount_minor=1500)})
         assert x["proposal"]["origin"] == "x402" and x["proposal"]["state"] == "pending_approval", x
         _s, over = _http(f"{base}/api/wallet/x402/propose", {"status": 402, "headers": {}, "body": x402_body(amount_minor=2001)})
         assert over["error"] == "wallet_x402_cap_exceeded"
+        _s, unfetched = _http(f"{base}/api/wallet/approve", {"proposal_id": x["proposal"]["proposal_id"], "pin": "246810"})
+        assert (unfetched["error"], unfetched["fault"]["context"]["reason"]) == ("wallet_approval_rejected", "no_x402_binding") and rpc.send_count() == 0, unfetched
+        with ScriptedX402Resource(rpc) as resource:
+            _s, fetched = _http(f"{base}/api/wallet/x402/fetch", {"url": resource.url})
+        assert fetched["outcome"]["proposal_id"] == x["proposal"]["proposal_id"], fetched
         # 5. approve with the PIN: exactly one sendTransaction on the testnet RPC; duplicates collapse
         _s, done = _http(f"{base}/api/wallet/approve", {"proposal_id": x["proposal"]["proposal_id"], "pin": "246810"})
         assert done["receipt"]["state"] == "confirmed" and done["receipt"]["network"] == DEVNET, done

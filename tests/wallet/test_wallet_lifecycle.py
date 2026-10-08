@@ -9,7 +9,16 @@ import time
 
 import pytest
 
-from tests.wallet._rig import DESTINATION, DEVNET, OTHER_DESTINATION, fault_codes, fault_dumps, sec_codes, x402_body
+from tests.wallet._rig import (
+    DESTINATION,
+    DEVNET,
+    OTHER_DESTINATION,
+    ScriptedX402Resource,
+    fault_codes,
+    fault_dumps,
+    sec_codes,
+    x402_body,
+)
 
 pytestmark = [pytest.mark.safety]
 
@@ -270,6 +279,14 @@ def test_x402_detection_and_capped_approval_flow(wallet_env, monkeypatch):
     profile = _pocket(custody)
     proposal = x402.propose_from_x402(request, wallet_id=profile.wallet_id)
     assert proposal.origin == proposals.ORIGIN_X402 and proposal.amount_minor == 1500
+    # an x402 offer is paid only as the payment of a request the wallet fetched: on its own it is refused and waits
+    with pytest.raises(WalletFault) as unfetched:
+        _drive(lifecycle.default_lifecycle(), proposal)
+    assert (unfetched.value.code, unfetched.value.context.get("reason")) == ("wallet_approval_rejected", "no_x402_binding")
+    assert wallet_env["rpc"].send_count() == 0
+    monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
+    with ScriptedX402Resource(wallet_env["rpc"]) as resource:
+        assert x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id).proposal_id == proposal.proposal_id
     receipt = _drive(lifecycle.default_lifecycle(), proposal)
     assert receipt.state == proposals.STATE_CONFIRMED and receipt.origin == proposals.ORIGIN_X402
 

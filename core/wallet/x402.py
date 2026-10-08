@@ -110,10 +110,27 @@ def detect_x402(status: int, headers: dict[str, Any] | None, body: Any) -> X402R
 def offer_key(wire: str, *terms: Any) -> str:
     """The idempotency key of an x402 proposal, the same at every door: the fetch door at any spelling of a URL, and the
     doors that propose an offer they were shown. It names the offer alone (its wire, resource, payee, amount, asset and
-    network), so one offer is one proposal, approved and paid at most once; every request that reaches the offer is
-    bound to that proposal (:class:`_RequestClaim`)."""
+    network, the last two as :func:`canonical_offer` stores them), so one offer is one proposal, approved and paid at
+    most once; every request that reaches the offer is bound to that proposal (:class:`_RequestClaim`). An offer that
+    differs (repriced, or naming another payee or resource) is another proposal, paid only as a request's payment
+    (:func:`names_a_request`)."""
     prefix = {"v1": "x402:", "v2": "x402v2:"}[wire]
     return prefix + hashlib.sha256("|".join(str(term) for term in terms).encode("utf-8")).hexdigest()[:24]
+
+
+def canonical_offer(network: str, asset: str) -> tuple[str, str]:
+    """An offer's network and asset as a proposal stores them (the declared network, the asset row's symbol), so every
+    spelling of one offer has one key. As given when either does not resolve: the proposal then refuses it as it
+    would."""
+    from core.wallet import chains
+
+    if not chains.is_declared(network):
+        return str(network), str(asset)
+    spec = chains.resolve_network(network)
+    try:
+        return spec.network, proposals._validated_asset(spec.network, asset, source_context=None)
+    except WalletFault:
+        return spec.network, str(asset)
 
 
 def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: dict[str, Any] | None = None, claim: Any = None) -> proposals.TransactionProposal:
@@ -131,7 +148,8 @@ def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: d
     cap = config.x402_cap_minor()
     if request.amount_minor > cap:
         raise wallet_fault("wallet_x402_cap_exceeded", authority=AUTHORITY, context={"amount_minor": request.amount_minor, "limit": str(cap), "asset": request.asset, "reason": "above_automatic_cap"}, source_context=source_context)
-    idempotency_key = offer_key("v1", request.resource, request.pay_to, str(request.amount_minor), request.asset, request.network)
+    network, asset = canonical_offer(request.network, request.asset)
+    idempotency_key = offer_key("v1", request.resource, request.pay_to, str(request.amount_minor), asset, network)
     return proposals.propose_transaction(
         wallet_id=wallet_id, destination=request.pay_to, amount_minor=request.amount_minor, asset=request.asset, origin=proposals.ORIGIN_X402,
         memo=f"x402 {request.resource}"[:200], idempotency_key=idempotency_key, source_context=source_context, claim=claim,
@@ -344,6 +362,20 @@ def owns_its_request(proposal: proposals.TransactionProposal, *, conn: Any = Non
     if conn.execute("SELECT 1 FROM wallet_proposal_events WHERE proposal_id = ? AND state = ? LIMIT 1", (pid, EVENT_REQUEST_CLAIMED)).fetchone() is None:
         return True
     return conn.execute("SELECT 1 FROM wallet_x402_bindings WHERE proposal_id = ? LIMIT 1", (pid,)).fetchone() is not None
+
+
+def names_a_request(proposal: proposals.TransactionProposal, *, conn: Any = None) -> bool:
+    """True when the proposal is not an x402 payment, or a request's binding names it. An x402 offer is paid only as
+    the payment of a request this wallet fetched: one proposed on its own (the model's ``x402.propose``, the owner's
+    ``/api/wallet/x402/propose``) waits, approvable by no door, until a fetch whose 402 is that offer binds its request
+    to it; the request's binding is what keeps one request to one payment (:func:`binding_guard`), so a copy of a
+    fetched offer, spelled or priced otherwise, is never a second payment for it. On ``conn`` when given."""
+    if proposal.origin != proposals.ORIGIN_X402:
+        return True
+    if conn is None:
+        with connection() as own:
+            return names_a_request(proposal, conn=own)
+    return conn.execute("SELECT 1 FROM wallet_x402_bindings WHERE proposal_id = ? LIMIT 1", (str(proposal.proposal_id),)).fetchone() is not None
 
 
 def binding_guard() -> tuple[str, tuple[Any, ...]]:
