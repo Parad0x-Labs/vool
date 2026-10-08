@@ -110,3 +110,19 @@ def test_an_unreadable_statement_time_keeps_the_turn():
                           statement_at="last Tuesday-ish", event_at=None, recorded_at=object())
     units = [[odd]]
     assert cr._whole_turn_units_known_by_as_of(units, "As of September 2026, what was the rent?", None) == units
+
+
+@pytest.mark.usefixtures("_hash_backend")
+def test_a_turn_stated_before_the_day_that_declares_a_later_payment_still_rides(tmp_path):
+    # The contract reads "I'll pay ... on 15 June" as future to a 1 June as-of day, but the turn was stated before
+    # that day: the lane law keeps a future-declared turn, and only a turn stated after the day is refused.
+    profile = _profile(tmp_path)
+    _ingest(profile, "boat", [(_ts(t), text) for t, text in [
+        ("2026-05-02T10:00:00", "Session date: 2 May, 2026\nOrrin: I spent 120 marks on new sails for the boat."),
+        ("2026-05-20T10:00:00", "Session date: 20 May, 2026\nOrrin: I'll pay the 300 marks mooring fee for the boat on 15 June."),
+        ("2026-06-20T10:00:00", "Session date: 20 June, 2026\nOrrin: I spent 80 marks on a new boat cover."),
+    ]])
+    capsule = _as_of_capsule(profile, "boat", "As of 1 June 2026, how much had I spent on the boat?", "2026-06-01T00:00:00")
+    assert "120 marks" in capsule, capsule
+    assert "300 marks" in capsule, capsule
+    assert "80 marks" not in capsule, capsule

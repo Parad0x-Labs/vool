@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 import pytest
 
 import core.context_retrieval as cr
-from tests.test_envelope_provenance_not_content_20261003 import _items
+from tests.test_envelope_provenance_not_content_20261003 import _items as _record_items
 from tests.test_question_date_time_leg_20261002 import (
     _hash_backend,
     _ingest,
@@ -93,6 +93,24 @@ _TRANSCRIPT = (
 _SITTING = "9 March, 2026"
 
 
+def _items(capsule: str) -> list[str]:
+    """The capsule's records. The whole-turn lane's header (dc937f7) is a section heading, not part of
+    the record it follows, so it is cut before the records are read."""
+    return _record_items(capsule.replace("\n" + cr._TURN_LANE_HEADER + "\n", "\n"))
+
+
+def _assert_lane_turns_keep_header_and_receipts(capsule: str, telemetry: dict) -> None:
+    lane_receipts = [ref for ref in telemetry.get("evidence_refs") or [] if ref.get("lane") == "whole_turn"]
+    _facts, header, lane = capsule.partition("\n" + cr._TURN_LANE_HEADER + "\n")
+    lane_items = _record_items(lane) if header else []
+    assert lane_receipts, capsule
+    assert header, "lane turns were delivered, so the lane header must be rendered:\n" + capsule
+    assert all(ref.get("delivered") is True and ref.get("delivery_stage") == "whole_turn_lane"
+               for ref in lane_receipts), lane_receipts
+    assert sorted(ref["line"] for ref in lane_receipts) == sorted(lane_items), capsule
+    assert not any(ref["line"] in _facts for ref in lane_receipts), capsule
+
+
 def _identity(texts, _times):
     return list(texts)
 
@@ -141,7 +159,15 @@ def _first_appearance(days: list[str]) -> list[str]:
 
 
 def _spoken_index(item: str) -> int:
-    return next(index for index, turn in enumerate(_RESIDENCY) if turn.split(": ", 1)[1][:30] in item)
+    # The item's turn, matched by speaker and words. The whole-turn lane delivers only what the user
+    # asserted (2f55469: a pure question clause is masked), so a lane item may carry an asserted clause
+    # of its turn ("Marek: Congratulations!") rather than the whole turn; it still names exactly one turn.
+    said = item.rstrip().splitlines()[-1]
+    speaker, _, words = said.partition(": ")
+    matches = [index for index, turn in enumerate(_RESIDENCY)
+               if turn.split(": ", 1)[0] == speaker and words and words in turn.split(": ", 1)[1]]
+    assert len(matches) == 1, item
+    return matches[0]
 
 
 # --- the ordering law, unit level ---------------------------------------------------------------
@@ -215,6 +241,10 @@ def test_a_sitting_reaches_the_reader_together_and_in_spoken_order(tmp_path, mon
     packer_capsule, packer_telemetry = _sitting_capsule(profile, "sitting", question, sitting_order=False)
     assert packer_telemetry["session_order"] is False
     assert packer_telemetry["session_ordered_lines_moved"] == 0
+    # The sitting order never costs a whole turn its lane: every turn the lane delivers sits under the
+    # lane header and keeps its own receipt, with the order on as with it off.
+    for lane_capsule, lane_telemetry in ((capsule, telemetry), (packer_capsule, packer_telemetry)):
+        _assert_lane_turns_keep_header_and_receipts(lane_capsule, lane_telemetry)
 
     # The answer's sitting is in the capsule with other sittings, and the packer alone scatters it
     # or tells it out of order.
@@ -283,3 +313,33 @@ def test_the_sitting_order_is_off_unless_switched_on(tmp_path, monkeypatch, sitt
     assert ordered_capsule != capsule
     assert telemetry["session_order"] is False
     assert telemetry["session_ordered_lines_moved"] == 0
+
+
+# A correction must beat its own base even when the slot's newest member is a bridged remark. The
+# correction joins every chain sharing one word with it, so a later "harbour wall" remark lands in its
+# slot and, newest, wins it; the base and its correction only coexisted with that winner and the
+# superseded fee was served as a current fact beside its own correction (reviewer probe, sitting order
+# off). Lane law (KEEP): the facts serve 34 and never 30; the 30 turn rides the whole-turn lane, once.
+_KILN_CORRECTION = (
+    _session("2026-03-02T10:00:00", "10:00 am on 2 March, 2026",
+             ["Ines: The harbour kiln firing fee is 30 marks a session.",
+              "Marek: That is steep for the harbour kiln, the kiln room is cold too."]
+             + [f"{name}: {text}" for name, text in _SMALL_TALK[:4]])
+    + _session("2026-03-20T10:00:00", "10:00 am on 20 March, 2026",
+               ["Ines: Correction, the harbour kiln firing fee is now 34 marks a session."]
+               + [f"{name}: {text}" for name, text in _SMALL_TALK]))
+
+
+@pytest.mark.usefixtures("_hash_backend")
+@pytest.mark.parametrize("sitting_order", [None, False])
+def test_a_correction_supersedes_its_base_when_a_bridged_remark_wins_the_slot(
+        tmp_path, monkeypatch, sitting_order) -> None:
+    monkeypatch.delenv("VOOL_CAPSULE_SITTING_ORDER", raising=False)
+    profile = _profile(tmp_path)
+    _ingest(profile, "kiln", _KILN_CORRECTION)
+    capsule, _ = _sitting_capsule(profile, "kiln", "What is the harbour kiln firing fee now?",
+                                  sitting_order=sitting_order)
+    facts, _sep, lane = capsule.partition(cr._TURN_LANE_HEADER)
+    assert "34 marks" in facts, capsule
+    assert "30 marks" not in facts, capsule
+    assert lane.count("30 marks") == 1, capsule
