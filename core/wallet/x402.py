@@ -134,6 +134,10 @@ BINDING_PAID = "paid"
 BINDING_DELIVERED = "delivered"
 ALLOW_LOOPBACK_ENV = "VOOL_WALLET_X402_ALLOW_LOOPBACK"
 _BINDING_COLS = "binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, tx_signature, state, resource_status, resource_digest, resource_bytes, created_at, updated_at, version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, nonce, deadline, expires_at, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, fee_asset, max_timeout_seconds, asset_address"
+#: A request's binding is never handed to another proposal while its own proposal waits on its owner, is being paid or
+#: has paid (these states), nor while that proposal still holds reserved spend: see :func:`binding_guard`.
+BINDING_HELD_STATES = (proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE,
+                       proposals.STATE_SIGNED, proposals.STATE_BROADCAST, proposals.STATE_CONFIRMED)
 
 
 @dataclass(frozen=True)
@@ -206,10 +210,11 @@ def binding_for_proposal(proposal_id: str) -> dict[str, Any] | None:
     return _binding_row(row) if row else None
 
 
-def _upsert_binding(*, request_digest: str, url: str, method: str, offer: X402Request, proposal_id: str, state: str) -> dict[str, Any]:
+def _upsert_binding(*, request_digest: str, url: str, method: str, offer: X402Request, proposal_id: str, state: str) -> dict[str, Any] | None:
     """Record the v1 binding. An EVM-family offer also carries its EIP-712 domain facts,
     transfer method and truthful sponsorship (EIP-3009 exact: the facilitator settles
-    on-chain and pays gas); the Solana v1 lane self-broadcasts and is NOT sponsored."""
+    on-chain and pays gas); the Solana v1 lane self-broadcasts and is NOT sponsored.
+    None when the request is already bound to a payment that holds it (:func:`binding_guard`)."""
     now = utcnow()
     is_evm = False
     try:
@@ -223,14 +228,43 @@ def _upsert_binding(*, request_digest: str, url: str, method: str, offer: X402Re
     if is_evm:
         evm_columns = ", version, eip712_name, eip712_version, asset_transfer_method, max_timeout_seconds, fee_asset, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, asset_address"
         evm_values = (1, offer.eip712_name, offer.eip712_version, offer.asset_transfer_method or "eip3009", int(offer.max_timeout_seconds or 0), offer.asset, 0, 0, 1, offer.asset)
+    guard, guard_values = binding_guard()
     with connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             f"INSERT INTO wallet_x402_bindings (binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, state, created_at, updated_at{evm_columns})"
             f" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{', ?' * len(evm_values)})"
-            " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, state = excluded.state, pay_to = excluded.pay_to, amount_minor = excluded.amount_minor, updated_at = excluded.updated_at",
-            (f"x402b-{uuid.uuid4().hex[:16]}", request_digest, url, method.upper(), offer.pay_to, int(offer.amount_minor), offer.asset, offer.network, proposal_id, state, now, now, *evm_values),
+            " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, state = excluded.state, pay_to = excluded.pay_to, amount_minor = excluded.amount_minor, updated_at = excluded.updated_at"
+            + guard,
+            (f"x402b-{uuid.uuid4().hex[:16]}", request_digest, url, method.upper(), offer.pay_to, int(offer.amount_minor), offer.asset, offer.network, proposal_id, state, now, now, *evm_values, *guard_values),
         )
+        if cursor.rowcount != 1:
+            return None
     return binding_for_digest(request_digest) or {}
+
+
+def binding_guard() -> tuple[str, tuple[Any, ...]]:
+    """The WHERE clause (and its parameters) of a binding upsert's ON CONFLICT update, which makes rebinding a request
+    one compare-and-set: the stored binding takes another proposal only while its own proposal is in none of
+    :data:`BINDING_HELD_STATES` and holds no reserved spend (principal or fee companion). Otherwise the upsert changes
+    no row, and its caller learns the request is already another payment's. Two callers racing the same request,
+    each past its own first check, can therefore never both bind it."""
+    from core.wallet import limits
+
+    states = ", ".join("?" for _ in BINDING_HELD_STATES)
+    return (
+        f" WHERE NOT EXISTS (SELECT 1 FROM wallet_proposals p WHERE p.proposal_id = wallet_x402_bindings.proposal_id AND p.state IN ({states}))"
+        " AND NOT EXISTS (SELECT 1 FROM wallet_spend_ledger l WHERE l.proposal_id IN (wallet_x402_bindings.proposal_id, wallet_x402_bindings.proposal_id || ?)"
+        " AND l.state = ?)",
+        (*BINDING_HELD_STATES, limits._fee_hold_id(""), limits.RESERVATION_RESERVED),
+    )
+
+
+def reject_unbound(proposal_id: str, *, bound_proposal_id: str) -> None:
+    """A proposal minted for a request that another proposal holds never becomes approvable: it is rejected while still
+    proposed. A proposal that is the bound one, or that was not minted just now, is left as it is."""
+    if proposal_id and proposal_id != bound_proposal_id:
+        proposals.transition(proposal_id, proposals.STATE_REJECTED, detail={"reason": "request_bound_to_another_payment", "bound_proposal_id": bound_proposal_id},
+                             expected_state=proposals.STATE_PROPOSED, fault_code="wallet_duplicate_payment")
 
 
 def _update_binding(request_digest: str, **fields: Any) -> None:
@@ -300,23 +334,9 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     if not _target_allowed(clean_url):
         raise wallet_fault("wallet_network_disabled", authority=AUTHORITY, context={"reason": "x402_target_not_public", "host": urlsplit(clean_url).hostname or ""}, source_context=source_context)
     digest = _request_digest(method, clean_url)
-    binding = binding_for_digest(digest)
-    if binding and binding.get("proposal_id"):
-        proposal = proposals.get_proposal(binding["proposal_id"])
-        if proposal is not None and proposal.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
-            if int(binding.get("version") or 1) == 2:
-                # v2 delivery happens at signature submission; a re-fetch never re-sends payment
-                # material, and the v1 X-PAYMENT header must never dress a v2 settlement.
-                raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "v2_delivery_happens_at_submission"}, source_context=source_context)
-            if not proposal.tx_signature:
-                # a submission that learned no transaction is unknown, not failed, on either
-                # wire: it may still settle, so the request is refused before anything is sent.
-                # A fresh fetch here would let a resource asking on other terms park a second
-                # payment for the same request.
-                raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "payment_outcome_unknown"}, source_context=source_context)
-            return _deliver(binding, proposal, timeout=timeout, source_context=source_context)
-        if proposal is not None and proposal.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
-            return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=PAYMENT_REQUIRED, proposal_id=proposal.proposal_id, binding_id=binding["binding_id"])
+    bound = _bound_outcome(binding_for_digest(digest), timeout=timeout, source_context=source_context)
+    if bound is not None:
+        return bound
     answer = _request(clean_url, method=method, headers={**dict(headers or {}), "Accept": "*/*"}, timeout=timeout)
     status = int(answer["status"])
     body = answer["body"]
@@ -335,11 +355,62 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     if offer is None:
         return X402Outcome(status=OUTCOME_REFUSED, http_status=status, body=body)
     proposal = propose_from_x402(offer, wallet_id=wallet_id, source_context=source_context)
+    # bound before it is prepared: a proposal that lost the request to another payment never becomes approvable
+    binding = _upsert_binding(request_digest=digest, url=clean_url, method=method, offer=offer, proposal_id=proposal.proposal_id, state=BINDING_PAYMENT_REQUIRED)
+    if binding is None:
+        return _lost_request(digest, proposal.proposal_id, timeout=timeout, source_context=source_context)
     from core.wallet import lifecycle
 
     prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
-    binding = _upsert_binding(request_digest=digest, url=clean_url, method=method, offer=offer, proposal_id=prepared.proposal_id, state=BINDING_PAYMENT_REQUIRED)
     return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=status, body=body, proposal_id=prepared.proposal_id, binding_id=binding.get("binding_id", ""), offer=offer)
+
+
+def _bound_outcome(binding: dict[str, Any] | None, *, timeout: float, source_context: dict[str, Any] | None) -> X402Outcome | None:
+    """What a request this lane already bound gets before anything is sent: its parked proposal while one waits, its
+    one delivery once paid with a known transaction, a typed refusal while the payment's outcome is unknown, else None
+    (nothing holds the request: it may be fetched afresh)."""
+    if not binding or not binding.get("proposal_id"):
+        return None
+    proposal = proposals.get_proposal(binding["proposal_id"])
+    if proposal is None:
+        return None
+    if proposal.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
+        if int(binding.get("version") or 1) == 2:
+            # v2 delivery happens at signature submission; a re-fetch never re-sends payment
+            # material, and the v1 X-PAYMENT header must never dress a v2 settlement.
+            raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "v2_delivery_happens_at_submission"}, source_context=source_context)
+        if not proposal.tx_signature:
+            # a submission that learned no transaction is unknown, not failed, on either
+            # wire: it may still settle, so the request is refused before anything is sent.
+            # A fresh fetch here would let a resource asking on other terms park a second
+            # payment for the same request.
+            raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "payment_outcome_unknown"}, source_context=source_context)
+        return _deliver(binding, proposal, timeout=timeout, source_context=source_context)
+    if proposal.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
+        return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=PAYMENT_REQUIRED, proposal_id=proposal.proposal_id, binding_id=binding["binding_id"])
+    refuse_while_dispatched(proposal, authority=AUTHORITY, source_context=source_context)
+    return None
+
+
+def refuse_while_dispatched(proposal: proposals.TransactionProposal, *, authority: str, source_context: dict[str, Any] | None) -> None:
+    """The dispatch record decides, not the state column or a transaction id: while the payment's spend is still held
+    as reserved, nothing has proven what became of it (it left, or may have), so its request stays closed whatever its
+    state says. A refusal before sending releases the hold; a proven outcome settles it."""
+    from core.wallet import limits
+
+    if limits.reservation_state(proposal.proposal_id) == limits.RESERVATION_RESERVED:
+        raise wallet_fault("wallet_duplicate_payment", authority=authority, context={"proposal_id": proposal.proposal_id, "reason": "payment_outcome_unknown", "status": proposal.state}, source_context=source_context)
+
+
+def _lost_request(digest: str, proposal_id: str, *, timeout: float, source_context: dict[str, Any] | None) -> X402Outcome:
+    """Another caller bound this request first (its 402 arrived while ours was in flight): the proposal minted here is
+    rejected, and this caller gets what the request's own payment gives a re-fetch."""
+    binding = binding_for_digest(digest)
+    reject_unbound(proposal_id, bound_proposal_id=str((binding or {}).get("proposal_id") or ""))
+    bound = _bound_outcome(binding, timeout=timeout, source_context=source_context)
+    if bound is not None:
+        return bound
+    raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"reason": "request_bound_to_another_payment"}, source_context=source_context)
 
 
 def _looks_like_v2(headers: dict[str, Any] | None, body: Any) -> bool:
@@ -379,10 +450,11 @@ def _fetch_v2(v2_offer, clean_url: str, method: str, wallet_id: str, *, source_c
         facilitator = f"{capability.facilitator_id}@{capability.origin}"
     except Exception:
         facilitator = ""  # prepare() re-checks and refuses typed when missing
-    _upsert_binding_v2(
+    if _upsert_binding_v2(
         request_digest=digest, url=clean_url, method=method, proposal_id=proposal.proposal_id,
         entry=entry, facilitator=facilitator,
-    )
+    ) is None:
+        return _lost_request(digest, proposal.proposal_id, timeout=20.0, source_context=source_context)
     from core.wallet import lifecycle as wallet_lifecycle
 
     wallet_lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
@@ -394,17 +466,21 @@ def _v2_to_v1_view(offer: Any) -> Any:
     return None  # the v2 offer rides the binding record; the outcome view stays summary-level
 
 
-def _upsert_binding_v2(*, request_digest: str, url: str, method: str, proposal_id: str, entry: Any, facilitator: str) -> dict[str, Any]:
+def _upsert_binding_v2(*, request_digest: str, url: str, method: str, proposal_id: str, entry: Any, facilitator: str) -> dict[str, Any] | None:
+    """Record the v2 binding with the full offer evidence; None when the request is already bound to a payment that
+    holds it (:func:`binding_guard`)."""
     from core.wallet import chains, x402_v2
 
     now = utcnow()
     asset = chains.asset_for(entry.network, entry.asset)
+    guard, guard_values = binding_guard()
     with connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             "INSERT INTO wallet_x402_bindings (binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, state, created_at, updated_at,"
             " version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, max_timeout_seconds, fee_asset, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, asset_address)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, offer_json = excluded.offer_json, facilitator_id = excluded.facilitator_id, updated_at = excluded.updated_at",
+            " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, offer_json = excluded.offer_json, facilitator_id = excluded.facilitator_id, updated_at = excluded.updated_at"
+            + guard,
             (
                 f"x402b-{uuid.uuid4().hex[:16]}", request_digest, url, method.upper(), entry.pay_to, int(entry.amount_minor), asset.symbol, entry.network, proposal_id, BINDING_PAYMENT_REQUIRED, now, now,
                 2, dumps(entry.to_dict()), x402_v2.resource_origin_of(url), entry.resource_method, facilitator,
@@ -414,8 +490,11 @@ def _upsert_binding_v2(*, request_digest: str, url: str, method: str, proposal_i
                 # reserved fee is genuinely zero. A future payer-gas method records 0 here.
                 1 if str(entry.asset_transfer_method or "eip3009") == "eip3009" else 0,
                 asset.address,
+                *guard_values,
             ),
         )
+        if cursor.rowcount != 1:
+            return None
     return binding_for_digest(request_digest) or {}
 
 

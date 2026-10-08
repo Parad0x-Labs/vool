@@ -528,6 +528,77 @@ def test_e5d2_new_terms_for_the_same_request_do_not_park_a_second_payment(wallet
         assert (wallet_x402.binding_for_proposal(proposal_id) or {}).get("proposal_id") == proposal_id
 
 
+@pytest.mark.parametrize("outcome", ["unknown", "confirmed"])
+def test_e5d3_a_late_challenge_cannot_rebind_a_request_its_payment_holds(wallet_env, evm_rig, monkeypatch, outcome):
+    """Two callers fetch the same request; the second passed its own check before the first one's payment was parked,
+    and its 402, on other terms, arrives after that payment left (outcome unknown) or settled. The binding refuses
+    the second proposal in the same statement that would rebind the request: no second payment is parked, and the
+    proposal minted for the late challenge is rejected, never approvable."""
+    from core.wallet import proposals
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    paid_answer = "drop" if outcome == "unknown" else ""
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", paid_answer=paid_answer) as resource:
+        wallet_id, proposal_id, engine, request_id, signature = _parked_and_signed(signer, resource)
+        resource.settled_signatures.add(signature)
+        if outcome == "confirmed":
+            resource.settlement_tx = "0x" + ("ab" * 32)
+            evm_rig.rpc.add_transfer_receipt(resource.settlement_tx, contract_address=USDC_BASE, from_address=signer.address, to_address=PAY_TO, amount_int=10000)
+            assert engine.submit_external_signature(request_id, signature_hex=signature).state == proposals.STATE_CONFIRMED
+        else:
+            with pytest.raises(WalletFault):
+                engine.submit_external_signature(request_id, signature_hex=signature)
+        resource.amount_minor = 12000
+        real = wallet_x402._bound_outcome
+        calls = []
+
+        def stale_once(binding, **kwargs):
+            calls.append(binding)
+            return None if len(calls) == 1 else real(binding, **kwargs)
+
+        monkeypatch.setattr(wallet_x402, "_bound_outcome", stale_once)
+        with pytest.raises(WalletFault) as late:
+            wallet_x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert late.value.code == "wallet_duplicate_payment"
+        assert resource.challenges == 2, "the late caller's request did go out: its first check was stale"
+        assert (wallet_x402.binding_for_proposal(proposal_id) or {}).get("proposal_id") == proposal_id
+        others = [p for p in proposals.list_proposals() if p.proposal_id != proposal_id]
+        assert [(p.state, p.amount_minor) for p in others] == [(proposals.STATE_REJECTED, 12000)]
+
+
+def test_e5d4_a_payment_whose_state_says_failed_while_its_spend_is_held_keeps_its_request_closed(wallet_env, evm_rig, monkeypatch):
+    """The dispatch record decides, not the state column or a transaction id: a payment that left with no proof still
+    holds its spend, so its request stays closed even when its proposal row says failed (a rewound or corrupted row)."""
+    from core.wallet import limits
+    from core.wallet import x402 as wallet_x402
+    from core.wallet.store import connection
+
+    with _settled_but_undelivered(monkeypatch, evm_rig, "drop") as (wallet_id, proposal_id, _fault, resource):
+        with connection() as conn:
+            conn.execute("UPDATE wallet_proposals SET state = 'failed' WHERE proposal_id = ?", (proposal_id,))
+        assert limits.reservation_state(proposal_id) == limits.RESERVATION_RESERVED
+        resource.amount_minor = 12000
+        with pytest.raises(WalletFault) as again:
+            wallet_x402.fetch_paid_resource(resource.url, wallet_id=wallet_id)
+        assert again.value.code == "wallet_duplicate_payment" and again.value.context["reason"] == "payment_outcome_unknown"
+        assert resource.challenges == 1
+
+
+@pytest.mark.parametrize("answer", ["drop", "status:304"])
+def test_e5d5_an_unknown_submission_leaves_its_payment_effect_unresolved(wallet_env, evm_rig, monkeypatch, answer):
+    """Whether the transport broke (the resource dropped the connection) or the answer refused after sending, a
+    submission whose outcome is unknown records no failed-safe resolution of its payment effect: only the chain or
+    the owner's resolve step may say it did not apply."""
+    from core.runtime_continuity import list_unresolved_effect_resolutions
+    from core.wallet import reconciliation
+
+    with _settled_but_undelivered(monkeypatch, evm_rig, answer) as (_wallet_id, proposal_id, fault, _resource):
+        assert str(fault.context.get("reason") or "").startswith("submit_unknown:")
+        assert list_unresolved_effect_resolutions(reconciliation.logical_effect_id(proposal_id)) == []
+
+
 @pytest.mark.parametrize("refusal", ["loopback_off", "loopback_name", "dns_failure"])
 def test_e5e_a_payment_refused_before_its_socket_is_released_and_can_be_parked_again(wallet_env, evm_rig, monkeypatch, refusal):
     """A refusal the target check raises before the payment hop's socket opens proves nothing was sent: the hold is
