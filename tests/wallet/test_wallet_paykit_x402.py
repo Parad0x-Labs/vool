@@ -497,6 +497,73 @@ def test_two_callers_racing_one_request_never_park_two_payments(env, monkeypatch
         assert resource.paid_requests == []
 
 
+def test_a_challenge_that_arrives_while_the_first_payment_is_prepared_cannot_take_its_request(env, monkeypatch):
+    """The first caller has bound the request and is still preparing its proposal when a second caller's 402 arrives
+    on other terms: the request stays the first proposal's, and the second proposal is rejected, never approvable."""
+    from core.wallet import lifecycle, paykit_x402, proposals
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+    late: list[WalletFault] = []
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        def prepare_as_another_caller_arrives(self, proposal_id):
+            if not late:
+                late.append(None)
+                resource.amount_minor = 1400
+                with pytest.raises(WalletFault) as exc:
+                    _park(resource, profile)
+                late[0] = exc.value
+            return real_prepare(self, proposal_id)
+
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", prepare_as_another_caller_arrives)
+        first = _park(resource, profile)
+        assert (late[0].code, late[0].context["reason"]) == ("wallet_duplicate_payment", "request_bound_to_another_payment")
+        assert paykit_x402.binding_for(first.proposal_id)["proposal_id"] == first.proposal_id
+        assert sorted((p.amount_minor, p.state) for p in proposals.list_proposals()) == [
+            (1400, proposals.STATE_REJECTED), (1500, proposals.STATE_PENDING_APPROVAL)]
+        assert resource.paid_requests == []
+
+
+def test_a_payment_abandoned_mid_prepare_frees_its_request_only_after_the_prepare_window(env, monkeypatch):
+    """The process stopped while the pay-kit payment was being prepared: within the prepare window its request stays
+    its own; past it, the next fetch ends the abandoned proposal with its receipt and parks a fresh payment."""
+    from datetime import datetime, timedelta, timezone
+
+    from core.wallet import lifecycle, proposals, receipts, x402
+    from core.wallet.errors import WalletFault
+    from core.wallet.store import connection
+
+    class ProcessStopped(BaseException):
+        pass
+
+    profile = _pocket()
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+
+    def stop(self, proposal_id):
+        raise ProcessStopped
+
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", stop)
+        with pytest.raises(ProcessStopped):
+            _park(resource, profile)
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", real_prepare)
+        [abandoned] = proposals.list_proposals()
+        with pytest.raises(WalletFault) as exc:
+            _park(resource, profile)
+        assert exc.value.code == "wallet_duplicate_payment"
+        past = (datetime.now(timezone.utc) - timedelta(seconds=x402.ABANDONED_PREPARE_SECONDS + 1)).isoformat()
+        with connection() as conn:
+            conn.execute("UPDATE wallet_proposals SET updated_at = ? WHERE proposal_id = ?", (past, abandoned.proposal_id))
+        fresh = _park(resource, profile)
+        assert fresh.proposal_id != abandoned.proposal_id
+        assert proposals.get_proposal(fresh.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+        assert proposals.get_proposal(abandoned.proposal_id).state == proposals.STATE_REJECTED
+        [receipt] = [r for r in receipts.list_receipts() if r["proposal_id"] == abandoned.proposal_id]
+        assert (receipt["fault_code"], receipt["refusal"]["reason"], receipt["refusal"]["charged_amount_minor"]) == ("wallet_quote_expired", "prepare_abandoned", 0)
+        assert resource.paid_requests == []
+
+
 # --- the optional dependency and the legacy lane --------------------------------------------------------------------
 
 def test_without_paykit_the_lane_refuses_before_sending_anything(env, monkeypatch):

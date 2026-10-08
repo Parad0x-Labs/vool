@@ -224,6 +224,7 @@ def existing_outcome(digest: str, *, source_context: dict[str, Any] | None = Non
     if parked is not None and parked.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
         # this exact request was paid: its payment was delivered once and is never sent again
         raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": parked.proposal_id, "reason": "paykit_request_already_paid"}, source_context=source_context)
+    x402.end_abandoned_prepare(parked)
     if parked is not None:
         x402.refuse_while_dispatched(parked, authority=AUTHORITY, source_context=source_context)
     return None
@@ -333,9 +334,7 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
     if not _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
                            offer={"x402Version": int(wire_version), "requirement": requirement}, version=x402.BINDING_VERSION_PAYKIT, proposal_id=proposal.proposal_id):
         return lost_request(digest, proposal.proposal_id, source_context=source_context)
-    from core.wallet import lifecycle
-
-    prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
+    prepared = x402.prepare_bound(proposal.proposal_id, source_context=source_context)
     binding = x402.binding_for_digest(digest) or {}
     return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=status, body=answer["body"], proposal_id=prepared.proposal_id, binding_id=str(binding.get("binding_id") or ""))
 
