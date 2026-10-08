@@ -183,6 +183,102 @@ def test_a_challenge_that_arrives_while_the_first_payment_is_prepared_cannot_tak
     assert wallet_env["rpc"].send_count() == 0
 
 
+def test_concurrent_callers_cannot_pay_in_proposal_creation_before_binding_window(wallet_env, resource, monkeypatch):
+    """The first caller's proposal exists. Before its request was bound, another caller could find it, prepare it and
+    have it approved, and a third caller whose 402 asks one lamport more found the request free, parked its own payment
+    and had it approved too: two sends for one request. A fetched proposal now exists only together with its claim on
+    the request, so whoever finds it finds the request already its own: the third caller gets the one payment's
+    delivery."""
+    from core.wallet import approval, custody, lifecycle, proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket(custody)
+    engine = lifecycle.default_lifecycle()
+    real_propose = proposals.propose_transaction
+    later: list[x402.X402Outcome] = []
+
+    def others_act_as_soon_as_it_exists(**kwargs):
+        proposal = real_propose(**kwargs)
+        if not later:
+            later.append(None)
+            engine.prepare(proposal.proposal_id)
+            engine.approve_and_execute(proposal.proposal_id, approver=approval.PinApprover(PIN))
+            resource.amount_minor = 1501
+            later[0] = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+            if later[0].status == x402.OUTCOME_PAYMENT_REQUIRED:
+                engine.approve_and_execute(later[0].proposal_id, approver=approval.PinApprover(PIN))
+        return proposal
+
+    monkeypatch.setattr(proposals, "propose_transaction", others_act_as_soon_as_it_exists)
+    try:
+        first = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    except WalletFault as exc:
+        first = exc
+    assert wallet_env["rpc"].send_count() == 1, "one request, one payment"
+    # its own proposal was prepared and paid by someone else meanwhile: this caller's prepare is refused as a duplicate
+    assert isinstance(first, WalletFault) and first.code == "wallet_duplicate_payment"
+    [paid] = proposals.list_proposals()
+    assert (paid.state, paid.amount_minor) == (proposals.STATE_CONFIRMED, 1500)
+    assert (later[0].status, later[0].proposal_id, later[0].repaid) == (x402.OUTCOME_DELIVERED, paid.proposal_id, False)
+    assert x402.binding_for_proposal(paid.proposal_id)["state"] == x402.BINDING_DELIVERED
+
+
+@pytest.mark.parametrize("stage", ["prepare", "approve", "while_the_owner_approves"])
+def test_a_fetched_payment_that_does_not_own_its_request_is_never_prepared_or_approved(wallet_env, resource, monkeypatch, stage):
+    """A proposal the fetch door minted is paid only as its request's one payment. If the store says another payment
+    holds that request (a store restored or edited behind the wallet's back), the lifecycle refuses it before
+    anything is simulated, before the owner is asked for a PIN and before anything is held or sent: it is rejected,
+    with a receipt that charges nothing. When the store changes while the owner is being asked, the claim refuses it
+    before anything is held."""
+    from core.wallet import approval, custody, lifecycle, limits, proposals, x402
+    from core.wallet.errors import WalletFault
+    from core.wallet.store import connection
+
+    profile = _pocket(custody)
+    engine = lifecycle.default_lifecycle()
+    if stage == "prepare":
+        real_prepare = lifecycle.PaymentLifecycle.prepare
+
+        def stop(self, proposal_id):
+            raise _ProcessStopped
+
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", stop)
+        with pytest.raises(_ProcessStopped):
+            x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", real_prepare)
+        [fetched] = proposals.list_proposals()
+    else:
+        fetched = proposals.get_proposal(x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id).proposal_id)
+    left_in = fetched.state
+
+    def move_the_binding():
+        with connection() as conn:
+            conn.execute("UPDATE wallet_x402_bindings SET proposal_id = ? WHERE proposal_id = ?", ("pay-another-payment", fetched.proposal_id))
+
+    if stage != "while_the_owner_approves":
+        move_the_binding()
+    asked = []
+
+    class Approver(approval.PinApprover):
+        def approve(self, challenge):
+            asked.append(challenge)
+            if stage == "while_the_owner_approves":
+                move_the_binding()
+            return super().approve(challenge)
+
+    with pytest.raises(WalletFault) as refused:
+        if stage == "prepare":
+            engine.prepare(fetched.proposal_id)
+        else:
+            engine.approve_and_execute(fetched.proposal_id, approver=Approver(PIN))
+    assert (refused.value.code, refused.value.context["reason"]) == ("wallet_duplicate_payment", "request_bound_to_another_payment")
+    assert len(asked) == (1 if stage == "while_the_owner_approves" else 0)
+    assert wallet_env["rpc"].send_count() == 0 and limits.reservation_state(fetched.proposal_id) == ""
+    assert proposals.get_proposal(fetched.proposal_id).state == proposals.STATE_REJECTED
+    assert _refusal_reasons(fetched.proposal_id) == [(proposals.STATE_REJECTED, "wallet_duplicate_payment", "request_bound_to_another_payment", 0, 0)]
+    assert left_in == (proposals.STATE_PROPOSED if stage == "prepare" else proposals.STATE_PENDING_APPROVAL)
+
+
 def _refusal_reasons(proposal_id):
     from core.wallet import receipts
 

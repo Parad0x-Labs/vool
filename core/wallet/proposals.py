@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -136,7 +137,8 @@ def list_proposals(*, state: str = "", limit: int = 50) -> list[TransactionPropo
     return [_row(r) for r in rows]
 
 
-def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, asset: str, origin: str, memo: str = "", idempotency_key: str = "", source_context: dict[str, Any] | None = None, network: str = "", recipient: dict[str, Any] | None = None) -> TransactionProposal:
+def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, asset: str, origin: str, memo: str = "", idempotency_key: str = "", source_context: dict[str, Any] | None = None, network: str = "", recipient: dict[str, Any] | None = None,
+                        claim: Callable[[Any, TransactionProposal], None] | None = None) -> TransactionProposal:
     """Mint a typed proposal in state ``proposed``. Idempotent under ``idempotency_key``.
 
     ``network`` is the chain-qualified identity the payment rides (CAIP-2 or a declared
@@ -146,7 +148,12 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
 
     ``recipient`` is the Contacts snapshot the destination was resolved from. It is kept beside the destination (the
     quote binds it, approval re-checks it); it must name exactly this destination, and a saved contact's address must
-    have been saved for this very network."""
+    have been saved for this very network.
+
+    ``claim`` is a door's claim on what a NEW proposal is for (an x402 door: the request it pays). It runs on the new
+    proposal inside the transaction that inserts it, on that transaction's connection, so the proposal and its claim
+    commit together or not at all and nothing ever reads the proposal without it; it may end the proposal there. It
+    does not run when an existing proposal is returned."""
     custody.require_enabled(source_context=source_context)
     profile = custody.require_wallet(wallet_id, source_context=source_context)
     requested = str(network or "").strip() or profile.network
@@ -228,6 +235,8 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
                  dumps(recipient_record) if recipient_record else ""),
             )
             conn.execute("INSERT INTO wallet_proposal_events (proposal_id, state, detail_json, created_at) VALUES (?, ?, ?, ?)", (proposal_id, STATE_PROPOSED, dumps({"origin": origin}), now))
+            if claim is not None:
+                claim(conn, _get(conn, proposal_id))
     except sqlite3.IntegrityError:
         # a concurrent proposer won the unique index: converge on their proposal
         existing = idempotency.existing_for_key(profile.wallet_id, key)
