@@ -357,6 +357,95 @@ def test_a_payment_abandoned_mid_prepare_frees_its_request_only_after_the_prepar
     assert wallet_env["rpc"].send_count() == 0
 
 
+def _abandoned_mid_prepare(resource, profile, monkeypatch):
+    """Park one payment for ``resource`` whose process stopped mid-prepare, so it is still proposed."""
+    from core.wallet import lifecycle, proposals, x402
+
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+
+    def stop(self, proposal_id):
+        raise _ProcessStopped
+
+    monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", stop)
+    with pytest.raises(_ProcessStopped):
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", real_prepare)
+    [abandoned] = proposals.list_proposals()
+    return abandoned
+
+
+def _leave_dispatch_evidence(evidence, proposal, profile):
+    """Write one piece of what a payment that left (or may have) leaves behind, and nothing else."""
+    from core.wallet import external_signing, limits, reconciliation
+    from core.wallet.store import connection
+
+    if evidence in ("held_spend", "settled_spend"):
+        assert limits.reserve_spend(wallet_id=proposal.wallet_id, asset=proposal.asset, amount_minor=proposal.amount_minor, destination=proposal.destination,
+                                    proposal_id=proposal.proposal_id, chain=proposal.network).ok
+        if evidence == "settled_spend":
+            limits.settle_spend(proposal.proposal_id)
+    elif evidence == "held_fee":
+        with connection() as conn:
+            conn.execute("INSERT INTO wallet_spend_ledger (wallet_id, asset, amount_minor, destination, proposal_id, spent_at, state, fee_minor) VALUES (?, ?, 0, ?, ?, 0, ?, 5000)",
+                         (proposal.wallet_id, "SOL", proposal.destination, limits._fee_hold_id(proposal.proposal_id), limits.RESERVATION_RESERVED))
+    elif evidence in ("unresolved_effect", "applied_effect"):
+        assert reconciliation.reserve_payment_effect(proposal, message_digest="", source_context=None)["outcome"] == "reserved"
+        if evidence == "applied_effect":
+            reconciliation.resolve_payment_effect(proposal.proposal_id, applied=True, evidence="5sig", source="provider")
+    elif evidence == "transaction_id":
+        with connection() as conn:
+            conn.execute("UPDATE wallet_proposals SET tx_signature = ? WHERE proposal_id = ?", ("5" + "x" * 87, proposal.proposal_id))
+    elif evidence in ("open_signing_request", "consumed_signing_request"):
+        record = external_signing.open_signing_request(proposal, public_key=profile.public_key, message=b"message", unsigned_transaction=b"unsigned")
+        if evidence == "consumed_signing_request":
+            external_signing.consume_signing_request(record["request_id"])
+    else:
+        raise AssertionError(evidence)
+
+
+@pytest.mark.parametrize("evidence", ["broadcast_unknown", "held_spend", "held_fee", "settled_spend", "unresolved_effect", "applied_effect", "transaction_id",
+                                      "open_signing_request", "consumed_signing_request"])
+def test_abandoned_prepare_never_labels_a_held_dispatch_as_unsent(wallet_env, resource, monkeypatch, evidence):
+    """A payment whose row says it is still being prepared, long past the prepare window (a rewound or restored row),
+    while the dispatch record says it was claimed, held or sent: the request's next fetch must not end it as
+    "abandoned" with a receipt that charges nothing, which would also let the resolver call its effect safe to retry.
+    Whatever one piece of dispatch evidence exists, the proposal is left as it is and the request stays closed,
+    refused before anything is sent."""
+    from datetime import datetime, timedelta, timezone
+
+    from core.effect_reconciliation import ResolutionOutcome
+    from core.wallet import approval, custody, lifecycle, proposals, receipts, reconciliation, x402
+    from core.wallet.errors import WalletFault
+    from core.wallet.store import connection
+
+    profile = _pocket(custody)
+    if evidence == "broadcast_unknown":
+        parked = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        wallet_env["rpc"].send_mode = "accept_then_500"
+        with pytest.raises(WalletFault):
+            lifecycle.default_lifecycle().approve_and_execute(parked.proposal_id, approver=approval.PinApprover(PIN))
+        wallet_env["rpc"].send_mode = "ok"
+        proposal = proposals.get_proposal(parked.proposal_id)
+    else:
+        proposal = _abandoned_mid_prepare(resource, profile, monkeypatch)
+        _leave_dispatch_evidence(evidence, proposal, profile)
+    before = [r["receipt_id"] for r in receipts.list_receipts() if r["proposal_id"] == proposal.proposal_id]
+    sent = wallet_env["rpc"].send_count()
+    past = (datetime.now(timezone.utc) - timedelta(seconds=x402.ABANDONED_PREPARE_SECONDS + 1)).isoformat()
+    with connection() as conn:
+        conn.execute("UPDATE wallet_proposals SET state = ?, updated_at = ? WHERE proposal_id = ?", (proposals.STATE_PROPOSED, past, proposal.proposal_id))
+    resource.amount_minor = 1400
+    with pytest.raises(WalletFault) as again:
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert (again.value.code, again.value.context["reason"]) == ("wallet_duplicate_payment", "payment_outcome_unknown")
+    assert resource.challenges == 1 and wallet_env["rpc"].send_count() == sent
+    assert proposals.get_proposal(proposal.proposal_id).state == proposals.STATE_PROPOSED
+    assert [r["receipt_id"] for r in receipts.list_receipts() if r["proposal_id"] == proposal.proposal_id] == before, "no zero-charge receipt"
+    assert [p.proposal_id for p in proposals.list_proposals()] == [proposal.proposal_id]
+    assert reconciliation._payment_resolver({"resource_identity": proposal.proposal_id}).outcome != ResolutionOutcome.FAILED_SAFE_TO_RETRY
+    assert x402.binding_for_proposal(proposal.proposal_id)["proposal_id"] == proposal.proposal_id
+
+
 @pytest.mark.parametrize("first_check", ["current", "stale"])
 def test_a_payment_whose_state_says_failed_while_its_spend_is_held_keeps_its_request_closed(wallet_env, resource, monkeypatch, first_check):
     """The dispatch record decides, not the state column: a payment whose broadcast outcome is unknown still holds its
