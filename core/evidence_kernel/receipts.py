@@ -216,6 +216,22 @@ def _count(p: Path) -> int:
         return 0
 
 
+def _receipt_payload_for_erasure(envelope: Mapping[str, Any]) -> dict[str, Any]:
+    """Return payload fields while excluding the envelope's typed identity and integrity fields."""
+    integrity = {
+        "receipt_id", "issued_at", "request_id", "session_id", "turn_id", "parents",
+        "subject_digest", "previous_digest", "content_digest", "signer_peer_id", "signature", "schema",
+    }
+    payload = {key: value for key, value in envelope.items() if key not in integrity}
+    if isinstance(payload.get("evidence_refs"), list):
+        payload["evidence_refs"] = [
+            {key: value for key, value in ref.items() if key not in {"occurrence_id", "digest", "span"}}
+            if isinstance(ref, dict) else ref
+            for ref in payload["evidence_refs"]
+        ]
+    return payload
+
+
 def read_ledger(kind: str, session_id: str) -> list[dict[str, Any]]:
     p = ledger_path(kind, session_id)
     if not p.exists():
@@ -227,6 +243,11 @@ def read_ledger(kind: str, session_id: str) -> list[dict[str, Any]]:
                 out.append(json.loads(line))
             except Exception:
                 out.append({"corrupt": True})
+    from core.vool_memory import memory_payload_is_current
+
+    payloads = [_receipt_payload_for_erasure(row) for row in out]
+    if not memory_payload_is_current(json.dumps(payloads, ensure_ascii=False), chat_id=session_id):
+        return []
     return out
 
 

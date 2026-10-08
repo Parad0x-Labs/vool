@@ -406,6 +406,15 @@ class VoolMemory:
             "CREATE INDEX IF NOT EXISTS idx_memory_revocations_chat "
             "ON memory_revocations(chat_id)"
         )
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS memory_erasure_operations ("
+            "operation_id TEXT PRIMARY KEY, chat_id TEXT NOT NULL, token TEXT NOT NULL, "
+            "started_at REAL NOT NULL, status TEXT NOT NULL)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_memory_erasure_operations_chat "
+            "ON memory_erasure_operations(chat_id, status)"
+        )
         self._conn.commit()
 
     @property
@@ -428,7 +437,8 @@ class VoolMemory:
                 """,
                 (name, self._agent_id),
             ).fetchone()
-        return str(row["content"]) if row else None
+            content = str(row["content"]) if row else None
+            return content if content is not None and self.payload_is_current(content) else None
 
     def block_write(self, block_name: str, content: str) -> None:
         name = _normalize_block_name(block_name)
@@ -1221,6 +1231,7 @@ class VoolMemory:
         *,
         session_id: str | None = None,
         at: float | None = None,
+        erasures: dict[str, Any] | None = None,
     ) -> int:
         """Forget law: HARD-delete live nodes carrying ``text`` in one chat,
         re-admitting the token-free clauses of the same statements.
@@ -1246,6 +1257,8 @@ class VoolMemory:
         same scope/provenance — forgetting one value must not erase the
         rest of the user's own statement.
         """
+        from core.memory.entries import _record_erasure_store
+
         needle = _normalize_forget_token(text)
         if not needle:
             return 0
@@ -1256,24 +1269,18 @@ class VoolMemory:
         )
         if session_id is not None and expected_scope is None:
             return 0
-        # SQL prefilter on the needle's first word, then the separator-
-        # insensitive match decides (a hyphenated variant shares the first
-        # word but defeats plain substring matching — F14-07).
-        first_word = needle.split(" ", 1)[0]
         with self._lock:
             rows = self._conn.execute(
                 """
                 SELECT *
                 FROM memory_nodes
                 WHERE agent_id = ?
-                  AND valid_to IS NULL
-                  AND instr(lower(content), ?) > 0
                 """,
-                (self._agent_id, first_word),
+                (self._agent_id,),
             ).fetchall()
             doomed: list[Any] = []
             for row in rows:
-                if not text_carries_forget_token(str(row["content"] or ""), needle):
+                if not any(text_carries_forget_token(value, needle) for value in _node_forget_payload(row)):
                     continue
                 if expected_scope is not None:
                     node = _row_to_node(row)
@@ -1281,11 +1288,14 @@ class VoolMemory:
                         continue
                 doomed.append(row)
             if not doomed:
+                self._verify_forget_node_index(needle, session_id=session_id, erasures=erasures)
                 return 0
             node_ids = [str(row["node_id"]) for row in doomed]
             salvages = [
                 (
-                    _forget_salvage_content(str(row["content"] or ""), needle),
+                    _forget_salvage_content(str(row["content"] or ""), needle)
+                    if text_carries_forget_token(str(row["content"] or ""), needle)
+                    else str(row["content"] or ""),
                     row,
                 )
                 for row in doomed
@@ -1294,31 +1304,82 @@ class VoolMemory:
                 "DELETE FROM memory_nodes WHERE node_id = ? AND agent_id = ?",
                 [(node_id, self._agent_id) for node_id in node_ids],
             )
-            with contextlib.suppress(sqlite3.Error):  # FTS is a best-effort leg
+            if self._conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'memory_fts'",
+            ).fetchone() is not None:
+                fts_removed = self._conn.execute(
+                    "SELECT COUNT(*) FROM memory_fts WHERE node_id IN ("
+                    + ", ".join("?" for _ in node_ids) + ")", node_ids,
+                ).fetchone()[0]
                 self._conn.executemany(
                     "DELETE FROM memory_fts WHERE node_id = ?",
                     [(node_id,) for node_id in node_ids],
                 )
+                fts_exists = True
+            else:
+                fts_exists = False
+                fts_removed = 0
             self._conn.commit()
+            marks = ", ".join("?" for _ in node_ids)
+            if self._conn.execute(
+                f"SELECT 1 FROM memory_nodes WHERE node_id IN ({marks})", node_ids,
+            ).fetchone() is not None:
+                raise RuntimeError("semantic node erasure could not be verified")
+            if erasures is not None:
+                erasures["semantic_nodes"] = len(node_ids)
+            if fts_exists and self._conn.execute(
+                f"SELECT 1 FROM memory_fts WHERE node_id IN ({marks})", node_ids,
+            ).fetchone() is not None:
+                _record_erasure_store(erasures, "memory_fts", "incomplete")
+                raise RuntimeError("semantic search index erasure could not be verified")
+            _record_erasure_store(erasures, "memory_fts", "verified" if fts_exists else "not_applicable", fts_removed)
         # Salvage runs AFTER the delete commits, outside the sweep statement:
         # each re-admission is its own write (dedup/FTS inside node_store),
         # and a salvage failure must never resurrect the forgotten value.
         for salvage_text, row in salvages:
             if not salvage_text:
                 continue
-            try:
-                self._store_forget_salvage(salvage_text, row, needle)
-            except Exception:
-                LOGGER.warning("forget salvage re-admission failed")
+            self._store_forget_salvage(salvage_text, row, needle)
+        self._verify_forget_node_index(needle, session_id=session_id, erasures=erasures)
         return len(node_ids)
+
+    def _verify_forget_node_index(
+        self, needle: str, *, session_id: str | None, erasures: dict[str, Any] | None,
+    ) -> None:
+        from core.memory.entries import _record_erasure_store
+
+        with self._lock:
+            nodes = self._conn.execute(
+                "SELECT * FROM memory_nodes WHERE agent_id = ?", (self._agent_id,),
+            ).fetchall()
+            for row in nodes:
+                if not any(text_carries_forget_token(value, needle) for value in _node_forget_payload(row)):
+                    continue
+                if session_id is None or _node_matches_session(_row_to_node(row), session_id):
+                    _record_erasure_store(erasures, "semantic_nodes", "incomplete")
+                    raise RuntimeError("semantic node metadata retains an unverified copy")
+            if self._conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'memory_fts'").fetchone() is None:
+                _record_erasure_store(erasures, "memory_fts", "not_applicable")
+                return
+            rows = self._conn.execute(
+                "SELECT f.content AS indexed_content, f.keywords AS indexed_keywords, n.* FROM memory_fts f "
+                "LEFT JOIN memory_nodes n ON n.node_id = f.node_id WHERE f.agent_id = ?",
+                (self._agent_id,),
+            ).fetchall()
+            for row in rows:
+                if not any(text_carries_forget_token(str(row[index] or ""), needle) for index in (0, 1)):
+                    continue
+                if row["node_id"] is None or session_id is None or _node_matches_session(_row_to_node(row), session_id):
+                    _record_erasure_store(erasures, "memory_fts", "incomplete")
+                    raise RuntimeError("semantic search index retains an unverified copy")
+            _record_erasure_store(erasures, "memory_fts", "verified")
 
     def _store_forget_salvage(self, salvage_text: str, dead_row: Any,
                               needle: str) -> None:
         """Re-admit one token-free remainder of a deleted forget-law node.
 
-        Provenance is inherited from the dead node (scope tags, context
-        description, importance); keywords are the dead node's keywords that
-        do not carry the forgotten token. Marked ``forget-salvage`` so the
+        Scope is inherited from the dead node; authored tags, description
+        and keywords shed the forgotten token. Marked ``forget-salvage`` so the
         lineage stays inspectable. No source-occurrence link: the occurrence
         layer clears whole bodies by its own settled law.
         """
@@ -1328,7 +1389,15 @@ class VoolMemory:
             str(tag or "").strip()
             for tag in _json_list(dead_row["tags"])
             if str(tag or "").strip()
+            and not text_carries_forget_token(str(tag or ""), needle)
         ]
+        scopes = _session_scopes(
+            tags=_json_list(dead_row["tags"]), context_description=str(dead_row["context_description"] or ""),
+        )
+        for scope in scopes:
+            scope_tag = "session:" + scope
+            if scope_tag not in dead_tags:
+                dead_tags.append(scope_tag)
         keywords = [
             str(kw or "").strip()
             for kw in _json_list(dead_row["keywords"])
@@ -1336,11 +1405,14 @@ class VoolMemory:
             and not text_carries_forget_token(str(kw or ""), needle)
         ]
         vec, backend = embed_stamped(salvage_text)
+        description = str(dead_row["context_description"] or "")
+        if text_carries_forget_token(_node_forget_payload(dead_row)[1], needle):
+            description = _forget_salvage_content(description, needle)
         self.node_store(
             content=salvage_text,
             keywords=keywords,
             tags=[*dead_tags, "forget-salvage"],
-            context_description=str(dead_row["context_description"] or ""),
+            context_description=description,
             embedding=vec,
             embedding_backend=backend,
             importance=float(dead_row["base_importance"] or 0.5),
@@ -2135,6 +2207,7 @@ class VoolMemory:
         token: str,
         *,
         chat_scope: str,
+        erasures: dict[str, Any] | None = None,
     ) -> int:
         """Forget law for layer 1: remove *token* from occurrences of this chat.
 
@@ -2157,10 +2230,12 @@ class VoolMemory:
             return 0
         import hashlib as _hashlib
 
+        from core.memory.entries import _record_erasure_store
+
         with self._lock:
             rows = self._conn.execute(
                 "SELECT occurrence_id, body FROM source_occurrences "
-                "WHERE agent_id = ? AND chat_scope = ? AND status = 'active' "
+                "WHERE agent_id = ? AND chat_scope = ? "
                 "AND body != ''",
                 (self._agent_id, str(chat_scope or "").strip()),
             ).fetchall()
@@ -2169,10 +2244,10 @@ class VoolMemory:
                 for row in rows
                 if text_carries_forget_token(str(row["body"] or ""), needle)
             ]
-            if not matched:
-                return 0
             cleared: list[str] = []
             salvaged: list[tuple[str, str]] = []
+            source_fts_removed = 0
+            embeddings_removed = 0
             for occ_id, body in matched:
                 remainder = _forget_salvage_content(
                     body, needle, clause_join=", ")
@@ -2182,18 +2257,18 @@ class VoolMemory:
                     cleared.append(occ_id)
             if cleared:
                 marks = ", ".join("?" for _ in cleared)
-                self._conn.execute(
+                source_fts_removed += self._conn.execute(
                     f"DELETE FROM source_fts WHERE occurrence_id IN ({marks})",
                     cleared,
-                )
+                ).rowcount
                 # Semantic derivatives die with the body: forgotten content
                 # must not resurface through the embedding leg (CONTRACT
                 # mr29/1 §1.2 derivative law).
-                self._conn.execute(
+                embeddings_removed += self._conn.execute(
                     f"DELETE FROM source_embeddings WHERE occurrence_id IN "
                     f"({marks})",
                     cleared,
-                )
+                ).rowcount
                 self._conn.execute(
                     f"UPDATE source_occurrences SET body = '', body_sha256 = '', "
                     f"status = 'deleted' WHERE occurrence_id IN ({marks})",
@@ -2203,22 +2278,21 @@ class VoolMemory:
                 # Authorized forget-write: the integrity anchor is recomputed
                 # over the retained bytes (the F16 anchor law binds hashes to
                 # authorized writes, not to row immutability).
-                self._conn.execute(
+                source_fts_removed += self._conn.execute(
                     "DELETE FROM source_fts WHERE occurrence_id = ?", (occ_id,)
+                ).rowcount
+                self._conn.execute(
+                    "INSERT INTO source_fts (occurrence_id, body) "
+                    "VALUES (?, ?)",
+                    (occ_id, remainder),
                 )
-                with contextlib.suppress(sqlite3.Error):
-                    self._conn.execute(
-                        "INSERT INTO source_fts (occurrence_id, body) "
-                        "VALUES (?, ?)",
-                        (occ_id, remainder),
-                    )
                 # Stale vectors fail the body_sha256 staleness guard anyway;
                 # dropping them lets the search-time backfill re-embed the
                 # retained clauses.
-                self._conn.execute(
+                embeddings_removed += self._conn.execute(
                     "DELETE FROM source_embeddings WHERE occurrence_id = ?",
                     (occ_id,),
-                )
+                ).rowcount
                 self._conn.execute(
                     "UPDATE source_occurrences SET body = ?, body_sha256 = ? "
                     "WHERE occurrence_id = ?",
@@ -2228,11 +2302,88 @@ class VoolMemory:
                         occ_id,
                     ),
                 )
+            # A retry must inspect derivative copies even when their source
+            # body was already cleared by a prior committed erasure.
+            indexed_rows = self._conn.execute(
+                "SELECT f.occurrence_id, f.body AS indexed_body, o.body AS source_body "
+                "FROM source_fts f JOIN source_occurrences o ON o.occurrence_id = f.occurrence_id "
+                "WHERE o.agent_id = ? AND o.chat_scope = ?",
+                (self._agent_id, str(chat_scope or "").strip()),
+            ).fetchall()
+            for row in indexed_rows:
+                if not text_carries_forget_token(str(row["indexed_body"] or ""), needle):
+                    continue
+                source_fts_removed += self._conn.execute(
+                    "DELETE FROM source_fts WHERE occurrence_id = ?", (row["occurrence_id"],),
+                ).rowcount
+                if row["source_body"]:
+                    self._conn.execute(
+                        "INSERT INTO source_fts (occurrence_id, body) VALUES (?, ?)",
+                        (row["occurrence_id"], row["source_body"]),
+                    )
+            stale_embedding_query = (
+                "SELECT e.occurrence_id, e.backend FROM source_embeddings e "
+                "JOIN source_occurrences o ON o.occurrence_id = e.occurrence_id "
+                "WHERE o.agent_id = ? AND o.chat_scope = ? "
+                "AND (o.body = '' OR e.body_sha256 != o.body_sha256)"
+            )
+            stale_embeddings = self._conn.execute(
+                stale_embedding_query, (self._agent_id, str(chat_scope or "").strip()),
+            ).fetchall()
+            for row in stale_embeddings:
+                embeddings_removed += self._conn.execute(
+                    "DELETE FROM source_embeddings WHERE occurrence_id = ? AND backend = ?", tuple(row),
+                ).rowcount
             self._conn.commit()
-            self._forget_derived_receipts(needle, chat_scope=str(chat_scope or "").strip())
+            remaining = self._conn.execute(
+                "SELECT body FROM source_occurrences WHERE agent_id = ? AND chat_scope = ? "
+                "AND body != ''",
+                (self._agent_id, str(chat_scope or "").strip()),
+            ).fetchall()
+            if any(text_carries_forget_token(str(row[0] or ""), needle) for row in remaining):
+                raise RuntimeError("source occurrence erasure could not be verified")
+            _record_erasure_store(erasures, "source_occurrences", "verified", len(matched))
+            scoped_index = self._conn.execute(
+                "SELECT f.body FROM source_fts f JOIN source_occurrences o ON o.occurrence_id = f.occurrence_id "
+                "WHERE o.agent_id = ? AND o.chat_scope = ?",
+                (self._agent_id, str(chat_scope or "").strip()),
+            ).fetchall()
+            if any(text_carries_forget_token(str(row[0] or ""), needle) for row in scoped_index):
+                _record_erasure_store(erasures, "source_fts", "incomplete")
+                raise RuntimeError("source search index erasure could not be verified")
+            _record_erasure_store(erasures, "source_fts", "verified", source_fts_removed)
+            if self._conn.execute(
+                stale_embedding_query, (self._agent_id, str(chat_scope or "").strip()),
+            ).fetchone() is not None:
+                _record_erasure_store(erasures, "source_embeddings", "incomplete")
+                raise RuntimeError("stale source embedding erasure could not be verified")
+            _record_erasure_store(erasures, "source_embeddings", "verified", embeddings_removed)
+            matched_ids = [row[0] for row in matched]
+            if matched_ids:
+                marks = ", ".join("?" for _ in matched_ids)
+                indexed = self._conn.execute(
+                    f"SELECT body FROM source_fts WHERE occurrence_id IN ({marks})", matched_ids,
+                ).fetchall()
+                if any(text_carries_forget_token(str(row[0] or ""), needle) for row in indexed):
+                    _record_erasure_store(erasures, "source_fts", "incomplete")
+                    raise RuntimeError("source search index erasure could not be verified")
+                if self._conn.execute(
+                    f"SELECT 1 FROM source_embeddings WHERE occurrence_id IN ({marks})", matched_ids,
+                ).fetchone() is not None:
+                    _record_erasure_store(erasures, "source_embeddings", "incomplete")
+                    raise RuntimeError("source embedding erasure could not be verified")
+            try:
+                receipts_removed = self._forget_derived_receipts(
+                    needle, chat_scope=str(chat_scope or "").strip(), erasures=erasures)
+                _record_erasure_store(erasures, "memory_receipts", "verified", receipts_removed)
+            except Exception:
+                _record_erasure_store(erasures, "memory_receipts", "incomplete")
+                raise
         return len(matched)
 
-    def _forget_derived_receipts(self, needle: str, *, chat_scope: str) -> None:
+    def _forget_derived_receipts(
+        self, needle: str, *, chat_scope: str, erasures: dict[str, Any] | None = None,
+    ) -> int:
         """The memory kernel's receipts are derived from source bodies: the forget law covers them too.
 
         Every receipt of this chat whose stored text (head sentence, typed facts, change lines) carries the
@@ -2243,20 +2394,53 @@ class VoolMemory:
         untouched.
         """
         with self._lock:
-            try:
-                rows = self._conn.execute(
-                    "SELECT occurrence_id, head_text, facts_json, changes_json, withdraws_json FROM memory_receipts "
-                    "WHERE agent_id = ? AND chat_scope = ?",
-                    (self._agent_id, chat_scope),
-                ).fetchall()
-            except sqlite3.Error:
-                return
+            exists = self._conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memory_receipts'",
+            ).fetchone()
+            if exists is None:
+                return 0
+            from core.memory_receipts import _strip_envelope, head_text
+
+            def receipt_state(row: Any) -> tuple[bool, bool]:
+                receipt = dict(row)
+                payload = [str(receipt.get("speaker") or "")]
+                fields = {
+                    "facts": ("sentence", "slot", "value", "norm"),
+                    "changes": ("slot", "old_value", "new_value"),
+                    "withdraws": ("marker",),
+                    "replaced_by": ("slot", "new_value"),
+                }
+                for field, authored in fields.items():
+                    values = json.loads(str(receipt[field + "_json"]))
+                    if not isinstance(values, list) or any(not isinstance(value, dict) for value in values):
+                        raise RuntimeError("memory receipt has an invalid structured shape")
+                    receipt[field] = values
+                    payload.extend(json.dumps(value[key], ensure_ascii=False)
+                                   for value in values for key in authored
+                                   if key in value and value[key] is not None)
+                source = self._conn.execute(
+                    "SELECT body, status FROM source_occurrences "
+                    "WHERE occurrence_id = ? AND agent_id = ? AND chat_scope = ?",
+                    (receipt["occurrence_id"], self._agent_id, chat_scope),
+                ).fetchone()
+                if source is None or source["status"] != "active" or not source["body"]:
+                    return False, False
+                receipt["said"] = _strip_envelope(str(source["body"]))[0]
+                payload.append(receipt["said"])
+                carries = any(text_carries_forget_token(value, needle) for value in payload)
+                # Reconstruct the rendered head from its structured source. IDs,
+                # dates and span offsets are metadata, never authored values.
+                current_projection = str(receipt["head_text"]) == head_text(receipt)
+                return carries, current_projection
+
+            query = "SELECT * FROM memory_receipts WHERE agent_id = ? AND chat_scope = ?"
+            rows = self._conn.execute(query, (self._agent_id, chat_scope)).fetchall()
             stale = [
-                str(row[0]) for row in rows
-                if any(text_carries_forget_token(str(value or ""), needle) for value in tuple(row)[1:])
+                str(row["occurrence_id"]) for row in rows
+                if receipt_state(row) != (False, True)
             ]
             if not stale:
-                return
+                return 0
             marks = ", ".join("?" for _ in stale)
             self._conn.execute(f"DELETE FROM memory_receipts WHERE occurrence_id IN ({marks})", stale)
             survivors = self._conn.execute(
@@ -2266,20 +2450,111 @@ class VoolMemory:
                 stale,
             ).fetchall()
             self._conn.commit()
-            if not survivors:
-                return
-            try:
+            if self._conn.execute(
+                f"SELECT 1 FROM memory_receipts WHERE occurrence_id IN ({marks})", stale,
+            ).fetchone() is not None:
+                raise RuntimeError("memory receipt deletion could not be verified")
+            if erasures is not None:
+                erasures["memory_receipts"] = len(stale)
+            if survivors:
                 from types import SimpleNamespace
 
                 from core.memory_receipts import write_receipt
-            except Exception:
-                return
             for row in survivors:
                 occurrence = SimpleNamespace(
                     occurrence_id=str(row["occurrence_id"]), role=str(row["role"] or "user"),
                     statement_at=row["statement_at"], body=str(row["body"] or ""),
                 )
                 write_receipt(self, occurrence, chat_scope=chat_scope)
+            verified = self._conn.execute(query, (self._agent_id, chat_scope)).fetchall()
+            if any(receipt_state(row) != (False, True) for row in verified):
+                raise RuntimeError("memory receipt erasure could not be verified")
+            return len(stale)
+
+    def begin_erasure(self, chat_id: str, token: str) -> str:
+        """Persist the read barrier before the first erasure store is changed."""
+        import uuid
+
+        operation_id = uuid.uuid4().hex
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO memory_erasure_operations "
+                "(operation_id, chat_id, token, started_at, status) VALUES (?, ?, ?, ?, 'pending')",
+                (operation_id, str(chat_id), _normalize_forget_token(token), time.time()),
+            )
+            self._conn.commit()
+        return operation_id
+
+    def complete_erasure(self, operation_id: str) -> None:
+        with self._lock:
+            operation = self._conn.execute(
+                "SELECT chat_id, token, started_at FROM memory_erasure_operations WHERE operation_id = ?",
+                (operation_id,),
+            ).fetchone()
+            if operation is None:
+                raise RuntimeError("erasure operation is unavailable")
+            self._conn.execute(
+                "UPDATE memory_erasure_operations SET status = 'complete' "
+                "WHERE chat_id = ? AND token = ? AND started_at <= ?",
+                tuple(operation),
+            )
+            self._conn.commit()
+            status = self._conn.execute(
+                "SELECT status FROM memory_erasure_operations WHERE operation_id = ?", (operation_id,),
+            ).fetchone()
+            if status is None or status[0] != "complete":
+                raise RuntimeError("erasure completion could not be verified")
+
+    def erasure_incomplete(self, chat_id: str) -> bool:
+        with self._lock:
+            return self._conn.execute(
+                "SELECT 1 FROM memory_erasure_operations WHERE chat_id = ? AND status != 'complete' LIMIT 1",
+                (str(chat_id),),
+            ).fetchone() is not None
+
+    def revocation_generation(self, chat_id: str) -> tuple[tuple[Any, ...], ...]:
+        """Read one durable revision of the chat's revocations and erasure barriers."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT 'revocation', token, revoked_at, '' FROM memory_revocations WHERE chat_id = ? "
+                "UNION ALL SELECT 'operation', operation_id, started_at, status "
+                "FROM memory_erasure_operations WHERE chat_id = ? ORDER BY 1, 2, 3, 4",
+                (str(chat_id), str(chat_id)),
+            ).fetchall()
+            return tuple(tuple(row) for row in rows)
+
+    def payload_is_current(self, text: str, *, chat_id: str | None = None) -> bool:
+        """Gate retained payloads by their source chat, or every chat when origin is unknown."""
+        try:
+            with self._lock:
+                operation_scope = " AND chat_id = ?" if chat_id else ""
+                revocation_scope = " WHERE chat_id = ?" if chat_id else ""
+                params = (str(chat_id), str(chat_id)) if chat_id else ()
+                rows = self._conn.execute(
+                    "SELECT 'pending', token FROM memory_erasure_operations WHERE status != 'complete'"
+                    + operation_scope
+                    + " UNION ALL SELECT 'revoked', token FROM memory_revocations"
+                    + revocation_scope,
+                    params,
+                ).fetchall()
+                return not any(row[0] == "pending" or text_carries_forget_token(text, str(row[1])) for row in rows)
+        except Exception:
+            return False
+
+    def verify_forget_blocks(self, token: str, *, erasures: dict[str, Any]) -> None:
+        """Verify unscoped prompt blocks without attributing another chat's copy to this one."""
+        from core.memory.entries import _record_erasure_store
+
+        try:
+            with self._lock:
+                rows = self._conn.execute(
+                    "SELECT content FROM memory_blocks WHERE agent_id = ?", (self._agent_id,),
+                ).fetchall()
+            retained = any(text_carries_forget_token(str(row[0] or ""), token) for row in rows)
+            _record_erasure_store(erasures, "memory_blocks", "incomplete" if retained else "verified")
+        except Exception:
+            _record_erasure_store(erasures, "memory_blocks", "incomplete")
+            raise
 
     def record_revocation(self, token: str, *, chat_id: str) -> str | None:
         """Record a durable forget-law revocation for one chat scope.
@@ -2309,23 +2584,18 @@ class VoolMemory:
             self._conn.commit()
         return needle
 
-    def revoked_tokens(self, chat_id: str, *, strict: bool = False) -> tuple[str, ...]:
+    def revoked_tokens(self, chat_id: str, *, strict: bool = True) -> tuple[str, ...]:
         """Active forget-law revocations for one chat scope, casefolded. ``strict`` raises when the ledger cannot be
         read, so a delivery gate can tell an unreadable ledger from an empty one."""
         scope = str(chat_id or "").strip()
         if not scope:
             return ()
-        try:
-            with self._lock:
-                rows = self._conn.execute(
-                    "SELECT token FROM memory_revocations WHERE chat_id = ? "
-                    "ORDER BY revoked_at, token",
-                    (scope,),
-                ).fetchall()
-        except sqlite3.Error:
-            if strict:
-                raise
-            return ()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT token FROM memory_revocations WHERE chat_id = ? "
+                "ORDER BY revoked_at, token",
+                (scope,),
+            ).fetchall()
         return tuple(str(row["token"]) for row in rows)
 
     def occurrence_delete_by_lineage(self, request_id: str) -> int:
@@ -2550,6 +2820,40 @@ def _forget_salvage_content(
         # granularity) — no salvage needed.
         return ""
     return salvage
+
+
+def memory_payload_is_current(text: str, *, chat_id: str | None = None) -> bool:
+    """Shared fail-closed gate for file, cache and packet payload readers."""
+    memory = None
+    allowed = False
+    try:
+        memory = VoolMemory()
+        allowed = memory.payload_is_current(text, chat_id=chat_id)
+    except Exception:
+        allowed = False
+    finally:
+        if memory is not None:
+            try:
+                memory.close()
+            except Exception:
+                allowed = False
+    return allowed
+
+
+def _node_forget_payload(row: Any) -> tuple[str, ...]:
+    """Decode the node schema's authored text and JSON metadata for erasure matching."""
+    metadata: dict[str, list[str]] = {}
+    for column in ("keywords", "tags"):
+        values = json.loads(str(row[column]))
+        if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+            raise RuntimeError("semantic node metadata has an invalid structured shape")
+        metadata[column] = values
+    description = str(row["context_description"] or "")
+    scope = _exact_stored_session_scope(tags=metadata["tags"], context_description=description)
+    if scope:
+        description = re.sub(r"(?<!\S)session=" + re.escape(scope) + r"(?=\s|$)", "", description)
+    tags = [tag for tag in metadata["tags"] if not scope or tag != "session:" + scope]
+    return (str(row["content"] or ""), description, *metadata["keywords"], *tags)
 
 
 def _normalize_forget_token(token: str) -> str:

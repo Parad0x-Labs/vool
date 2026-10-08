@@ -200,6 +200,7 @@ class Packet:
     facts: list[dict[str, Any]] = field(default_factory=list)   # the facts behind the lines, for verification
     tokens: int = 0
     telemetry: dict[str, Any] = field(default_factory=dict)
+    source_receipts: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def _day(ts: float | None) -> str:
@@ -272,11 +273,13 @@ def _render_fact_body(fact: Mapping[str, Any]) -> str:
     return body
 
 
-def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: Mapping[str, dict[str, Any]]) -> str:
+def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: Mapping[str, dict[str, Any]], *,
+                 include_replacement_note: bool = True) -> str:
     role = receipt.get("role") or "user"
     stated = _day(receipt.get("statement_at"))
     head = f"- [{stated}] {role} {_render_fact_body(fact)}"
     line = bare = head
+    replacement_present = False
     if fact.get("value_type") == "state":
         # v14.6 item 9: the value's effective window from the chain: from its statement day until the day the replacing
         # record was stated ("until" unknown stays unknown; a current value has no until)
@@ -288,6 +291,7 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
         # the same row with nothing from its replacing record (no "until <that day>"), for filter_packet
         bare_window = f" effective from {stated}" if stated and stated != "undated" else ""
         line, bare = head + window, head + (bare_window if until else window)
+        replacement_present = bool(until and window)
     tail = ""
     ev = fact.get("event_at")
     if ev is not None:
@@ -296,16 +300,40 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
         if change.get("new_value") == fact.get("value"):
             tail += f"  [replaces \"{change.get('old_value')}\" stated {_day(change.get('old_statement_at'))}]"
     line, bare = line + tail, bare + tail
-    if fact.get("replaced_by"):
+    if fact.get("replaced_by") and include_replacement_note:
         later = receipts_by_id.get(str(fact.get("replaced_by")))
         if later is not None:
             newer = next((c.get("new_value") for c in later.get("changes") or [] if c.get("old_value") == fact.get("value")), None)
             line += f"  [REPLACED later by \"{newer}\" stated {_day(later.get('statement_at'))}; not current]"
+            replacement_present = True
     # The row rendered without anything its replacing record contributed (the "until" day and the REPLACED note): when
     # the capsule refuses that record, filter_packet puts this in its place. Kept beside the fact, never parsed back out
     # of the line, so a quote, a newline or the user's own "until <date>" inside the sentence is never cut.
     fact["line_without_replacement"] = bare
+    # Keep the receipt fields that own authored change annotations. Legacy consumers may discard the separate
+    # bare line; these source fields still let the renderer reconstruct it without parsing authored values.
+    fact["line_source"] = {
+        "version": 1,
+        "receipt": _line_source_receipt(receipt),
+        "replacement_present": replacement_present,
+        "replacement_receipt": (
+            {"statement_at": receipts_by_id[str(fact["replaced_by"])].get("statement_at")}
+            if str(fact.get("replaced_by")) in receipts_by_id else None
+        ),
+    }
     return line
+
+
+def _line_source_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "role": receipt.get("role"),
+        "statement_at": receipt.get("statement_at"),
+        "changes": [
+            {"old_value": change.get("old_value"), "new_value": change.get("new_value"),
+             "old_statement_at": change.get("old_statement_at")}
+            for change in receipt.get("changes") or []
+        ],
+    }
 
 
 def _span_days(days: int) -> str:
@@ -635,6 +663,7 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
         if used + cost > max_tokens:
             continue
         packet.lines.append(line)
+        packet.source_receipts[str(receipt.get("receipt_id"))] = _line_source_receipt(receipt)
         # the row's replacing record, which its line names ('[REPLACED later by ...]', 'until <day>') whether or not
         # that record's own row is shown: the capsule's temporal laws are read against it too (filter_packet)
         replacing = by_id.get(str(fact.get("replaced_by"))) if fact.get("replaced_by") else None
@@ -689,22 +718,35 @@ def _completeness_line(ob: Obligation, missing: Sequence[str], coverage: Mapping
 
 _COMPLETENESS_LINE_PREFIX = "- This question needs: "
 _TEMPORAL_REFUSAL_RE = re.compile(r"(?:note:|temporal:)?(?:withdrawn|future-relative|window-|superseded)")
-_TRAILING_REPLACED_NOTE_RE = re.compile(
-    r'  \[REPLACED later by ".*" stated (?:\d{4}-\d{2}-\d{2}|undated); not current\]\Z',
-    re.DOTALL,
-)
 
 
-def _without_trailing_replacement_note(line: str, fact: Mapping[str, Any]) -> str:
-    """Remove only a complete renderer annotation anchored at the end of a legacy row."""
-    line = str(line)
-    body = _render_fact_body(fact)
-    body_start = line.find(body)
-    if body_start < 0:
-        return line
-    # A literal marker in a sentence, value or list item belongs to the authored body.
-    match = _TRAILING_REPLACED_NOTE_RE.search(line, body_start + len(body))
-    return line[:match.start()] if match else line
+def _without_replacement(line: str, fact: Mapping[str, Any],
+                         source_receipts: Mapping[str, dict[str, Any]]) -> str | None:
+    """Re-render from receipt data, or withhold a legacy row whose annotation ownership was lost."""
+    # Native producers explicitly own both the note and the effective-until removal.
+    bare = fact.get("line_without_replacement")
+    if isinstance(bare, str) and bare:
+        return bare
+    source = fact.get("line_source")
+    sources = []
+    if isinstance(source, Mapping) and source.get("version") == 1:
+        sources.append((source.get("receipt"), source))
+    sources.append((source_receipts.get(str(fact.get("receipt_id"))), None))
+    for receipt, rendering in sources:
+        if (isinstance(receipt, Mapping) and "role" in receipt and "statement_at" in receipt
+                and isinstance(receipt.get("changes"), list)
+                and all(isinstance(change, Mapping) for change in receipt["changes"])):
+            rebuilt = dict(fact)
+            if rendering is not None:
+                if rendering.get("replacement_present") is False:
+                    return line
+                replacement = rendering.get("replacement_receipt")
+                replacements = {str(fact.get("replaced_by")): dict(replacement)} if isinstance(replacement, Mapping) else {}
+                # Legacy rows retain their explicit effective interval; only the final note is withheld.
+                return _render_line(dict(receipt), rebuilt, replacements, include_replacement_note=False)
+            _render_line(dict(receipt), rebuilt, {})
+            return str(rebuilt["line_without_replacement"])
+    return None
 
 
 def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens: Callable[[str], int] | None = None) -> Packet:
@@ -739,17 +781,30 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     refused_receipts = {str(row.get("receipt_id")) for row in dropped if row.get("receipt_id") is not None
                         and _TEMPORAL_REFUSAL_RE.match(str(row.get("reason") or ""))}
     stripped = 0
+    withheld: set[int] = set()
     for index, fact in enumerate(kept_facts):
         replacing = str(fact.get("replaced_by_occurrence") or "")
         if (str(fact.get("replaced_by") or "") in refused_receipts
                 or (replacing and _TEMPORAL_REFUSAL_RE.match(str(refused.get(replacing) or "")))):
-            line = str(fact.get("line_without_replacement") or "") or _without_trailing_replacement_note(kept_lines[index], fact)
+            line = _without_replacement(kept_lines[index], fact, packet.source_receipts)
+            if line is None:
+                withheld.add(index)
+                dropped.append({"occurrence_id": str(fact.get("occurrence_id") or ""),
+                                "receipt_id": fact.get("receipt_id"),
+                                "reason": "replacement-provenance-unavailable"})
+                continue
             stripped += line != kept_lines[index]
             kept_lines[index] = line
+    if withheld:
+        kept_lines = [line for index, line in enumerate(kept_lines) if index not in withheld]
+        kept_facts = [fact for index, fact in enumerate(kept_facts) if index not in withheld]
+    source_receipts = {str(fact.get("receipt_id")): packet.source_receipts[str(fact.get("receipt_id"))]
+                       for fact in kept_facts if str(fact.get("receipt_id")) in packet.source_receipts}
     if not dropped:
         if not stripped:
             return packet
-        out = Packet(obligation=packet.obligation, lines=kept_lines + tail, facts=kept_facts, telemetry=dict(packet.telemetry))
+        out = Packet(obligation=packet.obligation, lines=kept_lines + tail, facts=kept_facts,
+                     telemetry=dict(packet.telemetry), source_receipts=source_receipts)
         out.tokens = sum(est(line + "\n") for line in out.lines) + (est(PACKET_HEADER) if out.lines else 0)
         out.telemetry.update({"packet_tokens": out.tokens, "replacement_notes_withheld": stripped})
         return out
@@ -758,12 +813,13 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     found, missing = _found_operands(ob, [(0.0, {"role": f.get("role"), "statement_at": f.get("statement_at")}, f) for f in kept_facts])
     coverage = dict(packet.telemetry.get("coverage") or {"candidates": 0, "shown": 0, "exhaustive": True})
     coverage["shown"] = max(0, int(coverage.get("shown") or 0) - len(dropped))
-    coverage["exhaustive"] = False if ob.needs_coverage else bool(coverage.get("exhaustive", True))
+    coverage["exhaustive"] = False if ob.needs_coverage or withheld else bool(coverage.get("exhaustive", True))
     complete = (not missing) and (coverage["exhaustive"] if ob.needs_coverage else True)
     lines = kept_lines + tail
     if lines or (ob.needs_coverage and not coverage["exhaustive"]):
         lines.append(_completeness_line(ob, missing, coverage))
-    out = Packet(obligation=ob, lines=lines, facts=kept_facts, telemetry=dict(packet.telemetry))
+    out = Packet(obligation=ob, lines=lines, facts=kept_facts, telemetry=dict(packet.telemetry),
+                 source_receipts=source_receipts)
     out.telemetry.update({"found": list(found), "missing": list(missing), "complete": complete, "coverage": coverage,
                           "refused_rows": dropped, "packet_lines": len(lines)})
     used = sum(est(line + "\n") for line in lines)

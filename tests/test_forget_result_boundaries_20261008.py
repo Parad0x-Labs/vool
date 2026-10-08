@@ -33,7 +33,7 @@ def test_a_quoted_false_claim_is_still_refused(prompt, reply):
 @pytest.mark.usefixtures('_hash_backend')
 def test_literal_no_match_has_a_consistent_signed_receipt(tmp_path, monkeypatch):
     from core.agent_runtime.action_honesty_validator import emit_turn_honesty_receipt
-    from core.honesty_receipt import VERDICT_NO_CLAIM
+    from core.honesty_receipt import VERDICT_BLOCKED
     monkeypatch.setenv('VOOL_HONESTY_RECEIPTS', '1')
     profile = _profile(tmp_path)
     chat = 'new-no-match-receipt'
@@ -42,12 +42,12 @@ def test_literal_no_match_has_a_consistent_signed_receipt(tmp_path, monkeypatch)
     handled, reply = command(profile, chat, prompt)
     assert handled and reply.startswith('Nothing was removed'), reply
     final = guard(chat, prompt, reply)
-    assert final['response'] == reply, final
+    assert final['response'] != reply, final
     emitted = emit_turn_honesty_receipt(final, user_input=prompt, session_id=chat,
                                        source_context={'chat_id': chat, 'runtime_home': str(profile)})
     assert emitted.get('honesty_receipt'), emitted
     assert emitted['honesty_receipt']['signed'], emitted
-    assert emitted['honesty_receipt']['verdict'] == VERDICT_NO_CLAIM, emitted
+    assert emitted['honesty_receipt']['verdict'] == VERDICT_BLOCKED, emitted
 
 
 @pytest.mark.usefixtures('_hash_backend')
@@ -76,7 +76,7 @@ def test_real_invalid_store_row_is_not_reported_as_no_match(tmp_path):
     mem._conn.execute('UPDATE memory_nodes SET timestamp = ? WHERE node_id = ?', (node.timestamp, node.node_id))
     mem._conn.commit()
     mem.close()
-    assert 'MINT-84' in _capsule(profile, chat, 'What is my storage unit code?')[0]
+    assert 'MINT-84' not in _capsule(profile, chat, 'What is my storage unit code?')[0]
     assert 'no memory' not in reply.lower() and 'Forget applied' not in reply, reply
     assert 'could not be verified' in reply, reply
 

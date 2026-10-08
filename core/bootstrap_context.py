@@ -827,6 +827,15 @@ def canonical_runtime_transcript(
         current_user_text=current_user_text,
         source_context=source_context,
     )
+    try:
+        revoked = revoked_tokens_for_chat(str(session_id or ""))
+        injected = [
+            item for item in injected
+            if not _carries_revoked_token(str(item.get("content") or ""), revoked)
+        ]
+    except Exception:
+        injected = []
+        source = "revocation_unavailable"
     # Same admitted evidence for the reader and the post-generation guards: record
     # what THIS assembly actually injected. A pass that injected nothing (flag off,
     # denied lookup, empty capsule) records the cleared state, and every consumer
@@ -915,7 +924,14 @@ def _assemble_runtime_transcript(
         # forget sweep intentionally does not delete (turn rows keep
         # referential identity for checkpoints/learning). Same belt-and-
         # braces law as the A8 availability gate below.
-        revoked = revoked_tokens_for_chat(normalized_session_id)
+        try:
+            revoked = revoked_tokens_for_chat(normalized_session_id)
+        except Exception:
+            return _log_transcript_assembled("revocation_unavailable", [], normalized_session_id), "revocation_unavailable"
+        client_history = [
+            item for item in client_history
+            if not _carries_revoked_token(str(item.get("content") or ""), revoked)
+        ]
         transcript: list[dict[str, str]] = []
         for turn in reversed(turns):
             if current_turn_id and str(turn.get("turn_id") or "").strip() == current_turn_id:

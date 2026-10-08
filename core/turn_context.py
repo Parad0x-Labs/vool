@@ -383,6 +383,12 @@ def admit_turn_context(
         raise AdmissionRefusedError(
             "A8 write fence refused admission: the payload is governed-erased"
         )
+    if source_kind == "chat_exchange":
+        from core.vool_memory import memory_payload_is_current
+
+        payload = json.dumps([text, title, metadata or {}], ensure_ascii=False)
+        if not memory_payload_is_current(payload, chat_id=scope.session_id):
+            raise AdmissionRefusedError("memory erasure authority refused chat-context admission")
 
     page = ContextPage(
         kind="turn_context",
@@ -887,7 +893,7 @@ def _exclusion(record: dict[str, Any], reason: str) -> dict[str, Any]:
 def _read_page_bytes(record: dict[str, Any], compilation: TurnContextCompilation) -> str | None:
     """Read one page verbatim through the storage law, or record why not."""
     try:
-        return page_in(str(record["page_hash"]))
+        return page_in(str(record["page_hash"]), chat_id=str(record["session_id"]))
     except PageNotFoundError as exc:
         compilation.exclusions.append(
             _exclusion(record, f"page_unavailable({exc})"[:120])
@@ -970,7 +976,7 @@ def recall_page(principal: str, admission_id: str) -> dict[str, Any]:
             f"admission {admission_id[:12]} is {status}; recall refused"
         )
     try:
-        content = page_in(str(record["page_hash"]))
+        content = page_in(str(record["page_hash"]), chat_id=str(record["session_id"]))
     except PageNotFoundError as exc:
         raise AdmissionClosedError(
             f"admission {admission_id[:12]} bytes are not servable: {exc}"
@@ -1020,6 +1026,120 @@ def withhold_admission(
         detail=f"reason={reason or 'unspecified'} actor={actor}",
     )
     return {"admission_id": admission_id, "status": "withheld"}
+
+
+def forget_chat_context_pages(*, chat_id: str, token: str, erasures: dict[str, Any]) -> None:
+    """Erase this chat's memory pages, or account for the retained shared bytes."""
+    from core.memory.entries import _record_erasure_store
+    from core.vool_memory import text_carries_forget_token
+    from storage.cas import get_bytes
+
+    def carries(value: Any) -> bool:
+        return text_carries_forget_token(json.dumps(value, ensure_ascii=False), token)
+
+    conn = None
+    incomplete = False
+    removed = 0
+    status = "verified"
+    try:
+        conn = _connection()
+        tables = {str(row[0]) for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'",
+        ).fetchall()}
+        if "context_pages" not in tables:
+            status = "not_applicable"
+        else:
+            has_admissions = "turn_context_admissions" in tables
+            owned = "session_id = ?"
+            params: tuple[str, ...] = (chat_id,)
+            if has_admissions:
+                owned += (
+                    " OR page_hash IN (SELECT page_hash FROM turn_context_admissions "
+                    "WHERE session_id = ? AND source_kind = 'chat_exchange')"
+                )
+                params += (chat_id,)
+            pages = conn.execute(
+                "SELECT * FROM context_pages WHERE kind = 'turn_context' "
+                "AND source = 'turn-context:chat_exchange' AND (" + owned + ")", params,
+            ).fetchall()
+            for page in pages:
+                try:
+                    page_hash = str(page["page_hash"])
+                    records = [dict(row) for row in conn.execute(
+                        "SELECT * FROM turn_context_admissions WHERE page_hash = ? "
+                        "AND session_id = ? AND source_kind = 'chat_exchange'",
+                        (page_hash, chat_id),
+                    ).fetchall()] if has_admissions else []
+                    for record in records:
+                        record["metadata"] = json.loads(str(record["metadata_json"] or "{}"))
+                    metadata = json.loads(str(page["metadata_json"] or "{}"))
+                    content_ref = str(page["content_ref"] or "")
+                    data = get_bytes(content_ref) if content_ref else None
+                    if content_ref and data is None and not page["erased"]:
+                        raise AdmissionClosedError("chat-context byte absence is unverified")
+                    content = data.decode("utf-8") if data is not None else ""
+                    matched = carries([content, metadata, [
+                        [record["title"], record["metadata"]] for record in records
+                    ]])
+                    if page["erased"] and content_ref:
+                        matched = matched or conn.execute(
+                            "SELECT 1 FROM manifest_store WHERE blob_hash = ? LIMIT 1", (content_ref,),
+                        ).fetchone() is not None
+                    if not matched:
+                        continue
+                    for record in records:
+                        _release_known_pins(record)
+                    if has_admissions:
+                        conn.execute(
+                            "UPDATE turn_context_admissions SET status = 'erased', title = '', "
+                            "metadata_json = '{}', updated_at = ? WHERE page_hash = ? "
+                            "AND session_id = ? AND source_kind = 'chat_exchange'",
+                            (_utcnow(), page_hash, chat_id),
+                        )
+                        conn.commit()
+                        remaining = conn.execute(
+                            "SELECT 1 FROM turn_context_admissions WHERE page_hash = ? "
+                            "AND status != 'erased' LIMIT 1", (page_hash,),
+                        ).fetchone()
+                        if remaining is not None:
+                            incomplete = True
+                            continue
+                    erase_page(
+                        page_hash, governance_actor="operator", governance_reason="memory forget",
+                        require_exclusive_blob=True,
+                    )
+                    conn.execute(
+                        "UPDATE context_pages SET metadata_json = '{}' WHERE page_hash = ?", (page_hash,),
+                    )
+                    conn.commit()
+                    verified = conn.execute(
+                        "SELECT erased, metadata_json FROM context_pages WHERE page_hash = ?", (page_hash,),
+                    ).fetchone()
+                    if verified is None or not verified["erased"] or carries(json.loads(verified["metadata_json"])):
+                        raise AdmissionClosedError("chat-context erasure could not be verified")
+                    if has_admissions:
+                        verified_admissions = conn.execute(
+                            "SELECT status, title, metadata_json FROM turn_context_admissions "
+                            "WHERE page_hash = ? AND session_id = ? AND source_kind = 'chat_exchange'",
+                            (page_hash, chat_id),
+                        ).fetchall()
+                        if any(row["status"] != "erased" or row["title"]
+                               or json.loads(row["metadata_json"]) != {} for row in verified_admissions):
+                            raise AdmissionClosedError("chat-context admission erasure could not be verified")
+                    if content_ref and get_bytes(content_ref) is not None:
+                        raise AdmissionClosedError("chat-context bytes remain after erasure")
+                    removed += 1
+                except Exception:
+                    incomplete = True
+    except Exception:
+        incomplete = True
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                incomplete = True
+    _record_erasure_store(erasures, "context_pages", "incomplete" if incomplete else status, removed)
 
 
 def erase_admission(
@@ -1162,6 +1282,14 @@ def inspect_admissions(
     for row in rows:
         record = dict(row)
         metadata = json.loads(str(record.get("metadata_json") or "{}"))
+        if record["source_kind"] == "chat_exchange":
+            from core.vool_memory import memory_payload_is_current
+
+            if not memory_payload_is_current(
+                json.dumps([record["title"], metadata], ensure_ascii=False),
+                chat_id=str(record["session_id"]),
+            ):
+                continue
         entry: dict[str, Any] = {
             "admission_id": str(record["admission_id"]),
             "page_hash": str(record["page_hash"]),
@@ -1179,7 +1307,7 @@ def inspect_admissions(
         }
         if include_content:
             try:
-                entry["content"] = page_in(str(record["page_hash"]))
+                entry["content"] = page_in(str(record["page_hash"]), chat_id=str(record["session_id"]))
             except PageNotFoundError:
                 entry["content"] = None
                 entry["content_state"] = "erased_or_volatile"

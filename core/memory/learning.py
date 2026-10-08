@@ -355,6 +355,10 @@ def load_operator_dense_profile() -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8", errors="replace") or "{}")
     except Exception:
         return {}
+    from core.vool_memory import memory_payload_is_current
+
+    if not memory_payload_is_current(json.dumps(payload, ensure_ascii=False)):
+        return {}
     return payload if isinstance(payload, dict) else {}
 
 

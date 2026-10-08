@@ -1143,6 +1143,39 @@ def enforce_final_action_honesty(
     source_context: dict[str, object] | None = None,
 ) -> dict[str, Any]:
     output = dict(result or {})
+    from core.memory.command_result import requires_forget_outcome, verified_forget_outcome
+
+    command_outcome = verified_forget_outcome(
+        output, user_input=user_input, effective_input=effective_input,
+        session_id=session_id, source_context=source_context,
+    )
+    if command_outcome is not None:
+        original = str(output.get("response") or "")
+        output["response"] = command_outcome.response
+        output["_memory_command_outcome"] = command_outcome.outcome
+        if original != command_outcome.response:
+            output["action_honesty_validator"] = {
+                "applied": True,
+                "reason": "forget_reply_differed_from_execution",
+                "claim_kind": "forget",
+                "original_response_excerpt": original[:240],
+            }
+        return output
+    if requires_forget_outcome(
+        output, user_input=user_input, effective_input=effective_input,
+        source_context=source_context,
+    ):
+        output["response"] = (
+            "Forget could not be verified on this turn. Please retry the forget."
+        )
+        output["action_honesty_validator"] = {
+            "applied": True,
+            "reason": "forget_execution_outcome_missing",
+            "claim_kind": "forget",
+            "original_response_excerpt": str(result.get("response") or "")[:240],
+        }
+        output["route_reason"] = "false_action_claim_blocked"
+        return output
     # Handle a leaked OpenClaw `NO_REPLY` silence token before any other finalization. If the whole
     # reply is just the token (bare, or trailed by an emoji/punctuation), replace it with an honest
     # fallback — OpenClaw does not reliably suppress it, so the user would otherwise see the raw token.
@@ -1228,13 +1261,19 @@ def _final_claim_kind(
     session_id: str | None = None, source_context: dict[str, object] | None = None,
 ) -> str:
     """Classify the exact delivered result identically for the guard and signed receipt."""
-    from core.memory.command_result import is_bound_forget_no_match
+    from core.memory.command_result import requires_forget_outcome, verified_forget_outcome
 
-    if is_bound_forget_no_match(
+    outcome = verified_forget_outcome(
         result, user_input=user_input, effective_input=effective_input,
         session_id=session_id, source_context=source_context,
-    ):
+    )
+    if outcome is not None and str(result.get("response") or "") == outcome.response:
         return ""
+    if requires_forget_outcome(
+        result, user_input=user_input, effective_input=effective_input,
+        source_context=source_context,
+    ):
+        return "forget"
     response = str(result.get("response") or "").strip()
     if response and len(response) < 220 and _FALSE_PROGRESS_CLAIM_RE.search(response):
         return "progress"
@@ -1393,10 +1432,17 @@ def emit_turn_honesty_receipt(
         # Same predicate the blocker used. When these two disagree the ledger is worse than
         # useless: the fabricated build of 2026-07-29 was signed `no_action_claimed` because this
         # line asked a narrower question than the claim it was recording.
-        claimed = bool(_final_claim_kind(
+        claim_kind = _final_claim_kind(
             result, user_input=user_input, effective_input=effective_input,
             session_id=session_id, source_context=source_context,
-        ))
+        )
+        claimed = bool(claim_kind)
+        from core.memory.command_result import verified_forget_outcome
+
+        command_outcome = verified_forget_outcome(
+            result, user_input=user_input, effective_input=effective_input,
+            session_id=session_id, source_context=source_context,
+        )
         mode_executed = str(result.get("mode") or result.get("mode_override") or "").strip().lower() == "tool_executed"
         if contradicted:
             # Ranked above `blocked` on purpose. A contradiction is a claim the trace DISPROVES,
@@ -1413,6 +1459,16 @@ def emit_turn_honesty_receipt(
             detail = "answer contradicted the durable execution trace; repaired to evidence-backed wording"
         elif blocked:
             verdict, claimed_actions, detail = VERDICT_BLOCKED, ["side_effecting_action"], "fabricated action claim blocked; no execution receipt"
+        elif claim_kind == "forget":
+            verdict, claimed_actions, detail = (
+                VERDICT_UNBACKED, ["memory_forget"],
+                "forget reply has no verified outcome from this turn's memory executor",
+            )
+        elif command_outcome is not None:
+            changed = command_outcome.status in {"applied", "partial"}
+            verdict = VERDICT_CLEAN if changed else VERDICT_NO_CLAIM
+            claimed_actions = ["memory_forget"] if changed else []
+            detail = "verified memory forget outcome: " + command_outcome.status
         elif claimed and (executed or mode_executed):
             verdict, claimed_actions, detail = VERDICT_CLEAN, ["side_effecting_action"], "action claim backed by an executed tool receipt"
         elif claimed:

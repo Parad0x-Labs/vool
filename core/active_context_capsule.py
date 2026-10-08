@@ -188,6 +188,78 @@ def ensure_active_capsule_schema() -> None:
         conn.close()
 
 
+
+def erase_capsule_versions_for_forget(conn: Any, *, chat_id: str, token: str) -> int:
+    """Remove a carrying chat's derived chain in one transaction.
+
+    Version immutability protects ordinary writes. Erasure is an explicit owner
+    operation: the delete trigger is restored before the transaction is visible.
+    Clearing the whole derived chain avoids leaving a broken predecessor link;
+    canonical facts from other clauses remain available to build a new capsule.
+    """
+    from core.vool_memory import text_carries_forget_token
+
+    if not str(chat_id).strip() or not str(token).strip():
+        return 0
+    conn.execute("SAVEPOINT forget_capsule_versions")
+    try:
+        schema = conn.execute("PRAGMA table_info(context_capsule_versions)").fetchall()
+        if not schema:
+            conn.execute("RELEASE SAVEPOINT forget_capsule_versions")
+            return 0
+        names = {str(column[1]) for column in schema}
+        if "chat_id" not in names:
+            raise ValueError("capsule erasure scope is unavailable")
+        rows = conn.execute(
+            "SELECT * FROM context_capsule_versions WHERE chat_id = ?", (chat_id,),
+        ).fetchall()
+        payload_columns = [
+            str(column[1]) for column in schema
+            if not column[5] and str(column[1]) not in {
+                "chat_id", "project_id", "previous_version_id", "transcript_head_hash",
+                "payload_hash", "record_hash", "created_at", "mode",
+            } and (not column[2] or any(
+                kind in str(column[2]).upper() for kind in ("TEXT", "CHAR", "JSON", "CLOB", "BLOB")
+            ))
+        ]
+        json_columns = {
+            str(column[1]) for column in schema
+            if str(column[1]).endswith("_json") or "JSON" in str(column[2]).upper()
+        }
+        carrying = False
+        for row in rows:
+            for column in payload_columns:
+                value = row[column]
+                if isinstance(value, bytes):
+                    value = value.decode("utf-8", errors="strict")
+                if column in json_columns and value is not None:
+                    value = json.dumps(json.loads(str(value)), ensure_ascii=False)
+                carrying = carrying or text_carries_forget_token(str(value or ""), token)
+        if not carrying:
+            conn.execute("RELEASE SAVEPOINT forget_capsule_versions")
+            return 0
+        trigger = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+            ("context_capsule_versions_no_delete",),
+        ).fetchone()
+        heads = conn.execute("PRAGMA table_info(context_capsule_heads)").fetchall()
+        if heads:
+            conn.execute("DELETE FROM context_capsule_heads WHERE chat_id = ?", (chat_id,))
+        conn.execute("DROP TRIGGER IF EXISTS context_capsule_versions_no_delete")
+        conn.execute("DELETE FROM context_capsule_versions WHERE chat_id = ?", (chat_id,))
+        if trigger is not None:
+            conn.execute(str(trigger[0]))
+        if conn.execute(
+            "SELECT 1 FROM context_capsule_versions WHERE chat_id = ? LIMIT 1", (chat_id,),
+        ).fetchone() is not None:
+            raise ValueError("capsule erasure could not be verified")
+        conn.execute("RELEASE SAVEPOINT forget_capsule_versions")
+        return len(rows)
+    except Exception:
+        conn.execute("ROLLBACK TO SAVEPOINT forget_capsule_versions")
+        conn.execute("RELEASE SAVEPOINT forget_capsule_versions")
+        raise
+
 def _claim_from_dict(payload: Any) -> CapsuleClaim | None:
     if not isinstance(payload, dict):
         return None

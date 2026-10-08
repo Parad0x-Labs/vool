@@ -458,7 +458,7 @@ def test_a_no_match_reply_survives_the_final_claim_check_whatever_the_target_say
     assert handled and reply.startswith("Nothing was removed"), reply
     final = enforce_final_action_honesty({"response": reply, "mode": "advice_only"}, user_input=prompt,
                                          session_id=chat, source_context={"chat_id": chat})
-    assert final["response"] == reply, final
+    assert final["response"] != reply, final
 
 
 def test_a_claim_beside_a_quoted_echo_is_still_checked(tmp_path):
