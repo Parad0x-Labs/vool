@@ -1900,10 +1900,9 @@ def maybe_handle_memory_command(
                               if healed else "That was already forgotten.")
             # Never "Forget applied" over nothing removed (served check 2026-10-07: "Forget the storage
             # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
-            # turn is not handled here: it is stored as an ordinary retraction and the capsule's
-            # temporal law withdraws the record it names on the next recall.
-            LOGGER.info("forget matched no stored memory; the turn is kept as a retraction")
-            return False, ""
+            # command is answered with the truth; the turn is still recorded by the fast path, so the
+            # capsule's temporal law withdraws the record it names on the next recall.
+            return True, f"Nothing was removed: no stored memory in this chat matched \"{token}\"."
         return True, f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}."
 
     return False, ""
