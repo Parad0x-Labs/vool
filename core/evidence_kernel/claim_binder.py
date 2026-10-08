@@ -241,7 +241,8 @@ def assistant_lines(evidence_text: Any, packet_facts: Sequence[Mapping[str, Any]
 # derived from records. CONTRADICTED: the subject's current record states a different value (the reply's value is a
 # superseded one). AMBIGUOUS: a record carries the value but the record law cannot bind it (not about the asked subject,
 # conflicting records on the latest date, no usable record). UNSUPPORTED: no record carries the value and nothing
-# derives it. Only CONTRADICTED removes a claim; UNSUPPORTED and AMBIGUOUS are not stated as fact (qualified).
+# derives it. Any state but SUPPORTED leaves the reply unsupported: the guard withdraws it rather than state a value no
+# record of the user's carries (owner decision 2026-10-08).
 SUPPORTED, AMBIGUOUS, UNSUPPORTED, CONTRADICTED = "SUPPORTED", "AMBIGUOUS", "UNSUPPORTED", "CONTRADICTED"
 
 
@@ -286,12 +287,6 @@ class BindingResult:
     def contradicted(self) -> bool:
         return self.attempted and any(c.state == CONTRADICTED for c in self.claims)
 
-    @property
-    def qualifiable(self) -> bool:
-        """Bound, nothing contradicted, not everything supported: the reply ships with its unsupported or ambiguous
-        values marked as not found in the records, instead of being withdrawn whole."""
-        return self.attempted and bool(self.claims) and not self.contradicted and not self.all_supported
-
     def states(self) -> dict[str, int]:
         out = {SUPPORTED: 0, AMBIGUOUS: 0, UNSUPPORTED: 0, CONTRADICTED: 0}
         for c in self.claims:
@@ -300,21 +295,7 @@ class BindingResult:
 
     def as_dict(self) -> dict[str, Any]:
         return {"attempted": self.attempted, "reason": self.reason, "all_supported": self.all_supported, "contradicted": self.contradicted,
-                "qualifiable": self.qualifiable, "states": self.states(), "claims": [c.as_dict() for c in self.claims]}
-
-
-def qualify_reply(reply: Any, result: BindingResult) -> str:
-    """The reply with its not-supported values named as not found in the records; the text itself is not rewritten."""
-    text = str(reply or "").rstrip()
-    if not result.qualifiable:
-        return text
-    marks = []
-    for c in result.claims:
-        if c.state in (UNSUPPORTED, AMBIGUOUS) and c.text not in marks:
-            marks.append(c.text)
-    if not marks:
-        return text
-    return text + f" (Not found in your records: {', '.join(marks)}; stated without a record.)"
+                "states": self.states(), "claims": [c.as_dict() for c in self.claims]}
 
 
 def _num(text: str) -> float | None:

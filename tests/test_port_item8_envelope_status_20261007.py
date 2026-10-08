@@ -1,7 +1,7 @@
 """Port of v14.6 item 8 beyond the compiler (core/unsourced_current_claim.py, core/agent_runtime/turn_reasoning.py).
 
 The B series carried item 8's compiler hunk only: the claim envelope still said "unsupported" for a contradicted
-and for a qualified binding, and the temporal decision carried no supported / chain_stage beside verified. Each
+and for a binding neither supported nor contradicted (which the guard now withdraws), and the temporal decision carried no supported / chain_stage beside verified. Each
 test here names the hunk whose revert fails it.
 """
 from __future__ import annotations
@@ -29,13 +29,14 @@ def _captured_status(monkeypatch, binding: dict) -> str:
 
 
 def test_a_contradicted_binding_issues_a_contradicted_envelope(monkeypatch):
-    binding = {"attempted": True, "all_supported": False, "contradicted": True, "qualifiable": False, "claims": []}
+    binding = {"attempted": True, "all_supported": False, "contradicted": True, "claims": []}
     assert _captured_status(monkeypatch, binding) == "contradicted"
 
 
-def test_a_qualifiable_binding_issues_a_qualified_envelope(monkeypatch):
-    binding = {"attempted": True, "all_supported": False, "contradicted": False, "qualifiable": True, "claims": []}
-    assert _captured_status(monkeypatch, binding) == "qualified"
+def test_an_unsupported_binding_issues_an_unsupported_envelope(monkeypatch):
+    # the reply is withdrawn, so its envelope never says it was delivered with a caveat
+    binding = {"attempted": True, "all_supported": False, "contradicted": False, "claims": []}
+    assert _captured_status(monkeypatch, binding) == "unsupported"
 
 
 def test_a_supported_and_an_unattempted_binding_keep_their_status(monkeypatch):

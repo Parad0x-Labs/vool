@@ -652,20 +652,12 @@ class CurrentClaimVerdict:
     claim_binding: dict[str, Any] | None = None
 
     @property
-    def qualify_only(self) -> bool:
-        """v14.6: the binder bound the reply's values to the user's records and found none contradicted, but not all
-        supported. The reply is not withdrawn; its unsupported or ambiguous values are marked (qualify_reply)."""
-        b = self.claim_binding or {}
-        return bool(self.requires_current and not self.has_evidence and not self.declined_live_claims and b.get("attempted") and b.get("qualifiable"))
-
-    @property
     def unsupported(self) -> bool:
         return (
             self.requires_current
             and not self.has_evidence
             and (self.asserts_measured_value or self.attributes_source)
             and not self.declined_live_claims
-            and not self.qualify_only
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -676,7 +668,6 @@ class CurrentClaimVerdict:
             "attributes_source": self.attributes_source,
             "declined_live_claims": self.declined_live_claims,
             "unsupported": self.unsupported,
-            "qualify_only": self.qualify_only,
             "claim_binding": self.claim_binding,
         }
 
@@ -863,7 +854,6 @@ def inspect_unsourced_current_claim(
         try:
             from core.bootstrap_context import admitted_capsule_evidence_text as _admitted_text
             from core.evidence_kernel.claim_binder import bind_claims as _bind_claims
-            from core.evidence_kernel.claim_binder import qualify_reply as _qualify_reply
             from core.evidence_kernel.revocation import without_revoked as _without_revoked
             from core.evidence_kernel.snapshot import packet_facts_for as _packet_facts_for
 
@@ -877,10 +867,12 @@ def inspect_unsourced_current_claim(
                 packet_facts=_packet_facts,
             )
             claim_binding = _binding.as_dict()
+            # Only a reply whose every value is supported is memory-sourced. A value no record of the user's states
+            # (UNSUPPORTED) or binds (AMBIGUOUS) is withdrawn with the rest of the unsupported answer: VOOL says it has
+            # no record rather than giving the number with a caveat (owner decision 2026-10-08, replacing v14.6's
+            # "Not found in your records" qualification).
             if _binding.all_supported:
                 has_evidence = True
-            elif _binding.qualifiable:
-                claim_binding["qualified_text"] = _qualify_reply(answer, _binding)
             claim_binding["kernel_receipt"] = _kernel_claim_envelope(session_id, user_turn_text, answer, claim_binding, _packet_facts)
         except Exception:
             claim_binding = {"attempted": False, "reason": "binder_error"}
@@ -957,7 +949,7 @@ __all__ = [
 
 
 def _claim_envelope_status(binding: Mapping[str, Any]) -> str:
-    """The claim envelope's status vocabulary (v14.6 item 8): supported | contradicted | qualified | unsupported |
+    """The claim envelope's status vocabulary (v14.6 item 8): supported | contradicted | unsupported |
     not_attempted. 'supported' means every value claim is stated by, or derived from, an occurrence of the user's own
     records; it never means the statement is true. The receipt chain is ASKED -> DISCOVERED -> ACTIVATED -> DELIVERED ->
     ASSERTED -> SUPPORTED; there is no USED stage, because a model's use of an occurrence is not observable."""
@@ -967,8 +959,6 @@ def _claim_envelope_status(binding: Mapping[str, Any]) -> str:
         return "supported"
     if binding.get("contradicted"):
         return "contradicted"
-    if binding.get("qualifiable"):
-        return "qualified"
     return "unsupported"
 
 

@@ -22,11 +22,11 @@ def test_fresh2_earlier_owner(case):
     verdict=inspect_unsourced_current_claim(answer=case['reply'],requires_current=True,
         user_turn_text=case['question'],source_context=context_for(case))
     if case['keep']:
-        assert verdict.unsupported is False and not verdict.qualify_only, verdict.as_dict()
+        assert verdict.unsupported is False, verdict.as_dict()
     else:
-        # v14.6 item 2 (c9e5e50e): an unrecorded measured value is no longer withdrawn whole at the verdict, it is
-        # qualified; what the user sees is guarded on the delivery path: the value never reaches them as a plain fact
-        assert verdict.unsupported or verdict.qualify_only, verdict.as_dict()
+        # an unrecorded measured value is withdrawn at the verdict (owner decision 2026-10-08), and the value never
+        # reaches the user on the delivery path either
+        assert verdict.unsupported, verdict.as_dict()
         delivered = _validate_final_chat_output(case['reply'], source_context=context_for(case))
         assert case['value'] not in delivered, delivered
 

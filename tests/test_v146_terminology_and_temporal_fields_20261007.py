@@ -1,7 +1,7 @@
 """v14.6 hardening items 8 and 9 (ASTRA Pro review, 2026-10-07). Item 8: the receipt chain is ASKED -> DISCOVERED ->
 ACTIVATED -> DELIVERED -> ASSERTED -> SUPPORTED with no USED stage; 'supported' means supported by an occurrence or a
-derivation, never 'true'; the claim envelope's status vocabulary is supported | contradicted | qualified | unsupported
-| not_attempted. Item 9: temporal fields keep unknown unknown; a record's statement day comes from its own statement
+derivation, never 'true'; the claim envelope's status vocabulary is supported | contradicted | unsupported | not_attempted
+(a binding neither supported nor contradicted is withdrawn, so it is unsupported: owner decision 2026-10-08). Item 9: temporal fields keep unknown unknown; a record's statement day comes from its own statement
 time or the turn's own session header, never from the capture time; a state's effective window comes from the chain.
 Contributor: sls_0x."""
 from __future__ import annotations
@@ -14,9 +14,8 @@ from core.unsourced_current_claim import _claim_envelope_status
 def test_the_claim_envelope_status_vocabulary():
     assert _claim_envelope_status({"attempted": False}) == "not_attempted"
     assert _claim_envelope_status({"attempted": True, "all_supported": True}) == "supported"
-    assert _claim_envelope_status({"attempted": True, "all_supported": False, "contradicted": True, "qualifiable": False}) == "contradicted"
-    assert _claim_envelope_status({"attempted": True, "all_supported": False, "contradicted": False, "qualifiable": True}) == "qualified"
-    assert _claim_envelope_status({"attempted": True, "all_supported": False, "contradicted": False, "qualifiable": False}) == "unsupported"
+    assert _claim_envelope_status({"attempted": True, "all_supported": False, "contradicted": True}) == "contradicted"
+    assert _claim_envelope_status({"attempted": True, "all_supported": False, "contradicted": False}) == "unsupported"
 
 
 def test_verify_answer_reports_supported_and_the_chain_stage_beside_verified():

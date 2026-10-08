@@ -1615,24 +1615,20 @@ def execute_grounded_turn(
         else:
             response = unverified_current_answer(effective_input)
             # A question about someone this chat's records name was answered from those records, not from a
-            # lookup: the withdrawal says the value is not in the records.
+            # lookup: the withdrawal says the value is not in the records. So was an answer whose values the binder
+            # read against the user's own records and found unsupported (no record states them, none contradicts).
+            _binding = _current_claim.claim_binding or {}
             try:
                 from core.bootstrap_context import admitted_capsule_evidence_text
                 from core.memory_grounding import question_names_someone_in_the_records
                 from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
 
-                if question_names_someone_in_the_records(
+                if (_binding.get("attempted") and not _binding.get("contradicted")) or question_names_someone_in_the_records(
                     effective_input, admitted_capsule_evidence_text(source_context or {}, str(session_id or ""))
                 ):
                     response = RECORDS_WITHDRAWAL_NOTICE
             except Exception:
                 pass
-    elif _current_claim.qualify_only:
-        # v14.6 (ASTRA item 2): the binder found no CONTRADICTED claim; UNSUPPORTED and AMBIGUOUS values ship marked as
-        # not found in the records instead of the whole answer being withdrawn. Only a contradiction removes a claim.
-        _qualified = str((_current_claim.claim_binding or {}).get("qualified_text") or "")
-        if _qualified:
-            response = _qualified
 
     if isinstance(source_context, dict):
         from hashlib import sha256

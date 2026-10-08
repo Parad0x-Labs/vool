@@ -350,6 +350,8 @@ def test_served_workflow_main_branches(tmp_path):
     assert "2.4 metres" not in missing["delivered"], missing
     assert "2.4 metres" not in _payload_bytes(missing)
     assert "not going to state" in missing["delivered"], missing
+    # the refusal says the value is not in the user's records; nothing was looked up live on this turn
+    assert missing["delivered"].startswith("That is not mentioned in the records I have"), missing
 
     # refusal with negated evidence: the retracted value never ships
     negated = _turn(document, "refuse-negated")
