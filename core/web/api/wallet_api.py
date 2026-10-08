@@ -445,16 +445,13 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                 # another submit already CONSUMED is a submission in flight: rejection
                 # would release a hold for a payment that may still settle, so it is
                 # refused honestly instead.
-                from core.wallet import external_signing, limits, reconciliation
+                from core.wallet import external_signing
 
                 record = external_signing.open_request_for_proposal(proposal_id)
-                won = bool(record) and external_signing.expire_signing_request(record["request_id"])
+                won, rejected = lifecycle.end_unsent(proposal_id, record["request_id"], evidence="owner rejected before signature submission", state=proposals.STATE_REJECTED,
+                                                     reason="owner_rejected_after_claim") if record else (False, None)
                 if not won:
                     return _ok({"proposal": proposal.to_dict(), "rejected": False, "reason": "signing_request_in_flight"})
-                limits.release_spend(proposal_id)
-                reconciliation.resolve_payment_effect(proposal_id, applied=False, evidence="owner rejected before signature submission", source="mechanical")
-                rejected = lifecycle.end_refused(proposal_id, proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", expected_state=proposals.STATE_AWAITING_SIGNATURE,
-                                                 detail={"reason": "owner_rejected_after_claim"}, reason="owner_rejected_after_claim")
                 return _ok({"proposal": (rejected or proposal).to_dict(), "rejected": rejected is not None})
             # the owner's own refusal ends the payment like any other refusal: its receipt commits with it, nothing charged
             rejected = lifecycle.end_refused(proposal_id, proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", expected_state=proposals.STATE_PENDING_APPROVAL,

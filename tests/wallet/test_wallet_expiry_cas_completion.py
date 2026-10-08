@@ -7,9 +7,10 @@ returns False when the CAS loses — including to a concurrently CONSUMED reques
 in flight) — so a losing submitter released another submission's hold, recorded guessed
 non-execution, and overwrote the proposal's newer state.
 
-The interleaving is deterministic (a hook performs B's consume inside A's expire call — no
-sleeps, no threads). Scoping: the release on a WON CAS proves only that no VOOL-MEDIATED
-dispatch happened (the request was never consumed, and the app's only dispatch door
+The interleaving is deterministic (a hook commits B's consume after A read the request OPEN
+and just before A's expiry transaction, whose CAS then loses — no sleeps, no threads).
+Scoping: the release on a WON CAS proves only that no VOOL-MEDIATED dispatch happened (the
+request was never consumed, and the app's only dispatch door
 CAS-consumes first); it never revokes a signature the user's external wallet may hold
 independently, which this app cannot see or control.
 """
@@ -63,19 +64,21 @@ def _a6_active(proposal_id: str) -> bool:
 
 
 def _interleaved_expire(monkeypatch, *, b_past_transition: bool, proposal_id: str = ""):
-    """Deterministic interleave: B's consume (and optional signed transition) happens INSIDE
-    A's expire call, so A's CAS provably loses against a submission in flight."""
-    from core.wallet import external_signing, proposals
+    """Deterministic interleave: B's consume (and optional signed transition) commits after A
+    read the request OPEN and just before A's expiry transaction (``lifecycle.end_unsent``), so
+    A's CAS provably loses against a submission in flight. The CAS, the release and the state
+    change are one immediate transaction, so this is the last point another writer can land."""
+    from core.wallet import external_signing, lifecycle, proposals
 
-    real = external_signing.expire_signing_request
+    real = lifecycle.end_unsent
 
-    def b_wins_then_a_loses(request_id: str) -> bool:
+    def b_wins_then_a_loses(expiring: str, request_id: str, **kwargs: Any):
         external_signing.consume_signing_request(request_id)  # B reaches the submission boundary
         if b_past_transition:
             proposals.transition(proposal_id, proposals.STATE_SIGNED, detail={"signer": "external_signer"}, expected_state=proposals.STATE_AWAITING_SIGNATURE)
-        return real(request_id)  # A loses: the row is no longer open
+        return real(expiring, request_id, **kwargs)  # A loses: the row is no longer open
 
-    monkeypatch.setattr(external_signing, "expire_signing_request", b_wins_then_a_loses)
+    monkeypatch.setattr(lifecycle, "end_unsent", b_wins_then_a_loses)
     return real
 
 

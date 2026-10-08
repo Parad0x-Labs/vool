@@ -324,7 +324,7 @@ def test_f2_the_reaper_releases_only_when_it_won_the_cas(wallet_env, monkeypatch
         conn.execute("UPDATE wallet_signing_requests SET expires_at = ? WHERE request_id = ?", (_time.time() - 1.0, view["request_id"]))
 
     # simulate a concurrent submit winning the CAS between the reaper's read and its expire
-    with unittest.mock.patch.object(external_signing, "expire_signing_request", lambda request_id: False):
+    with unittest.mock.patch.object(external_signing, "expire_signing_request", lambda request_id, conn=None: False):
         from core.wallet.status import wallet_status
 
         wallet_status()

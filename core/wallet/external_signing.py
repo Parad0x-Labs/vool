@@ -126,13 +126,16 @@ def is_expired(record: dict[str, Any]) -> bool:
     return _now() > float(record.get("expires_at") or 0)
 
 
-def expire_signing_request(request_id: str) -> bool:
+def expire_signing_request(request_id: str, *, conn: Any = None) -> bool:
     """Compare-and-set open -> expired. Returns True only when THIS call won the
     transition; False means the request was already consumed or expired (a consumed
-    request is a submission in flight — the loser must not treat it as expired)."""
-    with connection() as conn:
-        cursor = conn.execute("UPDATE wallet_signing_requests SET state = ? WHERE request_id = ? AND state = ?", (STATE_EXPIRED, str(request_id), STATE_OPEN))
-        return cursor.rowcount == 1
+    request is a submission in flight — the loser must not treat it as expired). On
+    ``conn`` when given, so it commits with the caller's other writes."""
+    if conn is None:
+        with connection() as own:
+            return expire_signing_request(request_id, conn=own)
+    cursor = conn.execute("UPDATE wallet_signing_requests SET state = ? WHERE request_id = ? AND state = ?", (STATE_EXPIRED, str(request_id), STATE_OPEN))
+    return cursor.rowcount == 1
 
 
 def _signature_verifies(public_key: str, message: bytes, signature: bytes) -> bool:
