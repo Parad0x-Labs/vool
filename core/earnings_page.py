@@ -11,6 +11,8 @@ Polls the VOOL API and meet server every 10 s to show:
 """
 from __future__ import annotations
 
+from core.ui_palette import DARK_PALETTE_CSS
+
 _PAGE = """\
 <!doctype html>
 <html lang="en">
@@ -19,11 +21,9 @@ _PAGE = """\
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Earnings · VOOL</title>
 <style>
-  :root {
-    --bg: #0a0a0a; --panel: #111; --border: #222; --accent: #6cf;
-    --green: #4c4; --amber: #fa0; --red: #f44; --purple: #a8f;
-    --text: #ddd; --muted: #666; --radius: 6px; --font: "Courier New", monospace;
-  }
+__VOOL_PALETTE_CSS__
+  :root { --panel2:var(--field); --green:#4c4; --amber:#fa0; --red:#f44;
+    --purple:#a8f; --radius:6px; --font:"Courier New",monospace; }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--font);
     font-size: 13px; min-height: 100vh; display: flex; flex-direction: column; }
@@ -339,7 +339,7 @@ setInterval(refresh, 10000);
 
 
 def render_earnings_html() -> str:
-    return _PAGE
+    return _PAGE.replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
 
 
 __all__ = ["render_earnings_html"]
