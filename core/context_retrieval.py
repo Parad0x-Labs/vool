@@ -3977,83 +3977,79 @@ def _whole_turn_units_facing_the_laws(
         store_error = type(exc).__name__
     if memory is None and not store_error:
         store_error = "store_unavailable"
+    def member_refusal(occurrence: Any) -> str:
+        """The first law this unit member fails ("" when it may ride)."""
+        key = str(getattr(occurrence, "occurrence_id", "") or "")
+        verdict = verdict_map.get(key)
+        if verdict is not None and not getattr(verdict, "eligible", True):
+            why = str(getattr(verdict, "reason", "") or "")
+            slot = str(getattr(verdict, "slot", "") or "")
+            if why in _LANE_REFUSING_VERDICTS or (why.startswith("superseded") and slot in retracted_slots):
+                # The lane's law (Keep): a retraction (withdrawn, or superseded in a slot the user scrapped)
+                # and the as-of law refuse the record; forget refuses it below. A window or "future relative
+                # to now" verdict decides the current answer, not whether an attributed whole turn may ride
+                # (tests/test_an_as_of_question_gets_no_later_whole_turn.py: without an as-of date the later
+                # turn still rides). Plain supersession and the other ineligible readings (a derivative, a
+                # duplicate of the winner, an unlinked chain mate) stay the lane's to render.
+                return "temporal:" + why
+        body = str(getattr(occurrence, "body", "") or "")
+        body_norm = " ".join(body.lower().split())
+        role = str(getattr(occurrence, "role", "") or "")
+        if key in cut_spans and _pack_cut_inside_a_sentence(body, cut_spans[key]):
+            return "pack:bounded_span_delivered"
+        if key not in delivered_ids and len(body) <= _TURN_LANE_UNIT_MAX_CHARS:
+            # The pack's own span laws, applied to a short turn the pack delivered nothing from, with the
+            # pack's exemptions: a hedged or speculative user turn ("we might instead book the 11:15") is
+            # refused unless the ask is count-shaped, asks for the complete source, or the turn is a whole
+            # reported dialogue turn. (An acknowledgment is not refused: the pack delivers acks and only
+            # declines to count them as decisive.)
+            content = _envelope_masked(body) if "\n" in body else body
+            label = re.match(r"^([A-Z][\w' .-]{0,40}):\s", content.strip())
+            speaker_free = re.sub(r"^[A-Z][\w' .-]{0,40}:\s*", "", content.strip())
+            if (role == "user" and not hedge_exempt_ask and label is None
+                    and _span_is_hedged(speaker_free)):
+                return "pack:hedged"
+            # The pack's speaker-scope law for a labelled dialogue turn: a turn rides only when its own words,
+            # the speakers' names aside, carry an asked term ("Declan: Haha nice one, cheers." carries none).
+            if label and asked_terms:
+                names = {w.lower() for w in label.group(1).split()}
+                own_terms = {term for term in asked_terms if term.lower() not in names}
+                words = speaker_free.lower()
+                if own_terms and not _query_terms_in_text(words, own_terms, _stemmed_token_set(words)):
+                    return "pack:speaker_scope"
+        if body_norm and key not in delivered_ids and any(body_norm in line for line in delivered_lines.get(role, ())):
+            return "pack:already_delivered"
+        if store_error:
+            return "revalidation:" + store_error
+        try:
+            current = memory.occurrence_get(key)
+        except Exception:
+            current = None
+        if current is None:
+            return "revalidation:missing"
+        if str(getattr(current, "status", "active") or "active") != "active":
+            return "revalidation:inactive"
+        if str(getattr(current, "body_integrity", "") or "") == "mismatch":
+            return "revalidation:integrity_mismatch"
+        if any(str(getattr(current, field, "") or "") != str(getattr(occurrence, field, "") or "")
+               for field in ("role", "speaker", "chat_scope", "authority", "source_kind")):
+            return "revalidation:identity_changed"
+        if any(getattr(current, field, None) != getattr(occurrence, field, None)
+               for field in ("statement_at", "event_at", "recorded_at")):
+            return "revalidation:temporal_identity_changed"
+        if str(getattr(current, "body", "") or "") != str(getattr(occurrence, "body", "") or ""):
+            return "revalidation:body_changed"
+        return ""
+
     try:
         for unit in units:
-            reason = ""
-            for occurrence in unit:
-                key = str(getattr(occurrence, "occurrence_id", "") or "")
-                verdict = verdict_map.get(key)
-                if verdict is not None and not getattr(verdict, "eligible", True):
-                    why = str(getattr(verdict, "reason", "") or "")
-                    slot = str(getattr(verdict, "slot", "") or "")
-                    if why in _PACKET_REFUSING_VERDICTS or (why.startswith("superseded") and slot in retracted_slots):
-                        # A retraction (withdrawn, or superseded in a slot the user scrapped) and the as-of, window and
-                        # future laws refuse the record on every carrier; the lane renders whole turns with their values,
-                        # so none of them may ride here. Plain supersession and the other ineligible readings (a
-                        # derivative, a duplicate of the winner, an unlinked chain mate) stay the lane's to render.
-                        reason = "temporal:" + why
-                        break
-                body = str(getattr(occurrence, "body", "") or "")
-                body_norm = " ".join(body.lower().split())
-                role = str(getattr(occurrence, "role", "") or "")
-                if key in cut_spans and _pack_cut_inside_a_sentence(body, cut_spans[key]):
-                    reason = "pack:bounded_span_delivered"
-                    break
-                if key not in delivered_ids and len(body) <= _TURN_LANE_UNIT_MAX_CHARS:
-                    # The pack's own span laws, applied to a short turn the pack delivered nothing from, with the
-                    # pack's exemptions: a hedged or speculative user turn ("we might instead book the 11:15") is
-                    # refused unless the ask is count-shaped, asks for the complete source, or the turn is a whole
-                    # reported dialogue turn. (An acknowledgment is not refused: the pack delivers acks and only
-                    # declines to count them as decisive.)
-                    content = _envelope_masked(body) if "\n" in body else body
-                    label = re.match(r"^([A-Z][\w' .-]{0,40}):\s", content.strip())
-                    speaker_free = re.sub(r"^[A-Z][\w' .-]{0,40}:\s*", "", content.strip())
-                    if (role == "user" and not hedge_exempt_ask and label is None
-                            and _span_is_hedged(speaker_free)):
-                        reason = "pack:hedged"
-                        break
-                    # The pack's speaker-scope law for a labelled dialogue turn: a turn rides only when its own words,
-                    # the speakers' names aside, carry an asked term ("Declan: Haha nice one, cheers." carries none).
-                    if label and asked_terms:
-                        names = {w.lower() for w in label.group(1).split()}
-                        own_terms = {term for term in asked_terms if term.lower() not in names}
-                        words = speaker_free.lower()
-                        if own_terms and not _query_terms_in_text(words, own_terms, _stemmed_token_set(words)):
-                            reason = "pack:speaker_scope"
-                            break
-                if body_norm and key not in delivered_ids and any(body_norm in line for line in delivered_lines.get(role, ())):
-                    reason = "pack:already_delivered"
-                    break
-                if store_error:
-                    reason = "revalidation:" + store_error
-                    break
-                try:
-                    current = memory.occurrence_get(key)
-                except Exception:
-                    current = None
-                if current is None:
-                    reason = "revalidation:missing"
-                    break
-                if str(getattr(current, "status", "active") or "active") != "active":
-                    reason = "revalidation:inactive"
-                    break
-                if str(getattr(current, "body_integrity", "") or "") == "mismatch":
-                    reason = "revalidation:integrity_mismatch"
-                    break
-                if any(str(getattr(current, field, "") or "") != str(getattr(occurrence, field, "") or "")
-                       for field in ("role", "speaker", "chat_scope", "authority", "source_kind")):
-                    reason = "revalidation:identity_changed"
-                    break
-                if any(getattr(current, field, None) != getattr(occurrence, field, None)
-                       for field in ("statement_at", "event_at", "recorded_at")):
-                    reason = "revalidation:temporal_identity_changed"
-                    break
-                if str(getattr(current, "body", "") or "") != str(getattr(occurrence, "body", "") or ""):
-                    reason = "revalidation:body_changed"
-                    break
-            if reason:
+            # Every member that fails is named with its own reason: a paired [user, assistant] unit withheld because
+            # the assistant turn was erased names the assistant occurrence, so the packet refuses that one's rows.
+            failures = [(str(getattr(occurrence, "occurrence_id", "") or ""), why)
+                        for occurrence in unit for why in [member_refusal(occurrence)] if why]
+            if failures:
                 if refused is not None:
-                    refused.append({"occurrence_id": str(getattr(unit[0], "occurrence_id", "") or ""), "reason": reason})
+                    refused.extend({"occurrence_id": key, "reason": why} for key, why in failures)
                 continue
             kept.append(unit)
     finally:
@@ -8463,6 +8459,10 @@ def _historical_anchor_candidates(
 #: Obligation kinds whose packet rows the absence gate's refusal binds: the single-facet asks the gate was built for.
 _PACKET_GATE_BOUND_KINDS = frozenset({"single_fact", "current_value", "existence", "preference", "aggregate"})
 
+#: The verdicts that refuse a whole turn in the lane: a retraction and the as-of law (the Keep law). The packet's
+#: own set below is wider, because the packet states current values.
+_LANE_REFUSING_VERDICTS = frozenset({"withdrawn", "future-relative-to-as-of"})
+
 _PACKET_REFUSING_VERDICTS = frozenset({
     "withdrawn", "future-relative-to-as-of", "future-relative-to-now",
     "window-expired", "window-expired-before-as-of", "window-not-yet-active",
@@ -8528,16 +8528,29 @@ def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts
     return refused
 
 
-def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "", refused: dict[str, str] | None = None, budget_tokens: int | None = None) -> list[dict[str, str]]:
+def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: Any, telemetry: dict[str, object], *, chat_id: str = "", question: str = "", refused: dict[str, str] | None = None, budget_tokens: int | None = None, revoked_since: tuple[str, ...] | None = None, runtime_home: str | None = None) -> list[dict[str, str]]:
     """v14.2 kernel: when v14's own retrieval delivers nothing, the receipt packet still reaches the reader on its own
     (a stated preference or a state chain is an operand whether or not a capsule line matched the question)."""
     try:
         from core.evidence_compiler import filter_packet as _filter_packet
         from core.evidence_compiler import render as _render_packet
 
+        # A forget that landed while this turn was assembled (after the packet was compiled): its rows leave the
+        # packet, and a packet line still carrying the token withholds it (the capsule path's law, applied here too).
+        revoked_now = (tuple(token for token in _chat_revocations(runtime_home, chat_id) if token not in revoked_since)
+                       if revoked_since is not None else ())
+        if revoked_now and evidence_packet is not None:
+            refused = dict(refused or {})
+            for fact in list(getattr(evidence_packet, "facts", []) or []):
+                occ = str(fact.get("occurrence_id") or "")
+                if occ and text_carries_revoked_token(" ".join(str(fact.get(k) or "") for k in ("sentence", "value")), revoked_now):
+                    refused[occ] = "revocation:during_assembly"
         if evidence_packet is not None and refused:
             evidence_packet = _filter_packet(evidence_packet, refused, estimate_tokens=estimate_tokens)
         text = _render_packet(evidence_packet) if evidence_packet is not None else ""
+        if revoked_now and text_carries_revoked_token(text, revoked_now):
+            telemetry["evidence_packet_withheld"] = "revocation"
+            evidence_packet, text = None, ""
     except Exception:
         text = ""
     if evidence_packet is not None:
@@ -8572,6 +8585,58 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
     return _inject_render_block(transcript, "<retrieved_context>\n" + text + "\n</retrieved_context>")
 
 
+def _chat_revocations(runtime_home: str | None, chat_id: str | None) -> tuple[str, ...]:
+    """The forget-law revocations of one chat as the store holds them now (empty when unreadable)."""
+    scope = str(chat_id or "").strip()
+    if not scope:
+        return ()
+    memory = None
+    try:
+        memory = _open_memory_for_runtime(runtime_home)
+        return tuple(memory.revoked_tokens(scope) or ()) if memory is not None else ()
+    except Exception:
+        return ()
+    finally:
+        if memory is not None:
+            with contextlib.suppress(Exception):
+                memory.close()
+
+
+def _without_revoked_records(block: str, tokens: tuple[str, ...]) -> tuple[str, int]:
+    """*block* without every record that carries a revoked token. A record is a '- ' line with the continuation
+    lines under it (a multi-line turn is one record, whatever its lines start with); only the block's own
+    <retrieved_context> tags and the lines above its first record stand apart."""
+    lines = str(block or "").split("\n")
+    kept: list[str] = []
+    record: list[str] = []
+    dropped = 0
+    seen_record = False
+
+    def flush() -> None:
+        nonlocal dropped
+        if record:
+            if text_carries_revoked_token("\n".join(record), tokens):
+                dropped += 1
+            else:
+                kept.extend(record)
+            record.clear()
+
+    for line in lines:
+        if line.strip() in ("<retrieved_context>", "</retrieved_context>"):
+            flush()
+            kept.append(line)
+        elif line.startswith("- "):
+            flush()
+            seen_record = True
+            record.append(line)
+        elif seen_record:
+            record.append(line)
+        else:
+            kept.append(line)
+    flush()
+    return "\n".join(kept), dropped
+
+
 def _capsule_v2_inject_retrieved(
     session_id: str | None,
     query: str,
@@ -8584,6 +8649,9 @@ def _capsule_v2_inject_retrieved(
     session_order: bool = False,
     search_expansions: tuple[str, ...] = (),
 ) -> list[dict[str, str]]:
+    # The revocations this assembly starts from: a forget that lands while it runs is read against every carrier
+    # before the block is delivered (below).
+    revoked_at_start = _chat_revocations(runtime_home, session_id)
     # Hardware-sized injection budget (default bucket B when the caller doesn't supply one).
     if budget is None:
         budget = resolve_budget(
@@ -9465,7 +9533,8 @@ def _capsule_v2_inject_retrieved(
     # own lanes missed, and an abstaining question must keep abstaining.
     phrase_lanes_found = bool(search_expansions) and bool(whole_turn_units or recall_supplement)
     if not hits and not evidence_hits and not chain_extras and not phrase_lanes_found:
-        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens))
+        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
+                                      revoked_since=revoked_at_start, runtime_home=runtime_home)
 
     # ── temporal eligibility (mission memory-quality90, temporal lane) ─────
     # One contract decides which candidates may be PACKED for THIS question:
@@ -10059,7 +10128,8 @@ def _capsule_v2_inject_retrieved(
 
     if not hits and not evidence_hits and not phrase_lanes_found:
         return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
-                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")))
+                                      refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=locals().get("verdicts")),
+                                      revoked_since=revoked_at_start, runtime_home=runtime_home)
     context_text = " ".join(m.get("content", "") for m in transcript).lower()
     selected: list[tuple[str, float]] = []
     selected_record_times: list[float | None] = []
@@ -12199,7 +12269,7 @@ def _capsule_v2_inject_retrieved(
         return _packet_only_injection(transcript, evidence_packet, telemetry, chat_id=str(session_id or ""), question=str(query or ""),
                                       refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
                                                                hydration_refused=_hydration_refusals(evidence_receipts)),
-                                      budget_tokens=int(budget.free_tokens))
+                                      budget_tokens=int(budget.free_tokens), revoked_since=revoked_at_start, runtime_home=runtime_home)
     # Pack separable facts, not one indivisible capsule: presenting the whole
     # distilled block as a single candidate made the packer drop ALL retrieved
     # evidence when the block exceeded the remaining free budget, even though
@@ -12385,6 +12455,27 @@ def _capsule_v2_inject_retrieved(
             query=query, expansions=search_expansions)
     except Exception:
         LOGGER.debug("whole-turn lane render failed", exc_info=True)
+    # Forget always blocks, on every carrier: a forget that landed while this turn was assembled (after its lines were
+    # packed) revoked a token the distilled lines, the lane and the packet may already carry. The lane re-read the
+    # store above; the distilled records, the lane lines and the packet rows that carry a token revoked since the
+    # assembly began are dropped here, and their receipts no longer count as delivered (review 2026-10-08: a forget
+    # after the as-of pass left "5906" in the distilled lines). Revocations older than the assembly were applied
+    # where the records were read.
+    revoked_now = tuple(token for token in _chat_revocations(runtime_home, session_id) if token not in revoked_at_start)
+    _render_revoked: dict[str, str] = {}
+    if revoked_now:
+        render_block, _dropped_records = _without_revoked_records(render_block, revoked_now)
+        packed = _dc_replace(packed, blocks=tuple(
+            block for block in packed.blocks if not text_carries_revoked_token(str(getattr(block, "text", "") or ""), revoked_now)))
+        _lane_before = len(turn_lines)
+        turn_lines = [line for line in turn_lines if not text_carries_revoked_token(line, revoked_now)]
+        lane_rendered = [(occ, line) for occ, line in lane_rendered if not text_carries_revoked_token(line, revoked_now)]
+        for fact in list(getattr(evidence_packet, "facts", []) or []):
+            occ = str(fact.get("occurrence_id") or "")
+            if occ and text_carries_revoked_token(" ".join(str(fact.get(k) or "") for k in ("sentence", "value")), revoked_now):
+                _render_revoked[occ] = "revocation:during_assembly"
+        telemetry["revoked_during_assembly"] = {"records": _dropped_records, "lane_lines": _lane_before - len(turn_lines),
+                                                "packet_rows": len(_render_revoked)}
     packet_text = ""
     if evidence_packet is not None:
         try:
@@ -12394,10 +12485,15 @@ def _capsule_v2_inject_retrieved(
             # D8-E: the packet faces the capsule's laws. Rows the absence gate or a temporal verdict refused this
             # turn (as-of, retraction, supersession, windows) leave the packet before it is rendered.
             _packet_refused = _packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
-                                               hydration_refused=_hydration_refusals(evidence_receipts, _lane_refused))
+                                               hydration_refused={**_hydration_refusals(evidence_receipts, _lane_refused),
+                                                                  **_render_revoked})
             if _packet_refused:
                 evidence_packet = _filter_packet(evidence_packet, _packet_refused, estimate_tokens=estimate_tokens)
             packet_text = _render_packet(evidence_packet)
+            if revoked_now and text_carries_revoked_token(packet_text, revoked_now):
+                # a hop or derived line still carries the revoked value: the packet does not ride this turn
+                telemetry["evidence_packet_withheld"] = "revocation"
+                raise ValueError("packet carries a token revoked during assembly")
             telemetry["evidence_compiler"] = dict(evidence_packet.telemetry)
             telemetry["evidence_packet_facts"] = list(evidence_packet.facts)
             telemetry["evidence_packet_snapshot"] = {"chat_id": str(session_id or ""), "packet_text": packet_text}

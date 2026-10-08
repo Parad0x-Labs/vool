@@ -441,10 +441,21 @@ def test_an_ordinary_chat_capsule_reads_the_idiom_as_an_assertion(tmp_path, fact
                                                                   withdrawn):
     first, question, value = fact
     capsule, telemetry = _chat_capsule(tmp_path, first, later, question)
-    # precondition: the claim was retrieved (delivered whole when kept; refused by the retraction when withdrawn)
-    retrieved = {str(r.get("occurrence_id") or "") for r in telemetry.get("evidence_refs", [])}
-    assert first in capsule or (withdrawn and any(
-        r.get("reason") == "temporal:withdrawn" for r in telemetry.get("whole_turn_lane_refused", []))), capsule
+    # precondition: the claim was retrieved. Kept, it is delivered whole; withdrawn, the lane refused that very
+    # occurrence (its stored body is the claim) under the retraction, never some other record.
+    if withdrawn:
+        from core.vool_memory import VoolMemory
+
+        refused_ids = [str(r.get("occurrence_id") or "") for r in telemetry.get("whole_turn_lane_refused", [])
+                       if r.get("reason") == "temporal:withdrawn"]
+        memory = VoolMemory(runtime_home=str(tmp_path / "home"))
+        try:
+            refused_bodies = [str(getattr(memory.occurrence_get(key), "body", "") or "") for key in refused_ids]
+        finally:
+            memory.close()
+        assert any(first in body for body in refused_bodies), (refused_ids, refused_bodies, capsule)
+    else:
+        assert first in capsule, capsule
     assert (value not in _contract_part(capsule)) is withdrawn, (later, capsule)
     assert (value not in capsule) is withdrawn, (later, capsule)  # the lane honours the retraction too
 

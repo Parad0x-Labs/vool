@@ -214,3 +214,90 @@ def test_a_forget_naming_a_phrase_never_deletes_every_entry_sharing_a_stopword(t
     after = [str(r.get("text") or "") for r in list_memory_entries(access_policy=policy, limit=20)]
     assert any("Rex" in t for t in after) and any("Volvo" in t for t in after) and any("Kaunas" in t for t in after), (reply, after)
     assert "Removed 4" not in reply and "Removed 3" not in reply and "Forget applied" not in reply, reply
+
+
+def test_a_forget_that_lands_while_the_capsule_is_assembled_reaches_no_carrier(tmp_path, monkeypatch):
+    """Review 2026-10-08 (second review of the forget lane): a forget completed after the capsule's lines were packed
+    (here: as the whole-turn lane faces its laws) left the value in the distilled lines above the lane, though the
+    lane itself refused the erased turn. Forget blocks on every carrier, so the final block carries no "5906"."""
+    from core.memory.entries import resolve_memory_access_policy
+
+    profile = _profile(tmp_path)
+    chat = "forget-mid-assembly"
+    _ingest(profile, chat, [
+        (_ts("2026-02-03T09:00:00"), "My storage unit code is 5906."),
+        (_ts("2026-02-20T09:00:00"), "The shed roof needs new tar paper."),
+    ])
+    lane_laws = cr._whole_turn_units_facing_the_laws
+    forgot = []
+
+    def forget_during_assembly(*args, **kwargs):
+        if not forgot:
+            forgot.append(cr.forget_session_memory(
+                chat, "5906", access_policy=resolve_memory_access_policy(chat_id=chat),
+                source_context={"chat_id": chat, "runtime_home": str(profile)}))
+        return lane_laws(*args, **kwargs)
+
+    monkeypatch.setattr(cr, "_whole_turn_units_facing_the_laws", forget_during_assembly)
+    capsule, telemetry = _capsule(profile, chat, "As of 20 February 2026, what was my storage unit code?")
+    assert forgot, "the forget never ran inside the assembly"
+    assert "5906" not in capsule, (capsule, telemetry.get("whole_turn_lane_refused"))
+    assert "5906" not in str(telemetry.get("evidence_packet_snapshot") or ""), telemetry.get("evidence_packet_snapshot")
+    delivered = [ref for ref in telemetry.get("evidence_refs", []) if ref.get("delivered")]
+    assert not any("5906" in str(ref.get("line") or "") for ref in delivered), delivered
+    assert "tar paper" in capsule, capsule  # the unrelated record still rides
+
+
+def test_a_multi_line_record_forgotten_during_assembly_leaves_whole(tmp_path, monkeypatch):
+    """A record is dropped whole, whatever its lines start with: "<code>7731</code>" under its opening line."""
+    from core.memory.entries import resolve_memory_access_policy
+
+    profile = _profile(tmp_path)
+    chat = "forget-mid-assembly-multiline"
+    _ingest(profile, chat, [
+        (_ts("2026-02-03T09:00:00"), "Here is the yard gate code from the landlord email:\n<code>7731</code>\nKeep it handy."),
+        (_ts("2026-02-20T09:00:00"), "The yard gate squeaks, it needs oil."),
+    ])
+    lane_laws = cr._whole_turn_units_facing_the_laws
+
+    def forget_during_assembly(*args, **kwargs):
+        cr.forget_session_memory(chat, "7731", access_policy=resolve_memory_access_policy(chat_id=chat),
+                                 source_context={"chat_id": chat, "runtime_home": str(profile)})
+        return lane_laws(*args, **kwargs)
+
+    monkeypatch.setattr(cr, "_whole_turn_units_facing_the_laws", forget_during_assembly)
+    capsule, telemetry = _capsule(profile, chat, "What is the yard gate code from the landlord email?")
+    assert "7731" not in capsule and "Keep it handy" not in capsule, capsule
+    assert "7731" not in str(telemetry.get("evidence_packet_snapshot") or "")
+
+
+def test_a_withheld_pair_names_the_member_whose_value_was_erased(tmp_path):
+    """Review 2026-10-08: a [user, assistant] unit withheld because the assistant turn was erased named the still-active
+    user turn, so the packet kept the erased assistant's rows. The refusal names the erased member."""
+    from core.context_namespace import ensure_chat_namespace
+    from core.memory.entries import resolve_memory_access_policy
+    from core.persistent_memory import append_conversation_event
+    from core.vool_memory import VoolMemory
+
+    profile = _profile(tmp_path)
+    chat = "forgetting-pair"
+    ensure_chat_namespace(chat, grant_current_receipts=False)
+    policy = resolve_memory_access_policy(chat_id=chat)
+    append_conversation_event(
+        session_id=chat, user_input="Log the harbor inventory order.",
+        assistant_output="The harbor inventory order code is TARP-9.",
+        source_context={"chat_id": chat, "runtime_home": str(profile)}, access_policy=policy)
+    memory = VoolMemory(runtime_home=str(profile))
+    try:
+        units = cr._whole_turn_units(memory, "Restate the harbor inventory order you provided.", [], "",
+                                    session_id=chat, pair_turns=True)
+    finally:
+        memory.close()
+    pair = next(unit for unit in units if len(unit) == 2)
+    assert [member.role for member in pair] == ["user", "assistant"]
+    cr.forget_session_memory(chat, "TARP-9", access_policy=policy,
+                             source_context={"chat_id": chat, "runtime_home": str(profile)})
+    refused = []
+    assert not cr._whole_turn_units_facing_the_laws([pair], verdicts={}, runtime_home=str(profile), refused=refused)
+    assert [row["occurrence_id"] for row in refused] == [pair[1].occurrence_id], refused
+    assert pair[1].occurrence_id in cr._hydration_refusals([], refused), refused

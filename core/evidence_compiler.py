@@ -669,6 +669,8 @@ def _completeness_line(ob: Obligation, missing: Sequence[str], coverage: Mapping
 
 
 _COMPLETENESS_LINE_PREFIX = "- This question needs: "
+_TEMPORAL_REFUSAL_RE = re.compile(r"(?:temporal:)?(?:withdrawn|future-relative|window-|superseded)")
+_REPLACED_LATER_RE = re.compile(r'  \[REPLACED later by "[^"\n]*" stated [^;\]\n]*; not current\]')
 
 
 def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens: Callable[[str], int] | None = None) -> Packet:
@@ -698,6 +700,15 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
         kept_facts.append(fact)
     if not dropped:
         return packet
+    # A kept row names the value that later replaced it ('[REPLACED later by "47 crowns" ...]'): when a temporal law
+    # refused that later row (the as-of law, a retraction, a window), its value must not ride in on the earlier row's
+    # annotation (an as-of September ask, a November turn). A later row refused for another reason (the absence gate, a
+    # source re-read) still replaced the earlier one, so its annotation stays.
+    refused_receipts = {str(row.get("receipt_id")) for row in dropped if row.get("receipt_id") is not None
+                        and _TEMPORAL_REFUSAL_RE.match(str(row.get("reason") or ""))}
+    for index, fact in enumerate(kept_facts):
+        if str(fact.get("replaced_by") or "") in refused_receipts:
+            kept_lines[index] = _REPLACED_LATER_RE.sub("", kept_lines[index])
     tail = [line for line in tail if not line.startswith(_COMPLETENESS_LINE_PREFIX)]
     ob = packet.obligation
     found, missing = _found_operands(ob, [(0.0, {"role": f.get("role"), "statement_at": f.get("statement_at")}, f) for f in kept_facts])
