@@ -335,3 +335,53 @@ def test_a_payment_left_waiting_on_a_closed_signing_request_is_ended_by_the_reap
     _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
                             reason="signing_request_expired")
     assert engine.reap_stale_signing_requests() == 0
+
+
+@pytest.mark.parametrize("door", ["submit_after_its_ttl", "reaper", "owner_reject"])
+@pytest.mark.parametrize("stop_at", ["the_effect_resolution", "a_release_outside_the_transaction"])
+def test_a_stop_after_an_unsent_payment_is_ended_leaves_no_hold_behind(wallet_env, monkeypatch, door, stop_at):
+    """Once the transaction that ends a claimed payment whose signature never came back commits, the payment is ended
+    whole: its state, its receipt and its hold released together. The process stops after that commit: at the effect
+    resolution, the one step that follows it, or at a hold release made outside it (there is none). The payment is
+    still ended with one receipt and nothing held, and the effect resolver, which reads the ended payment, resolves
+    its effect as safe to retry: nothing was sent."""
+    from core.effect_reconciliation import ResolutionOutcome, reconcile_unresolved_effect
+    from core.runtime_continuity import find_active_unresolved_effect
+    from core.wallet import external_signing, limits, proposals, reconciliation
+    from core.wallet.errors import WalletFault
+
+    engine, proposal, request = _claimed_external_payment()
+    real_now = external_signing._now
+    if door != "owner_reject":
+        monkeypatch.setattr(external_signing, "_now", lambda: real_now() + external_signing.REQUEST_TTL_SECONDS + 1)
+
+    def stop(*_args, **_kwargs):
+        raise _ProcessStopped
+
+    stopped = False
+    with monkeypatch.context() as stopping:
+        stopping.setattr(*((reconciliation, "resolve_payment_effect") if stop_at == "the_effect_resolution" else (limits, "release_spend")), stop)
+        try:
+            if door == "submit_after_its_ttl":
+                with pytest.raises(WalletFault):
+                    engine.submit_external_signature(request["request_id"], signature_b58="1" * 88)
+            elif door == "reaper":
+                assert engine.reap_stale_signing_requests() == 1
+            else:
+                _reject(proposal.proposal_id)
+        except _ProcessStopped:
+            stopped = True
+    assert stopped is (stop_at == "the_effect_resolution")
+    if door == "owner_reject":
+        _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
+                                reason="owner_rejected_after_claim")
+    else:
+        _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
+                                reason="signing_request_expired")
+    assert external_signing.get_signing_request(request["request_id"])["state"] == external_signing.STATE_EXPIRED
+    active = find_active_unresolved_effect(reconciliation.logical_effect_id(proposal.proposal_id))
+    if stopped:
+        assert active is not None and reconcile_unresolved_effect(active).outcome == ResolutionOutcome.FAILED_SAFE_TO_RETRY
+    else:
+        assert active is None, "the effect was resolved as not applied"
+    assert wallet_env["rpc"].send_count() == 0

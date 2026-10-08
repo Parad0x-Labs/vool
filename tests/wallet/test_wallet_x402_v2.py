@@ -678,6 +678,35 @@ def test_e5d7_one_offer_through_the_fetch_door_and_an_offer_door_is_one_payment(
         assert len(resource.deliveries) == 1, "one offer, one payment"
 
 
+@pytest.mark.parametrize("door", ["api", "model"])
+def test_e5d7b_a_copy_of_a_fetched_v2_offer_with_its_asset_spelled_otherwise_is_the_same_payment(wallet_env, evm_rig, monkeypatch, door):
+    """An EVM contract address is one asset in any letter case. A copy of the fetched 402 with its asset address in
+    upper case, proposed through a door that names no request, is keyed as the proposal stores the asset (its symbol
+    on the declared network), so it is the fetched payment, not a second one: one signable payment, paid once."""
+    from core.wallet import custody, proposals
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", rpc=evm_rig.rpc) as resource:
+        resource.settlement_tx = "0x" + ("cf" * 32)
+        evm_rig.rpc.add_transfer_receipt(resource.settlement_tx, contract_address=USDC_BASE, from_address=signer.address, to_address=PAY_TO, amount_int=10000)
+        profile = custody.register_external_signer_wallet(signer.address, network=BASE_SEPOLIA)
+        fetched = wallet_x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        shown = resource.payment_required()
+        shown["accepts"][0]["asset"] = "0x" + USDC_BASE[2:].upper()
+        assert shown["accepts"][0]["asset"] != USDC_BASE
+        offered = _proposed_through_an_offer_door(door, shown)
+        assert offered == fetched.proposal_id, "one offer, its asset spelled otherwise, is one proposal"
+        assert [p.proposal_id for p in proposals.list_proposals() if p.state == proposals.STATE_PENDING_APPROVAL] == [fetched.proposal_id]
+        engine = wallet_x402.lifecycle_default_engine()
+        view = engine.request_external_signature(fetched.proposal_id)
+        signature = signer_sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+        resource.settled_signatures.add(signature)
+        assert engine.submit_external_signature(view["request_id"], signature_hex=signature).state == proposals.STATE_CONFIRMED
+        assert len(resource.deliveries) == 1, "one offer, one payment"
+
+
 @pytest.mark.parametrize("second", ["another_origin_after_approval", "another_origin_before_approval", "another_spelling_after_approval"])
 def test_e5d8_the_signed_authorization_goes_to_the_request_its_payment_was_parked_for(wallet_env, evm_rig, monkeypatch, second):
     """Every request that reaches one offer is bound to its one payment, before or after the owner approves it: another
