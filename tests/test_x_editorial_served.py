@@ -281,11 +281,15 @@ def test_explicit_x_article_request_selects_and_serves_exact_copy(x_rig) -> None
     # admits turn context, and the *-wal/*-shm sidecars are SQLite's own. Neither is
     # a DRAFT -- the claim under test is that drafting produces no document, not that
     # a served turn touches no storage. They were missing from this list, so the test
-    # was red for a reason unrelated to editorial drafting.
+    # was red for a reason unrelated to editorial drafting. data/receipts_v2/ holds the memory
+    # kernel's per-session receipt envelopes (vool.memory.turn.v1 / vool.memory.packet.v1), which
+    # every served turn writes since a fresh install runs the kernel by default (f694a58).
     per_turn_prefixes = (
         "data/honesty_receipts/",
         "data/model_handoff_capsules/",
         "data/cas_chunks/",
+        "data/receipts_v2/vool.memory.turn.v1/",
+        "data/receipts_v2/vool.memory.packet.v1/",
         "logs/",
     )
     stray = [
