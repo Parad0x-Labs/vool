@@ -476,6 +476,34 @@ def test_a_payment_whose_state_says_failed_while_its_spend_is_held_keeps_its_req
     assert [(p.state, p.amount_minor) for p in late] == ([(proposals.STATE_REJECTED, 1400)] if first_check == "stale" else [])
 
 
+@pytest.mark.parametrize("first_check", ["current", "stale"])
+def test_a_paid_request_whose_row_says_failed_is_never_paid_again(wallet_env, resource, monkeypatch, first_check):
+    """A settled amount that moved is a payment made: a confirmed, delivered payment whose row is rewound to failed keeps
+    its request closed, at the re-fetch gate and, for a caller whose first check was stale, in the binding's own
+    compare-and-set. A re-fetch at another price parks nothing approvable and nothing is sent again."""
+    from core.wallet import approval, custody, lifecycle, limits, proposals, x402
+    from core.wallet.errors import WalletFault
+    from core.wallet.store import connection
+
+    profile = _pocket(custody)
+    first = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    lifecycle.default_lifecycle().approve_and_execute(first.proposal_id, approver=approval.PinApprover(PIN))
+    assert x402.retry_paid_resource(first.proposal_id).status == x402.OUTCOME_DELIVERED
+    assert limits.reservation_state(first.proposal_id) == limits.RESERVATION_SETTLED
+    with connection() as conn:
+        conn.execute("UPDATE wallet_proposals SET state = 'failed' WHERE proposal_id = ?", (first.proposal_id,))
+    resource.amount_minor = 1400
+    if first_check == "stale":
+        _stale_first_check(monkeypatch, x402)
+    with pytest.raises(WalletFault) as again:
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert again.value.code == "wallet_duplicate_payment" and again.value.context["reason"] == "payment_outcome_unknown"
+    assert wallet_env["rpc"].send_count() == 1
+    assert x402.binding_for_proposal(first.proposal_id)["proposal_id"] == first.proposal_id
+    late = [p for p in proposals.list_proposals() if p.proposal_id != first.proposal_id]
+    assert [(p.state, p.amount_minor) for p in late] == ([(proposals.STATE_REJECTED, 1400)] if first_check == "stale" else [])
+
+
 def test_retry_before_approval_or_over_cap_is_refused(wallet_env, resource, monkeypatch):
     from core.wallet import custody, x402
     from core.wallet.errors import WalletFault
