@@ -188,10 +188,13 @@ class TestAtomicSwap:
         installer = MacOSBundleInstaller()
         target = self._make(tmp_path, "VOOL.app", "old")
         staged = self._make(tmp_path, "staged-bundle", "new")
-        monkeypatch.setattr(
-            Path, "stat", lambda self, *a, **k: _FakeStat(1 if self.name == "staged-bundle" else 2), raising=False
-        )
-        outcome = installer.atomic_swap(staged, target, txid="tx3")
+        # Path.stat is patched for every path in the process, so the patch is undone before the test returns: a
+        # live patch reaches pytest's own reporting (the timing plugin's flush) and its temp-dir cleanup.
+        with monkeypatch.context() as patch:
+            patch.setattr(
+                Path, "stat", lambda self, *a, **k: _FakeStat(1 if self.name == "staged-bundle" else 2), raising=False
+            )
+            outcome = installer.atomic_swap(staged, target, txid="tx3")
         assert not outcome.ok
         assert "different volume" in outcome.detail
 

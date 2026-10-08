@@ -101,7 +101,7 @@ import itertools
 
 import pytest
 
-from tests._restart_child_env import scrub_child_env
+from tests._restart_child_env import isolated_child_command, scrub_child_env
 
 
 @pytest.fixture(scope='module')
@@ -136,9 +136,10 @@ def restarted_presentation_sources(tmp_path_factory):
         out = work / (case + '.json')
         native_python = os.environ.get('VOOL_PRESENTATION_RESTART_PYTHON', sys.executable)
         assert Path(native_python).is_file()
-        cmd = ['/usr/bin/sandbox-exec', '-f', str(policy), native_python, '-B', str(Path(__file__).resolve()),
-               '--phase', phase, '--home', str(home), '--home-root', str(profiles), '--out', str(out)]
-        if phase == 'reader': cmd.extend(['--case', case])
+        argv = [native_python, '-B', str(Path(__file__).resolve()),
+                '--phase', phase, '--home', str(home), '--home-root', str(profiles), '--out', str(out)]
+        if phase == 'reader': argv.extend(['--case', case])
+        cmd, isolation = isolated_child_command(policy, argv)
         started = time.time()
         proc = subprocess.run(cmd, cwd=REPO, env=env, capture_output=True, text=True, timeout=60)
         (artifact / (case + '.stdout.log')).write_text(proc.stdout)
@@ -148,7 +149,7 @@ def restarted_presentation_sources(tmp_path_factory):
         (artifact / (case + '.json')).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
         outputs[case] = value
         runs.append({'case': case, 'pid': value['pid'], 'exit_code': proc.returncode,
-                     'started': started, 'finished': time.time()})
+                     'started': started, 'finished': time.time(), 'isolation': isolation})
     assert len({r['pid'] for r in runs}) == len(runs)
     assert all(b['started'] >= a['finished'] for a, b in itertools.pairwise(runs))
     (artifact / 'PROCESS-RECEIPT.json').write_text(json.dumps({'runs': runs, 'profile': str(home)}, indent=2) + '\n')

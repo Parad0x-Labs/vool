@@ -30,7 +30,7 @@ def home(tmp_path, monkeypatch):
         monkeypatch.setenv(name, str(profile))
     for name in ("NULLA_CONTEXT_CAPSULE_V2", "VOOL_CONTEXT_CAPSULE_V2", "VOOL_MEMORY_RECEIPTS", "VOOL_EVIDENCE_COMPILER", "VOOL_EVIDENCE_KERNEL"):
         monkeypatch.setenv(name, "1")
-    configure_runtime_home(profile); es._best_embed_model = lambda: None
+    configure_runtime_home(profile); monkeypatch.setattr(es, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
     run_migrations()
     yield str(profile)

@@ -145,7 +145,13 @@ def test_exact_plain_text_chat_generation_profile_stays_short_and_deterministic(
     assert profile["stop_sequences"] == ["\n"]
     assert chat_truth["generation_profile_id"] == "chat_exact_plain_text"
     assert chat_truth["context_attached"] is False
-    assert len(messages) == 2
+    # The leading system message stays byte-stable across turns for provider prompt caching; the per-turn system
+    # message after it carries only the runtime clock here -- no context is attached to an exact-text reply.
+    assert [m["role"] for m in messages] == ["system", "system", "user"]
+    assert messages[0]["content"].startswith("You are VOOL. Return only the exact requested text.")
+    turn = messages[1]["content"]
+    assert turn.startswith("Context for this turn:\nRuntime truth for this turn (authoritative): ")
+    assert "\n" not in turn.removeprefix("Context for this turn:\n"), "only the runtime clock rides this turn"
     assert messages[-1] == {"role": "user", "content": "Reply with exactly GREENLOOP-WARMUP-4 and nothing else."}
 
 

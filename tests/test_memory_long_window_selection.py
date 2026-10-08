@@ -40,7 +40,7 @@ def long_store(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_HOME", str(home))
     monkeypatch.setenv("VOOL_HOME", str(home))
     configure_runtime_home(home)
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()

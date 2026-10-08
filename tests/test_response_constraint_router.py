@@ -1000,6 +1000,26 @@ def test_router_build_request_enforces_spelled_six_word_constraint() -> None:
     assert request.metadata["defer_stream_until_verified"] is True
 
 
+# The answer-format block rides the per-turn system message that follows the history, and the leading
+# system message stays byte-stable across turns for provider prompt caching: main 00ba5bd5
+# (2026-10-05, "keep the leading provider system message stable across turns"), ported in dc937f7.
+_TURN_PREFIX = "Context for this turn:\n"
+
+
+def _assert_turn_message_carries(request, *phrases: str) -> None:
+    """Each phrase is in the full system prompt and in the per-turn system message, never in the stable leading one,
+    and the per-turn message comes after the leading one and before the user's message."""
+    systems = [str(m["content"]) for m in request.messages if m.get("role") == "system"]
+    turn = next((text for text in systems if text.startswith(_TURN_PREFIX)), "")
+    assert request.messages[0]["role"] == "system" and request.system_prompt.startswith(systems[0])
+    assert turn, "the per-turn system message is missing"
+    assert request.messages[-1]["role"] == "user"
+    for phrase in phrases:
+        assert phrase in request.system_prompt
+        assert phrase in turn
+        assert phrase not in systems[0]
+
+
 def test_router_build_request_enforces_raw_output_contract_and_updates_messages() -> None:
     router = MemoryFirstRouter(registry=mock.Mock())
     prompt = "Write a haiku. No markdown, no internal thought, no JSON."
@@ -1036,8 +1056,7 @@ def test_router_build_request_enforces_raw_output_contract_and_updates_messages(
         "code_deliverable": False,
     }
     assert request.metadata["defer_stream_until_verified"] is True
-    assert "Return only the requested deliverable" in request.system_prompt
-    assert request.messages[0]["content"] == request.system_prompt
+    _assert_turn_message_carries(request, "Return only the requested deliverable")
 
 
 @pytest.mark.parametrize("prompt", tuple(case.prompt for case in load_cases((4,))[:5]))
@@ -1058,9 +1077,7 @@ def test_router_keeps_structured_batch_whole_and_holds_stream_for_binding(prompt
     assert request.prompt == prompt
     assert request.metadata["raw_output_contract"]["structured_labels"] == ("A", "B", "C")
     assert request.metadata["defer_stream_until_verified"] is True
-    assert "exactly 3 non-empty physical lines" in request.system_prompt
-    assert "LABEL. answer" in request.system_prompt
-    assert request.messages[0]["content"] == request.system_prompt
+    _assert_turn_message_carries(request, "exactly 3 non-empty physical lines", "LABEL. answer")
     assert request.messages[-1]["role"] == "user"
     assert request.messages[-1]["content"] == prompt
 
@@ -1150,6 +1167,4 @@ def test_router_build_request_keeps_short_answers_grounded_in_the_current_questi
         source_context={},
     )
 
-    assert "First answer the user's actual question" in request.system_prompt
-    assert "technical synonym" in request.system_prompt
-    assert request.messages[0]["content"] == request.system_prompt
+    _assert_turn_message_carries(request, "First answer the user's actual question", "technical synonym")

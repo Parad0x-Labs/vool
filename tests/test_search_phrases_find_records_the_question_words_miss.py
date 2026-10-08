@@ -34,7 +34,7 @@ def home(tmp_path, monkeypatch):
         monkeypatch.setenv(name, str(profile))
     monkeypatch.setenv("VOOL_CONTEXT_CAPSULE_V2", "1")
     configure_runtime_home(profile)
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()
@@ -90,7 +90,7 @@ def test_with_phrases_present_a_question_the_user_asked_is_never_delivered(tmp_p
         monkeypatch.setenv(name, str(profile))
     monkeypatch.setenv("VOOL_CONTEXT_CAPSULE_V2", "1")
     configure_runtime_home(profile)
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()
