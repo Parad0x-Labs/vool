@@ -60,8 +60,9 @@ def test_tell_retract_ask_serves_the_withdrawn_value_in_no_lane(tmp_path, retrac
     capsule, telemetry = _capsule(profile, chat, "What is my storage unit code?")
     assert "5906" not in capsule, (retraction, handled, reply, capsule)
     if handled:
-        # law 1: a reply that claims an erasure names a count above zero, and the value is gone
-        assert "Removed 0" not in reply, reply
+        # law 1: a reply that claims an erasure names a count above zero; otherwise it says nothing was removed
+        assert "Removed 0" not in reply and ("Forget applied" not in reply or "Removed 0" not in reply), reply
+        assert not ("Forget applied" in reply and "5906" not in capsule and "Nothing was removed" in reply), reply
     lane = [r for r in telemetry.get("evidence_refs", []) if r.get("delivery_stage") == "whole_turn_lane" and r.get("delivered")]
     assert all("5906" not in str(r.get("body") or r.get("summary") or "") for r in lane), lane
 
@@ -79,6 +80,7 @@ def test_a_forget_that_matches_nothing_is_not_claimed_as_applied(tmp_path):
         source_context={"surface": "api", "platform": "api", "chat_id": chat, "runtime_home": str(profile)},
     )
     assert not (handled and "Forget applied" in reply), (handled, reply)
+    assert handled and reply.startswith("Nothing was removed"), (handled, reply)
 
 
 def test_a_reminder_is_not_a_retraction_on_the_same_path(tmp_path):
@@ -171,9 +173,9 @@ def test_a_second_forget_of_an_erased_fact_is_confirmed_as_already_forgotten(tmp
     handled, reply = maybe_handle_memory_command("Forget the boathouse gate code is QX-4471", session_id=chat,
                                                  access_policy=policy, source_context=ctx)
     assert handled and "already forgotten" in reply and "Forget applied" not in reply, (handled, reply)
-    # a keyword that matches nothing stored and no tombstone text still falls through (a retraction turn)
+    # a keyword that matches nothing stored and no tombstone text says so, and claims nothing
     handled, reply = maybe_handle_memory_command("Forget QX-9999", session_id=chat, access_policy=policy, source_context=ctx)
-    assert not handled and reply == "", (handled, reply)
+    assert handled and reply.startswith("Nothing was removed") and "Forget applied" not in reply, (handled, reply)
 
 
 @pytest.mark.parametrize("text, expected", [
@@ -211,4 +213,4 @@ def test_a_forget_naming_a_phrase_never_deletes_every_entry_sharing_a_stopword(t
     handled, reply = maybe_handle_memory_command("Forget my Thanks Giving plans", session_id=chat, access_policy=policy, source_context=ctx)
     after = [str(r.get("text") or "") for r in list_memory_entries(access_policy=policy, limit=20)]
     assert any("Rex" in t for t in after) and any("Volvo" in t for t in after) and any("Kaunas" in t for t in after), (reply, after)
-    assert "Removed 4" not in reply and "Removed 3" not in reply, reply
+    assert "Removed 4" not in reply and "Removed 3" not in reply and "Forget applied" not in reply, reply

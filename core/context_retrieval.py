@@ -3866,8 +3866,6 @@ def _lane_admitted_user_text(raw: str) -> str:
     return "\n".join(lines).strip() if content else ""
 
 
-#: Ineligible verdicts that refuse no value of their own: the record's words reach the reader another way.
-_LANE_TOLERATED_VERDICTS = frozenset({"assistant-derivative", "historical-attributed"})
 
 
 def _pack_cut_inside_a_sentence(body: str, spans: Sequence[tuple[int, int]]) -> bool:
@@ -3894,7 +3892,7 @@ def _pack_cut_inside_a_sentence(body: str, spans: Sequence[tuple[int, int]]) -> 
 
 def _whole_turn_units_facing_the_laws(
     units: list[list[Any]], *, verdicts: Any, runtime_home: str | None,
-    refused: list[dict[str, str]] | None = None,
+    refused: list[dict[str, str]] | None = None, body_by_key: Any = None,
     receipts: Sequence[Mapping[str, Any]] = (), delivered_text: str = "", query: str = "",
 ) -> list[list[Any]]:
     """The ranked units the lane may still render: none whose member a temporal verdict found ineligible this
@@ -3911,6 +3909,28 @@ def _whole_turn_units_facing_the_laws(
     # and delivered nothing" rule emptied the lane of the filler turns it exists to rank), so the lane honours only
     # decisions it can read: the verdicts, the store, the pack's spans and its span predicates below.
     delivered_ids = {str(r.get("occurrence_id") or "") for r in (receipts or ()) if r.get("delivered")}
+    # A value the user scrapped is superseded AND retracted: its slot holds a live retraction record, and the lane keeps
+    # it out (tests/test_composition_evidence_packing.py::test_correction_retraction_never_eats_the_restate: "Scrap that
+    # code" then a new code; the old one rode the lane). Plain supersession, a newer dated value with no retraction,
+    # rides the lane as 60f9271b's law says: only the as-of law refuses it.
+    retracted_slots: set[str] = set()
+    try:
+        from core.temporal_selection import carries_undo_marker as _carries_undo
+        from core.temporal_selection import retraction_marker as _retraction_marker
+
+        bodies = body_by_key if isinstance(body_by_key, dict) else {}
+        for key, verdict in verdict_map.items():
+            text = str(bodies.get(key, "") or "")
+            why = str(getattr(verdict, "reason", "") or "")
+            # a live retraction record the contract let coexist beside the slot's winner ("scrap that code" next to
+            # the new code: eligible-coexists), or the retraction that won the slot. A record that is itself the
+            # new value ("Quick update: 104 kg", "Correction: brown again") is the winner, not a retraction, however
+            # its wording reads, and its superseded predecessor rides the lane.
+            if getattr(verdict, "eligible", False) and text and why in {"eligible-coexists", "slot-winner-retracted"} and (
+                    _retraction_marker(text) is not None or (_carries_undo(text) and not _span_is_revision(text))):
+                retracted_slots.add(str(getattr(verdict, "slot", "") or ""))
+    except Exception:  # pragma: no cover - the grammar is a pure function
+        retracted_slots = set()
     # A turn the pack cut INSIDE a sentence is decided: the rest of that sentence (a displaced value, "the 18:05 slot
     # went to the maintenance fleet") was left out on purpose and stays out. A span that ends at a sentence end is the
     # distilled line, and the lane may still show the whole record beside it.
@@ -3959,15 +3979,16 @@ def _whole_turn_units_facing_the_laws(
             for occurrence in unit:
                 key = str(getattr(occurrence, "occurrence_id", "") or "")
                 verdict = verdict_map.get(key)
-                if verdict is not None and not getattr(verdict, "eligible", True) \
-                        and str(getattr(verdict, "reason", "") or "") not in _LANE_TOLERATED_VERDICTS:
-                    # An ineligible verdict is a decision the main pack already honoured: superseded, withdrawn,
-                    # future-declared, outside the window, a stale observation, a duplicate of the winner. The lane
-                    # renders whole turns with their values, so none of them may ride here (the pack's own value-free
-                    # prefix ride is its own). An assistant derivative is not a refused value: the lane's law keeps
-                    # identical words from the other speaker.
-                    reason = "temporal:" + str(getattr(verdict, "reason", "") or "")
-                    break
+                if verdict is not None and not getattr(verdict, "eligible", True):
+                    why = str(getattr(verdict, "reason", "") or "")
+                    slot = str(getattr(verdict, "slot", "") or "")
+                    if why in _PACKET_REFUSING_VERDICTS or (why.startswith("superseded") and slot in retracted_slots):
+                        # A retraction (withdrawn, or superseded in a slot the user scrapped) and the as-of, window and
+                        # future laws refuse the record on every carrier; the lane renders whole turns with their values,
+                        # so none of them may ride here. Plain supersession and the other ineligible readings (a
+                        # derivative, a duplicate of the winner, an unlinked chain mate) stay the lane's to render.
+                        reason = "temporal:" + why
+                        break
                 body = str(getattr(occurrence, "body", "") or "")
                 body_norm = " ".join(body.lower().split())
                 role = str(getattr(occurrence, "role", "") or "")
@@ -7362,10 +7383,10 @@ def forget_session_memory(
         # derivatives together). Occurrence cleanup is a side-effect of
         # removing the entry, not a second memory entry: the user-facing
         # count stays the ledger count.
-        mem.occurrence_invalidate_matching(
+        occurrences_invalidated = int(mem.occurrence_invalidate_matching(
             token,
             chat_scope=policy.chat_id,
-        )
+        ) or 0)
         # ... and the conversation log is a reachable re-serving cache for
         # the same body (augment_history_from_session_log hydrates prompts
         # from it): a forgotten value that the log still serves is not
@@ -7437,7 +7458,10 @@ def forget_session_memory(
         # request after the log scrub had already run).
         mem.record_revocation(token, chat_id=policy.chat_id)
         _sweep_derived_dialogue_surfaces(policy.chat_id, token)
-        return invalidated
+        # The count the forget lane reads: a value erased only from the source layer (a plain chat turn, never a
+        # ledger entry) is an erasure all the same, and the lane must say so rather than "nothing was removed"
+        # (tests/lifecycle/test_forget_revocation_law_20260929.py: "forget Cedar clinic" after a plain turn).
+        return max(int(invalidated or 0), occurrences_invalidated)
     except (TypeError, ValueError):
         return 0
     except Exception as exc:
@@ -12321,7 +12345,7 @@ def _capsule_v2_inject_retrieved(
     _lane_refused: list[dict[str, str]] = []
     whole_turn_units = _whole_turn_units_facing_the_laws(
         whole_turn_units, verdicts=verdicts, runtime_home=runtime_home, refused=_lane_refused,
-        receipts=evidence_receipts, delivered_text=render_block, query=query)
+        body_by_key=locals().get("body_by_key"), receipts=evidence_receipts, delivered_text=render_block, query=query)
     if _lane_refused:
         telemetry["whole_turn_lane_refused"] = _lane_refused
     turn_lines, turn_tokens = ([], 0)
