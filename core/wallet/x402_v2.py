@@ -252,7 +252,7 @@ def propose_from_v2_offer(offer: V2Offer, entry: V2Requirements, *, wallet_id: s
     asset = chains.asset_for(entry.network, entry.asset)
     from core.wallet import x402 as wallet_x402
 
-    idempotency_key = wallet_x402.offer_key("v2", entry.resource_url, entry.pay_to, str(entry.amount_minor), entry.asset, entry.network)
+    idempotency_key = wallet_x402.offer_key("v2", entry.resource_url, entry.pay_to, str(entry.amount_minor), asset.symbol, spec.network)
     return proposals.propose_transaction(
         wallet_id=wallet_id, destination=entry.pay_to, amount_minor=entry.amount_minor, asset=asset.symbol,
         origin=proposals.ORIGIN_X402, memo=f"x402v2 {entry.resource_url}"[:200], idempotency_key=idempotency_key,

@@ -539,6 +539,7 @@ class PaymentLifecycle:
             raise self._fault("wallet_duplicate_payment", proposal, reason="already_broadcast", status=proposal.state)
         self._require_signable_row(proposal)
         self._require_owns_request(proposal)
+        self._require_names_a_request(proposal)
         claimed = proposals.transition(proposal.proposal_id, proposals.STATE_APPROVED, detail={"method": method}, expected_state=proposals.STATE_PENDING_APPROVAL)
         if claimed is None:
             raise self._fault("wallet_duplicate_payment", proposal, reason="already_claimed_by_another_approval")
@@ -580,6 +581,7 @@ class PaymentLifecycle:
             raise self._fault("wallet_duplicate_payment", proposal, reason="not_awaiting_approval", status=proposal.state)
         self._require_signable_row(proposal)
         self._require_owns_request(proposal)
+        self._require_names_a_request(proposal)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         recipient = dict(getattr(proposal, "recipient", {}) or {})
         if recipient.get("resolution") == "contact":
@@ -673,6 +675,17 @@ class PaymentLifecycle:
                     detail={"reason": "request_bound_to_another_payment"}, reason="request_bound_to_another_payment")
         raise self._fault("wallet_duplicate_payment", proposal, reason="request_bound_to_another_payment", status=proposal.state)
 
+    def _require_names_a_request(self, proposal: proposals.TransactionProposal) -> None:
+        """An x402 offer no request's binding names (proposed on its own, never fetched) is approved by no door: the
+        pocket approval, the external-signer and pocket claim, and the Crypto Pilot approval refuse it before anything
+        is asked, held or sent, as the EVM lanes refuse to sign one. It is not ended: it waits in pending approval for
+        the fetch of a request whose 402 is that offer (:func:`x402.names_a_request`). A binding that names a payment
+        waiting for approval is never taken from it (:func:`x402.binding_guard`), so a claim finds what this read."""
+        from core.wallet import x402 as wallet_x402
+
+        if not wallet_x402.names_a_request(proposal):
+            raise self._fault("wallet_approval_rejected", proposal, reason="no_x402_binding", status=proposal.state)
+
     def _refuse_pilot_approval(self, proposal: proposals.TransactionProposal, decision: Any, *, reason: str) -> None:
         attempts = self._count_approval_refusal(proposal, decision, reason=reason)
         final = "approval_attempts_exhausted" if attempts >= MAX_APPROVAL_ATTEMPTS else reason
@@ -695,6 +708,7 @@ class PaymentLifecycle:
         if not transfers.is_pilot_transfer(proposal):
             raise self._fault("wallet_quote_mismatch", proposal, reason="not_a_pilot_transfer")
         self._require_owns_request(proposal)
+        self._require_names_a_request(proposal)
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         quote = quotes.require_open_quote(quote_id, proposal=proposal, quote_digest=quote_digest, account_address=profile.public_key, source_context=self.source_context)

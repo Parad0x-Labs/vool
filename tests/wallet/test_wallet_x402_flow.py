@@ -144,6 +144,119 @@ def test_two_spellings_of_one_resource_are_one_payment(wallet_env, resource):
     assert {d["signature"] for d in resource.deliveries} == {receipt.tx_signature}
 
 
+class _CountingPin:
+    """The owner's PIN approver, counting how often the owner is asked."""
+
+    def __init__(self) -> None:
+        self.asked = 0
+
+    def approve(self, challenge):
+        from core.wallet import approval
+
+        self.asked += 1
+        return approval.PinApprover(PIN).approve(challenge)
+
+
+@pytest.mark.parametrize("door", ["api", "model"])
+@pytest.mark.parametrize("copy", ["repriced", "asset_spelled_otherwise"])
+def test_a_copy_of_a_fetched_offer_at_an_offer_door_is_never_a_second_payment(wallet_env, resource, copy, door):
+    """The wallet fetched one resource once, and the 402 an offer door is shown for it differs from what the fetch saw:
+    its price moved (or the resource showed the model another one), or the same offer is spelled otherwise ("sol" for
+    "SOL"). The offer spelled otherwise is the same offer (its key is what a proposal stores), so it names the fetched
+    proposal. The repriced one is another offer that no request's binding names, so no door approves it: the owner is
+    never asked, and it waits. Either way the owner can approve one payment, and the request is paid once."""
+    from core.wallet import approval, custody, lifecycle, proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket(custody)
+    fetched = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    if copy == "repriced":
+        shown = x402_body(amount_minor=resource.amount_minor - 100)
+    else:
+        shown = x402_body(amount_minor=resource.amount_minor, asset="sol")
+    offered = _proposed_through_an_offer_door(door, shown)
+    engine = lifecycle.default_lifecycle()
+    if copy == "repriced":
+        owner = _CountingPin()
+        with pytest.raises(WalletFault) as refused:
+            engine.approve_and_execute(offered, approver=owner)
+        assert (refused.value.code, refused.value.context.get("reason")) == ("wallet_approval_rejected", "no_x402_binding")
+        assert owner.asked == 0 and proposals.get_proposal(offered).state == proposals.STATE_PENDING_APPROVAL
+    else:
+        assert offered == fetched.proposal_id and _approvable() == [fetched.proposal_id], "one offer, spelled otherwise, is one proposal"
+    receipt = engine.approve_and_execute(fetched.proposal_id, approver=approval.PinApprover(PIN))
+    delivered = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert (delivered.status, delivered.tx_signature) == (x402.OUTCOME_DELIVERED, receipt.tx_signature)
+    assert wallet_env["rpc"].send_count() == 1 and len(resource.deliveries) == 1, "one request the wallet fetched once, one payment"
+
+
+@pytest.mark.parametrize("lane", ["pocket", "external_signer"])
+def test_an_offer_proposed_on_its_own_is_paid_only_once_a_fetch_binds_its_request(wallet_env, resource, lane):
+    """An x402 offer is paid only as the payment of a request this wallet fetched: the request's binding is what keeps
+    one request to one payment. The model proposing a 402 it was shown names no request, so no approval door takes
+    that proposal (the owner is not asked, no signing request opens, nothing is held) and nothing ends it: it waits
+    until the wallet fetches a request whose 402 is that offer. The fetch binds the request to it, and the owner then
+    approves that one payment."""
+    from core.wallet import custody, external_signing, lifecycle, limits, proposals, receipts, x402
+    from core.wallet.errors import WalletFault
+    from tests.wallet._rig import ExtensionSigner
+
+    engine = lifecycle.default_lifecycle()
+    with ExtensionSigner() as signer:
+        if lane == "pocket":
+            profile = _pocket(custody)
+            owner = _CountingPin()
+            approve = lambda: engine.approve_and_execute(offered, approver=owner)  # noqa: E731
+        else:
+            profile = custody.register_external_signer_wallet(signer.public_key, network="solana-devnet", label="phantom")
+            approve = lambda: engine.request_external_signature(offered)  # noqa: E731
+        offered = _proposed_through_an_offer_door("model", x402_body(amount_minor=resource.amount_minor))
+        with pytest.raises(WalletFault) as refused:
+            approve()
+        assert (refused.value.code, refused.value.context.get("reason")) == ("wallet_approval_rejected", "no_x402_binding")
+        assert proposals.get_proposal(offered).state == proposals.STATE_PENDING_APPROVAL and limits.reservation_state(offered) == ""
+        assert external_signing.open_request_for_proposal(offered) is None and [r for r in receipts.list_receipts() if r["proposal_id"] == offered] == []
+        fetched = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert (fetched.status, fetched.proposal_id) == (x402.OUTCOME_PAYMENT_REQUIRED, offered), "the fetch binds its request to the offer's proposal"
+        if lane == "external_signer":
+            assert approve()["proposal_id"] == offered and limits.reservation_state(offered) == limits.RESERVATION_RESERVED
+            return
+        assert owner.asked == 0
+        receipt = approve()
+    delivered = x402.retry_paid_resource(offered)
+    assert (delivered.status, delivered.tx_signature) == (x402.OUTCOME_DELIVERED, receipt.tx_signature)
+    assert owner.asked == 1 and wallet_env["rpc"].send_count() == 1 and len(resource.deliveries) == 1
+
+
+def test_a_second_spelling_that_loses_the_race_to_mint_the_offer_is_bound_to_its_proposal(wallet_env, resource, monkeypatch):
+    """Two spellings of one resource fetched at once both find no proposal for the offer, and the second one's insert
+    loses to the first one's on the offer's key. The loser converges on the winner's proposal with its own claim run
+    there, so its request is bound to that one payment: it is answered with that payment, and once the owner approves
+    it, it is delivered at either spelling without paying again."""
+    from core.wallet import approval, custody, idempotency, lifecycle, x402
+
+    profile = _pocket(custody)
+    first = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    real_existing = idempotency.existing_for_key
+    raced: list[str] = []
+
+    def read_before_the_first_insert_committed(wallet_id, key):
+        if not raced:
+            raced.append(key)
+            return None
+        return real_existing(wallet_id, key)
+
+    monkeypatch.setattr(idempotency, "existing_for_key", read_before_the_first_insert_committed)
+    second = x402.fetch_paid_resource(resource.url + "?ref=agent", wallet_id=profile.wallet_id)
+    monkeypatch.setattr(idempotency, "existing_for_key", real_existing)
+    assert raced and (second.status, second.proposal_id) == (x402.OUTCOME_PAYMENT_REQUIRED, first.proposal_id)
+    assert _approvable() == [first.proposal_id]
+    receipt = lifecycle.default_lifecycle().approve_and_execute(first.proposal_id, approver=approval.PinApprover(PIN))
+    delivered = x402.fetch_paid_resource(resource.url + "?ref=agent", wallet_id=profile.wallet_id)
+    assert (delivered.status, delivered.tx_signature, delivered.repaid) == (x402.OUTCOME_DELIVERED, receipt.tx_signature, False)
+    assert wallet_env["rpc"].send_count() == 1
+
+
 @pytest.mark.parametrize("price", [1500, 1400], ids=["same-price", "other-price"])
 def test_a_payment_whose_broadcast_outcome_is_unknown_is_never_paid_again(wallet_env, resource, price):
     """The node took the transaction and then answered 500: the payment may land, and no transaction id is known.
