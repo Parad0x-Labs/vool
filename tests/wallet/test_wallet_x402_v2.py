@@ -678,6 +678,41 @@ def test_e5d7_one_offer_through_the_fetch_door_and_an_offer_door_is_one_payment(
         assert len(resource.deliveries) == 1, "one offer, one payment"
 
 
+@pytest.mark.parametrize("second", ["another_origin_after_approval", "another_origin_before_approval", "another_spelling_after_approval"])
+def test_e5d8_the_signed_authorization_goes_to_the_request_its_payment_was_parked_for(wallet_env, evm_rig, monkeypatch, second):
+    """Every request that reaches one offer is bound to its one payment, before or after the owner approves it: another
+    spelling of the URL, or another origin that answers the same 402 word for word. The payment stays the payment of
+    the request it was parked for: its approval and its authorization are made for that request, and sent there,
+    once. A request bound to it later gets nothing sent to it."""
+    from core.wallet import custody
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    terms = dict(network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2", rpc=evm_rig.rpc)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, **terms) as parked_for, X402V2Resource(evm_rig.facilitator, **terms) as other:
+        other.payment_required = parked_for.payment_required
+        profile = custody.register_external_signer_wallet(signer.address, network=BASE_SEPOLIA)
+        engine = wallet_x402.lifecycle_default_engine()
+        parked = wallet_x402.fetch_paid_resource(parked_for.url, wallet_id=profile.wallet_id)
+        second_url = parked_for.url + "?ref=agent" if second.startswith("another_spelling") else other.url
+
+        def fetch_the_second_request():
+            outcome = wallet_x402.fetch_paid_resource(second_url, wallet_id=profile.wallet_id)
+            assert (outcome.status, outcome.proposal_id) == (wallet_x402.OUTCOME_PAYMENT_REQUIRED, parked.proposal_id)
+
+        if second.endswith("before_approval"):
+            fetch_the_second_request()
+        view = engine.request_external_signature(parked.proposal_id)
+        if second.endswith("after_approval"):
+            fetch_the_second_request()
+        assert wallet_x402.binding_for_proposal(parked.proposal_id)["url"] == parked_for.url, "the payment's binding is its own request's"
+        signature = signer_sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+        engine.submit_external_signature(view["request_id"], signature_hex=signature)
+        assert [d["path"] for d in parked_for.deliveries] == ["/paid/v2/report"] and other.deliveries == []
+        assert evm_rig.facilitator.settle_count() == 1
+
+
 @pytest.mark.parametrize("refusal", ["loopback_off", "loopback_name", "dns_failure"])
 def test_e5e_a_payment_refused_before_its_socket_is_released_and_can_be_parked_again(wallet_env, evm_rig, monkeypatch, refusal):
     """A refusal the target check raises before the payment hop's socket opens proves nothing was sent: the hold is
