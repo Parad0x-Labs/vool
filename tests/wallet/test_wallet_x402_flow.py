@@ -101,6 +101,83 @@ def test_a_payment_whose_broadcast_outcome_is_unknown_is_never_paid_again(wallet
     assert x402.binding_for_proposal(parked.proposal_id)["proposal_id"] == parked.proposal_id
 
 
+def _stale_first_check(monkeypatch, x402):
+    """The second caller's first look at the request happened before the first caller's payment was bound: its gate
+    answers 'nothing holds this request' once, then reads the store as it is."""
+    real = x402._bound_outcome
+    calls = []
+
+    def stale_once(binding, **kwargs):
+        calls.append(binding)
+        return None if len(calls) == 1 else real(binding, **kwargs)
+
+    monkeypatch.setattr(x402, "_bound_outcome", stale_once)
+
+
+@pytest.mark.parametrize("outcome", ["unknown", "confirmed"])
+def test_a_late_challenge_cannot_rebind_a_request_its_payment_holds(wallet_env, resource, monkeypatch, outcome):
+    """Two callers fetch the same request. The first parks, is approved and pays (or its broadcast's outcome is
+    unknown); the second passed its own check before that and its 402, on other terms, arrives late. The binding
+    refuses the second proposal in the same statement that would rebind the request: no second payment is parked,
+    and the proposal minted for the late challenge is rejected, never approvable."""
+    from core.wallet import approval, custody, lifecycle, proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket(custody)
+    parked = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    if outcome == "unknown":
+        wallet_env["rpc"].send_mode = "accept_then_500"
+        with pytest.raises(WalletFault):
+            lifecycle.default_lifecycle().approve_and_execute(parked.proposal_id, approver=approval.PinApprover(PIN))
+        wallet_env["rpc"].send_mode = "ok"
+    else:
+        assert lifecycle.default_lifecycle().approve_and_execute(parked.proposal_id, approver=approval.PinApprover(PIN)).state == proposals.STATE_CONFIRMED
+    resource.amount_minor = 1400
+    _stale_first_check(monkeypatch, x402)
+    if outcome == "unknown":
+        with pytest.raises(WalletFault) as late:
+            x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert late.value.code == "wallet_duplicate_payment" and late.value.context["reason"] == "payment_outcome_unknown"
+    else:
+        late = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert late.proposal_id == parked.proposal_id and late.repaid is False, "the late caller gets the one paid delivery"
+    assert resource.challenges == 2, "the late caller's request did go out: its first check was stale"
+    assert wallet_env["rpc"].send_count() == 1
+    assert x402.binding_for_proposal(parked.proposal_id)["proposal_id"] == parked.proposal_id
+    others = [p for p in proposals.list_proposals() if p.proposal_id != parked.proposal_id]
+    assert [(p.state, p.amount_minor) for p in others] == [(proposals.STATE_REJECTED, 1400)]
+
+
+@pytest.mark.parametrize("first_check", ["current", "stale"])
+def test_a_payment_whose_state_says_failed_while_its_spend_is_held_keeps_its_request_closed(wallet_env, resource, monkeypatch, first_check):
+    """The dispatch record decides, not the state column: a payment whose broadcast outcome is unknown still holds its
+    spend, so its request stays closed even when its proposal row says failed (a rewound or corrupted row). That holds
+    at the re-fetch gate and, for a caller whose first check was stale, in the binding's own compare-and-set."""
+    from core.wallet import approval, custody, lifecycle, limits, proposals, x402
+    from core.wallet.errors import WalletFault
+    from core.wallet.store import connection
+
+    profile = _pocket(custody)
+    parked = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    wallet_env["rpc"].send_mode = "accept_then_500"
+    with pytest.raises(WalletFault):
+        lifecycle.default_lifecycle().approve_and_execute(parked.proposal_id, approver=approval.PinApprover(PIN))
+    wallet_env["rpc"].send_mode = "ok"
+    with connection() as conn:
+        conn.execute("UPDATE wallet_proposals SET state = 'failed' WHERE proposal_id = ?", (parked.proposal_id,))
+    assert limits.reservation_state(parked.proposal_id) == limits.RESERVATION_RESERVED
+    resource.amount_minor = 1400
+    if first_check == "stale":
+        _stale_first_check(monkeypatch, x402)
+    with pytest.raises(WalletFault) as again:
+        x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+    assert again.value.code == "wallet_duplicate_payment" and again.value.context["reason"] == "payment_outcome_unknown"
+    assert resource.challenges == (2 if first_check == "stale" else 1) and wallet_env["rpc"].send_count() == 1
+    assert x402.binding_for_proposal(parked.proposal_id)["proposal_id"] == parked.proposal_id
+    late = [p for p in proposals.list_proposals() if p.proposal_id != parked.proposal_id]
+    assert [(p.state, p.amount_minor) for p in late] == ([(proposals.STATE_REJECTED, 1400)] if first_check == "stale" else [])
+
+
 def test_retry_before_approval_or_over_cap_is_refused(wallet_env, resource, monkeypatch):
     from core.wallet import custody, x402
     from core.wallet.errors import WalletFault

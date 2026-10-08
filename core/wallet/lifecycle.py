@@ -1744,9 +1744,9 @@ class PaymentLifecycle:
             receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=False, status="failed")
             raise self._fault("wallet_broadcast_failed", proposal, reason=reason) from None
         except Exception as exc:  # transport UNKNOWN: the request may have arrived; never blind-retry
+            # the payment effect stays unresolved, as on the branch above: an unknown submission is not a failed one
             reason = f"submit_unknown:{type(exc).__name__}"
             proposals.transition(proposal.proposal_id, proposals.STATE_BROADCAST, detail={"reason": reason, "settlement": "submitted_unknown"}, tx_signature="")
-            reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=reason, source="provider")
             self._close_effect(effect, ok=False, reason=reason)
             receipts.record_receipt(proposal, state=proposals.STATE_BROADCAST, extra={"settlement": "submitted_unknown"})
             raise self._fault("wallet_broadcast_failed", proposal, reason=reason) from None
