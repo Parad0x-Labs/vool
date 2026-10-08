@@ -460,6 +460,7 @@ class PaymentLifecycle:
             return proposal
         if proposal.state != proposals.STATE_PROPOSED:
             raise self._fault("wallet_duplicate_payment", proposal, reason="already_prepared", status=proposal.state)
+        self._require_owns_request(proposal)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         custody.require_network(proposal.network, source_context=self.source_context)
         from core.wallet import environment
@@ -532,6 +533,7 @@ class PaymentLifecycle:
         if proposal.tx_signature:
             raise self._fault("wallet_duplicate_payment", proposal, reason="already_broadcast", status=proposal.state)
         self._require_signable_row(proposal)
+        self._require_owns_request(proposal)
         claimed = proposals.transition(proposal.proposal_id, proposals.STATE_APPROVED, detail={"method": method}, expected_state=proposals.STATE_PENDING_APPROVAL)
         if claimed is None:
             raise self._fault("wallet_duplicate_payment", proposal, reason="already_claimed_by_another_approval")
@@ -572,6 +574,7 @@ class PaymentLifecycle:
         if proposal.state != proposals.STATE_PENDING_APPROVAL:
             raise self._fault("wallet_duplicate_payment", proposal, reason="not_awaiting_approval", status=proposal.state)
         self._require_signable_row(proposal)
+        self._require_owns_request(proposal)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         recipient = dict(getattr(proposal, "recipient", {}) or {})
         if recipient.get("resolution") == "contact":
@@ -651,6 +654,18 @@ class PaymentLifecycle:
             if current is not None and current.state == proposals.STATE_PENDING_APPROVAL:
                 receipts._record_refusal(conn, current, fault_code=fault_code, reason=shown, attempts=attempts)
         return attempts
+
+    def _require_owns_request(self, proposal: proposals.TransactionProposal) -> None:
+        """A proposal the x402 fetch door minted is paid only as its request's one payment. One whose request the store
+        says another payment holds is refused before anything is simulated, asked, held or sent, and ended with its
+        receipt."""
+        from core.wallet import x402 as wallet_x402
+
+        if wallet_x402.owns_its_request(proposal):
+            return
+        end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", expected_state=proposal.state,
+                    detail={"reason": "request_bound_to_another_payment"}, reason="request_bound_to_another_payment")
+        raise self._fault("wallet_duplicate_payment", proposal, reason="request_bound_to_another_payment", status=proposal.state)
 
     def _refuse_pilot_approval(self, proposal: proposals.TransactionProposal, decision: Any, *, reason: str) -> None:
         attempts = self._count_approval_refusal(proposal, decision, reason=reason)

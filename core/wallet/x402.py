@@ -107,7 +107,17 @@ def detect_x402(status: int, headers: dict[str, Any] | None, body: Any) -> X402R
     return None
 
 
-def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: dict[str, Any] | None = None) -> proposals.TransactionProposal:
+def fetched_key(request_digest: str, wire: str, *terms: Any) -> str:
+    """The idempotency key of a proposal an x402 fetch door mints: it names the request the proposal pays (its digest)
+    as well as the offer's terms, so the same request on the same terms reuses its proposal and nothing else does."""
+    material = "|".join([str(request_digest), str(wire), *(str(term) for term in terms)])
+    return FETCHED_KEY_PREFIX + hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+
+
+def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: dict[str, Any] | None = None, request_digest: str = "",
+                      claim: Any = None) -> proposals.TransactionProposal:
+    """The capped proposal for a v1 offer. The fetch door passes the request's digest and its ``claim`` on that request
+    (see :func:`proposals.propose_transaction`); an offer proposed on its own names no request."""
     custody.require_enabled(source_context=source_context)
     from core.wallet import x402_v2
 
@@ -120,11 +130,11 @@ def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: d
     cap = config.x402_cap_minor()
     if request.amount_minor > cap:
         raise wallet_fault("wallet_x402_cap_exceeded", authority=AUTHORITY, context={"amount_minor": request.amount_minor, "limit": str(cap), "asset": request.asset, "reason": "above_automatic_cap"}, source_context=source_context)
-    key_material = "|".join([request.resource, request.pay_to, str(request.amount_minor), request.asset, request.network])
-    idempotency_key = "x402:" + hashlib.sha256(key_material.encode("utf-8")).hexdigest()[:24]
+    terms = (request.resource, request.pay_to, str(request.amount_minor), request.asset, request.network)
+    idempotency_key = fetched_key(request_digest, "v1", *terms) if request_digest else "x402:" + hashlib.sha256("|".join(terms).encode("utf-8")).hexdigest()[:24]
     return proposals.propose_transaction(
         wallet_id=wallet_id, destination=request.pay_to, amount_minor=request.amount_minor, asset=request.asset, origin=proposals.ORIGIN_X402,
-        memo=f"x402 {request.resource}"[:200], idempotency_key=idempotency_key, source_context=source_context,
+        memo=f"x402 {request.resource}"[:200], idempotency_key=idempotency_key, source_context=source_context, claim=claim,
     )
 
 
@@ -156,6 +166,9 @@ BINDING_HELD_STATES = (*PREPARING_STATES, proposals.STATE_PENDING_APPROVAL, prop
 #: Preparing moves a proposal on within seconds (each step is a bounded read). One still preparing this long after its
 #: last step was abandoned (its process stopped mid-prepare): see :func:`end_abandoned_prepare`.
 ABANDONED_PREPARE_SECONDS = 300.0
+#: A fetched proposal's idempotency key starts with this (:func:`fetched_key`): such a proposal is paid only while its
+#: request's binding names it (:func:`owns_its_request`).
+FETCHED_KEY_PREFIX = "x402req:"
 #: The event a binding leaves on its proposal when a later payment for the same request replaces it: the whole binding
 #: as it was, and the proposal that replaced it.
 EVENT_BINDING_REPLACED = "x402_binding_replaced"
@@ -281,6 +294,31 @@ def _claim_request(conn: Any, *, request_digest: str, url: str, method: str, pro
     return True
 
 
+def _claim_for(request_digest: str, url: str, method: str, terms: dict[str, Any], claimed: list[str]) -> Any:
+    """The fetch door's claim on its request, run inside the transaction that mints the proposal: bind it, or, when
+    another payment holds the request, reject the new proposal there with its receipt, so it is never approvable and
+    never seen unbound. ``claimed`` collects the proposal that won the request."""
+    def claim(conn: Any, minted: proposals.TransactionProposal) -> None:
+        if _claim_request(conn, request_digest=request_digest, url=url, method=method, proposal_id=minted.proposal_id, terms=terms):
+            claimed.append(minted.proposal_id)
+            return
+        from core.wallet import lifecycle
+
+        holder = conn.execute("SELECT proposal_id FROM wallet_x402_bindings WHERE request_digest = ?", (request_digest,)).fetchone()
+        lifecycle.end_refused(minted.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", expected_state=proposals.STATE_PROPOSED,
+                              detail={"reason": "request_bound_to_another_payment", "bound_proposal_id": str(holder[0] if holder else "")}, conn=conn,
+                              reason="request_bound_to_another_payment")
+    return claim
+
+
+def owns_its_request(proposal: proposals.TransactionProposal) -> bool:
+    """False for a proposal an x402 fetch door minted (:func:`fetched_key`) whose request's binding no longer names it:
+    such a proposal is paid only as its request's one payment. Every other proposal claims no request here."""
+    if proposal.origin != proposals.ORIGIN_X402 or not str(proposal.idempotency_key).startswith(FETCHED_KEY_PREFIX):
+        return True
+    return binding_for_proposal(proposal.proposal_id) is not None
+
+
 def binding_guard() -> tuple[str, tuple[Any, ...]]:
     """The WHERE clause (and its parameters) of a binding upsert's ON CONFLICT update, which makes rebinding a request
     one compare-and-set: the stored binding takes another proposal only while its own proposal is in none of
@@ -296,17 +334,6 @@ def binding_guard() -> tuple[str, tuple[Any, ...]]:
         " AND l.state = ?)",
         (*BINDING_HELD_STATES, limits._fee_hold_id(""), limits.RESERVATION_RESERVED),
     )
-
-
-def reject_unbound(proposal_id: str, *, bound_proposal_id: str) -> None:
-    """A proposal minted for a request that another proposal holds never becomes approvable: it is rejected while still
-    proposed, and its receipt (nothing charged) commits with it. A proposal that is the bound one, or that was not
-    minted just now, is left as it is."""
-    if proposal_id and proposal_id != bound_proposal_id:
-        from core.wallet import lifecycle
-
-        lifecycle.end_refused(proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", expected_state=proposals.STATE_PROPOSED,
-                              detail={"reason": "request_bound_to_another_payment", "bound_proposal_id": bound_proposal_id}, reason="request_bound_to_another_payment")
 
 
 def prepare_bound(proposal_id: str, *, source_context: dict[str, Any] | None) -> proposals.TransactionProposal:
@@ -435,12 +462,13 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     offer = detect_x402(status, response_headers, body)
     if offer is None:
         return X402Outcome(status=OUTCOME_REFUSED, http_status=status, body=body)
-    proposal = propose_from_x402(offer, wallet_id=wallet_id, source_context=source_context)
-    # bound before it is prepared, whole: a proposal that lost the request to another payment never becomes approvable
-    with connection() as conn:
-        bound = _claim_request(conn, request_digest=digest, url=clean_url, method=method, proposal_id=proposal.proposal_id, terms=_v1_terms(offer))
-    if not bound:
-        return _lost_request(digest, proposal.proposal_id, timeout=timeout, source_context=source_context)
+    # the proposal and its claim on the request commit together: nothing ever sees it unbound, and one that lost the
+    # request to another payment is rejected in that same transaction, never approvable
+    claimed: list[str] = []
+    proposal = propose_from_x402(offer, wallet_id=wallet_id, source_context=source_context, request_digest=digest,
+                                 claim=_claim_for(digest, clean_url, method, _v1_terms(offer), claimed))
+    if proposal.proposal_id not in claimed:
+        return _lost_request(digest, timeout=timeout, source_context=source_context)
     binding = binding_for_digest(digest) or {}
     prepared = prepare_bound(proposal.proposal_id, source_context=source_context)
     return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=status, body=body, proposal_id=prepared.proposal_id, binding_id=binding.get("binding_id", ""), offer=offer)
@@ -484,11 +512,11 @@ def refuse_while_dispatched(proposal: proposals.TransactionProposal, *, authorit
         raise wallet_fault("wallet_duplicate_payment", authority=authority, context={"proposal_id": proposal.proposal_id, "reason": "payment_outcome_unknown", "status": proposal.state}, source_context=source_context)
 
 
-def _lost_request(digest: str, proposal_id: str, *, timeout: float, source_context: dict[str, Any] | None) -> X402Outcome:
-    """Another caller bound this request first (its 402 arrived while ours was in flight): the proposal minted here is
-    rejected, and this caller gets what the request's own payment gives a re-fetch."""
+def _lost_request(digest: str, *, timeout: float, source_context: dict[str, Any] | None) -> X402Outcome:
+    """Another payment holds this request (its 402 arrived while ours was in flight, or the same request on the same
+    terms already has its proposal): nothing approvable was minted here, and this caller gets what the request's own
+    payment gives a re-fetch."""
     binding = binding_for_digest(digest)
-    reject_unbound(proposal_id, bound_proposal_id=str((binding or {}).get("proposal_id") or ""))
     bound = _bound_outcome(binding, timeout=timeout, source_context=source_context)
     if bound is not None:
         return bound
@@ -524,7 +552,6 @@ def _fetch_v2(v2_offer, clean_url: str, method: str, wallet_id: str, *, source_c
     entry, reason = x402_v2.select_offer(v2_offer, wallet_id=wallet_id, source_context=source_context)
     if entry is None:
         raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": reason}, source_context=source_context)
-    proposal = x402_v2.propose_from_v2_offer(v2_offer, entry, wallet_id=wallet_id, source_context=source_context)
     digest = _request_digest(method, clean_url)
     facilitator = ""
     try:
@@ -532,11 +559,11 @@ def _fetch_v2(v2_offer, clean_url: str, method: str, wallet_id: str, *, source_c
         facilitator = f"{capability.facilitator_id}@{capability.origin}"
     except Exception:
         facilitator = ""  # prepare() re-checks and refuses typed when missing
-    with connection() as conn:
-        bound = _claim_request(conn, request_digest=digest, url=clean_url, method=method, proposal_id=proposal.proposal_id,
-                               terms=_v2_terms(entry, url=clean_url, facilitator=facilitator))
-    if not bound:
-        return _lost_request(digest, proposal.proposal_id, timeout=20.0, source_context=source_context)
+    claimed: list[str] = []
+    proposal = x402_v2.propose_from_v2_offer(v2_offer, entry, wallet_id=wallet_id, source_context=source_context, request_digest=digest,
+                                             claim=_claim_for(digest, clean_url, method, _v2_terms(entry, url=clean_url, facilitator=facilitator), claimed))
+    if proposal.proposal_id not in claimed:
+        return _lost_request(digest, timeout=20.0, source_context=source_context)
     prepare_bound(proposal.proposal_id, source_context=source_context)
     binding = binding_for_digest(digest) or {}
     return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=PAYMENT_REQUIRED, proposal_id=proposal.proposal_id, binding_id=binding.get("binding_id", ""), offer=_v2_to_v1_view(v2_offer))
