@@ -421,6 +421,12 @@ def _the_hold_write(sql, _params):
     return sql.startswith("INSERT INTO wallet_spend_ledger")
 
 
+def _the_hold_release(sql, params):
+    from core.wallet import limits
+
+    return sql.startswith("UPDATE wallet_spend_ledger SET state = ?") and params[:1] == (limits.RESERVATION_RELEASED,)
+
+
 def _a_store_error():
     import sqlite3
 
@@ -545,4 +551,42 @@ def test_a_signing_request_for_a_payment_that_holds_nothing_is_ended_not_signed_
     assert (refused.value.code, refused.value.context["reason"]) == ("wallet_approval_rejected", "spend_not_held")
     _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", reason="spend_not_held")
     assert external_signing.get_signing_request(view["request_id"])["state"] == external_signing.STATE_EXPIRED
+    assert wallet_env["rpc"].send_count() == 0
+
+
+@pytest.mark.parametrize("door", ["submit_after_its_ttl", "reaper", "owner_reject"])
+def test_a_stop_at_the_hold_release_while_an_unsent_payment_is_ended_leaves_it_whole_for_the_next_door(wallet_env, monkeypatch, door):
+    """The stop lands on the statement that releases the hold, whichever code issues it and on whichever connection.
+    The release belongs to the transaction that ends the payment, so the stop leaves the payment exactly as it was:
+    waiting, its request open, its spend held, no receipt. The next door ends it whole: one receipt, nothing held."""
+    import json
+
+    from core.wallet import external_signing, lifecycle, limits, proposals
+
+    engine, proposal, request = _claimed_external_payment()
+    real_now = external_signing._now
+    if door != "owner_reject":
+        monkeypatch.setattr(external_signing, "_now", lambda: real_now() + external_signing.REQUEST_TTL_SECONDS + 1)
+    with monkeypatch.context() as interrupting:
+        interrupted = _interrupt_the_statement(interrupting, _the_hold_release, _ProcessStopped)
+        with pytest.raises(_ProcessStopped):
+            if door == "submit_after_its_ttl":
+                engine.submit_external_signature(request["request_id"], signature_b58="1" * 88)
+            elif door == "reaper":
+                engine.reap_stale_signing_requests()
+            else:
+                _reject(proposal.proposal_id)
+    assert interrupted, "the ending reached the hold's release"
+    as_it_was = (proposals.get_proposal(proposal.proposal_id).state, external_signing.get_signing_request(request["request_id"])["state"],
+                 limits.reservation_state(proposal.proposal_id), _receipts(proposal.proposal_id))
+    assert as_it_was == (proposals.STATE_AWAITING_SIGNATURE, external_signing.STATE_OPEN, limits.RESERVATION_RESERVED, [])
+    restarted = lifecycle.default_lifecycle()
+    if door == "owner_reject":
+        assert json.loads(_reject(proposal.proposal_id).body)["rejected"] is True
+        _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
+                                reason="owner_rejected_after_claim")
+    else:
+        assert restarted.reap_stale_signing_requests() == 1
+        _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
+                                reason="signing_request_expired")
     assert wallet_env["rpc"].send_count() == 0

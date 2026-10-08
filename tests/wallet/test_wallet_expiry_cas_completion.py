@@ -125,6 +125,26 @@ def test_svm_expiry_cas_loss_after_b_signed_keeps_the_hold(wallet_env, monkeypat
     assert wallet_env["rpc"].send_count() == 0
 
 
+def test_an_owner_reject_that_loses_the_request_to_a_submission_ends_nothing(wallet_env, monkeypatch):
+    """The owner's reject reads the open request, then ends the payment in one transaction whose compare-and-set closes
+    that request. A submission that consumes the request between the two is in flight: the reject loses the
+    compare-and-set, says so and ends nothing. No receipt, the hold stays, the effect reservation stays active and the
+    payment keeps waiting on that submission."""
+    from core.wallet import limits, proposals, receipts
+    from core.web.api.wallet_api import handle_wallet_post
+
+    _engine, proposal_id, _view, _key = _svm_open_request(wallet_env)
+    _interleaved_expire(monkeypatch, b_past_transition=False, proposal_id=proposal_id)
+    answer = json.loads(handle_wallet_post("/api/wallet/reject", {"proposal_id": proposal_id}, client_host="127.0.0.1",
+                                           headers={"Host": "127.0.0.1", "Origin": "http://127.0.0.1"}).body)
+    assert (answer["rejected"], answer["reason"]) == (False, "signing_request_in_flight")
+    assert proposals.get_proposal(proposal_id).state == proposals.STATE_AWAITING_SIGNATURE
+    assert limits.reservation_state(proposal_id) == limits.RESERVATION_RESERVED, "a lost compare-and-set releases nothing"
+    assert _a6_active(proposal_id), "a lost compare-and-set records no guessed non-execution"
+    assert [r for r in receipts.list_receipts() if r["proposal_id"] == proposal_id] == []
+    assert wallet_env["rpc"].send_count() == 0
+
+
 @pytest.fixture
 def evm_rig(wallet_env, monkeypatch):
     monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
