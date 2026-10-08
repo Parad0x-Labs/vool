@@ -587,14 +587,13 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     custody.require_enabled(source_context=source_context)
     if body:
         raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "request_body_needs_paykit_lane"}, source_context=source_context)
+    method = str(method or "GET").strip().upper()
     clean_url = str(url or "").strip()
     if not _target_allowed(clean_url):
         raise wallet_fault("wallet_network_disabled", authority=AUTHORITY, context={"reason": "x402_target_not_public", "host": urlsplit(clean_url).hostname or ""}, source_context=source_context)
     from core.wallet import paykit_x402
 
-    paykit_already = paykit_x402.existing_outcome(paykit_x402.request_digest(str(method or "GET").upper(), clean_url, b""), source_context=source_context)
-    if paykit_already is not None:
-        return paykit_already
+    # one key per request on every lane: whichever lane holds this request (this one or pay-kit's) answers here
     digest = _request_digest(method, clean_url)
     bound = _bound_outcome(binding_for_digest(digest), timeout=timeout, source_context=source_context)
     if bound is not None:
@@ -661,6 +660,12 @@ def _bound_outcome(binding: dict[str, Any] | None, *, timeout: float, source_con
     (nothing holds the request: it may be fetched afresh)."""
     if not binding or not binding.get("proposal_id"):
         return None
+    if int(binding.get("version") or 1) in PAYKIT_BINDING_VERSIONS:
+        # one key per request: a request the pay-kit lane holds answers as that lane answers it, never with this
+        # lane's delivery
+        from core.wallet import paykit_x402
+
+        return paykit_x402.existing_outcome(str(binding["request_digest"]), source_context=source_context, timeout=timeout)
     proposal = proposals.get_proposal(binding["proposal_id"])
     if proposal is None:
         return None

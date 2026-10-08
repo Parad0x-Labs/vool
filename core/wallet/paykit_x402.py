@@ -121,9 +121,17 @@ def _payment_module() -> Any:
 # --- the request this lane binds ---------------------------------------------------------------------------------
 
 def request_digest(method: str, url: str, body: bytes) -> str:
-    """The binding key: method, URL and the body's digest. Another body or method is another request, which
-    needs its own 402 and its own approval; a payment never covers a request it was not approved for."""
-    body_digest = hashlib.sha256(bytes(body or b"")).hexdigest()
+    """The binding key, one per request on every lane. A request without a body is keyed by method and URL exactly as
+    VOOL's own x402 lanes key it, so two lanes can never each bind the same request under a key of their own: the
+    first to bind it holds it, under the one compare-and-set. A request with a body (only this lane sends one) also
+    names the body's digest: another body or method is another request, which needs its own 402 and its own approval;
+    a payment never covers a request it was not approved for."""
+    from core.wallet import x402
+
+    raw = bytes(body or b"")
+    if not raw:
+        return x402._request_digest(str(method).upper(), url)
+    body_digest = hashlib.sha256(raw).hexdigest()
     return publish_identifier(hashlib.sha256(f"paykit|{str(method).upper()}|{url}|{body_digest}".encode()).hexdigest())
 
 
@@ -209,14 +217,17 @@ def _terms_from_requirement(requirement: dict[str, Any], *, wallet_network: str,
 
 # --- the one fetch ---------------------------------------------------------------------------------------------------
 
-def existing_outcome(digest: str, *, source_context: dict[str, Any] | None = None) -> Any:
-    """What a request this lane already bound gets, before anything is sent: its parked proposal while one waits,
-    a typed refusal once it was paid (its payment is delivered once and never sent again), else None."""
+def existing_outcome(digest: str, *, source_context: dict[str, Any] | None = None, timeout: float = 20.0) -> Any:
+    """What a request already bound gets, before anything is sent: its parked proposal while one waits, a typed
+    refusal once it was paid (its payment is delivered once and never sent again), else None. A request VOOL's own
+    x402 lanes hold (one key per request) answers as those lanes answer it."""
     from core.wallet import x402
 
     binding = x402.binding_for_digest(digest)
-    if not binding or not binding.get("proposal_id") or int(binding.get("version") or 1) not in x402.PAYKIT_BINDING_VERSIONS:
+    if not binding or not binding.get("proposal_id"):
         return None
+    if int(binding.get("version") or 1) not in x402.PAYKIT_BINDING_VERSIONS:
+        return x402._bound_outcome(binding, timeout=timeout, source_context=source_context)
     parked = proposals.get_proposal(binding["proposal_id"])
     if parked is not None and parked.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
         return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=402, proposal_id=parked.proposal_id, binding_id=binding["binding_id"])

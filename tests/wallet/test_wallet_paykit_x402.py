@@ -601,6 +601,101 @@ def test_concurrent_callers_cannot_pay_in_proposal_creation_before_binding_windo
     assert x402.binding_for_proposal(paid.proposal_id)["state"] == x402.BINDING_DELIVERED
 
 
+@pytest.mark.parametrize("lane", ["x402", "mpp"])
+def test_two_lanes_racing_one_url_through_the_ordinary_door_never_park_two_payments(env, monkeypatch, lane):
+    """Two callers fetch the same URL through the ordinary door at once, each past its first check. The resource
+    answers one with a pay-kit challenge (a canonical x402 offer, or an MPP Solana charge) and the other with VOOL's
+    own v1 Solana offer. Both lanes key the request alike, so whichever binds it first holds it: the other proposal is
+    rejected with its receipt, and the request is paid once. The losing caller gets the one parked payment, or, while
+    that payment is still being prepared, the typed refusal that another payment holds the request."""
+    import threading
+
+    from core.wallet import proposals, receipts, x402
+    from core.wallet.errors import WalletFault
+    from tests.wallet._rig import x402_body
+    from tests.wallet._rig_paykit import ScriptedMppResource
+
+    profile = _pocket()
+    real = x402._request
+    both_answered = threading.Barrier(2)
+    out: dict[str, object] = {}
+    with (ScriptedMppResource if lane == "mpp" else ScriptedPayKitResource)(env["rpc"]) as resource:
+        def answered(url, **kwargs):
+            answer = real(url, **kwargs)
+            caller = threading.current_thread().name
+            if caller in ("pay-kit", "v1") and not kwargs.get("payment_headers") and int(answer["status"]) == 402:
+                if caller == "v1":
+                    answer = {**answer, "headers": {"Content-Type": "application/json"}, "body": json.dumps(x402_body(amount_minor=1400)).encode()}
+                both_answered.wait(30)
+            return answer
+
+        monkeypatch.setattr(x402, "_request", answered)
+
+        def fetch(name):
+            try:
+                out[name] = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+            except WalletFault as exc:
+                out[name] = exc
+
+        callers = [threading.Thread(target=fetch, args=(name,), name=name) for name in ("pay-kit", "v1")]
+        for caller in callers:
+            caller.start()
+        for caller in callers:
+            caller.join(60)
+        [parked] = [p for p in proposals.list_proposals() if p.state == proposals.STATE_PENDING_APPROVAL]
+        [lost] = [p for p in proposals.list_proposals() if p.proposal_id != parked.proposal_id]
+        winner = "v1" if parked.origin == proposals.ORIGIN_X402 else "pay-kit"
+        loser = "pay-kit" if winner == "v1" else "v1"
+        assert (out[winner].status, out[winner].proposal_id) == (x402.OUTCOME_PAYMENT_REQUIRED, parked.proposal_id)
+        got = out[loser]
+        assert ((got.code, got.context["reason"]) == ("wallet_duplicate_payment", "request_bound_to_another_payment") if isinstance(got, WalletFault)
+                else (got.status, got.proposal_id) == (x402.OUTCOME_PAYMENT_REQUIRED, parked.proposal_id))
+        assert x402.binding_for_proposal(parked.proposal_id) is not None and x402.binding_for_proposal(lost.proposal_id) is None
+        refused = [(r["state"], r["refusal"]["reason"], r["refusal"]["charged_amount_minor"]) for r in receipts.list_receipts() if r["proposal_id"] == lost.proposal_id]
+        assert (lost.state, refused) == (proposals.STATE_REJECTED, [(proposals.STATE_REJECTED, "request_bound_to_another_payment", 0)])
+        _approve(parked.proposal_id)
+        assert len(resource.landed) + env["rpc"].send_count() == 1, "one request, one payment"
+
+
+@pytest.mark.parametrize(("first", "then"), [("pay-kit", "ordinary door"), ("pay-kit", "pay-kit door"), ("v1", "ordinary door"), ("v1", "pay-kit door")])
+def test_a_url_paid_on_one_lane_is_never_paid_on_the_other(env, monkeypatch, first, then):
+    """One URL, paid once on one lane (pay-kit, or VOOL's own v1 Solana lane), is fetched again, through the ordinary
+    door or the pay-kit door, and meets the other lane's offer at another price. The request answers as the lane that
+    paid it answers a re-fetch: nothing new is proposed and nothing is paid again."""
+    from core.wallet import paykit_x402, proposals, x402
+    from core.wallet.errors import WalletFault
+    from tests.wallet._rig import x402_body
+
+    profile = _pocket()
+    real = x402._request
+    serve_v1 = {"on": first == "v1"}
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        def answered(url, **kwargs):
+            answer = real(url, **kwargs)
+            if serve_v1["on"] and not kwargs.get("payment_headers") and int(answer["status"]) == 402:
+                answer = {**answer, "headers": {"Content-Type": "application/json"}, "body": json.dumps(x402_body(amount_minor=1400)).encode()}
+            return answer
+
+        monkeypatch.setattr(x402, "_request", answered)
+        paid = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert _approve(paid.proposal_id).state == proposals.STATE_CONFIRMED
+        serve_v1["on"] = not serve_v1["on"]
+        resource.amount_minor = 1300
+        try:
+            if then == "ordinary door":
+                again = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+            else:
+                again = paykit_x402.fetch_paid(resource.url, wallet_id=profile.wallet_id, method="GET")
+        except WalletFault as exc:
+            again = exc
+        assert [p.proposal_id for p in proposals.list_proposals()] == [paid.proposal_id], "nothing new is proposed"
+        assert len(resource.landed) + env["rpc"].send_count() == 1, "one request, one payment"
+    if first == "pay-kit":
+        assert (again.code, again.context["reason"]) == ("wallet_duplicate_payment", "paykit_request_already_paid")
+    else:
+        assert again.proposal_id == paid.proposal_id and again.repaid is False, "the v1 lane's one payment answers the re-fetch"
+
+
 @pytest.mark.parametrize("stage", ["prepare", "approve"])
 def test_a_paykit_payment_that_does_not_own_its_request_is_never_prepared_or_approved(env, monkeypatch, stage):
     """A pay-kit proposal is paid only as its request's one payment. When the store says another payment holds that
