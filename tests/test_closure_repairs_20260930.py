@@ -15,6 +15,12 @@ store -> inject path and pins the repaired contract:
    attribute words answer by value shape (C12).
 5. "starts on <date>" declares an effective date: future to an as-of ask,
    it abstains (C31).
+
+Lane law (KEEP): these contracts govern the DISTILLED facts, where the value
+in force is served. The whole-turn "Evidence turns" lane still carries a
+displaced, superseded or future-declared turn whole beside the value in
+force; only the as-of law (a turn stated after the as-of day), a withdrawn
+verdict or a live retraction refuses a turn there.
 """
 from __future__ import annotations
 
@@ -55,6 +61,22 @@ def _capsule(home, chat, question, as_of=None):
         if "retrieved_context" in str(m.get("content")))
 
 
+def _facts_and_lane(block):
+    """(distilled facts, whole-turn lane) of a capsule; the lane is empty
+    when no turn rides it."""
+    facts, _sep, lane = block.partition(cr._TURN_LANE_HEADER)
+    return facts, lane
+
+
+def _served_current_and_kept(block, current, kept):
+    """The KEEP law: the facts serve *current* and never *kept*; the turn
+    carrying *kept* rides the whole-turn lane, once."""
+    facts, lane = _facts_and_lane(block)
+    assert current in facts, block
+    assert kept not in facts, block
+    assert lane.count(kept) == 1, block
+
+
 # ── 1. forward-declared successor vs a TODAY ask ─────────────────────────
 
 def test_future_declared_successor_does_not_win_a_current_ask(fresh_profile):
@@ -64,8 +86,7 @@ def test_future_declared_successor_does_not_win_a_current_ask(fresh_profile):
           "The kiln inspection sticker goes to 17 dram in December.")
     block = _capsule(fresh_profile, "x1-kiln",
                      "What does the kiln inspection sticker cost at the moment?")
-    assert "12 dram" in block
-    assert "17 dram" not in block
+    _served_current_and_kept(block, "12 dram", "17 dram in December")
 
 
 def test_future_declared_successor_does_not_win_a_current_ask_number_two(
@@ -76,8 +97,7 @@ def test_future_declared_successor_does_not_win_a_current_ask_number_two(
           "The tow-hamper retrieval deposit climbs to 6 pa'anga from March.")
     block = _capsule(fresh_profile, "x1-tow",
                      "These days, what is the tow-hamper retrieval deposit?")
-    assert "4 pa'anga" in block
-    assert "6 pa'anga" not in block
+    _served_current_and_kept(block, "4 pa'anga", "6 pa'anga from March")
 
 
 # ── 2. the displacement guard's negative case ────────────────────────────
@@ -103,9 +123,10 @@ def test_asof_anchor_binds_subject_without_the_future_value(fresh_profile):
     block = _capsule(fresh_profile, "x3-mint",
                      "As of late May, what did the mint rooftop tour tariff run at?",
                      as_of="2026-05-28T00:00:00")
-    assert "12 dirham" in block
+    # the facts serve the February value; the future January value is
+    # refused everywhere; the superseded 8 dirham turn rides the lane (KEEP)
+    _served_current_and_kept(block, "12 dirham", "8 dirham")
     assert "15 dirham" not in block
-    assert "8 dirham" not in block
 
 
 @pytest.mark.xfail(
@@ -137,8 +158,9 @@ def test_reading_series_displaced_value_does_not_ride_the_anchor(
           "The dusk well gauge says 3.1 metres.")
     block = _capsule(fresh_profile, "x5-well",
                      "What is the cistern depth at present?")
-    assert "3.1 metres" in block
-    assert "2.9 metres" not in block
+    # the dusk reading is the newest member of the dawn gauge's series: the
+    # facts serve it, and the displaced dawn reading rides the lane (KEEP)
+    _served_current_and_kept(block, "3.1 metres", "2.9 metres")
 
 
 # ── 4. paraphrased price asks serve on value shape ────────────────────────

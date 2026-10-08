@@ -6,6 +6,13 @@ PLUS a negative control guarding the law it touched: the dedup weakening
 must still drop genuinely repeated records, the join expansion must not
 merge strangers, and the supersession license must not collapse genuine
 parallel facts.
+
+Lane law (KEEP): supersession decides what the DISTILLED facts serve as the
+current value. The whole-turn "Evidence turns" lane still carries a
+superseded (or future-declared) turn whole beside its successor; only the
+as-of law, a withdrawn verdict or a live retraction refuses a turn there.
+The supersession cases below therefore pin the current value in the facts,
+the replaced value out of the facts, and the replaced turn riding the lane.
 """
 from __future__ import annotations
 
@@ -46,6 +53,22 @@ def _capsule(home, chat, question, as_of=None):
         if "retrieved_context" in str(m.get("content")))
 
 
+def _facts_and_lane(block):
+    """(distilled facts, whole-turn lane) of a capsule; the lane is empty
+    when no turn rides it."""
+    facts, _sep, lane = block.partition(cr._TURN_LANE_HEADER)
+    return facts, lane
+
+
+def _served_current_and_kept(block, current, replaced):
+    """The KEEP law for one supersession pair: the facts serve *current* and
+    never *replaced*; the replaced turn rides the lane, once."""
+    facts, lane = _facts_and_lane(block)
+    assert current in facts, block
+    assert replaced not in facts, block
+    assert lane.count(replaced) == 1, block
+
+
 # ── hedge/month repair: months are not modality ────────────────────────────
 
 def test_march_month_change_is_a_marker_not_a_hedge(fresh_profile):
@@ -55,8 +78,7 @@ def test_march_month_change_is_a_marker_not_a_hedge(fresh_profile):
           "It rose to 14 loads a day in March.")
     block = _capsule(fresh_profile, "a1-tar",
                      "How many loads a day does the quarry tar shed ship now?")
-    assert "14 loads" in block
-    assert "9 loads" not in block
+    _served_current_and_kept(block, "14 loads", "9 loads")
 
 
 def test_genuine_modality_still_hedges_and_does_not_supersede(fresh_profile):
@@ -107,7 +129,9 @@ def test_genuinely_repeated_transcript_record_still_dedups(fresh_profile):
         access_policy=policy, source_context=src)
     block = "\n".join(str(m.get("content") or "") for m in out
                       if "retrieved_context" in str(m.get("content")))
-    assert "Kittiwake" not in block  # already stated in the conversation
+    # already stated in the conversation: neither the facts, an anchor
+    # carrier nor the whole-turn lane re-serves it
+    assert "Kittiwake" not in block
 
 
 # ── superlative recency: single-record law ─────────────────────────────────
@@ -119,8 +143,9 @@ def test_latest_reading_serves_only_the_newest_rung(fresh_profile):
           "The flume gauge logged an 88-centimetre flow this week.")
     block = _capsule(fresh_profile, "a6-flume",
                      "What flow did the flume gauge log most recently?")
-    assert "88-centimetre" in block
-    assert "62-centimetre" not in block
+    # the facts serve the single newest rung; the older reading is history
+    # and rides only as a whole turn on the lane (KEEP)
+    _served_current_and_kept(block, "88-centimetre", "62-centimetre")
 
 
 def test_explicit_comparison_keeps_both_operands(fresh_profile):
@@ -143,8 +168,7 @@ def test_from_dated_anaphoric_continuation_displaces_its_base(fresh_profile):
           "Since 14 August 2019 it has carried an LED cluster.")
     block = _capsule(fresh_profile, "a8-crow",
                      "What does the ferry crow's nest carry?")
-    assert "LED cluster" in block
-    assert "oil lamp" not in block
+    _served_current_and_kept(block, "LED cluster", "oil lamp")
 
 
 def test_stranger_chats_never_join(fresh_profile):
@@ -166,15 +190,17 @@ def test_switches_to_supersedes_across_the_template(fresh_profile):
     # January" at a 2026-09-30 statement moment resolves to NEXT January
     # (2027-01-31) — the successor is future, so the in-force answer for a
     # "these days" ask is the current nine o'clock opening and the future
-    # ten o'clock one stays out.
+    # ten o'clock one stays out of the facts. Under the lane law (KEEP) the
+    # future-declared turn is no as-of, withdrawal or retraction case, so it
+    # rides the whole-turn lane, carrying its own "from January".
     _turn(fresh_profile, "b1-mill",
           "The mill shop opens at nine on market days.")
     _turn(fresh_profile, "b1-mill",
           "The mill shop moves to a ten o'clock opening from January.")
     block = _capsule(fresh_profile, "b1-mill",
                      "When does the mill shop open these days?")
-    assert "nine" in block
-    assert "ten o'clock" not in block
+    _served_current_and_kept(block, "opens at nine", "ten o'clock")
+    assert "ten o'clock opening from January" in _facts_and_lane(block)[1]
 
 
 def test_digitless_reassignment_displaces_its_base(fresh_profile):
@@ -184,8 +210,7 @@ def test_digitless_reassignment_displaces_its_base(fresh_profile):
           "The crow's nest moves to an LED cluster since 14 August 2019.")
     block = _capsule(fresh_profile, "b1b-lamp",
                      "What does the ferry crow's nest carry these days?")
-    assert "LED cluster" in block
-    assert "oil lamp" not in block
+    _served_current_and_kept(block, "LED cluster", "oil lamp")
 
 
 def test_parallel_facts_with_distinct_subjects_still_coexist(fresh_profile):
