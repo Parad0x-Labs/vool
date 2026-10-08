@@ -428,7 +428,7 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
             proposal = proposals.get_proposal(proposal_id)
             if proposal is None:
                 return _json(404, {"ok": False, "error": "wallet_not_found"})
-            from core.wallet import transfers
+            from core.wallet import lifecycle, transfers
 
             if transfers.is_pilot_transfer(proposal) and proposal.state != proposals.STATE_AWAITING_SIGNATURE:
                 # a Crypto Pilot request: one transaction decides between rejecting the proposal and flagging its claim;
@@ -453,11 +453,12 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                     return _ok({"proposal": proposal.to_dict(), "rejected": False, "reason": "signing_request_in_flight"})
                 limits.release_spend(proposal_id)
                 reconciliation.resolve_payment_effect(proposal_id, applied=False, evidence="owner rejected before signature submission", source="mechanical")
-                rejected = proposals.transition(proposal_id, proposals.STATE_REJECTED, detail={"reason": "owner_rejected_after_claim"}, expected_state=proposals.STATE_AWAITING_SIGNATURE)
-                if rejected is not None:
-                    receipts.record_receipt(rejected, state=proposals.STATE_REJECTED, fault_code="wallet_approval_rejected")
+                rejected = lifecycle.end_refused(proposal_id, proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", expected_state=proposals.STATE_AWAITING_SIGNATURE,
+                                                 detail={"reason": "owner_rejected_after_claim"}, reason="owner_rejected_after_claim")
                 return _ok({"proposal": (rejected or proposal).to_dict(), "rejected": rejected is not None})
-            rejected = proposals.transition(proposal_id, proposals.STATE_REJECTED, detail={"reason": "owner_rejected"}, expected_state=proposals.STATE_PENDING_APPROVAL)
+            # the owner's own refusal ends the payment like any other refusal: its receipt commits with it, nothing charged
+            rejected = lifecycle.end_refused(proposal_id, proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", expected_state=proposals.STATE_PENDING_APPROVAL,
+                                             detail={"reason": "owner_rejected"}, reason="owner_rejected")
             return _ok({"proposal": (rejected or proposal).to_dict(), "rejected": rejected is not None})
         if path == "/api/wallet/facilitator/discover":
             from core.wallet import facilitators

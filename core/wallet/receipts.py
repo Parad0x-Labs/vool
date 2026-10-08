@@ -61,6 +61,12 @@ def _record(conn: Any, proposal: Any, *, state: str, tx_signature: str = "", fau
     return receipt
 
 
+def _record_refusal(conn: Any, proposal: Any, *, fault_code: str, **facts: Any) -> WalletReceipt:
+    """The receipt of a refusal this wallet made, on the caller's connection so it commits with the state the refusal
+    leaves the proposal in: that state, the real fault, what decided it, and nothing charged (principal and fee)."""
+    return _record(conn, proposal, state=proposal.state, fault_code=fault_code, extra={"refusal": {**facts, "charged_amount_minor": 0, "charged_fee_minor": 0}})
+
+
 def _revouch_stored_digests(payload: Any) -> Any:
     """Re-vouch the digest fields of a payload this store itself persisted. Everything here
     already passed the write-time redaction boundary; the public-identifier registry is

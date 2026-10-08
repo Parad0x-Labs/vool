@@ -279,14 +279,13 @@ def binding_guard() -> tuple[str, tuple[Any, ...]]:
 
 def reject_unbound(proposal_id: str, *, bound_proposal_id: str) -> None:
     """A proposal minted for a request that another proposal holds never becomes approvable: it is rejected while still
-    proposed, and its receipt says so with nothing charged. A proposal that is the bound one, or that was not minted
-    just now, is left as it is."""
+    proposed, and its receipt (nothing charged) commits with it. A proposal that is the bound one, or that was not
+    minted just now, is left as it is."""
     if proposal_id and proposal_id != bound_proposal_id:
-        rejected = proposals.transition(proposal_id, proposals.STATE_REJECTED, detail={"reason": "request_bound_to_another_payment", "bound_proposal_id": bound_proposal_id},
-                                        expected_state=proposals.STATE_PROPOSED, fault_code="wallet_duplicate_payment")
-        if rejected is not None:
-            receipts.record_receipt(rejected, state=proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", extra={"refusal": {
-                "reason": "request_bound_to_another_payment", "charged_amount_minor": 0, "charged_fee_minor": 0}})
+        from core.wallet import lifecycle
+
+        lifecycle.end_refused(proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", expected_state=proposals.STATE_PROPOSED,
+                              detail={"reason": "request_bound_to_another_payment", "bound_proposal_id": bound_proposal_id}, reason="request_bound_to_another_payment")
 
 
 def prepare_bound(proposal_id: str, *, source_context: dict[str, Any] | None) -> proposals.TransactionProposal:
@@ -302,11 +301,8 @@ def prepare_bound(proposal_id: str, *, source_context: dict[str, Any] | None) ->
         current = proposals.get_proposal(proposal_id)
         if current is not None and current.state in PREPARING_STATES:
             code = exc.code if isinstance(exc, WalletFault) else "wallet_dependency_unavailable"
-            rejected = proposals.transition(proposal_id, proposals.STATE_REJECTED, detail={"reason": "prepare_refused", "fault": code},
-                                            expected_state=current.state, fault_code=code)
-            if rejected is not None:
-                receipts.record_receipt(rejected, state=proposals.STATE_REJECTED, fault_code=code, extra={"refusal": {
-                    "reason": "prepare_refused", "charged_amount_minor": 0, "charged_fee_minor": 0}})
+            lifecycle.end_refused(proposal_id, proposals.STATE_REJECTED, fault_code=code, expected_state=current.state, detail={"reason": "prepare_refused", "fault": code},
+                                  reason="prepare_refused")
         raise
 
 
@@ -314,8 +310,9 @@ def end_abandoned_prepare(proposal: proposals.TransactionProposal | None) -> Non
     """A request's proposal still preparing :data:`ABANDONED_PREPARE_SECONDS` after its last step was abandoned: it was
     never approved and never held spend, so it is rejected here, with its receipt and nothing charged, and the request
     is free for the next fetch instead of closed for good. A younger one, or one whose age cannot be read, keeps the
-    request (fail closed). The move is a compare-and-set on the state it was read in, so a prepare still running
-    cannot be overtaken: if it moved first, nothing changes; if this moves first, its next step finds it ended."""
+    request (fail closed). The move is a compare-and-set on the state it was read in, committed with its receipt, so a
+    prepare still running cannot be overtaken: if it moved first, nothing changes; if this moves first, its next step
+    finds it ended."""
     if proposal is None or proposal.state not in PREPARING_STATES:
         return
     try:
@@ -324,11 +321,10 @@ def end_abandoned_prepare(proposal: proposals.TransactionProposal | None) -> Non
         return
     if since.tzinfo is None or datetime.now(timezone.utc) - since < timedelta(seconds=ABANDONED_PREPARE_SECONDS):
         return
-    rejected = proposals.transition(proposal.proposal_id, proposals.STATE_REJECTED, detail={"reason": "prepare_abandoned"},
-                                    expected_state=proposal.state, fault_code="wallet_quote_expired")
-    if rejected is not None:
-        receipts.record_receipt(rejected, state=proposals.STATE_REJECTED, fault_code="wallet_quote_expired", extra={"refusal": {
-            "reason": "prepare_abandoned", "charged_amount_minor": 0, "charged_fee_minor": 0}})
+    from core.wallet import lifecycle
+
+    lifecycle.end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_quote_expired", expected_state=proposal.state,
+                          detail={"reason": "prepare_abandoned"}, reason="prepare_abandoned")
 
 
 def _update_binding(request_digest: str, **fields: Any) -> None:
