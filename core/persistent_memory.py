@@ -1915,7 +1915,12 @@ def maybe_handle_memory_command(
             # capsule's temporal law withdraws the record it names on the next recall.
             # worded without a storage verb beside "memory": the final claim check reads "no stored memory" as a
             # claim that something was stored, and replaced the forget reply (main's test_a_product_word_in_a_sentence_is_not_a_command.py)
-            return True, f"Nothing was removed. Forget found no memory in this chat that matched \"{token}\"."
+            from core.memory.command_result import ForgetNoMatch, command_turn_key
+
+            return True, ForgetNoMatch(
+                token, request=user_text, session=resolved_session,
+                turn_key=command_turn_key(source_context),
+            )
         return True, f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}."
 
     return False, ""

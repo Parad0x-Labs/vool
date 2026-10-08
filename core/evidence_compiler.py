@@ -248,19 +248,36 @@ def _found_operands(ob: Obligation, selected: Sequence[tuple[float, dict[str, An
     return found, missing
 
 
-def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: Mapping[str, dict[str, Any]]) -> str:
-    role = receipt.get("role") or "user"
-    stated = _day(receipt.get("statement_at"))
+def _render_fact_body(fact: Mapping[str, Any]) -> str:
+    """Render the authored content once, separately from temporal annotations."""
     if fact.get("value_type") == "list":
         try:
             items = json.loads(fact.get("value") or "[]")
         except Exception:
             items = []
         body = "; ".join(f"{i + 1}. {it}" for i, it in enumerate(items[:20]))
-        line = f"- [{stated}] {role} listed: {body}"
+        return f"listed: {body}"
     elif fact.get("value_type") == "state":
         key = str(fact.get("norm") or "").split("=", 1)[0]
         tag = f"<{key} = {fact.get('value')}>" if not str(fact.get("norm") or "").endswith("|former") else f"<former {key} = {fact.get('value')}>"
+        return f'said: "{str(fact.get("sentence") or "").strip()[:300]}"  {tag}'
+    elif fact.get("value_type") == "mention":
+        return f'said: "{str(fact.get("sentence") or "").strip()[:240]}"  <mention>'
+    elif fact.get("value_type") == "preference":
+        return f'said: "{str(fact.get("sentence") or "").strip()[:300]}"  <stated preference: respect it in the answer>'
+    sentence = str(fact.get("sentence") or "").strip()
+    body = f'said: "{sentence[:400]}"'
+    if fact.get("value_type") not in ("event",):
+        body += f"  <{fact.get('value_type')}: {fact.get('value')}>"
+    return body
+
+
+def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: Mapping[str, dict[str, Any]]) -> str:
+    role = receipt.get("role") or "user"
+    stated = _day(receipt.get("statement_at"))
+    head = f"- [{stated}] {role} {_render_fact_body(fact)}"
+    line = bare = head
+    if fact.get("value_type") == "state":
         # v14.6 item 9: the value's effective window from the chain: from its statement day until the day the replacing
         # record was stated ("until" unknown stays unknown; a current value has no until)
         until = ""
@@ -270,21 +287,7 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
         window = f" effective from {stated}" + (f" until {until}" if until else ", current") if stated and stated != "undated" else ""
         # the same row with nothing from its replacing record (no "until <that day>"), for filter_packet
         bare_window = f" effective from {stated}" if stated and stated != "undated" else ""
-        head = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  {tag}"
         line, bare = head + window, head + (bare_window if until else window)
-    elif fact.get("value_type") == "mention":
-        line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:240]}\"  <mention>"
-    elif fact.get("value_type") == "preference":
-        # a stated preference or constraint is an operand the answer has to respect, not a detail it may drop: set five
-        # (v14.4) had three penicillin-allergy lines in the packet and a snack list that ignored them
-        line = f"- [{stated}] {role} said: \"{str(fact.get('sentence') or '').strip()[:300]}\"  <stated preference: respect it in the answer>"
-    else:
-        sentence = str(fact.get("sentence") or "").strip()
-        line = f"- [{stated}] {role} said: \"{sentence[:400]}\""
-        if fact.get("value_type") not in ("event",):
-            line += f"  <{fact.get('value_type')}: {fact.get('value')}>"
-    if fact.get("value_type") != "state":
-        bare = line
     tail = ""
     ev = fact.get("event_at")
     if ev is not None:
@@ -686,14 +689,22 @@ def _completeness_line(ob: Obligation, missing: Sequence[str], coverage: Mapping
 
 _COMPLETENESS_LINE_PREFIX = "- This question needs: "
 _TEMPORAL_REFUSAL_RE = re.compile(r"(?:note:|temporal:)?(?:withdrawn|future-relative|window-|superseded)")
-_REPLACED_NOTE_LEAD = "  [REPLACED later by "
+_TRAILING_REPLACED_NOTE_RE = re.compile(
+    r'  \[REPLACED later by ".*" stated (?:\d{4}-\d{2}-\d{2}|undated); not current\]\Z',
+    re.DOTALL,
+)
 
 
-def _without_trailing_replacement_note(line: str) -> str:
-    """A row without its REPLACED note, for a row rendered before facts carried their bare line: the note is always the
-    last thing on the row, so everything from its last opening on is cut, whatever the replacing value holds."""
-    head, lead, _note = str(line).rpartition(_REPLACED_NOTE_LEAD)
-    return head if lead else str(line)
+def _without_trailing_replacement_note(line: str, fact: Mapping[str, Any]) -> str:
+    """Remove only a complete renderer annotation anchored at the end of a legacy row."""
+    line = str(line)
+    body = _render_fact_body(fact)
+    body_start = line.find(body)
+    if body_start < 0:
+        return line
+    # A literal marker in a sentence, value or list item belongs to the authored body.
+    match = _TRAILING_REPLACED_NOTE_RE.search(line, body_start + len(body))
+    return line[:match.start()] if match else line
 
 
 def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens: Callable[[str], int] | None = None) -> Packet:
@@ -732,7 +743,7 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
         replacing = str(fact.get("replaced_by_occurrence") or "")
         if (str(fact.get("replaced_by") or "") in refused_receipts
                 or (replacing and _TEMPORAL_REFUSAL_RE.match(str(refused.get(replacing) or "")))):
-            line = str(fact.get("line_without_replacement") or "") or _without_trailing_replacement_note(kept_lines[index])
+            line = str(fact.get("line_without_replacement") or "") or _without_trailing_replacement_note(kept_lines[index], fact)
             stripped += line != kept_lines[index]
             kept_lines[index] = line
     if not dropped:
