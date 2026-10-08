@@ -247,6 +247,26 @@ def product_runtime_defaults_stay_in_their_test():
 
 
 @pytest.fixture(autouse=True)
+def profile_home_env_stays_in_its_test():
+    """Undo, after every test, a VOOL_HOME / VOOL_WORKSPACE_ROOT a test helper wrote into the environment.
+
+    `tests/test_question_date_time_leg_20261002.py::_profile` (imported by some twenty memory test modules)
+    sets both with `os.environ.update` and never restored them, so every later test in the shard ran with
+    its workspace root pointing at a removed tmp profile: `machine.find_largest` then treated the checkout
+    as another project's folder and hid every result (tests/test_machine_tool_contract.py failed only
+    after tests/test_capsule_session_order.py in CI shard 0).
+    """
+    names = ("VOOL_HOME", "VOOL_WORKSPACE_ROOT")
+    before = {name: os.environ.get(name) for name in names}
+    yield
+    for name, value in before.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
+@pytest.fixture(autouse=True)
 def unpatched_subprocess_popen() -> None:
     """Restore the stock `subprocess.Popen.__init__` before every test.
 
