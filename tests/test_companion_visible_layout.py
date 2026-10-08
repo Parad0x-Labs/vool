@@ -149,3 +149,57 @@ def test_native_document_fits_window_and_matches_hit_regions(browser):
         assert not errors
     finally:
         page.close()
+
+
+@pytest.mark.parametrize("unbound", [
+    {"state": "idle", "chatTitle": "", "activity": ""},
+    {"state": "idle"},
+])
+def test_native_bridge_replaces_chat_and_activity_snapshot(browser, unbound):
+    """An accepted empty snapshot clears the previous chat through the real bridge."""
+    from installer.bundle.vool_window import _WindowApi
+
+    page = browser.new_page(viewport={"width": 208, "height": 236})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        page.set_content(render_desktop_companion_html({"motion": "reduced"}))
+        page.wait_for_function("window.VoolDesktopCompanion")
+        # Use the production bridge/normalizer with a browser document in place of WKWebView.
+        class BrowserWindow:
+            def evaluate_js(self, script):
+                return page.evaluate(script)
+
+        api = _WindowApi()
+        api._companion_window = BrowserWindow()
+
+        def sync(payload):
+            assert api.sync_companion(payload) == {"ok": True}
+
+        sync({"state": "tool", "chatTitle": "Chat A", "activity": "read", "caption": "Reading files"})
+        assert page.locator("#bubbleTitle").inner_text() == "Chat A"
+        assert page.evaluate("vcwState.activity") == "read"
+        sync(unbound)
+        assert page.locator("#bubbleTitle").text_content() == ""
+        assert page.locator("#bubbleActivity").text_content() == ""
+        assert page.locator("#bubble").is_hidden()
+        assert page.evaluate("vcwState.activity") == ""
+        sync({"state": "thinking", "chatTitle": "Chat B"})
+        assert page.locator("#bubbleTitle").inner_text() == "Chat B"
+        assert page.locator("#bubble").is_visible()
+        assert page.evaluate("vcwState.activity") == ""
+        for activity in ("read", "search", "dig", "code", "exec", "test", "watch"):
+            sync({"state": "tool", "chatTitle": "Chat B", "activity": activity})
+            assert page.evaluate("vcwState.activity") == activity
+        sync({"state": "tool", "chatTitle": "Chat B", "activity": "<img src=x>"})
+        assert page.evaluate("vcwState.activity") == ""
+        assert page.locator("#bubbleTitle").inner_text() == "Chat B"
+        assert page.locator("#bubble img").count() == 0
+        assert page.evaluate("vcwState.motion") == "reduced"
+        sync(None)
+        assert page.locator("#bubble").is_hidden()
+        assert page.evaluate("vcwState.activity") == ""
+        assert not errors
+        save_evidence(page, "native-snapshot-cleared.png")
+    finally:
+        page.close()

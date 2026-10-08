@@ -347,9 +347,9 @@ def test_payload_carries_title_and_activity_and_rejects_junk():
     })
     assert ok["activity"] == "exec"
     assert ok["chatTitle"] == "Fix <b>parser</b>"
-    # An activity outside the renderer's vocabulary is dropped, not displayed.
-    assert "activity" not in normalise_companion_payload({"activity": "rm -rf /"})
-    assert "activity" not in normalise_companion_payload({"activity": "<img src=x>"})
+    # An activity outside the renderer's vocabulary clears the previous pose.
+    assert normalise_companion_payload({"activity": "rm -rf /"})["activity"] == ""
+    assert normalise_companion_payload({"activity": "<img src=x>"})["activity"] == ""
     # Every roster member is accepted; anything else falls back to a real member.
     for pet in COMPANION_ROSTER:
         assert normalise_companion_payload({"character": pet})["character"] == pet
@@ -357,7 +357,7 @@ def test_payload_carries_title_and_activity_and_rejects_junk():
     # An older payload with none of the new fields still renders.
     legacy = normalise_companion_payload({"state": "thinking", "character": "spark"})
     assert legacy["state"] == "thinking" and legacy["character"] == "spark"
-    assert "activity" not in legacy and "chatTitle" not in legacy
+    assert legacy["activity"] == "" and legacy["chatTitle"] == ""
 
 
 def test_desktop_payload_html_cannot_be_escaped():

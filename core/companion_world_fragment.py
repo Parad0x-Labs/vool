@@ -378,11 +378,11 @@ def normalise_companion_payload(payload: object = None) -> dict[str, str]:
     # the activity is accepted only from the renderer's own vocabulary, so a payload cannot make
     # the desktop pet display an arbitrary activity string.
     chat_title = str(raw.get("chatTitle") or "").strip()[:64]
-    if chat_title:
-        clean["chatTitle"] = chat_title
+    # This is a complete snapshot, not a patch: empty/omitted fields must clear the
+    # previous chat binding and pose when the native renderer merges the snapshot.
+    clean["chatTitle"] = chat_title
     activity = str(raw.get("activity") or "").strip().lower()
-    if activity in {"read", "search", "dig", "code", "exec", "test", "watch"}:
-        clean["activity"] = activity
+    clean["activity"] = activity if activity in {"read", "search", "dig", "code", "exec", "test", "watch"} else ""
     if raw.get("motion") in {"system", "reduced", "allow"}:
         clean["motion"] = raw["motion"]
     # The pet's last native position, when the page has one to restore. Presentation only, and
