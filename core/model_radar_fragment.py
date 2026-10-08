@@ -57,7 +57,7 @@ _MR_CSS = """
 .mr-btn{font:inherit;font-size:12px;border-radius:6px;padding:5px 10px;cursor:pointer;
   background:transparent;color:var(--ink,#e8eaf0);border:1px solid var(--border,#262b35)}
 .mr-btn:hover{border-color:var(--accent,#5eead4)}
-.mr-btn.mr-primary{background:var(--accent,#5eead4);color:#04231d;border-color:transparent;font-weight:700}
+.mr-btn.mr-primary{background:var(--accent,#5eead4);color:var(--accent-ink,#171513);border-color:transparent;font-weight:700}
 .mr-btn.mr-ghost{color:var(--muted,#9aa1af)}
 .mr-status{margin-top:6px;font-size:12px;color:var(--accent,#5eead4)}
 .mr-status.mr-err{color:var(--bad,#f2545b)}

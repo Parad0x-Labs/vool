@@ -419,6 +419,7 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
     pywebview's first ``evaluate_js`` races the secondary window's load event.
     """
     from core.companion_layout import BUBBLE_GAP, BUBBLE_HEIGHT, BUBBLE_WIDTH, CANVAS_BOTTOM, CANVAS_SIZE
+    from core.ui_palette import DARK_PALETTE_CSS
 
     encoded = json.dumps(
         normalise_companion_payload(initial_payload), separators=(",", ":"), ensure_ascii=True
@@ -427,7 +428,7 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
     # even a hostile caption cannot manufacture a closing script tag.
     encoded = encoded.replace("&", r"\u0026").replace("<", r"\u003c").replace(">", r"\u003e")
     return (
-        "<!doctype html><meta charset='utf-8'><style>html,body{width:100%;height:100%;margin:0;"
+        "<!doctype html><meta charset='utf-8'><style>" + DARK_PALETTE_CSS + "html,body{width:100%;height:100%;margin:0;"
         "overflow:hidden;background:transparent;color:#e8eaf0;user-select:none}"
         "#shell{width:100%;height:100%;position:relative;display:flex;flex-direction:column;"
         "align-items:center;justify-content:center;cursor:grab}#shell:active{cursor:grabbing}"
@@ -438,15 +439,15 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
         # stays the handle, and it is inside the window so it cannot be clipped away.
         f"#bubble{{position:absolute;left:50%;bottom:{CANVAS_BOTTOM + CANVAS_SIZE + BUBBLE_GAP}px;transform:translateX(-50%);height:{BUBBLE_HEIGHT}px;"
         f"max-width:{BUBBLE_WIDTH}px;box-sizing:border-box;overflow:hidden;padding:5px 9px 6px;border-radius:8px;"
-        "background:rgba(16,19,24,.93);border:1px solid #2b3140;pointer-events:none;"
+        "background:var(--panel);border:1px solid var(--border);pointer-events:none;"
         "display:flex;flex-direction:column;gap:2px}"
         "#bubble::after{content:'';position:absolute;left:50%;top:100%;width:7px;height:7px;"
-        "margin-left:-3.5px;background:rgba(16,19,24,.93);border-right:1px solid #2b3140;"
-        "border-bottom:1px solid #2b3140;transform:rotate(45deg)}"
+        "margin-left:-3.5px;background:var(--panel);border-right:1px solid var(--border);"
+        "border-bottom:1px solid var(--border);transform:rotate(45deg)}"
         "#bubbleTitle,#bubbleActivity{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
         "font-family:'SF Mono',ui-monospace,monospace}"
-        "#bubbleTitle{font-size:10px;line-height:12px;font-weight:600;color:#e7ecf3}"
-        "#bubbleActivity{font-size:9.5px;line-height:12px;color:#9fb0c4}"
+        "#bubbleTitle{font-size:10px;line-height:12px;font-weight:600;color:var(--ink)}"
+        "#bubbleActivity{font-size:9.5px;line-height:12px;color:var(--muted)}"
         "#controls{position:absolute;right:4px;top:4px;display:flex;gap:3px;opacity:0;"
         "pointer-events:none;transition:opacity .16s ease}"
         "#shell:hover #controls{opacity:1;pointer-events:auto}"

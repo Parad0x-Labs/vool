@@ -38,7 +38,7 @@ _CARD_CSS = """
 .vcx-head{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted,#9aa1af);
   margin-bottom:7px;word-break:break-word}
 .vcx-candidate{border-left:3px solid var(--accent,#5eead4);padding:3px 9px;margin:6px 0;
-  background:rgba(94,234,212,.05);color:var(--ink,#e8eaf0)}
+  background:var(--accent-soft,rgba(195,184,168,.08));color:var(--ink,#e8eaf0)}
 .vcx-seat-row{display:block;font-size:11.5px;color:var(--muted,#9aa1af);margin:2px 0;word-break:break-word}
 .vcx-seat-row b{color:var(--ink,#e8eaf0);font-weight:600}
 .vcx-round{border:1px solid var(--border,#262b35);border-radius:8px;margin-top:7px;padding:2px 8px}

@@ -48,7 +48,7 @@ _COUNCIL_CSS = """
 #vccVerdict.vcc-bad{border-color:var(--bad,#f87171)}
 #vccVerdict small{display:block;color:var(--muted,#9aa1af);margin-top:4px}
 .vcc-candidate{font-size:12px;color:var(--ink,#e8eaf0);border-left:3px solid var(--accent,#5eead4);
-  padding:4px 8px;margin:6px 0;background:rgba(94,234,212,.05)}
+  padding:4px 8px;margin:6px 0;background:var(--accent-soft,rgba(195,184,168,.08))}
 #vccRuns{margin-top:10px;font-size:11.5px}
 #vccRuns button{background:none;border:none;color:var(--muted,#9aa1af);cursor:pointer;font-size:11.5px;
   text-decoration:underline;padding:1px 2px}

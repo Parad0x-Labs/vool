@@ -42,6 +42,8 @@ from __future__ import annotations
 
 import json
 
+from core.ui_palette import DARK_PALETTE_CSS
+
 # --------------------------------------------------------------------------------------
 # Effect vocabulary. Every bound row states when its change takes hold and how far it reaches,
 # because "saved" alone does not tell a user whether the answer they are reading changes.
@@ -962,7 +964,7 @@ _SETTINGS_HTML = r"""<!doctype html>
 .mp-detail { gap: 10px; }
 .mp-back { align-self: flex-start; margin-bottom: 4px; }
 
-:root { --bg:#101216; --panel:#16191f; --field:#1d2129; --ink:#e8eaf0; --muted:#9aa1af; --accent:#5eead4; --accent2:#34d399; --grad:linear-gradient(135deg,#5eead4,#34d399); --border:#262b35; --active:#1d2129; --ok:#34d399; --bad:#f87171; --warn:#fbbf24; }
+__VOOL_PALETTE_CSS__
 * { box-sizing:border-box; }
 html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; overflow:hidden; }
@@ -1019,7 +1021,7 @@ h1 { margin:0 0 4px; font-size:26px; font-weight:700; letter-spacing:-.2px; }
 .card { border:1px solid var(--border); border-radius:12px; background:var(--panel); overflow:hidden; margin-bottom:18px; }
 .row { display:flex; align-items:flex-start; gap:18px; padding:14px 16px; border-bottom:1px solid var(--border); }
 .row:last-child { border-bottom:none; }
-.row.hit { background:rgba(94,234,212,.07); box-shadow:inset 3px 0 0 var(--accent); }
+.row.hit { background:var(--accent-soft); box-shadow:inset 3px 0 0 var(--accent); }
 .row-main { flex:1 1 auto; min-width:0; }
 .row-label { font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .row-help { color:var(--muted); font-size:12.5px; line-height:1.5; margin-top:4px; }
@@ -1041,13 +1043,13 @@ input[type=number].inp { min-width:140px; }
 .rangeval { color:var(--accent); font-weight:700; font-size:13px; min-width:44px; text-align:right; }
 .sw { position:relative; width:44px; height:25px; flex:0 0 auto; background:var(--field); border:1px solid var(--border); border-radius:999px; cursor:pointer; padding:0; transition:background .14s,border-color .14s; }
 .sw::after { content:""; position:absolute; top:2px; left:2px; width:19px; height:19px; border-radius:50%; background:var(--muted); transition:transform .14s,background .14s; }
-.sw[aria-checked="true"] { background:rgba(94,234,212,.22); border-color:var(--accent); }
+.sw[aria-checked="true"] { background:rgba(var(--accent-rgb),.22); border-color:var(--accent); }
 .sw[aria-checked="true"]::after { transform:translateX(19px); background:var(--accent); }
 .sw:disabled { opacity:.45; cursor:not-allowed; }
 .btn { background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:6px 13px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
 .btn:hover:not(:disabled) { border-color:var(--accent); }
 .btn:disabled { opacity:.45; cursor:not-allowed; }
-.btn.primary { background:var(--grad); color:#0b0f14; border:none; }
+.btn.primary { background:var(--grad); color:var(--accent-ink); border:none; }
 .btn.danger { color:var(--bad); border-color:var(--bad); }
 
 /* ---- per-row save state: never optimistic ---- */
@@ -4605,7 +4607,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
-    page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace(
+    page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
         + "\n" + render_notification_settings_fragment() + "\n</body>", 1
     )
