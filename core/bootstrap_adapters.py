@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from core.memory.revocation import fenced_writer
 from core.runtime_paths import data_path
 
 
@@ -31,6 +32,7 @@ class FileTopicAdapter(BootstrapMirrorAdapter):
         safe = "".join(ch for ch in topic_name if ch.isalnum() or ch in {"_", "-"}).strip() or "topic"
         return self.base_dir / f"{safe}.json"
 
+    @fenced_writer
     def publish_snapshot(self, topic_name: str, snapshot: dict[str, Any]) -> bool:
         path = self._topic_path(topic_name)
         path.write_text(json.dumps(snapshot, sort_keys=True, indent=2), encoding="utf-8")
@@ -63,6 +65,7 @@ class HttpJsonMirrorAdapter(BootstrapMirrorAdapter):
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
 
+    @fenced_writer
     def publish_snapshot(self, topic_name: str, snapshot: dict[str, Any]) -> bool:
         url = f"{self.base_url}/publish/{urllib.parse.quote(topic_name)}"
         data = json.dumps(snapshot, sort_keys=True).encode("utf-8")

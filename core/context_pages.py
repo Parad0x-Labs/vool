@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from core.memory.revocation import fenced_writer
 from storage.cas import get_bytes, put_bytes
 from storage.cas_integrity import CasCorruptionError
 from storage.db import get_connection
@@ -159,6 +160,7 @@ def content_hash(page: ContextPage) -> str:
 # ── Admission ────────────────────────────────────────────────────────────────
 
 
+@fenced_writer
 def admit_page(page: ContextPage) -> dict[str, Any]:
     """Admit a page into the store, pinning it to its producing task.
 

@@ -30,6 +30,7 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from core.memory.revocation import fenced_writer
 from storage.db import get_connection
 
 _log = logging.getLogger(__name__)
@@ -241,6 +242,7 @@ def lookup(name: str, key: str, *, now: datetime | None = None) -> tuple[Any, bo
         conn.close()
 
 
+@fenced_writer(on_refused=None)
 def record(
     name: str,
     key: str,

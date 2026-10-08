@@ -317,7 +317,8 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
         "receipt": _line_source_receipt(receipt),
         "replacement_present": replacement_present,
         "replacement_receipt": (
-            {"statement_at": receipts_by_id[str(fact["replaced_by"])].get("statement_at")}
+            {key: receipts_by_id[str(fact["replaced_by"])].get(key)
+             for key in ("receipt_id", "occurrence_id", "statement_at")}
             if str(fact.get("replaced_by")) in receipts_by_id else None
         ),
     }
@@ -326,6 +327,8 @@ def _render_line(receipt: dict[str, Any], fact: dict[str, Any], receipts_by_id: 
 
 def _line_source_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     return {
+        "receipt_id": receipt.get("receipt_id"),
+        "occurrence_id": receipt.get("occurrence_id"),
         "role": receipt.get("role"),
         "statement_at": receipt.get("statement_at"),
         "changes": [
@@ -667,6 +670,8 @@ def compile_packet(mem: Any, chat_scope: str, question: str, *, expansions: Sequ
         # the row's replacing record, which its line names ('[REPLACED later by ...]', 'until <day>') whether or not
         # that record's own row is shown: the capsule's temporal laws are read against it too (filter_packet)
         replacing = by_id.get(str(fact.get("replaced_by"))) if fact.get("replaced_by") else None
+        if replacing is not None:
+            packet.source_receipts[str(fact["replaced_by"])] = _line_source_receipt(replacing)
         packet.facts.append({**fact, "receipt_id": receipt.get("receipt_id"), "occurrence_id": receipt.get("occurrence_id"),
                              "role": receipt.get("role"), "statement_at": receipt.get("statement_at"), "score": round(float(score), 3),
                              "replaced_by_occurrence": (replacing or {}).get("occurrence_id"),
@@ -720,7 +725,27 @@ _COMPLETENESS_LINE_PREFIX = "- This question needs: "
 _TEMPORAL_REFUSAL_RE = re.compile(r"(?:note:|temporal:)?(?:withdrawn|future-relative|window-|superseded)")
 
 
-def _without_replacement(line: str, fact: Mapping[str, Any],
+def replacement_occurrence(fact: Mapping[str, Any], source_receipts: Mapping[str, dict[str, Any]],
+                           facts: Sequence[Mapping[str, Any]] = ()) -> str:
+    """Resolve a replacement's dependency from identities, never from rendered annotations."""
+    receipt_id = str(fact.get("replaced_by") or "")
+    identities = {str(fact["replaced_by_occurrence"])} if fact.get("replaced_by_occurrence") else set()
+    sources: list[Any] = [source_receipts.get(receipt_id)]
+    rendering = fact.get("line_source")
+    if isinstance(rendering, Mapping) and rendering.get("version") == 1:
+        sources.append(rendering.get("replacement_receipt"))
+    sources.extend(row for row in facts if str(row.get("receipt_id") or "") == receipt_id)
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        if source.get("receipt_id") and str(source["receipt_id"]) != receipt_id:
+            return ""
+        if source.get("occurrence_id"):
+            identities.add(str(source["occurrence_id"]))
+    return next(iter(identities)) if len(identities) == 1 else ""
+
+
+def _without_replacement(fact: Mapping[str, Any],
                          source_receipts: Mapping[str, dict[str, Any]]) -> str | None:
     """Re-render from receipt data, or withhold a legacy row whose annotation ownership was lost."""
     # Native producers explicitly own both the note and the effective-until removal.
@@ -730,20 +755,14 @@ def _without_replacement(line: str, fact: Mapping[str, Any],
     source = fact.get("line_source")
     sources = []
     if isinstance(source, Mapping) and source.get("version") == 1:
-        sources.append((source.get("receipt"), source))
-    sources.append((source_receipts.get(str(fact.get("receipt_id"))), None))
-    for receipt, rendering in sources:
+        sources.append(source.get("receipt"))
+    sources.append(source_receipts.get(str(fact.get("receipt_id"))))
+    for receipt in sources:
         if (isinstance(receipt, Mapping) and "role" in receipt and "statement_at" in receipt
                 and isinstance(receipt.get("changes"), list)
                 and all(isinstance(change, Mapping) for change in receipt["changes"])):
             rebuilt = dict(fact)
-            if rendering is not None:
-                if rendering.get("replacement_present") is False:
-                    return line
-                replacement = rendering.get("replacement_receipt")
-                replacements = {str(fact.get("replaced_by")): dict(replacement)} if isinstance(replacement, Mapping) else {}
-                # Legacy rows retain their explicit effective interval; only the final note is withheld.
-                return _render_line(dict(receipt), rebuilt, replacements, include_replacement_note=False)
+            # Rebuild the separate bare rendering: the effective-until date and note share the refused owner.
             _render_line(dict(receipt), rebuilt, {})
             return str(rebuilt["line_without_replacement"])
     return None
@@ -758,8 +777,8 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     it. Fact rows of a refused occurrence are dropped (lines and facts stay aligned), hop and derived lines stay, and
     the completeness line is recomputed over the surviving rows: a dropped row was a matching record the reader does
     not see, so coverage is partial and "complete" is never claimed over it. An empty `refused` returns the packet
-    unchanged, byte for byte."""
-    if not refused or not packet.facts:
+    unchanged, byte for byte, unless a legacy replacement dependency cannot be reconstructed."""
+    if not packet.facts:
         return packet
     est = estimate_tokens or (lambda t: max(1, len(t) // 4))
     n = len(packet.facts)
@@ -767,11 +786,21 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     kept_lines: list[str] = []
     kept_facts: list[dict[str, Any]] = []
     dropped: list[dict[str, Any]] = []
+    migrated = 0
     for line, fact in zip(fact_lines, packet.facts, strict=False):
         occ = str(fact.get("occurrence_id") or "")
         if occ and occ in refused and not str(refused[occ]).startswith("note:"):
             dropped.append({"occurrence_id": occ, "receipt_id": fact.get("receipt_id"), "reason": str(refused[occ])})
             continue
+        if fact.get("replaced_by"):
+            replacing = replacement_occurrence(fact, packet.source_receipts, packet.facts)
+            if not replacing:
+                dropped.append({"occurrence_id": occ, "receipt_id": fact.get("receipt_id"),
+                                "reason": "replacement-provenance-unavailable"})
+                continue
+            if replacing != str(fact.get("replaced_by_occurrence") or ""):
+                fact = {**fact, "replaced_by_occurrence": replacing}
+                migrated += 1
         kept_lines.append(line)
         kept_facts.append(fact)
     # A kept row names the value that later replaced it ('[REPLACED later by "47 crowns" ...]') and the day it did
@@ -781,12 +810,13 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     refused_receipts = {str(row.get("receipt_id")) for row in dropped if row.get("receipt_id") is not None
                         and _TEMPORAL_REFUSAL_RE.match(str(row.get("reason") or ""))}
     stripped = 0
+    sanitized = 0
     withheld: set[int] = set()
     for index, fact in enumerate(kept_facts):
         replacing = str(fact.get("replaced_by_occurrence") or "")
         if (str(fact.get("replaced_by") or "") in refused_receipts
                 or (replacing and _TEMPORAL_REFUSAL_RE.match(str(refused.get(replacing) or "")))):
-            line = _without_replacement(kept_lines[index], fact, packet.source_receipts)
+            line = _without_replacement(fact, packet.source_receipts)
             if line is None:
                 withheld.add(index)
                 dropped.append({"occurrence_id": str(fact.get("occurrence_id") or ""),
@@ -794,14 +824,22 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
                                 "reason": "replacement-provenance-unavailable"})
                 continue
             stripped += line != kept_lines[index]
+            sanitized += 1
             kept_lines[index] = line
+            fact = {key: value for key, value in fact.items()
+                    if key not in ("replaced_by", "replaced_by_occurrence", "replaced_by_statement_at")}
+            source = fact.get("line_source")
+            if isinstance(source, Mapping):
+                fact["line_source"] = {**source, "replacement_present": False, "replacement_receipt": None}
+            fact["line_without_replacement"] = line
+            kept_facts[index] = fact
     if withheld:
         kept_lines = [line for index, line in enumerate(kept_lines) if index not in withheld]
         kept_facts = [fact for index, fact in enumerate(kept_facts) if index not in withheld]
-    source_receipts = {str(fact.get("receipt_id")): packet.source_receipts[str(fact.get("receipt_id"))]
-                       for fact in kept_facts if str(fact.get("receipt_id")) in packet.source_receipts}
+    source_ids = {str(fact.get(key)) for fact in kept_facts for key in ("receipt_id", "replaced_by") if fact.get(key)}
+    source_receipts = {key: value for key, value in packet.source_receipts.items() if key in source_ids}
     if not dropped:
-        if not stripped:
+        if not sanitized and not migrated:
             return packet
         out = Packet(obligation=packet.obligation, lines=kept_lines + tail, facts=kept_facts,
                      telemetry=dict(packet.telemetry), source_receipts=source_receipts)
@@ -813,8 +851,9 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     found, missing = _found_operands(ob, [(0.0, {"role": f.get("role"), "statement_at": f.get("statement_at")}, f) for f in kept_facts])
     coverage = dict(packet.telemetry.get("coverage") or {"candidates": 0, "shown": 0, "exhaustive": True})
     coverage["shown"] = max(0, int(coverage.get("shown") or 0) - len(dropped))
-    coverage["exhaustive"] = False if ob.needs_coverage or withheld else bool(coverage.get("exhaustive", True))
-    complete = (not missing) and (coverage["exhaustive"] if ob.needs_coverage else True)
+    provenance_missing = any(row["reason"] == "replacement-provenance-unavailable" for row in dropped)
+    coverage["exhaustive"] = False if ob.needs_coverage or provenance_missing else bool(coverage.get("exhaustive", True))
+    complete = (not missing) and not provenance_missing and (coverage["exhaustive"] if ob.needs_coverage else True)
     lines = kept_lines + tail
     if lines or (ob.needs_coverage and not coverage["exhaustive"]):
         lines.append(_completeness_line(ob, missing, coverage))
