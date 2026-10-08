@@ -633,6 +633,45 @@ def test_e5e_a_payment_refused_before_its_socket_is_released_and_can_be_parked_a
         assert again.status == "payment_required" and again.proposal_id and again.proposal_id != proposal_id
 
 
+def test_retry_after_refusal_cannot_keep_previous_chain_as_signing_authority(wallet_env, evm_rig, monkeypatch):
+    """A payment for a request on Base Sepolia is refused for good (the owner's ceiling, at the claim); the resource
+    then asks for USDC on Ethereum Sepolia, paid from the owner's Ethereum Sepolia account. The retry's binding names
+    the new chain, token and domain, so the authorization is built for that chain's USDC and the settlement is proven
+    against that token: nothing of the refused offer's chain decides the new payment."""
+    from core.wallet import custody, limits, proposals
+    from core.wallet import x402 as wallet_x402
+    from tests.wallet._rig_evm import EvmExtensionSigner, X402V2Resource
+
+    _wire_chain(monkeypatch, evm_rig, BASE_SEPOLIA, USDC_BASE, chain_id=84532)
+    with EvmExtensionSigner() as signer, X402V2Resource(evm_rig.facilitator, network=BASE_SEPOLIA, asset=USDC_BASE, pay_to=PAY_TO, amount_minor=10000, eip712_name="USDC", eip712_version="2") as resource:
+        base_wallet = custody.register_external_signer_wallet(signer.address, network=BASE_SEPOLIA)
+        engine = wallet_x402.lifecycle_default_engine()
+        refused = wallet_x402.fetch_paid_resource(resource.url, wallet_id=base_wallet.wallet_id)
+        limits.set_limits(base_wallet.wallet_id, "USDC", limits.SpendLimits(per_tx_minor=1, daily_minor=1, per_destination_daily_minor=1))
+        with pytest.raises(WalletFault) as ceiling:
+            engine.request_external_signature(refused.proposal_id)
+        assert ceiling.value.code == "wallet_limit_exceeded" and proposals.get_proposal(refused.proposal_id).state == proposals.STATE_REJECTED
+
+        _wire_chain(monkeypatch, evm_rig, ETHEREUM_SEPOLIA, USDC_SEPOLIA, chain_id=11155111)
+        resource.network, resource.asset, resource.amount_minor = ETHEREUM_SEPOLIA, USDC_SEPOLIA, 12000
+        sepolia_wallet = custody.register_external_signer_wallet(signer.address, network=ETHEREUM_SEPOLIA)
+        retry = wallet_x402.fetch_paid_resource(resource.url, wallet_id=sepolia_wallet.wallet_id)
+        binding = wallet_x402.binding_for_proposal(retry.proposal_id)
+        assert (binding["network"], binding["asset_address"].lower(), binding["amount_minor"]) == (ETHEREUM_SEPOLIA, USDC_SEPOLIA.lower(), 12000)
+        assert json.loads(binding["offer_json"])["network"] == ETHEREUM_SEPOLIA
+
+        view = engine.request_external_signature(retry.proposal_id)
+        typed_data = json.loads(view["transports"]["eip1193"]["params"][1])
+        assert typed_data["domain"]["chainId"] == 11155111 and typed_data["domain"]["verifyingContract"].lower() == USDC_SEPOLIA.lower()
+        signature = signer_sign(signer, typed_data)
+        resource.settled_signatures.add(signature)
+        resource.settlement_tx = "0x" + ("cd" * 32)
+        evm_rig.rpc.add_transfer_receipt(resource.settlement_tx, contract_address=USDC_SEPOLIA, from_address=signer.address, to_address=PAY_TO, amount_int=12000)
+        receipt = engine.submit_external_signature(view["request_id"], signature_hex=signature)
+        assert receipt.state == proposals.STATE_CONFIRMED and receipt.tx_signature == resource.settlement_tx
+        assert [d["network"] for d in resource.deliveries] == [ETHEREUM_SEPOLIA]
+
+
 def test_e6_facilitator_discovery_is_typed_and_network_scoped(wallet_env, evm_rig):
     from core.wallet import facilitators
     from tests.wallet._rig_evm import FacilitatorSimulator
