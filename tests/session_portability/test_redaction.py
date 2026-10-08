@@ -147,12 +147,15 @@ def test_export_recovers_in_process_once_protection_returns(tmp_path, monkeypatc
     support.seed_turns(turns=[("recover my wallet", f"the phrase is {phrase} do not lose it")])
     from core.session_portability import api
 
-    _degrade_phrase_protection(monkeypatch)
-    with pytest.raises(PortabilityRefused):
-        api.export_session(SESSION, tmp_path / "never-written.voolsession")
-    assert not (tmp_path / "never-written.voolsession").exists()
+    # A scoped patch, so leaving it restores only the wordlist reader: monkeypatch.undo() would
+    # also strip the suite's per-test signing-key passphrase and key paths (tests/conftest.py).
+    with pytest.MonkeyPatch.context() as degraded:
+        _degrade_phrase_protection(degraded)
+        with pytest.raises(PortabilityRefused):
+            api.export_session(SESSION, tmp_path / "never-written.voolsession")
+        assert not (tmp_path / "never-written.voolsession").exists()
 
-    monkeypatch.undo()  # restore the real wordlist reader — same process
+    # the real wordlist reader is back — same process
     import core.secret_redaction as sr
 
     sr._BIP39_INDEX = None  # drop any cache so the next call loads through the real reader
