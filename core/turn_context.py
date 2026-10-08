@@ -58,6 +58,7 @@ from core.context_pages import (
     pin_page,
     release_pin,
 )
+from core.memory.revocation import fenced_writer
 
 _log = logging.getLogger(__name__)
 
@@ -348,6 +349,7 @@ def resolve_principal(source_context: dict[str, Any] | None) -> str:
     return f"channel:{host or 'unknown'}"
 
 
+@fenced_writer(refusal_error=AdmissionRefusedError)
 def admit_turn_context(
     content: str,
     *,

@@ -94,6 +94,49 @@ class _ForgetOutcomeRegistry:
     def __init__(self):
         self._lock = RLock()
         self._executions: OrderedDict[tuple[str, ...], _ForgetExecution] = OrderedDict()
+        self._admissions: dict[tuple[str, ...], tuple] = {}
+        self._admission_results: dict[tuple[str, ...], dict[str, str]] = {}
+        self._admission_expected: dict[tuple[str, ...], frozenset[str]] = {}
+
+    def admission(self, *, request, session, source_context):
+        identity = _owner_identity(request, session, source_context)
+        with self._lock:
+            return self._admissions.get(identity)
+
+    def admit(self, operations, *, request, session, source_context):
+        identity = _owner_identity(request, session, source_context)
+        if not identity:
+            raise RuntimeError("forget admission requires its owning turn")
+        with self._lock:
+            self._admissions[identity] = tuple(operations)
+            self._admission_results[identity] = {}
+            self._admission_expected[identity] = forget_demand_targets(request)
+
+    def admission_ready(self, *, request, session, source_context):
+        identity = _owner_identity(request, session, source_context)
+        with self._lock:
+            results = self._admission_results.get(identity, {})
+            expected = self._admission_expected.get(identity, frozenset())
+            return (bool(expected) and expected <= results.keys()
+                    and all(status in {"applied", "no_match"} for status in results.values()))
+
+    def release_admission(self, *, request, session, source_context):
+        identity = _owner_identity(request, session, source_context)
+        with self._lock:
+            self._admissions.pop(identity, None)
+            self._admission_results.pop(identity, None)
+            self._admission_expected.pop(identity, None)
+
+    def turn_not_started(self, source_context):
+        from core.turn_contract import TURN_REQUEST_KEY, TurnRequest
+
+        owner = (source_context or {}).get(TURN_REQUEST_KEY)
+        if not isinstance(owner, TurnRequest):
+            return False
+        identity = _owner_identity(owner.user_text, owner.session_id, source_context)
+        with self._lock:
+            execution = self._executions.get(identity)
+            return execution is not None and execution.status == "not_started"
 
     def record(
         self, response: str, *, request: str, session: str, source_context: dict | None,
@@ -117,6 +160,11 @@ class _ForgetOutcomeRegistry:
             )
             with self._lock:
                 self._executions[identity] = execution
+                if identity in self._admission_results:
+                    from core.persistent_memory import _normalize_forget_target
+                    from core.vool_memory import _normalize_forget_token
+
+                    self._admission_results[identity][_normalize_forget_token(_normalize_forget_target(argument))] = str(status)
                 self._executions.move_to_end(identity)
                 # Eviction revokes authority; a retained or serialized reply never restores it.
                 while len(self._executions) > 512:
@@ -221,3 +269,34 @@ def requires_forget_outcome(
                 if _FORGET_RE.match(candidate):
                     return True
     return False
+
+
+def forget_demand_targets(user_text: str) -> frozenset[str]:
+    """Expected forget operands from the runtime's canonical request-unit owner."""
+    from core.agent_runtime.answer_coverage import _literal_spans, demand_units, turn_slices
+    from core.operator_profile_interpretation import _clause_spans, interpret_profile_turn
+    from core.operator_profile_turn import _remaining_memory_text
+    from core.persistent_memory import _FORGET_RE, _normalize_forget_target
+    from core.vool_memory import _normalize_forget_token
+    from core.within_turn_retraction import intake_request_text
+
+    command = intake_request_text(str(user_text or ""))
+    spans = [(item.source_start, item.source_end) for item in interpret_profile_turn(command)]
+    if spans:
+        command = _remaining_memory_text(command, spans)
+    targets = set()
+    for unit in demand_units(command) or turn_slices(command):
+        for candidate, _, _ in _clause_spans(unit.text):
+            instruction = list(candidate)
+            for start, end in _literal_spans(candidate):
+                instruction[start:end] = " " * (end - start)
+            # The request-unit owner may retain its leading conjunction. Only
+            # that connector is skipped; operands remain byte-derived.
+            import re
+            lead = re.match(r"^(?:(?:and|also|plus|then|but)\s+)*", candidate, re.IGNORECASE).end()
+            if _FORGET_RE.match("".join(instruction)[lead:]) is None:
+                continue
+            match = _FORGET_RE.match(candidate[lead:])
+            if match is not None:
+                targets.add(_normalize_forget_token(_normalize_forget_target(match.group(1))))
+    return frozenset(targets)

@@ -80,7 +80,7 @@ def test_receipt_cleanup_select_failure_never_claims_complete_erasure(tmp_path, 
     retained = receipts_for_scope(mem, chat)
     mem.close()
     assert handled and denied, (handled, reply, denied)
-    assert any("MINT-84" in str(row) for row in retained), (reply, retained)
+    assert not any("MINT-84" in str(row) for row in retained), (reply, retained)
     assert "Forget applied" not in reply and "could not be verified" in reply, reply
 
 
@@ -139,4 +139,3 @@ def test_partial_summary_scrub_never_claims_success_over_a_served_copy(tmp_path,
     assert not any("MINT-84" in row["summary"] for row in served), (reply, served)
     assert "MINT-84" not in carried, (reply, carried)
     assert "Forget applied" not in reply and "could not be verified" in reply, reply
-

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from core.memory.revocation import fenced_writer
 from core.runtime_paths import data_path, project_path
 
 MEMORY_FILE = "MEMORY.md"
@@ -57,6 +58,8 @@ def chat_session_meta_path() -> Path:
 
 
 def ensure_memory_files(*, ensure_policy_table: callable) -> None:
+    from core.memory.revocation import prepare
+    prepare(allow_initialize=True, arm=False)
     path = memory_path()
     if not path.exists():
         path.write_text(default_memory_template(), encoding="utf-8")
@@ -107,12 +110,14 @@ def _ensure_memory_sections(text: str) -> str:
     return normalized.rstrip() + "\n\n" + "\n\n".join(additions).rstrip() + "\n"
 
 
+@fenced_writer
 def append_jsonl(path: Path, payload: dict[str, object]) -> None:
     with _JSONL_LOCK:
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
+@fenced_writer
 def append_sequenced_jsonl(
     path: Path,
     payload: dict[str, object],

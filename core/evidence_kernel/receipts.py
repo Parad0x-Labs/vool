@@ -184,7 +184,11 @@ def issue(*, kind: str, session_id: str, subject_type: str, subject: Any, eviden
             "session_id": str(session_id or ""), "turn_id": str(turn_id or ""), "parents": [str(p) for p in parents], "subject_type": str(subject_type),
             "subject_digest": subject_digest, "evidence_refs": refs, "status": str(status), "reason_codes": [str(c) for c in reason_codes],
             "previous_digest": "", "metadata": dict(metadata or {}), "schema": SCHEMA}
-    with _LOCK:
+    from core.memory.revocation import writing
+
+    # The subject is persisted only as a keyed digest. Fence the actual
+    # authored envelope payload, not the forgotten bytes behind that digest.
+    with writing(_receipt_payload_for_erasure(body), session_id), _LOCK:
         body["previous_digest"] = latest_digest(kind, session_id)
         content = _canonical(signed_body(body))
         digest = _sha256(content)

@@ -1403,9 +1403,10 @@ def emit_turn_honesty_receipt(
     """Record a signed, offline-verifiable honesty receipt for a finalized turn.
 
     Binds the model's action claim, the ground-truth tool executions, and the honesty verdict
-    into a hash-chained, Ed25519-signed receipt (see core.honesty_receipt). Best-effort and
-    never raises; disabled by setting VOOL_HONESTY_RECEIPTS=0. Attaches a small telemetry stub
-    to the returned result so a UI can surface + verify it.
+    into a hash-chained, Ed25519-signed receipt (see core.honesty_receipt). A failed
+    write retries once and immediately reconstructs the same issued receipt.
+    Never raises or changes the reply; disabled by VOOL_HONESTY_RECEIPTS=0.
+    A telemetry stub is attached only after durable persistence is verified.
     """
     result = dict(output or {})
     if str(os.environ.get("VOOL_HONESTY_RECEIPTS", "1")).strip() == "0":
@@ -1420,6 +1421,7 @@ def emit_turn_honesty_receipt(
             issue_honesty_receipt,
             latest_receipt_hash,
             list_honesty_receipts,
+            rebuild_honesty_receipt,
             record_honesty_receipt,
         )
 
@@ -1489,16 +1491,37 @@ def emit_turn_honesty_receipt(
             verdict_detail=detail,
             prev_hash=latest_receipt_hash(session),
         )
-        record_honesty_receipt(receipt)
-        result["honesty_receipt"] = {
-            "receipt_id": receipt.receipt_id,
-            "content_hash": receipt.content_hash,
-            "verdict": receipt.verdict,
-            "signed": bool(receipt.signature),
-            "signer_peer_id": receipt.signer_peer_id,
-        }
-    except Exception:
-        pass
+        prior_pending = bool(result.get("receipt_pending"))
+        result.pop("honesty_receipt", None)
+        written = record_honesty_receipt(receipt)
+        if written.status == "failed":
+            result.setdefault("index_failures", []).append("honesty_receipt_write_error")
+            result["receipt_pending"] = True
+            written = record_honesty_receipt(receipt)
+            result["receipt_rebuild_attempted"] = True
+            rebuilt = rebuild_honesty_receipt(receipt)
+            # A successful retry also receives a final durable re-read in rebuild.
+            written = rebuilt
+        result["receipt_write_status"] = written.status
+        result["receipt_pending"] = prior_pending or written.status == "failed"
+        if written.status in {"written", "already_exists"} and written.receipt is not None:
+            result["honesty_receipt"] = {
+                "receipt_id": receipt.receipt_id,
+                "content_hash": receipt.content_hash,
+                "verdict": receipt.verdict,
+                "signed": bool(receipt.signature),
+                "signer_peer_id": receipt.signer_peer_id,
+            }
+            if command_outcome is not None:
+                result["honesty_receipt"]["memory_command_status"] = command_outcome.status
+        else:
+            result["receipt_pending_id"] = receipt.receipt_id
+            result["receipt_failure_reason"] = written.reason
+    except Exception as exc:
+        result.pop("honesty_receipt", None)
+        result["receipt_write_status"] = "failed"
+        result["receipt_pending"] = True
+        result["receipt_failure_reason"] = type(exc).__name__
     return result
 
 

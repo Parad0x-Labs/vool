@@ -867,7 +867,12 @@ def _seal_semantic_result(
     # context, BEFORE admit — response-control is a semantic transform, so it
     # is applied here, ahead of the honesty seal and A2 admission. Post-boundary
     # application sites are verify-only asserts.
+    from core.persistent_memory import _finish_forget_turn_admission
     from core.web.api.response_control import apply_exact_response_control
+
+    result = _finish_forget_turn_admission(
+        result, user_text=user_input, session_id=session_id, source_context=source_context,
+    )
 
     # M3: bring the turn's grounding lifecycle up to date BEFORE the transforms, because this
     # is the last seam that holds the turn's context and its request text together -- and the
@@ -1922,6 +1927,31 @@ class VoolAgent(
         runtime_source_context["action_policy"] = constraints.policy.value
         if constraints.forbid_commands:
             runtime_source_context[NO_COMMANDS_CONTEXT_KEY] = True
+        # Forget admission precedes every memory-bearing effect of the turn,
+        # including normalization's dialogue state and profile sibling clauses.
+        from core.persistent_memory import _preadmit_forget_turn
+
+        forget_turn, admission_failure = _preadmit_forget_turn(
+            user_input, session_id=session_id, source_context=runtime_source_context,
+        )
+        if admission_failure is not None:
+            return _seal_semantic_result(
+                {
+                    "task_id": "forget-" + turn_request.turn_id,
+                    "turn_id": turn_request.turn_id,
+                    "session_id": session_id,
+                    "response": admission_failure,
+                    "_memory_command_outcome": admission_failure,
+                    "source_context": runtime_source_context,
+                    "route": "deterministic:memory_command",
+                    "route_reason": "memory_command",
+                    "model_execution": {"source": "fast_path", "used_model": False},
+                    "fast_path_hit": True,
+                },
+                session_id=session_id, user_input=user_input, effective_input=user_input,
+                source_context=runtime_source_context,
+                semantic_source=SemanticSource.MEMORY, route_id="memory_command",
+            )
         from core.context_scope import ContextAccessPolicy
 
         access_policy = ContextAccessPolicy.for_request(
@@ -2026,6 +2056,7 @@ class VoolAgent(
         interpreted = adapt_user_input(
             intake_text,
             session_id=session_id,
+            persist=not forget_turn,
             turn_id=(
                 ""
                 if bool((source_context or {}).get("planned_subturn"))
@@ -2104,16 +2135,21 @@ class VoolAgent(
         # never change the route or reach a provider as user prose.
         effective_input = interpreted.normalized_text or interpreted.raw_text or user_input
         normalized_input = str(interpreted.normalized_text or "").strip()
-        checkpoint_bundle = self._prepare_runtime_checkpoint(
-            session_id=session_id,
-            raw_user_input=user_input,
-            effective_input=effective_input,
-            source_context=runtime_source_context,
-            allow_followup_resume=not self._blocks_runtime_followup_resume(
+        if forget_turn:
+            checkpoint_bundle = {
+                "source_context": runtime_source_context, "state": "created", "effective_input": effective_input,
+            }
+        else:
+            checkpoint_bundle = self._prepare_runtime_checkpoint(
                 session_id=session_id,
+                raw_user_input=user_input,
+                effective_input=effective_input,
                 source_context=runtime_source_context,
-            ),
-        )
+                allow_followup_resume=not self._blocks_runtime_followup_resume(
+                    session_id=session_id,
+                    source_context=runtime_source_context,
+                ),
+            )
         checkpoint_source_context = dict(
             checkpoint_bundle.get("source_context") or runtime_source_context
         )

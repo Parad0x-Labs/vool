@@ -78,9 +78,53 @@ class _KernelWriteError(RuntimeError):
     """A kernel write (receipt or envelope) did not land; store_turn reports the turn as failed."""
 
 
+def _write_turn_receipt(mem: Any, occurrence: Any, *, chat_scope: str, body: str,
+                        result: dict[str, Any]) -> dict[str, Any] | bool:
+    """Persist the index with a bounded retry, then rebuild missing indexes immediately.
+
+    A failure remains in the turn's diagnostics even if recovery succeeds. Only
+    a first-attempt persisted receipt authorizes the normal turn envelope.
+    """
+    from core.memory_receipts import ReceiptWriteResult, rebuild_missing_receipts, receipt_for_occurrence, write_receipt
+
+    occurrence_id = str(getattr(occurrence, "occurrence_id", "") or "")
+    pending = result.setdefault("receipt_pending_occurrence_ids", [])
+    for attempt in range(2):
+        try:
+            written = write_receipt(mem, occurrence, chat_scope=chat_scope, said=body)
+        except Exception:
+            LOGGER.warning("memory receipt write raised", exc_info=True)
+            written = ReceiptWriteResult("failed", reason="receipt_write_error")
+        if written.status in {"written", "already_exists"} and written.receipt is not None:
+            if attempt == 0:
+                result["receipt_pending"] = bool(pending)
+                return written.receipt
+            break
+        if attempt == 0:
+            result.setdefault("index_failures", []).append("receipt_write_error")
+            if occurrence_id not in pending:
+                pending.append(occurrence_id)
+            result["receipt_pending"] = True
+    result["receipt_rebuild_attempted"] = True
+    try:
+        rebuild_missing_receipts(mem, chat_scope)
+        recovered = receipt_for_occurrence(mem, occurrence_id)
+    except Exception:
+        LOGGER.warning("immediate memory receipt rebuild failed", exc_info=True)
+        recovered = None
+    if recovered is not None:
+        if occurrence_id in pending:
+            pending.remove(occurrence_id)
+        result.setdefault("receipt_rebuilt_occurrence_ids", []).append(occurrence_id)
+    result["receipt_pending"] = bool(pending)
+    return False
+
+
 def _kernel_turn_envelope(chat_id: str, occurrence: Any, body: str, receipt: Mapping[str, Any] | None, lineage: str) -> Any:
     from core.evidence_kernel.receipts import EvidenceRef, issue, keyed_digest
 
+    if not receipt or not receipt.get("receipt_id"):
+        raise _KernelWriteError("receipt_pending")
     facts = list((receipt or {}).get("facts") or [])
     changes = list((receipt or {}).get("changes") or [])
     return issue(
@@ -88,7 +132,7 @@ def _kernel_turn_envelope(chat_id: str, occurrence: Any, body: str, receipt: Map
         subject={"receipt_id": (receipt or {}).get("receipt_id", ""), "facts": facts, "changes": changes, "withdraws": list((receipt or {}).get("withdraws") or [])},
         evidence_refs=[EvidenceRef(occurrence_id=str(getattr(occurrence, "occurrence_id", "")), digest=keyed_digest(body),
                                    role=str(getattr(occurrence, "role", "")), kind="turn")],
-        status="recorded" if receipt else "recorded_without_receipt",
+        status="recorded",
         reason_codes=[f"facts:{len(facts)}", f"changes:{len(changes)}"], request_id=str(lineage or ""), turn_id=str(getattr(occurrence, "occurrence_id", "")),
         parents=[str(c.get("old_receipt") or "") for c in changes if c.get("old_receipt")], commit=True)
 
@@ -865,6 +909,10 @@ def admitted_evidence_records(
     for receipt in source.get("evidence_refs") or []:
         if not isinstance(receipt, Mapping) or not receipt.get("delivered"):
             continue
+        from core.memory.revocation import authorize_payload
+
+        if not authorize_payload(receipt, str(receipt.get("chat_scope") or "") or None):
+            continue
         span = receipt.get("span") if isinstance(receipt.get("span"), Mapping) else {}
         try:
             score = float(receipt.get("score")) if receipt.get("score") is not None else None
@@ -1165,6 +1213,10 @@ def capsule_exact_response(
     active_mission_slots: list[dict[str, object]] | None = None,
 ) -> str:
     data = dict(telemetry or get_last_retrieval_telemetry())
+    from core.memory.revocation import authorize_payload
+
+    if not authorize_payload({"telemetry": data, "mission_slots": active_mission_slots}, session_id):
+        return ""
     if data.get("capsule_mode") != "distilled":
         return ""
     lines = [
@@ -1282,7 +1334,7 @@ def capsule_exact_response(
             session_id=session_id,
             active_mission_slots=slots,
             expected_value=expected_value,
-        )
+        ) and authorize_payload({"telemetry": data, "mission_slots": slots, "response": response}, session_id)
         else ""
     )
 
@@ -4840,7 +4892,7 @@ def materialize_source_evidence(
                 "text": occurrence.body,
             }]
         neighbors = mem.occurrence_neighbors(occurrence, before=1, after=1)
-        return {
+        payload = {
             "version": EVIDENCE_CONTRACT_VERSION,
             "occurrence_id": occurrence.occurrence_id,
             "role": occurrence.role,
@@ -4859,6 +4911,12 @@ def materialize_source_evidence(
                 for w in windows
             ),
         }
+        from core.memory.revocation import authorize_payload
+
+        if not authorize_payload(payload, occurrence.chat_scope, runtime_home, owner_memory=mem):
+            return {"version": EVIDENCE_CONTRACT_VERSION, "occurrence_id": occurrence.occurrence_id,
+                    "complete": False, "reason": "revocation_withheld", "body": "", "spans": [], "neighbors": []}
+        return payload
     finally:
         with contextlib.suppress(Exception):
             mem.close()
@@ -7002,18 +7060,9 @@ def store_turn(
             # replaces, written once beside the occurrence (core.memory_receipts). Off: nothing changes.
             result["occurrence_ids"] = list(occurrence_ids)  # what is on disk so far, kept on a later failure
             if _memory_receipts_on():
-                try:
-                    from core.memory_receipts import write_receipt as _write_receipt
-
-                    _receipt = _write_receipt(mem, occurrence, chat_scope=policy.chat_id, said=body)
-                except Exception:
-                    # The occurrence above is the canonical memory and is already written; the receipt is an
-                    # index over it. A failed index write is reported, never swallowed, and never aborts the
-                    # rest of the turn's canonical writes: the next read of the chat rebuilds the missing
-                    # receipt (core.memory_receipts.rebuild_missing_receipts).
-                    LOGGER.warning("memory receipt write failed; rebuilt on next read", exc_info=True)
-                    result.setdefault("index_failures", []).append("receipt_write_error")
-                    _receipt = False  # no envelope may attest a receipt that did not land
+                _receipt = _write_turn_receipt(
+                    mem, occurrence, chat_scope=policy.chat_id, body=body, result=result,
+                )
                 if _kernel_on() and _receipt is not False:
                     # Turn envelope (vool.memory.turn.v1): the occurrence by reference and digest, the receipt's
                     # facts by digest; appended to the chat's chained ledger. A failed append is reported and the
@@ -7131,15 +7180,16 @@ def _sweep_derived_dialogue_surfaces(
     def carries(*values: object) -> bool:
         return any(needle in _normalize_forget_token(str(value or "")) for value in values)
 
+    from core.memory.carriers import ROW_IDENTITIES, payload_columns
+    from core.memory.carriers import carries as structured_match
+
     def structured_carries(value: object) -> bool:
-        if isinstance(value, dict):
-            return any(carries(key) or structured_carries(item) for key, item in value.items())
-        if isinstance(value, list):
-            return any(structured_carries(item) for item in value)
-        return carries(value)
+        return structured_match(value, token)
 
     def column_carries(value: object, *, structured: bool) -> bool:
         if not structured:
+            if isinstance(value, (bytes, bytearray, memoryview)) and value:
+                raise MemoryErasureError("derivative payload has an opaque representation")
             return carries(value)
         if value is None:
             return False
@@ -7186,19 +7236,9 @@ def _sweep_derived_dialogue_surfaces(
                     name for name in ("session_id", "chat_id", "origin_session_id", "chat_scope")
                     if name in names
                 ), None)
-                # Identity and temporal fields are metadata; every declared text/JSON
-                # payload is inspected, including fields added by later migrations.
-                columns = [
-                    str(column[1]) for column in schema
-                    if not column[5]
-                    and str(column[1]) != scope_column
-                    and not str(column[1]).endswith(("_id", "_at"))
-                    and (
-                        any(kind in str(column[2]).upper() for kind in ("TEXT", "CHAR", "CLOB", "JSON"))
-                        or str(column[1]).endswith("_json")
-                        or not str(column[2])
-                    )
-                ]
+                # Only registered identities are excluded. The serialized writer
+                # schema supplies every other field, including future *_id fields.
+                columns = payload_columns(schema, structural_fields=ROW_IDENTITIES)
                 json_columns = {
                     str(column[1]) for column in schema
                     if str(column[1]).endswith("_json") or "JSON" in str(column[2]).upper()
@@ -7308,29 +7348,8 @@ def _sweep_derived_dialogue_surfaces(
 
 
 def revoked_tokens_for_chat(chat_id: str) -> tuple[str, ...]:
-    """Active forget-law revocations for a chat, for prompt carriers.
-
-    Opens the semantic store read-only in spirit (the ledger lives beside the
-    nodes it protects). Carriers call this once per assembly and drop any
-    stored dialogue row whose text carries a revoked token — the restart-
-    proof half of the forget law (F14-01: a fresh reader replayed
-    dialogue_turns into the provider request after the log scrub).
-    """
-    scope = str(chat_id or "").strip()
-    if not scope:
-        return ()
-    mem: VoolMemory | None = None
-    try:
-        mem = _open_memory()
-        if mem is None:
-            raise RuntimeError("memory revocation store is unavailable")
-        if mem.erasure_incomplete(scope):
-            raise RuntimeError("memory erasure is incomplete")
-        return mem.revoked_tokens(scope, strict=True)
-    finally:
-        if mem is not None:
-            with contextlib.suppress(Exception):
-                mem.close()
+    from core.memory.revocation import revoked_tokens
+    return revoked_tokens(chat_id)
 
 
 _FORGET_SEPARATOR_RE = re.compile(r"[\s\-_]+")
@@ -7433,6 +7452,7 @@ def forget_session_memory(
         # when no token-free clause survives; other sessions' events are
         # never touched.
         try:
+            from core.memory.carriers import ROW_IDENTITIES, carries, row_payload
             from core.memory.files import (
                 conversation_log_path,
             )
@@ -7453,10 +7473,17 @@ def forget_session_memory(
                     user_carries = needle in _normalize_forget_token(user_text)
                     asst_carries = needle in _normalize_forget_token(
                         assistant_text)
-                    if not (user_carries or asst_carries):
+                    payload = row_payload(row, structural_fields=ROW_IDENTITIES)
+                    if not carries(payload, token):
                         kept.append(row)
                         continue
                     changed += 1
+                    # Metadata has no clause-level ownership. Drop the whole
+                    # event if an artifact, attachment, or future field carries
+                    # the value, instead of silently preserving another copy.
+                    metadata = {key: value for key, value in payload.items() if key not in {"user", "assistant"}}
+                    if carries(metadata, token):
+                        continue
                     salvaged_user = (
                         _forget_salvage_content(user_text, needle, clause_join=", ")
                         or None)
@@ -7475,9 +7502,15 @@ def forget_session_memory(
                         new_row["user"] = salvaged_user
                     if salvaged_asst is not None:
                         new_row["assistant"] = salvaged_asst
+                    if carries(row_payload(new_row, structural_fields=ROW_IDENTITIES), token):
+                        continue
                     kept.append(new_row)
                 if changed or len(kept) != len(rows):
                     _rewrite_verified_erasure_rows(path, kept)
+                retained = _load_erasure_rows(path)
+                if any(str(row.get("session_id") or "") == policy.chat_id
+                       and carries(row_payload(row, structural_fields=ROW_IDENTITIES), token) for row in retained):
+                    raise MemoryErasureError("conversation payload erasure could not be verified")
                 _record_erasure_store(collected, "conversation_log", "verified", changed)
         except Exception as exc:
             _record_erasure_store(collected, "conversation_log", "incomplete")
@@ -7633,18 +7666,9 @@ def import_conversation_history(
             result["occurrence_ids"] = [*list(result["occurrence_ids"]), occurrence.occurrence_id]
             result["retained_count"] = int(result["retained_count"]) + 1
             if _memory_receipts_on():
-                try:
-                    from core.memory_receipts import write_receipt as _write_receipt
-
-                    _receipt = _write_receipt(mem, occurrence, chat_scope=policy.chat_id, said=body)
-                except Exception:
-                    # The occurrence above is the canonical memory and is already written; the receipt is an
-                    # index over it. A failed index write is reported, never swallowed, and never aborts the
-                    # rest of the turn's canonical writes: the next read of the chat rebuilds the missing
-                    # receipt (core.memory_receipts.rebuild_missing_receipts).
-                    LOGGER.warning("memory receipt write failed; rebuilt on next read", exc_info=True)
-                    result.setdefault("index_failures", []).append("receipt_write_error")
-                    _receipt = False  # no envelope may attest a receipt that did not land
+                _receipt = _write_turn_receipt(
+                    mem, occurrence, chat_scope=policy.chat_id, body=body, result=result,
+                )
                 if _kernel_on() and _receipt is not False:
                     # Turn envelope (vool.memory.turn.v1): the occurrence by reference and digest, the receipt's
                     # facts by digest; appended to the chat's chained ledger. A failed append is reported and the
@@ -7850,14 +7874,17 @@ def _verify_memory_delivery(
         authority = _open_memory_for_runtime(runtime_home)
         if authority is None:
             raise RuntimeError("memory authority is unavailable")
-        generation = authority.revocation_generation(session_id)
+        from core.memory.revocation import generation as barrier_generation
+        generation = (authority.revocation_generation(session_id), barrier_generation(session_id, runtime_home))
         revoked = _chat_revocations(runtime_home, session_id)
         added = [item for item in delivery if not any(item is prior for prior in transcript)]
         carries_revoked = revoked is None or any(
             text_carries_revoked_token(str(item.get("content") or ""), revoked) for item in added
         )
-        if not carries_revoked:
-            allowed = authority.revocation_generation(session_id) == generation
+        from core.memory.revocation import authorize_payload
+
+        if not carries_revoked and authorize_payload(added, session_id, runtime_home, owner_memory=authority):
+            allowed = (authority.revocation_generation(session_id), barrier_generation(session_id, runtime_home)) == generation
     except Exception:
         revoked = None
     finally:
@@ -8672,6 +8699,10 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
         from core.evidence_compiler import filter_packet as _filter_packet
         from core.evidence_compiler import render as _render_packet
 
+        # Empty discovery still traverses the lane's render boundary before the
+        # delivery authority is read. This keeps one assembly order when an
+        # earlier reader withholds every source, including a concurrent retry.
+        _whole_turn_lines([], delivered_text="", max_tokens=0, query=question)
         # Forget blocks the packet too, read at delivery: a revoked token's rows leave the packet, a packet line still
         # carrying it withholds the packet, and an unreadable revocation ledger withholds it as well (fail closed).
         revoked_now = _chat_revocations(runtime_home, chat_id) if check_revocations else ()
@@ -8735,27 +8766,11 @@ def _evidence_packet_header() -> str:
 
 
 def _chat_revocations(runtime_home: str | None, chat_id: str | None) -> tuple[str, ...] | None:
-    """The forget-law revocations of one chat as the store holds them now; None when the ledger cannot be read
-    (an unreadable authority is never an empty one)."""
-    scope = str(chat_id or "").strip()
-    if not scope:
-        return ()
-    memory = None
+    from core.memory.revocation import revoked_tokens
     try:
-        memory = _open_memory_for_runtime(runtime_home)
-        if memory is None:
-            return None
-        if not callable(getattr(memory, "revoked_tokens", None)):
-            return None
-        if memory.erasure_incomplete(scope):
-            return None
-        return tuple(memory.revoked_tokens(scope, strict=True) or ())
+        return revoked_tokens(chat_id, runtime_home)
     except Exception:
         return None
-    finally:
-        if memory is not None:
-            with contextlib.suppress(Exception):
-                memory.close()
 
 
 def _capsule_v2_inject_retrieved(

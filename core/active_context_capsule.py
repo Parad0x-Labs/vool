@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from core.context_namespace import load_chat_namespace
+from core.memory.revocation import fenced_writer
 from core.runtime_continuity import load_tool_receipt
 from core.secret_redaction import redact_secrets
 from storage.db import get_connection
@@ -658,6 +659,7 @@ def _verified_action_record(
     return action_record
 
 
+@fenced_writer
 def create_shadow_capsule(
     *,
     chat_id: str,

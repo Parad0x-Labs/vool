@@ -23,6 +23,7 @@ from core.memory.files import (
     utcnow,
 )
 from core.memory.policies import ensure_session_policy_table, session_memory_policy
+from core.memory.revocation import fenced_writer, writing
 from core.privacy_guard import share_scope_label
 from storage.dialogue_memory import record_dialogue_turn
 
@@ -362,6 +363,7 @@ def load_operator_dense_profile() -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+@fenced_writer
 def refresh_operator_dense_profile(*, session_id: str | None = None) -> dict[str, Any]:
     _ensure_memory_files()
     heuristics = [
@@ -418,7 +420,8 @@ def refresh_operator_dense_profile(*, session_id: str | None = None) -> dict[str
     if len(encoded.encode("utf-8")) > MAX_DENSE_OPERATOR_PROFILE_BYTES:
         payload["dense_summary"] = " ".join(part for part in dense_summary_parts[:4] if part).strip()
         encoded = json.dumps(payload, ensure_ascii=False, indent=2)
-    operator_dense_profile_path().write_text(encoded + "\n", encoding="utf-8")
+    with writing(payload, session_id):
+        operator_dense_profile_path().write_text(encoded + "\n", encoding="utf-8")
     return payload
 
 
@@ -531,6 +534,7 @@ def _capture_explicitly_adopted_source_statement(
     )
 
 
+@fenced_writer
 def update_user_heuristics(*, session_id: str, user_input: str, project_id: str | None = None) -> None:
     # Heuristics persist at scope=user_profile with authority=confirmed_memory, so
     # they may be built ONLY from the user's authored prose — never from quoted
@@ -650,6 +654,7 @@ def detect_implicit_feedback(
         )
 
 
+@fenced_writer
 def update_session_summary(
     *,
     session_id: str,

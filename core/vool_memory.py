@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from core.memory.revocation import fenced_writer
 from core.runtime_paths import active_vool_home
 
 LOGGER = logging.getLogger(__name__)
@@ -299,6 +300,13 @@ class VoolMemory:
     ) -> None:
         self._agent_id = str(agent_id or "").strip() or DEFAULT_AGENT_ID
         self._db_path = _resolve_db_path(runtime_home=runtime_home, db_path=db_path)
+        from core.memory.revocation import prepare
+        self._authority_home = (
+            Path(runtime_home).expanduser().resolve() if runtime_home is not None
+            else self._db_path.parent.parent.parent if self._db_path.parent.name == "memory"
+            else self._db_path.parent
+        )
+        prepare(self._authority_home, allow_initialize=not self._db_path.exists(), arm=False)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         # Occurrence-body integrity telemetry (F16): every serving read that
@@ -437,9 +445,10 @@ class VoolMemory:
                 """,
                 (name, self._agent_id),
             ).fetchone()
-            content = str(row["content"]) if row else None
-            return content if content is not None and self.payload_is_current(content) else None
+        content = str(row["content"]) if row else None
+        return content if content is not None and self.payload_is_current(content) else None
 
+    @fenced_writer
     def block_write(self, block_name: str, content: str) -> None:
         name = _normalize_block_name(block_name)
         text = str(content or "").strip()
@@ -510,6 +519,7 @@ class VoolMemory:
             ).fetchall()
         return [str(row["block_name"]) for row in rows]
 
+    @fenced_writer
     def node_store(
         self,
         content: str,
@@ -656,8 +666,9 @@ class VoolMemory:
                 """,
                 (normalized, self._agent_id),
             ).fetchone()
-        return _row_to_node(row) if row else None
+        return _row_to_node(row) if row and self._row_is_current(row) else None
 
+    @fenced_writer
     def node_update_links(self, node_id: str, linked_ids: list[str]) -> None:
         normalized = str(node_id or "").strip()
         if not normalized:
@@ -771,7 +782,7 @@ class VoolMemory:
                     """,
                     (self._agent_id, max(1, int(limit))),
                 ).fetchall()
-        return [_row_to_node(row) for row in rows]
+        return [_row_to_node(row) for row in rows if self._row_is_current(row)]
 
     def _ranked_search(
         self,
@@ -817,6 +828,7 @@ class VoolMemory:
                     """,
                     (self._agent_id,),
                 ).fetchall()
+        rows = [row for row in rows if self._row_is_current(row)]
         if query_text:
             ranked = self._fused_rank(
                 query,
@@ -1157,7 +1169,7 @@ class VoolMemory:
                     """,
                     (normalized, self._agent_id),
                 ).fetchone()
-            return _row_to_node(row) if row else None
+            return _row_to_node(row) if row and self._row_is_current(row) else None
         session_scope = _requested_session_scope(session_id)
         if session_scope is None:
             return None
@@ -1174,7 +1186,7 @@ class VoolMemory:
                 """,
                 (normalized, self._agent_id, session_scope),
             ).fetchone()
-        return _row_to_node(row) if row else None
+        return _row_to_node(row) if row and self._row_is_current(row) else None
 
     def _bump_access(
         self,
@@ -1257,6 +1269,7 @@ class VoolMemory:
         same scope/provenance — forgetting one value must not erase the
         rest of the user's own statement.
         """
+        from core.memory.carriers import schema_json_fields
         from core.memory.entries import _record_erasure_store
 
         needle = _normalize_forget_token(text)
@@ -1278,9 +1291,10 @@ class VoolMemory:
                 """,
                 (self._agent_id,),
             ).fetchall()
+            json_fields = schema_json_fields(self._conn.execute("PRAGMA table_info(memory_nodes)").fetchall())
             doomed: list[Any] = []
             for row in rows:
-                if not any(text_carries_forget_token(value, needle) for value in _node_forget_payload(row)):
+                if not any(text_carries_forget_token(value, needle) for value in _node_forget_payload(row, json_fields=json_fields)):
                     continue
                 if expected_scope is not None:
                     node = _row_to_node(row)
@@ -1346,14 +1360,16 @@ class VoolMemory:
     def _verify_forget_node_index(
         self, needle: str, *, session_id: str | None, erasures: dict[str, Any] | None,
     ) -> None:
+        from core.memory.carriers import schema_json_fields
         from core.memory.entries import _record_erasure_store
 
         with self._lock:
             nodes = self._conn.execute(
                 "SELECT * FROM memory_nodes WHERE agent_id = ?", (self._agent_id,),
             ).fetchall()
+            json_fields = schema_json_fields(self._conn.execute("PRAGMA table_info(memory_nodes)").fetchall())
             for row in nodes:
-                if not any(text_carries_forget_token(value, needle) for value in _node_forget_payload(row)):
+                if not any(text_carries_forget_token(value, needle) for value in _node_forget_payload(row, json_fields=json_fields)):
                     continue
                 if session_id is None or _node_matches_session(_row_to_node(row), session_id):
                     _record_erasure_store(erasures, "semantic_nodes", "incomplete")
@@ -1675,7 +1691,7 @@ class VoolMemory:
                 """,
                 (self._agent_id, max(1, int(limit))),
             ).fetchall()
-        return [_row_to_node(row) for row in rows]
+        return [_row_to_node(row) for row in rows if self._row_is_current(row)]
 
     def node_count(self) -> int:
         with self._lock:
@@ -1687,6 +1703,7 @@ class VoolMemory:
 
     # ── layer-1 source occurrences (CONTRACT mr29/1 §1) ─────────────────────
 
+    @fenced_writer
     def occurrence_store(
         self,
         *,
@@ -1778,7 +1795,7 @@ class VoolMemory:
                 "SELECT rowid AS source_sequence, * FROM source_occurrences WHERE occurrence_id = ? AND agent_id = ?",
                 (str(occurrence_id or ""), self._agent_id),
             ).fetchone()
-        return _row_to_occurrence(row) if row is not None else None
+        return self._serving_occurrence(row) if row is not None else None
 
     def _reset_integrity_refusals(self) -> None:
         """Begin a new gated read call: telemetry reflects THIS call."""
@@ -1798,6 +1815,8 @@ class VoolMemory:
         recorded digest stay servable ('legacy-unverified') so legacy recall
         is not silently dropped.
         """
+        if not self._row_is_current(row):
+            return None
         occurrence = _row_to_occurrence(row)
         if occurrence.body_integrity == "mismatch":
             with self._lock:
@@ -1966,7 +1985,7 @@ class VoolMemory:
         with self._lock:
             rows = self._conn.execute(
                 """
-                SELECT o.occurrence_id, o.body, o.body_sha256
+                SELECT o.*
                 FROM source_occurrences AS o
                 LEFT JOIN source_embeddings AS e
                   ON e.occurrence_id = o.occurrence_id AND e.backend = ?
@@ -1989,7 +2008,8 @@ class VoolMemory:
                         "reason": "body_sha256_mismatch_backfill_refused",
                     })
                 continue
-            out.append((str(row["occurrence_id"]), str(row["body"])))
+            if self._row_is_current(row):
+                out.append((str(row["occurrence_id"]), str(row["body"])))
         return out
 
     def occurrence_stated_between(
@@ -2230,27 +2250,51 @@ class VoolMemory:
             return 0
         import hashlib as _hashlib
 
+        from core.memory.carriers import SOURCE_IDENTITIES, carries, row_payload, schema_json_fields
         from core.memory.entries import _record_erasure_store
+        from core.memory.revocation import serialized
 
-        with self._lock:
+        # A direct erasure call can rebuild receipts, whose writer takes the
+        # authority fence. Keep the same authority-before-owner lock order as
+        # ordinary writers even outside the command executor's outer fence.
+        with serialized(self._authority_home), self._lock:
             rows = self._conn.execute(
-                "SELECT occurrence_id, body FROM source_occurrences "
-                "WHERE agent_id = ? AND chat_scope = ? "
-                "AND body != ''",
+                "SELECT * FROM source_occurrences "
+                "WHERE agent_id = ? AND chat_scope = ?",
                 (self._agent_id, str(chat_scope or "").strip()),
             ).fetchall()
+            json_fields = schema_json_fields(self._conn.execute("PRAGMA table_info(source_occurrences)").fetchall())
             matched = [
                 (str(row["occurrence_id"]), str(row["body"] or ""))
                 for row in rows
-                if text_carries_forget_token(str(row["body"] or ""), needle)
+                if carries(row_payload(row, structural_fields=SOURCE_IDENTITIES, json_fields=json_fields), needle)
             ]
+            by_id = {str(row["occurrence_id"]): row for row in rows}
             cleared: list[str] = []
             salvaged: list[tuple[str, str]] = []
             source_fts_removed = 0
             embeddings_removed = 0
             for occ_id, body in matched:
-                remainder = _forget_salvage_content(
-                    body, needle, clause_join=", ")
+                remainder = (
+                    _forget_salvage_content(body, needle, clause_join=", ")
+                    if text_carries_forget_token(body, needle) else body
+                )
+                # The writer row, including newly added metadata fields, is
+                # the closed field set. Clear carrying metadata with the same
+                # matcher used by the final raw reread.
+                metadata = row_payload(by_id[occ_id], structural_fields=SOURCE_IDENTITIES | {"body"}, json_fields=json_fields)
+                for field, value in metadata.items():
+                    if not carries(value, needle):
+                        continue
+                    if field in json_fields:
+                        replacement = "[]" if isinstance(value, list) else "{}" if isinstance(value, dict) else "null"
+                    else:
+                        replacement = ""
+                    quoted_field = '"' + field.replace('"', '""') + '"'
+                    self._conn.execute(
+                        f"UPDATE source_occurrences SET {quoted_field} = ? WHERE occurrence_id = ?",
+                        (replacement, occ_id),
+                    )
                 if remainder:
                     salvaged.append((occ_id, remainder))
                 else:
@@ -2336,11 +2380,10 @@ class VoolMemory:
                 ).rowcount
             self._conn.commit()
             remaining = self._conn.execute(
-                "SELECT body FROM source_occurrences WHERE agent_id = ? AND chat_scope = ? "
-                "AND body != ''",
+                "SELECT * FROM source_occurrences WHERE agent_id = ? AND chat_scope = ?",
                 (self._agent_id, str(chat_scope or "").strip()),
             ).fetchall()
-            if any(text_carries_forget_token(str(row[0] or ""), needle) for row in remaining):
+            if any(carries(row_payload(row, structural_fields=SOURCE_IDENTITIES, json_fields=json_fields), needle) for row in remaining):
                 raise RuntimeError("source occurrence erasure could not be verified")
             _record_erasure_store(erasures, "source_occurrences", "verified", len(matched))
             scoped_index = self._conn.execute(
@@ -2399,25 +2442,18 @@ class VoolMemory:
             ).fetchone()
             if exists is None:
                 return 0
-            from core.memory_receipts import _strip_envelope, head_text
+            from core.memory.carriers import carries, schema_json_fields
+            from core.memory_receipts import _strip_envelope, head_text, receipt_payload_for_erasure
+
+            json_fields = schema_json_fields(self._conn.execute("PRAGMA table_info(memory_receipts)").fetchall())
 
             def receipt_state(row: Any) -> tuple[bool, bool]:
                 receipt = dict(row)
-                payload = [str(receipt.get("speaker") or "")]
-                fields = {
-                    "facts": ("sentence", "slot", "value", "norm"),
-                    "changes": ("slot", "old_value", "new_value"),
-                    "withdraws": ("marker",),
-                    "replaced_by": ("slot", "new_value"),
-                }
-                for field, authored in fields.items():
+                for field in ("facts", "changes", "withdraws", "replaced_by"):
                     values = json.loads(str(receipt[field + "_json"]))
                     if not isinstance(values, list) or any(not isinstance(value, dict) for value in values):
                         raise RuntimeError("memory receipt has an invalid structured shape")
                     receipt[field] = values
-                    payload.extend(json.dumps(value[key], ensure_ascii=False)
-                                   for value in values for key in authored
-                                   if key in value and value[key] is not None)
                 source = self._conn.execute(
                     "SELECT body, status FROM source_occurrences "
                     "WHERE occurrence_id = ? AND agent_id = ? AND chat_scope = ?",
@@ -2426,12 +2462,13 @@ class VoolMemory:
                 if source is None or source["status"] != "active" or not source["body"]:
                     return False, False
                 receipt["said"] = _strip_envelope(str(source["body"]))[0]
-                payload.append(receipt["said"])
-                carries = any(text_carries_forget_token(value, needle) for value in payload)
+                retained = carries(receipt_payload_for_erasure(
+                    row, source_body=str(source["body"]), json_fields=json_fields,
+                ), needle)
                 # Reconstruct the rendered head from its structured source. IDs,
                 # dates and span offsets are metadata, never authored values.
                 current_projection = str(receipt["head_text"]) == head_text(receipt)
-                return carries, current_projection
+                return retained, current_projection
 
             query = "SELECT * FROM memory_receipts WHERE agent_id = ? AND chat_scope = ?"
             rows = self._conn.execute(query, (self._agent_id, chat_scope)).fetchall()
@@ -2465,7 +2502,9 @@ class VoolMemory:
                     occurrence_id=str(row["occurrence_id"]), role=str(row["role"] or "user"),
                     statement_at=row["statement_at"], body=str(row["body"] or ""),
                 )
-                write_receipt(self, occurrence, chat_scope=chat_scope)
+                result = write_receipt(self, occurrence, chat_scope=chat_scope)
+                if getattr(result, "status", None) == "failed":
+                    raise RuntimeError("surviving source receipt could not be rebuilt")
             verified = self._conn.execute(query, (self._agent_id, chat_scope)).fetchall()
             if any(receipt_state(row) != (False, True) for row in verified):
                 raise RuntimeError("memory receipt erasure could not be verified")
@@ -2523,23 +2562,18 @@ class VoolMemory:
             ).fetchall()
             return tuple(tuple(row) for row in rows)
 
+    def _row_is_current(self, row) -> bool:
+        payload = dict(row)
+        scope = payload.get("chat_scope")
+        if not scope and "tags" in payload:
+            scopes = _session_scopes(tags=json.loads(payload["tags"] or "[]"), context_description=payload.get("context_description", ""))
+            scope = next(iter(scopes)) if len(scopes) == 1 else None
+        from core.memory.revocation import authorize_payload
+        return authorize_payload(payload, scope, self._authority_home, owner_memory=self)
+
     def payload_is_current(self, text: str, *, chat_id: str | None = None) -> bool:
-        """Gate retained payloads by their source chat, or every chat when origin is unknown."""
-        try:
-            with self._lock:
-                operation_scope = " AND chat_id = ?" if chat_id else ""
-                revocation_scope = " WHERE chat_id = ?" if chat_id else ""
-                params = (str(chat_id), str(chat_id)) if chat_id else ()
-                rows = self._conn.execute(
-                    "SELECT 'pending', token FROM memory_erasure_operations WHERE status != 'complete'"
-                    + operation_scope
-                    + " UNION ALL SELECT 'revoked', token FROM memory_revocations"
-                    + revocation_scope,
-                    params,
-                ).fetchall()
-                return not any(row[0] == "pending" or text_carries_forget_token(text, str(row[1])) for row in rows)
-        except Exception:
-            return False
+        from core.memory.revocation import authorize_payload
+        return authorize_payload(text, chat_id, self._authority_home, owner_memory=self)
 
     def verify_forget_blocks(self, token: str, *, erasures: dict[str, Any]) -> None:
         """Verify unscoped prompt blocks without attributing another chat's copy to this one."""
@@ -2584,10 +2618,35 @@ class VoolMemory:
             self._conn.commit()
         return needle
 
-    def revoked_tokens(self, chat_id: str, *, strict: bool = True) -> tuple[str, ...]:
+    def revoked_tokens(
+        self, chat_id: str | None, *, strict: bool = True, include_pending: bool = False,
+    ) -> tuple[str, ...]:
         """Active forget-law revocations for one chat scope, casefolded. ``strict`` raises when the ledger cannot be
-        read, so a delivery gate can tell an unreadable ledger from an empty one."""
+        read, so a delivery gate can tell an unreadable ledger from an empty one.
+
+        Serving readers request ``include_pending`` to read the revocations and
+        pending erasures in one snapshot, refusing an incomplete erasure. That
+        mode reads every scope when no scope is supplied. The default remains
+        usable by the erasure executor to verify its own still-pending write.
+        """
         scope = str(chat_id or "").strip()
+        if include_pending:
+            where = " WHERE chat_id = ?" if scope else ""
+            pending_where = where + " AND status != 'complete'" if scope else " WHERE status != 'complete'"
+            params = (scope, scope) if scope else ()
+            with self._lock:
+                rows = self._conn.execute(
+                    "SELECT 'revoked' AS state, token, revoked_at AS event_at FROM memory_revocations"
+                    + where
+                    + " UNION ALL SELECT 'pending' AS state, token, started_at AS event_at "
+                    "FROM memory_erasure_operations"
+                    + pending_where
+                    + " ORDER BY event_at, token",
+                    params,
+                ).fetchall()
+            if any(row["state"] == "pending" for row in rows):
+                raise RuntimeError("owner erasure is incomplete")
+            return tuple(str(row["token"]) for row in rows)
         if not scope:
             return ()
         with self._lock:
@@ -2840,7 +2899,7 @@ def memory_payload_is_current(text: str, *, chat_id: str | None = None) -> bool:
     return allowed
 
 
-def _node_forget_payload(row: Any) -> tuple[str, ...]:
+def _node_forget_payload(row: Any, *, json_fields: tuple[str, ...] = ()) -> tuple[str, ...]:
     """Decode the node schema's authored text and JSON metadata for erasure matching."""
     metadata: dict[str, list[str]] = {}
     for column in ("keywords", "tags"):
@@ -2853,7 +2912,12 @@ def _node_forget_payload(row: Any) -> tuple[str, ...]:
     if scope:
         description = re.sub(r"(?<!\S)session=" + re.escape(scope) + r"(?=\s|$)", "", description)
     tags = [tag for tag in metadata["tags"] if not scope or tag != "session:" + scope]
-    return (str(row["content"] or ""), description, *metadata["keywords"], *tags)
+    from core.memory.carriers import NODE_IDENTITIES, payload_strings, row_payload
+
+    extra = row_payload(
+        row, structural_fields=NODE_IDENTITIES | {"content", "context_description", "keywords", "tags"}, json_fields=json_fields,
+    )
+    return (str(row["content"] or ""), description, *metadata["keywords"], *tags, *payload_strings(extra))
 
 
 def _normalize_forget_token(token: str) -> str:

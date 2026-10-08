@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.context_scope import ContextAccessPolicy
+from core.memory.revocation import fenced_writer
 
 # Serializes the per-turn memory write sequence (conversation-log append + trim, and every
 # downstream load-modify-rewrite: facts, heuristics, session summary, dialogue). The daemon
@@ -564,7 +565,8 @@ def _referential_forget_token(
     subject = str(match.group("subject") or "").casefold()
     rows = [
         row
-        for row in list_memory_entries(access_policy=access_policy, limit=20)
+        for row in memory_entries._load_erasure_rows(memory_entries_path())
+        if memory_entries._memory_command_row_allowed(row, access_policy=access_policy)
         if subject in str(row.get("fact_key") or "").casefold()
         or subject in str(row.get("text") or "").casefold()
         or subject
@@ -751,6 +753,8 @@ def _memory_persistence_suppressed(source_context: dict[str, Any] | None) -> boo
     import os
 
     ctx = source_context or {}
+    if _forget_outcomes.turn_not_started(ctx):
+        return True
     scope = str(ctx.get("memory_scope") or "").strip().lower()
     if scope in {"ephemeral", "audit", "test", "probe", "none"}:
         return True
@@ -1033,6 +1037,41 @@ def _write_conversation_event(
     # (facts, heuristics, session summary, dialogue), so a pasted password never persists anywhere.
     redacted_user = redact_secrets(str(user_input or ""))
     redacted_assistant = redact_secrets(assistant_text)
+    # Source retention belongs to the selected runtime owner. A refused
+    # profile log or summary must not discard the turn's retraction control.
+    is_image_turn = False
+    try:
+        from core.execution.constants import image_generation_intent
+
+        is_image_turn = bool(image_generation_intent(redacted_user))
+    except Exception:
+        is_image_turn = False
+    # Every finalized turn retains its attributed source, including an
+    # image brief. A fictional render subject remains evidence of an ask;
+    # it is neither mined above nor indexed as a standing user assertion.
+    try:
+        from core.context_retrieval import store_turn
+
+        semantic_result = store_turn(
+            session_id,
+            redacted_user,
+            redacted_assistant,
+            access_policy=resolved_policy,
+            source_context=source_context,
+            index_user_statements=not is_image_turn,
+        )
+        if semantic_result.get("status") == "failed":
+            LOGGER.warning(
+                "semantic memory write rejected for chat %s: %s",
+                session_id,
+                semantic_result.get("reason", "unknown"),
+            )
+    except Exception as exc:
+        LOGGER.warning(
+            "semantic memory write unavailable for chat %s: %s",
+            session_id,
+            type(exc).__name__,
+        )
     payload = {
         "ts": _utcnow(),
         "session_id": session_id,
@@ -1065,7 +1104,20 @@ def _write_conversation_event(
         payload.update(extra_fields)
     # Serialize the whole write sequence: the append+trim and every downstream load-modify-rewrite
     # touch process-global shared files, so concurrent turns must not interleave.
-    with _MEMORY_WRITE_LOCK:
+    from contextlib import ExitStack
+
+    from core.memory.revocation import writing
+
+    fence = ExitStack()
+    try:
+        # The serialized writer row defines the carriers. Live routing objects
+        # in source_context are not transcript fields and cannot veto a write.
+        fence.enter_context(writing(payload, session_id))
+    except Exception as exc:
+        fence.close()
+        LOGGER.warning("conversation persistence refused: %s", type(exc).__name__)
+        return
+    with fence, _MEMORY_WRITE_LOCK:
         path = conversation_log_path()
         append_sequenced_jsonl(path, payload)
         _trim_jsonl_file(path, max_bytes=_MAX_CONVERSATION_LOG_BYTES)
@@ -1083,13 +1135,6 @@ def _write_conversation_event(
         # as a fact/preference/"recent ask" is what let an image prompt ("Rick and Morty ... 4K")
         # bleed into the operator profile and make the model confabulate the user's name. Log the
         # turn (above) but never mine a render prompt for standing user facts.
-        is_image_turn = False
-        try:
-            from core.execution.constants import image_generation_intent
-
-            is_image_turn = bool(image_generation_intent(redacted_user))
-        except Exception:
-            is_image_turn = False
         if not is_image_turn:
             _auto_capture_memory(
                 session_id=session_id,
@@ -1129,32 +1174,7 @@ def _write_conversation_event(
                 session_id,
                 type(exc).__name__,
             )
-        # Every finalized turn retains its attributed source, including an
-        # image brief. A fictional render subject remains evidence of an ask;
-        # it is neither mined above nor indexed as a standing user assertion.
-        try:
-            from core.context_retrieval import store_turn
 
-            semantic_result = store_turn(
-                session_id,
-                redacted_user,
-                redacted_assistant,
-                access_policy=resolved_policy,
-                source_context=source_context,
-                index_user_statements=not is_image_turn,
-            )
-            if semantic_result.get("status") == "failed":
-                LOGGER.warning(
-                    "semantic memory write rejected for chat %s: %s",
-                    session_id,
-                    semantic_result.get("reason", "unknown"),
-                )
-        except Exception as exc:
-            LOGGER.warning(
-                "semantic memory write unavailable for chat %s: %s",
-                session_id,
-                type(exc).__name__,
-            )
 
 
 #: Assistant-authored artifacts that belong in a chat's TRANSCRIPT but in none of the
@@ -1163,6 +1183,7 @@ def _write_conversation_event(
 ARTIFACT_KIND_COUNCIL_SUMMARY = "council_summary"
 
 
+@fenced_writer
 def append_assistant_artifact_event(
     *,
     session_id: str,
@@ -1357,6 +1378,15 @@ def augment_history_from_session_log(
     limit: int = 6,
 ) -> list[dict[str, str]]:
     normalized_history = [dict(item) for item in list(history or []) if isinstance(item, dict)]
+    from core.memory.revocation import authorize_payload
+
+    current = normalized_history[-1:] if normalized_history and (
+        normalized_history[-1].get("role") == "user"
+        and str(normalized_history[-1].get("content") or "").strip() == str(user_text or "").strip()
+    ) else []
+    historical = normalized_history[:-1] if current else normalized_history
+    if historical and not authorize_payload(historical, session_id):
+        return current
     if len(normalized_history) > 1:
         # A9/A8: client-held transcripts must clear the same erasure gate as hydrated
         # session-log events. An ERASED payload that survives only in the caller's copy
@@ -1631,6 +1661,124 @@ def _capture_object_is_another_lanes_effect(verb: str, text: str) -> bool:
     return intent is not None and intent.kind not in READ_ONLY_OPERATOR_KINDS
 
 
+def _forget_start_failure(user_text, *, session_id, source_context, started):
+    reply = ("Forget could not be verified as fully applied: independent revocation authority is unavailable. Please retry the forget."
+             if started else
+             "Nothing was forgotten. The forget did not start because its revocation barrier could not be verified. Please try again.")
+    parsed = _FORGET_RE.match(user_text)
+    return True, _forget_outcomes.record(
+        reply, request=user_text, session=session_id or "", source_context=source_context,
+        argument=parsed.group(1) if parsed else user_text, status="failed" if started else "not_started",
+        stores={"independent_revocation": {"status": "incomplete", "started": bool(started)}},
+    )
+
+
+def _preadmit_forget_turn(user_text, *, session_id, source_context):
+    """Persist admission before turn adaptation, checkpoints or profile effects."""
+    from contextlib import ExitStack
+    from hashlib import sha256
+    from pathlib import Path
+
+    from core.memory import revocation
+    from core.memory.command_result import _owner_identity, forget_demand_targets, requires_forget_outcome
+    from core.runtime_paths import active_vool_home
+    from core.within_turn_retraction import intake_request_text
+
+    live_text = intake_request_text(user_text)
+    if not requires_forget_outcome({}, user_input=live_text, source_context=source_context):
+        return False, None
+    owner = dict(request=user_text, session=session_id, source_context=source_context)
+    if _forget_outcomes.admission(**owner) is not None:
+        return True, None
+    identity = _owner_identity(user_text, session_id, source_context)
+    if not identity:
+        return True, _forget_start_failure(user_text, session_id=session_id, source_context=source_context, started=False)[1]
+    runtime_home = str((source_context or {}).get("runtime_home") or "").strip()
+    homes = {active_vool_home(), Path(runtime_home).resolve() if runtime_home else active_vool_home()}
+    operations = []
+    marker = sha256(repr((session_id, sorted(forget_demand_targets(user_text)))).encode("utf-8")).hexdigest()
+    try:
+        with ExitStack() as locks:
+            for home in sorted(homes):
+                locks.enter_context(revocation.serialized(home))
+            for home in sorted(homes):
+                operation = revocation.begin(session_id, marker, home, _kind="admission")
+                operations.append((home, operation))
+            _forget_outcomes.admit(operations, **owner)
+    except Exception as exc:
+        if operations:
+            _forget_outcomes.admit(operations, **owner)
+        return True, _forget_start_failure(
+            user_text, session_id=session_id, source_context=source_context,
+            started=bool(operations) or getattr(exc, "started", False),
+        )[1]
+    return True, None
+
+
+def _finish_forget_turn_admission(result, *, user_text, session_id, source_context):
+    """Only the canonical terminal with executor-owned completion retires admission."""
+    from contextlib import ExitStack
+
+    from core.memory import revocation
+    from core.memory.command_result import verified_forget_outcome
+
+    if (source_context or {}).get("planned_subturn"):
+        return result
+    owner = dict(request=user_text, session=session_id, source_context=source_context)
+    operations = _forget_outcomes.admission(**owner)
+    if operations is None:
+        return result
+    execution = verified_forget_outcome(
+        result, user_input=user_text, session_id=session_id, source_context=source_context,
+    )
+    if execution is None or not _forget_outcomes.admission_ready(**owner):
+        return result
+    try:
+        with ExitStack() as locks:
+            for home, _ in sorted(operations):
+                locks.enter_context(revocation.serialized(home))
+            for home, operation in operations:
+                revocation.complete(operation, home)
+            _forget_outcomes.release_admission(**owner)
+    except Exception:
+        _, failure = _forget_start_failure(user_text, session_id=session_id, source_context=source_context, started=True)
+        return {**result, "response": failure, "_memory_command_outcome": failure}
+    return result
+
+
+def _command_erasure_fence(fn):
+    import functools
+    @functools.wraps(fn)
+    def wrapped(user_text, **kwargs):
+        if not _FORGET_RE.match(str(user_text or "").strip()):
+            return fn(user_text, **kwargs)
+        from core.memory.revocation import poison, serialized
+        context = kwargs.get("source_context") or {}
+        home = context.get("runtime_home")
+        entered = False
+        try:
+            from contextlib import ExitStack
+            from pathlib import Path
+
+            from core.runtime_paths import active_vool_home
+            homes = {active_vool_home(), Path(home).resolve() if home else active_vool_home()}
+            with ExitStack() as stack:
+                for selected_home in sorted(homes):
+                    stack.enter_context(serialized(selected_home))
+                entered = True
+                return fn(user_text, **kwargs)
+        except Exception as exc:
+            started = entered and getattr(exc, "started", True)
+            if started:
+                poison(home)
+            return _forget_start_failure(
+                user_text, session_id=kwargs.get("session_id"),
+                source_context=kwargs.get("source_context"), started=started,
+            )
+    return wrapped
+
+
+@_command_erasure_fence
 def maybe_handle_memory_command(
     user_text: str,
     *,
@@ -1668,6 +1816,27 @@ def maybe_handle_memory_command(
             return False, ""
         if _capture_object_is_another_lanes_effect(capture_match.group("verb"), text):
             return False, ""
+    independent_operations = []
+    parsed_forget = _FORGET_RE.match(text)
+    if parsed_forget:
+        from pathlib import Path
+
+        from core.memory import revocation
+        from core.runtime_paths import active_vool_home
+        runtime_home = str((source_context or {}).get("runtime_home") or "").strip() or None
+        barrier_chat = str(getattr(access_policy, "chat_id", None) or session_id or (source_context or {}).get("chat_id") or "")
+        homes = {active_vool_home(), Path(runtime_home).resolve() if runtime_home else active_vool_home()}
+        try:
+            # Durable before even policy resolution can open an owner database.
+            for home in sorted(homes):
+                operation_id = revocation.begin(barrier_chat, _normalize_forget_target(parsed_forget.group(1)), home)
+                independent_operations.append((home, operation_id))
+        except Exception as exc:
+            return _forget_start_failure(
+                user_text, session_id=barrier_chat, source_context=source_context,
+                started=(bool(independent_operations) or getattr(exc, "started", True)
+                         or _forget_outcomes.admission(request=user_text, session=barrier_chat, source_context=source_context) is not None),
+            )
     try:
         resolved_policy = memory_entries.resolve_memory_access_policy(
             access_policy=access_policy,
@@ -1859,6 +2028,9 @@ def maybe_handle_memory_command(
             return outcome("Forget command needs the exact value because more than one matching memory is active.", "needs_target")
         if not referential:
             token = _normalize_forget_target(forget.group(1))
+        if referential and token:
+            for home, _op in list(independent_operations):
+                independent_operations.append((home, revocation.begin(resolved_session, token, home)))
         if len(token) < 2:
             return outcome("Forget command skipped: provide a clearer keyword.", "needs_target")
         # Already forgotten (review 2026-10-07, crash-heal path): the canonical row is a tombstone, so the forget
@@ -1963,7 +2135,7 @@ def maybe_handle_memory_command(
             "dialogue_derivatives", "session_summaries", "context_capsule_versions",
             "memory_fts", "source_fts", "source_embeddings",
             "user_heuristics", "operator_dense_profile", "persisted_packet_cache_copies", "packet_receipt_ledgers",
-            "context_pages",
+            "context_pages", "chat_session_metadata",
         )
         for store in required_stores:
             if store not in erasures.get("stores", {}):
@@ -1982,12 +2154,17 @@ def maybe_handle_memory_command(
             except Exception as exc:
                 _record_erasure_store(erasures, f"{owner}_revocation_ledger", "incomplete")
                 LOGGER.warning("erasure owner revocation failed: %s", type(exc).__name__)
+        from core.memory.carriers import verify_forget_stores
+        verify_forget_stores(resolved_session, token, owner_memories=owner_stores, erasures=erasures)
         completed_stores = []
         try:
             if not any(key.endswith("_failures") and value for key, value in erasures.items()):
                 for _owner, operation_store, operation_id in operation_stores:
                     operation_store.complete_erasure(operation_id)
                     completed_stores.append(operation_store)
+                for home, operation_id in independent_operations:
+                    revocation.complete(operation_id, home)
+                _record_erasure_store(erasures, "independent_revocation", "verified")
                 for owner in owner_stores:
                     _record_erasure_store(erasures, f"{owner}_erasure_operations", "verified")
                 _record_erasure_store(erasures, "erasure_operations", "verified")
@@ -2029,7 +2206,7 @@ def maybe_handle_memory_command(
             total_removed = sum(int(erasures.get(key) or 0) for key in (
                 "structured_summaries", "session_summaries", "memory_receipts", "conversation_log", "dialogue_derivatives",
                 "memory_fts", "source_fts",
-                "user_heuristics", "operator_dense_profile", "context_pages",
+                "user_heuristics", "operator_dense_profile", "context_pages", "chat_session_metadata",
             ))
             total_removed += sum(int(result.get("removed") or 0)
                                  for name, result in erasures.get("stores", {}).items()

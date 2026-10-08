@@ -17,6 +17,7 @@ The module is pure/deterministic except for signing (local key) and the optional
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -294,15 +295,86 @@ def latest_receipt_hash(session_id: str) -> str:
     return str(receipts[-1].get("content_hash") or "") if receipts else ""
 
 
-def record_honesty_receipt(receipt: HonestyReceipt) -> None:
-    """Append a receipt to its session's append-only JSONL ledger (best-effort)."""
+@dataclass(frozen=True)
+class ReceiptRecordResult:
+    status: str
+    receipt: HonestyReceipt | None = None
+    reason: str = ""
+
+
+def _read_ledger_strict(path: Path) -> list[dict[str, Any]]:
     try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    rows = [json.loads(line) for line in text.splitlines() if line.strip()]
+    if any(not isinstance(row, dict) or not row.get("receipt_id") or not row.get("content_hash") for row in rows):
+        raise ValueError("receipt ledger has an invalid row")
+    if len({row["receipt_id"] for row in rows}) != len(rows):
+        raise ValueError("receipt ledger has duplicate identities")
+    return rows
+
+
+def _sync_receipt_directory(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def record_honesty_receipt(receipt: HonestyReceipt) -> ReceiptRecordResult:
+    """Persist one signed receipt idempotently; failure never attests a durable receipt.
+
+    Publication replaces the complete append-only sequence atomically. A failed
+    append cannot leave a partial JSON line that turns a retry into a duplicate.
+    The publication lock serializes this read/check/write/re-read across processes.
+    """
+    temporary = None
+    try:
+        from core.cross_process_lock import PublicationLock
+
         path = _ledger_path(receipt.session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(receipt.to_dict(), sort_keys=True) + "\n")
-    except Exception:
-        pass
+        payload = receipt.to_dict()
+        with PublicationLock(path.with_suffix(".lock")):
+            rows = _read_ledger_strict(path)
+            existing = next((row for row in rows if row["receipt_id"] == receipt.receipt_id), None)
+            if existing is not None:
+                if existing != payload:
+                    raise ValueError("receipt identity conflicts with its persisted content")
+                status = "already_exists"
+                with path.open("rb") as handle:
+                    os.fsync(handle.fileno())
+            else:
+                previous = str(rows[-1]["content_hash"]) if rows else ""
+                if receipt.prev_hash != previous:
+                    raise ValueError("receipt chain changed before publication")
+                rows.append(payload)
+                temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+                with temporary.open("x", encoding="utf-8") as handle:
+                    handle.write("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, path)
+                status = "written"
+            _sync_receipt_directory(path.parent)
+            _sync_receipt_directory(path.parent.parent)
+            if _read_ledger_strict(path) != rows:
+                raise RuntimeError("receipt publication could not be verified")
+            return ReceiptRecordResult(status, receipt)
+    except Exception as exc:
+        return ReceiptRecordResult("failed", reason=type(exc).__name__)
+    finally:
+        if temporary is not None:
+            # Cleanup cannot change a failed publication into an attested receipt.
+            with contextlib.suppress(OSError):
+                temporary.unlink(missing_ok=True)
+
+
+def rebuild_honesty_receipt(receipt: HonestyReceipt) -> ReceiptRecordResult:
+    """Reconstruct the ledger append from the exact issued receipt, preserving its identity and signature."""
+    return record_honesty_receipt(receipt)
 
 
 def load_receipts_file(path: str | Path) -> list[dict[str, Any]]:

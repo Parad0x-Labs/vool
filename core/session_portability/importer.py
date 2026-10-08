@@ -29,6 +29,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from core.memory.revocation import fenced_writer
 from core.session_portability.paths import scoped_home
 from core.session_portability.schema import (
     CURRENT_SCHEMA_VERSION,
@@ -556,6 +557,7 @@ def _existing_event_ids(target_id: str) -> set[str]:
     return ids
 
 
+@fenced_writer
 def _import_turns(payload: dict[str, Any], target_id: str) -> int:
     """Idempotent transcript append: rows already present (by event_id) are skipped, so a
     crashed-then-resumed import never duplicates history."""
@@ -595,6 +597,7 @@ def _existing_summary_keys(target_id: str) -> set[tuple[str, str]]:
     return keys
 
 
+@fenced_writer
 def _import_summaries(payload: dict[str, Any], target_id: str) -> int:
     from core.memory.files import append_jsonl, session_summaries_path
 
@@ -639,22 +642,9 @@ def _import_session_header(payload: dict[str, Any], target_id: str, collision: b
 def _stamp_import_trust(target_id: str, trust_origin: str) -> None:
     """Record the import's trust verdict on the session's meta entry (custom key survives the
     meta authority's own updates)."""
-    import json as _json
+    from core.memory.entries import _update_session_meta_fields
 
-    from core.runtime_paths import active_data_dir
-
-    path = Path(active_data_dir()) / "chat_session_meta.json"
-    data: dict[str, Any] = {}
-    if path.is_file():
-        try:
-            data = _json.loads(path.read_text())
-        except (OSError, ValueError):
-            data = {}
-    entry = data.get(target_id)
-    if isinstance(entry, dict):
-        entry["import_trust"] = trust_origin
-        data[target_id] = entry
-        path.write_text(_json.dumps(data, indent=1) + "\n")
+    _update_session_meta_fields(target_id, {"import_trust": trust_origin})
 
 
 def _import_namespace(payload: dict[str, Any], target_id: str) -> None:
@@ -745,6 +735,7 @@ def _mark_evidence_stale(payload: dict[str, Any], target_id: str, bundle_id: str
 # --------------------------------------------------------------------------- profile
 
 
+@fenced_writer
 def _import_profile_items(payload: dict[str, Any], target_id: str) -> dict[str, int]:
     """Imported profile references are CANDIDATES ONLY: they can never silently become active
     preferences or permissions. `remember` (the ACTIVE writer) is deliberately not used."""
@@ -779,6 +770,7 @@ def _import_profile_items(payload: dict[str, Any], target_id: str) -> dict[str, 
 # --------------------------------------------------------------------------- database
 
 
+@fenced_writer
 def _import_db_records(payload: dict[str, Any], target_id: str) -> dict[str, int]:
     """Every SQLite write of one import commits in ONE transaction (INSERT OR IGNORE
     throughout), so a crash before the commit leaves no partial database state."""
