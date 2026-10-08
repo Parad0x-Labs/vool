@@ -165,12 +165,12 @@ _LABELED_RE = re.compile(
 )
 
 # Zcash keys (bech32/bech32m, lowercase or uppercase) on mainnet, testnet and regtest: Sapling spending keys
-# (extended and not), and the unified full and incoming viewing keys and Sapling full viewing keys that reveal every
-# transaction of an account. No leading word boundary: a key glued to "_" or to an escaped "\n" in JSON text is still
-# a key, and the long bech32 tail each prefix needs keeps ordinary words out.
+# (extended and not), and the unified full and incoming viewing keys and Sapling viewing keys (extended full, full,
+# incoming) that reveal every transaction of an account. No leading word boundary: a key glued to "_" or to an escaped
+# "\n" in JSON text is still a key, and the long bech32 tail each prefix needs keeps ordinary words out.
 _ZCASH_KEY_RE = re.compile(
     r"(?i)(?:secret-(?:extended|spending)-key-(?:main|test|regtest)1[0-9a-z]{20,}"
-    r"|u(?:view|ivk)(?:test|regtest)?1[0-9a-z]{60,}|zxview(?:s|testsapling|regtestsapling)1[0-9a-z]{60,})"
+    r"|u(?:view|ivk)(?:test|regtest)?1[0-9a-z]{60,}|z(?:xview|view|ivk)(?:s|testsapling|regtestsapling)1[0-9a-z]{60,})"
 )
 
 _SPECIFIC = (_JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE, _BEARER_RE, _PATH_TOKEN_RE, _ZCASH_KEY_RE)

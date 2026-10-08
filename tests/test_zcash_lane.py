@@ -243,6 +243,28 @@ def test_a_key_echoed_in_another_case_or_glued_to_a_word_is_still_redacted(chain
         assert UFVK_TEST[20:60] not in failed.value.message.lower() and "[viewing key]" in failed.value.message, echo
 
 
+def test_sapling_viewing_keys_in_tool_errors_are_redacted(chain) -> None:
+    for shape in ("zviews1", "zviewtestsapling1", "zivks1", "zivktestsapling1", "zxviewtestsapling1"):
+        key = shape + "q" * 90
+        chain.overrides["sync"] = {"rc": 1, "err": f"Error: bad key {key}\n"}
+        chain.write()
+        with pytest.raises(ZcashWatchError) as failed:
+            Devtool(wallet_dir=chain.wallet).run("sync")
+        assert "q" * 40 not in failed.value.message and "[viewing key]" in failed.value.message, shape
+
+
+def test_a_long_hostile_error_line_is_redacted_in_linear_time(chain) -> None:
+    for prefix in ("uview", "secret-extended-key", "zivk"):
+        chain.overrides["sync"] = {"rc": 1, "err": "Error: " + prefix * (64_000 // len(prefix)) + "\n"}
+        chain.write()
+        started = time.perf_counter()
+        with pytest.raises(ZcashWatchError) as failed:
+            Devtool(wallet_dir=chain.wallet).run("sync")
+        elapsed = time.perf_counter() - started
+        assert failed.value.code == "devtool_failed" and len(failed.value.message) < 400
+        assert elapsed < 1.5, f"{prefix}: {elapsed:.2f}s"  # the unbounded rule took ~5 s on a 64 KB line
+
+
 def test_concurrent_private_writes_never_collide(tmp_path) -> None:
     from core.zcash.watch import write_private
 

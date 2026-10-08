@@ -117,7 +117,8 @@ def test_zcash_key_shapes_are_masked_by_the_shared_redactor() -> None:
     parse_viewing_key(UFVK_TEST, expected_network="test")
     assert UFVK_TEST not in redact_secrets(f"my viewing key is {UFVK_TEST}")
     for shape in ("secret-extended-key-main1" + "q" * 80, "uview1" + "q" * 80, "uivktest1" + "q" * 80, "zxviews1" + "q" * 80,
-                  "secret-spending-key-main1" + "q" * 80, "secret-extended-key-regtest1" + "q" * 80, "uviewregtest1" + "q" * 80):
+                  "secret-spending-key-main1" + "q" * 80, "secret-extended-key-regtest1" + "q" * 80, "uviewregtest1" + "q" * 80,
+                  "zviews1" + "q" * 80, "zviewtestsapling1" + "q" * 80, "zivks1" + "q" * 80, "zivktestsapling1" + "q" * 80):
         assert shape not in redact_secrets(f"key {shape} here") and contains_secret(shape), shape
         for glued in (f'{{"k": "key:\\n{shape}"}}', f"fvk_{shape}", f"x{shape.upper()}"):  # escaped newline in JSON, "_", a letter
             assert shape[-40:] not in redact_secrets(glued).lower(), glued[:40]

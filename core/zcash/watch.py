@@ -49,7 +49,9 @@ _ADDRESS_PREFIXES = {
 }
 _TXID = re.compile(r"^[0-9a-f]{64}$")
 #: Key-shaped text in tool output. No leading word boundary: a key glued to "FVK_" or an escaped "\n" is still a key.
-_KEY_SHAPED = re.compile(r"(?i)(?:uview|uivk|zxview|secret-extended-key|secret-spending-key)[0-9a-z-]*1[0-9a-z]{20,}")
+#: The run between prefix and separator is bounded (the longest HRP rest is "-regtest" / "regtestsapling"), so a long
+#: hostile error line is scanned in linear time.
+_KEY_SHAPED = re.compile(r"(?i)(?:uview|uivk|zxview|zview|zivk|secret-extended-key|secret-spending-key)[0-9a-z-]{0,24}1[0-9a-z]{20,}")
 
 
 class ZcashWatchError(Exception):
