@@ -133,6 +133,8 @@ def test_the_embedding_service_goes_where_the_environment_points(stub, trap, mon
 
     # The model probe is cached for a short TTL, process-wide: start from an empty cache, and restore it after.
     monkeypatch.setattr(embedding_service, "_model_cache", (None, 0.0))
+    # An earlier test in the process may have opened the embedding breaker; a fresh resolution starts closed.
+    monkeypatch.setattr(embedding_service, "_neural_down_until", 0.0)
     vec = embedding_service.embed("one message with two intents")
     assert len(vec) == embedding_service.EMBED_DIM
     assert any(p.startswith("/api/tags") for p in _Stub.seen) and any(p.startswith("/api/embed") for p in _Stub.seen), _Stub.seen
@@ -147,6 +149,8 @@ def test_a_dead_port_makes_the_embedding_service_fall_back_without_a_network_rea
 
     # The model probe is cached for a short TTL, process-wide: start from an empty cache, and restore it after.
     monkeypatch.setattr(embedding_service, "_model_cache", (None, 0.0))
+    # An earlier test in the process may have opened the embedding breaker; a fresh resolution starts closed.
+    monkeypatch.setattr(embedding_service, "_neural_down_until", 0.0)
     vec = embedding_service.embed("still answers, from the hash fallback")
     assert len(vec) == embedding_service.EMBED_DIM and embedding_service.embedding_backend()
     assert trap == []
