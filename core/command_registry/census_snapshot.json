@@ -1534,6 +1534,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/zcash/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/zcash/*",
+      "note": "zcash invoices lane read feed family (owner-local QR page and CSV export; absent while off)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/chat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /chat",
@@ -2937,7 +2944,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 286,
+    "EXTERNAL_TRANSPORT_ONLY": 287,
     "GENERATED_ADAPTER": 124,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

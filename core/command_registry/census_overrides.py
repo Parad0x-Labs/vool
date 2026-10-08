@@ -347,6 +347,7 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/school/api/state": "school satellite read feed (state)",
     "http:POST:/school/api/*": "school satellite operator surface family",
     "http:GET:/chat-assets/*": "chat assets read feed (static bundle family)",
+    "http:GET:/api/zcash/*": "zcash invoices lane read feed family (owner-local QR page and CSV export; absent while off)",
     "http:GET:/api/money/contract": "money contract lane read feed (contract)",
     "http:GET:/api/money/funding": "money contract lane read feed (funding)",
     "http:GET:/api/money/grants": "money contract lane read feed (grants)",
