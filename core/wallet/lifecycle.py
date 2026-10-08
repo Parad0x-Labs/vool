@@ -514,9 +514,12 @@ class PaymentLifecycle:
             fault_code = "wallet_dependency_unavailable" if str(simulation.reason).startswith("dependency:") else "wallet_simulation_failed"
             end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=fault_code, detail=simulation.to_dict(), simulation=simulation.to_dict(), reason=simulation.reason)
             raise self._fault(fault_code, proposal, reason=simulation.reason)
-        proposals.transition(proposal.proposal_id, proposals.STATE_SIMULATED, detail=simulation.to_dict(), simulation=simulation.to_dict())
+        simulated = proposals.transition(proposal.proposal_id, proposals.STATE_SIMULATED, detail=simulation.to_dict(), simulation=simulation.to_dict())
         binding = v2_binding_for(proposal.proposal_id)
         fee_minor = _reserved_fee_for(binding) if binding else 0
+        if not binding and str(proposal.origin) in proposals.PAYKIT_ORIGINS:
+            # an unsponsored MPP charge's fee is bound BEFORE the proposal can be approved: every approval sees it
+            fee_minor = _bind_paykit_payer_fee(simulated or self._load(proposal_id))
         verdict = limits.check_limits(proposal.wallet_id, proposal.asset, proposal.amount_minor, proposal.destination, fee_minor=fee_minor, chain=spec.network)
         if not verdict.ok:
             end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", detail={"limit": verdict.limit, "reason": verdict.reason}, limit=verdict.limit, reason=verdict.reason)
@@ -645,7 +648,7 @@ class PaymentLifecycle:
         if paykit_binding is not None or str(proposal.origin) in proposals.PAYKIT_ORIGINS:
             # the canonical Solana x402 payment: pay-kit builds it, the resource's fee payer settles it. This wallet never
             # broadcasts a transfer of its own for it, so it never reaches the message below.
-            return self._execute_paykit(proposal, profile, paykit_binding, decision=decision, device_signer=device_signer, rpc=rpc)
+            return self._execute_paykit(proposal, profile, paykit_binding, decision=decision, device_signer=device_signer, rpc=rpc, approved=challenge)
         message = self._message_for(proposal, profile.public_key, rpc=rpc)
         proposal, effects = self._claim(proposal, profile, method=decision.method, payer_message=message, fee_minor=max(_reserved_fee_for(challenge.binding_view()), _svm_fee_for(proposal)), chain=spec_network(proposal.network))
         try:
@@ -1899,7 +1902,7 @@ class PaymentLifecycle:
 
     # -- the pay-kit lane: claim -> pay-kit builds -> guarded signature -> ONE delivery -> chain-proven settlement ------
     def _execute_paykit(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, binding: dict[str, Any] | None, *,
-                        decision: Any, device_signer: Any, rpc: RpcClient | None) -> receipts.WalletReceipt:
+                        decision: Any, device_signer: Any, rpc: RpcClient | None, approved: approval_module.ApprovalChallenge) -> receipts.WalletReceipt:
         """An approved pay-kit proposal, exactly once. Before the claim: the binding, pay-kit and the proven endpoint
         exist. After it: pay-kit builds the payment and this wallet signs only through the guard (the approved payee,
         amount and asset, nothing else); the STORED request goes once to the challenged origin; settlement is the
@@ -1918,8 +1921,12 @@ class PaymentLifecycle:
         if rpc is None:
             rpc = self._prove_before_claim(proposal)
         terms = paykit_mpp.terms_for(binding, proposal, payer=profile.public_key) if mpp else paykit_x402.terms_for(binding, proposal)
-        # a sponsored payment costs this wallet exactly the amount; an unsponsored MPP charge also its bounded fee
-        fee_minor = paykit_mpp.payer_fee_minor(proposal) if terms.get("payer_pays_fee") else 0
+        # a sponsored payment costs this wallet exactly the amount; an unsponsored MPP charge also its fee, and the hold
+        # takes exactly the fee the owner approved: never one worked out afresh here
+        payer_pays_fee = bool(terms.get("payer_pays_fee"))
+        fee_minor = _minor(approved.max_network_fee_minor)
+        if payer_pays_fee == bool(approved.sponsored_gas) or (payer_pays_fee and (fee_minor <= 0 or fee_minor != _minor(binding.get("max_network_fee_minor")))) or (not payer_pays_fee and fee_minor):
+            raise self._fault("wallet_approval_rejected", proposal, reason="paykit_fee_not_what_was_approved")
         try:
             blockhash = rpc.latest_blockhash()
         except Exception as exc:
@@ -2245,6 +2252,22 @@ def end_refused(proposal_id: str, state: str, *, fault_code: str, expected_state
     ended = proposals._get(conn, proposal_id)
     receipts._record_refusal(conn, ended, fault_code=fault_code, **refusal)
     return ended
+
+
+def _bind_paykit_payer_fee(proposal: proposals.TransactionProposal) -> int:
+    """The fee an unsponsored MPP charge costs this wallet (its simulated signature fee plus the priority bound),
+    written on its binding with its asset while the proposal is still being prepared, so no approval ever reads a
+    charge without it. 0 for a sponsored charge, an x402 pay-kit payment, or a proposal with no pay-kit binding (its
+    approval refuses later)."""
+    from core.wallet import paykit_mpp, paykit_x402
+    from core.wallet import x402 as wallet_x402
+
+    binding = paykit_x402.binding_for(proposal.proposal_id)
+    if binding is None or int(binding.get("version") or 0) != wallet_x402.BINDING_VERSION_PAYKIT_MPP or str(binding.get("fee_payer") or ""):
+        return 0
+    fee = paykit_mpp.payer_fee_minor(proposal)
+    wallet_x402._update_binding(str(binding.get("request_digest") or ""), max_network_fee_minor=fee, fee_asset=chains.native_asset(proposal.network).symbol)
+    return fee
 
 
 def _svm_fee_for(proposal: proposals.TransactionProposal) -> int:

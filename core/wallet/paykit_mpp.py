@@ -180,10 +180,9 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
     if not _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
                            offer={"protocol": "mpp", "challenge": dataclasses.asdict(challenge)}, version=x402.BINDING_VERSION_PAYKIT_MPP, proposal_id=proposal.proposal_id):
         return lost_request(digest, proposal.proposal_id, source_context=source_context)
+    # an unsponsored charge's fee is bound by prepare itself, before the proposal can be approved: the approval shows
+    # it, and the claim reserves exactly that fee with the amount
     prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
-    if terms["payer_pays_fee"]:
-        # this wallet pays the network fee: the approval shows it, and the claim reserves it with the amount
-        x402._update_binding(digest, max_network_fee_minor=payer_fee_minor(prepared), fee_asset=chains.native_asset(terms["network"]).symbol)
     binding = x402.binding_for_digest(digest) or {}
     return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=status, body=answer["body"], proposal_id=prepared.proposal_id, binding_id=str(binding.get("binding_id") or ""))
 
