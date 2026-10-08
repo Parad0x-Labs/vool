@@ -179,6 +179,11 @@ def test_settings_entry_ticks_a_step_configured_in_settings_and_vanishes_when_ev
     assert status == 200 and body.get("project"), body
     status, body = _post(daemon.base_url, "/api/onboarding/choice", {"choice": "local_only"})
     assert status == 200, body
+    # With no local model running, "Local only" no longer finishes the thinking step: its door is the
+    # cloud-only question (core/setup_progress.py thinking_done, Pack 2b item 02).
+    if _get(daemon.base_url, "/api/setup/state")["cloud_default"]["local_model_running"] is False:
+        status, body = _post(daemon.base_url, "/api/onboarding/cloud-default", {"decision": "not_now"})
+        assert status == 200, body
     state = _get(daemon.base_url, "/api/setup/state")
     assert state["complete"] is True and state["show_entry"] is False and state["show_chat_line"] is False, state
     page.evaluate("window.__voolSettings.reconcile()")
