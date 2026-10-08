@@ -630,3 +630,19 @@ def test_arithmetic_sharing_the_turn_keeps_the_numbers_only_gate():
 def test_arithmetic_scan_stays_bounded(script):
     subprocess.run([sys.executable, "-c", script], check=True, timeout=10,
                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+def test_a_count_under_one_of_several_lettered_sections_is_not_a_whole_answer_contract() -> None:
+    # The pasted A-D evaluation (tests/fixtures/pasted_reasoning_evaluation.txt) says "return only
+    # sections A, B, C and D" and, under heading D only, "In one sentence explain ...". The served
+    # turn was told to answer the whole evaluation "using exactly 1 sentence(s)" and a paid repair
+    # call rewrote a correct four-section answer (landing 83b1df3).
+    from pathlib import Path
+
+    text = (Path(__file__).parent / "fixtures" / "pasted_reasoning_evaluation.txt").read_text()
+    contract = parse_raw_output_contract(text)
+    assert contract is not None and contract.raw_only
+    assert contract.exact_sentences is None
+    # A count that governs the whole answer still binds.
+    whole = parse_raw_output_contract("Explain photosynthesis in one sentence. Return only the answer.")
+    assert whole is not None and whole.exact_sentences == 1
