@@ -264,8 +264,12 @@ def binding_for_digest(request_digest: str) -> dict[str, Any] | None:
 
 
 def binding_for_proposal(proposal_id: str) -> dict[str, Any] | None:
+    """The payment's own binding: the request it was parked for, the first binding that named it. Other requests that
+    reach the same offer are bound to it later and get that payment's outcome (:func:`_bound_outcome`), but its
+    approval, the authorization it signs, its submission and its delivery here are for this request. A binding naming
+    a live payment is never handed to another (:func:`binding_guard`), so this one stays its own while it is paid."""
     with connection() as conn:
-        row = conn.execute(f"SELECT {_BINDING_COLS} FROM wallet_x402_bindings WHERE proposal_id = ? ORDER BY created_at DESC LIMIT 1", (str(proposal_id),)).fetchone()
+        row = conn.execute(f"SELECT {_BINDING_COLS} FROM wallet_x402_bindings WHERE proposal_id = ? ORDER BY created_at ASC, rowid ASC LIMIT 1", (str(proposal_id),)).fetchone()
     return _binding_row(row) if row else None
 
 
