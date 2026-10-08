@@ -34,7 +34,7 @@ def home(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_MEMORY_RECEIPTS", "1")
     monkeypatch.setenv("VOOL_EVIDENCE_COMPILER", "1")
     configure_runtime_home(profile)
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()
@@ -178,7 +178,7 @@ def test_receipts_off_writes_no_table(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_CONTEXT_CAPSULE_V2", "1")
     monkeypatch.delenv("VOOL_MEMORY_RECEIPTS", raising=False)
     configure_runtime_home(profile)
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()

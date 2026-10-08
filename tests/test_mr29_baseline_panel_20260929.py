@@ -50,7 +50,7 @@ def fresh_profile(tmp_path, monkeypatch):
     configure_runtime_home(home)
     assert str(home) in str(Path(home).resolve())
     # Deterministic offline embedding backend (hash-BoW), labeled as such.
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()

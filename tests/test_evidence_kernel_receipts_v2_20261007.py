@@ -36,7 +36,7 @@ def home(tmp_path, monkeypatch):
     monkeypatch.setenv("VOOL_EVIDENCE_COMPILER", "1")
     monkeypatch.setenv("VOOL_EVIDENCE_KERNEL", "1")
     configure_runtime_home(profile)
-    embedding_service._best_embed_model = lambda: None
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
     from storage.migrations import run_migrations
 
     run_migrations()
