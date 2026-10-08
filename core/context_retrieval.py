@@ -7105,197 +7105,206 @@ def store_turn(
                 LOGGER.warning("semantic memory close failed: %s", type(exc).__name__)
 
 
-def _sweep_derived_dialogue_surfaces(chat_id: str, token: str) -> None:
-    """Remove this chat's derived summaries/caches carrying a forgotten token.
+def _sweep_derived_dialogue_surfaces(
+    chat_id: str, token: str, *, erasures: dict[str, Any] | None = None,
+    command_turn_id: str = "",
+) -> None:
+    """Erase scoped derivatives using the actual schema, verifying every holder."""
+    import json
 
-    The primary sources (semantic nodes — hard-deleted, source occurrences,
-    conversation log) are retired by forget_session_memory's own layers. The
-    surfaces swept here are DERIVATIVES reachable by later readers: raw turn
-    rows, topic archives (summarized goals), capsule version history, and
-    learning shards — each scoped by its own session/chat column, so foreign
-    chats' identical tokens are never touched (F14-12 preservation control).
-    Rows are deleted, not blanked: a derived summary half-emptied of its
-    subject is noise with no retention right. The durable revocation ledger
-    remains the non-resurrection authority regardless of sweep coverage.
-    """
+    from core.memory.entries import (
+        MemoryErasureError,
+        _load_erasure_rows,
+        _record_erasure_store,
+        _rewrite_verified_erasure_rows,
+    )
+    from core.vool_memory import _forget_salvage_content
+    from storage.db import get_connection
+
+    caller_collects = erasures is not None
+    erasures = erasures if erasures is not None else {}
     needle = _normalize_forget_token(token)
     scope = str(chat_id or "").strip()
     if not needle or not scope:
         return
-    from storage.db import get_connection
 
-    def _carries(*values: object) -> bool:
-        # Separator/case-insensitive carry test (F14-07: a hyphenated copy
-        # of the token survived every plain-substring layer).
-        return any(
-            needle in _normalize_forget_token(str(value or ""))
-            for value in values
-            if str(value or "").strip()
-        )
+    def carries(*values: object) -> bool:
+        return any(needle in _normalize_forget_token(str(value or "")) for value in values)
 
-    conn = get_connection()
+    def structured_carries(value: object) -> bool:
+        if isinstance(value, dict):
+            return any(carries(key) or structured_carries(item) for key, item in value.items())
+        if isinstance(value, list):
+            return any(structured_carries(item) for item in value)
+        return carries(value)
+
+    def column_carries(value: object, *, structured: bool) -> bool:
+        if not structured:
+            return carries(value)
+        if value is None:
+            return False
+        # The decoded payload is what readers receive. Invalid structured
+        # bytes cannot prove absence, even when their raw text has no match.
+        return structured_carries(json.loads(str(value)))
+
+    def quoted(name: str) -> str:
+        return '"' + name.replace('"', '""') + '"'
+
+    conn = None
+    verified_removals = 0
     try:
-        def _table_exists(table: str) -> bool:
-            # Optional derivative stores are created lazily by their owning
-            # features; a fresh profile may never have minted one. An absent
-            # table must not abort the sweep before COMMIT — measured: on a
-            # profile without context_capsule_versions the raise skipped the
-            # commit and silently lost the topic-archive deletes above (same
-            # guard pattern as finalization._sweep_step_dialogue_tables).
-            row = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-                (table,),
-            ).fetchone()
-            return row is not None
+        conn = get_connection()
+        tables = {
+            str(row[0]) for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        targets = {
+            "dialogue_topic_archives", "dialogue_turns", "dialogue_sessions",
+            "learning_shards", "response_feedback", "context_capsule_versions",
+        }
+        targets.update(
+            table for table in tables
+            if table.startswith("dialogue_")
+            or any(part in table for part in ("packet", "context_snapshot", "context_cache"))
+        )
+        for table in sorted(targets):
+            if table not in tables:
+                _record_erasure_store(erasures, table, "not_applicable")
+                continue
+            try:
+                if table == "context_capsule_versions":
+                    from core.active_context_capsule import erase_capsule_versions_for_forget
 
-        # Matching happens in python (not SQL instr): the normalized token
-        # comparison must see hyphen/underscore/spacing variants of the same
-        # phrase, and per-chat derivative rows are few.
-        for row in conn.execute(
-            """
-            SELECT archive_id, summary, current_user_goal,
-                   closing_user_input, closing_assistant_output
-            FROM dialogue_topic_archives WHERE session_id = ?
-            """,
-            (scope,),
-        ).fetchall():
-            data = dict(row)
-            if _carries(
-                data.get("summary"),
-                data.get("current_user_goal"),
-                data.get("closing_user_input"),
-                data.get("closing_assistant_output"),
-            ):
-                conn.execute(
-                    "DELETE FROM dialogue_topic_archives WHERE archive_id = ?",
-                    (str(data.get("archive_id") or ""),),
-                )
-        # The raw turn rows are a reachable store too (raw/normalized/
-        # reconstructed input each carry the full text). Sealed acceptance
-        # F14-06/07/08/10/11: the revocation ledger gated SERVING but the
-        # rows themselves kept serving the forgotten token to every
-        # raw-store reader — a forgotten value that a reachable store still
-        # carries is not forgotten. Token-carrying rows of THIS chat are
-        # clause-salvaged (sibling clauses keep their referential identity,
-        # F14-02 value-scoped preservation) and deleted when any carrying
-        # column cannot shed the token (or the hints carry it).
-        from core.vool_memory import _forget_salvage_content as _salvage
-
-        for row in conn.execute(
-            """
-            SELECT turn_id, raw_input, normalized_input, reconstructed_input,
-                   topic_hints_json
-            FROM dialogue_turns WHERE session_id = ?
-            """,
-            (scope,),
-        ).fetchall():
-            data = dict(row)
-            turn_id = str(data.get("turn_id") or "")
-            updates: dict[str, str] = {}
-            row_doomed = _carries(data.get("topic_hints_json"))
-            for column in (
-                "raw_input",
-                "normalized_input",
-                "reconstructed_input",
-            ):
-                value = str(data.get(column) or "")
-                if not _carries(value):
+                    removed = erase_capsule_versions_for_forget(conn, chat_id=scope, token=token)
+                    _record_erasure_store(erasures, table, "verified", removed)
+                    verified_removals += removed
                     continue
-                remainder = _salvage(value, needle, clause_join=", ")
-                if not remainder:
-                    row_doomed = True
-                    break
-                updates[column] = remainder
-            if row_doomed:
-                conn.execute(
-                    "DELETE FROM dialogue_turns WHERE turn_id = ?",
-                    (turn_id,),
-                )
-            elif updates:
-                assignments = ", ".join(f"{col} = ?" for col in updates)
-                conn.execute(
-                    f"UPDATE dialogue_turns SET {assignments} WHERE turn_id = ?",
-                    [*updates.values(), turn_id],
-                )
-        # Capsule version rows are deliberately NOT touched: the version
-        # ledger is immutable by trigger law and shadow-mode (no production
-        # serve reader) — the same ruling finalization's derivative sweep
-        # made (_sweep_step_capsules). The DELETE leg that used to live
-        # here violated that trigger on EVERY invocation, aborting the
-        # whole sweep transaction before commit (sealed acceptance
-        # F14-06/07/08/10/11: topic-archive and turn-row deletes silently
-        # rolled back after the IntegrityError). Old versions stay as
-        # audit; a capsule materialized after the forget rebuilds from the
-        # purged sources, and the revocation ledger gates every carrier.
-        if _table_exists("learning_shards"):
-            for row in conn.execute(
-                "SELECT shard_id, summary FROM learning_shards "
-                "WHERE origin_session_id = ?",
-                (scope,),
-            ).fetchall():
-                data = dict(row)
-                if _carries(data.get("summary")):
-                    conn.execute(
-                        "DELETE FROM learning_shards WHERE shard_id = ?",
-                        (str(data.get("shard_id") or ""),),
+                schema = conn.execute(f"PRAGMA table_info({quoted(table)})").fetchall()
+                names = {str(column[1]) for column in schema}
+                scope_column = next((
+                    name for name in ("session_id", "chat_id", "origin_session_id", "chat_scope")
+                    if name in names
+                ), None)
+                # Identity and temporal fields are metadata; every declared text/JSON
+                # payload is inspected, including fields added by later migrations.
+                columns = [
+                    str(column[1]) for column in schema
+                    if not column[5]
+                    and str(column[1]) != scope_column
+                    and not str(column[1]).endswith(("_id", "_at"))
+                    and (
+                        any(kind in str(column[2]).upper() for kind in ("TEXT", "CHAR", "CLOB", "JSON"))
+                        or str(column[1]).endswith("_json")
+                        or not str(column[2])
                     )
-        # Session-state text columns are derivatives of the forgotten turns
-        # and are served into bootstrap context (Active task constraints,
-        # session state items): a token-carrying goal/subject re-enters the
-        # prompt from here after every other carrier is clean. Cleared in
-        # place — the session row itself owns referential identity.
-        row = conn.execute(
-            "SELECT last_subject, current_user_goal FROM dialogue_sessions "
-            "WHERE session_id = ?",
-            (scope,),
-        ).fetchone()
-        if row is not None:
-            data = dict(row)
-            for column in ("last_subject", "current_user_goal"):
-                if _carries(data.get(column)):
-                    conn.execute(
-                        f"UPDATE dialogue_sessions SET {column} = '' "
-                        "WHERE session_id = ?",
-                        (scope,),
-                    )
-        conn.commit()
-    except Exception:
-        # Same containment law as the log scrub: the ledger gate below the
-        # carriers is the hard guarantee; a failed derivative sweep must not
-        # convert a successful forget into a user-facing error.
-        LOGGER.warning("derived dialogue surface forget sweep failed")
+                ]
+                json_columns = {
+                    str(column[1]) for column in schema
+                    if str(column[1]).endswith("_json") or "JSON" in str(column[2]).upper()
+                }
+                if not columns:
+                    _record_erasure_store(erasures, table, "not_applicable")
+                    continue
+                projection = ", ".join(quoted(column) for column in columns)
+                where = f" WHERE {quoted(scope_column)} = ?" if scope_column else ""
+                params = (scope,) if scope_column else ()
+                rows = conn.execute(
+                    f"SELECT rowid AS _erasure_rowid, * FROM {quoted(table)}{where}", params,
+                ).fetchall()
+                changed = 0
+                memory_changed = 0
+                for row in rows:
+                    data = dict(row)
+                    carrying = [
+                        column for column in columns
+                        if column_carries(data.get(column), structured=column in json_columns)
+                    ]
+                    if not carrying:
+                        continue
+                    if scope_column is None:
+                        # Unscoped copies cannot be assigned to this chat safely.
+                        raise MemoryErasureError("retained derivative cannot be safely erased")
+                    updates: dict[str, str] = {}
+                    doomed = table not in {"dialogue_turns", "dialogue_sessions"}
+                    if table == "dialogue_sessions":
+                        for column in carrying:
+                            value = str(data.get(column) or "")
+                            if column in json_columns:
+                                parsed = json.loads(value)
+                                updates[column] = "[]" if isinstance(parsed, list) else "{}"
+                            else:
+                                updates[column] = ""
+                    elif table == "dialogue_turns":
+                        for column in carrying:
+                            if column in json_columns:
+                                doomed = True
+                                break
+                            remainder = _forget_salvage_content(str(data.get(column) or ""), needle, clause_join=", ")
+                            if not remainder or carries(remainder):
+                                doomed = True
+                                break
+                            updates[column] = remainder
+                    if doomed:
+                        conn.execute(
+                            f"DELETE FROM {quoted(table)} WHERE rowid = ?", (data["_erasure_rowid"],),
+                        )
+                    elif updates:
+                        assignments = ", ".join(f"{quoted(column)} = ?" for column in updates)
+                        conn.execute(
+                            f"UPDATE {quoted(table)} SET {assignments} WHERE rowid = ?",
+                            (*updates.values(), data["_erasure_rowid"]),
+                        )
+                    changed += 1
+                    memory_changed += int(table != "dialogue_turns" or str(data.get("turn_id") or "") != command_turn_id)
+                conn.commit()
+                retained = conn.execute(
+                    f"SELECT {projection} FROM {quoted(table)}{where}", params,
+                ).fetchall()
+                if any(
+                    column_carries(row[column], structured=column in json_columns)
+                    for row in retained for column in columns
+                ):
+                    raise MemoryErasureError("derivative erasure could not be verified")
+                _record_erasure_store(erasures, table, "verified", changed)
+                if table != "dialogue_sessions":
+                    verified_removals += memory_changed
+            except Exception as exc:
+                _record_erasure_store(erasures, table, "incomplete")
+                LOGGER.warning("derived store erasure failed (%s): %s", table, type(exc).__name__)
+                try:
+                    conn.rollback()
+                except Exception:
+                    _record_erasure_store(erasures, "dialogue_connection", "incomplete")
+    except Exception as exc:
+        _record_erasure_store(erasures, "dialogue_derivatives", "incomplete")
+        LOGGER.warning("derived dialogue surface forget sweep failed: %s", type(exc).__name__)
     finally:
-        conn.close()
-    # The session-summary store is the same class of derivative, and it is
-    # served CROSS-CHAT: search_session_summaries hands a chat's latest
-    # summary to any other chat holding an import grant (the continuity
-    # leg). A token-carrying summary of the revoked chat therefore re-enters
-    # a GRANTED reader's prompt even after every own-chat carrier is clean.
-    # Rows of this chat whose summary or keywords carry the token are
-    # deleted; foreign chats' identical tokens are never touched.
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                _record_erasure_store(erasures, "dialogue_connection", "incomplete")
     try:
-        from core.memory.files import (
-            load_jsonl,
-            rewrite_jsonl,
-            session_summaries_path,
-        )
+        from core.memory.files import session_summaries_path
 
-        summary_rows = load_jsonl(session_summaries_path())
+        summary_rows = _load_erasure_rows(session_summaries_path())
         kept_summaries = [
-            row
-            for row in summary_rows
-            if not (
-                str(row.get("session_id") or "") == scope
-                and _carries(
-                    row.get("summary"),
-                    " ".join(str(item) for item in list(row.get("keywords") or [])),
-                )
-            )
+            row for row in summary_rows
+            if not (str(row.get("session_id") or "") == scope and structured_carries(row))
         ]
         if len(kept_summaries) != len(summary_rows):
-            rewrite_jsonl(session_summaries_path(), kept_summaries)
-    except Exception:
-        LOGGER.warning("session summary forget sweep failed")
+            _rewrite_verified_erasure_rows(session_summaries_path(), kept_summaries)
+        _record_erasure_store(erasures, "session_summaries", "verified", len(summary_rows) - len(kept_summaries))
+    except Exception as exc:
+        _record_erasure_store(erasures, "session_summaries", "incomplete")
+        LOGGER.warning("session summary forget sweep failed: %s", type(exc).__name__)
+    failures = any(name.endswith("_failures") and value for name, value in erasures.items())
+    _record_erasure_store(
+        erasures, "dialogue_derivatives", "incomplete" if failures else "verified", verified_removals,
+    )
+    if failures and not caller_collects:
+        raise MemoryErasureError("derived memory erasure is incomplete")
 
 
 def revoked_tokens_for_chat(chat_id: str) -> tuple[str, ...]:
@@ -7314,10 +7323,10 @@ def revoked_tokens_for_chat(chat_id: str) -> tuple[str, ...]:
     try:
         mem = _open_memory()
         if mem is None:
-            return ()
-        return mem.revoked_tokens(scope)
-    except Exception:
-        return ()
+            raise RuntimeError("memory revocation store is unavailable")
+        if mem.erasure_incomplete(scope):
+            raise RuntimeError("memory erasure is incomplete")
+        return mem.revoked_tokens(scope, strict=True)
     finally:
         if mem is not None:
             with contextlib.suppress(Exception):
@@ -7355,21 +7364,31 @@ def forget_session_memory(
     *,
     access_policy: ContextAccessPolicy | None = None,
     source_context: Mapping[str, Any] | None = None,
-    erasures: dict[str, int] | None = None,
+    erasures: dict[str, Any] | None = None,
+    store_status: dict[str, Any] | None = None,
 ) -> int:
     """Invalidate semantic-memory nodes containing ``token`` in one chat.
 
-    Returns the semantic node count. ``erasures``, when given, receives each count
-    as soon as it is made (``semantic_nodes``, ``source_occurrences``), so the forget
-    lane can say what it removed from a plain chat turn, or before a later scrub
-    step failed, without changing the returned count; ``store_failures`` is set when
-    the store could not be opened or the erasure failed.
+    ``erasures`` retains the legacy semantic/source count dictionary. Detailed
+    verification and failures go to ``store_status`` separately. Without a status
+    collector, an incomplete erasure raises instead of silently returning a count.
 
     Structured memory and semantic memory are separate persistence layers. A
     forget command must retire both, otherwise the semantic index can recall a
     value that the structured ledger already removed.
     """
+    from core.memory.entries import (
+        MemoryErasureError,
+        _load_erasure_rows,
+        _record_erasure_store,
+        _rewrite_verified_erasure_rows,
+    )
+
+    collected: dict[str, Any] = store_status if store_status is not None else {}
+    invalidated = 0
+    operation_id = ""
     mem: VoolMemory | None = None
+    current_store = "semantic_nodes"
     try:
         policy = resolve_semantic_access_policy(
             session_id=session_id,
@@ -7379,28 +7398,31 @@ def forget_session_memory(
         runtime_home = str((source_context or {}).get("runtime_home") or "").strip() or None
         mem = _open_memory_for_runtime(runtime_home)
         if mem is None:
-            if erasures is not None:
-                erasures["store_failures"] = 1  # the store could not be opened: unknown, never "no match"
-            return 0
+            _record_erasure_store(collected, "semantic_nodes", "incomplete")
+            raise MemoryErasureError("semantic memory store is unavailable")
+        if store_status is None:
+            operation_id = mem.begin_erasure(policy.chat_id, token)
         invalidated = mem.node_invalidate_matching(
             token,
             session_id=policy.chat_id,
+            erasures=collected,
         )
-        if erasures is not None:
-            erasures["semantic_nodes"] = int(invalidated or 0)
+        _record_erasure_store(collected, "semantic_nodes", "verified", int(invalidated or 0))
         # The forget law covers the source layer too: otherwise the semantic
         # index would forget a value the evidence archive still recalls
         # verbatim (CONTRACT mr29/1 §1.5 — deletion covers source bodies and
         # derivatives together). Occurrence cleanup is a side-effect of
         # removing the entry, not a second memory entry: the user-facing
         # count stays the ledger count.
-        occurrences_invalidated = int(mem.occurrence_invalidate_matching(
-            token,
-            chat_scope=policy.chat_id,
-        ) or 0)
-        if erasures is not None:
-            # recorded at once: a later scrub step that raises must not hide an erasure already made
-            erasures["source_occurrences"] = occurrences_invalidated
+        current_store = "source_occurrences"
+        try:
+            mem.occurrence_invalidate_matching(
+                token, chat_scope=policy.chat_id, erasures=collected,
+            )
+        except Exception as exc:
+            if not (collected or {}).get("memory_receipts_failures"):
+                _record_erasure_store(collected, "source_occurrences", "incomplete")
+            LOGGER.warning("source erasure sweep failed: %s", type(exc).__name__)
         # ... and the conversation log is a reachable re-serving cache for
         # the same body (augment_history_from_session_log hydrates prompts
         # from it): a forgotten value that the log still serves is not
@@ -7413,17 +7435,15 @@ def forget_session_memory(
         try:
             from core.memory.files import (
                 conversation_log_path,
-                load_jsonl,
-                rewrite_jsonl,
             )
             from core.vool_memory import _forget_salvage_content
 
             needle = _normalize_forget_token(token)
             if needle:
                 path = conversation_log_path()
-                rows = load_jsonl(path)
+                rows = _load_erasure_rows(path)
                 kept = []
-                changed = False
+                changed = 0
                 for row in rows:
                     if str(row.get("session_id") or "") != policy.chat_id:
                         kept.append(row)
@@ -7436,6 +7456,7 @@ def forget_session_memory(
                     if not (user_carries or asst_carries):
                         kept.append(row)
                         continue
+                    changed += 1
                     salvaged_user = (
                         _forget_salvage_content(user_text, needle, clause_join=", ")
                         or None)
@@ -7455,38 +7476,72 @@ def forget_session_memory(
                     if salvaged_asst is not None:
                         new_row["assistant"] = salvaged_asst
                     kept.append(new_row)
-                    changed = True
                 if changed or len(kept) != len(rows):
-                    rewrite_jsonl(path, kept)
-        except Exception:
-            # The log scrub is containment for the forget law; a failure to
-            # scrub must not convert a successful ledger invalidation into a
-            # user-facing error. The unmatched-count response still reflects
-            # the ledger, and diagnostics keep the warning.
-            LOGGER.warning("conversation log forget scrub failed")
+                    _rewrite_verified_erasure_rows(path, kept)
+                _record_erasure_store(collected, "conversation_log", "verified", changed)
+        except Exception as exc:
+            _record_erasure_store(collected, "conversation_log", "incomplete")
+            LOGGER.warning("conversation log forget scrub failed: %s", type(exc).__name__)
         # ... and the durable revocation ledger makes the forget restart-
         # proof: prompt carriers (transcript assembly, dialogue context
         # items) filter on it, so the value cannot re-enter a prompt from a
         # derivative the sweep could not reach (F14-01: dialogue_turns and
         # topic archives re-served the forgotten token into the served
         # request after the log scrub had already run).
+        current_store = "revocation_ledger"
         mem.record_revocation(token, chat_id=policy.chat_id)
-        _sweep_derived_dialogue_surfaces(policy.chat_id, token)
+        if _normalize_forget_token(token) not in mem.revoked_tokens(policy.chat_id, strict=True):
+            raise RuntimeError("revocation write could not be verified")
+        _record_erasure_store(collected, "revocation_ledger", "verified")
+        current_store = "dialogue_derivatives"
+        from core.memory.command_result import command_turn_key
+
+        _sweep_derived_dialogue_surfaces(
+            policy.chat_id, token, erasures=collected,
+            command_turn_id=command_turn_key(source_context),
+        )
+        if operation_id and not any(
+            name.endswith("_failures") and value for name, value in collected.items()
+        ):
+            mem.complete_erasure(operation_id)
         # A value erased only from the source layer (a plain chat turn, never a ledger entry) is an erasure all
         # the same, and the forget lane must say so rather than "nothing was removed"; it reads that through
-        # ``erasures``. The return stays the node count (tests/lifecycle/test_forget_sibling_salvage_20260929.py).
-        return int(invalidated or 0)
+        # ``collected``. The return stays the node count (tests/lifecycle/test_forget_sibling_salvage_20260929.py).
     except Exception as exc:
         LOGGER.warning("semantic memory forget failed: %s", type(exc).__name__)
-        if erasures is not None:
-            erasures["store_failures"] = 1  # a failed erasure is unknown, never "no match"
-        return 0
+        _record_erasure_store(collected, current_store, "incomplete")
+        collected["store_failures"] = 1
     finally:
         if mem is not None:
             try:
                 mem.close()
             except Exception as exc:
+                _record_erasure_store(collected, "semantic_connection", "incomplete")
+                if operation_id:
+                    recovery = None
+                    try:
+                        recovery = VoolMemory(db_path=mem.db_path)
+                        recovery.begin_erasure(policy.chat_id, token)
+                    except Exception:
+                        _record_erasure_store(collected, "erasure_operations", "incomplete")
+                    finally:
+                        if recovery is not None:
+                            try:
+                                recovery.close()
+                            except Exception:
+                                _record_erasure_store(collected, "erasure_operations", "incomplete")
                 LOGGER.warning("semantic memory forget close failed: %s", type(exc).__name__)
+
+    if erasures is not None:
+        erasures.update({
+            "semantic_nodes": int(collected.get("semantic_nodes") or 0),
+            "source_occurrences": int(collected.get("source_occurrences") or 0),
+        })
+    if store_status is None and any(
+        name.endswith("_failures") and value for name, value in collected.items()
+    ):
+        raise MemoryErasureError("semantic memory erasure is incomplete")
+    return int(invalidated or 0)
 
 
 def import_conversation_history(
@@ -7744,14 +7799,15 @@ def inject_retrieved(
     env_map = os.environ if env is None else env
     if not env_flag_enabled(env_map, _CAPSULE_V2_ENV, default=False):
         _set_retrieval_telemetry({"capsule_mode": "disabled", "web_calls": 0, "model_calls": 0, "evidence_refs": []})
-        return _legacy_inject_retrieved(
+        delivery = _legacy_inject_retrieved(
             resolved_session_id,
             query,
             transcript,
             runtime_home=str((source_context or {}).get("runtime_home") or "").strip() or None,
         )
+        return _verify_memory_delivery(delivery, transcript, resolved_session_id, source_context)
     try:
-        return _capsule_v2_inject_retrieved(
+        delivery = _capsule_v2_inject_retrieved(
             resolved_session_id,
             query,
             transcript,
@@ -7768,9 +7824,61 @@ def inject_retrieved(
             search_expansions=tuple(str(x) for x in list(
                 (source_context or {}).get("search_expansions") or [])[:_SEARCH_EXPANSION_LIMIT]),
         )
+        return _verify_memory_delivery(delivery, transcript, resolved_session_id, source_context)
     except Exception:
         _set_retrieval_telemetry({"capsule_mode": "error", "web_calls": 0, "model_calls": 0, "evidence_refs": []})
         return transcript
+
+
+def _verify_memory_delivery(
+    delivery: list[dict[str, str]],
+    transcript: list[dict[str, str]],
+    session_id: str,
+    source_context: Mapping[str, Any] | None,
+) -> list[dict[str, str]]:
+    """Validate a complete delivery against one unchanged authority generation.
+
+    The final generation query is the optimistic read's linearization point:
+    a concurrent forget before it withholds this result; one after it is ordered
+    after this read. No memory content is constructed after that query.
+    """
+    runtime_home = str((source_context or {}).get("runtime_home") or "").strip() or None
+    authority = None
+    revoked = None
+    allowed = False
+    try:
+        authority = _open_memory_for_runtime(runtime_home)
+        if authority is None:
+            raise RuntimeError("memory authority is unavailable")
+        generation = authority.revocation_generation(session_id)
+        revoked = _chat_revocations(runtime_home, session_id)
+        added = [item for item in delivery if not any(item is prior for prior in transcript)]
+        carries_revoked = revoked is None or any(
+            text_carries_revoked_token(str(item.get("content") or ""), revoked) for item in added
+        )
+        if not carries_revoked:
+            allowed = authority.revocation_generation(session_id) == generation
+    except Exception:
+        revoked = None
+    finally:
+        if authority is not None:
+            try:
+                authority.close()
+            except Exception:
+                allowed = False
+                revoked = None
+    if allowed:
+        return delivery
+    telemetry = get_last_retrieval_telemetry()
+    telemetry["delivery_withheld"] = "revocation_unreadable" if revoked is None else "revocation_changed"
+    for key in ("evidence_packet_snapshot", "evidence_packet_facts", "selected_facts", "reported_source_prefix_refs"):
+        telemetry.pop(key, None)
+    telemetry["selected_facts_count"] = 0
+    for receipt in telemetry.get("evidence_refs") or []:
+        receipt["delivered"] = False
+        receipt["omission_reason"] = "delivery_revocation"
+    _set_retrieval_telemetry(telemetry)
+    return transcript
 
 
 def _legacy_inject_retrieved(
@@ -8638,7 +8746,9 @@ def _chat_revocations(runtime_home: str | None, chat_id: str | None) -> tuple[st
         if memory is None:
             return None
         if not callable(getattr(memory, "revoked_tokens", None)):
-            return ()  # a store with no revocation ledger holds no revocations (test doubles of the read path)
+            return None
+        if memory.erasure_incomplete(scope):
+            return None
         return tuple(memory.revoked_tokens(scope, strict=True) or ())
     except Exception:
         return None

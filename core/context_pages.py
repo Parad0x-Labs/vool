@@ -305,7 +305,7 @@ def _active_pin_count(page_hash: str) -> int:
 # ── Residency: archive and re-inject ─────────────────────────────────────────
 
 
-def page_in(page_hash: str) -> str:
+def page_in(page_hash: str, *, chat_id: str | None = None) -> str:
     """Re-inject a page VERBATIM from the store, or raise PageNotFoundError.
 
     This is a deterministic operation, never a re-fetch or re-summary: the
@@ -315,9 +315,22 @@ def page_in(page_hash: str) -> str:
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT content_ref, erased, retention_class FROM context_pages WHERE page_hash = ?",
+            "SELECT content_ref, erased, retention_class, kind, source, session_id "
+            "FROM context_pages WHERE page_hash = ?",
             (page_hash,),
         ).fetchone()
+        if (row is not None and chat_id is not None
+                and row["kind"] == "turn_context" and row["source"] == "turn-context:chat_exchange"
+                and str(row["session_id"]) != str(chat_id)):
+            has_admissions = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'turn_context_admissions'",
+            ).fetchone() is not None
+            owned = has_admissions and conn.execute(
+                "SELECT 1 FROM turn_context_admissions WHERE page_hash = ? AND session_id = ? "
+                "AND source_kind = 'chat_exchange' AND status != 'erased' LIMIT 1", (page_hash, chat_id),
+            ).fetchone() is not None
+            if not owned:
+                raise PageNotFoundError(f"{page_hash} (memory page has no matching chat owner)")
     finally:
         conn.close()
     if row is None:
@@ -346,7 +359,13 @@ def page_in(page_hash: str) -> str:
             f"{page_hash} (content failed hash verification — the stored bytes "
             f"no longer match their address)"
         )
-    return data.decode("utf-8")
+    content = data.decode("utf-8")
+    if row["kind"] == "turn_context" and row["source"] == "turn-context:chat_exchange":
+        from core.vool_memory import memory_payload_is_current
+
+        if not memory_payload_is_current(content, chat_id=chat_id):
+            raise PageNotFoundError(f"{page_hash} (memory erasure authority withheld this page)")
+    return content
 
 
 def archive_closed_pages(
@@ -448,6 +467,7 @@ def erase_page(
     *,
     governance_actor: str = "",
     governance_reason: str = "",
+    require_exclusive_blob: bool = False,
 ) -> dict[str, Any]:
     """Erase a page's bytes everywhere this store can reach, provably.
 
@@ -481,6 +501,18 @@ def erase_page(
     if _active_pin_count(page_hash) > 0:
         raise PinActiveError(page_hash)
 
+    if require_exclusive_blob and row["content_ref"]:
+        conn = get_connection()
+        try:
+            shared = conn.execute(
+                "SELECT 1 FROM context_pages WHERE content_ref = ? AND page_hash != ? "
+                "AND erased = 0 LIMIT 1", (row["content_ref"], page_hash),
+            ).fetchone()
+            if shared is not None:
+                raise ErasureNotAllowedError("context bytes are shared by another page")
+        finally:
+            conn.close()
+
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -492,7 +524,7 @@ def erase_page(
         conn.close()
 
     if row["content_ref"]:
-        _delete_cas_content(str(row["content_ref"]))
+        _delete_cas_content(str(row["content_ref"]), require_exclusive=require_exclusive_blob)
 
     event_hash = append_hashed_event(
         f"ctx-page-erased:{page_hash}",
@@ -512,7 +544,7 @@ def erase_page(
     return {"page_hash": page_hash, "erasure_receipt": event_hash}
 
 
-def _delete_cas_content(blob_hash: str) -> None:
+def _delete_cas_content(blob_hash: str, *, require_exclusive: bool = False) -> None:
     """Remove a blob's chunk files, manifest row, and index row from the CAS.
 
     ``blob_hash`` is the sha256 address (what we store as content_ref).
@@ -521,30 +553,84 @@ def _delete_cas_content(blob_hash: str) -> None:
     erased blob is a no-op.
     """
     from storage.blob_index import get_blob
+    from storage.cas_integrity import validate_address
     from storage.chunk_store import chunk_root
     from storage.manifest_store import load_manifest
 
     meta = get_blob(blob_hash)
     if not meta:
+        if require_exclusive:
+            conn = get_connection()
+            try:
+                if conn.execute(
+                    "SELECT 1 FROM manifest_store WHERE blob_hash = ? LIMIT 1", (blob_hash,),
+                ).fetchone() is not None:
+                    raise ErasureNotAllowedError("unindexed context chunks remain unverified")
+            finally:
+                conn.close()
         return
     manifest = load_manifest(str(meta["manifest_id"]))
+    chunk_hashes = manifest.get("chunk_hashes", []) if manifest else []
+    if require_exclusive:
+        conn = get_connection()
+        try:
+            layouts = conn.execute(
+                "SELECT manifest_id, manifest_json FROM manifest_store WHERE blob_hash = ?", (blob_hash,),
+            ).fetchall()
+            if not layouts or str(meta["manifest_id"]) not in {str(row["manifest_id"]) for row in layouts}:
+                raise ErasureNotAllowedError("context chunk ownership is unavailable")
+            wanted: set[str] = set()
+            for layout in layouts:
+                payload = json.loads(layout["manifest_json"])
+                if (not isinstance(payload, dict) or payload.get("blob_hash") != blob_hash
+                        or not isinstance(payload.get("chunk_hashes"), list)):
+                    raise ErasureNotAllowedError("context manifest ownership is unavailable")
+                wanted.update(validate_address(chunk) for chunk in payload["chunk_hashes"])
+            others = conn.execute(
+                "SELECT manifest_json FROM manifest_store WHERE blob_hash != ?", (blob_hash,),
+            ).fetchall()
+            for other in others:
+                payload = json.loads(other["manifest_json"])
+                if not isinstance(payload, dict) or not isinstance(payload.get("chunk_hashes"), list):
+                    raise ErasureNotAllowedError("shared chunk ownership is unavailable")
+                other_chunks = {validate_address(chunk) for chunk in payload["chunk_hashes"]}
+                if wanted.intersection(other_chunks):
+                    raise ErasureNotAllowedError("context chunks are shared by another blob")
+            chunk_hashes = sorted(wanted)
+        finally:
+            conn.close()
     if manifest:
-        for chunk_hash in manifest.get("chunk_hashes", []):
+        for chunk_hash in chunk_hashes:
             chunk_path = chunk_root() / chunk_hash[:2] / chunk_hash[2:4] / chunk_hash
             try:
                 chunk_path.unlink(missing_ok=True)
             except OSError as exc:
                 _log.warning("could not unlink CAS chunk %s: %s", chunk_hash[:12], exc)
+                if require_exclusive:
+                    raise
+            if require_exclusive:
+                try:
+                    chunk_path.stat()
+                except FileNotFoundError:
+                    pass
+                else:
+                    raise ErasureNotAllowedError("context chunk erasure could not be verified")
 
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
         conn.execute(
-            "DELETE FROM manifest_store WHERE manifest_id = ?",
-            (str(meta["manifest_id"]),),
+            "DELETE FROM manifest_store WHERE blob_hash = ?" if require_exclusive
+            else "DELETE FROM manifest_store WHERE manifest_id = ?",
+            (blob_hash if require_exclusive else str(meta["manifest_id"]),),
         )
         conn.execute("DELETE FROM blob_index WHERE blob_hash = ?", (blob_hash,))
         conn.commit()
+        if require_exclusive and (
+            conn.execute("SELECT 1 FROM manifest_store WHERE blob_hash = ?", (blob_hash,)).fetchone()
+            or conn.execute("SELECT 1 FROM blob_index WHERE blob_hash = ?", (blob_hash,)).fetchone()
+        ):
+            raise ErasureNotAllowedError("context blob erasure could not be verified")
     finally:
         conn.close()
 

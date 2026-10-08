@@ -41,7 +41,10 @@ class FileTopicAdapter(BootstrapMirrorAdapter):
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            from core.vool_memory import memory_payload_is_current
+
+            return payload if memory_payload_is_current(json.dumps(payload, ensure_ascii=False)) else None
         except Exception:
             return None
 
@@ -83,6 +86,9 @@ class HttpJsonMirrorAdapter(BootstrapMirrorAdapter):
                 if resp.status < 200 or resp.status >= 300:
                     return None
                 data = resp.read().decode("utf-8")
-                return json.loads(data)
+                payload = json.loads(data)
+                from core.vool_memory import memory_payload_is_current
+
+                return payload if memory_payload_is_current(json.dumps(payload, ensure_ascii=False)) else None
         except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError):
             return None

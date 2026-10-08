@@ -8,6 +8,7 @@ was compiled for this chat and its rendered text is the packet inside the eviden
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from typing import Any
 
@@ -29,6 +30,10 @@ def packet_facts_for(evidence_text: Any, chat_id: str) -> list[Mapping[str, Any]
     if str(snapshot.get("chat_id") or "") != str(chat_id or "") or not packet_text:
         return []
     if packet_text not in str(evidence_text or ""):
+        return []
+    from core.vool_memory import memory_payload_is_current
+
+    if not memory_payload_is_current(json.dumps([packet_text, facts], ensure_ascii=False, default=str), chat_id=str(chat_id)):
         return []
     return facts
 

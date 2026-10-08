@@ -200,6 +200,7 @@ def observe_profile_turn(
     turn_id = str((source_context or {}).get("cancel_turn_id") or (source_context or {}).get("_canonical_user_turn_id") or "")
     claim_lines: list[str] = []
     consumed: list[str] = []
+    consumed_spans: list[tuple[int, int]] = []
     claims_turn = True
     for proposal in proposals:
         change = _apply(proposal, principal=principal, session_id=session_id, turn_id=turn_id)
@@ -212,6 +213,7 @@ def observe_profile_turn(
             obs["conflicts"].append(_conflict_payload(change))
             claim_lines.append(change.report)
             consumed.append(proposal.clause)
+            consumed_spans.append((proposal.source_start, proposal.source_end))
             continue
         if kind == "chat_local":
             claims_turn = False
@@ -221,24 +223,27 @@ def observe_profile_turn(
             _record_receipt(change, proposal, session_id=session_id, source_context=source_context)
             claim_lines.append(change.report)
             consumed.append(proposal.clause)
+            consumed_spans.append((proposal.source_start, proposal.source_end))
             continue
         if kind in {"refused_secret", "refused_sensitive", "refused_privacy", "refused_binding", "refused_invalid", "paused", "unchanged"}:
             if proposal.strength == "explicit" or proposal.action in {"forget", "undo", "show"}:
                 claim_lines.append(change.report)
                 consumed.append(proposal.clause)
+                consumed_spans.append((proposal.source_start, proposal.source_end))
             else:
                 obs["notices"].append(change.report)
                 claims_turn = False
             continue
         claims_turn = False
     remaining = _remaining_text(raw_user_input, consumed)
+    memory_remaining = _remaining_memory_text(raw_user_input, consumed_spans)
     if not claim_lines:
         return {"result": None, "remaining_text": raw_user_input}
     if remaining.strip() and remaining.strip() != raw_user_input.strip():
         # A mixed turn: the profile part is done and reported; the rest continues on its own lane
         # and the report rides the response frame.
         obs["notices"].extend(claim_lines)
-        return {"result": None, "remaining_text": remaining}
+        return {"result": None, "remaining_text": remaining, "remaining_memory_text": memory_remaining}
     if not claims_turn and remaining.strip():
         obs["notices"].extend(claim_lines)
         return {"result": None, "remaining_text": raw_user_input}
@@ -298,6 +303,19 @@ def _record_receipt(change: profile.ProfileChange, proposal: ProfileProposal, *,
         )
     except Exception:
         pass
+
+
+def _remaining_memory_text(raw: str, consumed_spans: list[tuple[int, int]]) -> str:
+    """Remove owner-consumed spans without rewriting the following command argument."""
+    cursor = 0
+    parts: list[str] = []
+    for start, end in sorted(consumed_spans):
+        if start < cursor or end < start:
+            continue
+        parts.append(raw[cursor:start])
+        cursor = end
+    parts.append(raw[cursor:])
+    return "".join(parts).lstrip(" ,.!;\t\r\n").rstrip()
 
 
 def _remaining_text(raw: str, consumed: list[str]) -> str:

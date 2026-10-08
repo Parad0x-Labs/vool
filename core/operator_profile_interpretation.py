@@ -30,7 +30,7 @@ without the directive the clause yields nothing, by construction rather than by 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from core.operator_profile import CATEGORIES
@@ -53,6 +53,8 @@ class ProfileProposal:
     scope: str = "global"
     action: str = "remember"  # remember | forget | undo | show
     clause: str = ""
+    source_start: int = field(default=-1, compare=False)
+    source_end: int = field(default=-1, compare=False)
 
     @property
     def explicit(self) -> bool:
@@ -172,16 +174,21 @@ def _style_value(raw: Any) -> str:
     return cleaned[:200]
 
 
-def _clauses(text: str) -> list[str]:
-    raw = str(text or "").strip()
-    if not raw:
-        return []
-    out: list[str] = []
-    for chunk in _CLAUSE_SPLIT_RE.split(raw):
-        clause = " ".join(str(chunk or "").split()).strip()
+def _clause_spans(text: str) -> list[tuple[str, int, int]]:
+    raw = str(text or "")
+    boundaries = [(match.start(), match.end()) for match in _CLAUSE_SPLIT_RE.finditer(raw)]
+    out: list[tuple[str, int, int]] = []
+    start = 0
+    for end, following in [*boundaries, (len(raw), len(raw))]:
+        clause = " ".join(raw[start:end].split()).strip()
         if clause:
-            out.append(clause)
+            out.append((clause, start, following))
+        start = following
     return out
+
+
+def _clauses(text: str) -> list[str]:
+    return [clause for clause, _, _ in _clause_spans(text)]
 
 
 def _normalize_clause(clause: str) -> str:
@@ -351,11 +358,11 @@ def interpret_profile_turn(text: str) -> list[ProfileProposal]:
             return []
     except Exception:
         pass
-    without_quotes = _QUOTED_RE.sub(lambda m: m.group(0) if _looks_like_quoted_value(raw, m) else " ", raw)
+    without_quotes = _QUOTED_RE.sub(lambda m: m.group(0) if _looks_like_quoted_value(raw, m) else " " * len(m.group(0)), raw)
     attached_task = bool(_ATTACHED_TASK_RE.search(without_quotes)) and not _DIRECTIVE_RE.search(without_quotes)
     proposals: list[ProfileProposal] = []
     seen: set[tuple[str, str, str]] = set()
-    for clause in _clauses(without_quotes):
+    for clause, source_start, source_end in _clause_spans(without_quotes):
         normalized = _normalize_clause(clause)
         if not normalized:
             continue
@@ -369,7 +376,7 @@ def interpret_profile_turn(text: str) -> list[ProfileProposal]:
         if key in seen:
             continue
         seen.add(key)
-        proposals.append(proposal)
+        proposals.append(replace(proposal, source_start=source_start, source_end=source_end))
     return proposals
 
 

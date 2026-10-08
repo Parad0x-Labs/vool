@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import threading
@@ -18,6 +19,7 @@ _MEMORY_WRITE_LOCK = threading.RLock()
 
 from core.memory import entries as memory_entries
 from core.memory import learning as memory_learning
+from core.memory.command_result import _ForgetOutcomeRegistry
 from core.memory.files import (
     MAX_CONVERSATION_LOG_BYTES as _MAX_CONVERSATION_LOG_BYTES,
 )
@@ -58,6 +60,7 @@ from storage.dialogue_memory import (
 )
 
 LOGGER = logging.getLogger(__name__)
+_forget_outcomes = _ForgetOutcomeRegistry()
 
 add_memory_fact = memory_entries.add_memory_fact
 forget_memory = memory_entries.forget_memory
@@ -1841,46 +1844,95 @@ def maybe_handle_memory_command(
 
     forget = _FORGET_RE.match(text)
     if forget:
+        erasures: dict[str, Any] = {}
+
+        def outcome(reply: str, status: str) -> tuple[bool, str]:
+            return True, _forget_outcomes.record(
+                reply, request=user_text, session=resolved_session,
+                source_context=source_context, argument=forget.group(1), status=status,
+                stores=erasures.get("stores", {}),
+            )
+
         referential, token = _referential_forget_token(
             forget.group(1),
             access_policy=resolved_policy,
         )
         if referential and not token:
-            return True, "Forget command needs the exact value because more than one matching memory is active."
+            return outcome("Forget command needs the exact value because more than one matching memory is active.", "needs_target")
         if not referential:
             token = _normalize_forget_target(forget.group(1))
         if len(token) < 2:
-            return True, "Forget command skipped: provide a clearer keyword."
+            return outcome("Forget command skipped: provide a clearer keyword.", "needs_target")
         # Already forgotten (review 2026-10-07, crash-heal path): the canonical row is a tombstone, so the forget
         # removes 0, but the mirror may still carry the plaintext and is healed by this very forget. That outcome
         # is confirmed as "already forgotten", never reported as a no-match and never as "Forget applied".
-        from core.memory.entries import _text_is_erased
+        from core.memory.entries import _record_erasure_store, _text_is_erased
         from core.memory.files import memory_path
 
         def _mirror_text() -> str:
             try:
                 return memory_path().read_text(encoding="utf-8")
-            except OSError:
+            except FileNotFoundError:
                 return ""
 
-        mirror_before = _mirror_text().lower()
-        already_erased = _text_is_erased(token) or _text_is_erased(token.rstrip(".!?") + ".")
+        operation_stores: list[tuple[str, Any, str]] = []
+        owner_stores: dict[str, Any] = {}
         try:
+            from core.context_retrieval import _open_memory, _open_memory_for_runtime
+
+            runtime_home = str((source_context or {}).get("runtime_home") or "").strip() or None
+            by_database: dict[str, Any] = {}
+            for owner, opener in (
+                ("semantic", lambda: _open_memory_for_runtime(runtime_home)),
+                ("structured", _open_memory),
+            ):
+                operation_store = opener()
+                if operation_store is None:
+                    raise RuntimeError("erasure operation store is unavailable")
+                database = str(operation_store.db_path.resolve())
+                if database in by_database:
+                    if operation_store is not by_database[database]:
+                        operation_store.close()
+                    owner_stores[owner] = by_database[database]
+                    continue
+                by_database[database] = operation_store
+                owner_stores[owner] = operation_store
+                operation_stores.append((owner, operation_store, ""))
+                operation_id = operation_store.begin_erasure(resolved_session, token)
+                operation_stores[-1] = (owner, operation_store, operation_id)
+        except Exception as exc:
+            LOGGER.warning("erasure operation could not start: %s", type(exc).__name__)
+            _record_erasure_store(erasures, "erasure_operations", "incomplete")
+            for owner, operation_store, _operation_id in operation_stores:
+                _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
+                try:
+                    operation_store.close()
+                except Exception as close_exc:
+                    LOGGER.warning("erasure connection close failed: %s", type(close_exc).__name__)
+            return outcome("Forget could not be verified as fully applied: erasure operations could not be recorded. Please retry the forget.", "failed")
+
+        removed = 0
+        mirror_before = ""
+        mirror_after = ""
+        already_erased = False
+        try:
+            mirror_before = _mirror_text().lower()
+            already_erased = _text_is_erased(token) or _text_is_erased(token.rstrip(".!?") + ".")
             removed = forget_memory(
                 token,
                 access_policy=resolved_policy,
+                erasures=erasures,
             )
-        except memory_entries.MemoryErasureError:
-            # P0 success-after-verification law: an erasure that could not be
-            # verified absent from every model-visible memory path is never
-            # acknowledged as applied. The durable tombstone has landed; the
-            # retry heals whatever path failed verification.
-            return True, (
-                "Forget could not be verified as fully applied — the entry was not confirmed "
-                "erased on every memory path. Please retry the forget."
-            )
+        except Exception as exc:
+            if not any(key.endswith("_failures") for key in erasures):
+                _record_erasure_store(erasures, "structured_entries", "incomplete")
+            LOGGER.warning("structured memory erasure failed: %s", type(exc).__name__)
+        try:
+            mirror_after = _mirror_text().lower()
+        except Exception as exc:
+            _record_erasure_store(erasures, "memory_mirror", "incomplete")
+            LOGGER.warning("memory mirror verification failed: %s", type(exc).__name__)
         semantic_removed = 0
-        erasures: dict[str, int] = {}
         try:
             from core.context_retrieval import forget_session_memory
 
@@ -1889,41 +1941,257 @@ def maybe_handle_memory_command(
                 token,
                 access_policy=resolved_policy,
                 source_context=source_context,
-                erasures=erasures,
+                store_status=erasures,
             )
         except Exception as exc:
             LOGGER.warning("semantic memory forget unavailable: %s", type(exc).__name__)
-            erasures["store_failures"] = 1
+            _record_erasure_store(erasures, "semantic_nodes", "incomplete")
+        memory_entries.forget_profile_derivatives(token, access_policy=resolved_policy, erasures=erasures)
+        _forget_persisted_copies(token, chat_id=resolved_session, erasures=erasures)
+        from core.turn_context import forget_chat_context_pages
+
+        forget_chat_context_pages(chat_id=resolved_session, token=token, erasures=erasures)
+        for owner, operation_store in owner_stores.items():
+            block_status: dict[str, Any] = {}
+            try:
+                operation_store.verify_forget_blocks(token, erasures=block_status)
+            except Exception as exc:
+                LOGGER.warning("prompt block verification failed: %s", type(exc).__name__)
+            result = block_status.get("stores", {}).get("memory_blocks", {"status": "incomplete"})
+            _record_erasure_store(erasures, f"{owner}_memory_blocks", result["status"])
+        required_stores = (
+            "structured_entries", "structured_summaries", "memory_mirror", "semantic_nodes",
+            "source_occurrences", "memory_receipts", "conversation_log", "revocation_ledger",
+            "dialogue_derivatives", "session_summaries", "context_capsule_versions",
+            "memory_fts", "source_fts", "source_embeddings",
+            "user_heuristics", "operator_dense_profile", "persisted_packet_cache_copies", "packet_receipt_ledgers",
+            "context_pages",
+        )
+        for store in required_stores:
+            if store not in erasures.get("stores", {}):
+                _record_erasure_store(erasures, store, "incomplete")
+        for owner, operation_store in owner_stores.items():
+            try:
+                if erasures.get("stores", {}).get("revocation_ledger", {}).get("status") != "verified":
+                    _record_erasure_store(erasures, f"{owner}_revocation_ledger", "incomplete")
+                    continue
+                operation_store.record_revocation(token, chat_id=resolved_session)
+                from core.context_retrieval import _normalize_forget_token as normalize_revocation
+
+                if normalize_revocation(token) not in operation_store.revoked_tokens(resolved_session, strict=True):
+                    raise RuntimeError("owner revocation write could not be verified")
+                _record_erasure_store(erasures, f"{owner}_revocation_ledger", "verified")
+            except Exception as exc:
+                _record_erasure_store(erasures, f"{owner}_revocation_ledger", "incomplete")
+                LOGGER.warning("erasure owner revocation failed: %s", type(exc).__name__)
+        completed_stores = []
+        try:
+            if not any(key.endswith("_failures") and value for key, value in erasures.items()):
+                for _owner, operation_store, operation_id in operation_stores:
+                    operation_store.complete_erasure(operation_id)
+                    completed_stores.append(operation_store)
+                for owner in owner_stores:
+                    _record_erasure_store(erasures, f"{owner}_erasure_operations", "verified")
+                _record_erasure_store(erasures, "erasure_operations", "verified")
+            else:
+                for owner in owner_stores:
+                    _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
+                _record_erasure_store(erasures, "erasure_operations", "incomplete")
+        except Exception as exc:
+            LOGGER.warning("erasure completion could not be verified: %s", type(exc).__name__)
+            for operation_store in completed_stores:
+                try:
+                    operation_store.begin_erasure(resolved_session, token)
+                except Exception as restore_exc:
+                    LOGGER.warning("erasure owner barrier restore failed: %s", type(restore_exc).__name__)
+            for owner in owner_stores:
+                _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
+            _record_erasure_store(erasures, "erasure_operations", "incomplete")
+        finally:
+            for owner, operation_store, _operation_id in operation_stores:
+                try:
+                    operation_store.close()
+                except Exception as exc:
+                    LOGGER.warning("verified erasure connection close failed: %s", type(exc).__name__)
+                    _record_erasure_store(erasures, f"{owner}_connection_close", "incomplete")
+                    try:
+                        from core.vool_memory import VoolMemory
+
+                        barrier = VoolMemory(db_path=operation_store.db_path)
+                        try:
+                            barrier.begin_erasure(resolved_session, token)
+                        finally:
+                            barrier.close()
+                    except Exception as barrier_exc:
+                        LOGGER.warning("close failure barrier restore failed: %s", type(barrier_exc).__name__)
+                        _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
         total_removed = max(int(removed), int(semantic_removed),
-                            *(int(erasures.get(key) or 0) for key in ("semantic_nodes", "source_occurrences")))
-        if erasures.get("store_failures"):
+                            *(int(erasures.get(key) or 0) for key in ("structured_entries", "semantic_nodes", "source_occurrences")))
+        if total_removed <= 0:
+            total_removed = sum(int(erasures.get(key) or 0) for key in (
+                "structured_summaries", "session_summaries", "memory_receipts", "conversation_log", "dialogue_derivatives",
+                "memory_fts", "source_fts",
+                "user_heuristics", "operator_dense_profile", "context_pages",
+            ))
+            total_removed += sum(int(result.get("removed") or 0)
+                                 for name, result in erasures.get("stores", {}).items()
+                                 if name.startswith("persisted_"))
+        failed_stores = [store.replace("_", " ") for store, result in erasures.get("stores", {}).items()
+                         if result["status"] == "incomplete"]
+        if failed_stores:
             # A failed or unopened memory store is not an empty one: the value may still be held and recalled, so the
             # reply never says nothing matched (review 2026-10-08: a denied read answered "found no memory").
-            return True, ("Forget could not be verified as fully applied: the memory store could not be read or "
-                          "changed on this turn"
+            return outcome("Forget could not be verified as fully applied: "
+                          + ", ".join(failed_stores) + " could not be erased and verified on this turn"
                           + (f", after {total_removed} entr{'y' if total_removed == 1 else 'ies'} were removed" if total_removed > 0 else "")
-                          + ". Please retry the forget.")
+                          + ". Please retry the forget.", "partial" if total_removed > 0 else "failed")
         if total_removed <= 0:
-            mirror_after = _mirror_text().lower()
             healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
             if already_erased or healed:
-                return True, ("That was already forgotten; a stale copy of it has now been cleared as well."
-                              if healed else "That was already forgotten.")
+                return outcome("That was already forgotten; a stale copy of it has now been cleared as well."
+                               if healed else "That was already forgotten.", "already_erased")
             # Never "Forget applied" over nothing removed (served check 2026-10-07: "Forget the storage
             # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
             # command is answered with the truth; the turn is still recorded by the fast path, so the
             # capsule's temporal law withdraws the record it names on the next recall.
             # worded without a storage verb beside "memory": the final claim check reads "no stored memory" as a
             # claim that something was stored, and replaced the forget reply (main's test_a_product_word_in_a_sentence_is_not_a_command.py)
-            from core.memory.command_result import ForgetNoMatch, command_turn_key
-
-            return True, ForgetNoMatch(
-                token, request=user_text, session=resolved_session,
-                turn_key=command_turn_key(source_context),
-            )
-        return True, f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}."
+            return outcome(f'Nothing was removed. Forget found no memory in this chat that matched "{token}".', "no_match")
+        return outcome(f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}.", "applied")
 
     return False, ""
+
+
+def _forget_persisted_copies(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
+    """Inspect persisted packet/cache copies; unattributed copies make erasure incomplete."""
+    from core.memory.entries import _load_erasure_rows, _record_erasure_store
+    from core.vool_memory import text_carries_forget_token
+    from storage.db import get_connection
+
+    def quoted(name: str) -> str:
+        return '"' + name.replace('"', '""') + '"'
+
+    conn = None
+    try:
+        conn = get_connection()
+        names = [str(row[0]) for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+        ).fetchall()]
+        targets = [name for name in names if any(part in name.lower() for part in ("packet", "cache", "snapshot"))]
+        for table in targets:
+            store = "persisted_" + table
+            try:
+                schema = conn.execute(f"PRAGMA table_info({quoted(table)})").fetchall()
+                columns = [str(row[1]) for row in schema]
+                identity = [str(row[1]) for row in schema if int(row[5])]
+                scope_column = next((column for column in ("chat_id", "chat_scope", "session_id", "origin_session_id") if column in columns), None)
+                payload_columns = [column for column in columns if column != scope_column]
+                json_columns = frozenset(str(row[1]) for row in schema
+                                         if "JSON" in str(row[2]).upper() or str(row[1]).lower().endswith("_json"))
+
+                def carries(row: Any, selected_columns: tuple[str, ...] = tuple(payload_columns),
+                            structured_columns: frozenset[str] = json_columns) -> bool:
+                    matched = False
+                    for column in selected_columns:
+                        value = row[column]
+                        if column in structured_columns:
+                            if value is None:
+                                continue
+                            decoded = json.loads(value) if isinstance(value, (str, bytes, bytearray)) else value
+                            value = json.dumps(decoded, ensure_ascii=False)
+                        if isinstance(value, bytes) and value:
+                            # Opaque persisted payloads have no text-erasure proof.
+                            raise RuntimeError("persisted payload has an opaque representation")
+                        if not isinstance(value, str):
+                            continue
+                        fingerprint = column in {"memo_key", "nonce"} or column.endswith(("_sha256", "_hash", "_digest"))
+                        if fingerprint and re.fullmatch(r"(?:k1:)?[0-9a-f]{32,128}", value):
+                            continue
+                        if text_carries_forget_token(value, token):
+                            matched = True
+                    return matched
+
+                suffix = f" WHERE {quoted(scope_column)} = ?" if scope_column else ""
+                params = (chat_id,) if scope_column else ()
+                rows = conn.execute(f"SELECT * FROM {quoted(table)}{suffix}", params).fetchall()
+                matched = [row for row in rows if carries(row)]
+                if matched and (not scope_column or not identity):
+                    _record_erasure_store(erasures, store, "incomplete")
+                    continue
+                for row in matched:
+                    where = " AND ".join(f"{quoted(column)} = ?" for column in identity)
+                    conn.execute(f"DELETE FROM {quoted(table)} WHERE {where}", tuple(row[column] for column in identity))
+                conn.commit()
+                retained = conn.execute(f"SELECT * FROM {quoted(table)}{suffix}", params).fetchall()
+                if any(carries(row) for row in retained):
+                    raise RuntimeError("persisted copy could not be erased and verified")
+                _record_erasure_store(erasures, store, "verified", len(matched))
+            except Exception:
+                conn.rollback()
+                _record_erasure_store(erasures, store, "incomplete")
+        _record_erasure_store(erasures, "persisted_packet_cache_copies", "incomplete" if any(
+            name.startswith("persisted_") and result["status"] == "incomplete"
+            for name, result in erasures.get("stores", {}).items()) else "verified")
+    except Exception:
+        _record_erasure_store(erasures, "persisted_packet_cache_copies", "incomplete")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                _record_erasure_store(erasures, "persisted_packet_cache_connection", "incomplete")
+
+    try:
+        from core.evidence_kernel.receipts import _ledger_dir, _receipt_payload_for_erasure, _sha256
+
+        root = _ledger_dir()
+        try:
+            kinds = list(root.iterdir())
+        except FileNotFoundError:
+            kinds = []
+        retained = False
+        for kind in kinds:
+            if not kind.is_dir():
+                continue
+            rows = _load_erasure_rows(kind / (_sha256(chat_id)[:24] + ".jsonl"))
+            # The chain is immutable. Payload-bearing metadata must be named as
+            # retained; references and keyed digests are not plaintext copies.
+            retained = retained or any(text_carries_forget_token(
+                json.dumps(_receipt_payload_for_erasure(row), ensure_ascii=False), token,
+            ) for row in rows)
+        _record_erasure_store(erasures, "packet_receipt_ledgers", "incomplete" if retained else "verified")
+    except Exception:
+        _record_erasure_store(erasures, "packet_receipt_ledgers", "incomplete")
+
+    import os
+    from pathlib import Path
+
+    from core.runtime_paths import data_path
+
+    roots = [("bootstrap_snapshots", data_path("bootstrap")), ("relay_mirror_snapshots", Path("relay_mirror"))]
+    configured = str(os.environ.get("VOOL_MIRROR_DATA_DIR") or "").strip()
+    if configured:
+        roots.append(("configured_mirror_snapshots", Path(configured)))
+    for store, root in roots:
+        try:
+            try:
+                paths = list(root.iterdir())
+            except FileNotFoundError:
+                _record_erasure_store(erasures, store, "not_applicable")
+                continue
+            retained = False
+            for path in paths:
+                if path.suffix.lower() != ".json":
+                    continue
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                retained = retained or text_carries_forget_token(json.dumps(payload, ensure_ascii=False), token)
+            # Snapshot membership alone gives no authority to remove another
+            # chat's or peer's copy. Readers withhold retained payloads.
+            _record_erasure_store(erasures, store, "incomplete" if retained else "verified")
+        except Exception:
+            _record_erasure_store(erasures, store, "incomplete")
+    _record_erasure_store(erasures, "remote_mirror_copies", "incomplete" if str(
+        os.environ.get("VOOL_MIRROR_URL") or "").strip() else "not_applicable")
 
 
 def _memory_scope_for_user_fact(

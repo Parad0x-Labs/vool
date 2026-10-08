@@ -1274,6 +1274,17 @@ def host_header_allowed(host_value: str) -> bool:
     return hostname in {entry.strip().lower() for entry in extra.split(",") if entry.strip()}
 
 
+def _publish_canonical_turn_request(
+    source: dict[str, Any] | None, destination: dict[str, Any] | None,
+) -> None:
+    """Carry the ingress owner's immutable request across runtime context copies."""
+    from core.turn_contract import TURN_REQUEST_KEY, TurnRequest
+
+    request = (source or {}).get(TURN_REQUEST_KEY)
+    if isinstance(destination, dict) and isinstance(request, TurnRequest):
+        destination[TURN_REQUEST_KEY] = request
+
+
 def run_agent(
     runtime: RuntimeServices,
     user_text: str,
@@ -1293,6 +1304,7 @@ def run_agent(
     """
     from core.session_turn_gate import hold_session_turn_gate
 
+    caller_context = source_context
     with hold_session_turn_gate(session_id):
         if session_id and isinstance(source_context, dict):
             client_history = source_context.get("client_conversation_history")
@@ -1313,13 +1325,15 @@ def run_agent(
                         "conversation_history": refreshed,
                         "history_message_count": len(refreshed),
                     }
-        return _run_agent_locked(
+        result = _run_agent_locked(
             runtime,
             user_text,
             session_id=session_id,
             source_context=source_context,
             workspace_root_provider=workspace_root_provider,
         )
+        _publish_canonical_turn_request(source_context, caller_context)
+        return result
 
 
 def _run_agent_locked(
@@ -1833,6 +1847,9 @@ def _run_agent_locked(
                 session_id_override=session_id,
                 source_context=base_context,
             )
+        # The service re-verifies the sealed reply using its original request context.
+        # Publish the same owner object the executor registered, never a result field.
+        _publish_canonical_turn_request(base_context, source_context)
         # UNSEALED results only (a caller driving run_agent with its own agent that did not
         # commit): the sanitizer + capsule override are completed HERE, before any transport
         # commit. A result that already carries its response.commit was sealed inside the
