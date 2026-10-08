@@ -782,6 +782,110 @@ def test_abandoned_prepare_never_labels_a_held_paykit_dispatch_as_unsent(env, mo
 
 # --- the optional dependency and the legacy lane --------------------------------------------------------------------
 
+def _paykit_resource(lane, rpc, **kwargs):
+    from tests.wallet._rig_paykit import ScriptedMppResource
+
+    return ScriptedMppResource(rpc, **kwargs) if lane == "mpp" else ScriptedPayKitResource(rpc, **kwargs)
+
+
+@pytest.mark.parametrize("lane", ["x402", "mpp"])
+def test_a_prepare_that_refuses_frees_the_paykit_request_at_once_with_its_receipt(env, monkeypatch, lane):
+    """Both pay-kit lanes prepare through the door's own prepare: one that refuses without ending its proposal rejects it
+    there, with its receipt and nothing charged, and frees the request at once, not after the prepare window."""
+    from core.wallet import lifecycle, proposals, receipts
+
+    profile = _pocket()
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+    refused: list[str] = []
+
+    def refuse_once(self, proposal_id):
+        if not refused:
+            refused.append(proposal_id)
+            raise RuntimeError("a dependency vanished mid-prepare")
+        return real_prepare(self, proposal_id)
+
+    monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", refuse_once)
+    with _paykit_resource(lane, env["rpc"]) as resource:
+        with pytest.raises(RuntimeError):
+            _park(resource, profile)
+        again = _park(resource, profile)
+    first = proposals.get_proposal(refused[0])
+    assert first.state == proposals.STATE_REJECTED
+    assert [(r["state"], r["refusal"]["reason"], r["refusal"]["charged_amount_minor"]) for r in receipts.list_receipts() if r["proposal_id"] == first.proposal_id] == [
+        (proposals.STATE_REJECTED, "prepare_refused", 0)]
+    assert again.proposal_id != first.proposal_id and proposals.get_proposal(again.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+
+
+@pytest.mark.parametrize("lane", ["x402", "mpp"])
+def test_a_paykit_request_whose_payment_still_holds_spend_is_refused_before_anything_is_sent(env, lane):
+    """The pay-kit gate reads the dispatch record, not the state column: a payment whose outcome is unknown still holds
+    its spend, so its request is refused before anything is sent even when its row says failed."""
+    from core.wallet import limits, proposals
+    from core.wallet.errors import WalletFault
+    from core.wallet.store import connection
+
+    profile = _pocket()
+    with _paykit_resource(lane, env["rpc"], mode="no_settlement_header") as resource:
+        first = _park(resource, profile)
+        _approve(first.proposal_id)
+        assert limits.reservation_state(first.proposal_id) == limits.RESERVATION_RESERVED
+        with connection() as conn:
+            conn.execute("UPDATE wallet_proposals SET state = 'failed' WHERE proposal_id = ?", (first.proposal_id,))
+        resource.mode, resource.amount_minor = "ok", 1400
+        sent = len(resource.requests)
+        with pytest.raises(WalletFault) as again:
+            _park(resource, profile)
+        assert len(resource.requests) == sent, "refused before anything is sent"
+    assert (again.value.code, again.value.context["reason"]) == ("wallet_duplicate_payment", "payment_outcome_unknown")
+    assert [p.proposal_id for p in proposals.list_proposals()] == [first.proposal_id]
+
+
+@pytest.mark.parametrize("rewound_to", ["failed", "proposed_an_hour_ago"])
+@pytest.mark.parametrize("lane", ["x402", "mpp"])
+def test_a_paid_paykit_request_whose_row_is_rewound_is_never_paid_again(env, lane, rewound_to):
+    """A settled amount that moved is a payment made: a delivered pay-kit payment whose row is rewound (to failed, or
+    to still being prepared long past the window) keeps its request closed, with no receipt calling it unsent."""
+    import time
+
+    from core.wallet import limits, proposals, receipts
+    from core.wallet.errors import WalletFault
+    from core.wallet.store import connection
+
+    profile = _pocket()
+    with _paykit_resource(lane, env["rpc"]) as resource:
+        first = _park(resource, profile)
+        assert _approve(first.proposal_id).state == proposals.STATE_CONFIRMED and len(resource.landed) == 1
+        assert limits.reservation_state(first.proposal_id) == limits.RESERVATION_SETTLED
+        with connection() as conn:
+            if rewound_to == "failed":
+                conn.execute("UPDATE wallet_proposals SET state = 'failed' WHERE proposal_id = ?", (first.proposal_id,))
+            else:
+                conn.execute("UPDATE wallet_proposals SET state = 'proposed', updated_at = ? WHERE proposal_id = ?",
+                             (time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() - 3600)), first.proposal_id))
+        resource.amount_minor = 1400
+        sent = len(resource.requests)
+        with pytest.raises(WalletFault) as again:
+            _park(resource, profile)
+        assert len(resource.requests) == sent and len(resource.landed) == 1
+    assert (again.value.code, again.value.context["reason"]) == ("wallet_duplicate_payment", "payment_outcome_unknown")
+    assert [p.proposal_id for p in proposals.list_proposals()] == [first.proposal_id]
+    assert [r["refusal"]["reason"] for r in receipts.list_receipts() if r["proposal_id"] == first.proposal_id and r.get("refusal")] == []
+
+
+def test_the_fetch_door_hands_an_offer_naming_its_fee_payer_as_fee_payer_key_to_paykit(env):
+    """A canonical v1 offer may name its fee payer as a top-level ``feePayerKey``: the fetch door still hands it to the
+    pay-kit lane, which parks it and pays it once; the wallet never broadcasts a transfer of its own for it."""
+    from core.wallet import proposals, x402
+    from tests.wallet.test_wallet_paykit_missing_extra import _FeePayerKeyV1
+
+    profile = _pocket()
+    with _FeePayerKeyV1(env["rpc"], network="solana-devnet") as resource:
+        parked = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert (parked.status, proposals.get_proposal(parked.proposal_id).origin) == (x402.OUTCOME_PAYMENT_REQUIRED, proposals.ORIGIN_X402_PAYKIT)
+        assert _approve(parked.proposal_id).state == proposals.STATE_CONFIRMED
+        assert len(resource.landed) == 1 and env["rpc"].send_count() == 0
+
+
 def test_without_paykit_the_lane_refuses_before_sending_anything(env, monkeypatch):
     from core.wallet import paykit_x402, proposals
     from core.wallet.errors import WalletFault
