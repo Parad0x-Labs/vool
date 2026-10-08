@@ -985,6 +985,30 @@ def _looks_like_request_clause(text: str) -> bool:
     )
 
 
+#: A lettered or numbered SECTION heading on its own line: "A — SECURITY REVIEW", "B - Scheduling",
+#: "C) Price guard", "D:" (an answer-template slot). A turn that lays out two or more such sections
+#: asks for one answer per section.
+_SECTION_HEADING_RE = re.compile(
+    r"^[ \t]*(?P<label>[A-Z]|\d{1,2})[ \t]*(?:[\u2014\u2013:)]|-(?=[ \t]))", re.MULTILINE
+)
+
+
+def _section_scoped_count(text: str, pattern: re.Pattern[str]) -> bool:
+    """Whether every count ``pattern`` finds sits inside one of several labelled sections.
+
+    "Return only sections A, B, C and D" binds the WHOLE answer to the section layout; the
+    "In one sentence explain ..." under heading D shapes section D only. Promoting that local
+    count into a whole-response contract demanded a one-sentence answer to a four-section
+    evaluation and spent a paid repair call rewriting a correct answer.
+    """
+
+    headings = list(_SECTION_HEADING_RE.finditer(text))
+    if len({match.group("label") for match in headings}) < 2:
+        return False
+    counts = list(pattern.finditer(text))
+    return bool(counts) and all(match.start() > headings[0].start() for match in counts)
+
+
 def _has_several_request_clauses(text: str) -> bool:
     """Whether a shape directive belongs to one sibling among several requests.
 
@@ -1040,6 +1064,8 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
     structured_batch = parse_structured_batch(user_text)
     raw_text = " ".join(str(user_text or "").split())
     directive_text, payload_authoritative = _directive_surface(user_text)
+    # Section headings are line-anchored; keep the line layout for that one check.
+    layout_text = directive_text
     directive_text = " ".join(directive_text.split())
     if not directive_text:
         return None
@@ -1151,6 +1177,12 @@ def parse_raw_output_contract(user_text: str) -> RawOutputContract | None:
         or _ONLY_OUTPUT_RE.search(directive_text)
         or _NO_EXTRA_RE.search(directive_text)
     )
+    if _section_scoped_count(layout_text, _SENTENCE_COUNT_RE):
+        exact_sentences = None
+    if _section_scoped_count(layout_text, _WORD_COUNT_RE):
+        exact_words = None
+    if _section_scoped_count(layout_text, _LINE_COUNT_RE):
+        exact_lines = None
     if not global_output_binding and _has_several_request_clauses(directive_text):
         # A shape attached to one request is not authority over its siblings. For example,
         # "Explain X. Calculate Y. Give a 7-word title." constrains only the title; treating it as
