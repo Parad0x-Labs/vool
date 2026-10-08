@@ -300,3 +300,96 @@ def _sign(signer: EvmExtensionSigner, typed: dict[str, Any]) -> str:
         connection.close()
     assert "signature" in answer, answer
     return answer["signature"]
+
+
+class _TwoWireResource:
+    """One paid URL in front of a v1 and a v2 scripted resource: every request is relayed to the one for the current
+    ``wire``, which challenges, settles and delivers on its own wire."""
+
+    def __init__(self, v1: X402V1EvmResource, v2: Any, *, wire: int) -> None:
+        self.backends = {1: v1, 2: v2}
+        self.wire = wire
+        front = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_args: Any) -> None:
+                return
+
+            def do_GET(self) -> None:
+                import http.client
+                from urllib.parse import urlsplit
+
+                target = urlsplit(front.backends[front.wire].url)
+                upstream = http.client.HTTPConnection(target.hostname, target.port, timeout=10)
+                try:
+                    upstream.request("GET", target.path, headers={k: v for k, v in self.headers.items() if k.lower() != "host"})
+                    answer = upstream.getresponse()
+                    body = answer.read()
+                finally:
+                    upstream.close()
+                self.send_response(answer.status)
+                for name, value in answer.getheaders():
+                    if name.lower() not in ("content-length", "transfer-encoding", "connection", "date", "server"):
+                        self.send_header(name, value)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+
+    @property
+    def url(self) -> str:
+        return f"http://127.0.0.1:{self._server.server_address[1]}/paid/report"
+
+    def __enter__(self) -> _TwoWireResource:
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+
+
+@pytest.mark.parametrize(("first", "then"), [(1, 2), (2, 1)], ids=["1-2", "2-1"])
+def test_retry_after_terminal_refusal_replaces_wire_and_all_terms(rig, first, then):
+    """The first payment for a request is refused for good (the owner's ceiling, at the claim), and the resource then
+    asks on the other x402 wire. The retry's payment takes the request whole: its binding carries the new offer's wire,
+    terms, fees and facilitator and an empty payment result, exactly as a first fetch of that offer writes them, so it
+    is submitted on the wire the resource asked for and settles. The refused payment's binding is kept, whole, on that
+    payment's own record."""
+    from core.wallet import custody, lifecycle, limits, proposals, x402
+    from tests.wallet._rig_evm import X402V2Resource
+
+    rpc, facilitator = rig
+    with X402V1EvmResource(facilitator, rpc) as v1, X402V2Resource(facilitator, rpc=rpc, amount_minor=AMOUNT + 500) as v2, \
+            _TwoWireResource(v1, v2, wire=first) as resource, EvmExtensionSigner() as signer:
+        profile = custody.register_external_signer_wallet(signer.address, network=NETWORK)
+        engine = lifecycle.default_lifecycle()
+        refused = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        limits.set_limits(profile.wallet_id, "USDC", limits.SpendLimits(per_tx_minor=1, daily_minor=1, per_destination_daily_minor=1))
+        with pytest.raises(WalletFault) as ceiling:
+            engine.request_external_signature(refused.proposal_id)
+        assert ceiling.value.code == "wallet_limit_exceeded" and proposals.get_proposal(refused.proposal_id).state == proposals.STATE_REJECTED
+        limits.set_limits(profile.wallet_id, "USDC", limits.SpendLimits(per_tx_minor=10**9, daily_minor=10**9, per_destination_daily_minor=10**9))
+        old_binding = x402.binding_for_proposal(refused.proposal_id)
+        assert int(old_binding["version"]) == first
+
+        resource.wire = then
+        retry = x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
+        assert retry.status == x402.OUTCOME_PAYMENT_REQUIRED and retry.proposal_id != refused.proposal_id
+        binding = x402.binding_for_proposal(retry.proposal_id)
+        fresh = x402.binding_for_proposal(x402.fetch_paid_resource(resource.url + "?first-fetch", wallet_id=profile.wallet_id).proposal_id)
+        per_request = ("binding_id", "request_digest", "url", "proposal_id", "created_at", "updated_at")
+        assert {k: v for k, v in binding.items() if k not in per_request} == {k: v for k, v in fresh.items() if k not in per_request}
+        assert int(binding["version"]) == then and binding["request_digest"] == old_binding["request_digest"]
+        assert x402.binding_for_proposal(refused.proposal_id) is None
+        [kept] = [e["detail"] for e in proposals.proposal_events(refused.proposal_id) if e["state"] == x402.EVENT_BINDING_REPLACED]
+        assert kept == {"binding": old_binding, "replaced_by": retry.proposal_id}
+
+        view = engine.request_external_signature(retry.proposal_id)
+        signature = _sign(signer, json.loads(view["transports"]["eip1193"]["params"][1]))
+        receipt = engine.submit_external_signature(view["request_id"], signature_hex=signature)
+        assert receipt.state == proposals.STATE_CONFIRMED
+        paid, other = (v1, v2) if then == 1 else (v2, v1)
+        assert len(paid.deliveries) == 1 and other.deliveries == []

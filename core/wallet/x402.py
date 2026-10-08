@@ -156,6 +156,16 @@ BINDING_HELD_STATES = (*PREPARING_STATES, proposals.STATE_PENDING_APPROVAL, prop
 #: Preparing moves a proposal on within seconds (each step is a bounded read). One still preparing this long after its
 #: last step was abandoned (its process stopped mid-prepare): see :func:`end_abandoned_prepare`.
 ABANDONED_PREPARE_SECONDS = 300.0
+#: The event a binding leaves on its proposal when a later payment for the same request replaces it: the whole binding
+#: as it was, and the proposal that replaced it.
+EVENT_BINDING_REPLACED = "x402_binding_replaced"
+#: What a binding column holds when an offer says nothing about it: the table's own defaults. A binding is always
+#: written whole, so a replaced binding keeps nothing of the payment before it.
+_BINDING_DEFAULTS: dict[str, Any] = {
+    "tx_signature": "", "resource_status": 0, "resource_digest": "", "resource_bytes": 0, "version": 1, "offer_json": "", "resource_origin": "",
+    "resource_method": "GET", "facilitator_id": "", "eip712_name": "", "eip712_version": "", "asset_transfer_method": "", "nonce": "", "deadline": 0,
+    "expires_at": 0, "max_facilitator_fee_minor": 0, "max_network_fee_minor": 0, "sponsored_gas": 0, "fee_asset": "", "max_timeout_seconds": 60, "asset_address": "",
+}
 
 
 @dataclass(frozen=True)
@@ -228,36 +238,47 @@ def binding_for_proposal(proposal_id: str) -> dict[str, Any] | None:
     return _binding_row(row) if row else None
 
 
-def _upsert_binding(*, request_digest: str, url: str, method: str, offer: X402Request, proposal_id: str, state: str) -> dict[str, Any] | None:
-    """Record the v1 binding. An EVM-family offer also carries its EIP-712 domain facts,
-    transfer method and truthful sponsorship (EIP-3009 exact: the facilitator settles
-    on-chain and pays gas); the Solana v1 lane self-broadcasts and is NOT sponsored.
-    None when the request is already bound to a payment that holds it (:func:`binding_guard`)."""
-    now = utcnow()
-    is_evm = False
+def _v1_terms(offer: X402Request) -> dict[str, Any]:
+    """A v1 binding's terms. An EVM-family offer also carries its EIP-712 domain facts, transfer method and truthful
+    sponsorship (EIP-3009 exact: the facilitator settles on-chain and pays gas); the Solana v1 lane self-broadcasts and
+    is NOT sponsored."""
+    terms: dict[str, Any] = {"pay_to": offer.pay_to, "amount_minor": int(offer.amount_minor), "asset": offer.asset, "network": offer.network}
     try:
         from core.wallet import chains as _chains
 
         is_evm = _chains.resolve_network(offer.network).is_evm
     except Exception:
         is_evm = False
-    evm_columns = ""
-    evm_values: tuple = ()
     if is_evm:
-        evm_columns = ", version, eip712_name, eip712_version, asset_transfer_method, max_timeout_seconds, fee_asset, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, asset_address"
-        evm_values = (1, offer.eip712_name, offer.eip712_version, offer.asset_transfer_method or "eip3009", int(offer.max_timeout_seconds or 0), offer.asset, 0, 0, 1, offer.asset)
+        terms.update(version=1, eip712_name=offer.eip712_name, eip712_version=offer.eip712_version, asset_transfer_method=offer.asset_transfer_method or "eip3009",
+                     max_timeout_seconds=int(offer.max_timeout_seconds or 0), fee_asset=offer.asset, max_facilitator_fee_minor=0, max_network_fee_minor=0, sponsored_gas=1,
+                     asset_address=offer.asset)
+    return terms
+
+
+def _claim_request(conn: Any, *, request_digest: str, url: str, method: str, proposal_id: str, terms: dict[str, Any]) -> bool:
+    """Bind the request to ``proposal_id`` on the offer's ``terms``, on the caller's connection: a first binding, or a
+    whole replacement of one whose payment holds nothing (:func:`binding_guard`). Every column is written, wire, chain,
+    asset, fees, resource and payment result alike, so nothing of a replaced payment's offer stays; the replaced binding
+    is kept, whole, as an event on its own proposal. False when another payment holds the request."""
+    columns = _BINDING_COLS.split(", ")
+    now = utcnow()
+    row = {**_BINDING_DEFAULTS, **terms, "binding_id": f"x402b-{uuid.uuid4().hex[:16]}", "request_digest": request_digest, "url": url, "method": method.upper(),
+           "proposal_id": proposal_id, "state": BINDING_PAYMENT_REQUIRED, "created_at": now, "updated_at": now}
+    replaced = conn.execute(f"SELECT {_BINDING_COLS} FROM wallet_x402_bindings WHERE request_digest = ?", (request_digest,)).fetchone()
     guard, guard_values = binding_guard()
-    with connection() as conn:
-        cursor = conn.execute(
-            f"INSERT INTO wallet_x402_bindings (binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, state, created_at, updated_at{evm_columns})"
-            f" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{', ?' * len(evm_values)})"
-            " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, state = excluded.state, pay_to = excluded.pay_to, amount_minor = excluded.amount_minor, updated_at = excluded.updated_at"
-            + guard,
-            (f"x402b-{uuid.uuid4().hex[:16]}", request_digest, url, method.upper(), offer.pay_to, int(offer.amount_minor), offer.asset, offer.network, proposal_id, state, now, now, *evm_values, *guard_values),
-        )
-        if cursor.rowcount != 1:
-            return None
-    return binding_for_digest(request_digest) or {}
+    cursor = conn.execute(
+        f"INSERT INTO wallet_x402_bindings ({_BINDING_COLS}) VALUES ({', '.join('?' for _ in columns)})"
+        f" ON CONFLICT(request_digest) DO UPDATE SET {', '.join(f'{column} = excluded.{column}' for column in columns if column != 'request_digest')}" + guard,
+        (*(row[column] for column in columns), *guard_values),
+    )
+    if cursor.rowcount != 1:
+        return False
+    if replaced is not None:
+        old = _binding_row(replaced)
+        conn.execute("INSERT INTO wallet_proposal_events (proposal_id, state, detail_json, created_at) VALUES (?, ?, ?, ?)",
+                     (old["proposal_id"], EVENT_BINDING_REPLACED, dumps({"binding": old, "replaced_by": proposal_id}), now))
+    return True
 
 
 def binding_guard() -> tuple[str, tuple[Any, ...]]:
@@ -415,10 +436,12 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     if offer is None:
         return X402Outcome(status=OUTCOME_REFUSED, http_status=status, body=body)
     proposal = propose_from_x402(offer, wallet_id=wallet_id, source_context=source_context)
-    # bound before it is prepared: a proposal that lost the request to another payment never becomes approvable
-    binding = _upsert_binding(request_digest=digest, url=clean_url, method=method, offer=offer, proposal_id=proposal.proposal_id, state=BINDING_PAYMENT_REQUIRED)
-    if binding is None:
+    # bound before it is prepared, whole: a proposal that lost the request to another payment never becomes approvable
+    with connection() as conn:
+        bound = _claim_request(conn, request_digest=digest, url=clean_url, method=method, proposal_id=proposal.proposal_id, terms=_v1_terms(offer))
+    if not bound:
         return _lost_request(digest, proposal.proposal_id, timeout=timeout, source_context=source_context)
+    binding = binding_for_digest(digest) or {}
     prepared = prepare_bound(proposal.proposal_id, source_context=source_context)
     return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=status, body=body, proposal_id=prepared.proposal_id, binding_id=binding.get("binding_id", ""), offer=offer)
 
@@ -509,10 +532,10 @@ def _fetch_v2(v2_offer, clean_url: str, method: str, wallet_id: str, *, source_c
         facilitator = f"{capability.facilitator_id}@{capability.origin}"
     except Exception:
         facilitator = ""  # prepare() re-checks and refuses typed when missing
-    if _upsert_binding_v2(
-        request_digest=digest, url=clean_url, method=method, proposal_id=proposal.proposal_id,
-        entry=entry, facilitator=facilitator,
-    ) is None:
+    with connection() as conn:
+        bound = _claim_request(conn, request_digest=digest, url=clean_url, method=method, proposal_id=proposal.proposal_id,
+                               terms=_v2_terms(entry, url=clean_url, facilitator=facilitator))
+    if not bound:
         return _lost_request(digest, proposal.proposal_id, timeout=20.0, source_context=source_context)
     prepare_bound(proposal.proposal_id, source_context=source_context)
     binding = binding_for_digest(digest) or {}
@@ -523,36 +546,20 @@ def _v2_to_v1_view(offer: Any) -> Any:
     return None  # the v2 offer rides the binding record; the outcome view stays summary-level
 
 
-def _upsert_binding_v2(*, request_digest: str, url: str, method: str, proposal_id: str, entry: Any, facilitator: str) -> dict[str, Any] | None:
-    """Record the v2 binding with the full offer evidence; None when the request is already bound to a payment that
-    holds it (:func:`binding_guard`)."""
+def _v2_terms(entry: Any, *, url: str, facilitator: str) -> dict[str, Any]:
+    """A v2 binding's terms: the full offer evidence."""
     from core.wallet import chains, x402_v2
 
-    now = utcnow()
     asset = chains.asset_for(entry.network, entry.asset)
-    guard, guard_values = binding_guard()
-    with connection() as conn:
-        cursor = conn.execute(
-            "INSERT INTO wallet_x402_bindings (binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, state, created_at, updated_at,"
-            " version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, max_timeout_seconds, fee_asset, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, asset_address)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            " ON CONFLICT(request_digest) DO UPDATE SET proposal_id = excluded.proposal_id, offer_json = excluded.offer_json, facilitator_id = excluded.facilitator_id, updated_at = excluded.updated_at"
-            + guard,
-            (
-                f"x402b-{uuid.uuid4().hex[:16]}", request_digest, url, method.upper(), entry.pay_to, int(entry.amount_minor), asset.symbol, entry.network, proposal_id, BINDING_PAYMENT_REQUIRED, now, now,
-                2, dumps(entry.to_dict()), x402_v2.resource_origin_of(url), entry.resource_method, facilitator,
-                entry.eip712_name, entry.eip712_version, entry.asset_transfer_method, int(entry.max_timeout_seconds), asset.symbol, 0, 0,
-                # EIP-3009 exact: the payer signs an authorization and the FACILITATOR settles
-                # on-chain and pays gas — sponsored is the truthful record, and the payer's
-                # reserved fee is genuinely zero. A future payer-gas method records 0 here.
-                1 if str(entry.asset_transfer_method or "eip3009") == "eip3009" else 0,
-                asset.address,
-                *guard_values,
-            ),
-        )
-        if cursor.rowcount != 1:
-            return None
-    return binding_for_digest(request_digest) or {}
+    return {
+        "pay_to": entry.pay_to, "amount_minor": int(entry.amount_minor), "asset": asset.symbol, "network": entry.network, "version": 2, "offer_json": dumps(entry.to_dict()),
+        "resource_origin": x402_v2.resource_origin_of(url), "resource_method": entry.resource_method, "facilitator_id": facilitator, "eip712_name": entry.eip712_name,
+        "eip712_version": entry.eip712_version, "asset_transfer_method": entry.asset_transfer_method, "max_timeout_seconds": int(entry.max_timeout_seconds),
+        "fee_asset": asset.symbol, "max_facilitator_fee_minor": 0, "max_network_fee_minor": 0,
+        # EIP-3009 exact: the payer signs an authorization and the FACILITATOR settles on-chain and pays gas — sponsored
+        # is the truthful record, and the payer's reserved fee is genuinely zero. A future payer-gas method records 0 here.
+        "sponsored_gas": 1 if str(entry.asset_transfer_method or "eip3009") == "eip3009" else 0, "asset_address": asset.address,
+    }
 
 
 def retry_paid_resource(proposal_id: str, *, source_context: dict[str, Any] | None = None, timeout: float = 20.0) -> X402Outcome:
