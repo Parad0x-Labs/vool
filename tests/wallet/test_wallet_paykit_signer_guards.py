@@ -2,8 +2,9 @@
 
 The signature guard (``verify_payment_message``) stands between pay-kit and this wallet's key: every rule it holds has
 a case here that breaks exactly that rule, for SOL and for a registered token (USDC). The guarded signer signs once
-and never before the guard passed. Settlement counts only the transaction it was asked about. The lanes that drive
-these guards through pay-kit itself stay in the optional modules beside this one.
+and never before the guard passed. Settlement counts only the transaction it was asked about, and only on that
+transaction's complete execution result. The lanes that drive these guards through pay-kit itself stay in the
+optional modules beside this one.
 """
 from __future__ import annotations
 
@@ -208,6 +209,66 @@ def test_settlement_counts_only_the_transaction_it_was_asked_about():
 
     assert verdict(str(landed.signatures[0])) == "settled"
     assert verdict(str(Keypair().sign_message(b"another payment"))) == "unknown"
+
+
+def _one_landed_payment():
+    """A payer-signed SOL payment as the chain holds it: (wire bytes, signed message, payer, transaction id)."""
+    from solders.hash import Hash
+    from solders.keypair import Keypair
+    from solders.message import MessageV0, to_bytes_versioned
+    from solders.transaction import VersionedTransaction
+
+    payer, fee_payer = Keypair(), Keypair()
+    message = MessageV0.try_compile(fee_payer.pubkey(), [_sol(str(payer.pubkey()), OTHER_DESTINATION, 1500), _memo()], [], Hash.default())
+    signed = bytes(to_bytes_versioned(message))
+    landed = VersionedTransaction.populate(message, [fee_payer.sign_message(signed), payer.sign_message(signed)])
+    return base64.b64encode(bytes(landed)).decode(), signed, str(payer.pubkey()), str(landed.signatures[0])
+
+
+class _Chain:
+    """The same getTransaction answer for every read, counted."""
+
+    def __init__(self, answer):
+        self.answer = answer
+        self.reads = 0
+
+    def _call(self, method, params):
+        assert method == "getTransaction"
+        self.reads += 1
+        return self.answer
+
+
+@pytest.mark.parametrize("meta", [None, "absent", {"fee": 5000}], ids=["meta-null", "meta-absent", "meta-without-err"])
+def test_missing_execution_metadata_is_never_a_settlement(meta):
+    """Matching bytes and signatures prove WHICH transaction came back, not that it ran: without an explicitly present
+    ``err`` there is no verdict, and the answer is read again rather than taken as final."""
+    from core.wallet import paykit_x402
+
+    wire, signed, payer, tx_id = _one_landed_payment()
+    answer = {"transaction": [wire, "base64"]}
+    if meta != "absent":
+        answer["meta"] = meta
+    chain = _Chain(answer)
+    assert paykit_x402.verify_settlement_on_chain(chain, tx_id, signed_message=signed, payer=payer, attempts=3, wait_seconds=0) == "unknown"
+    assert chain.reads == 3
+
+
+@pytest.mark.parametrize(("meta", "verdict"), [
+    ({"err": None, "fee": 5000}, ("settled", 5000)),
+    ({"err": {"InstructionError": [2, "Custom"]}, "fee": 5000}, ("failed", 5000)),
+    ({"err": None}, ("settled", None)),
+    ({"err": {"InstructionError": [2, "Custom"]}, "fee": True}, ("failed", None)),
+    ({"err": None, "fee": -1}, ("settled", None)),
+], ids=["landed", "failed", "landed-fee-unstated", "failed-fee-not-a-number", "landed-fee-negative"])
+def test_a_complete_execution_result_decides_and_names_the_fee_the_chain_charged(meta, verdict):
+    """A fee the chain does not state as a whole number of lamports is unknown (the caller keeps the reserved maximum
+    counted), never zero or a guess."""
+    from core.wallet import paykit_x402
+
+    wire, signed, payer, tx_id = _one_landed_payment()
+    chain = _Chain({"transaction": [wire, "base64"], "meta": meta})
+    assert paykit_x402.chain_settlement(chain, tx_id, signed_message=signed, payer=payer, attempts=3, wait_seconds=0) == verdict
+    assert chain.reads == 1
 
 
 # --- the x402 signature guard and the guarded signer ---------------------------------------------------------------

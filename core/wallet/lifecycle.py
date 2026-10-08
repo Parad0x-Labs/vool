@@ -1997,34 +1997,44 @@ class PaymentLifecycle:
         body = bytes(answer["body"] or b"") if answer is not None else b""
         claim = (paykit_mpp if mpp else paykit_x402).settlement_claim(answer.get("headers")) if answer is not None else {}
         claimed_tx = str(claim.get("transaction") or "")
-        settlement = paykit_x402.verify_settlement_on_chain(rpc, claimed_tx, signed_message=guarded.signed_message, payer=profile.public_key)
+        settlement, charged_fee = paykit_x402.chain_settlement(rpc, claimed_tx, signed_message=guarded.signed_message, payer=profile.public_key)
         proven_tx = claimed_tx
-        if settlement == "unknown" and terms.get("payer_pays_fee") and guarded.signature:
+        if settlement == "unknown" and payer_pays_fee and guarded.signature:
             # this wallet is the fee payer, so the transaction's id is its OWN signature: the chain answers for it
             # whatever the resource did or did not claim
             from solders.signature import Signature
 
             own_tx = str(Signature.from_bytes(guarded.signature))
             if own_tx != claimed_tx:
-                settlement = paykit_x402.verify_settlement_on_chain(rpc, own_tx, signed_message=guarded.signed_message, payer=profile.public_key)
+                settlement, charged_fee = paykit_x402.chain_settlement(rpc, own_tx, signed_message=guarded.signed_message, payer=profile.public_key)
                 proven_tx = own_tx
         # only a transaction the chain proved is OURS goes on the proposal: an unproven id the resource named is never
         # evidence (reconciliation would otherwise confirm the payment on whatever transaction it pointed at)
         tx_signature = proven_tx if settlement in ("settled", "failed") else ""
         resource_digest = redaction.publish_identifier(hashlib.sha256(body).hexdigest())
         delivered = settlement == "settled" and answer is not None and status < 400
+        # the fee this wallet paid, as the chain charged it: a payer-paid fee is charged whether the charge landed or
+        # failed and settles at what the chain charged (the reserved maximum only when the chain did not say); a
+        # sponsored fee is the resource's own. While the outcome is unknown the reserved fee stays held, not settled
+        if not payer_pays_fee:
+            charged_fee, fee_settled = 0, 0
+        else:
+            fee_settled = (charged_fee if charged_fee is not None else fee_minor) if settlement in ("settled", "failed") else None
         if settlement == "settled":
-            limits.settle_spend(proposal.proposal_id)
+            if payer_pays_fee:
+                limits.settle_landed_on_chain(proposal.proposal_id, charged_fee_minor=charged_fee)
+            else:
+                limits.settle_spend(proposal.proposal_id)
             proposals.transition(proposal.proposal_id, proposals.STATE_BROADCAST, detail={"settlement": "submitted", "resource_status": status}, tx_signature=tx_signature)
             proposals.transition(proposal.proposal_id, proposals.STATE_CONFIRMED, detail={"tx_signature": tx_signature, "settlement": settlement}, tx_signature=tx_signature)
             reconciliation.resolve_payment_effect(proposal.proposal_id, applied=True, evidence=tx_signature, source="provider")
             final_state = proposals.STATE_CONFIRMED
         elif settlement == "failed":
             # the chain holds OUR signed message under that signature and it failed: the amount never moved. A fee this
-            # wallet paid was charged all the same, so its hold settles to that fee alone (the reserved maximum: the
-            # charged fee is not read here), the way the Pilot lane settles a transfer that failed on chain
-            if terms.get("payer_pays_fee"):
-                limits.settle_failed_on_chain(proposal.proposal_id)
+            # wallet paid was charged all the same, so its hold settles to that fee alone, the way the Pilot lane
+            # settles a transfer that failed on chain
+            if payer_pays_fee:
+                limits.settle_failed_on_chain(proposal.proposal_id, charged_fee_minor=charged_fee)
             else:
                 limits.release_spend(proposal.proposal_id)
             reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=tx_signature, source="provider")
@@ -2048,6 +2058,7 @@ class PaymentLifecycle:
             "request_digest": str(binding.get("request_digest") or ""), "url": url, "method": method, "resource_status": status,
             "resource_digest": resource_digest, "resource_bytes": len(body), "settlement": settlement, "delivered": delivered,
             "claimed_transaction_unproven": bool(claimed_tx and not tx_signature), "unanswered": unanswered,
+            "payer_pays_fee": payer_pays_fee, "charged_fee_minor": charged_fee, "fee_settled_minor": fee_settled, "fee_asset": chains.native_asset(proposal.network).symbol,
         }})
         receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=final_state == proposals.STATE_CONFIRMED, status=final_state, tx_signature=tx_signature)
         if unanswered and final_state == proposals.STATE_BROADCAST:
