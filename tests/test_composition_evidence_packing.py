@@ -243,10 +243,11 @@ def test_recency_sensitive_question_keeps_strict_law(env):
     ])
     capsule = env.ask(chat, "When does the night ferry depart?")
     # Composition's law: sibling admission must NOT fire on a recency-
-    # sensitive single-record question — both the superseded and current
-    # value must never ride together. WHICH record wins is the temporal
-    # contract's decision, not the packer's.
-    assert not ("23:10" in capsule and "23:40" in capsule), capsule
+    # sensitive single-record question — the superseded and current value
+    # never ride together in the distilled facts. WHICH record wins is the
+    # temporal contract's decision, not the packer's; under the KEEP law the
+    # superseded turn rides the whole-turn lane beside its correction.
+    _keep_law(capsule, "23:40", "23:10")
 
 
 def test_summary_does_not_displace_fact_under_tight_budget(env):
@@ -331,3 +332,14 @@ def test_correction_retraction_never_eats_the_restate(env):
     capsule = env.ask(chat, "What's the current keypad code?")
     assert "92-214" in capsule, capsule
     assert "88-110" not in capsule, capsule
+
+
+def _keep_law(capsule, current, kept):
+    """The KEEP law (owner decision 2026-10-08): the distilled facts serve *current* and never *kept*;
+    the corrected turn carrying *kept* rides the whole-turn lane beside its correction."""
+    import core.context_retrieval as _cr
+
+    facts, header, lane = capsule.partition(_cr._TURN_LANE_HEADER)
+    assert current in facts, capsule
+    assert kept not in facts, capsule
+    assert header and kept in lane, capsule

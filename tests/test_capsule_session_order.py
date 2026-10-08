@@ -256,12 +256,17 @@ def test_a_sitting_reaches_the_reader_together_and_in_spoken_order(tmp_path, mon
             or packer_spoken != sorted(packer_spoken)), packer_capsule
     assert capsule != packer_capsule
 
-    # Now: one contiguous run, in the order the turns were said, at the best line's place.
-    after = _sitting_positions(capsule)
+    # Now: one contiguous run, in the order the turns were said, at the best line's place. The KEEP
+    # law keeps the whole-turn lane last under its own header, so the run is read in the distilled
+    # facts; a sitting turn the lane carries stays in the lane.
+    facts = capsule.partition("\n" + cr._TURN_LANE_HEADER + "\n")[0]
+    after = _sitting_positions(facts)
+    assert len(after) >= 2, capsule
     assert after == list(range(after[0], after[0] + len(after))), capsule
-    items = _items(capsule)
-    spoken = [_spoken_index(items[index]) for index in after]
+    facts_items = _items(facts)
+    spoken = [_spoken_index(facts_items[index]) for index in after]
     assert spoken == sorted(spoken), capsule
+    items = _items(capsule)
     # Sittings keep the packer's order among themselves: each sits where its best line came first.
     ordered_days = [_stated_day(item) for item in items]
     assert _first_appearance(ordered_days) == _first_appearance(
