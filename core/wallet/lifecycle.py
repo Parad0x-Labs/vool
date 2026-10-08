@@ -565,26 +565,24 @@ class PaymentLifecycle:
             message_digest = hashlib.sha256(bytes(payer_message or b"")).hexdigest()
         reservation = reconciliation.reserve_payment_effect(proposal, message_digest=message_digest, source_context=self.source_context)
         if str(reservation.get("outcome") or "") != "reserved":
-            limits.release_spend(proposal.proposal_id)
-            end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", detail={"reason": "effect_in_flight"}, reason="effect_in_flight")
+            # the effect in flight is another attempt's: it is left as it is
+            end_claimed(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", reason="effect_in_flight")
             raise self._fault("wallet_duplicate_payment", proposal, reason="effect_in_flight")
         try:
             sign_effect = self._open_effect(self._base(proposal), effect_class=EFFECT_CLASS_SIGN)
             tx_effect = self._open_effect(self._base(proposal), effect_class=EFFECT_CLASS_TRANSACTION)
         except Exception as exc:
-            limits.release_spend(proposal.proposal_id)
-            reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence="effect gateway refused before signing", source="mechanical")
-            end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", detail={"reason": "effect_gateway_refused"}, reason="effect_gateway_refused")
+            end_claimed(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", reason="effect_gateway_refused",
+                        evidence="effect gateway refused before signing")
             raise self._fault("wallet_limit_exceeded", proposal, reason=f"effect_gateway_refused:{type(exc).__name__}") from exc
         return proposal, {"sign": sign_effect, "transaction": tx_effect}
 
     def _abort_before_broadcast(self, proposal: proposals.TransactionProposal, effects: Any, *, state: str, fault_code: str, reason: str) -> None:
-        limits.release_spend(proposal.proposal_id)
-        reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=reason, source="mechanical")
+        """End a claimed payment whose signing failed before anything left (:func:`end_claimed`), and cancel this
+        attempt's effects. A payment another door moved on meanwhile keeps its state and its hold."""
+        end_claimed(proposal.proposal_id, state, fault_code=fault_code, reason=reason, evidence=reason)
         for effect in (effects or {}).values():
             self._cancel_effect(effect, reason=reason)
-        proposals.transition(proposal.proposal_id, state, detail={"reason": reason}, fault_code=fault_code)
-        receipts.record_receipt(proposal, state=state, fault_code=fault_code)
 
     # -- stage 3a: pocket approval -> sign in-process -> broadcast -------------------------------------
     def approve_and_execute(self, proposal_id: str, *, approver: approval_module.Approver) -> receipts.WalletReceipt:
@@ -702,10 +700,15 @@ class PaymentLifecycle:
     def _require_held(self, proposal: proposals.TransactionProposal, *, request_id: str = "") -> None:
         """A claimed payment is handed to a signer, or its signature submitted, only while it holds its amount and its
         fee against the spend limits: the hold is what the limits count. The claim holds them in the transaction that
-        approves the payment, so one that holds nothing was left by an older release that stopped between its approval
-        and its hold, or by an ending that released the hold and stopped before it ended the payment. Signed, it would
-        leave uncounted. It is ended here with its receipt instead, nothing sent: with its open signing request closed
-        in the same transaction (``request_id``, :func:`end_unsent`), or, approved with no request, :func:`end_unheld`."""
+        approves the payment, so one that holds nothing was left by an older release: one that stopped between its
+        approval and its hold, or an ending that released the hold before it ended the payment (in another transaction).
+        Signed, it would leave uncounted. It is ended here with its receipt instead, nothing sent: with its open signing
+        request closed in the same transaction (``request_id``, :func:`end_unsent`), or, approved with no request,
+        :func:`end_unheld`. Once this read passed, the hold stays until the payment leaves or is ended: before its
+        signature is consumed, a claimed payment's hold is released only in the transaction that ends it, after a
+        compare-and-set the leaving payment would lose (:func:`end_unsent` first wins the open request, which the
+        submission's consume then loses; :func:`end_claimed` first wins the approved state, which the move to awaiting
+        a signature, and then the submission, loses)."""
         if limits.reservation_state(proposal.proposal_id) == limits.RESERVATION_RESERVED:
             return
         evidence = "the payment holds nothing against the spend limits"
@@ -2011,6 +2014,26 @@ def end_unheld(proposal_id: str, *, evidence: str) -> proposals.TransactionPropo
             ended = end_refused(current.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", expected_state=proposals.STATE_APPROVED,
                                 detail={"reason": SPEND_NOT_HELD}, conn=conn, reason=SPEND_NOT_HELD)
     if ended is not None:
+        reconciliation.resolve_payment_effect(ended.proposal_id, applied=False, evidence=evidence, source="mechanical")
+    return ended
+
+
+def end_claimed(proposal_id: str, state: str, *, fault_code: str, reason: str, evidence: str = "") -> proposals.TransactionProposal | None:
+    """End a payment its own approval claimed and then could not hand on (no effect, no signing request, no signature),
+    in ONE transaction that compare-and-sets it from approved, the state that claim left it in: the state with its
+    receipt (:func:`end_refused`), then its hold released. A payment another door moved on meanwhile (a resume that
+    opened its signing request, whose answer may be on its way to the submit door) is neither ended nor released, so a
+    hold is never taken from a payment that may still be paid. A stop inside it leaves the payment approved and held,
+    for the resume. With ``evidence``, the payment's effect is resolved as not applied once that commits."""
+    from core.wallet.store import connection
+
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        ended = end_refused(proposal_id, state, fault_code=fault_code, expected_state=proposals.STATE_APPROVED, detail={"reason": reason}, conn=conn, reason=reason)
+        if ended is not None:
+            with contextlib.suppress(limits.HoldStateConflictError):
+                limits._release(conn, ended.proposal_id)
+    if ended is not None and evidence:
         reconciliation.resolve_payment_effect(ended.proposal_id, applied=False, evidence=evidence, source="mechanical")
     return ended
 
