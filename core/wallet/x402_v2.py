@@ -41,6 +41,8 @@ HEADER_PAYMENT_RESPONSE = "PAYMENT-RESPONSE"
 _L_PAYMENT_REQUIRED = HEADER_PAYMENT_REQUIRED.lower()
 
 SCHEME_EXACT = "exact"
+#: why nothing was selected from an offer whose Solana entries only the pay-kit lane can pay
+REFUSED_SOLANA_NEEDS_PAYKIT = "refused:solana_entry_needs_paykit"
 
 OUTCOME_PAYMENT_REQUIRED = "payment_required"
 OUTCOME_DELIVERED = "delivered"
@@ -173,16 +175,33 @@ def parse_payment_required(headers: dict[str, Any] | None, body: Any = None, *, 
     return V2Offer(resource_url=resource_url[:500], resource_description=description, accepts=accepts, error=str(candidate.get("error") or "")[:200])
 
 
+def names_solana(network: str) -> bool:
+    """Whether an x402 offer names a Solana network: a CAIP-2 ``solana:`` id or a v1 name (``solana``,
+    ``solana-devnet``, ...), whether or not this wallet declares that row. Pure."""
+    name = str(network or "").strip().lower()
+    return name == "solana" or name.startswith(("solana:", "solana-"))
+
+
 def select_offer(offer: V2Offer, *, wallet_id: str, source_context: dict[str, Any] | None = None) -> tuple[V2Requirements | None, str]:
     """Deterministic capability selection over EVERY entry. The first admissible entry in
     the offer's own order wins; identical inputs pick the same entry; the returned reason
-    names why nothing was chosen without quoting opaque authorization material."""
+    names why nothing was chosen without quoting opaque authorization material.
+
+    This lane builds EVM payloads only. A Solana entry is a transaction the resource's fee
+    payer settles, which only the pay-kit lane builds: it is never selected here (it would
+    otherwise become a plain transfer of this wallet's own)."""
     cap = config.x402_cap_minor()
     domain_conflicts = False
+    solana_entries = False
     for entry in offer.accepts:
+        if names_solana(entry.network):
+            solana_entries = True
+            continue
         try:
             spec = chains.resolve_network(entry.network)
         except Exception:
+            continue
+        if not spec.is_evm:
             continue
         try:
             asset = chains.asset_for(entry.network, entry.asset)
@@ -210,6 +229,8 @@ def select_offer(offer: V2Offer, *, wallet_id: str, source_context: dict[str, An
                     domain_conflicts = True
                     continue
         return entry, f"selected:{entry.network}:{asset.symbol}"
+    if solana_entries:
+        return None, REFUSED_SOLANA_NEEDS_PAYKIT
     # a Mainnet entry is a declared Mainnet row: x402 is offered on Test networks rows only (no Mainnet row declares a scheme)
     mainnets = [e.network for e in offer.accepts if chains.is_declared(e.network) and chains.resolve_network(e.network).is_mainnet]
     if mainnets:
