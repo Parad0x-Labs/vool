@@ -273,16 +273,35 @@ def test_sprite_sheets_live_in_the_world_as_a_single_embed() -> None:
 
 
 def test_recovered_trio_registered_as_sheet_renderers_with_tone_law() -> None:
+    """The trio's ids survive, but they are no longer 24x24 sheet renderers.
+
+    pet-original-style-20260930 moved prism/veil/ember (and spark/rascal/prime) onto authored
+    48x48 drawings in the approved pixel family, so the old sheet expectation is obsolete. The
+    ids themselves are load-bearing and are still checked here and in the payload allowlist
+    below; what changed is the renderer behind them. The 24x24 sheet path itself is retained in
+    the source for pack migration, so its tone-rim law and 2x rasterisation are still asserted.
+    """
     from core.companion_world_fragment import COMPANION_WORLD_JS
 
+    js = COMPANION_WORLD_JS.replace(" ", "")
+    # The ids are registered from the renderer's own roster at boot, so this checks the roster
+    # rather than a source literal that a loop legitimately no longer contains.
+    from core.companion_art_fragment import COMPANION_ROSTER
+
     for character in ("prism", "veil", "ember"):
-        assert f"VCW_CHARACTERS.{character}=" in COMPANION_WORLD_JS.replace(" ", "")
-    assert "renderer:'sheet'" in COMPANION_WORLD_JS
-    # The tone-rim law: palette slot "r" is overridden by the typed tone, hex or VN_TONES lookup.
-    assert "pal.r=tone" in COMPANION_WORLD_JS.replace(" ", "")
-    assert "toneHex" in COMPANION_WORLD_JS
-    # 2x rasterisation into the shared 48 canvas.
-    assert "fillRect(x*2,y*2,2,2)" in COMPANION_WORLD_JS.replace(" ", "")
+        assert character in COMPANION_ROSTER, f"{character} must still be a registered id"
+    assert len(COMPANION_ROSTER) == 10
+    # Every roster member is now an authored drawing, and each keeps its own palette.
+    assert "renderer:'pet'" in js
+    assert "VCW_SHEETS" in js, "the 24x24 sheet data is retained for pack migration"
+    # The sheet path is dormant -- no roster member uses it any more -- but it is still wired and
+    # still correct, so a saved pack that names one keeps rendering. Its tone-rim law and 2x
+    # rasterisation are asserted here rather than the old registration literal.
+    assert "vcwDrawSheet" in js
+    assert "renderer==='sheet'" in js
+    assert "pal.r=tone" in js
+    assert "toneHex" in js
+    assert "fillRect(x*2,y*2,2,2)" in js
 
 
 def test_companion_payload_allowlist_covers_the_recovered_family() -> None:
@@ -333,10 +352,16 @@ def test_frame_counts_under_node_for_sheet_and_procedural() -> None:
         + " agentsApi: typeof window.VoolCompanion.agents });\n})();\n"
     )
     result = run_node(program)
-    assert result["prismIdle"] >= 2, "prism idle must expose its real sheet frame count"
-    assert result["prismUnknownState"] is True, "unknown states fall back to the idle sheet"
+    # prism is an authored drawing now, so it is no longer a 24x24 sheet and reports the
+    # continuous count instead of a frame count. The unknown-state fallback law still holds.
+    assert result["prismIdle"] >= 2, "prism idle must expose a real frame count"
+    assert result["prismUnknownState"] is True, "unknown states fall back to the idle pose"
     assert result["sparkIdle"] == 600 and result["sparkSuccess"] == 6
-    assert result["characters"] == ["ember", "prime", "prism", "rascal", "spark", "veil"]
+    # pet-original-style-20260930: the exact six-ID roster is obsolete. The four approved
+    # originals are added and all six saved ids are preserved.
+    assert result["characters"] == [
+        "beetle", "ember", "golem", "prime", "prism", "rascal", "raven", "spark", "tide", "veil",
+    ]
     assert result["agentsApi"] == "function"
 
 

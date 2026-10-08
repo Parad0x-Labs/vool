@@ -46,8 +46,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 # The pet window's own geometry. Kept here so the harness measures the same box the runtime opens.
-PET_W = 176
-PET_H = 176
+from installer.bundle import pet_native as _pet_geometry
+
+PET_W = _pet_geometry.PET_WINDOW_WIDTH
+PET_H = _pet_geometry.PET_WINDOW_HEIGHT
 BACKDROP_W = 560
 BACKDROP_H = 440
 
@@ -654,7 +656,9 @@ def main() -> int:
     out_dir = Path(args.out or (REPO_ROOT / "evidence" / "pet" / args.label)).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    pet_html = render_desktop_companion_html({"state": "idle", "caption": "IDLE"})
+    pet_html = render_desktop_companion_html({"state": "tool", "caption": "Reading files…",
+                                               "chatTitle": "Companion window check",
+                                               "activity": "read", "character": "beetle"})
     (out_dir / "pet_document.html").write_text(pet_html, encoding="utf-8")
 
     report: dict = {

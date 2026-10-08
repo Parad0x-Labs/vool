@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 
-COMPANION_WORLD_JS = r"""/* VOOL 48x48 companion world — shared app/desktop renderer */
+from core.companion_art_fragment import COMPANION_ART_JS, COMPANION_ROSTER
+
+# The authored pixel-art family (original quartet + six) is prepended so the dispatcher below
+# can reach it. It is self-contained: it depends on no VCW_* symbol and shares no mutable state.
+COMPANION_WORLD_JS = COMPANION_ART_JS + r"""/* VOOL 48x48 companion world — shared app/desktop renderer */
 const VCW_PACKS={
  default:{skin:'#5eead4',dark:'#0f9488',eye:'#04241d',face:'#a7f3e5',shoe:'#134e4a'},
  ninja:{skin:'#94a3b8',dark:'#1e293b',eye:'#b91c1c',face:'#cbd5e1',shoe:'#0f172a'},
@@ -13,7 +17,13 @@ const VCW_PACKS={
 const VCW_CHARACTERS={
  spark:{name:'SPARK · Tiny Engineer',headW:18,headH:14,eyeW:3,eyeH:4,brow:1,nose:1,ears:1,fringe:1,bodyW:11,torsoH:8,legH:4,collar:1},
  rascal:{name:'RASCAL · Little Menace',headW:18,headH:14,eyeW:3,eyeH:4,brow:2,nose:1,ears:1,fringe:1,bodyW:11,torsoH:8,legH:4,defExpr:'smirk'},
- prime:{name:'PRIME · Premium Voxel',headW:18,headH:14,eyeW:3,eyeH:4,brow:1,nose:1,ears:1,fringe:1,bodyW:11,torsoH:8,legH:4,prime:1,collar:1}};
+  prime:{name:'PRIME · Premium Voxel',headW:18,headH:14,eyeW:3,eyeH:4,brow:1,nose:1,ears:1,fringe:1,bodyW:11,torsoH:8,legH:4,prime:1,collar:1}};
+/* The ten-member roster. Every id names a distinct authored drawing -- no recolours, no aliases.
+   The four originals keep stable ids so saved positions and packs survive. */
+aPetIds().forEach(function(id){
+ const meta=A_PETS[id];
+ VCW_CHARACTERS[id]={name:meta.name,renderer:'pet',original:aIsOriginal(id),note:meta.note};});
+
 function vcwR(g,x,y,w,h,c){g.fillStyle=c;g.fillRect(x|0,y|0,w|0,h|0);}
 function vcwLite(hex,amt){const n=parseInt(String(hex).slice(1),16),f=c=>Math.max(0,Math.min(255,c+amt));return '#'+((f(n>>16)<<16)|(f((n>>8)&255)<<8)|f(n&255)).toString(16).padStart(6,'0');}
 function vcwBlock(g,x,y,w,h,c){vcwR(g,x,y,w,h,c);vcwR(g,x,y,w,1,vcwLite(c,28));vcwR(g,x+w-1,y+1,1,h-1,vcwLite(c,-38));}
@@ -276,18 +286,38 @@ function vcwDrawSheet(g,character,state,frame,opts){
   for(let x=0;x<row.length&&x<24;x++){const ch=row[x];if(ch==='.')continue;
    g.fillStyle=pal[ch]||'#ff00ff';g.fillRect(x*2,y*2,2,2);}}
  return true;}
-VCW_CHARACTERS.prism={name:'PRISM SHIFTER · Pixel Ninja',renderer:'sheet'};
-VCW_CHARACTERS.veil={name:'VEIL SHADOWSTEP · Pixel Ninja',renderer:'sheet'};
-VCW_CHARACTERS.ember={name:'EMBER SIGNAL · Pixel Ninja',renderer:'sheet'};
+/* prism/veil/ember are now authored pets in the original family; the old sheet definitions
+   are superseded here but the 24x24 VCW_SHEETS data is retained below for pack migration. */
 function vcwFrameCount(character,state){
  const meta=VCW_CHARACTERS[character];
  if(meta&&meta.renderer==='sheet'){const frames=vcwSheetFrames(character,state);return frames?frames.length:1;}
+ if(meta&&meta.renderer==='pet')return (state==='success'||state==='failure'||state==='cancelled')?6:600;
  /* Procedural characters animate continuously; hold one-shot celebration/failure poses after a
     short run so DONE/FAILED do not loop forever. */
  return (state==='success'||state==='failure')?6:600;}
+// One time-based cadence for both hosts; display refresh rate never drives character speed.
+// This contract is deliberately UNCHANGED by the authored-pet work: it still returns a frame
+// index, still holds a terminal pose, and still returns 0 under reduced motion. Authored pets
+// are time-driven inside the renderer and read ``opts.elapsed`` for that; they do not get to
+// redefine the host's cadence law.
+function vcwFrameAt(character,state,elapsed,reduced){
+ if(reduced)return 0;
+ const ms=Math.max(0,Number(elapsed)||0),count=vcwFrameCount(character,state)||1;
+ // Idle holds its pose, with one short blink every six seconds. No body bounce.
+ if(state==='idle')return ms%6000>=5850?Math.min(2,count-1):0;
+ if(['success','failure','cancelled'].includes(state))return Math.min(Math.floor(ms/110),count-1);
+ const timing={starting:150,thinking:140,tool:110,waiting:200,approval:120,retry:140};
+ return Math.floor(ms/(timing[state]||160))%count;
+}
 const _vcwBaseDraw=vcwDraw;
 vcwDraw=function(g,state,frame,opts){
  opts=opts||{};const meta=VCW_CHARACTERS[opts.character];
+ if(meta&&meta.renderer==='pet'){
+  /* Animation time selects the pose only. ``activity`` is the presentation-only substate the
+     owner resolved from a typed category; it never decides state. Authored pets are driven by
+     elapsed milliseconds (``opts.elapsed``), so the host's frame-index cadence law is untouched. */
+  if(vcwDrawPet(g,opts.character,state,opts.activity,
+      (opts.elapsed!=null)?opts.elapsed:frame*160,opts))return;}
  if(meta&&meta.renderer==='sheet'&&vcwDrawSheet(g,opts.character,state,frame,opts))return;
  _vcwBaseDraw(g,state,frame,opts);};
 /* --- real multi-worker scenes: drawn ONLY when the runtime reports that many live workers --- */
@@ -319,7 +349,8 @@ function vcwEgg(g,kind,frame){
  if(kind==='zzz'){if(frame%30<15){vcwR(g,30,8,2,2,'#cbd5e1');vcwR(g,34,4,3,3,'#e8eaf0');}else{vcwR(g,32,6,2,2,'#cbd5e1');}}
  else if(kind==='coffee'){vcwR(g,34,30,5,4,'#b45309');vcwR(g,39,31,2,2,'#b45309');if(frame%16<8)vcwR(g,35,26,1,3,'rgba(255,255,255,.5)');if(frame%16>=8)vcwR(g,37,25,1,3,'rgba(255,255,255,.35)');}
 }
-window.VoolCompanionWorld={draw:vcwDraw,scene:vcwScene,egg:vcwEgg,characters:VCW_CHARACTERS,packs:VCW_PACKS,sheets:VCW_SHEETS,frameCount:vcwFrameCount};
+window.VoolCompanionWorld={draw:vcwDraw,scene:vcwScene,egg:vcwEgg,characters:VCW_CHARACTERS,packs:VCW_PACKS,sheets:VCW_SHEETS,frameCount:vcwFrameCount,frameAt:vcwFrameAt,
+ pets:A_PETS,petIds:aPetIds,originalIds:A_ORIGINAL,activityFor:aActivityFor,drawPet:vcwDrawPet};
 
 """
 
@@ -334,13 +365,26 @@ def normalise_companion_payload(payload: object = None) -> dict[str, str]:
     }:
         state = "unknown"
     character = str(raw.get("character") or "spark").lower()
-    if character not in {"spark", "rascal", "prime", "prism", "veil", "ember"}:
+    # The roster is the renderer's, not a copy of it. An unknown or hostile id falls back to a
+    # real member rather than reaching the renderer.
+    if character not in COMPANION_ROSTER:
         character = "spark"
     pack = str(raw.get("pack") or "default").lower()
     if pack not in {"default", "ninja", "moss", "cyber"}:
         pack = "default"
     caption = str(raw.get("caption") or state.upper()).strip()[:64] or state.upper()
     clean = {"state": state, "character": character, "pack": pack, "caption": caption}
+    # The bound chat's title and the presentation-only activity substate. Both are bounded, and
+    # the activity is accepted only from the renderer's own vocabulary, so a payload cannot make
+    # the desktop pet display an arbitrary activity string.
+    chat_title = str(raw.get("chatTitle") or "").strip()[:64]
+    if chat_title:
+        clean["chatTitle"] = chat_title
+    activity = str(raw.get("activity") or "").strip().lower()
+    if activity in {"read", "search", "dig", "code", "exec", "test", "watch"}:
+        clean["activity"] = activity
+    if raw.get("motion") in {"system", "reduced", "allow"}:
+        clean["motion"] = raw["motion"]
     # The pet's last native position, when the page has one to restore. Presentation only, and
     # bounded to a plausible desktop coordinate range so nothing a page can say becomes a window
     # placed at an absurd offset. Absent keys stay absent: a first run must not invent a coordinate.
@@ -374,6 +418,8 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
     The initial typed state is embedded in the document so the first frame is correct even when
     pywebview's first ``evaluate_js`` races the secondary window's load event.
     """
+    from core.companion_layout import BUBBLE_GAP, BUBBLE_HEIGHT, BUBBLE_WIDTH, CANVAS_BOTTOM, CANVAS_SIZE
+
     encoded = json.dumps(
         normalise_companion_payload(initial_payload), separators=(",", ":"), ensure_ascii=True
     )
@@ -385,47 +431,88 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
         "overflow:hidden;background:transparent;color:#e8eaf0;user-select:none}"
         "#shell{width:100%;height:100%;position:relative;display:flex;flex-direction:column;"
         "align-items:center;justify-content:center;cursor:grab}#shell:active{cursor:grabbing}"
-        "canvas{width:132px;height:132px;image-rendering:pixelated;"
+        f"canvas{{position:absolute;left:50%;bottom:{CANVAS_BOTTOM}px;transform:translateX(-50%);width:{CANVAS_SIZE}px;height:{CANVAS_SIZE}px;image-rendering:pixelated;"
         "filter:drop-shadow(0 5px 9px rgba(0,0,0,.45))}"
-        "#caption{position:absolute;left:50%;transform:translateX(-50%);bottom:5px;max-width:152px;"
-        "box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;padding:2px 8px;border-radius:7px;"
-        "background:rgba(22,25,31,.92);border:1px solid #2b3140;font:10px 'SF Mono',ui-monospace,monospace;"
-        "white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .16s ease}"
-        "#caption.show,#shell:hover #caption{opacity:1}"
+        # The status bubble sits ABOVE the character, never below. Two grounded lines: the bound
+        # chat title, then the real current activity. Inert (pointer-events:none) so the pet
+        # stays the handle, and it is inside the window so it cannot be clipped away.
+        f"#bubble{{position:absolute;left:50%;bottom:{CANVAS_BOTTOM + CANVAS_SIZE + BUBBLE_GAP}px;transform:translateX(-50%);height:{BUBBLE_HEIGHT}px;"
+        f"max-width:{BUBBLE_WIDTH}px;box-sizing:border-box;overflow:hidden;padding:5px 9px 6px;border-radius:8px;"
+        "background:rgba(16,19,24,.93);border:1px solid #2b3140;pointer-events:none;"
+        "display:flex;flex-direction:column;gap:2px}"
+        "#bubble::after{content:'';position:absolute;left:50%;top:100%;width:7px;height:7px;"
+        "margin-left:-3.5px;background:rgba(16,19,24,.93);border-right:1px solid #2b3140;"
+        "border-bottom:1px solid #2b3140;transform:rotate(45deg)}"
+        "#bubbleTitle,#bubbleActivity{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+        "font-family:'SF Mono',ui-monospace,monospace}"
+        "#bubbleTitle{font-size:10px;line-height:12px;font-weight:600;color:#e7ecf3}"
+        "#bubbleActivity{font-size:9.5px;line-height:12px;color:#9fb0c4}"
         "#controls{position:absolute;right:4px;top:4px;display:flex;gap:3px;opacity:0;"
         "pointer-events:none;transition:opacity .16s ease}"
         "#shell:hover #controls{opacity:1;pointer-events:auto}"
         "#controls button{width:22px;height:22px;padding:0;border:1px solid #39414f;border-radius:6px;"
         "background:rgba(22,25,31,.92);color:#e8eaf0;cursor:pointer;font:11px system-ui;line-height:1}"
-        "@media (prefers-reduced-motion:reduce){#caption,#controls{transition:none}}"
+        "@media (prefers-reduced-motion:reduce){#controls{transition:none}}"
         "</style><div id='shell'><div id='controls'>"
         "<button id='attach' title='Return to VOOL'>\u21a9</button>"
         "<button id='reset' title='Reset position'>\u2316</button>"
         "<button id='hide' title='Hide pet'>\u2715</button>"
-        "</div><canvas id='pet' width='48' height='48'></canvas><div id='caption'></div></div>"
+        "</div><canvas id='pet' width='48' height='48'></canvas>"
+        "<div id='bubble'><div id='bubbleTitle'></div><div id='bubbleActivity'></div></div></div>"
         "<script>'use strict';" + COMPANION_WORLD_JS + "\nconst VCW_INITIAL_STATE=" + encoded + ";" + r"""
 const vcwCanvas=document.getElementById('pet'),vcwCtx=vcwCanvas.getContext('2d');vcwCtx.imageSmoothingEnabled=false;
 let vcwState=Object.assign({state:'idle',caption:'IDLE',character:'spark',pack:'default'},VCW_INITIAL_STATE),vcwFrame=0;
-const vcwCaption=document.getElementById('caption');
+const vcwBubble=document.getElementById('bubble'),
+ vcwBubbleTitle=document.getElementById('bubbleTitle'),
+ vcwBubbleActivity=document.getElementById('bubbleActivity');
 const vcwReduce=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
-let vcwCaptionTimer=0;
-/* The caption stays truthful and textContent-encoded; what changed is that it no longer paints a
-   permanent card. It surfaces when the state text actually changes, then fades back out. */
-function vcwSetCaption(text){
- const next=String(text==null?'':text).slice(0,64);
- if(vcwCaption.textContent===next)return;
- vcwCaption.textContent=next;
- vcwCaption.classList.add('show');
- if(vcwCaptionTimer)clearTimeout(vcwCaptionTimer);
- vcwCaptionTimer=setTimeout(function(){vcwCaption.classList.remove('show');},2200);
+let vcwStarted=null,vcwPaintKey='',vcwNativeInteraction=false;
+const vcwShell=document.getElementById('shell');
+/* The bubble above the pet. Line 1 is the bound chat's title, line 2 the real activity. Both
+   are textContent-encoded, single-line, and bounded; neither is the pet's handle. */
+function vcwSafeText(v,max){
+ let s=String(v==null?'':v);
+ s=s.replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').replace(/\s+/g,' ').trim();
+ if(!s)return '';
+ const c=Array.from(s);
+ return c.length>max?c.slice(0,Math.max(1,max-1)).join('')+'…':s;
 }
-function vcwPaint(){
- if(!(vcwReduce&&vcwReduce.matches))vcwFrame++;
- VoolCompanionWorld.draw(vcwCtx,vcwState.state,vcwFrame,Object.assign({},vcwState,{ground:false}));
+function vcwSetBubble(title,activity){
+ const t=vcwSafeText(title,42),a=vcwSafeText(activity,34);
+ if(vcwBubbleTitle.textContent!==t)vcwBubbleTitle.textContent=t;
+ if(vcwBubbleActivity.textContent!==a)vcwBubbleActivity.textContent=a;
+ vcwBubble.style.display=t?'flex':'none';
+}
+function vcwPaint(now){
+ if(vcwStarted===null)vcwStarted=now;
+ const reduced=vcwState.motion==='reduced'||(vcwState.motion!=='allow'&&vcwReduce&&vcwReduce.matches);
+ vcwFrame=VoolCompanionWorld.frameAt(vcwState.character,vcwState.state,now-vcwStarted,reduced);
+ const key=JSON.stringify([vcwState.state,vcwState.character,vcwState.pack,vcwState.activity,vcwFrame]);
+ if(key!==vcwPaintKey){
+  VoolCompanionWorld.draw(vcwCtx,vcwState.state,vcwFrame,
+   Object.assign({},vcwState,{ground:false,activity:vcwState.activity,reduced:reduced,
+    elapsed:now-vcwStarted}));
+  vcwPaintKey=key;
+ }
  requestAnimationFrame(vcwPaint);
 }
-window.VoolDesktopCompanion={update:function(next){if(next&&typeof next==='object')Object.assign(vcwState,next);vcwSetCaption(vcwState.caption||String(vcwState.state||'idle').toUpperCase());}};
-vcwSetCaption(vcwState.caption||String(vcwState.state||'idle').toUpperCase());
+function vcwInteraction(hover,drag){vcwShell.classList.toggle('interacting',!!hover||!!drag);}
+vcwShell.addEventListener('pointerenter',()=>{if(!vcwNativeInteraction)vcwInteraction(true,false);});
+vcwShell.addEventListener('pointerleave',()=>{if(!vcwNativeInteraction)vcwInteraction(false,false);});
+window.VoolDesktopCompanion={
+ update:function(next){
+  if(next&&typeof next==='object'){
+   if(next.state&&next.state!==vcwState.state)vcwStarted=null;
+   Object.assign(vcwState,next);
+  }
+  /* Idle keeps the title and drops the activity line, so a finished turn stops advertising
+     stale work. Otherwise the line is the reducer-resolved activity, never model prose. */
+  const idle=String(vcwState.state||'idle')==='idle';
+  vcwSetBubble(vcwState.chatTitle||'',idle?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
+ },
+ interaction:function(hover,drag){vcwNativeInteraction=true;vcwInteraction(hover,drag);}
+};
+vcwSetBubble(vcwState.chatTitle||'',vcwState.state==='idle'?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
 function vcwBridge(name){
  return window.pywebview&&window.pywebview.api&&window.pywebview.api[name]?window.pywebview.api[name]:null;
 }

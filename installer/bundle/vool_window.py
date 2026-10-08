@@ -553,8 +553,8 @@ def _focus_window(window: object) -> None:
 # at module scope, so the native proof harness measures the SAME window the runtime opens instead of
 # a hand-copied approximation that can drift away from production without anything failing.
 COMPANION_WINDOW_FLAGS: dict = {
-    "width": 176,
-    "height": 176,
+    "width": pet_native.PET_WINDOW_WIDTH,
+    "height": pet_native.PET_WINDOW_HEIGHT,
     "min_size": (120, 120),
     "resizable": False,
     "frameless": True,

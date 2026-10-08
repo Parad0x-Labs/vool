@@ -121,13 +121,27 @@ def test_the_in_app_artwork_keeps_its_ground_bar() -> None:
 
 
 def test_desktop_document_paints_no_permanent_status_card() -> None:
-    """RC-2b: the caption was an always-on dark card with a border, sitting under the pet."""
+    """RC-2b: the caption was an always-on dark card with a border, sitting under the pet.
+
+    pet-original-style-20260930 changed WHAT this law guards without weakening it. The below-pet
+    caption is gone, replaced by a compact bubble ABOVE the pet carrying the bound chat's title
+    and the real activity -- which the mission requires to be visible, so it is no longer a
+    transient hover-only card. The law's actual target is preserved in full:
+
+    * nothing opaque is painted UNDER the character any more (the original defect);
+    * the status surface never intercepts a click;
+    * the character canvas itself is not wrapped in a permanent card.
+    """
     html = render_desktop_companion_html()
-    caption_rule = html.split("#caption{", 1)[1].split("}", 1)[0]
-    assert "opacity:0" in caption_rule, "the caption must be invisible at rest"
-    assert "pointer-events:none" in caption_rule, "an invisible caption must not intercept clicks"
-    # and it must still be able to appear, or the state is no longer legible
-    assert "#caption.show" in html
+    # The original defect: a status card positioned under the pet. It must be gone entirely.
+    assert "#caption{" not in html, "the below-pet caption card must not come back"
+    assert "bottom:5px" not in html, "no status card may be pinned to the bottom of the window"
+    # The replacement must still be inert, or the pet could not be dragged by its own body.
+    bubble_rule = html.split("#bubble{", 1)[1].split("}", 1)[0]
+    assert "pointer-events:none" in bubble_rule, "the status bubble must not intercept clicks"
+    # And it must be ABOVE the character, which is the acceptance condition it replaced.
+    from core.companion_layout import BUBBLE_GAP, CANVAS_BOTTOM, CANVAS_SIZE
+    assert f"bottom:{CANVAS_BOTTOM + CANVAS_SIZE + BUBBLE_GAP}px" in bubble_rule, "the bubble belongs above the pet"
 
 
 def test_desktop_document_drops_the_electron_only_drag_css() -> None:
@@ -151,11 +165,11 @@ def test_in_app_sprite_has_no_rectangular_drop_shadow() -> None:
 def test_transparent_corners_do_not_intercept_clicks() -> None:
     """RC-5: measured on both displays, a click 6pt inside the pet's corner was routed to the pet
     instead of to the application underneath. The 176x176 window was an invisible blocker."""
-    frame = (100.0, 100.0, 176.0, 176.0)
+    frame = (100.0, 100.0, float(pet_native.PET_WINDOW_WIDTH), float(pet_native.PET_WINDOW_HEIGHT))
     corners = [
         (106.0, 106.0),                    # bottom-left
-        (100.0 + 170.0, 106.0),            # bottom-right
-        (106.0, 100.0 + 170.0),            # top-left
+        (frame[0] + frame[2] - 6.0, 106.0),            # bottom-right
+        (106.0, frame[1] + frame[3] - 6.0),            # top-left
     ]
     for x, y in corners:
         assert not pet_native.point_hits_pet(x, y, frame), f"corner {(x, y)} still blocks clicks"
@@ -163,10 +177,10 @@ def test_transparent_corners_do_not_intercept_clicks() -> None:
 
 def test_the_character_and_its_control_still_take_clicks() -> None:
     """The inverse defect: making the whole window click-through would break dragging entirely."""
-    frame = (100.0, 100.0, 176.0, 176.0)
+    frame = (100.0, 100.0, float(pet_native.PET_WINDOW_WIDTH), float(pet_native.PET_WINDOW_HEIGHT))
     assert pet_native.point_hits_pet(188.0, 188.0, frame), "the character must be draggable"
     # the return/reset/hide cluster in the top-right corner
-    assert pet_native.point_hits_pet(100.0 + 158.0, 100.0 + 158.0, frame)
+    assert pet_native.point_hits_pet(frame[0] + frame[2] - 18.0, frame[1] + frame[3] - 18.0, frame)
 
 
 def test_hit_regions_are_islands_not_one_bounding_box() -> None:
@@ -474,8 +488,15 @@ def test_a_click_inside_the_yield_rect_belongs_to_the_surface_under_the_pet():
     avoid = (frame[0], frame[1] + 40.0, float(pet_native.PET_WINDOW_WIDTH), 96.0)
     assert pet_native.point_hits_pet(cursor[0], cursor[1], frame, avoid_rect=avoid) is False
     # Outside the region the pet's own hit rects still decide -- dragging stays functional.
-    # Local (30, 30) sits inside the centered canvas box but below the yielded band.
-    outside = (frame[0] + 30.0, frame[1] + 30.0)
+    # The point is derived from the canvas rect rather than hardcoded, so the law survives a
+    # change of window or canvas size (pet-original-style-20260930 grew both, and the bubble now
+    # adds a third hit rect above the canvas). It must sit inside the canvas and BELOW the yielded
+    # band, which is the case the comment used to assert with a literal 30,30.
+    canvas_rect = pet_native.pet_hit_rects()[0]
+    cx = canvas_rect[0] + canvas_rect[2] / 2.0
+    below_band = 40.0 + 96.0 + 4.0
+    assert below_band < canvas_rect[1] + canvas_rect[3], "yielded band must not cover the canvas"
+    outside = (frame[0] + cx, frame[1] + below_band)
     assert pet_native.point_hits_pet(outside[0], outside[1], frame, avoid_rect=avoid) is True
 
 

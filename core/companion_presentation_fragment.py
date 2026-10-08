@@ -42,9 +42,9 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 .vn-lab-cell canvas{width:64px;height:64px;image-rendering:pixelated;background:#101216;border:1px solid #262b35;border-radius:8px}
 .vn-lab-cell small{font-size:9px;color:#9aa1af;font-family:ui-monospace,Menlo,monospace}
 /* vool-ninja companion layer — presentation only, appended by companion_presentation_fragment */
-#companionLayer { position: fixed; inset: 0; pointer-events: none; z-index: 30; --vn-tone: #94a3b8; }
+#companionLayer { position: fixed; inset: 0; pointer-events: none; z-index: 30; --vn-tone: #94a3b8; --vn-size: 168px; }
 #companionLayer .vool-ninja {
-  position: fixed; left: 0; top: 0; width: var(--vn-size, 112px); height: var(--vn-size, 112px);
+  position: fixed; left: 0; top: 0; width: var(--vn-size, 168px); height: var(--vn-size, 168px);
   pointer-events: auto; cursor: grab; touch-action: none; user-select: none;
   border-radius: 10px; display: flex; flex-direction:column; align-items: center; justify-content: center; gap: 2px;
   background: transparent; -webkit-tap-highlight-color: transparent;
@@ -55,10 +55,46 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 #companionLayer .vool-ninja.dragging { cursor: grabbing; opacity: .92; }
 #companionLayer .vool-ninja.over-critical { opacity: .6; }
 /* P2 layout law: the canvas owns a FIXED basis and the caption owns its own row beneath it.
-   The old row-flex with a 100%-width canvas squeezed the caption text against the sprite box. */
-#companionLayer .vool-ninja canvas { width: 56px; height: 56px; flex: 0 0 auto; image-rendering: pixelated; }
-#companionLayer .vool-ninja.chip { --vn-size: 72px; border-radius: 8px; }
-#companionLayer .vool-ninja.chip canvas { width: 44px; height: 44px; }
+   The old row-flex with a 100%-width canvas squeezed the caption text against the sprite box.
+   ENLARGEMENT (pet-original-style-20260930): the logical art grid is still 48x48 and the
+   artwork is unchanged. Only the DISPLAY basis grew -- 56px -> 144px, an integer 3x multiple
+   of the 48 grid, so every art pixel stays a crisp 3x3 block. Negative space inside the canvas
+   is preserved, so the painted body grows with the canvas instead of the canvas being padded. */
+#companionLayer .vool-ninja canvas { width: 144px; height: 144px; flex: 0 0 auto; image-rendering: pixelated; }
+#companionLayer .vool-ninja.chip { --vn-size: 116px; border-radius: 8px; }
+#companionLayer .vool-ninja.chip canvas { width: 96px; height: 96px; }
+/* The status bubble sits ABOVE the character, never below it, and is taken out of flow so a
+   change of text can never move the pet. It is inert: the pet, not the bubble, is the handle. */
+#companionLayer .vn-bubble {
+  position: absolute; left: 50%; bottom: calc(100% - 18px);
+  transform: translateX(calc(-50% + var(--vn-bubble-dx, 0px)));
+  max-width: 232px; min-width: 96px; padding: 6px 9px 7px; box-sizing: border-box;
+  background: rgba(16, 19, 24, .93); border: 1px solid var(--vn-tone, #94a3b8);
+  border-radius: 9px; pointer-events: none; text-align: left; z-index: 2;
+  display: flex; flex-direction: column; gap: 2px;
+}
+#companionLayer .vn-bubble::after {
+  content: ""; position: absolute; left: 50%; top: 100%; width: 7px; height: 7px;
+  margin-left: -3.5px; background: rgba(16, 19, 24, .93);
+  border-right: 1px solid var(--vn-tone, #94a3b8); border-bottom: 1px solid var(--vn-tone, #94a3b8);
+  transform: rotate(45deg);
+}
+#companionLayer .vn-bubble-title {
+  font: 600 10px/1.25 ui-monospace, Menlo, monospace; color: #e7ecf3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#companionLayer .vn-bubble-activity {
+  font: 400 9.5px/1.3 ui-monospace, Menlo, monospace; color: var(--vn-tone, #94a3b8);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#companionLayer .vool-ninja.chip .vn-bubble { max-width: 168px; padding: 4px 7px 5px; }
+#companionLayer .vool-ninja.chip .vn-bubble::after { display: none; }
+#companionLayer .vool-ninja.chip .vn-bubble-title { font-size: 9px; }
+#companionLayer .vool-ninja.chip .vn-bubble-activity { font-size: 8.5px; }
+/* Flipped below the pet when there is no room above. The character never moves either way. */
+#companionLayer .vn-bubble.vn-below { bottom: auto; top: calc(100% - 18px); }
+#companionLayer .vn-bubble.vn-below::after { top: auto; bottom: 100%; border: 0;
+  border-left: 1px solid var(--vn-tone, #94a3b8); border-top: 1px solid var(--vn-tone, #94a3b8); }
 /* No status dot on the sprite (product/desktop-usability-20260917): it sat at the CORNER of the
    112px drag box, ~1cm from the character's drawn feet, and read as a stray floating mark. It
    duplicated the tone, and the pack's colour law already requires the word to carry every
@@ -571,12 +607,79 @@ function vnSpriteState(pres) {
   }
 }
 
+/* Presentation-only activity substate, derived from the reducer's TYPED category.
+   Never from model text, a natural-language match, or an animation clock: the clock selects
+   frames only. Null when the category is not a work category, so the bubble falls back to the
+   authoritative state name rather than inventing an activity. */
+function vnActivity(pres) {
+  if (!pres || !pres.category) return null;
+  const W = window.VoolCompanionWorld;
+  if (!W || typeof W.activityFor !== "function") return null;
+  return W.activityFor(pres.category) || null;
+}
+/* Safe, bounded, single-line display text: control characters and newlines collapse to spaces,
+   runs of whitespace collapse, and truncation happens on a code-point boundary so a non-Latin
+   title is never cut into a lone surrogate. Never renders markup -- callers use textContent. */
+function vnSafeText(value, max) {
+  let s = String(value == null ? "" : value);
+  s = s.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  const chars = Array.from(s);
+  if (chars.length > max) return chars.slice(0, Math.max(1, max - 1)).join("") + "…";
+  return s;
+}
+/* Keep the bubble on screen without ever moving the character. The bubble is offset by its own
+   transform only; the pet's box is untouched, so a clamped bubble cannot shift a drag target. */
+function vnClampBubble() {
+  if (!vnBubble || !vnSprite) return;
+  // Measure the bubble after clearing its previous offset. A centred bubble
+  // can be wider than the pet, so the pet's left edge is not its visible bound.
+  vnBubble.style.setProperty("--vn-bubble-dx", "0px");
+  vnBubble.classList.remove("vn-below");
+  let b = vnBubble.getBoundingClientRect();
+  if (!b.width) return;
+  const m = 8;
+  if (b.top < m) {
+    vnBubble.classList.add("vn-below");
+    b = vnBubble.getBoundingClientRect();
+  }
+  let dx = 0;
+  if (b.left < m) dx = m - b.left;
+  else if (b.right > window.innerWidth - m) dx = window.innerWidth - m - b.right;
+  vnBubble.style.setProperty("--vn-bubble-dx", dx + "px");
+}
+/* The BOUND chat's title. The chat page already owns chat titles, so reuse that owner instead
+   of duplicating the lookup; if it is not reachable from here, fall back to the session tail
+   the page itself uses. Never another chat's title -- always the id this pet is bound to. */
+function vnBoundChatTitle(chatId) {
+  const id = String(chatId || "");
+  if (!id) return "";
+  if (typeof chatTitleFor === "function") {
+    try { const t = chatTitleFor(id); if (t) return String(t); } catch (e) { /* fall through */ }
+  }
+  return id.slice(-8);
+}
+/* Two grounded lines. `activity` is only ever a reducer-resolved phrase or typed state name. */
+function vnSetBubble(title, activity, visible) {
+  if (!vnBubble) return;
+  vnBubbleTitle.textContent = vnSafeText(title, VN_TITLE_MAX);
+  vnBubbleActivity.textContent = vnSafeText(activity, VN_ACTIVITY_MAX);
+  vnBubble.style.display = (visible && vnBubbleTitle.textContent) ? "flex" : "none";
+  vnClampBubble();
+}
+
 // Layer + geometry state. POSITION IS PRESENTATION ONLY: it lives beside the sprite,
 // never on a run/event/store object, and nothing in the drag path touches them.
-const VN_SIZE = 112;
+const VN_SIZE = 168;
 const VN_EDGE_INSET = 24;
 const VN_CHIP_MAX = 640;
 let vnLayer = null, vnSprite = null, vnCanvas = null, vnCtx = null, vnSr = null;
+/* The bubble above the pet. Two grounded lines: the bound chat's title, then the real current
+   activity. Both are set with textContent, never innerHTML, so chat titles can carry markup
+   characters without being interpreted. */
+let vnBubble = null, vnBubbleTitle = null, vnBubbleActivity = null;
+/* Bounded display lengths. Chat names are operator-facing labels, not documents. */
+const VN_TITLE_MAX = 42, VN_ACTIVITY_MAX = 34;
 let vnPop = null, vnMenu = null, vnLab = null, vnRestore = null;
 //: Minimum time one activity phrase stays readable before a newer phrase replaces it.
 //: Presentation cadence ONLY (the pack allows wall-clock to animate cadence); it never creates,
@@ -783,7 +886,9 @@ function vnDrawFrame(state, frame) {
       if (window.VoolCompanionWorld.scene(vnCtx, scene, frame, {character:vnPos.personality,pack:vnPos.pack})) return;
     }
   }
-  window.VoolCompanionWorld.draw(vnCtx, state, frame, {character:vnPos.personality,pack:vnPos.pack,tone:vnPaint.tone});
+  /* `activity` is the presentation-only substate the reducer's typed category resolved to.
+   The renderer uses it to pick a legible pose; it never influences the state itself. */
+  window.VoolCompanionWorld.draw(vnCtx, state, frame, {character:vnPos.personality,pack:vnPos.pack,tone:vnPaint.tone,activity:vnPaint.activity,reduced:vnPrefersReducedMotion(),elapsed:vnPaint.elapsed});
   // Idle rare-moment: pure decoration, deterministic, long-idle only, motion-allowed only,
   // never while a puppet or any non-idle truth is on screen.
   if (state === "idle" && !vnDevPuppet && !vnPrefersReducedMotion() && window.VoolCompanionWorld.egg) {
@@ -810,12 +915,29 @@ function vnPaintNow(now) {
   const nextState = vnSpriteState(pres);
   if (nextState !== vnPaint.state) { vnPaint.state = nextState; vnPaint.frame = 0; vnPaint.stateStart = now; }
   else if (!vnPaint.stateStart) { vnPaint.stateStart = now; }
-  if (!vnPrefersReducedMotion()) {
-    const frames = window.VoolCompanionWorld.frameCount(vnPos.personality, nextState) || 1;
-    if (VN_ONE_SHOT[nextState]) vnPaint.frame = Math.min(Math.floor((now - vnPaint.stateStart) / 110), frames - 1);
-    else vnPaint.frame = Math.floor((now - vnPaint.stateStart) / (VN_STATE_TIMING[nextState] || 160)) % frames;
-  }
+  vnPaint.frame = window.VoolCompanionWorld.frameAt(
+    vnPos.personality, nextState, now - vnPaint.stateStart, vnPrefersReducedMotion());
+  vnPaint.activity = vnActivity(pres);
+  vnPaint.elapsed = Math.max(0, now - (vnPaint.stateStart || now));
   vnDrawFrame(nextState, vnPaint.frame);
+  /* The bubble above the pet. Line 1 is the BOUND chat's title; line 2 is the real current
+     activity. Both come from the reducer's own resolution for THIS chat -- never another
+     chat's activity, never model prose. Idle keeps the title and drops the activity line, so
+     a finished turn stops advertising stale work. */
+  {
+    const bound = vnBoundChatTitle(chatId);
+    let line2;
+    if (vnDevPuppet) {
+      line2 = String(vnDevPuppet.scene || vnDevPuppet.state || "").toUpperCase() + " · PREVIEW";
+    } else if (nextState === "idle") {
+      line2 = "";
+    } else if (pres && pres.phraseText) {
+      line2 = String(pres.phraseText);
+    } else {
+      line2 = vnStateWord(nextState);
+    }
+    vnSetBubble(bound, line2, true);
+  }
   // The caption carries the ACTIVITY LANGUAGE, not just the sprite state: the phrase is the
   // thing the operator reads ("Searching the web…", "Collecting facts on disk…"), and the pack's
   // colour law makes colour supplemental to a word that is always present. Falls back to the
@@ -1093,7 +1215,7 @@ function vnOpenCharacterLab() {
   const copy = document.createElement("div");
   const title = document.createElement("h3"); title.id = "vnLabTitle"; title.textContent = "Character Lab";
   const sub = document.createElement("p"); sub.className = "vn-lab-sub";
-  sub.textContent = "BigHead family · cosmetic only. Runtime state and outcome truth never change.";
+  sub.textContent = "Original pixel family · ten companions · cosmetic only. Runtime state and outcome truth never change.";
   copy.appendChild(title); copy.appendChild(sub); head.appendChild(copy);
   const close = document.createElement("button"); close.type = "button"; close.className = "vn-lab-close";
   close.setAttribute("aria-label", "Close Character Lab"); close.textContent = "×"; close.addEventListener("click", vnCloseCharacterLab);
@@ -1107,9 +1229,10 @@ function vnOpenCharacterLab() {
     card.setAttribute("aria-pressed", vnPos.personality === key ? "true" : "false");
     const preview = document.createElement("canvas"); preview.width = 48; preview.height = 48;
     const label = document.createElement("b"); label.textContent = meta.name;
-    const NOTES = { spark: "engineer · balanced", rascal: "cheeky · expressive", prime: "voxel · polished",
-      prism: "pixel ninja · teal crest", veil: "pixel ninja · amber scarf", ember: "pixel ninja · warm signal" };
-    const note = document.createElement("small"); note.textContent = NOTES[key] || (meta.renderer === "sheet" ? "pixel sheet" : "voxel");
+    /* Every pet is an authored drawing with its own baked palette, so the note comes from the
+       renderer's own registry rather than a table that would drift as the roster grows. */
+    const note = document.createElement("small");
+    note.textContent = meta.note || (meta.original ? "original quartet" : "companion");
     card.appendChild(preview); card.appendChild(label); card.appendChild(note);
     card.addEventListener("click", (function (chosen) { return function () { vnChooseCharacter(chosen); }; })(key));
     grid.appendChild(card);
@@ -1119,9 +1242,7 @@ function vnOpenCharacterLab() {
   modal.appendChild(grid);
   const selectedMeta = window.VoolCompanionWorld.characters[vnPos.personality] || {};
   const packTitle = document.createElement("div"); packTitle.className = "vn-pack-title";
-  packTitle.textContent = selectedMeta.renderer === "sheet"
-    ? "Cosmetic palette — hand-drawn pixel families carry their own baked palette; packs apply to the voxel family"
-    : "Cosmetic palette — never system truth";
+  packTitle.textContent = "Cosmetic palette — every companion is an authored drawing with its own baked palette, so a pack never recolours one. Packs are never system truth.";
   modal.appendChild(packTitle);
   const packGrid = document.createElement("div"); packGrid.className = "vn-pack-grid";
   const packNames = {default:"🧃 Default",ninja:"🥷 Ninja",moss:"🌿 Moss",cyber:"🤖 Cyber"};
@@ -1207,7 +1328,16 @@ function vnNotify(text) {
   if (typeof window.toast === "function") window.toast(text); else if (vnSr) vnSr.textContent = text;
 }
 function vnDesktopPayload(pres, state) {
-  const payload = {state:state||vnSpriteState(pres),caption:pres&&pres.phraseText?pres.phraseText:String((pres&&pres.state)||"IDLE"),character:vnPos.personality,pack:vnPos.pack};
+  const payload = {state:state||vnSpriteState(pres),caption:pres&&pres.phraseText?pres.phraseText:String((pres&&pres.state)||"IDLE"),character:vnPos.personality,pack:vnPos.pack,motion:vnPos.motion};
+  /* The bound chat's title and the activity substate travel with the pet, so the DETACHED pet
+     says the same two grounded lines as the in-app one. Both come from the reducer's resolution
+     for the bound chat; neither is model prose, and the native side re-validates both. */
+  const chatId = (typeof displayedChat !== "undefined" && displayedChat) ? displayedChat
+    : (vnLastChat && VN_VIEWS.has(vnLastChat)) ? vnLastChat : "";
+  const title = vnBoundChatTitle(chatId);
+  if (title) payload.chatTitle = title;
+  const activity = vnActivity(pres);
+  if (activity) payload.activity = activity;
   if (vnPos.desktop && Number.isFinite(vnPos.desktop.x) && Number.isFinite(vnPos.desktop.y)) payload.desktop_position = vnPos.desktop;
   return payload;
 }
@@ -1358,6 +1488,17 @@ function vnBoot() {
   vnSprite.setAttribute("aria-label", vnLabel("companion.label", "Companion"));
   vnCanvas = document.createElement("canvas");
   vnCanvas.width = 48; vnCanvas.height = 48;
+  /* Bubble is the FIRST child and absolutely positioned, so it reads above the character and
+     cannot push it when its text changes. */
+  vnBubble = document.createElement("div");
+  vnBubble.className = "vn-bubble";
+  vnBubbleTitle = document.createElement("div");
+  vnBubbleTitle.className = "vn-bubble-title";
+  vnBubbleActivity = document.createElement("div");
+  vnBubbleActivity.className = "vn-bubble-activity";
+  vnBubble.appendChild(vnBubbleTitle);
+  vnBubble.appendChild(vnBubbleActivity);
+  vnSprite.appendChild(vnBubble);
   vnSprite.appendChild(vnCanvas);
   vnCaption = document.createElement("div");
   vnCaption.className = "vn-caption";
