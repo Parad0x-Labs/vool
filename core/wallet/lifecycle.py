@@ -412,7 +412,7 @@ class PaymentLifecycle:
             reason = str(exc.context.get("reason") or exc.code)
             if exc.code == "wallet_chain_identity_mismatch" and reason.startswith("identity_probe_failed"):
                 return f"rpc_failure:{reason.partition(':')[2] or 'unknown'}"
-            proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail={"reason": reason}, fault_code=exc.code)
+            end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=exc.code, detail={"reason": reason}, reason=reason)
             raise
         return ""
 
@@ -481,7 +481,8 @@ class PaymentLifecycle:
             try:
                 rpc = self._rpc_for(spec.network)
             except WalletFault as exc:
-                proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail={"reason": str(exc.context.get("reason") or exc.code)}, fault_code=exc.code)
+                reason = str(exc.context.get("reason") or exc.code)
+                end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=exc.code, detail={"reason": reason}, reason=reason)
                 raise
             failure = self._prove_svm_endpoint(proposal, rpc, spec)
             if failure:
@@ -493,25 +494,26 @@ class PaymentLifecycle:
                     try:
                         _refuse_unpayable_token(rpc, spec, proposal, profile.public_key, source_context=self.source_context)
                     except WalletFault as exc:
-                        proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail={"reason": str(exc.context.get("reason") or exc.code)}, fault_code=exc.code)
+                        reason = str(exc.context.get("reason") or exc.code)
+                        end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=exc.code, detail={"reason": reason}, reason=reason)
                         raise
                 try:
                     simulation = rpc.simulate(_serialize(self._message_for(proposal, profile.public_key, rpc=rpc), ZERO_SIGNATURE))
-                except WalletFault:
-                    proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, fault_code="wallet_simulation_failed")
+                except WalletFault as exc:
+                    end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code="wallet_simulation_failed", reason=str(exc.context.get("reason") or exc.code))
                     raise
                 except Exception as exc:
                     simulation = SimulationResult(False, 0, f"rpc_failure:{type(exc).__name__}")
         if not simulation.ok:
             fault_code = "wallet_dependency_unavailable" if str(simulation.reason).startswith("dependency:") else "wallet_simulation_failed"
-            proposals.transition(proposal.proposal_id, proposals.STATE_FAILED, detail=simulation.to_dict(), simulation=simulation.to_dict(), fault_code=fault_code)
+            end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=fault_code, detail=simulation.to_dict(), simulation=simulation.to_dict(), reason=simulation.reason)
             raise self._fault(fault_code, proposal, reason=simulation.reason)
         proposals.transition(proposal.proposal_id, proposals.STATE_SIMULATED, detail=simulation.to_dict(), simulation=simulation.to_dict())
         binding = v2_binding_for(proposal.proposal_id)
         fee_minor = _reserved_fee_for(binding) if binding else 0
         verdict = limits.check_limits(proposal.wallet_id, proposal.asset, proposal.amount_minor, proposal.destination, fee_minor=fee_minor, chain=spec.network)
         if not verdict.ok:
-            proposals.transition(proposal.proposal_id, proposals.STATE_REJECTED, detail={"limit": verdict.limit, "reason": verdict.reason}, fault_code="wallet_limit_exceeded")
+            end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", detail={"limit": verdict.limit, "reason": verdict.reason}, limit=verdict.limit, reason=verdict.reason)
             raise self._fault("wallet_limit_exceeded", proposal, limit=verdict.limit, reason=verdict.reason, amount_minor=proposal.amount_minor, asset=proposal.asset)
         proposals.transition(proposal.proposal_id, proposals.STATE_LIMITS_CHECKED, detail={"reason": verdict.reason})
         prepared = proposals.transition(proposal.proposal_id, proposals.STATE_PENDING_APPROVAL, detail={"awaiting": "owner_approval"})
@@ -536,14 +538,14 @@ class PaymentLifecycle:
         proposal = claimed
         verdict = limits.reserve_spend(wallet_id=proposal.wallet_id, asset=proposal.asset, amount_minor=proposal.amount_minor, destination=proposal.destination, proposal_id=proposal.proposal_id, fee_minor=fee_minor, chain=str(chain or spec_network(proposal.network)))
         if not verdict.ok:
-            proposals.transition(proposal.proposal_id, proposals.STATE_REJECTED, detail={"limit": verdict.limit, "reason": verdict.reason}, fault_code="wallet_limit_exceeded")
+            end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", detail={"limit": verdict.limit, "reason": verdict.reason}, limit=verdict.limit, reason=verdict.reason)
             raise self._fault("wallet_limit_exceeded", proposal, limit=verdict.limit, reason=verdict.reason, amount_minor=proposal.amount_minor, asset=proposal.asset)
         if not message_digest:
             message_digest = hashlib.sha256(bytes(payer_message or b"")).hexdigest()
         reservation = reconciliation.reserve_payment_effect(proposal, message_digest=message_digest, source_context=self.source_context)
         if str(reservation.get("outcome") or "") != "reserved":
             limits.release_spend(proposal.proposal_id)
-            proposals.transition(proposal.proposal_id, proposals.STATE_REJECTED, detail={"reason": "effect_in_flight"}, fault_code="wallet_duplicate_payment")
+            end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", detail={"reason": "effect_in_flight"}, reason="effect_in_flight")
             raise self._fault("wallet_duplicate_payment", proposal, reason="effect_in_flight")
         try:
             sign_effect = self._open_effect(self._base(proposal), effect_class=EFFECT_CLASS_SIGN)
@@ -551,7 +553,7 @@ class PaymentLifecycle:
         except Exception as exc:
             limits.release_spend(proposal.proposal_id)
             reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence="effect gateway refused before signing", source="mechanical")
-            proposals.transition(proposal.proposal_id, proposals.STATE_REJECTED, detail={"reason": "effect_gateway_refused"}, fault_code="wallet_limit_exceeded")
+            end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_limit_exceeded", detail={"reason": "effect_gateway_refused"}, reason="effect_gateway_refused")
             raise self._fault("wallet_limit_exceeded", proposal, reason=f"effect_gateway_refused:{type(exc).__name__}") from exc
         return proposal, {"sign": sign_effect, "transaction": tx_effect}
 
@@ -595,8 +597,9 @@ class PaymentLifecycle:
                     try:
                         device_signer = signers.signer_for(profile, proposal_id=proposal.proposal_id)
                     except WalletFault as exc:
-                        attempts = proposals.record_approval_refusal(proposal.proposal_id, method=decision.method, reason=exc.code)
-                        raise self._fault(exc.code, proposal, method=decision.method, reason=str(exc.context.get("reason") or exc.code), status=str(attempts)) from None
+                        shown = str(exc.context.get("reason") or exc.code)
+                        attempts = self._refuse_approval(proposal, method=decision.method, reason=exc.code, fault_code=exc.code, shown=shown, lock=False)
+                        raise self._fault(exc.code, proposal, method=decision.method, reason=shown, status=str(attempts)) from None
             else:
                 # PIN or password wallets: whatever seam produced the decision (PIN box, password box, a platform
                 # biometric seam carrying the unlock), the wallet's own secret must verify
@@ -604,12 +607,13 @@ class PaymentLifecycle:
         if not accepted:
             # A refused approval is a COUNTED attempt, not the end of the proposal: a mistyped PIN must not
             # burn a payment the owner still wants, and the fault + security event are filed either way.
-            # The proposal is locked (rejected) once MAX_APPROVAL_ATTEMPTS refusals accumulate.
-            attempts = proposals.record_approval_refusal(proposal.proposal_id, method=decision.method, reason=decision.reason or "approval_not_accepted")
+            # The proposal is locked (rejected) once MAX_APPROVAL_ATTEMPTS refusals accumulate. Each refusal leaves its
+            # receipt in the state it leaves the payment in.
+            shown = decision.reason or "challenge_mismatch_or_wrong_pin"
+            attempts = self._refuse_approval(proposal, method=decision.method, reason=decision.reason or "approval_not_accepted", shown=shown)
             if attempts >= MAX_APPROVAL_ATTEMPTS:
-                proposals.transition(proposal.proposal_id, proposals.STATE_REJECTED, detail={"method": decision.method, "reason": "approval_attempts_exhausted", "attempts": attempts}, fault_code="wallet_approval_rejected")
                 raise self._fault("wallet_approval_rejected", proposal, method=decision.method, reason="approval_attempts_exhausted", status=str(attempts))
-            raise self._fault("wallet_approval_rejected", proposal, method=decision.method, reason=decision.reason or "challenge_mismatch_or_wrong_pin", status=str(attempts))
+            raise self._fault("wallet_approval_rejected", proposal, method=decision.method, reason=shown, status=str(attempts))
         message = self._message_for(proposal, profile.public_key, rpc=rpc)
         proposal, effects = self._claim(proposal, profile, method=decision.method, payer_message=message, fee_minor=max(_reserved_fee_for(challenge.binding_view()), _svm_fee_for(proposal)), chain=spec_network(proposal.network))
         try:
@@ -626,11 +630,26 @@ class PaymentLifecycle:
         return self._broadcast(proposal, raw, effects["transaction"])
 
     # -- the Crypto Pilot approval: one quote, approval v3, the credential -------------------------------------
-    def _count_approval_refusal(self, proposal: proposals.TransactionProposal, decision: Any, *, reason: str) -> int:
+    def _count_approval_refusal(self, proposal: proposals.TransactionProposal, decision: Any, *, reason: str, fault_code: str = "wallet_approval_rejected") -> int:
         """The legacy door's attempt law, shared: every refusal is counted and the proposal locks at the maximum."""
-        attempts = proposals.record_approval_refusal(proposal.proposal_id, method=decision.method, reason=reason)
-        if attempts >= MAX_APPROVAL_ATTEMPTS:
-            proposals.transition(proposal.proposal_id, proposals.STATE_REJECTED, detail={"method": decision.method, "reason": "approval_attempts_exhausted", "attempts": attempts}, fault_code="wallet_approval_rejected")
+        return self._refuse_approval(proposal, method=decision.method, reason=reason, shown=reason, fault_code=fault_code)
+
+    def _refuse_approval(self, proposal: proposals.TransactionProposal, *, method: str, reason: str, shown: str, fault_code: str = "wallet_approval_rejected", lock: bool = True) -> int:
+        """Count one refused approval and leave its receipt, in one transaction: below :data:`MAX_APPROVAL_ATTEMPTS` the
+        payment stays pending (a mistyped PIN does not end it) and the receipt says so; the refusal that reaches the
+        maximum locks it (rejected), unless ``lock`` is off. Returns the refusals counted so far. A payment that moved
+        on meanwhile gets no refusal receipt: its state is another decision's."""
+        from core.wallet.store import connection
+
+        with connection() as conn:
+            attempts = proposals._record_approval_refusal(conn, proposal.proposal_id, method=method, reason=reason)
+            if lock and attempts >= MAX_APPROVAL_ATTEMPTS:
+                end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", expected_state=proposals.STATE_PENDING_APPROVAL,
+                            detail={"method": method, "reason": "approval_attempts_exhausted", "attempts": attempts}, conn=conn, reason="approval_attempts_exhausted", attempts=attempts)
+                return attempts
+            current = proposals._get(conn, proposal.proposal_id)
+            if current is not None and current.state == proposals.STATE_PENDING_APPROVAL:
+                receipts._record_refusal(conn, current, fault_code=fault_code, reason=shown, attempts=attempts)
         return attempts
 
     def _refuse_pilot_approval(self, proposal: proposals.TransactionProposal, decision: Any, *, reason: str) -> None:
@@ -737,7 +756,7 @@ class PaymentLifecycle:
         except WalletFault as exc:
             if exc.code != "wallet_unlock_throttled":
                 # a wrong credential is a counted attempt on this proposal too; a throttled one never reached the seal
-                self._count_approval_refusal(proposal, decision, reason=exc.code)
+                self._count_approval_refusal(proposal, decision, reason=exc.code, fault_code=exc.code)
             raise
 
     def _revalidate_svm(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, spec: chains.ChainIdentity, quote: dict[str, Any], *, companion: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -948,7 +967,7 @@ class PaymentLifecycle:
                 signer = stack.enter_context(pilot_custody.signing_session(profile.wallet_id, decision.pin_unlock, source_context=self.source_context))
             except WalletFault as exc:
                 if exc.code != "wallet_unlock_throttled":
-                    self._count_approval_refusal(proposal, decision, reason=exc.code)
+                    self._count_approval_refusal(proposal, decision, reason=exc.code, fault_code=exc.code)
                 raise
             # the key is open from here to the end of the block: only local work happens inside
             claimed = self._claim_pilot(proposal, profile, spec, quote, challenge, baseline, fresh, companion=companion)
@@ -1848,6 +1867,29 @@ def _reserved_fee_for(view: dict[str, Any]) -> int:
     if view.get("sponsored_gas"):
         return 0
     return _minor(view.get("max_facilitator_fee_minor")) + _minor(view.get("max_network_fee_minor"))
+
+
+def end_refused(proposal_id: str, state: str, *, fault_code: str, expected_state: str | None = None, detail: dict[str, Any] | None = None,
+                simulation: dict[str, Any] | None = None, conn: Any = None, **refusal: Any) -> proposals.TransactionProposal | None:
+    """End a proposal under a refusal this wallet made and record its receipt in the same transaction: the state it is
+    left in, the real fault, ``refusal`` (what decided it) and nothing charged. On ``conn`` when given, so it commits
+    with the caller's other writes. None when the proposal had already moved on (its compare-and-set lost): nothing is
+    written then."""
+    if conn is None:
+        from core.wallet.store import connection
+
+        with connection() as own:
+            return end_refused(proposal_id, state, fault_code=fault_code, expected_state=expected_state, detail=detail, simulation=simulation, conn=own, **refusal)
+    columns: dict[str, Any] = {"fault_code": fault_code}
+    if simulation is not None:
+        columns["simulation"] = simulation
+    try:
+        proposals._cas(conn, str(proposal_id), state, expected_state=expected_state, edges=proposals.TRANSITIONS, detail=detail, columns=columns)
+    except proposals.ProposalTransitionError:
+        return None
+    ended = proposals._get(conn, proposal_id)
+    receipts._record_refusal(conn, ended, fault_code=fault_code, **refusal)
+    return ended
 
 
 def _svm_fee_for(proposal: proposals.TransactionProposal) -> int:

@@ -284,10 +284,14 @@ EVENT_APPROVAL_REFUSED = "approval_refused"
 
 def record_approval_refusal(proposal_id: str, *, method: str, reason: str) -> int:
     """Append a refused-approval event WITHOUT moving the state; return the refusal count so far."""
-    now = utcnow()
     with connection() as conn:
-        conn.execute("INSERT INTO wallet_proposal_events (proposal_id, state, detail_json, created_at) VALUES (?, ?, ?, ?)", (str(proposal_id), EVENT_APPROVAL_REFUSED, dumps({"method": method, "reason": reason}), now))
-        row = conn.execute("SELECT COUNT(*) FROM wallet_proposal_events WHERE proposal_id = ? AND state = ?", (str(proposal_id), EVENT_APPROVAL_REFUSED)).fetchone()
+        return _record_approval_refusal(conn, proposal_id, method=method, reason=reason)
+
+
+def _record_approval_refusal(conn: Any, proposal_id: str, *, method: str, reason: str) -> int:
+    """:func:`record_approval_refusal` on the caller's connection (the refusal's receipt commits with it)."""
+    conn.execute("INSERT INTO wallet_proposal_events (proposal_id, state, detail_json, created_at) VALUES (?, ?, ?, ?)", (str(proposal_id), EVENT_APPROVAL_REFUSED, dumps({"method": method, "reason": reason}), utcnow()))
+    row = conn.execute("SELECT COUNT(*) FROM wallet_proposal_events WHERE proposal_id = ? AND state = ?", (str(proposal_id), EVENT_APPROVAL_REFUSED)).fetchone()
     return int(row[0] or 0)
 
 

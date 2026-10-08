@@ -431,6 +431,58 @@ def test_a_wrong_credential_or_a_forged_decision_on_the_sheet_is_a_counted_attem
         assert "sendTransaction" not in [call.get("method") for call in node.calls]
 
 
+def _sheet_receipts(proposal_id):
+    from core.wallet import receipts
+
+    return [(r["state"], r["fault_code"], r["refusal"]["reason"], r["refusal"].get("attempts"), r["refusal"]["charged_amount_minor"], r["refusal"]["charged_fee_minor"])
+            for r in reversed(receipts.list_receipts()) if r["proposal_id"] == proposal_id]
+
+
+def test_each_refused_approval_on_the_sheet_leaves_a_receipt_and_the_lock_rejects_with_its_own(quote_home, monkeypatch):
+    """A wrong credential and a forged decision are counted refusals that leave the payment pending, each with a receipt
+    under the fault the owner was shown; the refusal that reaches the lock rejects the payment, with its receipt in the
+    same transaction. Nothing is charged and nothing is sent."""
+    from core.wallet import approval, lifecycle, proposals
+
+    class _Forged:
+        def approve(self, challenge):
+            return approval.ApprovalDecision(approved=True, method=approval.METHOD_PIN, challenge_digest="f" * 64, pin_unlock=PIN)
+
+    wallet = _ready_pilot_wallet(SOLANA_MAINNET)
+    with ScriptedRpc(genesis_hash=MAINNET_GENESIS) as node:
+        engine, proposal, quote = _prepared_quote(monkeypatch, node, wallet)
+        with pytest.raises(WalletFault) as wrong:
+            engine.approve_pilot_transfer(proposal.proposal_id, quote_id=quote["quote_id"], quote_digest=quote["digest"], approver=approval.PinApprover("593027"))
+        assert wrong.value.code == "wallet_pin_invalid"
+        for _ in range(lifecycle.MAX_APPROVAL_ATTEMPTS - 1):
+            with pytest.raises(WalletFault) as refused:
+                engine.approve_pilot_transfer(proposal.proposal_id, quote_id=quote["quote_id"], quote_digest=quote["digest"], approver=_Forged())
+        assert refused.value.context["reason"] == "approval_attempts_exhausted"
+        assert "sendTransaction" not in [call.get("method") for call in node.calls]
+    assert proposals.get_proposal(proposal.proposal_id).state == proposals.STATE_REJECTED
+    pending = proposals.STATE_PENDING_APPROVAL
+    assert _sheet_receipts(proposal.proposal_id) == [
+        (pending, "wallet_pin_invalid", "wallet_pin_invalid", 1, 0, 0),
+        (pending, "wallet_approval_rejected", "challenge_mismatch", 2, 0, 0),
+        (pending, "wallet_approval_rejected", "challenge_mismatch", 3, 0, 0),
+        (pending, "wallet_approval_rejected", "challenge_mismatch", 4, 0, 0),
+        (proposals.STATE_REJECTED, "wallet_approval_rejected", "approval_attempts_exhausted", lifecycle.MAX_APPROVAL_ATTEMPTS, 0, 0),
+    ]
+
+
+def test_the_owners_rejection_on_the_sheet_before_the_claim_leaves_a_receipt(quote_home, monkeypatch):
+    from core.wallet import proposals, settlement
+
+    wallet = _ready_pilot_wallet(SOLANA_MAINNET)
+    with ScriptedRpc(genesis_hash=MAINNET_GENESIS) as node:
+        _engine, proposal, _quote = _prepared_quote(monkeypatch, node, wallet)
+        answer = settlement.request_cancel(proposal.proposal_id)
+        assert "sendTransaction" not in [call.get("method") for call in node.calls]
+    assert (answer["cancelled"], answer["reason"]) == (True, "rejected_before_claim")
+    assert proposals.get_proposal(proposal.proposal_id).state == proposals.STATE_REJECTED
+    assert _sheet_receipts(proposal.proposal_id) == [(proposals.STATE_REJECTED, "wallet_approval_rejected", "owner_rejected", None, 0, 0)]
+
+
 def test_a_stored_quote_rewritten_for_another_recipient_does_not_approve_with_its_own_digest(quote_home, monkeypatch):
     from core.wallet import approval, proposals, quotes
     from core.wallet.store import connection

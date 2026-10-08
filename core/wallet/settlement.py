@@ -213,7 +213,7 @@ def request_cancel(proposal_id: str) -> dict[str, Any]:
     """The reject door for a Crypto Pilot proposal, in ONE transaction: a transfer row gets the cancel flag (which
     every later sign, send and release CAS refuses); a proposal that was never claimed is rejected. The answer says
     exactly what happened; a request that reached the send answers ``cancelled: False`` with the transfer."""
-    from core.wallet import proposals
+    from core.wallet import proposals, receipts
 
     now = clock()
     rejected: dict[str, Any] | None = None
@@ -230,6 +230,7 @@ def request_cancel(proposal_id: str) -> dict[str, Any]:
             except proposals.ProposalTransitionError:
                 return {"cancelled": False, "reason": f"not_awaiting_approval:{proposal.state}", "proposal": proposal.to_dict()}
             current = proposals._get(conn, proposal_id)
+            receipts._record_refusal(conn, current, fault_code="wallet_approval_rejected", reason="owner_rejected")
             if str(proposal.origin) == proposals.ORIGIN_DNA_FEE:
                 from core.wallet import dna_fees
 
