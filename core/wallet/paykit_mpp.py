@@ -30,10 +30,10 @@ from core.wallet.paykit_x402 import (
     _clean_request,
     _import_paykit,
     _run,
-    _upsert_binding,
     availability,
+    binding_terms,
     existing_outcome,
-    lost_request,
+    parked,
     refuse_pilot_lane,
     request_digest,
     require_available,
@@ -183,18 +183,16 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
     if terms["amount_minor"] > cap:
         raise wallet_fault("wallet_x402_cap_exceeded", authority=AUTHORITY, context={"amount_minor": terms["amount_minor"], "limit": str(cap), "asset": terms["asset"], "reason": "above_automatic_cap"}, source_context=source_context)
     idempotency_key = "mpppk:" + hashlib.sha256(f"{digest}|{challenge.id}|{terms['pay_to']}|{terms['amount_minor']}|{terms['mint'] or terms['asset']}|{terms['network']}".encode()).hexdigest()[:24]
+    claim = x402._RequestClaim(digest, clean_url, clean_method, binding_terms(url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
+                                                                            offer={"protocol": "mpp", "challenge": dataclasses.asdict(challenge)},
+                                                                            version=x402.BINDING_VERSION_PAYKIT_MPP), source_context=source_context)
     proposal = proposals.propose_transaction(
         wallet_id=wallet_id, destination=terms["pay_to"], amount_minor=terms["amount_minor"], asset=terms["asset"], origin=proposals.ORIGIN_MPP_PAYKIT,
-        memo=f"mpp {clean_method} {clean_url}"[:200], idempotency_key=idempotency_key, source_context=source_context, network=terms["network"],
+        memo=f"mpp {clean_method} {clean_url}"[:200], idempotency_key=idempotency_key, source_context=source_context, network=terms["network"], claim=claim,
     )
-    if not _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
-                           offer={"protocol": "mpp", "challenge": dataclasses.asdict(challenge)}, version=x402.BINDING_VERSION_PAYKIT_MPP, proposal_id=proposal.proposal_id):
-        return lost_request(digest, proposal.proposal_id, source_context=source_context)
     # an unsponsored charge's fee is bound by prepare itself, before the proposal can be approved: the approval shows
     # it, and the claim reserves exactly that fee with the amount
-    prepared = x402.prepare_bound(proposal.proposal_id, source_context=source_context)
-    binding = x402.binding_for_digest(digest) or {}
-    return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=status, body=answer["body"], proposal_id=prepared.proposal_id, binding_id=str(binding.get("binding_id") or ""))
+    return parked(proposal, claim, http_status=status, body=answer["body"], source_context=source_context)
 
 
 def payer_fee_minor(proposal: proposals.TransactionProposal) -> int:
