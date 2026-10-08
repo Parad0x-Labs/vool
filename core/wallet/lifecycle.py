@@ -336,10 +336,18 @@ class PaymentLifecycle:
             if latest.get("state") == external_signing.STATE_CONSUMED:
                 raise self._fault("wallet_duplicate_payment", proposal, reason="signing_request_in_flight", status=proposal.state)
             raise self._fault("wallet_approval_rejected", proposal, reason="signing_request_expired", status=proposal.state)
+        self._expire_unsent(proposal, evidence=evidence)
+        raise self._fault("wallet_approval_rejected", proposal, reason="signing_request_expired")
+
+    @staticmethod
+    def _expire_unsent(proposal: proposals.TransactionProposal, *, evidence: str) -> None:
+        """A claimed payment whose signing request THIS caller expired (its CAS won: nothing was dispatched) is
+        expired: the hold released, the effect resolved as not applied, and the expiry ended with its receipt in one
+        transaction, at every door that expires one (the submit door and the reaper)."""
         limits.release_spend(proposal.proposal_id)
         reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=evidence, source="mechanical")
-        proposals.transition(proposal.proposal_id, proposals.STATE_EXPIRED, detail={"reason": "signing_request_expired"}, fault_code="wallet_approval_rejected")
-        raise self._fault("wallet_approval_rejected", proposal, reason="signing_request_expired")
+        end_refused(proposal.proposal_id, proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", expected_state=proposal.state,
+                    detail={"reason": "signing_request_expired"}, reason="signing_request_expired")
 
     def _load(self, proposal_id: str) -> proposals.TransactionProposal:
         proposal = proposals.get_proposal(proposal_id)
@@ -373,10 +381,7 @@ class PaymentLifecycle:
                 continue
             proposal = proposals.get_proposal(record["proposal_id"])
             if proposal is not None and proposal.state == proposals.STATE_AWAITING_SIGNATURE and not proposal.tx_signature:
-                limits.release_spend(proposal.proposal_id)
-                reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence="signing request expired (reaper)", source="mechanical")
-                proposals.transition(proposal.proposal_id, proposals.STATE_EXPIRED, detail={"reason": "signing_request_expired"}, fault_code="wallet_approval_rejected")
-                receipts.record_receipt(proposal, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected")
+                self._expire_unsent(proposal, evidence="signing request expired (reaper)")
             reaped += 1
         return reaped
 

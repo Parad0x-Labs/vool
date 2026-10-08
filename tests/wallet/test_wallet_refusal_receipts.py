@@ -2,7 +2,7 @@
 
 A failed simulation, an endpoint that proves another chain, a ceiling (at prepare, or at the claim when the limits
 changed in between), a claim refused because the payment's effect is already in flight or a session budget refused it,
-each refused approval and the owner's own rejection are decisions money control made about one payment. Each records a receipt under its real
+each refused approval, a signing request that expired and the owner's own rejection are decisions money control made about one payment. Each records a receipt under its real
 fault code, in the state the payment is left in, with a zero charged amount and fee, in the same transaction as that
 state: a payment never ends without its receipt.
 """
@@ -215,4 +215,32 @@ def test_the_owners_rejection_leaves_a_receipt(wallet_env, moment):
     else:
         _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
                                 reason="owner_rejected_after_claim")
+    assert wallet_env["rpc"].send_count() == 0
+
+
+@pytest.mark.parametrize("door", ["submit_after_its_ttl", "reaper"])
+def test_a_signing_request_that_expires_leaves_a_receipt(wallet_env, monkeypatch, door):
+    """An external signer's payment is claimed (its spend held) and its signing request outlives its TTL: the signature
+    arrives too late at the submit door, or the reaper finds it first. Either door expires the payment, releases the
+    hold and records the expiry's receipt with it, nothing charged."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from core.vool_wallet import b58encode
+    from core.wallet import custody, external_signing, lifecycle, limits, proposals
+    from core.wallet.errors import WalletFault
+
+    engine = lifecycle.default_lifecycle()
+    public_key = b58encode(Ed25519PrivateKey.generate().public_key().public_bytes_raw())
+    proposal = engine.prepare(_propose(custody.register_external_signer_wallet(public_key, label="ext")).proposal_id)
+    request = engine.request_external_signature(proposal.proposal_id)
+    real_now = external_signing._now
+    monkeypatch.setattr(external_signing, "_now", lambda: real_now() + external_signing.REQUEST_TTL_SECONDS + 1)
+    if door == "reaper":
+        assert engine.reap_stale_signing_requests() == 1
+    else:
+        with pytest.raises(WalletFault) as late:
+            engine.submit_external_signature(request["request_id"], signature_b58="1" * 88)
+        assert (late.value.code, late.value.context["reason"]) == ("wallet_approval_rejected", "signing_request_expired")
+    _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
+                            reason="signing_request_expired")
     assert wallet_env["rpc"].send_count() == 0
