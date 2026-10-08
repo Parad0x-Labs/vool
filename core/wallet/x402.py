@@ -158,7 +158,7 @@ ALLOW_LOOPBACK_ENV = "VOOL_WALLET_X402_ALLOW_LOOPBACK"
 _BINDING_COLS = "binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, tx_signature, state, resource_status, resource_digest, resource_bytes, created_at, updated_at, version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, nonce, deadline, expires_at, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, fee_asset, max_timeout_seconds, asset_address"
 #: A request's binding is never handed to another proposal while its own proposal is being prepared, waits on its
 #: owner, is being paid or has paid (these states: every state but a terminal refusal), nor while that proposal still
-#: holds reserved spend: see :func:`binding_guard`. A door binds its proposal BEFORE preparing it, so the request is
+#: holds reserved spend or its amount has settled as moved: see :func:`binding_guard`. A door binds its proposal BEFORE preparing it, so the request is
 #: held from the moment a proposal for it exists.
 PREPARING_STATES = (proposals.STATE_PROPOSED, proposals.STATE_SIMULATED, proposals.STATE_LIMITS_CHECKED)
 BINDING_HELD_STATES = (*PREPARING_STATES, proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE,
@@ -322,17 +322,19 @@ def owns_its_request(proposal: proposals.TransactionProposal) -> bool:
 def binding_guard() -> tuple[str, tuple[Any, ...]]:
     """The WHERE clause (and its parameters) of a binding upsert's ON CONFLICT update, which makes rebinding a request
     one compare-and-set: the stored binding takes another proposal only while its own proposal is in none of
-    :data:`BINDING_HELD_STATES` and holds no reserved spend (principal or fee companion). Otherwise the upsert changes
-    no row, and its caller learns the request is already another payment's. Two callers racing the same request,
-    each past its own first check, can therefore never both bind it."""
+    :data:`BINDING_HELD_STATES`, holds no reserved spend (principal or fee companion) and has no amount settled as moved
+    (a payment that failed on chain settles its amount as 0). Otherwise the upsert changes no row, and its caller learns
+    the request is already another payment's. Two callers racing the same request, each past its own first check, can
+    therefore never both bind it, and a paid request stays closed even when its proposal row says otherwise."""
     from core.wallet import limits
 
     states = ", ".join("?" for _ in BINDING_HELD_STATES)
     return (
         f" WHERE NOT EXISTS (SELECT 1 FROM wallet_proposals p WHERE p.proposal_id = wallet_x402_bindings.proposal_id AND p.state IN ({states}))"
         " AND NOT EXISTS (SELECT 1 FROM wallet_spend_ledger l WHERE l.proposal_id IN (wallet_x402_bindings.proposal_id, wallet_x402_bindings.proposal_id || ?)"
-        " AND l.state = ?)",
-        (*BINDING_HELD_STATES, limits._fee_hold_id(""), limits.RESERVATION_RESERVED),
+        " AND l.state = ?)"
+        " AND NOT EXISTS (SELECT 1 FROM wallet_spend_ledger l WHERE l.proposal_id = wallet_x402_bindings.proposal_id AND l.state = ? AND l.amount_minor > 0)",
+        (*BINDING_HELD_STATES, limits._fee_hold_id(""), limits.RESERVATION_RESERVED, limits.RESERVATION_SETTLED),
     )
 
 
@@ -538,11 +540,18 @@ def _bound_outcome(binding: dict[str, Any] | None, *, timeout: float, source_con
 def refuse_while_dispatched(proposal: proposals.TransactionProposal, *, authority: str, source_context: dict[str, Any] | None) -> None:
     """The dispatch record decides, not the state column or a transaction id: while the payment's spend is still held
     as reserved, nothing has proven what became of it (it left, or may have), so its request stays closed whatever its
-    state says. A refusal before sending releases the hold; a proven outcome settles it."""
+    state says. A refusal before sending releases the hold; a proven outcome settles it. A settled amount that moved
+    is a payment made: when the proposal's row says it did not pay (a rewound or restored row), the record and the row
+    disagree, and the request stays closed as a payment whose outcome is unknown."""
     from core.wallet import limits
 
-    if limits.reservation_state(proposal.proposal_id) == limits.RESERVATION_RESERVED:
-        raise wallet_fault("wallet_duplicate_payment", authority=authority, context={"proposal_id": proposal.proposal_id, "reason": "payment_outcome_unknown", "status": proposal.state}, source_context=source_context)
+    with connection() as conn:
+        row = conn.execute("SELECT state, amount_minor FROM wallet_spend_ledger WHERE proposal_id = ?", (str(proposal.proposal_id),)).fetchone()
+    held = row is not None and str(row[0]) == limits.RESERVATION_RESERVED
+    paid = row is not None and str(row[0]) == limits.RESERVATION_SETTLED and int(row[1] or 0) > 0
+    if held or paid:
+        raise wallet_fault("wallet_duplicate_payment", authority=authority, context={"proposal_id": proposal.proposal_id, "reason": "payment_outcome_unknown", "status": proposal.state,
+                                                                                 **({"evidence": "spend_settled"} if paid else {})}, source_context=source_context)
 
 
 def _lost_request(digest: str, *, timeout: float, source_context: dict[str, Any] | None) -> X402Outcome:
