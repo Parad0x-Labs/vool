@@ -12,6 +12,11 @@ excluded still rides value-free, as an exact unit whose window is the prefix's o
 its speaker label binds and delivery never widens it back to the excluded value); a span that only
 acknowledges binds nothing; an envelope-only span is refused at delivery.
 
+Lane law (KEEP): the whole-turn "Evidence turns" lane is not the distilled facts. A superseded turn
+known by the as-of day still rides there, whole, beside its later-dated correction; only the as-of
+law (a turn stated after the as-of day), a withdrawn verdict or a live retraction refuses it. The
+value-free carrier law above binds the distilled facts, where the current value is served.
+
 All names, places and sentences are synthetic.
 """
 
@@ -68,13 +73,26 @@ def test_anchor_carrier_rides_as_the_stored_record_value_free(tmp_path, question
     _ingest(profile, "lift", [(_ts(t), text) for t, text in _LIFT_LADDER])
     capsule = _as_of_capsule(profile, "lift", question, "2026-08-15T00:00:00")
     items = _items(capsule)
-    assert any("34 marks" in item for item in items), capsule
+    assert cr._TURN_LANE_HEADER in capsule, capsule
+    facts, lane = capsule.split(cr._TURN_LANE_HEADER, 1)
+    fact_items = _items(facts)
+    # the distilled facts serve the value in force on the as-of day
+    assert any("34 marks" in item for item in fact_items), capsule
     # the superseded carrier binds the subject, attributed to its speaker,
     # without its excluded value and without being widened back to it
-    carrier = [item for item in items if "day pass" in item.lower()]
+    carrier = [item for item in fact_items if "day pass" in item.lower()]
     assert carrier, capsule
     assert all('reported source prefix "Brannagh:"' in item for item in carrier), capsule
-    assert "30 marks" not in capsule and "38 marks" not in capsule, capsule
+    assert "30 marks" not in facts, capsule
+    # the as-of law refuses the October value everywhere, the lane included
+    assert "38 marks" not in capsule, capsule
+    # KEEP: the superseded January turn rides the lane whole, once, beside its
+    # later-dated March correction, which the latest-dated law makes current
+    lane_items = _items(lane)
+    january = [item for item in lane_items if "30 marks" in item]
+    march = [item for item in lane_items if "34 marks" in item]
+    assert len(january) == 1 and "(stated 2026-01-10)" in january[0], capsule
+    assert len(march) == 1 and "(stated 2026-03-05)" in march[0], capsule
     # no envelope-only item or envelope fragment anywhere
     assert not [item for item in items if not any(ch.isalpha() for ch in _payload(item))], capsule
     assert not [item for item in items if _payload(item).strip().startswith("2026\n")], capsule

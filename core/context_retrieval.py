@@ -10018,8 +10018,13 @@ def _capsule_v2_inject_retrieved(
             str(t) for t in _query_overlap_terms(_fp_lead_in)
         }
     from core.raw_output_contract import request_content_for_retrieval
-    _fp_content_query = _FACET_DEPARTURE_FRAME_RE.sub(
-        " ", request_content_for_retrieval(_fp_question))
+    # A calendar date the question names ("on March 8, 2023") is WHEN it
+    # looks - the time leg and the as-of law own it - never an asked facet:
+    # read as discriminators, its words ("march", "2023") are absent from
+    # every record that states a value without a date, and the gate refused
+    # the very record that answers for that day (the capsule came back empty).
+    _fp_content_query = _DATE_EXPR.sub(" ", _FACET_DEPARTURE_FRAME_RE.sub(
+        " ", request_content_for_retrieval(_fp_question)))
     _fp_relative_who = _relative_who_terms(_fp_content_query)
     _fp_discriminators = {
         str(t) for t in _query_overlap_terms(_fp_content_query)
@@ -10495,6 +10500,19 @@ def _capsule_v2_inject_retrieved(
                     int(window.get("start", 0)), int(window.get("end", 0)),
                     span_text)):
                 _dbg_drop(occurrence, "envelope-only")
+                return False
+            # The distiller's pasted-transcript law (_ranked_recall_chunks)
+            # binds every evidence arm too: in a user record carrying a pasted
+            # "USER:/ASSISTANT:" transcript, a span inside an ASSISTANT block is
+            # generated advice, and advice never evidences the user's own
+            # choice ("Which cabinet did I buy?" was answered from the
+            # assistant's suggestion, delivered as "user said").
+            if (_is_user_choice_query(query)
+                    and str(getattr(occurrence, "role", "") or "") == "user"
+                    and _is_advice_chunk(
+                        _speaker_block_spans(str(getattr(occurrence, "body", "") or "")),
+                        int(window.get("start", -1)))):
+                _dbg_drop(occurrence, "assistant-block-for-user-choice")
                 return False
             # Apply ownership at delivery too: neighbor/sibling rides use this
             # same boundary and must not reintroduce a rejected source quote.
@@ -11678,7 +11696,14 @@ def _capsule_v2_inject_retrieved(
                 # still needs its missing anchors bound (exposed corpus
                 # F15-09); the wax-seam guard stays - a carrier rides only
                 # when it binds a MISSING term.
-                _missing_anchors = _content_terms - _blob_stems
+                # Presence is read the way every other lane reads it (raw
+                # substring or Porter stem, _query_terms_in_text): a bare
+                # set difference against the blob's STEMS read "gauge" as
+                # missing beside "gauge" (stem "gaug"), and the carrier that
+                # "bound" it re-delivered an older reading of the same gauge
+                # beside the newest one (challenge N amendment, flume).
+                _missing_anchors = _content_terms - _query_terms_in_text(
+                    blob, _content_terms, _blob_stems)
                 if _missing_anchors:
                     _slot_of = {
                         v.key: v.slot for v in verdicts.values() if v.slot}
@@ -11759,6 +11784,19 @@ def _capsule_v2_inject_retrieved(
                             continue
                         _abody = body_by_key.get(_v.key) or ""
                         if not _abody:
+                            continue
+                        # Same transcript-dedup law as the hit loop: a record
+                        # the conversation already carries (no value the
+                        # transcript lacks, its content covered) binds its
+                        # subject there already, so riding it as a carrier
+                        # re-served the very record the dedup dropped.
+                        if (not any(tok not in context_text
+                                    for tok in _distinctive_value_tokens(_abody))
+                                and (_content_covered_excluding_query(
+                                        _abody, context_text, coverage_query, DEDUP_THRESHOLD)
+                                     or _content_covered_substring(
+                                        _abody, context_text, DEDUP_MIN_SUBSTRING,
+                                        query=coverage_query))):
                             continue
                         _sa_role = str(getattr(
                             _cand_by_key.get(_v.key), "role", "user") or "user")
@@ -12440,7 +12478,9 @@ def _capsule_v2_inject_retrieved(
     try:
         # Rendered the same whether or not the opt-in sitting order is on. KNOWN CONFLICT (open): with
         # VOOL_CAPSULE_SITTING_ORDER on, a sitting's whole turns in this block sit apart from that
-        # sitting's capsule lines (tests/test_capsule_session_order.py, 4 cases).
+        # sitting's capsule lines (tests/test_capsule_session_order.py, 4 cases). They are not moved into
+        # the distilled lines: a lane turn keeps its header (the latest-dated-is-current rule), its own
+        # receipt, and never reads as a distilled fact (a superseded value would then read as current).
         # v14.6: the lane is bounded by the free window the budget was resolved from as well as by its own cap, so
         # a tight caller window is never overrun by verbatim turns (tests/test_v146_capsule_whole_block_bound_20261007.py)
         _lane_cap = _TURN_LANE_MAX_TOKENS

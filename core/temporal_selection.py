@@ -1601,9 +1601,11 @@ def _declared_interval_windows(
 #: log says 28.5"): they are ONE observation series whose later member is
 #: the newer state, not parallel facts. Signature containment (one side
 #: subject-poor/anaphoric) keeps different subjects' same-frame readings
-#: apart ("the morning pool log" vs "the afternoon till log").
+#: apart ("the morning pool log" vs "the afternoon till log"). Dusk marks a
+#: reading's time of day as dawn does: "The dusk well gauge says 3.1 metres"
+#: is a timed reading.
 _TIME_OF_DAY_RE = re.compile(
-    r"\b(?:dawn|morning|noon|afternoon|evening|night|midnight)\b",
+    r"\b(?:dawn|morning|noon|afternoon|evening|dusk|night|midnight)\b",
     re.IGNORECASE,
 )
 _READING_FRAME_NOUNS = frozenset({
@@ -1937,7 +1939,11 @@ _LIGHT_VERB_TOKENS = frozenset({
 _REASSIGNMENT_CONSTRUCTION_RE = re.compile(
     r"\b(?:switch\w*|move\w*|go(?:es)?\s+up|went\s+up|rise|rises|rose|"
     r"climb\w*|jump\w*|drop\w*|fall\w*|fell|increase\w*|convert\w*|"
-    r"change\w*|swap\w*|switch(?:ed)?\s+over)\s+(?:up\s+)?to\b",
+    r"change\w*|swap\w*|switch(?:ed)?\s+over)\s+(?:up\s+)?to\b"
+    # "is down to 4 jars" / "went down to 3" lowers a count to the number it
+    # names, like "drops to"; only before a number, so a movement ("went
+    # down to the cellar", "down to 3rd floor") is never read as a reassignment
+    r"|\b(?:is|are|was|were|now|went|goes|go|got|gets)\s+down\s+to\s+(?=\d+(?:[.,]\d+)?(?!\d|st\b|nd\b|rd\b|th\b))",
     re.IGNORECASE,
 )
 
@@ -2872,6 +2878,41 @@ def apply_temporal_selection(
                     key=cand.key, eligible=True, reason="eligible-coexists",
                     slot=slot_id, effective_time=effective_time(cand),
                 )
+
+        # A slot's winner is its newest member, which may be a slot-mate the
+        # transitive closure brought in (a marker statement joins every chain
+        # sharing one word: "Correction, the harbour kiln fee is now 34"
+        # pulled in "The harbour wall got a fresh coat of paint"). Members
+        # that merely coexist with such a winner were never compared with
+        # EACH OTHER, so the superseded "fee is 30" was served as current
+        # beside its own correction. The winner's value law therefore also
+        # applies pairwise, for VALUE conflicts only: a coexisting member is
+        # superseded by a newer coexisting member it is DIRECTLY tied to that
+        # asserts a different value for it. Value-less withdrawals and
+        # restorations keep their own laws above (a chain-linked record
+        # survives a value-less correction; a restoration revives its claim).
+        if winner is not None and ordinal != "earliest" and not mixed_current_past:
+            coexisting = [
+                i for i in pool
+                if i != winner
+                and getattr(verdicts.get(normalized[i].key), "reason", "") == "eligible-coexists"
+                and effective_time(normalized[i]) is not None
+            ]
+            for i in coexisting:
+                newer = [
+                    j for j in coexisting
+                    if j != i and frozenset((i, j)) in direct_ties
+                    and _order_key(normalized[j]) > _order_key(normalized[i])
+                    and _value_conflict(normalized[i].body, normalized[j].body)
+                    and _conflicts_with_winner(normalized[i].body, normalized[j].body)
+                ]
+                if newer:
+                    by = max(newer, key=lambda j: _order_key(normalized[j]))
+                    verdicts[normalized[i].key] = EligibilityVerdict(
+                        key=normalized[i].key, eligible=False, reason="superseded",
+                        slot=slot_id, effective_time=effective_time(normalized[i]),
+                        superseded_by=normalized[by].key,
+                    )
 
         # Assistant derivatives never carry a slot the user stated themselves
         # (they remain eligible when no user record exists in the pool).

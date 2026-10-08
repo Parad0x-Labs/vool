@@ -80,8 +80,13 @@ def test_native_restart_preserves_tied_import_order_and_live_statement_metadata(
         for name in ("old","new"):
             assert read[writer["ids"][name]]["source_sequence"]==writer["rows"][name]["source_sequence"]
             assert read[writer["ids"][name]]["body_integrity"]=="verified"
-    assert "8643" in reader["capsules"]["code"] and "4127" not in reader["capsules"]["code"]
-    assert "8643" in reader["permuted_code_capsule"] and "4127" not in reader["permuted_code_capsule"]
+    # Tied clocks: import order decides currency. The distilled facts serve the newer 8643 and never the
+    # superseded 4127; under the lane law (KEEP) the superseded turn rides the whole-turn lane, once, after them.
+    from core.context_retrieval import _TURN_LANE_HEADER
+    for capsule in (reader["capsules"]["code"],reader["permuted_code_capsule"]):
+        facts,_sep,lane=capsule.partition(_TURN_LANE_HEADER)
+        assert "8643" in facts and "4127" not in facts, capsule
+        assert lane.count("4127")==1, capsule
 
 
 def test_native_restart_passes_source_seq_origin_and_neighbor_direction_to_real_caller(restarted_sources):
