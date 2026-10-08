@@ -160,7 +160,7 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
                    source_context: dict[str, Any] | None = None) -> Any:
     """The MPP 402 the owner's request met (already received: nothing is sent here) -> ONE capped proposal bound to
     that exact request, or a typed refusal. Never signs."""
-    from core.wallet import lifecycle, x402
+    from core.wallet import x402
 
     require_available(source_context=source_context)
     profile = custody.require_wallet(wallet_id, source_context=source_context)
@@ -192,7 +192,7 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
         return lost_request(digest, proposal.proposal_id, source_context=source_context)
     # an unsponsored charge's fee is bound by prepare itself, before the proposal can be approved: the approval shows
     # it, and the claim reserves exactly that fee with the amount
-    prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
+    prepared = x402.prepare_bound(proposal.proposal_id, source_context=source_context)
     binding = x402.binding_for_digest(digest) or {}
     return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=status, body=answer["body"], proposal_id=prepared.proposal_id, binding_id=str(binding.get("binding_id") or ""))
 
