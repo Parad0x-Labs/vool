@@ -269,6 +269,13 @@ def _memory_qa_view(items: list[ContextItem]) -> list[ContextItem]:
         content = " ".join(content.split())
         if not content:
             continue
+        # The seal describes the bytes the provider receives: a stripped item gets the hash of its stripped
+        # content, never the original's (and never none, which fails the turn on every provider).
+        stripped_hash = hashlib.sha256(content.encode()).hexdigest()
+        metadata["content_hash"] = stripped_hash
+        provenance = dict(item.provenance or {})
+        if "content_hash" in provenance:
+            provenance["content_hash"] = stripped_hash
         kept.append(
             ContextItem(
                 item_id=item.item_id,
@@ -281,7 +288,7 @@ def _memory_qa_view(items: list[ContextItem]) -> list[ContextItem]:
                 must_keep=item.must_keep,
                 include_reason=item.include_reason,
                 metadata=metadata,
-                provenance=dict(item.provenance or {}),
+                provenance=provenance,
             )
         )
     return kept
@@ -518,16 +525,19 @@ def _dialogue_items(session_id: str, *, query_text: str = "") -> list[ContextIte
             and is_stale_observation_for_current_ask(content)
         ):
             continue
+        content = content[:260]
         items.append(
             ContextItem(
                 item_id=f"dialogue-{turn['turn_id']}",
                 layer="relevant",
                 source_type="dialogue_turn",
                 title="Recent dialogue turn",
-                content=content[:260],
+                content=content,
                 confidence=float(turn.get("understanding_confidence") or 0.0),
                 include_reason="recent_dialogue_memory",
                 metadata={
+                    # A selected item without a content_hash fails the turn on every provider.
+                    "content_hash": hashlib.sha256(content.encode()).hexdigest(),
                     "created_at": turn.get("created_at"),
                     "topic_hints": list(turn.get("topic_hints") or []),
                     "session_id": session_id,
