@@ -350,6 +350,10 @@ _SPECIFIC_OBJECT_RE = re.compile(
     r"\b(?:it|this|that|these|those|attached|following|above|below)\b|"
     r"\b(?:the|my)\s+(?:\w+\s+){0,2}(?:report|file|text|email|document|draft|article|code|page|message|data|"
     r"recipe|essay|letter|post|paper|notes?|spreadsheet|pdf|slides?|screenshot)\b", re.IGNORECASE)
+# A named file or a code identifier ("config.json", "parse_header"). Its extension or its parts are not format words
+# ("json" in "config.json" is not "answer in JSON"), and an order whose verb or object it is ("read config.json",
+# "parse_header source") works on that one thing: a task, not a rule.
+_NAMED_THING_RE = re.compile(r"(?<![\w.-])[\w-]{2,}\.[A-Za-z][A-Za-z0-9]{0,7}\b|\b[A-Za-z0-9]+_\w+")
 _WORKFLOW_RE = re.compile(
     r"^(?:(?:please|and|also|so)[,\s]+)*(?:before|after|once)\s+[^,]{1,120},|"
     r"\b(?:before|after)\s+(?:you\s+\w+|\w+ing)\b", re.IGNORECASE)
@@ -514,15 +518,33 @@ def _is_fragment(text: str) -> bool:
     return not match.group("tail").strip() and any(_facets(word) or _PRESENTATION_RE.search(word) for word in candidates)
 
 
+def _order_names_the_format(sentence: str) -> bool:
+    """Whether the format words are in the order itself, the main clause up to its first comma ("Use metric units",
+    "Write dates as day, month, year"). A format word only after a comma ("poem, winter harbour, short") describes
+    the thing being asked for: the turn is a request written as a list of keywords, not a rule. A single word before
+    the comma may be a name or a greeting ("Sam, answer in bullet points"): then the order is the clause after it,
+    when that clause is at least a verb and its words."""
+    head, _, rest = _main_clause(sentence).partition(",")
+    if _about_presentation(head):
+        return True
+    order = rest.split(",", 1)[0].strip()
+    return len(head.split()) == 1 and len(order.split()) >= 2 and _about_presentation(order)
+
+
 def _plain_kind(sentence: str) -> str:
     """"workflow" / "plain" for a rule said without trigger words, "context" for a reason about the owner, else ""."""
     s = sentence.strip()
     if not s or _QUESTION_RE.search(s) or _ONE_OFF_RE.search(s) or _THIRD_PERSON_RE.search(s):
         return ""
+    verb_and_object = [word for word in _main_clause(s).split() if word.lower() not in {"me", "us"}][:2]
+    if any(_NAMED_THING_RE.search(word) for word in verb_and_object):
+        return ""
+    s = " ".join(_NAMED_THING_RE.sub(" ", s).split())
     if _addressed_to_vool(s) and not _SPECIFIC_OBJECT_RE.search(s) and not _TASK_QUANTITY_RE.search(s):
         if _WORKFLOW_RE.search(s):
             return "workflow"
-        if _about_presentation(s) and _format_is_the_request(s) and _object_is_how_answers_look(s):
+        if _about_presentation(s) and _order_names_the_format(s) and _format_is_the_request(s) \
+                and _object_is_how_answers_look(s):
             return "plain"
     if _CONTEXT_RE.match(s) and not _addressed_to_vool(s):
         return "context"
