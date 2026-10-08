@@ -331,23 +331,13 @@ class PaymentLifecycle:
 
         Scope: this governs VOOL-MEDIATED submission only. It does not and cannot revoke a
         signature the user's external wallet may hold independently of this request."""
-        if not external_signing.expire_signing_request(record["request_id"]):
+        won, _ended = end_unsent(proposal.proposal_id, record["request_id"], evidence=evidence)
+        if not won:
             latest = external_signing.get_signing_request(record["request_id"]) or {}
             if latest.get("state") == external_signing.STATE_CONSUMED:
                 raise self._fault("wallet_duplicate_payment", proposal, reason="signing_request_in_flight", status=proposal.state)
             raise self._fault("wallet_approval_rejected", proposal, reason="signing_request_expired", status=proposal.state)
-        self._expire_unsent(proposal, evidence=evidence)
         raise self._fault("wallet_approval_rejected", proposal, reason="signing_request_expired")
-
-    @staticmethod
-    def _expire_unsent(proposal: proposals.TransactionProposal, *, evidence: str) -> None:
-        """A claimed payment whose signing request THIS caller expired (its CAS won: nothing was dispatched) is
-        expired: the hold released, the effect resolved as not applied, and the expiry ended with its receipt in one
-        transaction, at every door that expires one (the submit door and the reaper)."""
-        limits.release_spend(proposal.proposal_id)
-        reconciliation.resolve_payment_effect(proposal.proposal_id, applied=False, evidence=evidence, source="mechanical")
-        end_refused(proposal.proposal_id, proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", expected_state=proposal.state,
-                    detail={"reason": "signing_request_expired"}, reason="signing_request_expired")
 
     def _load(self, proposal_id: str) -> proposals.TransactionProposal:
         proposal = proposals.get_proposal(proposal_id)
@@ -364,7 +354,10 @@ class PaymentLifecycle:
 
     def reap_stale_signing_requests(self) -> int:
         """Apply the signing-request TTL to requests a crash or restart left open: expire
-        each, release its hold and terminally mark its proposal. Idempotent."""
+        each, release its hold and terminally mark its proposal, in one transaction
+        (:func:`end_unsent`). A payment still waiting on requests that are all already
+        expired (a wallet that stopped between closing its request and ending it) is
+        ended the same way: no submission can consume an expired request. Idempotent."""
         from core.wallet.store import connection
 
         with connection() as conn:
@@ -377,12 +370,13 @@ class PaymentLifecycle:
             # the CAS win IS the no-dispatch proof: we transitioned open -> expired
             # ourselves, so no submission ever consumed this request (a consumed request
             # is a signature in flight — observed silence proves nothing, so no release).
-            if not external_signing.expire_signing_request(request_id):
-                continue
-            proposal = proposals.get_proposal(record["proposal_id"])
-            if proposal is not None and proposal.state == proposals.STATE_AWAITING_SIGNATURE and not proposal.tx_signature:
-                self._expire_unsent(proposal, evidence="signing request expired (reaper)")
-            reaped += 1
+            won, _ended = end_unsent(record["proposal_id"], request_id, evidence="signing request expired (reaper)")
+            reaped += 1 if won else 0
+        with connection() as conn:
+            stranded = conn.execute(_STRANDED_ON_EXPIRED_REQUESTS, (proposals.STATE_AWAITING_SIGNATURE, external_signing.STATE_EXPIRED)).fetchall()
+        for (proposal_id,) in stranded:
+            _won, ended = end_unsent(proposal_id, "", evidence="signing request expired (reaper)")
+            reaped += 1 if ended is not None else 0
         return reaped
 
     def _fault(self, code: str, proposal: proposals.TransactionProposal, **context: Any) -> WalletFault:
@@ -1914,6 +1908,49 @@ def _reserved_fee_for(view: dict[str, Any]) -> int:
     if view.get("sponsored_gas"):
         return 0
     return _minor(view.get("max_facilitator_fee_minor")) + _minor(view.get("max_network_fee_minor"))
+
+
+#: A claimed payment still waiting on signing requests that are all expired (never consumed): nothing was dispatched
+#: through any of them, and no door takes the payment any more.
+_STRANDED_ON_EXPIRED_REQUESTS = (
+    "SELECT p.proposal_id FROM wallet_proposals p WHERE p.state = ? AND COALESCE(p.tx_signature, '') = ''"
+    " AND EXISTS (SELECT 1 FROM wallet_signing_requests r WHERE r.proposal_id = p.proposal_id)"
+    " AND NOT EXISTS (SELECT 1 FROM wallet_signing_requests r WHERE r.proposal_id = p.proposal_id AND r.state <> ?)"
+)
+
+
+def end_unsent(proposal_id: str, request_id: str, *, evidence: str, state: str = proposals.STATE_EXPIRED, reason: str = "signing_request_expired") -> tuple[bool, proposals.TransactionProposal | None]:
+    """End a claimed payment whose signature never came back through this wallet, in ONE transaction: the
+    compare-and-set of its signing request from open to expired (its win proves no submission consumed it, so nothing
+    was dispatched through this wallet), the hold released and the payment moved to ``state`` with its receipt
+    (:func:`end_refused`). A stop inside it leaves everything as it was, the request open for the next door. The
+    payment's effect is resolved as not applied once that commits; a stop before that leaves it to the effect
+    resolver, which reads the ended payment. Every door that ends one uses this: the submit door and the reaper on an
+    expired request, the owner's rejection. With no ``request_id``, the payment's requests must all be expired already
+    (a wallet that stopped between the two before this was one transaction).
+
+    Returns ``(won, ended)``: ``won`` False when the request's compare-and-set lost (consumed: a submission in flight;
+    or already expired), with nothing written; ``ended`` the payment when it was waiting for its signature with
+    nothing broadcast, else None (its request is closed, and the payment is left as it is)."""
+    from core.wallet.store import connection
+
+    ended = None
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        if request_id:
+            if not external_signing.expire_signing_request(request_id, conn=conn):
+                return False, None
+        elif conn.execute(_STRANDED_ON_EXPIRED_REQUESTS + " AND p.proposal_id = ?", (proposals.STATE_AWAITING_SIGNATURE, external_signing.STATE_EXPIRED, str(proposal_id))).fetchone() is None:
+            return True, None
+        current = proposals._get(conn, str(proposal_id))
+        if current is not None and current.state == proposals.STATE_AWAITING_SIGNATURE and not current.tx_signature:
+            with contextlib.suppress(limits.HoldStateConflictError):
+                limits._release(conn, current.proposal_id)
+            ended = end_refused(current.proposal_id, state, fault_code="wallet_approval_rejected", expected_state=proposals.STATE_AWAITING_SIGNATURE,
+                                detail={"reason": reason}, conn=conn, reason=reason)
+    if ended is not None:
+        reconciliation.resolve_payment_effect(ended.proposal_id, applied=False, evidence=evidence, source="mechanical")
+    return True, ended
 
 
 def end_refused(proposal_id: str, state: str, *, fault_code: str, expected_state: str | None = None, detail: dict[str, Any] | None = None,

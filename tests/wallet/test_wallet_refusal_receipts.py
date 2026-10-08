@@ -244,3 +244,94 @@ def test_a_signing_request_that_expires_leaves_a_receipt(wallet_env, monkeypatch
     _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
                             reason="signing_request_expired")
     assert wallet_env["rpc"].send_count() == 0
+
+
+class _ProcessStopped(BaseException):
+    """The process stops here: no handler runs and nothing after this point is written."""
+
+
+def _claimed_external_payment():
+    """An external signer's payment, claimed (its spend held) while its signing request waits for the signature."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from core.vool_wallet import b58encode
+    from core.wallet import custody, lifecycle
+
+    engine = lifecycle.default_lifecycle()
+    public_key = b58encode(Ed25519PrivateKey.generate().public_key().public_bytes_raw())
+    proposal = engine.prepare(_propose(custody.register_external_signer_wallet(public_key, label="ext")).proposal_id)
+    return engine, proposal, engine.request_external_signature(proposal.proposal_id)
+
+
+def _reject(proposal_id):
+    from core.web.api.wallet_api import handle_wallet_post
+
+    return handle_wallet_post("/api/wallet/reject", {"proposal_id": proposal_id}, client_host="127.0.0.1", headers={"Host": "127.0.0.1", "Origin": "http://127.0.0.1"})
+
+
+@pytest.mark.parametrize("door", ["submit_after_its_ttl", "reaper", "owner_reject"])
+def test_a_stop_while_an_unsent_payment_is_ended_leaves_it_whole_for_the_next_door(wallet_env, monkeypatch, door):
+    """The process stops while it ends a claimed payment whose signature never came back: its signing request expired
+    (at the submit door, or found by the reaper), or the owner rejected it. Ending it is one transaction (the signing
+    request closed, the hold released, the state moved with its receipt), so the stop leaves the payment exactly as it
+    was, waiting with its request open and its spend held. After the restart, the reaper or the owner's rejection ends
+    it whole: one receipt, nothing held."""
+    import json
+
+    from core.wallet import external_signing, lifecycle, limits, proposals, receipts
+
+    engine, proposal, request = _claimed_external_payment()
+    real_now = external_signing._now
+    if door != "owner_reject":
+        monkeypatch.setattr(external_signing, "_now", lambda: real_now() + external_signing.REQUEST_TTL_SECONDS + 1)
+
+    def stop(*_args, **_kwargs):
+        raise _ProcessStopped
+
+    with monkeypatch.context() as stopped:
+        stopped.setattr(receipts, "_record_refusal", stop)
+        with pytest.raises(_ProcessStopped):
+            if door == "submit_after_its_ttl":
+                engine.submit_external_signature(request["request_id"], signature_b58="1" * 88)
+            elif door == "reaper":
+                engine.reap_stale_signing_requests()
+            else:
+                _reject(proposal.proposal_id)
+    as_it_was = (proposals.get_proposal(proposal.proposal_id).state, external_signing.get_signing_request(request["request_id"])["state"],
+                 limits.reservation_state(proposal.proposal_id), _receipts(proposal.proposal_id))
+    assert as_it_was == (proposals.STATE_AWAITING_SIGNATURE, external_signing.STATE_OPEN, limits.RESERVATION_RESERVED, [])
+    restarted = lifecycle.default_lifecycle()
+    if door == "owner_reject":
+        assert json.loads(_reject(proposal.proposal_id).body)["rejected"] is True
+        _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_REJECTED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
+                                reason="owner_rejected_after_claim")
+    else:
+        assert restarted.reap_stale_signing_requests() == 1
+        _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
+                                reason="signing_request_expired")
+    assert wallet_env["rpc"].send_count() == 0
+
+
+@pytest.mark.parametrize("request_left", ["expired", "consumed"])
+def test_a_payment_left_waiting_on_a_closed_signing_request_is_ended_by_the_reaper_only_when_nothing_was_dispatched(wallet_env, request_left):
+    """A claimed payment can be left waiting on a signing request that is already closed: a wallet that stopped between
+    closing the request and ending the payment (releases before this one did these in separate steps). An expired request
+    was never consumed, so nothing was dispatched through it and no door takes the payment any more: the reaper ends
+    it, the hold released, with its receipt. A consumed request is a signature that may be in flight: the reaper leaves
+    that payment and its hold as they are."""
+    from core.wallet import external_signing, limits, proposals
+
+    engine, proposal, request = _claimed_external_payment()
+    if request_left == "expired":
+        assert external_signing.expire_signing_request(request["request_id"])
+    else:
+        external_signing.consume_signing_request(request["request_id"])
+    if request_left == "consumed":
+        assert engine.reap_stale_signing_requests() == 0
+        assert (proposals.get_proposal(proposal.proposal_id).state, limits.reservation_state(proposal.proposal_id)) == (proposals.STATE_AWAITING_SIGNATURE, limits.RESERVATION_RESERVED)
+        assert _receipts(proposal.proposal_id) == []
+        return
+    assert engine.reap_stale_signing_requests() == 1
+    _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
+                            reason="signing_request_expired")
+    assert engine.reap_stale_signing_requests() == 0
