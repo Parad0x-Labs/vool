@@ -1170,16 +1170,14 @@ def enforce_final_action_honesty(
     )
     output = _verify_audit_claims_against_evidence(output, source_context=source_context)
     response = str(output.get("response") or "").strip()
-    # The claim guards below read what the reply asserts. A double-quoted echo of the user's own words is a mention,
-    # not a claim: 'Forget found no memory in this chat that matched "stored memory".' claims nothing was stored
-    # (tests/test_forgetting_is_applied_or_never_claimed_20261007.py, literal forget targets).
-    claim_text = _without_quoted_user_words(response, f"{user_input or ''}\n{effective_input or ''}")
+    claim_kind = _final_claim_kind(
+        output, user_input=user_input, effective_input=effective_input,
+        session_id=session_id, source_context=source_context,
+    )
     # A short fabricated "in progress / one moment" reply with no task actually running this turn
     # (the "audit underway after it already completed" failure). Answer from runtime state, not prose.
     if (
-        response
-        and len(response) < 220
-        and _FALSE_PROGRESS_CLAIM_RE.search(claim_text)
+        claim_kind == "progress"
         and str(output.get("mode") or output.get("mode_override") or "").strip().lower() != "tool_executed"
         and not _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context)
     ):
@@ -1193,13 +1191,6 @@ def enforce_final_action_honesty(
         output["route"] = str(output.get("route") or "action_honesty_final_validator")
         output["route_reason"] = "fabricated_progress_blocked"
         return output
-    if _HONEST_DENIAL_RE.search(response):
-        return output
-    # The request decides only whether a stored-record DESCRIPTION is a memory answer; both the
-    # raw and the narrowed text are read, so an action asked in either keeps the full law.
-    claim_kind = completion_claim_kind(
-        claim_text, request_text=f"{user_input or ''}\n{effective_input or ''}"
-    )
     if not claim_kind:
         return output
     # NOT gated on this turn's prompt. Whether "the files were deleted" is TRUE depends on whether a
@@ -1232,20 +1223,24 @@ def enforce_final_action_honesty(
     return output
 
 
-_QUOTED_SPAN_RE = re.compile(r'"([^"\n]{1,200})"')
+def _final_claim_kind(
+    result: dict[str, Any], *, user_input: str, effective_input: str | None = None,
+    session_id: str | None = None, source_context: dict[str, object] | None = None,
+) -> str:
+    """Classify the exact delivered result identically for the guard and signed receipt."""
+    from core.memory.command_result import is_bound_forget_no_match
 
-
-def _without_quoted_user_words(response: str, request_text: str) -> str:
-    """*response* with each double-quoted span that repeats the user's own words (case and spacing aside) blanked."""
-    request = " ".join(str(request_text or "").casefold().split())
-    if not request:
-        return response
-
-    def blank(match: re.Match) -> str:
-        quoted = " ".join(match.group(1).casefold().split())
-        return '""' if quoted and quoted in request else match.group(0)
-
-    return _QUOTED_SPAN_RE.sub(blank, str(response or ""))
+    if is_bound_forget_no_match(
+        result, user_input=user_input, effective_input=effective_input,
+        session_id=session_id, source_context=source_context,
+    ):
+        return ""
+    response = str(result.get("response") or "").strip()
+    if response and len(response) < 220 and _FALSE_PROGRESS_CLAIM_RE.search(response):
+        return "progress"
+    if _HONEST_DENIAL_RE.search(response):
+        return ""
+    return completion_claim_kind(response, request_text=f"{user_input or ''}\n{effective_input or ''}")
 
 
 _URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
@@ -1362,6 +1357,7 @@ def emit_turn_honesty_receipt(
     output: dict[str, Any],
     *,
     user_input: str = "",
+    effective_input: str | None = None,
     session_id: str | None = None,
     source_context: dict[str, object] | None = None,
 ) -> dict[str, Any]:
@@ -1397,7 +1393,10 @@ def emit_turn_honesty_receipt(
         # Same predicate the blocker used. When these two disagree the ledger is worse than
         # useless: the fabricated build of 2026-07-29 was signed `no_action_claimed` because this
         # line asked a narrower question than the claim it was recording.
-        claimed = bool(completion_claim_kind(response, request_text=user_input))
+        claimed = bool(_final_claim_kind(
+            result, user_input=user_input, effective_input=effective_input,
+            session_id=session_id, source_context=source_context,
+        ))
         mode_executed = str(result.get("mode") or result.get("mode_override") or "").strip().lower() == "tool_executed"
         if contradicted:
             # Ranked above `blocked` on purpose. A contradiction is a claim the trace DISPROVES,
