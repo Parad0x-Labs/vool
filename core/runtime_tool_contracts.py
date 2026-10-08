@@ -2978,7 +2978,15 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         *_code_task_contracts(write_enabled=write_enabled),
         # RepoOps rides it too: the repository vertical is tools, not a second runtime.
         *_repo_contracts(read_enabled=read_enabled, write_enabled=write_enabled),
+        # Zcash private invoices: present only while the lane is switched on (absent, not refused, when off).
+        *_zcash_contracts(),
     ]
+
+
+def _zcash_contracts() -> list[RuntimeToolContract]:
+    from core.zcash.tools import zcash_contracts
+
+    return zcash_contracts()
 
 
 def _repo_contracts(*, read_enabled: bool, write_enabled: bool) -> list[RuntimeToolContract]:
