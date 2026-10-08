@@ -153,7 +153,11 @@ def test_app_normalizer_and_actual_adapter_preserve_bound_clock(monkeypatch):
     context["admitted_capsule_evidence"] = request.metadata["admitted_capsule_evidence"]
     clock = _past_time_guard_reference_clock(context, "normal-clock", question=QUESTION)
     assert clock.day == date(2024,2,1)
-    assert payload["messages"][0]["content"].startswith("Synthetic wrapper")
+    # The memory prefix depends on the turn, so it joins the per-turn system message and the leading one stays
+    # byte-stable for prompt caching (core/memory_prompt_builder.py apply_memory_prefix_to_messages, ported in dc937f7).
+    turn = [m for m in payload["messages"] if m["role"] == "system" and str(m["content"]).startswith("Context for this turn:")]
+    assert len(turn) == 1 and turn[0]["content"].startswith("Context for this turn:\nSynthetic wrapper")
+    assert "Synthetic wrapper" not in payload["messages"][0]["content"]
     evidence = _past_time_guard_evidence(context_result=context_result, source_context=context, web_notes=[], session_id="normal-clock", question=QUESTION)
     assert all(CLOCK_TEXT not in text for text in evidence)
     assert any("photography workshop" in text for text in evidence), "Authorized source must survive normalizer and wire before guard check"
