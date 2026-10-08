@@ -177,6 +177,15 @@ constraint-dependencies = [
     "urllib3>=2.8.0",
     "datasets>=5.0.1",
 ]
+# The `pay` extra is locked in a branch of its own. solana-pay-kit 0.10.0 needs anchorpy, which holds solana at
+# 0.36 and so solders below 0.27, and uv locks all extras together: without this, every install from the lock would
+# drop to solders 0.26. Declaring `pay` to conflict with `models` (installed by neither the installer nor CI) forks
+# the lock, so every other install keeps its packages and only an install with `pay` gets solders 0.26, as pip gives
+# it. The cost: uv refuses `pay` with `models` in one environment (and so `uv sync --all-extras`). Remove once
+# pay-kit makes anchorpy optional.
+conflicts = [
+    [{ extra = "pay" }, { extra = "models" }],
+]
 
 [tool.ruff]
 target-version = "py310"
