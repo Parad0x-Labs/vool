@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import pytest
 
 import core.context_retrieval as cr
-from tests.test_question_date_time_leg_20261002 import _capsule, _hash_backend, _ingest, _profile  # noqa: F401
+from tests.test_question_date_time_leg_20261002 import _capsule, _hash_backend, _ingest, _profile
 
 pytestmark = pytest.mark.usefixtures("_hash_backend")
 
