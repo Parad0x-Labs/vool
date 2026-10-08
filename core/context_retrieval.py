@@ -7362,7 +7362,8 @@ def forget_session_memory(
     Returns the semantic node count. ``erasures``, when given, receives each count
     as soon as it is made (``semantic_nodes``, ``source_occurrences``), so the forget
     lane can say what it removed from a plain chat turn, or before a later scrub
-    step failed, without changing the returned count.
+    step failed, without changing the returned count; ``store_failures`` is set when
+    the store could not be opened or the erasure failed.
 
     Structured memory and semantic memory are separate persistence layers. A
     forget command must retire both, otherwise the semantic index can recall a
@@ -7378,6 +7379,8 @@ def forget_session_memory(
         runtime_home = str((source_context or {}).get("runtime_home") or "").strip() or None
         mem = _open_memory_for_runtime(runtime_home)
         if mem is None:
+            if erasures is not None:
+                erasures["store_failures"] = 1  # the store could not be opened: unknown, never "no match"
             return 0
         invalidated = mem.node_invalidate_matching(
             token,
@@ -7477,6 +7480,8 @@ def forget_session_memory(
         return 0
     except Exception as exc:
         LOGGER.warning("semantic memory forget failed: %s", type(exc).__name__)
+        if erasures is not None:
+            erasures["store_failures"] = 1  # a failed erasure is unknown, never "no match"
         return 0
     finally:
         if mem is not None:

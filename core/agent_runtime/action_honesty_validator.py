@@ -1170,12 +1170,16 @@ def enforce_final_action_honesty(
     )
     output = _verify_audit_claims_against_evidence(output, source_context=source_context)
     response = str(output.get("response") or "").strip()
+    # The claim guards below read what the reply asserts. A double-quoted echo of the user's own words is a mention,
+    # not a claim: 'Forget found no memory in this chat that matched "stored memory".' claims nothing was stored
+    # (tests/test_forgetting_is_applied_or_never_claimed_20261007.py, literal forget targets).
+    claim_text = _without_quoted_user_words(response, f"{user_input or ''}\n{effective_input or ''}")
     # A short fabricated "in progress / one moment" reply with no task actually running this turn
     # (the "audit underway after it already completed" failure). Answer from runtime state, not prose.
     if (
         response
         and len(response) < 220
-        and _FALSE_PROGRESS_CLAIM_RE.search(response)
+        and _FALSE_PROGRESS_CLAIM_RE.search(claim_text)
         and str(output.get("mode") or output.get("mode_override") or "").strip().lower() != "tool_executed"
         and not _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context)
     ):
@@ -1194,7 +1198,7 @@ def enforce_final_action_honesty(
     # The request decides only whether a stored-record DESCRIPTION is a memory answer; both the
     # raw and the narrowed text are read, so an action asked in either keeps the full law.
     claim_kind = completion_claim_kind(
-        response, request_text=f"{user_input or ''}\n{effective_input or ''}"
+        claim_text, request_text=f"{user_input or ''}\n{effective_input or ''}"
     )
     if not claim_kind:
         return output
@@ -1226,6 +1230,22 @@ def enforce_final_action_honesty(
     output["route_reason"] = "false_action_claim_blocked"
     output["web_calls"] = int(output.get("web_calls") or 0)
     return output
+
+
+_QUOTED_SPAN_RE = re.compile(r'"([^"\n]{1,200})"')
+
+
+def _without_quoted_user_words(response: str, request_text: str) -> str:
+    """*response* with each double-quoted span that repeats the user's own words (case and spacing aside) blanked."""
+    request = " ".join(str(request_text or "").casefold().split())
+    if not request:
+        return response
+
+    def blank(match: re.Match) -> str:
+        quoted = " ".join(match.group(1).casefold().split())
+        return '""' if quoted and quoted in request else match.group(0)
+
+    return _QUOTED_SPAN_RE.sub(blank, str(response or ""))
 
 
 _URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
