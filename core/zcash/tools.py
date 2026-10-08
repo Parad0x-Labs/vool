@@ -4,6 +4,11 @@ Present only while the lane is switched on (:func:`zcash_contracts` returns noth
 absent, not merely refused). None of them can move money; setting the viewing key is NOT a chat tool, because a
 key typed into a chat would travel with the conversation -- it goes through ``python -m core.zcash set-key``.
 Each tool's own text is the answer (amounts, memos and txids are never paraphrased by a model).
+
+What each tool really does is what it declares: create only reads the cached receiving address (``read_files``);
+unpaid and history SYNC the wallet with a public lightwalletd server, so they declare ``use_network_access`` and the
+mode policy treats them like every other network tool (refused in Plan, asked in Manual), and Local Only stops the
+sync (the answer is then "unknown", never "unpaid").
 """
 from __future__ import annotations
 
@@ -24,8 +29,10 @@ def zcash_contracts() -> list[Any]:
         return []
     from core.runtime_tool_contracts import RuntimeToolContract
 
+    local = ("read_files",)
+    syncs = ("read_files", "use_network_access")
     common = {
-        "tool_surface": SURFACE, "supported": True, "unsupported_reason": "", "permission_actions": ("read_files",),
+        "tool_surface": SURFACE, "supported": True, "unsupported_reason": "",
         "approval_requirement": "none", "timeout_policy": "network_default", "retry_policy": "none", "artifact_emission": "none",
         "error_contract": "returns_structured_error_result", "renders_final_answer": True,
     }
@@ -36,20 +43,20 @@ def zcash_contracts() -> list[Any]:
             capability_id="zcash.invoice", capability_claim="create a shielded ZEC payment request",
             input_schema={"amount": "str decimal ZEC, e.g. 0.05", "label": "str (optional): what it is for", "payer": "str (optional): who pays"},
             output_schema={"invoice_id": "str", "uri": "str", "memo": "str"},
-            side_effect_class="creative_state", **common,
+            side_effect_class="creative_state", permission_actions=local, **common,
         ),
         RuntimeToolContract(
             intent=INTENT_UNPAID,
             description="Check the shielded Zcash invoices that are not settled yet: syncs the view-only wallet and reports each one as unpaid, unconfirmed, underpaid or unknown, plus payments that name no invoice.",
             capability_id="zcash.read", capability_claim="read the state of ZEC invoices",
-            input_schema={}, output_schema={"invoices": "list"}, side_effect_class="read_only", **common,
+            input_schema={}, output_schema={"invoices": "list"}, side_effect_class="read_only", permission_actions=syncs, **common,
         ),
         RuntimeToolContract(
             intent=INTENT_HISTORY,
-            description="List the shielded Zcash invoices that were paid, with amount, memo, transaction id and receipt, optionally between two dates (YYYY-MM-DD).",
+            description="List the shielded Zcash invoices that were paid, with amount, memo, transaction id and receipt, optionally between two dates (YYYY-MM-DD). Syncs the view-only wallet first.",
             capability_id="zcash.read", capability_claim="read paid ZEC invoices",
             input_schema={"since": "str (optional) YYYY-MM-DD", "until": "str (optional) YYYY-MM-DD", "payer": "str (optional)"},
-            output_schema={"payments": "list"}, side_effect_class="read_only", **common,
+            output_schema={"payments": "list"}, side_effect_class="read_only", permission_actions=syncs, **common,
         ),
     ]
 
@@ -64,7 +71,10 @@ def _status_line(status: Any, ticker: str) -> str:
     if status.state == "underpaid":
         return base + f" (only {status.to_dict()['confirmed']} {ticker} confirmed)"
     if status.state == "unknown":
-        return base + " (cannot confirm right now)"
+        why = _REASONS.get(status.reason)
+        return base + (f" (cannot confirm right now: {why})" if why else " (cannot confirm right now)")
+    if status.state == "reorged":
+        return base + " (its payment is no longer on the chain; the earlier receipt stands as a record, not as paid)"
     return base
 
 
@@ -73,6 +83,13 @@ _REASONS = {
     "sync_failed": "the last sync failed",
     "stale_sync": "the last successful sync is too old",
     "tx_crosscheck_failed": "the wallet data did not cross-check",
+    "clock_moved": "the computer's clock moved, so the last sync cannot be dated",
+    "wallet_behind": "the watch wallet has not scanned up to the latest block yet",
+    "local_only": "Local Only is on, so VOOL did not contact the Zcash network",
+    "viewing_key_missing": "the saved viewing key is missing",
+    "wallet_key_mismatch": "the watch wallet does not match the saved viewing key",
+    "keychain_unavailable": "the saved viewing key could not be read",
+    "receipt_pending": "its receipt could not be written yet (VOOL retries on the next check)",
 }
 
 
@@ -108,6 +125,7 @@ def run_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict
             return result(True, "ok", text, invoice=invoice.to_dict())
         report = lane.refresh(source_context=source_context)
         statuses = report["statuses"]
+        reorged = [s for s in statuses if s.state == "reorged"]
         freshness_note = "" if report["fresh"] else f"I can't confirm payments right now: {_REASONS.get(report['reason'], report['reason'])}."
         if intent == INTENT_UNPAID:
             open_ = [s for s in statuses if not s.settled]
@@ -119,6 +137,7 @@ def run_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict
                 parts.append("Newly paid: " + ", ".join(f"{r['invoice_id']} ({format_zec(r['received_zat'])} {ticker}, txid {', '.join(r['txids'])})" for r in new_paid))
             if report["unmatched"]:
                 parts.append(f"{len(report['unmatched'])} received payment(s) name no invoice.")
+            parts += [_status_line(s, ticker) for s in reorged if s not in open_]
             return result(True, "ok" if report["fresh"] else "unknown", "\n".join(parts), invoices=[s.to_dict() for s in open_])
         payer = str(args.get("payer") or "").strip().lower()
         paid = [s for s in statuses if s.settled and (not payer or payer in s.invoice.payer.lower())]
@@ -128,7 +147,8 @@ def run_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict
                  f"{' for ' + s.invoice.label if s.invoice.label else ''}{' from ' + s.invoice.payer if s.invoice.payer else ''}"
                  f" ({s.state}), memo {s.invoice.memo}, txid {s.invoice.paid_txid}, receipt {s.invoice.paid_receipt_id}" for s in paid]
         head = f"{len(paid)} paid Zcash invoice(s)." if paid else "No paid Zcash invoices match."
-        parts = [p for p in (head, *lines, freshness_note and f"Note: {freshness_note} Payments after the last good sync are not shown.") if p]
+        flagged = [_status_line(s, ticker) for s in reorged if not payer or payer in s.invoice.payer.lower()]
+        parts = [p for p in (head, *lines, *flagged, freshness_note and f"Note: {freshness_note} Payments after the last good sync are not shown.") if p]
         return result(True, "ok", "\n".join(parts), payments=[s.to_dict() for s in paid])
     except (InvoiceError, ZcashWatchError, ZcashKeyRefused) as exc:
         return result(False, exc.code, f"{exc} Nothing was sent.")

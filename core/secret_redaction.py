@@ -164,7 +164,13 @@ _LABELED_RE = re.compile(
     r"\s*[:=]\s*[\"']?([^\s\"']{4,})[\"']?"
 )
 
-_SPECIFIC = (_JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE, _BEARER_RE, _PATH_TOKEN_RE)
+# Zcash keys (bech32/bech32m, lowercase or uppercase): a Sapling extended spending key, and the unified full and
+# incoming viewing keys and Sapling full viewing keys that reveal every transaction of an account.
+_ZCASH_KEY_RE = re.compile(
+    r"(?i)\b(?:secret-extended-key-(?:main|test)1[0-9a-z]{20,}|u(?:view|ivk)(?:test)?1[0-9a-z]{60,}|zxview(?:s|testsapling)1[0-9a-z]{60,})"
+)
+
+_SPECIFIC = (_JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE, _BEARER_RE, _PATH_TOKEN_RE, _ZCASH_KEY_RE)
 
 # A BIP-39 recovery phrase typed as plain words ("i wrote this down: used term aspect …") with
 # no label at all. The labelled rule below masks only the FIRST whitespace token of its value,
@@ -346,6 +352,7 @@ def redact_secrets(text: str) -> str:
     value = _redact_private_keys(value)
     value = _redact_bip39_phrases(value)
     value = _JWT_RE.sub("[redacted-jwt]", value)
+    value = _ZCASH_KEY_RE.sub("[redacted-zcash-key]", value)
     value = _API_KEY_RE.sub("[redacted-api-key]", value)
     value = _B58_SECRET_RE.sub(_mask_key_shaped, value)
     value = _WIF_RE.sub(_mask_key_shaped, value)

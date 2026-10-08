@@ -1,0 +1,40 @@
+VOOL carries this patch for zcash-devtool at commit 5a26ee854e634a4e88d1d79dab13f8fbb1eac6b8.
+
+With it, `wallet init-fvk --fvk -` reads the viewing key from the first line of stdin, so the key never appears in
+the process arguments (visible to other local users and to process telemetry). VOOL's watch lane always passes `-`,
+so a build without this patch fails closed: it cannot decode `-` as a key and no wallet is created.
+
+Build (the pin is the hash of the patched binary):
+    git checkout 5a26ee854e634a4e88d1d79dab13f8fbb1eac6b8
+    git apply init-fvk-stdin.patch
+    cargo build --release --locked
+    shasum -a 256 target/release/zcash-devtool    # -> VOOL_ZCASH_DEVTOOL_SHA256
+
+diff --git a/src/commands/wallet/init_fvk.rs b/src/commands/wallet/init_fvk.rs
+index 4b3a55e..ff37f34 100644
+--- a/src/commands/wallet/init_fvk.rs
++++ b/src/commands/wallet/init_fvk.rs
+@@ -24,7 +24,8 @@ pub(crate) struct Command {
+     #[arg(long)]
+     name: String,
+ 
+-    /// Serialized full viewing key (Unified or Sapling) to initialize the wallet with
++    /// Serialized full viewing key (Unified or Sapling) to initialize the wallet with;
++    /// `-` reads it from the first line of stdin, so the key never appears in the process arguments
+     #[arg(long)]
+     fvk: String,
+ 
+@@ -47,7 +48,12 @@ pub(crate) struct Command {
+ 
+ impl Command {
+     pub(crate) async fn run(self, wallet_dir: Option<String>) -> Result<(), anyhow::Error> {
+-        let opts = self;
++        let mut opts = self;
++        if opts.fvk == "-" {
++            let mut line = String::new();
++            std::io::stdin().read_line(&mut line)?;
++            opts.fvk = line.trim().to_string();
++        }
+ 
+         let (network_type, ufvk) = Ufvk::decode(&opts.fvk)
+             .map_err(anyhow::Error::new)
