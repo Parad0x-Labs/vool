@@ -867,6 +867,21 @@ def declared_effective_date(
     return None
 
 
+def stated_after_as_of(candidate: TemporalCandidate, as_of_end: datetime) -> bool:
+    """Whether a record's content became true after the as-of day, so it cannot answer an as-of question.
+
+    A later-stated record whose own words date its content back onto the asked period ("Back in March I planted
+    ...", stated in May) is evidence for that period, not a future statement; one that does not date itself back
+    is after the as-of day. A record with no time at all is never judged future."""
+    state = state_time(candidate)
+    if state is None or state <= as_of_end.timestamp():
+        return False
+    self_dated = self_dated_day(candidate.body, candidate.statement_at)
+    return (self_dated is None
+            or datetime(self_dated.year, self_dated.month, self_dated.day, tzinfo=_UTC).timestamp()
+            > as_of_end.timestamp())
+
+
 def state_time(candidate: TemporalCandidate) -> float | None:
     """When the record's content BECAME true: event time, else statement
     time, else the effective date its own text declares. The system write
@@ -2672,21 +2687,13 @@ def apply_temporal_selection(
             )
             win_start, win_end = effective_window(cand.body, year_hint)
             if as_of_end is not None:
-                state = state_time(cand)
-                if state is not None and state > as_of_end.timestamp():
-                    # A later-stated record whose own words date its content back onto the asked period
-                    # ("Back in March I planted ...", stated in May) is evidence for that period, not a
-                    # future statement; one that does not date itself back stays refused.
-                    self_dated = self_dated_day(cand.body, cand.statement_at)
-                    if (self_dated is None
-                            or datetime(self_dated.year, self_dated.month, self_dated.day,
-                                        tzinfo=_UTC).timestamp() > as_of_end.timestamp()):
-                        verdicts[cand.key] = EligibilityVerdict(
-                            key=cand.key, eligible=False,
-                            reason="future-relative-to-as-of", slot=slot_id,
-                            effective_time=eff,
-                        )
-                        continue
+                if stated_after_as_of(cand, as_of_end):
+                    verdicts[cand.key] = EligibilityVerdict(
+                        key=cand.key, eligible=False,
+                        reason="future-relative-to-as-of", slot=slot_id,
+                        effective_time=eff,
+                    )
+                    continue
                 if win_end is not None:
                     win_end_dt = datetime.combine(win_end, time.max, tzinfo=_UTC)
                     if win_end_dt < as_of_start:
