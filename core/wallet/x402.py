@@ -354,13 +354,18 @@ def prepare_bound(proposal_id: str, *, source_context: dict[str, Any] | None) ->
         raise
 
 
-def end_abandoned_prepare(proposal: proposals.TransactionProposal | None) -> None:
-    """A request's proposal still preparing :data:`ABANDONED_PREPARE_SECONDS` after its last step was abandoned: it was
-    never approved and never held spend, so it is rejected here, with its receipt and nothing charged, and the request
-    is free for the next fetch instead of closed for good. A younger one, or one whose age cannot be read, keeps the
-    request (fail closed). The move is a compare-and-set on the state it was read in, committed with its receipt, so a
-    prepare still running cannot be overtaken: if it moved first, nothing changes; if this moves first, its next step
-    finds it ended."""
+def end_abandoned_prepare(proposal: proposals.TransactionProposal | None, *, source_context: dict[str, Any] | None = None) -> None:
+    """A request's proposal still preparing :data:`ABANDONED_PREPARE_SECONDS` after its last step was abandoned (its
+    process stopped mid-prepare) is rejected here, with its receipt and nothing charged, and the request is free for the
+    next fetch instead of closed for good. A younger one, or one whose age cannot be read, keeps the request (fail
+    closed).
+
+    Its state column is not proof that nothing left: in one transaction, before anything is written, the dispatch record
+    must show no hold or settled spend (principal or fee), no transaction id, no payment effect unresolved or applied and
+    no signing request open or consumed. Any of these means the payment was claimed and may have left (the row was
+    rewound or restored): it is not ended, and the request is refused as a payment whose outcome is unknown. The
+    expiry is a compare-and-set on the state it was read in, committed with its receipt, so a prepare still running
+    cannot be overtaken: if it moved first, nothing changes; if this moves first, its next step finds it ended."""
     if proposal is None or proposal.state not in PREPARING_STATES:
         return
     try:
@@ -369,10 +374,38 @@ def end_abandoned_prepare(proposal: proposals.TransactionProposal | None) -> Non
         return
     if since.tzinfo is None or datetime.now(timezone.utc) - since < timedelta(seconds=ABANDONED_PREPARE_SECONDS):
         return
-    from core.wallet import lifecycle
+    from core.wallet import lifecycle, limits
 
-    lifecycle.end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_quote_expired", expected_state=proposal.state,
-                          detail={"reason": "prepare_abandoned"}, reason="prepare_abandoned")
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        evidence = _dispatch_evidence(conn, proposal.proposal_id)
+        if not evidence:
+            lifecycle.end_refused(proposal.proposal_id, proposals.STATE_REJECTED, fault_code="wallet_quote_expired", expected_state=proposal.state,
+                                  detail={"reason": "prepare_abandoned"}, conn=conn, reason="prepare_abandoned")
+    if evidence:
+        raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "payment_outcome_unknown", "status": proposal.state,
+                                                                                   "evidence": evidence}, source_context=source_context)
+
+
+def _dispatch_evidence(conn: Any, proposal_id: str) -> str:
+    """What, on the caller's connection, shows a payment was claimed and may have left: "" when nothing does."""
+    from core.runtime_continuity import _UNRESOLVED_ACTIVE_STATES, _UNRESOLVED_TERMINAL_APPLIED
+    from core.wallet import external_signing, limits, reconciliation
+
+    pid = str(proposal_id)
+    if conn.execute("SELECT 1 FROM wallet_proposals WHERE proposal_id = ? AND tx_signature <> ''", (pid,)).fetchone():
+        return "transaction_id"
+    if conn.execute("SELECT 1 FROM wallet_spend_ledger WHERE proposal_id IN (?, ?) AND state IN (?, ?)",
+                    (pid, limits._fee_hold_id(pid), limits.RESERVATION_RESERVED, limits.RESERVATION_SETTLED)).fetchone():
+        return "spend_held_or_settled"
+    effect_states = (*_UNRESOLVED_ACTIVE_STATES, _UNRESOLVED_TERMINAL_APPLIED)
+    if conn.execute(f"SELECT 1 FROM runtime_unresolved_effects WHERE logical_effect_id = ? AND state IN ({', '.join('?' for _ in effect_states)})",
+                    (reconciliation.logical_effect_id(pid), *effect_states)).fetchone():
+        return "payment_effect"
+    if conn.execute("SELECT 1 FROM wallet_signing_requests WHERE proposal_id = ? AND state IN (?, ?)",
+                    (pid, external_signing.STATE_OPEN, external_signing.STATE_CONSUMED)).fetchone():
+        return "signing_request"
+    return ""
 
 
 def _update_binding(request_digest: str, **fields: Any) -> None:
@@ -497,7 +530,7 @@ def _bound_outcome(binding: dict[str, Any] | None, *, timeout: float, source_con
         return _deliver(binding, proposal, timeout=timeout, source_context=source_context)
     if proposal.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
         return X402Outcome(status=OUTCOME_PAYMENT_REQUIRED, http_status=PAYMENT_REQUIRED, proposal_id=proposal.proposal_id, binding_id=binding["binding_id"])
-    end_abandoned_prepare(proposal)
+    end_abandoned_prepare(proposal, source_context=source_context)
     refuse_while_dispatched(proposal, authority=AUTHORITY, source_context=source_context)
     return None
 
