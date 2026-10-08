@@ -211,7 +211,7 @@ def test_same_label_update_still_supersedes_from_real_ingestion(source_home, mon
     capsule = _capsule(source_home, "What is the locker code at the rowing club?", chat=CHAT)
     assert speakers.get(old) == speakers.get(new) == "Marta", speakers
     assert not verdicts[old].eligible and verdicts[old].superseded_by == new, verdicts[old]
-    assert "5520" in capsule and "4417" not in capsule, capsule
+    _keep_law(capsule, "5520", "4417")
 
 
 def test_register_header_label_is_not_a_speaker(source_home, monkeypatch):
@@ -249,3 +249,14 @@ def test_occurrence_only_records_carry_their_speaker(source_home, monkeypatch):
     _capsule(source_home, "Which rowing club locker do they have?", chat=CHAT)
     assert nodes.get(marta) is False and nodes.get(ivo) is False, nodes
     assert seen.get(marta) == "Marta" and seen.get(ivo) == "Ivo", seen
+
+
+def _keep_law(capsule, current, kept):
+    """The KEEP law (owner decision 2026-10-08): the distilled facts serve *current* and never *kept*;
+    the corrected turn carrying *kept* rides the whole-turn lane beside its correction."""
+    import core.context_retrieval as _cr
+
+    facts, header, lane = capsule.partition(_cr._TURN_LANE_HEADER)
+    assert current in facts, capsule
+    assert kept not in facts, capsule
+    assert header and kept in lane, capsule

@@ -158,8 +158,7 @@ def test_r2_single_facet_recency_question_keeps_strict_law(fresh_profile):
           "Dawn ferry 06:40, noted.")
     block = _capsule(fresh_profile, "r2-ferry",
                      "What time does the dawn ferry leave?")
-    assert "06:40" in block
-    assert "06:10" not in block
+    _keep_law(block, "06:40", "06:10")
 
 
 # ─── R3a: supersession-edge laws (F01-04 / F03-11 / F05-11 / F10-06) ──────
@@ -174,8 +173,7 @@ def test_r3a_restoration_supersedes_the_wrong_correction(fresh_profile):
           "No wait, the first figure was right: 40 euros.",
           "Back to 40 euros, noted.")
     block = _capsule(fresh_profile, "r3a-harbour", "What is the mooring fee?")
-    assert "40" in block
-    assert "14" not in block
+    _keep_law(block, "40 euros", "14 euros")
 
 
 def test_r3a_withdrawn_paste_stays_dead_after_restate(fresh_profile):
@@ -355,3 +353,14 @@ def test_r3b_partitive_month_as_of_resolves_from_question_text(fresh_profile):
     assert intent.as_of_end is not None
     assert intent.as_of_end.year == 2026 and intent.as_of_end.month == 7
     assert intent.as_of_end.day == 15
+
+
+def _keep_law(capsule, current, kept):
+    """The KEEP law (owner decision 2026-10-08): the distilled facts serve *current* and never *kept*;
+    the corrected turn carrying *kept* rides the whole-turn lane beside its correction."""
+    import core.context_retrieval as _cr
+
+    facts, header, lane = capsule.partition(_cr._TURN_LANE_HEADER)
+    assert current in facts, capsule
+    assert kept not in facts, capsule
+    assert header and kept in lane, capsule

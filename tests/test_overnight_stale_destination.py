@@ -13,7 +13,7 @@ def _shuttle(home):
 def test_current_shuttle_does_not_keep_old_time_as_unrelated_destination(source_env):
     _shuttle(source_env)
     capsule = _recall(source_env, 'shuttle-destination', 'When does the evening shuttle leave?')
-    assert '18:35' in capsule and '18:05' not in capsule, capsule
+    _keep_law(capsule, '18:35', '18:05')
 
 
 def test_explicit_old_slot_question_keeps_its_new_destination(source_env):
@@ -42,3 +42,14 @@ def test_trimmed_correction_receipts_are_exact_source_slices(source_env):
     for receipt in trimmed:
         span = receipt['span']
         assert body[span['start']:span['end']] == span['text'], receipt
+
+
+def _keep_law(capsule, current, kept):
+    """The KEEP law (owner decision 2026-10-08): the distilled facts serve *current* and never *kept*;
+    the corrected turn carrying *kept* rides the whole-turn lane beside its correction."""
+    import core.context_retrieval as _cr
+
+    facts, header, lane = capsule.partition(_cr._TURN_LANE_HEADER)
+    assert current in facts, capsule
+    assert kept not in facts, capsule
+    assert header and kept in lane, capsule

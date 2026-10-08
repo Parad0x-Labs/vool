@@ -287,7 +287,11 @@ def test_a_turn_the_temporal_contract_excludes_is_never_supplemented(tmp_path, m
     supplement_lines = [str(ref.get("line")) for ref in telemetry.get("evidence_refs") or []
                         if ref.get("delivered") and ref.get("recall_supplement")]
     assert not any("cherry tree" in line for line in supplement_lines), supplement_lines
-    assert "cherry tree" not in capsule, capsule
+    # The KEEP law: a turn the contract marks superseded never reaches the distilled facts, and rides
+    # the whole-turn lane beside what superseded it.
+    facts, header, lane = capsule.partition(cr._TURN_LANE_HEADER)
+    assert "cherry tree" not in facts, capsule
+    assert header and lane.count("cherry tree") == 1, capsule
 
 
 @pytest.mark.parametrize("query, speakers, subject", [
