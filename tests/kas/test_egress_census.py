@@ -36,6 +36,7 @@ KNOWN_DIRECT_EGRESS: dict[str, tuple[int, str]] = {
     "relay/bridge_workers/webhook_ingress.py": (1, "verified: the mirror forwarder's own urlopen"),
     "tools/web/coin_index.py": (1, "verified: reads the veto itself, then opens its own socket"),
     "core/mesh/task_router.py": (6, "verified: posts to arbitrary peer endpoints"),
+    "core/agent_team/model_agent.py": (2, "verified: an agent turn posts the team's chat body to /api/cloud/model and /api/chat at the caller-supplied base_url; meant for the VOOL daemon itself, but loopback is not enforced, so it is listed with the bypasses"),
     # --- verified local-service transport: reaches a service on this machine, not a third party ---
     "core/council/dispatch.py": (3, "verified: the local VOOL daemon on loopback"),
     "core/updater/health.py": (1, "verified: the local health endpoint on loopback"),
