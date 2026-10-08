@@ -488,6 +488,47 @@ def enforce_history_budget(
                 ]
                 continue
             removable_index = 0
+        # A producer-stamped summary stands in for the turns OLDER than itself only. Shedding a
+        # verbatim exchange that came AFTER it leaves a hole no record covers: measured on the
+        # served two-account email journey, the turn naming the newest draft was dropped while
+        # an older-turns summary was kept whole, and "Send it now." then resolved to the stale
+        # draft. Under a character overage, line-reduce that summary (disclosed) first; the
+        # newer exchange is dropped only when the summary cannot give the room back.
+        if (
+            removable_index is not None
+            and max(_retention_priority(message) for _position, message in units[removable_index]) == 0
+            and len([message for other in units for _position, message in other]) <= message_limit
+        ):
+            summary_index = next(
+                (
+                    candidate
+                    for candidate in range(removable_index)
+                    if not any(position in protected for position, _message in units[candidate])
+                    and max(_retention_priority(message) for _position, message in units[candidate]) >= 1
+                    and any(
+                        _CONTEXT_SUMMARY_OPEN in str(message.get("content") or "")
+                        for _position, message in units[candidate]
+                    )
+                ),
+                None,
+            )
+            if summary_index is not None:
+                summary_unit = units[summary_index]
+                summary_chars = sum(
+                    len(str(message.get("content") or "")) for _position, message in summary_unit
+                )
+                others_chars = sum(
+                    len(str(message.get("content") or ""))
+                    for other_index, other_unit in enumerate(units)
+                    if other_index != summary_index
+                    for _position, message in other_unit
+                )
+                shrunk = _shrink_unit_to_line_boundary(summary_unit, char_limit - others_chars)
+                if shrunk is not None and sum(
+                    len(str(message.get("content") or "")) for _position, message in shrunk
+                ) < summary_chars:
+                    units[summary_index] = shrunk
+                    continue
         unit = units[removable_index]
         # A TRUSTED high-retention unit (a producer-stamped summary or an
         # authoritative correction list) that cannot fit is reduced at line
@@ -533,6 +574,7 @@ def enforce_history_budget(
 #: tuple form: str.endswith needs each terminal as its own suffix
 _LINE_TERMINALS = (".", "!", "?", "…", "。", "！", "？")
 
+_CONTEXT_SUMMARY_OPEN = "<context_summary>"
 _SUMMARY_OPEN_RE = re.compile(r"^\s*<context_summary>\s*$")
 _SUMMARY_CLOSE_RE = re.compile(r"^\s*</context_summary>\s*$")
 

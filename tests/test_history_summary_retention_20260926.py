@@ -244,3 +244,24 @@ def test_unicode_accounting_uses_code_points_not_bytes() -> None:
     blob = "\n".join(str(m.get("content") or "") for m in kept)
     assert "会場はハゼルホールです" in blob  # code-point allowance, not bytes
     assert "続けます" in blob
+
+
+def test_an_exchange_newer_than_the_summary_is_not_shed_while_the_summary_can_shrink() -> None:
+    # Served two-account email journey (landing 83b1df3): the exchange naming the newest draft
+    # sat between an older-turns summary and the newest exchange; it was shed while the summary
+    # was kept whole, so "Send it now." resolved to the stale draft. The summary stands in for
+    # OLDER turns only: it is line-reduced (disclosed) before a newer exchange is dropped.
+    facts = [f"- [assistant] Draft ed-old{i:02d} for the work mailbox was sent." for i in range(30)]
+    history = [
+        _summary("## Key Facts\n" + "\n".join(facts)),
+        {"role": "user", "content": "Reply from my personal account that Wednesday works."},
+        {"role": "assistant", "content": "Draft ed-newest01 (version 1, not approved) from account personal."},
+        {"role": "user", "content": "Approve and send it."},
+        {"role": "assistant", "content": "Auto mode requires approval for this exact action."},
+    ]
+    kept = enforce_history_budget(history, max_messages=10, max_chars=900)
+    blob = "\n".join(str(m.get("content") or "") for m in kept)
+    assert "ed-newest01" in blob
+    assert "<context_summary>" in blob and "[truncated to fit history budget]" in blob
+    assert "Draft ed-old00" in blob  # the summary's leading facts survive
+    assert sum(len(str(m.get("content") or "")) for m in kept) <= 900
