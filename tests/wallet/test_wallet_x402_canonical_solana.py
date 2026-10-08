@@ -51,6 +51,13 @@ def _canonical_v1(network: str) -> dict:
     return body
 
 
+def _canonical_v1_fee_payer_key(network: str) -> dict:
+    """The same offer naming its fee payer the other way the v1 parser reads it: a top-level ``feePayerKey``."""
+    body = x402_body(amount_minor=1500, network=network)
+    body["accepts"][0]["feePayerKey"] = _fee_payer()
+    return body
+
+
 def _canonical_v2(network: str) -> dict:
     return {"x402Version": 2, "resource": {"url": "https://api.example.test/paid"}, "accepts": [{
         "scheme": "exact", "network": network, "amount": "1500", "asset": "SOL", "payTo": OTHER_DESTINATION,
@@ -95,13 +102,14 @@ class _CanonicalResource:
 
 @pytest.mark.parametrize(("wire", "network"), [
     ("v1", "solana-devnet"), ("v1", DEVNET_CAIP2), ("v1", "solana"), ("v2", DEVNET_CAIP2), ("v2", MAINNET_CAIP2),
+    ("v1_fee_payer_key", "solana-devnet"),
 ])
 def test_a_canonical_offer_at_the_fetch_door_is_refused_before_anything_is_proposed(env, wire, network):
     from core.wallet import proposals, x402
     from core.wallet.errors import WalletFault
 
     profile = _pocket()
-    body = _canonical_v1(network) if wire == "v1" else _canonical_v2(network)
+    body = {"v1": _canonical_v1, "v1_fee_payer_key": _canonical_v1_fee_payer_key, "v2": _canonical_v2}[wire](network)
     with _CanonicalResource(body) as resource:
         with pytest.raises(WalletFault) as exc:
             x402.fetch_paid_resource(resource.url, wallet_id=profile.wallet_id)
