@@ -24,14 +24,29 @@ import threading
 import time
 
 # --------------------------------------------------------------------------- constants
+# The pet's window holds the character AND the status bubble that sits above it, so the bubble is
+# a real part of the window rather than something that overflows and gets clipped. The character
+# canvas is 144x144 -- an integer 3x multiple of the 48px logical art grid, so every art pixel
+# stays a crisp 3x3 block and the artwork itself is unchanged. The remaining area is deliberately
+# empty margin that must NOT intercept mouse input.
+from core.companion_layout import (
+    BUBBLE_GAP,
+    BUBBLE_HEIGHT,
+    BUBBLE_WIDTH,
+    CANVAS_BOTTOM,
+    CANVAS_SIZE,
+    DESKTOP_HEIGHT,
+    DESKTOP_WIDTH,
+)
 
-# The pet's window is 176x176. The character canvas is 132x132 centred inside it; the rest is
-# deliberately empty margin that must NOT intercept mouse input.
-PET_WINDOW_WIDTH = 176
-PET_WINDOW_HEIGHT = 176
-PET_CANVAS_POINTS = 132
+PET_WINDOW_WIDTH = DESKTOP_WIDTH
+PET_WINDOW_HEIGHT = DESKTOP_HEIGHT
+PET_CANVAS_POINTS = CANVAS_SIZE
 PET_CONTROL_POINTS = 24
 PET_CONTROL_INSET = 6
+# The bubble band above the character. Its visible area is part of the window and therefore part
+# of the pet's hit surface, so a user can grab the pet by the bubble while dragging.
+PET_BUBBLE_POINTS = BUBBLE_HEIGHT
 
 # AppKit window levels, restated as plain numbers so the policy is assertable without a GUI.
 # NSFloatingWindowLevel: above ordinary application windows, BELOW anything the operator has to
@@ -71,12 +86,19 @@ def pet_hit_rects(width: float = PET_WINDOW_WIDTH, height: float = PET_WINDOW_HE
     """
     canvas = float(min(PET_CANVAS_POINTS, width, height))
     x = (width - canvas) / 2.0
-    y = (height - canvas) / 2.0
-    control = float(PET_CONTROL_POINTS)
-    inset = float(PET_CONTROL_INSET)
+    y = min(float(CANVAS_BOTTOM), max(0.0, height - canvas))
+    # Bubble band, immediately above the canvas (AppKit origin is bottom-left, so "above" is a
+    # higher y). It tracks the bubble's REAL size -- max 196 wide, 40 tall, centred -- and leaves
+    # a margin, so the window's top corners stay transparent and keep passing clicks through to
+    # whatever is underneath, while the bubble's own visible area is part of the pet's surface.
+    bubble_w = float(min(BUBBLE_WIDTH, max(0.0, width - 12.0)))
+    bubble_y = y + canvas + BUBBLE_GAP
+    bubble_h = float(min(PET_BUBBLE_POINTS, max(0.0, height - bubble_y)))
+    bubble_x = (width - bubble_w) / 2.0
     return [
         (x, y, canvas, canvas),
-        (width - inset - control, height - inset - control, control, control),
+        (bubble_x, bubble_y, bubble_w, bubble_h),
+        (width - 76.0, height - 28.0, 72.0, 24.0),
     ]
 
 
