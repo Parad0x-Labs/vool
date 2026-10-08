@@ -3885,7 +3885,11 @@ def _pack_cut_inside_a_sentence(body: str, spans: Sequence[tuple[int, int]]) -> 
         if any(other >= sentence_end for other in ends):
             continue  # a longer delivered span of the same turn reaches the sentence's end
         rest = tail.lstrip()
-        if rest[0] in ",;:" or rest[0] in "\u2014\u2013-" or (rest[0].islower() and body[end - 1] not in ".!?"):
+        # The pack's window law cuts at a clause boundary (", the 18:05 slot went to the maintenance fleet"). A span
+        # that stops mid-phrase before a plain word ("took almost" | "three hours") is the distiller's budget
+        # truncation of a record, which the lane's own region law completes, and a value-free prefix ride of a few
+        # words ("My hair") decides nothing about the rest: neither is a decision to leave the rest out.
+        if rest[0] in ",;:" or rest[0] in "\u2014\u2013-":
             return True
     return False
 
@@ -8455,8 +8459,8 @@ _PACKET_REFUSING_VERDICTS = frozenset({
 
 
 def _hydration_refusals(receipts: Sequence[Mapping[str, Any]], lane_refused: Sequence[Mapping[str, str]] = ()) -> dict[str, str]:
-    """occurrence_id -> the render-time store decision that refused it: a requested source the final-pack
-    revalidation rejected (`source_hydration_*`), or a lane unit the store no longer held as ranked."""
+    """occurrence_id -> a render-time decision the packet must honour: a requested source the final-pack revalidation
+    rejected (`source_hydration_*`), a lane unit the store no longer held as ranked, or a scrapped superseded value."""
     out: dict[str, str] = {}
     for receipt in receipts or ():
         why = str(receipt.get("omission_reason") or "")
@@ -8466,7 +8470,9 @@ def _hydration_refusals(receipts: Sequence[Mapping[str, Any]], lane_refused: Seq
     for row in lane_refused or ():
         why = str(row.get("reason") or "")
         occ = str(row.get("occurrence_id") or "")
-        if occ and why.startswith("revalidation:"):
+        # ... and a superseded value the lane refused because its slot holds a live retraction ("scrap that code"):
+        # the packet's own verdict set keeps superseded rows (it marks them replaced), but a scrapped one is withdrawn.
+        if occ and (why.startswith("revalidation:") or why.startswith("temporal:superseded")):
             out.setdefault(occ, why)
     return out
 
