@@ -1902,7 +1902,9 @@ def maybe_handle_memory_command(
             # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
             # command is answered with the truth; the turn is still recorded by the fast path, so the
             # capsule's temporal law withdraws the record it names on the next recall.
-            return True, f"Nothing was removed: no stored memory in this chat matched \"{token}\"."
+            # worded without a storage verb beside "memory": the action-honesty check reads "no stored memory" as a
+            # claim that something was stored, and replaced the forget reply (tests/test_a_product_word_in_a_sentence_is_not_a_command.py)
+            return True, f"Nothing was removed. Forget found no memory in this chat that matched \"{token}\"."
         return True, f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}."
 
     return False, ""
