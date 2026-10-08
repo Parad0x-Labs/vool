@@ -299,6 +299,32 @@ def test_an_mpp_challenge_parked_for_a_request_already_paid_never_rebinds_it(env
     assert binding["proposal_id"] == parked.proposal_id
 
 
+@pytest.mark.parametrize("state", ["broadcast", "confirmed"])
+def test_a_late_mpp_challenge_cannot_replace_an_unknown_or_paid_request(env, monkeypatch, state):
+    """The MPP lane's version of the late challenge: a charge paid (confirmed) or left unknown (broadcast), and a second
+    caller past a stale check whose challenge asks another amount. The request stays its payment's; the proposal
+    minted for the late challenge is rejected."""
+    from core.wallet import outbound, paykit_mpp, paykit_x402, proposals, x402
+    from core.wallet.errors import WalletFault
+    from tests.wallet.test_wallet_paykit_x402 import _stale_first_check
+
+    profile = _pocket()
+    headers = {"Content-Type": "application/json"}
+    with ScriptedMppResource(env["rpc"], mode="ok" if state == "confirmed" else "no_settlement_header") as resource:
+        parked = _park(resource, profile)
+        assert _approve(parked.proposal_id).state == state
+        resource.amount_minor = 1400
+        challenge = outbound.fetch(resource.url, method="POST", headers=headers, body=REQUEST_BODY)
+        _stale_first_check(monkeypatch)
+        with pytest.raises(WalletFault) as late:
+            paykit_mpp.park_challenge(challenge, url=resource.url, method="POST", headers=headers, body=REQUEST_BODY, wallet_id=profile.wallet_id)
+        assert late.value.code == "wallet_duplicate_payment"
+        assert len(resource.landed) == 1
+    assert x402.binding_for_digest(paykit_x402.request_digest("POST", resource.url, REQUEST_BODY))["proposal_id"] == parked.proposal_id
+    others = [p for p in proposals.list_proposals() if p.proposal_id != parked.proposal_id]
+    assert [(p.state, p.amount_minor) for p in others] == [(proposals.STATE_REJECTED, 1400)]
+
+
 def test_a_challenge_that_expires_before_approval_is_never_signed_and_releases_the_hold(env):
     from core.wallet import limits, proposals
     from core.wallet.errors import WalletFault

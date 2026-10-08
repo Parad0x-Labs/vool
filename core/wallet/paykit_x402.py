@@ -224,6 +224,8 @@ def existing_outcome(digest: str, *, source_context: dict[str, Any] | None = Non
     if parked is not None and parked.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
         # this exact request was paid: its payment was delivered once and is never sent again
         raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": parked.proposal_id, "reason": "paykit_request_already_paid"}, source_context=source_context)
+    if parked is not None:
+        x402.refuse_while_dispatched(parked, authority=AUTHORITY, source_context=source_context)
     return None
 
 
@@ -328,8 +330,9 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
         wallet_id=wallet_id, destination=terms["pay_to"], amount_minor=terms["amount_minor"], asset=terms["asset"], origin=proposals.ORIGIN_X402_PAYKIT,
         memo=f"x402 {clean_method} {clean_url}"[:200], idempotency_key=idempotency_key, source_context=source_context, network=terms["network"],
     )
-    _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
-                    offer={"x402Version": int(wire_version), "requirement": requirement}, version=x402.BINDING_VERSION_PAYKIT, proposal_id=proposal.proposal_id)
+    if not _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
+                           offer={"x402Version": int(wire_version), "requirement": requirement}, version=x402.BINDING_VERSION_PAYKIT, proposal_id=proposal.proposal_id):
+        return lost_request(digest, proposal.proposal_id, source_context=source_context)
     from core.wallet import lifecycle
 
     prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
@@ -337,17 +340,36 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
     return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=status, body=answer["body"], proposal_id=prepared.proposal_id, binding_id=str(binding.get("binding_id") or ""))
 
 
+def lost_request(digest: str, proposal_id: str, *, source_context: dict[str, Any] | None = None) -> Any:
+    """Another caller bound this request first (its 402 arrived while ours was in flight): the proposal minted here is
+    rejected, and this caller gets what the request's own payment gives a re-fetch."""
+    from core.wallet import x402
+
+    bound_id = str((x402.binding_for_digest(digest) or {}).get("proposal_id") or "")
+    if proposal_id and proposal_id != bound_id:
+        from core.wallet import lifecycle
+
+        lifecycle.end_refused(proposal_id, proposals.STATE_REJECTED, fault_code="wallet_duplicate_payment", expected_state=proposals.STATE_PROPOSED,
+                              detail={"reason": "request_bound_to_another_payment", "bound_proposal_id": bound_id}, reason="request_bound_to_another_payment")
+    already = existing_outcome(digest, source_context=source_context)
+    if already is not None:
+        return already
+    raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"reason": "request_bound_to_another_payment"}, source_context=source_context)
+
+
 def _upsert_binding(*, request_digest_value: str, url: str, method: str, body: bytes, headers: dict[str, str], terms: dict[str, Any],
-                    offer: dict[str, Any], version: int, proposal_id: str) -> None:
+                    offer: dict[str, Any], version: int, proposal_id: str) -> bool:
     """Bind one request (method, URL, body, replayable headers) to its parked proposal and the offer it met. The
     same request re-parked after a dead proposal takes the new offer whole, its fee facts included (the MPP lane then
-    sets the fee this wallet pays, if any); ``version`` names the lane (x402 or MPP)."""
+    sets the fee this wallet pays, if any); ``version`` names the lane (x402 or MPP). False, and nothing changed, when
+    the request is already bound to a payment that holds it (``x402.binding_guard``)."""
     from core.wallet import x402
     from core.wallet.store import connection, dumps, utcnow
 
     now = utcnow()
+    guard, guard_values = x402.binding_guard()
     with connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             "INSERT INTO wallet_x402_bindings (binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, state, created_at, updated_at,"
             " version, offer_json, resource_origin, resource_method, sponsored_gas, fee_asset, asset_address, request_body_b64, request_headers_json, fee_payer)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -356,11 +378,12 @@ def _upsert_binding(*, request_digest_value: str, url: str, method: str, body: b
             " fee_payer = excluded.fee_payer, asset_address = excluded.asset_address, request_headers_json = excluded.request_headers_json,"
             " sponsored_gas = excluded.sponsored_gas, fee_asset = excluded.fee_asset, max_network_fee_minor = 0, max_facilitator_fee_minor = 0,"
             " tx_signature = '', resource_status = 0, resource_digest = '',"
-            " resource_bytes = 0, updated_at = excluded.updated_at",
+            " resource_bytes = 0, updated_at = excluded.updated_at" + guard,
             (f"x402b-{uuid.uuid4().hex[:16]}", request_digest_value, url, method, terms["pay_to"], int(terms["amount_minor"]), terms["asset"], terms["network"],
              proposal_id, x402.BINDING_PAYMENT_REQUIRED, now, now, int(version), dumps(offer), _origin_of(url), method, 0 if terms.get("payer_pays_fee") else 1, terms["asset"],
-             terms["mint"], base64.b64encode(body).decode("ascii"), dumps(headers), terms["fee_payer"]),
+             terms["mint"], base64.b64encode(body).decode("ascii"), dumps(headers), terms["fee_payer"], *guard_values),
         )
+        return cursor.rowcount == 1
 
 
 def binding_for(proposal_id: str) -> dict[str, Any] | None:
