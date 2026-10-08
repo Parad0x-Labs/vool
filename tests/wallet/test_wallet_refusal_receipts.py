@@ -590,3 +590,159 @@ def test_a_stop_at_the_hold_release_while_an_unsent_payment_is_ended_leaves_it_w
         _assert_refusal_receipt(proposal.proposal_id, state=proposals.STATE_EXPIRED, fault_code="wallet_approval_rejected", hold=limits.RESERVATION_RELEASED,
                                 reason="signing_request_expired")
     assert wallet_env["rpc"].send_count() == 0
+
+
+def _the_receipt_write(sql, _params):
+    return sql.startswith("INSERT INTO wallet_receipts")
+
+
+def _sign_for(key, view):
+    from core.vool_wallet import b58decode, b58encode
+
+    return b58encode(key.sign(b58decode(view["message_b58"])))
+
+
+@pytest.mark.parametrize(("failure", "ending_lands"), [
+    ("the_request_fails_to_open", "at_the_submit_door"), ("the_effect_is_in_flight", "at_the_submit_door"), ("the_effect_gateway_refuses", "at_the_submit_door"),
+    ("the_request_fails_to_open", "after_it_was_sent"),
+])
+def test_an_approval_that_fails_after_its_claim_never_ends_a_payment_another_door_moved_on(wallet_env, monkeypatch, failure, ending_lands):
+    """The owner approves one payment twice at once. The first approval claims it, approved and held, then fails before
+    it hands it on: its signing request does not open, its effect is already in flight, or the effect gateway refuses.
+    Meanwhile the second approval resumes the approved payment and hands it to the wallet, whose answer reaches the
+    submit door. The first approval's ending lands while that answer is at the submit door, past its hold check, or
+    after the payment was sent. The payment is no longer the one it claimed, so the ending writes nothing: no receipt,
+    the hold stays and the payment's effect stays open. The payment is sent once and the limits count it: under a daily
+    limit of one payment and its fee, a second payment is refused."""
+    import sqlite3
+    import threading
+
+    from core.runtime_continuity import find_active_unresolved_effect
+    from core.wallet import external_signing, lifecycle, limits, proposals, reconciliation
+    from core.wallet.errors import WalletFault
+
+    profile, key = _external_wallet()
+    _one_payment_a_day(profile)
+    first_engine = lifecycle.default_lifecycle()
+    payment = first_engine.prepare(_propose(profile).proposal_id)
+    second = first_engine.prepare(_propose(profile).proposal_id)
+    claimed, ending = threading.Event(), threading.Event()
+    first: dict[str, object] = {}
+
+    def approve_first():
+        try:
+            first_engine.request_external_signature(payment.proposal_id)
+            first["outcome"] = "handed on"
+        except WalletFault as exc:
+            first["outcome"] = (exc.code, str(exc.context.get("reason") or "").split(":")[0])
+
+    first_approval = threading.Thread(target=approve_first)
+
+    def held_up_then(failing):
+        """In the first approval, after its claim committed: wait while the second approval runs, then fail."""
+        def hook(*args, **kwargs):
+            if threading.current_thread() is not first_approval:
+                return real(*args, **kwargs)
+            claimed.set()
+            assert ending.wait(30), "the first approval was let go"
+            return failing()
+        return hook
+
+    def fail_to_open():
+        raise sqlite3.OperationalError("database is locked")
+
+    def refuse():
+        raise RuntimeError("effect gateway refused")
+
+    if failure == "the_request_fails_to_open":
+        real = external_signing.open_signing_request
+        monkeypatch.setattr(external_signing, "open_signing_request", held_up_then(fail_to_open))
+    elif failure == "the_effect_is_in_flight":
+        real = reconciliation.reserve_payment_effect
+        monkeypatch.setattr(reconciliation, "reserve_payment_effect", held_up_then(lambda: {"outcome": "in_flight"}))
+    else:
+        real = first_engine._open_effect
+        monkeypatch.setattr(first_engine, "_open_effect", held_up_then(refuse))
+
+    def let_the_first_end():
+        ending.set()
+        first_approval.join(30)
+        assert not first_approval.is_alive()
+
+    def as_the_second_left_it():
+        return (proposals.get_proposal(payment.proposal_id).state, limits.reservation_state(payment.proposal_id), _receipts(payment.proposal_id))
+
+    first_approval.start()
+    try:
+        assert claimed.wait(30), "the first approval claimed the payment"
+        assert (proposals.get_proposal(payment.proposal_id).state, limits.reservation_state(payment.proposal_id)) == (proposals.STATE_APPROVED, limits.RESERVATION_RESERVED)
+        view = lifecycle.default_lifecycle().request_external_signature(payment.proposal_id)
+        assert view.get("resume") is True, "the second approval resumed the approved payment"
+        if ending_lands == "at_the_submit_door":
+            real_verify = external_signing.verify_submission
+
+            def the_first_ends_meanwhile(record, **kwargs):
+                let_the_first_end()
+                assert as_the_second_left_it() == (proposals.STATE_AWAITING_SIGNATURE, limits.RESERVATION_RESERVED, []), "the first approval's ending wrote nothing"
+                if failure != "the_effect_is_in_flight":  # the first approval reserved the payment's effect
+                    assert find_active_unresolved_effect(reconciliation.logical_effect_id(payment.proposal_id)) is not None, "nor resolved the effect"
+                return real_verify(record, **kwargs)
+
+            monkeypatch.setattr(external_signing, "verify_submission", the_first_ends_meanwhile)
+        sent = lifecycle.default_lifecycle().submit_external_signature(view["request_id"], signature_b58=_sign_for(key, view))
+        if ending_lands == "after_it_was_sent":
+            let_the_first_end()
+    finally:
+        ending.set()
+        first_approval.join(30)
+    assert first["outcome"] == {"the_request_fails_to_open": ("wallet_signing_unavailable", "signing_request_failed"),
+                                "the_effect_is_in_flight": ("wallet_duplicate_payment", "effect_in_flight"),
+                                "the_effect_gateway_refuses": ("wallet_limit_exceeded", "effect_gateway_refused")}[failure]
+    assert sent.state == proposals.STATE_CONFIRMED
+    state, hold, receipts_left = as_the_second_left_it()
+    assert (state, hold) == (proposals.STATE_CONFIRMED, limits.RESERVATION_SETTLED), "the payment that left is counted"
+    assert [(r["state"], r["fault_code"]) for r in receipts_left] == [(proposals.STATE_CONFIRMED, "")], "one payment, one receipt"
+    with pytest.raises(WalletFault) as refused:
+        lifecycle.default_lifecycle().request_external_signature(second.proposal_id)
+    assert refused.value.code == "wallet_limit_exceeded"
+    assert wallet_env["rpc"].send_count() == 1
+
+
+@pytest.mark.parametrize("at", ["the_hold_release", "the_receipt_write"])
+def test_a_stop_inside_the_ending_of_an_approval_that_failed_after_its_claim_leaves_it_for_the_resume(wallet_env, monkeypatch, at):
+    """An approval claims a payment, approved and held, then cannot open its signing request and ends it: the payment
+    fails with its receipt and its hold is released, in one transaction. A stop inside it, at the release or at the
+    receipt, leaves the payment approved and held with no receipt, as the claim left it. The owner's next approval
+    resumes it and it is paid once, counted against the limits."""
+    import sqlite3
+
+    from core.wallet import external_signing, lifecycle, limits, proposals
+    from core.wallet.errors import WalletFault
+
+    profile, key = _external_wallet()
+    _one_payment_a_day(profile)
+    engine = lifecycle.default_lifecycle()
+    payment = engine.prepare(_propose(profile).proposal_id)
+    second = engine.prepare(_propose(profile).proposal_id)
+
+    def fail_to_open(*_args, **_kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    with monkeypatch.context() as failing:
+        failing.setattr(external_signing, "open_signing_request", fail_to_open)
+        interrupted = _interrupt_the_statement(failing, _the_hold_release if at == "the_hold_release" else _the_receipt_write, _ProcessStopped)
+        with pytest.raises(_ProcessStopped):
+            engine.request_external_signature(payment.proposal_id)
+    assert interrupted, "the ending reached the statement"
+    as_claimed = (proposals.get_proposal(payment.proposal_id).state, limits.reservation_state(payment.proposal_id), _receipts(payment.proposal_id))
+    assert as_claimed == (proposals.STATE_APPROVED, limits.RESERVATION_RESERVED, [])
+    assert external_signing.open_request_for_proposal(payment.proposal_id) is None
+    restarted = lifecycle.default_lifecycle()
+    view = restarted.request_external_signature(payment.proposal_id)
+    assert view.get("resume") is True
+    assert restarted.submit_external_signature(view["request_id"], signature_b58=_sign_for(key, view)).state == proposals.STATE_CONFIRMED
+    assert limits.reservation_state(payment.proposal_id) == limits.RESERVATION_SETTLED
+    with pytest.raises(WalletFault) as refused:
+        restarted.request_external_signature(second.proposal_id)
+    assert refused.value.code == "wallet_limit_exceeded"
+    assert wallet_env["rpc"].send_count() == 1
