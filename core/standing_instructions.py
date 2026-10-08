@@ -523,12 +523,18 @@ def _order_names_the_format(sentence: str) -> bool:
     "Write dates as day, month, year"). A format word only after a comma ("poem, winter harbour, short") describes
     the thing being asked for: the turn is a request written as a list of keywords, not a rule. A single word before
     the comma may be a name or a greeting ("Sam, answer in bullet points"): then the order is the clause after it,
-    when that clause is at least a verb and its words."""
+    when that clause opens with its verb rather than a format word."""
     head, _, rest = _main_clause(sentence).partition(",")
     if _about_presentation(head):
         return True
     order = rest.split(",", 1)[0].strip()
-    return len(head.split()) == 1 and len(order.split()) >= 2 and _about_presentation(order)
+    if len(head.split()) != 1 or len(order.split()) < 2 or not _about_presentation(order):
+        return False
+    # The clause after the name is an order ("answer in bullet points"), not more keywords naming the format the
+    # thing asked for should have ("poem, formal tone", "summary, bullet points").
+    opener = order.split()[0]
+    return _addressed_to_vool(order) and (opener.lower() in {"answer", "reply", "respond"}
+                                          or not _about_presentation(opener))
 
 
 def _plain_kind(sentence: str) -> str:
