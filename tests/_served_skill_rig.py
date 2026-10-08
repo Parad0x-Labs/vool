@@ -61,13 +61,24 @@ class ProviderState:
 
     @property
     def turn_requests(self) -> list[dict[str, Any]]:
-        """Requests that carried a system prompt and a tool catalog (real turns)."""
+        """Requests that carried a system prompt and a tool catalog (real turns): not readiness probes, and not
+        the search-expansion call a turn makes before its answer (see `tests/_auxiliary_calls.py`)."""
+        from tests._auxiliary_calls import is_search_expansion
+
         return [
             body
             for body in self.requests
             if any(m.get("role") == "system" for m in (body.get("messages") or []))
             and body.get("max_tokens") != 1
+            and not is_search_expansion(body)
         ]
+
+    @property
+    def search_expansion_requests(self) -> list[dict[str, Any]]:
+        """The search-expansion calls, at most one per turn."""
+        from tests._auxiliary_calls import is_search_expansion
+
+        return [body for body in self.requests if is_search_expansion(body)]
 
     def system_prompts(self) -> list[str]:
         prompts = []
