@@ -33,6 +33,7 @@ from core.wallet.paykit_x402 import (
     _upsert_binding,
     availability,
     existing_outcome,
+    lost_request,
     refuse_pilot_lane,
     request_digest,
     require_available,
@@ -176,8 +177,9 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
         wallet_id=wallet_id, destination=terms["pay_to"], amount_minor=terms["amount_minor"], asset=terms["asset"], origin=proposals.ORIGIN_MPP_PAYKIT,
         memo=f"mpp {clean_method} {clean_url}"[:200], idempotency_key=idempotency_key, source_context=source_context, network=terms["network"],
     )
-    _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
-                    offer={"protocol": "mpp", "challenge": dataclasses.asdict(challenge)}, version=x402.BINDING_VERSION_PAYKIT_MPP, proposal_id=proposal.proposal_id)
+    if not _upsert_binding(request_digest_value=digest, url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
+                           offer={"protocol": "mpp", "challenge": dataclasses.asdict(challenge)}, version=x402.BINDING_VERSION_PAYKIT_MPP, proposal_id=proposal.proposal_id):
+        return lost_request(digest, proposal.proposal_id, source_context=source_context)
     prepared = lifecycle.default_lifecycle(source_context=source_context).prepare(proposal.proposal_id)
     if terms["payer_pays_fee"]:
         # this wallet pays the network fee: the approval shows it, and the claim reserves it with the amount

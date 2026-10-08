@@ -509,6 +509,73 @@ def test_a_challenge_parked_for_a_request_already_paid_never_rebinds_it(env):
     assert binding["proposal_id"] == parked.proposal_id
 
 
+def _stale_first_check(monkeypatch):
+    """A second caller's first look at the request happened before the first caller's payment was bound: the lane's
+    check answers 'nothing holds this request' once, then reads the store as it is (both lanes share the check)."""
+    from core.wallet import paykit_mpp, paykit_x402
+
+    real = paykit_x402.existing_outcome
+    calls = []
+
+    def stale_once(digest, **kwargs):
+        calls.append(digest)
+        return None if len(calls) == 1 else real(digest, **kwargs)
+
+    monkeypatch.setattr(paykit_x402, "existing_outcome", stale_once)
+    monkeypatch.setattr(paykit_mpp, "existing_outcome", stale_once)
+
+
+@pytest.mark.parametrize("state", ["broadcast", "confirmed"])
+def test_a_late_challenge_cannot_replace_an_unknown_or_paid_request(env, monkeypatch, state):
+    """Two callers fetch the same request. The first parks, is approved and pays (confirmed) or its answer proves
+    nothing (broadcast, unknown); the second passed its own check before that, and its 402, on other terms, arrives
+    late. The binding refuses the second proposal in the same statement that would rebind the request: the request
+    stays its payment's, and the proposal minted for the late challenge is rejected, never approvable."""
+    from core.wallet import outbound, paykit_x402, proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    headers = {"Content-Type": "application/json"}
+    with ScriptedPayKitResource(env["rpc"], mode="ok" if state == "confirmed" else "no_settlement_header") as resource:
+        parked = _park(resource, profile)
+        assert _approve(parked.proposal_id).state == state
+        resource.amount_minor = 1400
+        challenge = outbound.fetch(resource.url, method="POST", headers=headers, body=REQUEST_BODY)
+        _stale_first_check(monkeypatch)
+        with pytest.raises(WalletFault) as late:
+            paykit_x402.park_challenge(challenge, url=resource.url, method="POST", headers=headers, body=REQUEST_BODY, wallet_id=profile.wallet_id)
+        assert late.value.code == "wallet_duplicate_payment"
+        assert len(resource.landed) == 1
+    assert x402.binding_for_digest(paykit_x402.request_digest("POST", resource.url, REQUEST_BODY))["proposal_id"] == parked.proposal_id
+    others = [p for p in proposals.list_proposals() if p.proposal_id != parked.proposal_id]
+    assert [(p.state, p.amount_minor) for p in others] == [(proposals.STATE_REJECTED, 1400)]
+
+
+def test_two_callers_racing_one_request_never_park_two_payments(env, monkeypatch):
+    """Both callers get past their first check while nothing holds the request, and each meets a 402 on its own terms.
+    The first binds it; the second's proposal is rejected and it gets the first caller's parked proposal."""
+    from core.wallet import outbound, paykit_x402, proposals
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    headers = {"Content-Type": "application/json"}
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        first_challenge = outbound.fetch(resource.url, method="POST", headers=headers, body=REQUEST_BODY)
+        resource.amount_minor = 1400
+        second_challenge = outbound.fetch(resource.url, method="POST", headers=headers, body=REQUEST_BODY)
+        first = paykit_x402.park_challenge(first_challenge, url=resource.url, method="POST", headers=headers, body=REQUEST_BODY, wallet_id=profile.wallet_id)
+        _stale_first_check(monkeypatch)
+        second = paykit_x402.park_challenge(second_challenge, url=resource.url, method="POST", headers=headers, body=REQUEST_BODY, wallet_id=profile.wallet_id)
+        assert second.proposal_id == first.proposal_id and second.status == "payment_required"
+        pending = [p for p in proposals.list_proposals() if p.state == proposals.STATE_PENDING_APPROVAL]
+        assert [p.proposal_id for p in pending] == [first.proposal_id]
+        rejected = [p for p in proposals.list_proposals() if p.state == proposals.STATE_REJECTED]
+        assert [p.amount_minor for p in rejected] == [1400]
+        with pytest.raises(WalletFault):
+            _approve(rejected[0].proposal_id)
+        assert resource.paid_requests == []
+
+
 # --- the optional dependency and the legacy lane --------------------------------------------------------------------
 
 def test_without_paykit_the_lane_refuses_before_sending_anything(env, monkeypatch):
