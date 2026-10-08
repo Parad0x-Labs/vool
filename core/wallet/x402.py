@@ -37,10 +37,14 @@ class X402Request:
     eip712_version: str = ""
     max_timeout_seconds: int = 0
     asset_transfer_method: str = ""
+    #: the fee payer a canonical Solana offer names (extra.feePayer / feePayerKey): the resource settles a transaction
+    #: that payer co-signs, so such an offer is never a plain transfer of this wallet's own
+    fee_payer: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {"amount_minor": self.amount_minor, "asset": self.asset, "network": self.network, "pay_to": self.pay_to, "resource": self.resource, "scheme": self.scheme, "description": self.description,
-                "eip712_name": self.eip712_name, "eip712_version": self.eip712_version, "max_timeout_seconds": self.max_timeout_seconds, "asset_transfer_method": self.asset_transfer_method}
+                "eip712_name": self.eip712_name, "eip712_version": self.eip712_version, "max_timeout_seconds": self.max_timeout_seconds, "asset_transfer_method": self.asset_transfer_method,
+                "fee_payer": self.fee_payer}
 
 
 def _as_json(value: Any) -> dict[str, Any] | None:
@@ -79,6 +83,7 @@ def _from_accepts(payload: dict[str, Any]) -> X402Request | None:
         pay_to=pay_to, resource=str(first.get("resource") or "")[:200], scheme=str(first.get("scheme") or "exact"), description=str(first.get("description") or "")[:200],
         eip712_name=str(extra.get("name") or "").strip()[:64], eip712_version=str(extra.get("version") or "").strip()[:16],
         max_timeout_seconds=timeout, asset_transfer_method=str(extra.get("assetTransferMethod") or "").strip()[:32],
+        fee_payer=str(first.get("feePayerKey") or extra.get("feePayer") or "").strip()[:64],
     )
 
 
@@ -104,6 +109,12 @@ def detect_x402(status: int, headers: dict[str, Any] | None, body: Any) -> X402R
 
 def propose_from_x402(request: X402Request, *, wallet_id: str, source_context: dict[str, Any] | None = None) -> proposals.TransactionProposal:
     custody.require_enabled(source_context=source_context)
+    from core.wallet import x402_v2
+
+    if request.fee_payer and x402_v2.names_solana(request.network):
+        # a canonical Solana offer: the resource's fee payer settles a transaction it co-signs. This lane would
+        # broadcast a plain transfer of its own instead, which the resource never accepts, so it never proposes one
+        raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "canonical_solana_offer_needs_paykit_lane"}, source_context=source_context)
     if not config.network_allowed(request.network):
         raise wallet_fault("wallet_network_disabled", authority=AUTHORITY, context={"network": request.network, "reason": "x402_offer_network"}, source_context=source_context)
     cap = config.x402_cap_minor()
