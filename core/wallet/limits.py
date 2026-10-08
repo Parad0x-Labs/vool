@@ -355,17 +355,22 @@ def _resettle(conn, proposal_id: str, *, charged_fee_minor: int | None, amount_m
         conn.execute("UPDATE wallet_spend_ledger SET fee_minor = COALESCE(?, fee_minor) WHERE proposal_id = ? AND state = ?", (charged, _fee_hold_id(proposal_id), RESERVATION_SETTLED))
 
 
-def reserve_spend(*, wallet_id: str, asset: str, amount_minor: int, destination: str, proposal_id: str, now: float | None = None, fee_minor: int = 0, chain: str = "") -> LimitVerdict:
-    """Hold the amount PLUS every reserved fee against every ceiling, atomically. Idempotent per proposal."""
+def reserve_spend(*, wallet_id: str, asset: str, amount_minor: int, destination: str, proposal_id: str, now: float | None = None, fee_minor: int = 0, chain: str = "",
+                  conn=None) -> LimitVerdict:
+    """Hold the amount PLUS every reserved fee against every ceiling, atomically. Idempotent per proposal. On ``conn``
+    when given (the caller holds BEGIN IMMEDIATE on it), so the hold commits with the caller's other writes."""
+    if conn is None:
+        with connection() as own:
+            _begin_immediate(own)
+            return reserve_spend(wallet_id=wallet_id, asset=asset, amount_minor=amount_minor, destination=destination, proposal_id=proposal_id, now=now, fee_minor=fee_minor,
+                                 chain=chain, conn=own)
     moment = float(now if now is not None else time.time())
-    with connection() as conn:
-        _begin_immediate(conn)
-        try:
-            return _reserve(conn, wallet_id=wallet_id, asset=asset, amount_minor=amount_minor, destination=destination, proposal_id=proposal_id, now=moment, fee_minor=fee_minor, chain=chain)
-        except HoldStateConflictError:
-            return LimitVerdict(True, "", "already held")
-        except LimitRefusedError as refused:
-            return refused.verdict
+    try:
+        return _reserve(conn, wallet_id=wallet_id, asset=asset, amount_minor=amount_minor, destination=destination, proposal_id=proposal_id, now=moment, fee_minor=fee_minor, chain=chain)
+    except HoldStateConflictError:
+        return LimitVerdict(True, "", "already held")
+    except LimitRefusedError as refused:
+        return refused.verdict
 
 
 def settle_spend(proposal_id: str, *, now: float | None = None) -> None:
@@ -385,9 +390,13 @@ def release_spend(proposal_id: str) -> None:
             return  # nothing reserved: the legacy helper has always been silent here
 
 
-def reservation_state(proposal_id: str) -> str:
-    with connection() as conn:
-        row = conn.execute("SELECT state FROM wallet_spend_ledger WHERE proposal_id = ?", (str(proposal_id),)).fetchone()
+def reservation_state(proposal_id: str, *, conn=None) -> str:
+    """The state of the proposal's hold ("" when it never held). On ``conn`` when given, so it reads inside the caller's
+    transaction."""
+    if conn is None:
+        with connection() as own:
+            return reservation_state(proposal_id, conn=own)
+    row = conn.execute("SELECT state FROM wallet_spend_ledger WHERE proposal_id = ?", (str(proposal_id),)).fetchone()
     return str(row[0]) if row else ""
 
 

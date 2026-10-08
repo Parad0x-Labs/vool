@@ -344,18 +344,18 @@ def test_the_claim_cas_is_the_fence_behind_the_signature_check(wallet_env, monke
     _rewind_to_pending(proposal.proposal_id, keep_signature=False)
 
     # Land a competing approval in the instant BETWEEN this approval passing the door and reaching
-    # the compare-and-set. Claiming earlier would move the state column and the door would answer
-    # first, so the CAS -- the layer under test -- would never run.
-    real_transition = proposals.transition
+    # the compare-and-set, which opens the claim's transaction. Claiming earlier would move the state
+    # column and the door would answer first, so the CAS -- the layer under test -- would never run.
+    real_claim = engine._claim
     stolen: list[str] = []
 
-    def steal_then_call(proposal_id, new_state, **kwargs):
-        if not stolen and new_state == proposals.STATE_APPROVED and kwargs.get("expected_state") == proposals.STATE_PENDING_APPROVAL:
-            stolen.append(proposal_id)
-            assert real_transition(proposal_id, proposals.STATE_APPROVED, expected_state=proposals.STATE_PENDING_APPROVAL) is not None
-        return real_transition(proposal_id, new_state, **kwargs)
+    def steal_then_claim(claiming, *args, **kwargs):
+        if not stolen:
+            stolen.append(claiming.proposal_id)
+            assert proposals.transition(claiming.proposal_id, proposals.STATE_APPROVED, expected_state=proposals.STATE_PENDING_APPROVAL) is not None
+        return real_claim(claiming, *args, **kwargs)
 
-    monkeypatch.setattr(proposals, "transition", steal_then_call)
+    monkeypatch.setattr(engine, "_claim", steal_then_claim)
     with pytest.raises(WalletFault) as exc:
         engine.approve_and_execute(proposal.proposal_id, approver=approval.PinApprover(PIN))
     assert exc.value.code == "wallet_duplicate_payment"
