@@ -90,6 +90,7 @@ _REASONS = {
     "wallet_key_mismatch": "the watch wallet does not match the saved viewing key",
     "keychain_unavailable": "the saved viewing key could not be read",
     "receipt_pending": "its receipt could not be written yet (VOOL retries on the next check)",
+    "pool_unknown": "a payment arrived in a Zcash pool this VOOL version cannot read yet",
 }
 
 

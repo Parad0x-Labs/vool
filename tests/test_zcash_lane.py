@@ -542,18 +542,40 @@ def test_a_payment_becomes_paid_after_confirmations_and_is_receipted_once(chain)
     assert lane.store.get(invoice.invoice_id).paid_txid == txid
 
 
-def test_an_ironwood_payment_pays_the_invoice_and_an_unknown_pool_never_does(chain) -> None:
-    # Live testnet after NU7: a wallet paying VOOL's Orchard receiver lands the note in the Ironwood pool (code 4).
+def test_an_ironwood_payment_pays_the_invoice(chain) -> None:
+    # Live testnet: a wallet paying VOOL's Orchard receiver lands the note in the Ironwood pool (code 4).
     lane = _ready_lane(chain)
-    ironwood, future = lane.create_invoice("0.001"), lane.create_invoice("0.001")
-    txid = chain.pay(ironwood.memo, 100_000, height=998, pool=4)
-    chain.pay(future.memo, 100_000, height=998, pool=5)
+    invoice = lane.create_invoice("0.001")
+    txid = chain.pay(invoice.memo, 100_000, height=998, pool=4)
     report = lane.refresh()
-    states = {s.invoice.invoice_id: s.state for s in report["statuses"]}
-    assert states == {ironwood.invoice_id: "paid", future.invoice_id: "unpaid"}
+    assert [s.state for s in report["statuses"]] == ["paid"]
     [receipt] = report["receipted"]
-    assert (receipt["invoice_id"], receipt["txids"]) == (ironwood.invoice_id, [txid])
+    assert (receipt["invoice_id"], receipt["txids"]) == (invoice.invoice_id, [txid])
     assert [n.pool for n in lane.devtool.received_notes()] == ["ironwood"]
+
+
+def test_a_payment_in_an_unknown_pool_is_doubt_never_unpaid(chain) -> None:
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    lane = _ready_lane(chain)
+    invoice = lane.create_invoice("0.001")
+    chain.pay(invoice.memo, 100_000, height=998, pool=5)
+    report = lane.refresh()
+    assert (report["fresh"], report["reason"], report["receipted"]) == (False, "pool_unknown", [])
+    assert [(s.state, s.reason) for s in report["statuses"]] == [("unknown", "pool_unknown")]
+    assert "cannot read yet" in execute_runtime_tool("zcash.invoice.unpaid", {}).response_text
+    assert _journal() == [] and lane.store.get(invoice.invoice_id).paid_txid == ""
+
+
+def test_orchard_and_ironwood_parts_of_one_payment_add_up(chain) -> None:
+    lane = _ready_lane(chain)
+    invoice = lane.create_invoice("0.001")
+    orchard = chain.pay(invoice.memo, 60_000, height=998, pool=3)
+    ironwood = chain.pay(invoice.memo, 40_000, height=998, pool=4)
+    report = lane.refresh()
+    assert [s.state for s in report["statuses"]] == ["paid"]
+    [receipt] = report["receipted"]
+    assert (sorted(receipt["txids"]), receipt["received_zat"]) == (sorted([orchard, ironwood]), 100_000)
 
 
 def test_a_failed_sync_leaves_open_invoices_unknown_and_receipts_nothing(chain) -> None:
@@ -591,12 +613,13 @@ def test_one_output_listed_twice_counts_once_and_conflicting_rows_confirm_nothin
     assert (status.state, status.confirmed_zat) == ("underpaid", 50)
 
 
-def test_a_payment_reorged_out_takes_the_invoice_out_of_paid_and_back_when_it_returns(chain) -> None:
+@pytest.mark.parametrize("pool", [3, 4])
+def test_a_payment_reorged_out_takes_the_invoice_out_of_paid_and_back_when_it_returns(chain, pool) -> None:
     from core.runtime_execution_tools import execute_runtime_tool
 
     lane = _ready_lane(chain)
     invoice = lane.create_invoice("0.05")
-    chain.pay(invoice.memo, 5_000_000, height=1000)
+    chain.pay(invoice.memo, 5_000_000, height=1000, pool=pool)
     chain.tip = 1002
     chain.write()
     assert [s.state for s in lane.refresh()["statuses"]] == ["paid"]
