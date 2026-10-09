@@ -99,6 +99,14 @@ _RECORDS_REFUSAL_LEAD = (
     "written."
 )
 
+# A retrieval decision, never a retained source or support for a factual claim.
+_RECORDS_ABSENCE_MARKER = '<records_absence reason="absence-gate" />'
+
+
+def _records_absence_row(row: Any) -> bool:
+    return isinstance(row, dict) and str(row.get("summary") or "").strip() == _RECORDS_ABSENCE_MARKER
+
+
 _RE_PRESENTATION_REFUSAL_LEAD = (
     "I can't publish this re-presentation: it restates statements the previous answer had "
     "withheld, and the previous answer's published support does not cover them."
@@ -249,7 +257,8 @@ def _support_rows(lifecycle: GroundingLifecycle) -> tuple[list[dict[str, Any]], 
     remembered = [
         dict(entry)
         for entry in getattr(lifecycle, "memory_records", ()) or ()
-        if isinstance(entry, dict) and not entry.get("withheld") and _row_carries_content(entry)
+        if isinstance(entry, dict) and not entry.get("withheld")
+        and not _records_absence_row(entry) and _row_carries_content(entry)
     ]
     if remembered:
         rows.extend(remembered)
@@ -713,6 +722,10 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
         lead = _RE_PRESENTATION_REFUSAL_LEAD
         return lead if not subject else f'{lead} (request: "{subject[:160]}")'
     if _records_only_support(lifecycle):
+        if any(_records_absence_row(row) for row in lifecycle.memory_records):
+            from core.unsourced_current_claim import RECORDS_WITHDRAWAL_NOTICE
+
+            return RECORDS_WITHDRAWAL_NOTICE
         return _RECORDS_REFUSAL_LEAD if not subject else f'{_RECORDS_REFUSAL_LEAD} (request: "{subject[:160]}")'
     parts = [_REFUSAL_LEAD if not subject else f'{_REFUSAL_LEAD} (request: "{subject[:160]}")']
     explanation = _STAGE_EXPLANATION.get(failed_stage or "")
@@ -739,6 +752,8 @@ def _records_only_support(lifecycle: GroundingLifecycle) -> bool:
         return False
     from core.memory_grounding import question_names_someone_in_the_records
 
+    if any(_records_absence_row(row) for row in records):
+        return True
     return question_names_someone_in_the_records(
         lifecycle.request_text, [row for row in records if isinstance(row, dict)]
     )

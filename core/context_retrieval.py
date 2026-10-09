@@ -8069,6 +8069,32 @@ def inject_retrieved(
         return transcript
 
 
+def _publish_records_absence(source_context: Mapping[str, Any] | None, added: list[dict[str, str]]) -> None:
+    """Hand THIS delivery's typed records-absence to the turn's grounding lifecycle.
+
+    The marker rides OUTSIDE the factual ``<retrieved_context>`` capsule, and the capsule
+    harvest only reads wrapped blocks, so without this handoff the standalone marker would
+    never reach publication. Identity bound: the row lands only on the lifecycle already
+    stamped into THIS caller's context (``record_memory_records`` no-ops otherwise — none is
+    minted), and it is read from the exact bytes admitted for this turn, never from global
+    telemetry, so no later or foreign turn can borrow it. Called only after the delivery was
+    authorized against the revocation authority, so a withheld or unreadable-revocation turn
+    hands off nothing.
+    """
+    if not isinstance(source_context, dict):
+        return
+    try:
+        from core.grounding_publication import _RECORDS_ABSENCE_MARKER
+
+        if not any(_RECORDS_ABSENCE_MARKER in str(item.get("content") or "") for item in added):
+            return
+        from core.grounding_lifecycle import record_memory_records
+
+        record_memory_records(source_context, entries=[{"summary": _RECORDS_ABSENCE_MARKER, "source": "memory_record"}])
+    except Exception:
+        LOGGER.debug("records-absence lifecycle handoff failed", exc_info=True)
+
+
 def _verify_memory_delivery(
     delivery: list[dict[str, str]],
     transcript: list[dict[str, str]],
@@ -8110,6 +8136,7 @@ def _verify_memory_delivery(
                 allowed = False
                 revoked = None
     if allowed:
+        _publish_records_absence(source_context, added)
         return delivery
     telemetry = get_last_retrieval_telemetry()
     telemetry["delivery_withheld"] = "revocation_unreadable" if revoked is None else "revocation_changed"
@@ -8950,6 +8977,14 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
         telemetry["evidence_packet_facts"] = list(getattr(evidence_packet, "facts", []) or [])
         telemetry["evidence_packet_snapshot"] = {"chat_id": str(chat_id or ""), "packet_text": text}
         _kernel_packet_envelope(chat_id, question, evidence_packet, telemetry)
+    if telemetry.get("records_absence") and not getattr(evidence_packet, "facts", None):
+        # The typed absence rides OUTSIDE the factual capsule: a record question the gate
+        # refused must still publish the records notice, and a capsule with no facts stays
+        # empty. The marker is a retrieval decision, never support content.
+        from core.grounding_publication import _RECORDS_ABSENCE_MARKER
+
+        _set_retrieval_telemetry(telemetry)
+        return _inject_render_block(transcript, _RECORDS_ABSENCE_MARKER)
     if not text:
         _set_retrieval_telemetry(telemetry)
         return transcript
@@ -10537,7 +10572,9 @@ def _capsule_v2_inject_retrieved(
         return _packet_only_injection(
             transcript, evidence_packet,
             {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": [],
-             "absence_gate_withheld_speakers": sorted(_fp_withheld_speakers)},
+             "absence_gate_withheld_speakers": sorted(_fp_withheld_speakers),
+             "records_absence": ({"kind": "records_absence", "reason": "absence-gate",
+                                  "source_ids": sorted(_fp_refused_keys)} if _fp_refused_keys else None)},
             chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
             refused=_packet_refusals(
                 evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
@@ -12711,6 +12748,11 @@ def _capsule_v2_inject_retrieved(
             if receipt.get("delivered"):
                 receipt["delivered"] = False
                 receipt["omission_reason"] = "selection_filter"
+        if _fp_refused_keys:
+            telemetry["records_absence"] = {
+                "kind": "records_absence", "reason": "absence-gate",
+                "source_ids": sorted(_fp_refused_keys),
+            }
         return _packet_only_injection(transcript, evidence_packet, telemetry, chat_id=str(session_id or ""), question=str(query or ""),
                                       refused=_packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
                                                                hydration_refused=_hydration_refusals(evidence_receipts),
@@ -13055,6 +13097,15 @@ def _capsule_v2_inject_retrieved(
     telemetry["reported_source_prefix_refs"] = [
         r for r in telemetry.get("reported_source_prefix_refs") or [] if r.get("line") in included
     ]
+    if _fp_refused_keys and not render_block:
+        # Every record this turn saw was refused and nothing else delivered: the factual
+        # capsule stays EMPTY (a refused question must not grow one), and the typed absence
+        # rides as its own system marker outside <retrieved_context>.
+        from core.grounding_publication import _RECORDS_ABSENCE_MARKER
+
+        telemetry["records_absence"] = {"kind": "records_absence", "reason": "absence-gate",
+                                        "source_ids": sorted(_fp_refused_keys)}
+        render_block = _RECORDS_ABSENCE_MARKER
     _set_retrieval_telemetry(telemetry)
     if not render_block:
         return transcript
