@@ -306,7 +306,11 @@ class VoolMemory:
             else self._db_path.parent.parent.parent if self._db_path.parent.name == "memory"
             else self._db_path.parent
         )
-        prepare(self._authority_home, allow_initialize=not self._db_path.exists(), arm=False)
+        # An ordinary store constructor may only initialize authority over a
+        # genuinely new home; the whole-carrier witness freshness policy inside
+        # prepare fails closed on retained memory (legacy carriers included).
+        # Legacy upgrade is reserved for the explicit admitted forget.
+        prepare(self._authority_home, allow_writer_initialize=not self._db_path.exists(), arm=False)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         # Occurrence-body integrity telemetry (F16): every serving read that
