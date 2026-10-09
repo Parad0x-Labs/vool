@@ -7,7 +7,8 @@ decision about money here:
 
 1. :func:`fetch_paid` sends the owner's request (method, body and the few replayable headers) once. A 402 that
    pay-kit parses for this wallet's own network becomes ONE capped proposal bound to that exact request, under the
-   origin ``x402_paykit``. Nothing is signed; the request bytes are kept on the binding. The ordinary x402 door
+   origin ``x402_paykit``: the offer's one proposal (:func:`offer_key`), which every spelling of the resource's URL
+   that meets it is bound to as well. Nothing is signed; the request bytes are kept on the binding. The ordinary x402 door
    (``core.wallet.x402.fetch_paid_resource``, behind the agent tool and the wallet API) hands this lane the
    canonical Solana offers it meets (:func:`claims_challenge`, :func:`park_challenge`).
 2. The owner approves it on the ordinary approval path (``PaymentLifecycle.approve_and_execute``), which hands an
@@ -309,8 +310,8 @@ def refuse_pilot_lane(wallet_id: str, terms: dict[str, Any], *, source_context: 
 
 def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: dict[str, str] | None, body: bytes, wallet_id: str,
                    source_context: dict[str, Any] | None = None) -> Any:
-    """The 402 the owner's request met (``answer``, already received: nothing is sent here) -> ONE capped proposal
-    bound to that exact request, or a typed refusal. Never signs."""
+    """The 402 the owner's request met (``answer``, already received: nothing is sent here) -> the offer's ONE capped
+    proposal (:func:`offer_key`) with that exact request bound to it, or a typed refusal. Never signs."""
     from core.wallet import x402
 
     require_available(source_context=source_context)
@@ -336,16 +337,37 @@ def park_challenge(answer: dict[str, Any], *, url: str, method: str, headers: di
     cap = config.x402_cap_minor()
     if terms["amount_minor"] > cap:
         raise wallet_fault("wallet_x402_cap_exceeded", authority=AUTHORITY, context={"amount_minor": terms["amount_minor"], "limit": str(cap), "asset": terms["asset"], "reason": "above_automatic_cap"}, source_context=source_context)
-    idempotency_key = "x402pk:" + hashlib.sha256(f"{digest}|{terms['pay_to']}|{terms['amount_minor']}|{terms['mint'] or terms['asset']}|{terms['network']}".encode()).hexdigest()[:24]
+    resource = offer_resource(requirement)
+    idempotency_key = offer_key(resource, clean_method, raw_body, terms)
     # the proposal and its claim on the request commit together, as on the other x402 lanes: nothing ever sees it unbound
     claim = x402._RequestClaim(digest, clean_url, clean_method, binding_terms(url=clean_url, method=clean_method, body=raw_body, headers=replay_headers, terms=terms,
                                                                             offer={"x402Version": int(wire_version), "requirement": requirement},
                                                                             version=x402.BINDING_VERSION_PAYKIT), source_context=source_context)
     proposal = proposals.propose_transaction(
         wallet_id=wallet_id, destination=terms["pay_to"], amount_minor=terms["amount_minor"], asset=terms["asset"], origin=proposals.ORIGIN_X402_PAYKIT,
-        memo=f"x402 {clean_method} {clean_url}"[:200], idempotency_key=idempotency_key, source_context=source_context, network=terms["network"], claim=claim,
+        memo=f"x402 {clean_method} {resource}"[:200], idempotency_key=idempotency_key, source_context=source_context, network=terms["network"], claim=claim,
     )
     return parked(proposal, claim, http_status=status, body=answer["body"], source_context=source_context)
+
+
+def offer_resource(requirement: dict[str, Any]) -> str:
+    """The resource an x402 offer names itself: its entry's ``resource`` (v1), or the challenge's ``resource.url`` (v2),
+    which pay-kit carries on the entry it selected. "" when the offer names none."""
+    info = requirement.get(_payment_module()._RESOURCE_INFO_KEY)
+    if isinstance(info, dict) and isinstance(info.get("url"), str):
+        return info["url"]
+    named = requirement.get("resource")
+    return named if isinstance(named, str) else ""
+
+
+def offer_key(resource: str, method: str, body: bytes, terms: dict[str, Any]) -> str:
+    """The idempotency key of a pay-kit x402 proposal: the offer (the resource it names, its payee, amount, asset and
+    network, whatever the wire) and the request's method and body, never the URL it was fetched at. Every spelling of
+    one resource's URL that meets one offer is one payment, approved and paid at most once (as ``x402.offer_key`` keys
+    the other x402 lanes), while another method or body is another request, which needs its own approval."""
+    material = json.dumps([resource, method, hashlib.sha256(bytes(body or b"")).hexdigest(), terms["pay_to"], int(terms["amount_minor"]), terms["mint"] or terms["asset"],
+                           terms["network"]])
+    return "x402pk:" + hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]
 
 
 def parked(proposal: proposals.TransactionProposal, claim: Any, *, http_status: int, body: bytes, source_context: dict[str, Any] | None) -> Any:
