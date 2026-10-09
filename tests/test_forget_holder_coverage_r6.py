@@ -64,6 +64,11 @@ def test_unscoped_prompt_block_is_named_incomplete_and_withheld(tmp_path):
     try:
         mem.block_write("user_profile", "The locker code is MINT-84.")
         assert "MINT-84" in mem.block_read("user_profile")
+        mem._conn.execute("""
+            CREATE TRIGGER reject_block_erasure BEFORE DELETE ON memory_blocks
+            BEGIN SELECT RAISE(ABORT, 'block storage unavailable'); END;
+        """)
+        mem._conn.commit()
         handled, reply = command(profile, chat, "forget MINT-84")
         assert handled and "memory blocks" in reply and "could not be verified" in reply, reply
         assert "MINT-84" in mem._conn.execute("SELECT content FROM memory_blocks").fetchone()[0]

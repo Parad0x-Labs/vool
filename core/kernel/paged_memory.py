@@ -242,6 +242,9 @@ class PagedSession:
         recall_header_chars: int = 200,
         supplement_char_budget: int = 1600,
     ) -> None:
+        from core.memory.revocation import prepare
+
+        prepare(allow_initialize=True, arm=False)
         if hot_window < 1:
             raise ValueError("hot_window must be >= 1")
         self._hot_window = hot_window
@@ -298,6 +301,10 @@ class PagedSession:
                 text,
                 f"stored bytes no longer match their stamp (want {page.sha256[:12]}, got {actual[:12]})",
             )
+        from core.memory.revocation import authorize_payload
+
+        if not authorize_payload(page.text):
+            raise RecallRefused(text, "memory authority withholds this page")
         return page.text
 
     def _by_id(self, page_id: str) -> Page:
@@ -523,6 +530,10 @@ class PagedSession:
                 f"{budget_chars} (accounted {budget_chars - remaining})"
             )
 
+        from core.memory.revocation import authorize_payload
+
+        if not authorize_payload(text):
+            raise RecallRefused("assembly", "memory authority withholds this context")
         dense = sum(page.chars for page in self._pages)
         return ContextAssembly(
             text=text,
@@ -539,6 +550,10 @@ class PagedSession:
     def stats(self) -> dict:
         """Store facts for the demo/receipts: counts and byte totals, no estimates dressed
         as measurements (the token figure is labelled an estimate)."""
+        from core.memory.revocation import authorize_payload
+
+        if not authorize_payload([page.text for page in self._pages]):
+            return {}
         total_chars = sum(page.chars for page in self._pages)
         return {
             "pages": len(self._pages),

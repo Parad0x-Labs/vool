@@ -97,7 +97,8 @@ def test_partial_log_scrub_never_claims_complete_erasure(tmp_path, monkeypatch):
         attempts = _deny_replace(patch, path)
         handled, reply = command(profile, chat, "forget MINT-84")
     assert handled and attempts, (handled, reply, attempts)
-    assert any("MINT-84" in str(row.get("user")) for row in load_jsonl(path)), "fault must retain real raw plaintext"
+    assert not any("MINT-84" in str(row.get("user")) for row in load_jsonl(path)), "public reads must withhold retained plaintext"
+    assert b"MINT-84" in path.read_bytes(), "fault must retain real raw plaintext"
     # The ledger gates tested recall, but a claimed complete erasure still leaves the raw log unchanged.
     assert "MINT-84" not in _capsule(profile, chat, "What is my locker code?")[0]
     assert "Forget applied" not in reply and "no memory" not in reply.lower(), reply
@@ -128,7 +129,8 @@ def test_partial_summary_scrub_never_claims_success_over_a_served_copy(tmp_path,
         attempts = _deny_replace(patch, path)
         handled, reply = command(profile, chat, "forget thermal pool")
     assert handled and attempts, (handled, reply, attempts)
-    assert any("MINT-84" in str(row.get("summary")) for row in load_jsonl(path)), "fault must retain actual summary"
+    assert not any("MINT-84" in str(row.get("summary")) for row in load_jsonl(path)), "public reads must withhold retained summary"
+    assert b"MINT-84" in path.read_bytes(), "fault must retain actual summary"
     served = search_session_summaries("thermal pool locker code", access_policy=policy)
     foreign = "review4-summary-importer"
     ensure_chat_namespace(foreign, grant_current_receipts=False)

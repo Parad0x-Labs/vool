@@ -808,7 +808,64 @@ def _open_memory_for_runtime(runtime_home: str | None) -> VoolMemory | None:
 
 
 def get_last_retrieval_telemetry() -> dict[str, object]:
-    return {**_TELEMETRY_DEFAULTS, **dict(_CAPSULE_TELEMETRY.get() or {})}
+    from core.memory.revocation import authorize_payload
+
+    payload = {**_TELEMETRY_DEFAULTS, **dict(_CAPSULE_TELEMETRY.get() or {})}
+    if authorize_payload(payload):
+        return payload
+    return {**_TELEMETRY_DEFAULTS, **_retrieval_diagnostics(payload)}
+
+
+def _retrieval_diagnostics(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep structural diagnostics when the serving gate withholds content.
+
+    Codes, counts and storage identities describe a refusal; they do not carry
+    the refused prose. Unknown strings and content fields have no exemption.
+    The same projection applies inside receipt and compiler diagnostics.
+    """
+    from core.memory.carriers import ROW_IDENTITIES
+
+    scalars = ROW_IDENTITIES | frozenset(_TELEMETRY_DEFAULTS.keys() - {"selected_facts"}) | {
+        "reason", "code", "status", "complete", "delivered", "delivery_stage",
+        "kind", "stage", "role", "authority", "source_kind", "count",
+        "delivery_withheld", "revocations_unreadable", "revoked_at_delivery",
+        "revoked_at_delivery_withheld", "evidence_packet_withheld",
+        "assurance", "query_shape", "obligation_class", "hop_fired", "hop_reason",
+        "hop_semantic_hits", "hop_new_facts", "packet_lines", "packet_tokens",
+        "requested_target_tokens", "resolved_target_tokens", "free_tokens", "estimate_method",
+        "candidates", "shown", "exhaustive",
+        "receipts_in_chat", "matched_facts", "start", "end",
+        "class", "needs_coverage", "current_session_scope", "exact_recall_session_filter",
+        "dropped_foreign_session_count", "dropped_no_provenance_count", "dropped_forbidden_fact_count",
+        "evidence_semantic_backend", "evidence_semantic_count", "grain", "records", "anchored_records",
+        "whole_turn_units", "whole_turn_lines", "whole_turn_tokens", "session_order", "session_ordered_lines_moved",
+        "omission_reason",
+    }
+    containers = {
+        "whole_turn_lane_refused", "evidence_refs", "reported_source_prefix_refs",
+        "evidence_compiler", "evidence_budget", "kernel_packet_receipt",
+        "refused_rows", "refused", "diagnostics", "coverage", "recall_supplement", "span",
+        "obligation", "evidence_time_leg",
+    }
+    result = {}
+    for key, value in payload.items():
+        if key in scalars and isinstance(value, (str, int, float, bool, type(None))):
+            result[key] = value
+        elif key in {"reason_codes", "unseen_receipts", "found", "missing",
+                     "found_before_hop", "missing_before_hop", "required",
+                     "source_session_ids", "granted_session_scopes"} and isinstance(value, (list, tuple)):
+            result[key] = [code for code in value if isinstance(code, str)]
+        elif key == "skipped" and isinstance(value, Mapping):
+            result[key] = {code: count for code, count in value.items()
+                           if isinstance(code, str) and type(count) is int}
+        elif key in containers:
+            if isinstance(value, Mapping):
+                result[key] = _retrieval_diagnostics(value)
+            elif isinstance(value, (list, tuple)):
+                result[key] = [
+                    _retrieval_diagnostics(row) for row in value if isinstance(row, Mapping)
+                ]
+    return result
 
 
 

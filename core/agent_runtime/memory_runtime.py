@@ -20,6 +20,7 @@ def maybe_handle_memory_fast_path(
         source_context=source_context,
     )
     if handled:
+        response = _gate_memory_response(response, session_id, source_context)
         result = agent._fast_path_result(
             session_id=session_id,
             user_input=user_input,
@@ -33,11 +34,27 @@ def maybe_handle_memory_fast_path(
         if isinstance(response, ForgetOutcome):
             result["_memory_command_outcome"] = response
         return result
-    return agent._maybe_handle_companion_memory_fast_path(
+    result = agent._maybe_handle_companion_memory_fast_path(
         user_input,
         session_id=session_id,
         source_context=source_context,
     )
+    if isinstance(result, dict) and "response" in result:
+        return {**result, "response": _gate_memory_response(result["response"], session_id, source_context)}
+    return result
+
+
+def _gate_memory_response(response, session_id, source_context):
+    from core.memory.command_result import ForgetOutcome
+    from core.memory.revocation import authorize_payload
+
+    # The executor's control outcome must still block the turn when the memory
+    # authority is unavailable. It is not a served memory payload.
+    if isinstance(response, ForgetOutcome):
+        return response
+    if authorize_payload(response, session_id, (source_context or {}).get("runtime_home")):
+        return response
+    return "Memory is withheld because its erasure authority could not authorize this read."
 
 
 def model_final_response_text(model_execution: Any) -> str:

@@ -71,7 +71,9 @@ def profile_context_lines_for_session(session_id: str = "", *, principal: str = 
         who = str(principal or bound_principal or OWNER_PRINCIPAL)
         session = str(session_id or bound_session or "")
         lines, _used = hydration_for_turn(who, session_id=session, project_id=bound_project, include_name=False)
-        return list(lines)
+        from core.memory.revocation import authorize_payload
+
+        return [line for line in lines if authorize_payload(line, session)]
     except Exception:
         return []
 
