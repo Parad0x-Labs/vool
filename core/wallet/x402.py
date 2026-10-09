@@ -399,8 +399,11 @@ def names_a_request(proposal: proposals.TransactionProposal, *, conn: Any = None
     the payment of a request this wallet fetched: one proposed on its own (the model's ``x402.propose``, the owner's
     ``/api/wallet/x402/propose``) waits, approvable by no door, until a fetch whose 402 is that offer binds its request
     to it; the request's binding is what keeps one request to one payment (:func:`binding_guard`), so a copy of a
-    fetched offer, spelled or priced otherwise, is never a second payment for it. On ``conn`` when given."""
-    if proposal.origin != proposals.ORIGIN_X402:
+    fetched offer, spelled or priced otherwise, is never a second payment for it. A pay-kit payment (x402 or MPP) is
+    the same: its door binds its request when it mints it, so one proposed with a pay-kit origin and no fetch (the
+    owner's ``/api/wallet/propose`` takes the origin as given) is refused before the owner is asked. On ``conn`` when
+    given."""
+    if proposal.origin not in (proposals.ORIGIN_X402, *proposals.PAYKIT_ORIGINS):
         return True
     if conn is None:
         with connection() as own:
