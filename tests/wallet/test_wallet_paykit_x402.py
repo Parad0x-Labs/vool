@@ -872,6 +872,215 @@ def test_a_paid_paykit_request_whose_row_is_rewound_is_never_paid_again(env, lan
     assert [r["refusal"]["reason"] for r in receipts.list_receipts() if r["proposal_id"] == first.proposal_id and r.get("refusal")] == []
 
 
+# --- one offer, one payment, whatever the spelling of the URL that reached it -------------------------------------
+
+class _V1NamesItselfInItsEntry(ScriptedPayKitResource):
+    """A v1 offer as v1 names its resource: on the offer entry itself, in the 402's JSON body (no envelope resource)."""
+
+    def __init__(self, rpc, **kwargs):
+        super().__init__(rpc, wire_version=1, **kwargs)
+
+    def challenge(self):
+        doc = super().challenge()
+        url = doc.pop("resource")["url"]
+        for offer in doc["accepts"]:
+            offer["resource"] = url
+        return doc
+
+
+def _respelled(url: str) -> str:
+    return url + "?ref=agent"
+
+
+def _fetch(resource, profile, door, url):
+    from core.wallet import paykit_x402, x402
+
+    if door == "ordinary":
+        return x402.fetch_paid_resource(url, wallet_id=profile.wallet_id)
+    return paykit_x402.fetch_paid(url, wallet_id=profile.wallet_id, method="POST", body=REQUEST_BODY, headers={"Content-Type": "application/json"})
+
+
+@pytest.mark.parametrize("wire", ["v2", "v1"])
+@pytest.mark.parametrize("door", ["paykit", "ordinary"])
+def test_one_offer_reached_at_two_spellings_of_its_url_is_paid_once(env, door, wire):
+    """Two spellings of one resource's URL meet one offer, which names its resource itself: both requests are bound to
+    the offer's one proposal, and approving every payment either caller was shown pays once and delivers once. The
+    second spelling is then refused as a request already paid, before anything is sent."""
+    from core.wallet import proposals, x402
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    rig = ScriptedPayKitResource if wire == "v2" else _V1NamesItselfInItsEntry
+    with rig(env["rpc"]) as resource:
+        first = _fetch(resource, profile, door, resource.url)
+        second = _fetch(resource, profile, door, _respelled(resource.url))
+        for proposal_id in {first.proposal_id, second.proposal_id}:
+            if proposals.get_proposal(proposal_id).state == proposals.STATE_PENDING_APPROVAL:
+                _approve(proposal_id)
+        assert len(resource.paid_requests) == 1 and len(env["rpc"].transactions) == 1, "one offer, one payment"
+        assert first.proposal_id == second.proposal_id and second.status == x402.OUTCOME_PAYMENT_REQUIRED
+        assert resource.paid_requests[0]["path"] == "/paid/report", "the payment rides the request it was parked for"
+        sent = len(resource.requests)
+        with pytest.raises(WalletFault) as again:
+            _fetch(resource, profile, door, _respelled(resource.url))
+        assert (again.value.code, again.value.context["reason"]) == ("wallet_duplicate_payment", "paykit_request_already_paid")
+        assert len(resource.requests) == sent and len(resource.paid_requests) == 1
+    [paid] = proposals.list_proposals()
+    assert paid.state == proposals.STATE_CONFIRMED
+
+
+def test_an_offer_paid_at_one_spelling_is_never_paid_at_another(env):
+    """Once the offer is paid, a request at another spelling of its URL meets the same offer and is refused as a
+    request already paid: nothing new is proposed and nothing is sent with a payment."""
+    from core.wallet import proposals
+    from core.wallet.errors import WalletFault
+
+    profile = _pocket()
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        _approve(_park(resource, profile).proposal_id)
+        with pytest.raises(WalletFault) as again:
+            _fetch(resource, profile, "paykit", _respelled(resource.url))
+        assert (again.value.code, again.value.context["reason"]) == ("wallet_duplicate_payment", "paykit_request_already_paid")
+        assert len(resource.paid_requests) == 1 and len(env["rpc"].transactions) == 1
+    assert len(proposals.list_proposals()) == 1
+
+
+def test_another_resource_on_the_same_terms_is_its_own_payment(env):
+    """The offer's identity is the resource it names: another resource asking the same payee, amount and asset is
+    another payment, approved and paid on its own."""
+    from core.wallet import proposals
+
+    profile = _pocket()
+    with ScriptedPayKitResource(env["rpc"]) as one, ScriptedPayKitResource(env["rpc"]) as other:
+        first = _park(one, profile)
+        second = _park(other, profile)
+        assert first.proposal_id != second.proposal_id
+        for outcome in (first, second):
+            assert _approve(outcome.proposal_id).state == proposals.STATE_CONFIRMED
+        assert (len(one.paid_requests), len(other.paid_requests)) == (1, 1)
+
+
+@pytest.mark.parametrize("change", ["payee", "asset"])
+def test_the_same_resource_asking_another_payee_or_asset_at_another_spelling_is_another_payment(env, change):
+    """One resource, met at two spellings of its URL, that asks another payee or another asset the second time is two
+    offers: the second is another proposal, which needs its own approval. Approving the first pays only the first."""
+    from solders.keypair import Keypair
+
+    from core.wallet import chains, proposals
+
+    profile = _pocket()
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        first = _park(resource, profile)
+        if change == "payee":
+            resource.pay_to = str(Keypair().pubkey())
+        else:
+            from solders.pubkey import Pubkey
+            from solders.token.state import Mint, TokenAccount, TokenAccountState
+
+            from core.wallet import svm_tokens
+
+            usdc = chains.asset_for(chains.SOLANA_DEVNET, "USDC")
+            env["rpc"].accounts[usdc.address] = {"owner": svm_tokens.TOKEN_PROGRAM, "data": bytes(Mint(mint_authority=None, supply=10**12, decimals=usdc.decimals,
+                                                                                                         is_initialized=True, freeze_authority=None))}
+            for owner, amount in ((profile.public_key, 1_000_000), (OTHER_DESTINATION, 0)):
+                env["rpc"].accounts[svm_tokens.associated_account(owner, usdc.address)] = {"owner": svm_tokens.TOKEN_PROGRAM, "data": bytes(TokenAccount(
+                    mint=Pubkey.from_string(usdc.address), owner=Pubkey.from_string(owner), amount=amount, delegate=None, state=TokenAccountState.Initialized,
+                    is_native=None, delegated_amount=0, close_authority=None))}
+            resource.asset = usdc.address
+        second = _fetch(resource, profile, "paykit", _respelled(resource.url))
+        assert second.proposal_id != first.proposal_id
+        assert _approve(first.proposal_id).state == proposals.STATE_CONFIRMED
+        assert len(resource.paid_requests) == 1 and resource.paid_requests[0]["path"] == "/paid/report"
+        assert proposals.get_proposal(second.proposal_id).state == proposals.STATE_PENDING_APPROVAL, "the second waits for its own approval"
+
+
+def test_the_same_offer_on_another_network_is_keyed_apart():
+    """The door meets only offers on the wallet's own network, so the network in the key is pinned on the key: the
+    same resource, request, payee, amount and asset on another network is another proposal."""
+    from core.wallet import chains, paykit_x402
+
+    terms = {"pay_to": OTHER_DESTINATION, "amount_minor": 1500, "mint": "", "asset": "SOL", "network": chains.SOLANA_DEVNET}
+    key = paykit_x402.offer_key("https://api.example/report", "POST", REQUEST_BODY, terms)
+    assert key == paykit_x402.offer_key("https://api.example/report", "POST", REQUEST_BODY, dict(terms))
+    assert key != paykit_x402.offer_key("https://api.example/report", "POST", REQUEST_BODY, {**terms, "network": chains.SOLANA_MAINNET})
+
+
+def test_an_offer_still_being_prepared_is_never_prepared_again_at_another_spelling(env, monkeypatch):
+    """A request at another spelling that reaches the offer's proposal while its first caller is still preparing it is
+    bound to it and refused as payment_still_preparing: it never prepares a payment it did not mint, and nothing is
+    sent. Once prepared, both spellings get that one payment."""
+    from core.wallet import lifecycle, proposals
+    from core.wallet.errors import WalletFault
+
+    class ProcessStopped(BaseException):
+        pass
+
+    profile = _pocket()
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+    prepared: list[str] = []
+
+    def stop(self, proposal_id):
+        raise ProcessStopped
+
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", stop)
+        with pytest.raises(ProcessStopped):
+            _park(resource, profile)
+        [preparing] = proposals.list_proposals()
+
+        def counted(self, proposal_id):
+            prepared.append(proposal_id)
+            return real_prepare(self, proposal_id)
+
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", counted)
+        with pytest.raises(WalletFault) as still:
+            _fetch(resource, profile, "paykit", _respelled(resource.url))
+        assert (still.value.code, still.value.context["reason"]) == ("wallet_duplicate_payment", "payment_still_preparing")
+        assert prepared == [] and proposals.list_proposals() == [proposals.get_proposal(preparing.proposal_id)]
+        lifecycle.default_lifecycle().prepare(preparing.proposal_id)
+        waiting = _fetch(resource, profile, "paykit", _respelled(resource.url))
+        assert waiting.proposal_id == preparing.proposal_id
+        _approve(preparing.proposal_id)
+        assert len(resource.paid_requests) == 1 and resource.paid_requests[0]["path"] == "/paid/report"
+
+
+def test_an_abandoned_payment_reached_at_another_spelling_is_ended_and_its_offer_parked_once(env, monkeypatch):
+    """The first caller stopped mid-prepare and the window passed: a request at another spelling ends the abandoned
+    proposal with its receipt and parks the offer's one fresh payment, which the first spelling then reaches too. One
+    payment."""
+    from datetime import datetime, timedelta, timezone
+
+    from core.wallet import lifecycle, proposals, receipts, x402
+    from core.wallet.store import connection
+
+    class ProcessStopped(BaseException):
+        pass
+
+    profile = _pocket()
+    real_prepare = lifecycle.PaymentLifecycle.prepare
+
+    def stop(self, proposal_id):
+        raise ProcessStopped
+
+    with ScriptedPayKitResource(env["rpc"]) as resource:
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", stop)
+        with pytest.raises(ProcessStopped):
+            _park(resource, profile)
+        monkeypatch.setattr(lifecycle.PaymentLifecycle, "prepare", real_prepare)
+        [abandoned] = proposals.list_proposals()
+        past = (datetime.now(timezone.utc) - timedelta(seconds=x402.ABANDONED_PREPARE_SECONDS + 1)).isoformat()
+        with connection() as conn:
+            conn.execute("UPDATE wallet_proposals SET updated_at = ? WHERE proposal_id = ?", (past, abandoned.proposal_id))
+        fresh = _fetch(resource, profile, "paykit", _respelled(resource.url))
+        again = _park(resource, profile)
+        assert fresh.proposal_id != abandoned.proposal_id and again.proposal_id == fresh.proposal_id
+        assert proposals.get_proposal(abandoned.proposal_id).state == proposals.STATE_REJECTED
+        [receipt] = [r for r in receipts.list_receipts() if r["proposal_id"] == abandoned.proposal_id]
+        assert (receipt["refusal"]["reason"], receipt["refusal"]["charged_amount_minor"]) == ("prepare_abandoned", 0)
+        _approve(fresh.proposal_id)
+        assert len(resource.paid_requests) == 1 and len(env["rpc"].transactions) == 1
+
+
 def test_the_fetch_door_hands_an_offer_naming_its_fee_payer_as_fee_payer_key_to_paykit(env):
     """A canonical v1 offer may name its fee payer as a top-level ``feePayerKey``: the fetch door still hands it to the
     pay-kit lane, which parks it and pays it once; the wallet never broadcasts a transfer of its own for it."""
