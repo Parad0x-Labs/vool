@@ -542,6 +542,20 @@ def test_a_payment_becomes_paid_after_confirmations_and_is_receipted_once(chain)
     assert lane.store.get(invoice.invoice_id).paid_txid == txid
 
 
+def test_an_ironwood_payment_pays_the_invoice_and_an_unknown_pool_never_does(chain) -> None:
+    # Live testnet after NU7: a wallet paying VOOL's Orchard receiver lands the note in the Ironwood pool (code 4).
+    lane = _ready_lane(chain)
+    ironwood, future = lane.create_invoice("0.001"), lane.create_invoice("0.001")
+    txid = chain.pay(ironwood.memo, 100_000, height=998, pool=4)
+    chain.pay(future.memo, 100_000, height=998, pool=5)
+    report = lane.refresh()
+    states = {s.invoice.invoice_id: s.state for s in report["statuses"]}
+    assert states == {ironwood.invoice_id: "paid", future.invoice_id: "unpaid"}
+    [receipt] = report["receipted"]
+    assert (receipt["invoice_id"], receipt["txids"]) == (ironwood.invoice_id, [txid])
+    assert [n.pool for n in lane.devtool.received_notes()] == ["ironwood"]
+
+
 def test_a_failed_sync_leaves_open_invoices_unknown_and_receipts_nothing(chain) -> None:
     lane = _ready_lane(chain)
     invoice = lane.create_invoice("0.05")

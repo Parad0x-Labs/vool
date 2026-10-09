@@ -41,8 +41,9 @@ WALLET_DB = "data.sqlite"
 STATE_FILE = "watch_state.json"
 DEFAULT_TIMEOUT_S = 120.0
 SYNC_TIMEOUT_S = 1800.0
-_POOLS = {0: "transparent", 2: "sapling", 3: "orchard"}
-_SHIELDED = frozenset({"sapling", "orchard"})
+#: The wallet database's output_pool codes. Since NU7 an Orchard receiver is paid into the Ironwood pool (code 4).
+_POOLS = {0: "transparent", 2: "sapling", 3: "orchard", 4: "ironwood"}
+SHIELDED_POOLS = frozenset({"sapling", "orchard", "ironwood"})
 _ADDRESS_PREFIXES = {
     config.NETWORK_MAIN: ("u1", "zs1"),
     config.NETWORK_TEST: ("utest1", "ztestsapling1"),
@@ -378,7 +379,7 @@ class Devtool:
                 continue  # a pool this build does not know cannot pay an invoice
             note = ReceivedNote(
                 txid=txid, pool=pool, output_index=int(output_index), value_zat=int(value),
-                memo=decode_memo(memo) if pool in _SHIELDED else None,
+                memo=decode_memo(memo) if pool in SHIELDED_POOLS else None,
                 mined_height=listed[txid], block_time=None if block_time is None else int(block_time),
             )
             key = (note.txid, note.pool, note.output_index)
