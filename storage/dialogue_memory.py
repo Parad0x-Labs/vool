@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from core.memory.revocation import fenced_writer
@@ -11,6 +12,26 @@ from storage.db import get_connection
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _authority_home_for_store() -> Path | None:
+    """The home owning the configured dialogue store, when its path names one.
+
+    Rows live in this database, so the pending-forget authority of that same
+    home governs their serving — the same binding the JSONL readers derive
+    from a ``data/`` parent.
+    """
+    from storage.db import active_default_db_path
+
+    path = Path(active_default_db_path())
+    return path.parent.parent if path.parent.name == "data" else None
+
+
+def _served(row: Any, scope: str | None, home: Path | None) -> bool:
+    """One row passes only through the shared pending-forget authority."""
+    from core.memory.revocation import authorize_payload
+
+    return authorize_payload(row, scope, home)
 
 
 def _current_request_lineage() -> str:
@@ -157,7 +178,16 @@ def session_lexicon(session_id: str) -> dict[str, str]:
             """,
             (session_id, session_id),
         ).fetchall()
-        return {str(row["term"]).lower(): str(row["canonical"]).lower() for row in rows}
+        home = _authority_home_for_store()
+        return {
+            str(row["term"]).lower(): str(row["canonical"]).lower()
+            for row in rows
+            if _served(
+                {"term": str(row["term"]).lower(), "canonical": str(row["canonical"]).lower()},
+                session_id,
+                home,
+            )
+        }
     finally:
         conn.close()
 
@@ -180,8 +210,23 @@ def upsert_lexicon_term(term: str, canonical: str, *, scope: str = "global", sou
         conn.close()
 
 
-def get_dialogue_session(session_id: str) -> dict[str, Any]:
-    _init_tables()
+def _empty_dialogue_session(session_id: str) -> dict[str, Any]:
+    return {
+        "session_id": session_id,
+        "last_subject": None,
+        "topic_hints": [],
+        "last_intent_mode": None,
+        "current_user_goal": None,
+        "assistant_commitments": [],
+        "unresolved_followups": [],
+        "user_stance": None,
+        "emotional_tone": None,
+        "updated_at": None,
+    }
+
+
+def _dialogue_session_row(session_id: str) -> dict[str, Any] | None:
+    """Raw session row for private callers; public serving stays gated."""
     conn = get_connection()
     try:
         row = conn.execute(
@@ -196,18 +241,7 @@ def get_dialogue_session(session_id: str) -> dict[str, Any]:
             (session_id,),
         ).fetchone()
         if not row:
-            return {
-                "session_id": session_id,
-                "last_subject": None,
-                "topic_hints": [],
-                "last_intent_mode": None,
-                "current_user_goal": None,
-                "assistant_commitments": [],
-                "unresolved_followups": [],
-                "user_stance": None,
-                "emotional_tone": None,
-                "updated_at": None,
-            }
+            return None
         data = dict(row)
         data["topic_hints"] = json.loads(data.pop("topic_hints_json") or "[]")
         data["assistant_commitments"] = json.loads(data.pop("assistant_commitments_json") or "[]")
@@ -215,6 +249,14 @@ def get_dialogue_session(session_id: str) -> dict[str, Any]:
         return data
     finally:
         conn.close()
+
+
+def get_dialogue_session(session_id: str) -> dict[str, Any]:
+    _init_tables()
+    data = _dialogue_session_row(session_id)
+    if data is None or not _served(data, session_id, _authority_home_for_store()):
+        return _empty_dialogue_session(session_id)
+    return data
 
 
 @fenced_writer(on_refused=None)
@@ -231,7 +273,10 @@ def update_dialogue_session(
     emotional_tone: str | None = None,
 ) -> None:
     _init_tables()
-    existing = get_dialogue_session(session_id)
+    # Merge from the raw row: a withheld public read must not silently null
+    # retained fields. The fenced write below still refuses any payload that
+    # carries revoked content while a barrier holds.
+    existing = _dialogue_session_row(session_id) or {}
     resolved_last_subject = existing.get("last_subject") if last_subject is None else (str(last_subject).strip() or None)
     resolved_last_intent_mode = existing.get("last_intent_mode") if last_intent_mode is None else (str(last_intent_mode).strip() or None)
     resolved_current_user_goal = existing.get("current_user_goal") if current_user_goal is None else (str(current_user_goal).strip() or None)
@@ -382,6 +427,7 @@ def recent_archived_dialogue_topics(session_id: str, *, limit: int = 5) -> list[
             """,
             (normalized_session, max(1, int(limit))),
         ).fetchall()
+        home = _authority_home_for_store()
         out: list[dict[str, Any]] = []
         for row in rows:
             data = dict(row)
@@ -408,7 +454,8 @@ def recent_archived_dialogue_topics(session_id: str, *, limit: int = 5) -> list[
                 for item in list(data.get("topics") or [])
                 if isinstance(item, str)
             ]
-            out.append(data)
+            if _served(data, normalized_session, home):
+                out.append(data)
         return out
     finally:
         conn.close()
@@ -453,13 +500,15 @@ def recent_dialogue_turns(
                 (session_id, limit),
             ).fetchall()
         out: list[dict[str, Any]] = []
+        home = _authority_home_for_store()
         for row in rows:
             data = dict(row)
             data["topic_hints"] = json.loads(data.pop("topic_hints_json") or "[]")
             data["reference_targets"] = json.loads(data.pop("reference_targets_json") or "[]")
             data["quality_flags"] = json.loads(data.pop("quality_flags_json") or "[]")
             data["speaker_role"] = str(data.get("speaker_role") or "user").strip().lower() or "user"
-            out.append(data)
+            if _served(data, session_id, home):
+                out.append(data)
         return out
     finally:
         conn.close()
@@ -501,6 +550,7 @@ def recent_dialogue_turns_any(
                 (limit,),
             ).fetchall()
         out: list[dict[str, Any]] = []
+        home = _authority_home_for_store()
         for row in rows:
             data = dict(row)
             data["topic_hints"] = json.loads(data.pop("topic_hints_json") or "[]")
@@ -511,7 +561,11 @@ def recent_dialogue_turns_any(
                 # A8 rebind: the cross-session reader must not serve turns of a
                 # chat whose namespace is deleted (orphaned pre-delete rows).
                 continue
-            out.append(data)
+            # Each row serves only under its own chat's pending-forget scope:
+            # another chat's barrier never withholds this row, and this chat's
+            # barrier never serves it.
+            if _served(data, str(data.get("session_id") or "") or None, home):
+                out.append(data)
         return out
     finally:
         conn.close()
@@ -681,7 +735,8 @@ def recent_feedback(
                 "SELECT * FROM response_feedback ORDER BY created_at DESC LIMIT ?",
                 (limit,),
             ).fetchall()
-        return [dict(row) for row in rows]
+        home = _authority_home_for_store()
+        return [dict(row) for row in rows if _served(dict(row), session_id, home)]
     finally:
         conn.close()
 

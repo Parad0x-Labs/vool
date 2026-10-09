@@ -61,9 +61,9 @@
     "verify_answer": "transform"
   },
   "core/kernel/paged_memory.py": {
-    "Page.text": "transform",
+    "Page.text": "reader",
     "Page.chars": "transform",
-    "Page.header": "transform",
+    "Page.header": "reader",
     "CoverageProof.render": "transform",
     "ContextAssembly.token_estimate": "transform",
     "PagedSession.admit_turn": "writer",
@@ -325,5 +325,25 @@
     "VoolMemory.close": "writer",
     "memory_payload_is_current": "authority",
     "text_carries_forget_token": "transform"
+  },
+  "storage/dialogue_memory.py": {
+    "session_lexicon": "reader",
+    "upsert_lexicon_term": "writer",
+    "get_dialogue_session": "reader",
+    "update_dialogue_session": "writer",
+    "archive_dialogue_topic": "writer",
+    "recent_archived_dialogue_topics": "reader",
+    "recent_dialogue_turns": "reader",
+    "recent_dialogue_turns_any": "reader",
+    "record_dialogue_turn": "writer",
+    "record_response_feedback": "writer",
+    "delete_dialogue_rows_for_session": "writer",
+    "recent_feedback": "reader",
+    "feedback_stats": "diagnostic"
+  },
+  "storage/swarm_memory.py": {
+    "save_sniffed_context": "writer",
+    "get_recent_contexts": "reader",
+    "search_recent_contexts": "reader"
   }
 }
