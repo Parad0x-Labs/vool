@@ -333,6 +333,7 @@ def _line_source_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
         "statement_at": receipt.get("statement_at"),
         "changes": [
             {"old_value": change.get("old_value"), "new_value": change.get("new_value"),
+             "old_occurrence": change.get("old_occurrence"),
              "old_statement_at": change.get("old_statement_at")}
             for change in receipt.get("changes") or []
         ],
@@ -780,6 +781,7 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     unchanged, byte for byte, unless a legacy replacement dependency cannot be reconstructed."""
     if not packet.facts:
         return packet
+    source_receipts = dict(packet.source_receipts)
     est = estimate_tokens or (lambda t: max(1, len(t) // 4))
     n = len(packet.facts)
     fact_lines, tail = list(packet.lines[:n]), list(packet.lines[n:])
@@ -813,10 +815,30 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
     sanitized = 0
     withheld: set[int] = set()
     for index, fact in enumerate(kept_facts):
+        # A kept correction can also cite its predecessor in a generated
+        # "replaces ..." annotation. That reference belongs to the earlier
+        # source and cannot reintroduce a row this turn refused.
+        receipt_id = str(fact.get("receipt_id") or "")
+        source = source_receipts.get(receipt_id)
+        if source is None and isinstance(fact.get("line_source"), Mapping):
+            source = fact["line_source"].get("receipt")
+        if isinstance(source, Mapping):
+            changes = list(source.get("changes") or [])
+            allowed_changes = [change for change in changes
+                               if not ((old_key := str(change.get("old_occurrence") or ""))
+                                       and old_key in refused
+                                       and not str(refused[old_key]).startswith("note:"))]
+            if len(allowed_changes) != len(changes):
+                source_receipts[receipt_id] = {**source, "changes": allowed_changes}
+                fact = dict(fact)
+                kept_lines[index] = _render_line(source_receipts[receipt_id], fact, source_receipts)
+                kept_facts[index] = fact
+                sanitized += 1
+                stripped += 1
         replacing = str(fact.get("replaced_by_occurrence") or "")
         if (str(fact.get("replaced_by") or "") in refused_receipts
                 or (replacing and _TEMPORAL_REFUSAL_RE.match(str(refused.get(replacing) or "")))):
-            line = _without_replacement(fact, packet.source_receipts)
+            line = _without_replacement(fact, source_receipts)
             if line is None:
                 withheld.add(index)
                 dropped.append({"occurrence_id": str(fact.get("occurrence_id") or ""),
@@ -837,7 +859,7 @@ def filter_packet(packet: Packet, refused: Mapping[str, str], *, estimate_tokens
         kept_lines = [line for index, line in enumerate(kept_lines) if index not in withheld]
         kept_facts = [fact for index, fact in enumerate(kept_facts) if index not in withheld]
     source_ids = {str(fact.get(key)) for fact in kept_facts for key in ("receipt_id", "replaced_by") if fact.get(key)}
-    source_receipts = {key: value for key, value in packet.source_receipts.items() if key in source_ids}
+    source_receipts = {key: value for key, value in source_receipts.items() if key in source_ids}
     if not dropped:
         if not sanitized and not migrated:
             return packet
