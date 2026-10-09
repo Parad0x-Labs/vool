@@ -127,6 +127,11 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _composed_page_text(user_text: str, answer_text: str) -> str:
+    """The exact bytes a page stamps and recalls — one definition, no drift."""
+    return f"user: {user_text}\nassistant: {answer_text}"
+
+
 def _anchors(text: str) -> tuple[str, ...]:
     """Deterministic anchor set: the canonical opaque/identity spans, lowercased.
 
@@ -163,8 +168,17 @@ class Page:
 
     @property
     def text(self) -> str:
-        """The exact composite bytes admitted — recall() returns this and nothing else."""
-        return f"user: {self.user_text}\nassistant: {self.answer_text}"
+        """The exact composite bytes admitted — recall() returns this and nothing else.
+
+        Serving goes through the pending-forget authority like every other public
+        read of retained memory: while a barrier holds, the property returns no
+        bytes rather than the admitted ones. The raw composite stays available to
+        the sha verification inside recall() only.
+        """
+        from core.memory.revocation import authorize_payload
+
+        body = _composed_page_text(self.user_text, self.answer_text)
+        return body if authorize_payload(body) else ""
 
     @property
     def chars(self) -> int:
@@ -173,13 +187,18 @@ class Page:
     def header(self, max_chars: int = 200) -> str:
         """A lossy-but-honest pointer: enough of the page to re-identify it, the sha to
         verify it, and the handle that recalls it byte-exactly."""
+        from core.memory.revocation import authorize_payload
+
         body = self.text.strip().replace("\n", " ⏎ ")
         if len(body) > max_chars:
             body = body[:max_chars] + "…"
-        return (
-            f"[{_RECALL_PREFIX}{self.page_id}] sha256:{self.sha256[:12]} "
-            f"anchors:{','.join(self.anchors[:6]) or '—'} :: {body}"
-        )
+        pointer = f"[{_RECALL_PREFIX}{self.page_id}] sha256:{self.sha256[:12]}"
+        rendered = f"{pointer} anchors:{','.join(self.anchors[:6]) or '—'} :: {body}"
+        if not authorize_payload(rendered):
+            # Anchors and body derive from the withheld bytes; only the handle
+            # and stamp remain, and recall() still refuses the page itself.
+            return f"{pointer} :: (withheld by the memory authority)"
+        return rendered
 
 
 @dataclass(frozen=True)
@@ -271,7 +290,7 @@ class PagedSession:
             turn_index=turn_index,
             user_text=user_text,
             answer_text=answer_text,
-            sha256=_sha256(f"user: {user_text}\nassistant: {answer_text}"),
+            sha256=_sha256(_composed_page_text(user_text, answer_text)),
             anchors=_anchors(f"{user_text}\n{answer_text}"),
         )
         self._pages.append(page)
@@ -295,7 +314,8 @@ class PagedSession:
         if not text.startswith(_RECALL_PREFIX) or not text[len(_RECALL_PREFIX):].isdigit():
             raise RecallRefused(str(handle), f"handles look like {_RECALL_PREFIX}0007")
         page = self._by_id(text[len(_RECALL_PREFIX):])
-        actual = _sha256(page.text)
+        raw = _composed_page_text(page.user_text, page.answer_text)
+        actual = _sha256(raw)
         if actual != page.sha256:
             raise RecallRefused(
                 text,
@@ -303,7 +323,7 @@ class PagedSession:
             )
         from core.memory.revocation import authorize_payload
 
-        if not authorize_payload(page.text):
+        if not authorize_payload(raw):
             raise RecallRefused(text, "memory authority withholds this page")
         return page.text
 

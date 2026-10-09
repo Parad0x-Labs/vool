@@ -1,9 +1,12 @@
 """Reviewed public API inventory and executable gate reachability checks.
 
 The inventory is deliberately static: adding a module or public API requires a
-classification. Reader entries must retain a call path to the common serving
-boundary. Behavioral denial tests complement this structural check; a call graph
-alone cannot establish that every branch in a function is safe.
+classification. Memory modules outside core/ (the storage memory stores) are
+inventoried on the same terms, and a public callable defined by assignment is a
+public callable: lambdas bound to a module-level name are classified exactly
+like def-formed readers. Reader entries must retain a call path to the common
+serving boundary. Behavioral denial tests complement this structural check; a
+call graph alone cannot establish that every branch in a function is safe.
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ _CLASSIFICATIONS = json.loads(Path(__file__).with_suffix('.json').read_text())
 
 def _module_paths(root):
     return sorted({*root.glob('core/**/*memory*.py'), *root.glob('core/memory/*.py'),
+                   *root.glob('storage/*memory*.py'),
                    *(root / path for path in _EXTRA_MODULES)})
 
 
@@ -32,6 +36,13 @@ def _definitions(tree):
             for method in node.body:
                 if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     out[node.name + '.' + method.name] = method
+        elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Lambda):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    out.setdefault(target.id, node.value)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.value, ast.Lambda):
+            if isinstance(node.target, ast.Name):
+                out.setdefault(node.target.id, node.value)
     return out
 
 
@@ -62,7 +73,7 @@ def _audit(root, *, source_overrides=None):
                 names.add(value.id)
             elif isinstance(value, ast.Attribute):
                 names.add(value.attr)
-        for decorator in node.decorator_list:
+        for decorator in getattr(node, 'decorator_list', ()):
             if isinstance(decorator, ast.Name):
                 names.add(decorator.id)
         graph[key] = {target for name in names for target in by_name.get(name, ())}

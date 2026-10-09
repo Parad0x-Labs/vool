@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
+from core.memory.revocation import fenced_writer
 from storage.db import get_connection
 from storage.migrations import run_migrations
 
@@ -33,6 +35,15 @@ def _init_db() -> None:
     run_migrations()
 
 
+def _authority_home_for_store() -> Path | None:
+    """The home owning the configured store, when its path names one."""
+    from storage.db import active_default_db_path
+
+    path = Path(active_default_db_path())
+    return path.parent.parent if path.parent.name == "data" else None
+
+
+@fenced_writer
 def save_sniffed_context(parent_peer_id: str, prompt_data: Any, result_data: Any) -> None:
     """
     Saves a copy of the incoming prompt and outgoing result into the node's local dataset.
@@ -55,7 +66,10 @@ def save_sniffed_context(parent_peer_id: str, prompt_data: Any, result_data: Any
 
 
 def get_recent_contexts(limit: int = 50) -> list[dict[str, Any]]:
-    """Retrieves the recent learning dataset snippets."""
+    """Retrieves the recent learning dataset snippets, served through the
+    shared pending-forget authority like every other retained-memory read."""
+    from core.memory.revocation import authorize_payload
+
     _init_db()
     conn = get_connection()
     try:
@@ -63,7 +77,8 @@ def get_recent_contexts(limit: int = 50) -> list[dict[str, Any]]:
             "SELECT * FROM sniffed_context ORDER BY timestamp DESC LIMIT ?",
             (limit,),
         ).fetchall()
-        return [dict(r) for r in rows]
+        home = _authority_home_for_store()
+        return [dict(r) for r in rows if authorize_payload(dict(r), None, home)]
     finally:
         conn.close()
 
