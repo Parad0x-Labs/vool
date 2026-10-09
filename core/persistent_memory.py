@@ -1701,9 +1701,7 @@ def _preadmit_forget_turn(user_text, *, session_id, source_context):
         with ExitStack() as locks:
             for home in sorted(homes):
                 locks.enter_context(revocation.serialized(home))
-            for home in sorted(homes):
-                operation = revocation.begin(session_id, marker, home, _kind="admission")
-                operations.append((home, operation))
+            operations = revocation.begin_group(session_id, marker, homes, _kind="admission")
             _forget_outcomes.admit(operations, **owner)
     except Exception as exc:
         if operations:
@@ -1828,9 +1826,9 @@ def maybe_handle_memory_command(
         homes = {active_vool_home(), Path(runtime_home).resolve() if runtime_home else active_vool_home()}
         try:
             # Durable before even policy resolution can open an owner database.
-            for home in sorted(homes):
-                operation_id = revocation.begin(barrier_chat, _normalize_forget_target(parsed_forget.group(1)), home)
-                independent_operations.append((home, operation_id))
+            independent_operations = revocation.begin_group(
+                barrier_chat, _normalize_forget_target(parsed_forget.group(1)), homes,
+            )
         except Exception as exc:
             return _forget_start_failure(
                 user_text, session_id=barrier_chat, source_context=source_context,
@@ -2124,11 +2122,13 @@ def maybe_handle_memory_command(
         for owner, operation_store in owner_stores.items():
             block_status: dict[str, Any] = {}
             try:
+                block_removed = operation_store._erase_forget_blocks(token)
                 operation_store.verify_forget_blocks(token, erasures=block_status)
+                _record_erasure_store(block_status, "memory_blocks", "verified", block_removed)
             except Exception as exc:
                 LOGGER.warning("prompt block verification failed: %s", type(exc).__name__)
             result = block_status.get("stores", {}).get("memory_blocks", {"status": "incomplete"})
-            _record_erasure_store(erasures, f"{owner}_memory_blocks", result["status"])
+            _record_erasure_store(erasures, f"{owner}_memory_blocks", result["status"], int(result.get("removed") or 0))
         required_stores = (
             "structured_entries", "structured_summaries", "memory_mirror", "semantic_nodes",
             "source_occurrences", "memory_receipts", "conversation_log", "revocation_ledger",
@@ -2210,7 +2210,7 @@ def maybe_handle_memory_command(
             ))
             total_removed += sum(int(result.get("removed") or 0)
                                  for name, result in erasures.get("stores", {}).items()
-                                 if name.startswith("persisted_"))
+                                 if name.startswith("persisted_") or name.endswith("_memory_blocks"))
         failed_stores = [store.replace("_", " ") for store, result in erasures.get("stores", {}).items()
                          if result["status"] == "incomplete"]
         if failed_stores:

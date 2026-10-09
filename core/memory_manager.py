@@ -18,6 +18,9 @@ class MemoryManager:
     """
 
     def __init__(self):
+        from core.memory.revocation import prepare
+
+        prepare(allow_initialize=True, arm=False)
         # Short term transient memory exists only in memory for the run
         self.short_term: list[dict[str, Any]] = []
 
@@ -31,9 +34,12 @@ class MemoryManager:
 
     def get_short_term_context(self) -> str:
         """Returns the formatted transcript of the current run."""
+        from core.memory.revocation import authorize_payload
+
         output = []
         for msg in self.short_term[-10:]:  # Keep recent context window
-            output.append(f"{msg['role'].upper()}: {msg['content'][:1500]}")
+            if authorize_payload(msg):
+                output.append(f"{msg['role'].upper()}: {msg['content'][:1500]}")
         return "\n".join(output)
 
     def save_local_task(self, task_class: str, summary: str, env_data: dict, outcome: str, confidence: float) -> str:
@@ -65,7 +71,9 @@ class MemoryManager:
             "SELECT * FROM local_tasks WHERE task_class = ? ORDER BY created_at DESC LIMIT 5",
             (task_class,)
         )
-        return rows
+        from core.memory.revocation import authorize_payload
+
+        return [row for row in rows if authorize_payload(dict(row), dict(row).get("session_id"))]
 
     def cache_swarm_shard(self, shard: dict):
         """

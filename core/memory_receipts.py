@@ -897,7 +897,7 @@ def rebuild_missing_receipts(mem: Any, chat_scope: str, *, limit: int = 500) -> 
     try:
         with mem._lock:
             rows = mem._conn.execute(
-                "SELECT o.occurrence_id, o.role, o.body, o.statement_at, o.speaker FROM source_occurrences o "
+                "SELECT o.* FROM source_occurrences o "
                 "LEFT JOIN memory_receipts r ON r.occurrence_id = o.occurrence_id "
                 "WHERE o.agent_id = ? AND o.chat_scope = ? AND o.status = 'active' AND o.body != '' "
                 "AND r.occurrence_id IS NULL ORDER BY COALESCE(o.statement_at, o.recorded_at), o.rowid LIMIT ?",
@@ -908,8 +908,10 @@ def rebuild_missing_receipts(mem: Any, chat_scope: str, *, limit: int = 500) -> 
         return 0
     written = 0
     for row in rows:
-        occurrence = SimpleNamespace(occurrence_id=str(row[0]), role=str(row[1] or "user"), body=str(row[2] or ""),
-                                     statement_at=row[3], speaker=str(row[4] or ""))
+        if not mem._row_is_current(row):
+            continue
+        occurrence = SimpleNamespace(occurrence_id=str(row["occurrence_id"]), role=str(row["role"] or "user"),
+                                     body=str(row["body"] or ""), statement_at=row["statement_at"], speaker=str(row["speaker"] or ""))
         try:
             if write_receipt(mem, occurrence, chat_scope=str(chat_scope or "")).status == "written":
                 written += 1
@@ -918,53 +920,46 @@ def rebuild_missing_receipts(mem: Any, chat_scope: str, *, limit: int = 500) -> 
     return written
 
 
+def _raw_receipts_for_scope(mem, chat_scope, role=None):
+    """Storage inspection for erasure/reconstruction; never a serving API."""
+    with mem._lock:
+        cur = mem._conn.execute(
+            "SELECT * FROM memory_receipts WHERE agent_id = ? AND chat_scope = ?" + (" AND role = ?" if role else "")
+            + " ORDER BY COALESCE(statement_at, created_at), rowid",
+            (mem._agent_id, str(chat_scope or "")) + ((role,) if role else ()))
+        columns = [column[0] for column in cur.description]
+        return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
+
+
+def _serve_receipt(mem, row):
+    from core.memory.carriers import schema_json_fields
+    from core.memory.revocation import authorize_payload
+
+    with mem._lock:
+        json_fields = schema_json_fields(mem._conn.execute("PRAGMA table_info(memory_receipts)").fetchall())
+        source = mem._conn.execute(
+            "SELECT body FROM source_occurrences WHERE agent_id = ? AND occurrence_id = ? AND status = 'active'",
+            (mem._agent_id, row["occurrence_id"]),
+        ).fetchone()
+    payload = receipt_payload_for_erasure(
+        row, source_body=str(source[0]) if source is not None else None, json_fields=json_fields,
+    )
+    if authorize_payload(payload, row["chat_scope"], getattr(mem, "_authority_home", None), owner_memory=mem):
+        return _row_to_receipt(row)
+    return None
+
+
 def receipts_for_scope(mem: Any, chat_scope: str, *, role: str | None = None,
                        strict: bool = False) -> list[dict[str, Any]]:
-    """Every receipt of one chat, in statement order (then write order). Pure read."""
+    """Serve authorized receipts. Strict only controls storage error reporting."""
     try:
-        with mem._lock:
-            cur = mem._conn.execute(
-                "SELECT * FROM memory_receipts WHERE agent_id = ? AND chat_scope = ?" + (" AND role = ?" if role else "")
-                + " ORDER BY COALESCE(statement_at, created_at), rowid",
-                (mem._agent_id, str(chat_scope or "")) + ((role,) if role else ()))
-            cur.row_factory = None
-            cols = [d[0] for d in cur.description]
-            rows = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
+        return [receipt for row in _raw_receipts_for_scope(mem, chat_scope, role)
+                if (receipt := _serve_receipt(mem, row)) is not None]
     except Exception:
         if strict:
             raise
         LOGGER.debug("memory_receipts read failed", exc_info=True)
         return []
-    try:
-        receipts = [_row_to_receipt(r) for r in rows]
-    except Exception:
-        if strict:
-            raise
-        LOGGER.warning("memory receipt decoding failed", exc_info=True)
-        return []
-    if strict:
-        return receipts
-    from core.memory.revocation import authorize_payload
-
-    allowed = []
-    for row, receipt in zip(rows, receipts, strict=True):
-        try:
-            from core.memory.carriers import schema_json_fields
-
-            with mem._lock:
-                json_fields = schema_json_fields(mem._conn.execute("PRAGMA table_info(memory_receipts)").fetchall())
-                source = mem._conn.execute(
-                    "SELECT body FROM source_occurrences WHERE agent_id = ? AND occurrence_id = ? AND status = 'active'",
-                    (mem._agent_id, receipt["occurrence_id"]),
-                ).fetchone()
-            payload = receipt_payload_for_erasure(
-                row, source_body=str(source[0]) if source is not None else None, json_fields=json_fields,
-            )
-            if authorize_payload(payload, chat_scope, getattr(mem, "_authority_home", None), owner_memory=mem):
-                allowed.append(receipt)
-        except Exception:
-            LOGGER.warning("memory receipt authority projection failed", exc_info=True)
-    return allowed
 
 
 @dataclass(frozen=True)
@@ -976,8 +971,7 @@ class ReceiptWriteResult:
     reason: str = ""
 
 
-def receipt_for_occurrence(mem: Any, occurrence_id: str) -> dict[str, Any] | None:
-    """Read one persisted receipt; storage and decoding errors propagate to the caller."""
+def _raw_receipt_for_occurrence(mem, occurrence_id):
     with mem._lock:
         cur = mem._conn.execute(
             "SELECT * FROM memory_receipts WHERE agent_id = ? AND occurrence_id = ?",
@@ -985,18 +979,32 @@ def receipt_for_occurrence(mem: Any, occurrence_id: str) -> dict[str, Any] | Non
         )
         columns = [column[0] for column in cur.description]
         row = cur.fetchone()
-    return _row_to_receipt(dict(zip(columns, row, strict=True))) if row is not None else None
+    return dict(zip(columns, row, strict=True)) if row is not None else None
+
+
+def receipt_for_occurrence(mem: Any, occurrence_id: str) -> dict[str, Any] | None:
+    """Serve one authorized receipt; storage and decoding errors propagate."""
+    row = _raw_receipt_for_occurrence(mem, occurrence_id)
+    return _serve_receipt(mem, row) if row is not None else None
 
 
 def write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | None = None) -> ReceiptWriteResult:
     """Write one receipt atomically and distinguish idempotence from a failed write."""
     try:
-        from core.memory.revocation import writing
+        from core.memory.revocation import authorize_payload, writing
 
         payload = (said if said is not None else getattr(occurrence, "body", ""),
                    getattr(occurrence, "speaker", ""))
         with writing(payload, chat_scope, getattr(mem, "_authority_home", None)):
-            return _write_receipt(mem, occurrence, chat_scope=chat_scope, said=said)
+            if not authorize_payload(payload, chat_scope, getattr(mem, "_authority_home", None), owner_memory=mem):
+                return ReceiptWriteResult("failed", reason="receipt_withheld")
+            result = _write_receipt(mem, occurrence, chat_scope=chat_scope, said=said)
+            if result.receipt is not None:
+                served = receipt_for_occurrence(mem, str(getattr(occurrence, "occurrence_id", "")))
+                if served is None:
+                    return ReceiptWriteResult("failed", reason="receipt_withheld")
+                return ReceiptWriteResult(result.status, receipt=served)
+            return result
     except Exception:
         LOGGER.warning("memory receipt write failed", exc_info=True)
         return ReceiptWriteResult("failed", reason="receipt_write_error")
@@ -1011,11 +1019,13 @@ def _write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | No
     role = str(getattr(occurrence, "role", "") or "user")
     body = str(said if said is not None else getattr(occurrence, "body", "") or "")
     statement_at = getattr(occurrence, "statement_at", None)
-    existing = receipt_for_occurrence(mem, occ_id)
+    existing = _raw_receipt_for_occurrence(mem, occ_id)
     if existing is not None:
-        return ReceiptWriteResult("already_exists", receipt=existing)
+        return ReceiptWriteResult("already_exists", receipt=_row_to_receipt(existing))
     facts = extract_facts(body, statement_at, role)
-    earlier = receipts_for_scope(mem, chat_scope, role="user", strict=True) if role == "user" else []
+    earlier = []
+    if role == "user":
+        earlier = receipts_for_scope(mem, chat_scope, role="user", strict=True)
     changes = find_changes(facts, earlier, role=role, statement_at=float(statement_at) if statement_at is not None else None)
     withdraws = []
     marker = retraction_marker(_strip_envelope(body)[0])
@@ -1057,7 +1067,7 @@ def _write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | No
                                "statement_at": receipt["statement_at"]})
                 mem._conn.execute("UPDATE memory_receipts SET facts_json = ?, replaced_by_json = ? WHERE receipt_id = ?",
                                   (json.dumps(old_facts), json.dumps(old_rb), change["old_receipt"]))
-            persisted = receipt_for_occurrence(mem, occ_id)
+            persisted = _raw_receipt_for_occurrence(mem, occ_id)
             if persisted is None:
                 raise RuntimeError("receipt verification failed")
             mem._conn.execute("RELEASE SAVEPOINT " + savepoint)
@@ -1066,7 +1076,7 @@ def _write_receipt(mem: Any, occurrence: Any, *, chat_scope: str, said: str | No
             mem._conn.execute("ROLLBACK TO SAVEPOINT " + savepoint)
             mem._conn.execute("RELEASE SAVEPOINT " + savepoint)
             raise
-    return ReceiptWriteResult("written", receipt=persisted)
+    return ReceiptWriteResult("written", receipt=_row_to_receipt(persisted))
 
 
 _QUESTION_NOISE = frozenset(["remind", "previous", "conversation", "conversations", "mention", "mentioned", "mentioning", "earlier", "follow", "following", "discussed", "discuss", "told", "said", "ask", "asked", "want", "wanted", "know", "think", "like", "remember", "recall", "recently", "back", "going", "go", "come", "came", "thing", "things", "way", "one", "ones", "still", "now", "long", "many", "much", "time", "times", "first", "last", "ago", "before", "after", "between", "since", "until", "day", "days", "week", "weeks", "month", "months", "year", "years", "hour", "hours", "minute", "minutes", "mins", "did", "do", "does", "have", "has", "had", "was", "were"])
