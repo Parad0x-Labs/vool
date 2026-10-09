@@ -27,6 +27,17 @@ def _module_paths(root):
                    *(root / path for path in _EXTRA_MODULES)})
 
 
+#: Assignment value shapes that can never produce a callable. Every other
+#: public module-level assignment (an alias, an annotated assignment, a
+#: factory call such as functools.partial(...)) is inventoried as a public
+#: callable and demands a classification; an assignment whose value shape
+#: cannot be proven a literal is rejected as unclassified.
+_ASSIGNMENT_NON_CALLABLES = (ast.Constant, ast.List, ast.Tuple, ast.Dict,
+                             ast.Set, ast.ListComp, ast.DictComp, ast.SetComp,
+                             ast.GeneratorExp, ast.JoinedStr, ast.UnaryOp,
+                             ast.BinOp, ast.Compare, ast.BoolOp)
+
+
 def _definitions(tree):
     out = {}
     for node in tree.body:
@@ -36,13 +47,14 @@ def _definitions(tree):
             for method in node.body:
                 if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     out[node.name + '.' + method.name] = method
-        elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Lambda):
-            for target in node.targets:
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else (node.target,)
+            value = node.value
+            if value is None or isinstance(value, _ASSIGNMENT_NON_CALLABLES):
+                continue
+            for target in targets:
                 if isinstance(target, ast.Name):
-                    out.setdefault(target.id, node.value)
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.value, ast.Lambda):
-            if isinstance(node.target, ast.Name):
-                out.setdefault(node.target.id, node.value)
+                    out.setdefault(target.id, value)
     return out
 
 
@@ -66,6 +78,10 @@ def _audit(root, *, source_overrides=None):
         by_name.setdefault(key.rsplit('.', 1)[-1].split(':')[-1], set()).add(key)
     graph = {}
     for key, node in nodes.items():
+        # A def (or lambda) reaches its callees through call positions only; an
+        # alias or factory assignment IS the callable it names, so every name
+        # it references is a call path candidate.
+        value_expression = not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
         names = set()
         for item in ast.walk(node):
             value = item.func if isinstance(item, ast.Call) else None
@@ -73,6 +89,11 @@ def _audit(root, *, source_overrides=None):
                 names.add(value.id)
             elif isinstance(value, ast.Attribute):
                 names.add(value.attr)
+            if value_expression:
+                if isinstance(item, ast.Name):
+                    names.add(item.id)
+                elif isinstance(item, ast.Attribute):
+                    names.add(item.attr)
         for decorator in getattr(node, 'decorator_list', ()):
             if isinstance(decorator, ast.Name):
                 names.add(decorator.id)
