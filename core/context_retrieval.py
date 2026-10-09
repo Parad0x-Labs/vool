@@ -816,14 +816,37 @@ def get_last_retrieval_telemetry() -> dict[str, object]:
     return {**_TELEMETRY_DEFAULTS, **_retrieval_diagnostics(payload)}
 
 
-def _retrieval_diagnostics(payload: Mapping[str, Any]) -> dict[str, Any]:
+def _retrieval_diagnostics(payload: Mapping[str, Any], _authorize=None) -> dict[str, Any]:
     """Keep structural diagnostics when the serving gate withholds content.
 
     Codes, counts and storage identities describe a refusal; they do not carry
-    the refused prose. Unknown strings and content fields have no exemption.
-    The same projection applies inside receipt and compiler diagnostics.
+    the refused prose. A string value, list member or map key is kept only
+    when the pending-forget authority reauthorizes that exact text; its field
+    name alone never admits it. The same projection applies inside receipt
+    and compiler diagnostics.
     """
-    from core.memory.carriers import ROW_IDENTITIES
+    from core.memory.carriers import ROW_IDENTITIES, carries
+    from core.memory.revocation import _authority_set, _directory
+    from core.memory.withdrawals import payload_is_withdrawn
+
+    if _authorize is None:
+        def _authorize(text: str) -> bool:
+            # The same independent ledgers authorize_payload consults, read
+            # without the completeness raise so a pending operation still
+            # names its withheld token. An initialized but unreadable or
+            # lost authority reauthorizes nothing; an authority that never
+            # existed has persisted no barrier and withholds nothing.
+            try:
+                tokens = tuple({row['token'] for data in _authority_set().values()
+                                for row in data['operations'].values()
+                                if row.get('kind', 'forget') == 'forget'})
+            except Exception:
+                authority = _directory()
+                return not ((authority / 'ledger.json').exists()
+                            or (authority / 'dependencies.json').exists()
+                            or any(authority.glob('lease-*')))
+            return (not any(carries(text, token) for token in tokens)
+                    and not payload_is_withdrawn(text, tokens))
 
     scalars = ROW_IDENTITIES | frozenset(_TELEMETRY_DEFAULTS.keys() - {"selected_facts"}) | {
         "reason", "code", "status", "complete", "delivered", "delivery_stage",
@@ -850,20 +873,21 @@ def _retrieval_diagnostics(payload: Mapping[str, Any]) -> dict[str, Any]:
     result = {}
     for key, value in payload.items():
         if key in scalars and isinstance(value, (str, int, float, bool, type(None))):
-            result[key] = value
+            if not isinstance(value, str) or _authorize(value):
+                result[key] = value
         elif key in {"reason_codes", "unseen_receipts", "found", "missing",
                      "found_before_hop", "missing_before_hop", "required",
                      "source_session_ids", "granted_session_scopes"} and isinstance(value, (list, tuple)):
-            result[key] = [code for code in value if isinstance(code, str)]
+            result[key] = [code for code in value if isinstance(code, str) and _authorize(code)]
         elif key == "skipped" and isinstance(value, Mapping):
             result[key] = {code: count for code, count in value.items()
-                           if isinstance(code, str) and type(count) is int}
+                           if isinstance(code, str) and type(count) is int and _authorize(code)}
         elif key in containers:
             if isinstance(value, Mapping):
-                result[key] = _retrieval_diagnostics(value)
+                result[key] = _retrieval_diagnostics(value, _authorize)
             elif isinstance(value, (list, tuple)):
                 result[key] = [
-                    _retrieval_diagnostics(row) for row in value if isinstance(row, Mapping)
+                    _retrieval_diagnostics(row, _authorize) for row in value if isinstance(row, Mapping)
                 ]
     return result
 
