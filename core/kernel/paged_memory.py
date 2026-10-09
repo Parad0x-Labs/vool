@@ -101,16 +101,30 @@ class ContextUndercovered(RuntimeError):
 
     Names exactly the spine rows that could not be covered, so the caller can raise the
     budget or shrink the window; silently shipping a context without live obligations is
-    the one failure this law exists to make impossible.
+    the one failure this law exists to make impossible. The exception is public debug
+    output rendered before any successful-return gate could run, so every row is
+    authorized through the same pending-forget serving gate as a shipped assembly:
+    content that passes stays verbatim, withheld content becomes a typed placeholder.
     """
 
     def __init__(self, uncovered: tuple[tuple[str, str], ...], budget_chars: int) -> None:
-        self.uncovered = uncovered
+        from core.memory.revocation import authorize_payload
+
+        safe: list[tuple[str, str]] = []
+        for oid, desc in uncovered:
+            oid_text = str(oid)
+            desc_text = str(desc)
+            if not authorize_payload(oid_text):
+                oid_text = "<withheld>"
+            if not authorize_payload(desc_text):
+                desc_text = "<withheld: memory authority>"
+            safe.append((oid_text, desc_text))
+        self.uncovered = tuple(safe)
         self.budget_chars = budget_chars
-        named = ", ".join(f"{oid} ({desc})" for oid, desc in uncovered)
+        named = ", ".join(f"{oid} ({desc})" for oid, desc in safe)
         super().__init__(
             f"context assembly refused: budget {budget_chars} chars cannot cover the "
-            f"spine ({len(uncovered)} uncovered): {named}"
+            f"spine ({len(safe)} uncovered): {named}"
         )
 
 
@@ -263,7 +277,7 @@ class PagedSession:
     ) -> None:
         from core.memory.revocation import prepare
 
-        prepare(allow_initialize=True, arm=False)
+        prepare(allow_writer_initialize=True, arm=False)
         if hot_window < 1:
             raise ValueError("hot_window must be >= 1")
         self._hot_window = hot_window
