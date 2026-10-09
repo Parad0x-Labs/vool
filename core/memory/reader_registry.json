@@ -41,7 +41,9 @@
     "forget_session_memory": "writer",
     "import_conversation_history": "writer",
     "revoke_imported_history": "writer",
-    "inject_retrieved": "reader"
+    "inject_retrieved": "reader",
+    "LOGGER": "diagnostic",
+    "SEMANTIC_MEMORY_AGENT_ID": "configuration"
   },
   "core/evidence_compiler.py": {
     "compiler_enabled": "transform",
@@ -58,7 +60,8 @@
     "replacement_occurrence": "transform",
     "filter_packet": "transform",
     "render": "transform",
-    "verify_answer": "transform"
+    "verify_answer": "transform",
+    "LOGGER": "diagnostic"
   },
   "core/kernel/paged_memory.py": {
     "Page.text": "reader",
@@ -90,7 +93,8 @@
     "read_session_metadata": "reader",
     "session_metadata_payload": "transform",
     "prune_payload": "writer",
-    "verify_forget_stores": "transform"
+    "verify_forget_stores": "transform",
+    "ROW_IDENTITIES": "configuration"
   },
   "core/memory/command_result.py": {
     "command_turn_key": "authority",
@@ -130,7 +134,8 @@
     "replace_name_memory": "writer",
     "keyword_tokens_filtered": "transform",
     "trim_text": "writer",
-    "recency_score": "transform"
+    "recency_score": "transform",
+    "canonical_agent_name_in_memory": "transform"
   },
   "core/memory/files.py": {
     "memory_path": "configuration",
@@ -251,7 +256,8 @@
     "receipt_for_occurrence": "reader",
     "write_receipt": "reader",
     "question_terms": "transform",
-    "match_receipts": "transform"
+    "match_receipts": "transform",
+    "LOGGER": "diagnostic"
   },
   "core/memory_route.py": {
     "memory_route": "configuration"
@@ -268,7 +274,24 @@
     "append_assistant_artifact_event": "writer",
     "augment_history_from_session_log": "reader",
     "memory_lifecycle_snapshot": "reader",
-    "maybe_handle_memory_command": "reader"
+    "maybe_handle_memory_command": "reader",
+    "LOGGER": "diagnostic",
+    "add_memory_fact": "writer",
+    "delete_conversation_session": "writer",
+    "forget_memory": "writer",
+    "forget_sessions_memory": "writer",
+    "list_conversation_sessions": "reader",
+    "list_memory_entries": "reader",
+    "load_memory_excerpt": "reader",
+    "load_operator_dense_profile": "reader",
+    "load_session_meta": "reader",
+    "recent_conversation_events": "reader",
+    "refresh_operator_dense_profile": "reader",
+    "search_relevant_memory": "reader",
+    "search_session_summaries": "reader",
+    "search_user_heuristics": "reader",
+    "set_session_meta": "writer",
+    "summarize_memory": "reader"
   },
   "core/vool_memory.py": {
     "MemoryNode.to_row": "transform",
@@ -324,7 +347,10 @@
     "VoolMemory.occurrence_count": "reader",
     "VoolMemory.close": "writer",
     "memory_payload_is_current": "authority",
-    "text_carries_forget_token": "transform"
+    "text_carries_forget_token": "transform",
+    "LOGGER": "diagnostic",
+    "OCCURRENCE_AUTHORITIES": "configuration",
+    "OCCURRENCE_ROLES": "configuration"
   },
   "storage/dialogue_memory.py": {
     "session_lexicon": "reader",

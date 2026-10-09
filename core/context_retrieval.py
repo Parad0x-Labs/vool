@@ -816,37 +816,95 @@ def get_last_retrieval_telemetry() -> dict[str, object]:
     return {**_TELEMETRY_DEFAULTS, **_retrieval_diagnostics(payload)}
 
 
+#: The finite diagnostic-code vocabulary the projection may serve while an
+#: erasure is incomplete: status, reason, kind, role and stage literals that
+#: this module and its diagnostics-bearing collaborators (evidence compiler,
+#: receipts, kernel packets) emit. Anything outside this set survives only
+#: through the validated code grammar below or the full serving contract.
+_DIAGNOSTIC_CODE_VOCABULARY = frozenset({
+    "L1", "L2", "L3",
+    "action_policy_forbidden", "active", "adaptive_research_already_searched",
+    "already_exists", "assistant", "call_failed", "capsule_exact_pre_model",
+    "circuit_open", "completed", "context_manifest_invalid",
+    "current-observation-contract", "delivery_revocation", "disabled",
+    "disabled_no_hits", "dispatch_terms_changed", "distilled",
+    "eligible_user_content", "eligible_user_content_secret_redacted", "empty",
+    "empty_body", "error", "exact_output_contract", "failed", "final_pack",
+    "fresh_exact_candidate_cache", "general", "historical-import", "imported",
+    "imported-historical", "invalid_context_policy", "invalid_role",
+    "live-turn", "local_answer_no_research", "local_fact_no_tool", "marker",
+    "memory_open_failed", "missing_chat_scope", "missing_import_batch",
+    "missing_occurrence_id", "missing_operand", "missing_session_scope",
+    "no_computed_value_in_reply", "no_derivation_matched",
+    "no_eligible_content", "no_hits", "no_records", "not_run",
+    "occurrence_integrity_mismatch", "occurrence_not_found", "packet_only",
+    "packet_withheld_budget", "packet_withheld_incomplete",
+    "pin_not_dispatched", "plain_task_minimal_no_context",
+    "prompt_budget_exceeded", "provider_call",
+    "provider_fallback_budget_exceeded", "provider_inference_disabled",
+    "provider_unhealthy", "question_not_past_anchored", "receipt_schema_error",
+    "receipt_withheld", "receipt_write_error", "recorded",
+    "records_retained", "records_retained_index_pending", "rejected",
+    "relevant_local_memory_sufficient", "remote_fetch_disabled", "replaced",
+    "replacement-provenance-unavailable", "requested_model_unresolvable",
+    "required_tools_not_offered", "retained", "retraction",
+    "revocation_changed", "revocation_unreadable", "revocation_withheld",
+    "revoked", "routing_identity_missing", "rule", "selected-before-packing",
+    "selection_filter", "semantic", "skipped", "skipped_empty_query",
+    "skipped_invalid_context_policy", "skipped_missing_chat_namespace",
+    "source_evidence_retained", "stale_provider_binding", "stored", "system",
+    "turn", "turn_already_terminalized", "user", "verifier_primary_response",
+    "vool.memory.packet.v1", "vool.memory.turn.v1", "whole_turn_lane",
+    "widen_pool", "widened_retry_exceeds_reservation", "write_error",
+})
+#: A validated diagnostic code: lower-case anchored, bounded, no whitespace
+#: and no sentence punctuation, so it cannot carry withheld prose. Parameter
+#: suffixes after ":" stay inside the same shape (facts:12, revalidation:missing).
+_SAFE_DIAGNOSTIC_CODE_RE = re.compile(r"[a-z0-9][a-z0-9_.:+-]{0,127}")
+
+
 def _retrieval_diagnostics(payload: Mapping[str, Any], _authorize=None) -> dict[str, Any]:
     """Keep structural diagnostics when the serving gate withholds content.
 
     Codes, counts and storage identities describe a refusal; they do not carry
-    the refused prose. A string value, list member or map key is kept only
-    when the pending-forget authority reauthorizes that exact text; its field
-    name alone never admits it. The same projection applies inside receipt
-    and compiler diagnostics.
+    the refused prose. While any erasure in the governing authority is
+    incomplete, the serving contract authorizes no retained string, so a
+    string value, list member or map key survives only when it is a validated
+    diagnostic code (a vocabulary member or a code-shaped identifier); its
+    field name alone never admits it. With a complete authority the pending
+    tokens still withhold their content. The same projection applies inside
+    receipt and compiler diagnostics.
     """
     from core.memory.carriers import ROW_IDENTITIES, carries
     from core.memory.revocation import _authority_set, _directory
     from core.memory.withdrawals import payload_is_withdrawn
 
     if _authorize is None:
-        def _authorize(text: str) -> bool:
+        def _authorize(text: str, field: str = "") -> bool:
             # The same independent ledgers authorize_payload consults, read
             # without the completeness raise so a pending operation still
             # names its withheld token. An initialized but unreadable or
             # lost authority reauthorizes nothing; an authority that never
             # existed has persisted no barrier and withholds nothing.
             try:
-                tokens = tuple({row['token'] for data in _authority_set().values()
-                                for row in data['operations'].values()
-                                if row.get('kind', 'forget') == 'forget'})
+                rows = [row for data in _authority_set().values()
+                        for row in data['operations'].values()]
             except Exception:
                 authority = _directory()
                 return not ((authority / 'ledger.json').exists()
                             or (authority / 'dependencies.json').exists()
                             or any(authority.glob('lease-*')))
-            return (not any(carries(text, token) for token in tokens)
-                    and not payload_is_withdrawn(text, tokens))
+            tokens = tuple({row['token'] for row in rows
+                            if row.get('kind', 'forget') == 'forget'})
+            if any(carries(text, token) for token in tokens) or payload_is_withdrawn(text, tokens):
+                return False
+            # Incomplete erasure withholds every retained string; only the
+            # validated diagnostics above stay legible, and the token check
+            # still governs them.
+            if any(row['status'] != 'complete' for row in rows):
+                return (text in _DIAGNOSTIC_CODE_VOCABULARY
+                        or bool(_SAFE_DIAGNOSTIC_CODE_RE.fullmatch(text)))
+            return True
 
     scalars = ROW_IDENTITIES | frozenset(_TELEMETRY_DEFAULTS.keys() - {"selected_facts"}) | {
         "reason", "code", "status", "complete", "delivered", "delivery_stage",
@@ -873,15 +931,15 @@ def _retrieval_diagnostics(payload: Mapping[str, Any], _authorize=None) -> dict[
     result = {}
     for key, value in payload.items():
         if key in scalars and isinstance(value, (str, int, float, bool, type(None))):
-            if not isinstance(value, str) or _authorize(value):
+            if not isinstance(value, str) or _authorize(value, key):
                 result[key] = value
         elif key in {"reason_codes", "unseen_receipts", "found", "missing",
                      "found_before_hop", "missing_before_hop", "required",
                      "source_session_ids", "granted_session_scopes"} and isinstance(value, (list, tuple)):
-            result[key] = [code for code in value if isinstance(code, str) and _authorize(code)]
+            result[key] = [code for code in value if isinstance(code, str) and _authorize(code, key)]
         elif key == "skipped" and isinstance(value, Mapping):
             result[key] = {code: count for code, count in value.items()
-                           if isinstance(code, str) and type(count) is int and _authorize(code)}
+                           if isinstance(code, str) and type(count) is int and _authorize(code, key)}
         elif key in containers:
             if isinstance(value, Mapping):
                 result[key] = _retrieval_diagnostics(value, _authorize)
