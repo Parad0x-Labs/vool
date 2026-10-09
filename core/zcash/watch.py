@@ -41,7 +41,7 @@ WALLET_DB = "data.sqlite"
 STATE_FILE = "watch_state.json"
 DEFAULT_TIMEOUT_S = 120.0
 SYNC_TIMEOUT_S = 1800.0
-#: The wallet database's output_pool codes. Since NU7 an Orchard receiver is paid into the Ironwood pool (code 4).
+#: The wallet database's output_pool codes. Since the Ironwood upgrade an Orchard receiver is paid into the Ironwood pool (code 4).
 _POOLS = {0: "transparent", 2: "sapling", 3: "orchard", 4: "ironwood"}
 SHIELDED_POOLS = frozenset({"sapling", "orchard", "ironwood"})
 _ADDRESS_PREFIXES = {
@@ -375,8 +375,8 @@ class Devtool:
             if txid not in listed:
                 raise ZcashWatchError("tx_crosscheck_failed", "The Zcash watch wallet and the watch tool disagree about a transaction, so nothing is confirmed.")
             pool = _POOLS.get(int(pool_code))
-            if pool is None:
-                continue  # a pool this build does not know cannot pay an invoice
+            if pool is None:  # a payment this build cannot read is doubt, never "still unpaid"
+                raise ZcashWatchError("pool_unknown", "The Zcash watch wallet holds a payment in a pool this VOOL build does not know, so nothing is confirmed.")
             note = ReceivedNote(
                 txid=txid, pool=pool, output_index=int(output_index), value_zat=int(value),
                 memo=decode_memo(memo) if pool in SHIELDED_POOLS else None,
