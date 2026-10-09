@@ -59,7 +59,7 @@ def chat_session_meta_path() -> Path:
 
 def ensure_memory_files(*, ensure_policy_table: callable) -> None:
     from core.memory.revocation import prepare
-    prepare(allow_initialize=True, arm=False)
+    prepare(allow_writer_initialize=True, arm=False)
     path = memory_path()
     if not path.exists():
         path.write_text(default_memory_template(), encoding="utf-8")
@@ -213,12 +213,16 @@ def write_text_atomic(path: Path, text: str) -> None:
 
 
 def rewrite_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
-    from core.memory.revocation import prepare
+    from core.memory.revocation import _writing_rows
 
-    # A fresh writer creates its authority before the first retained carrier.
-    # A reader must never invent an empty authority for already retained rows.
-    prepare(path.parent.parent if path.parent.name == "data" else None, allow_initialize=True, arm=False)
-    _rewrite_jsonl(path, rows)
+    # Every public rewrite crosses the same admission as any other writer:
+    # each row is refused while its own scope carries a revoked token, the
+    # shared writer fence is held across the actual write, and authority is
+    # never initialized over a home that already retains memory. Raw erasure
+    # rewrites stay on the private helper under the forget's own admission.
+    home = path.parent.parent if path.parent.name == "data" else None
+    with _writing_rows(rows, runtime_home=home):
+        _rewrite_jsonl(path, rows)
 
 
 def _rewrite_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
