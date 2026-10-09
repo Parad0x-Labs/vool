@@ -127,7 +127,7 @@ def append_sequenced_jsonl(
     """Append one immutable event with a per-namespace sequence."""
     with _JSONL_LOCK:
         namespace = str(payload.get(namespace_field) or "").strip()
-        rows = load_jsonl(path)
+        rows = _load_jsonl(path)
         sequence = (
             max(
                 (
@@ -153,7 +153,7 @@ def append_sequenced_jsonl(
         return event
 
 
-def load_jsonl(path: Path) -> list[dict[str, object]]:
+def _load_jsonl(path: Path) -> list[dict[str, object]]:
     with _JSONL_LOCK:
         if not path.exists():
             return []
@@ -171,6 +171,15 @@ def load_jsonl(path: Path) -> list[dict[str, object]]:
             if isinstance(payload, dict):
                 rows.append(payload)
         return rows
+
+
+def load_jsonl(path: Path) -> list[dict[str, object]]:
+    """Serve JSONL rows through the same authority as higher-level readers."""
+    from core.memory.revocation import authorize_payload
+
+    home = path.parent.parent if path.parent.name == "data" else None
+    return [row for row in _load_jsonl(path)
+            if authorize_payload(row, row.get("session_id") or row.get("chat_id") or row.get("chat_scope"), home)]
 
 
 def write_text_atomic(path: Path, text: str) -> None:
@@ -204,6 +213,16 @@ def write_text_atomic(path: Path, text: str) -> None:
 
 
 def rewrite_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
+    from core.memory.revocation import prepare
+
+    # A fresh writer creates its authority before the first retained carrier.
+    # A reader must never invent an empty authority for already retained rows.
+    prepare(path.parent.parent if path.parent.name == "data" else None, allow_initialize=True, arm=False)
+    _rewrite_jsonl(path, rows)
+
+
+def _rewrite_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
+    """Private storage rewrite, also used by erasure after command admission."""
     with _JSONL_LOCK:
         content = "\n".join(
             json.dumps(row, ensure_ascii=False)
@@ -224,7 +243,7 @@ def trim_jsonl_file(
             return
     except Exception:
         return
-    rows = load_jsonl(path)
+    rows = _load_jsonl(path)
     if len(rows) <= 2:
         return
     if always_keep is None:

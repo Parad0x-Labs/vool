@@ -109,7 +109,7 @@ def serialized(runtime_home=None):
 def _read(directory: Path) -> dict:
     value = json.loads((directory / 'ledger.json').read_text(encoding='utf-8'))
     if (not isinstance(value, dict) or set(value) != {'version', 'operations'}
-            or type(value.get('version')) is not int or value['version'] != 1
+            or type(value.get('version')) is not int or value['version'] not in {1, 2}
             or not isinstance(value.get('operations'), dict)):
         raise RuntimeError('forget authority is invalid')
     for operation_id, row in value['operations'].items():
@@ -121,6 +121,104 @@ def _read(directory: Path) -> dict:
                 or row['status'] not in {'pending', 'complete'}):
             raise RuntimeError('forget authority operation is invalid')
     return value
+
+
+def _routing(home: Path) -> dict:
+    value = json.loads((_directory(home) / 'dependencies.json').read_text(encoding='utf-8'))
+    if (not isinstance(value, dict) or set(value) != {'version', 'scopes'}
+            or value['version'] != 1 or not isinstance(value['scopes'], dict)
+            or any(not isinstance(scope, str) or not isinstance(homes, list)
+                   or any(not isinstance(item, str) or not Path(item).is_absolute() for item in homes)
+                   for scope, homes in value['scopes'].items())):
+        raise RuntimeError('forget authority dependencies are invalid')
+    return value
+
+
+def _dependencies(home: Path, chat_id=None) -> set[Path]:
+    """Only authorities participating in this scope govern its serving reads."""
+    return {Path(item).resolve() for scope, homes in _routing(home)['scopes'].items()
+            if not chat_id or not scope or scope == str(chat_id) for item in homes}
+
+
+def _authority_set(runtime_home=None, chat_id=None) -> dict[Path, dict]:
+    pending = {_home(runtime_home)}
+    authorities = {}
+    while pending:
+        home = pending.pop()
+        if home in authorities:
+            continue
+        directory = _directory(home)
+        data = _read(directory)
+        _check_leases(directory)
+        authorities[home] = data
+        if data['version'] == 2:
+            pending.update(_dependencies(home, chat_id) - authorities.keys())
+    return authorities
+
+
+def _bind_homes(homes: set[Path], chat_id) -> None:
+    """Complete routing before publishing any operation.
+
+    A partial routing write carries no forget and changes no content. Publication
+    is forbidden until every participant can discover every other authority.
+    Readers reread this routing on every call; absent dependencies fail closed.
+    """
+    participants = set(homes)
+    for home in sorted(homes):
+        _prepare_forget_home(home)
+        participants.update(_authority_set(home, chat_id))
+    for home in sorted(homes):
+        dependencies = participants - {home}
+        routing = _routing(home)
+        key = str(chat_id or '')
+        expected = sorted(map(str, dependencies))
+        if routing['scopes'].get(key, []) != expected:
+            routing['scopes'][key] = expected
+            _durable_write(_directory(home) / 'dependencies.json', routing)
+        if _routing(home)['scopes'].get(key, []) != expected:
+            raise RuntimeError('forget authority routing could not be verified')
+
+
+def _prepare_forget_home(home: Path) -> None:
+    """Explicit erasure may upgrade a legacy home before opening its stores.
+
+    Serving readers must never invent authority for retained content. A forget
+    can bootstrap a home that has never had this authority, then publish its
+    barrier normally. Existing routing or leases distinguish lost authority
+    from a legacy home and must still fail closed.
+    """
+    directory = _directory(home)
+    with serialized(home):
+        if not (directory / 'ledger.json').exists():
+            _check_leases(directory)
+            if (directory / 'dependencies.json').exists() or any(directory.glob('lease-*')):
+                raise RuntimeError('forget authority is absent for initialized memory')
+            # Version 1 is a complete standalone authority. The existing
+            # version migration adds routing durably before group publication.
+            _durable_write(directory / 'ledger.json', {'version': 1, 'operations': {}})
+        prepare(home, arm=False)
+
+
+def begin_group(chat_id, token, homes, *, _kind='forget') -> list[tuple[Path, str]]:
+    """Publish across an already connected set; any persisted part fences all."""
+    homes = {_home(home) for home in homes}
+    operations = []
+    failures = []
+    with contextlib.ExitStack() as locks:
+        for home in sorted(homes):
+            locks.enter_context(serialized(home))
+        try:
+            _bind_homes(homes, chat_id)
+        except Exception as exc:
+            raise ForgetStartError(started=False) from exc
+        for home in sorted(homes):
+            try:
+                operations.append((home, begin(chat_id, token, home, _kind=_kind)))
+            except ForgetStartError as exc:
+                failures.append(exc)
+        if failures:
+            raise ForgetStartError(started=bool(operations) or any(exc.started for exc in failures)) from failures[0]
+    return operations
 
 
 def _check_leases(directory: Path) -> None:
@@ -162,8 +260,13 @@ def prepare(runtime_home=None, *, allow_initialize=False, arm=True) -> None:
         if not (directory / 'ledger.json').exists():
             if not allow_initialize or _existing_carriers(_home(runtime_home)):
                 raise RuntimeError('forget authority is absent for retained memory')
-            _durable_write(directory / 'ledger.json', {'version': 1, 'operations': {}})
-        _read(directory)
+            _durable_write(directory / 'dependencies.json', {'version': 1, 'scopes': {}})
+            _durable_write(directory / 'ledger.json', {'version': 2, 'operations': {}})
+        data = _read(directory)
+        if data['version'] == 1:
+            _durable_write(directory / 'dependencies.json', {'version': 1, 'scopes': {}})
+            _durable_write(directory / 'ledger.json', {**data, 'version': 2})
+        _dependencies(_home(runtime_home))
         _check_leases(directory)
         if arm and directory not in _LEASES:
             path = directory / ('lease-' + uuid.uuid4().hex)
@@ -275,8 +378,7 @@ def complete(operation_id, runtime_home=None) -> None:
 def snapshot(chat_id=None, runtime_home=None) -> tuple[str, ...]:
     with serialized(runtime_home):
         prepare(runtime_home, arm=False)
-        data = _read(_directory(runtime_home))
-        rows = [row for row in data['operations'].values()
+        rows = [row for data in _authority_set(runtime_home, chat_id).values() for row in data['operations'].values()
                 if not chat_id or not row['chat'] or row['chat'] == str(chat_id)]
         if any(row['status'] != 'complete' for row in rows):
             raise RuntimeError('memory erasure is incomplete')
@@ -287,7 +389,7 @@ def snapshot(chat_id=None, runtime_home=None) -> tuple[str, ...]:
 def generation(chat_id=None, runtime_home=None) -> str:
     with serialized(runtime_home):
         prepare(runtime_home, arm=False)
-        return json.dumps(_read(_directory(runtime_home)), sort_keys=True)
+        return json.dumps({str(home): data for home, data in _authority_set(runtime_home, chat_id).items()}, sort_keys=True)
 
 
 def revoked_tokens(chat_id=None, runtime_home=None, *, owner_memory=None) -> tuple[str, ...]:
@@ -339,7 +441,7 @@ def writing(payload, chat_id=None, runtime_home=None):
     from core.memory.carriers import carries
     with serialized(runtime_home):
         prepare(runtime_home, allow_initialize=True, arm=False)
-        rows = _read(_directory(runtime_home))['operations'].values()
+        rows = [row for data in _authority_set(runtime_home, chat_id).values() for row in data['operations'].values()]
         if any(row.get('kind', 'forget') == 'forget'
                and (not chat_id or not row['chat'] or row['chat'] == str(chat_id))
                and carries(payload, row['token']) for row in rows):

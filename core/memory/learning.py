@@ -12,9 +12,9 @@ from core.memory.files import (
     MAX_DENSE_OPERATOR_PROFILE_BYTES,
     MAX_SESSION_SUMMARY_BYTES,
     MAX_USER_HEURISTICS_BYTES,
+    _load_jsonl,
     append_jsonl,
     ensure_memory_files,
-    load_jsonl,
     operator_dense_profile_path,
     rewrite_jsonl,
     session_summaries_path,
@@ -368,7 +368,7 @@ def refresh_operator_dense_profile(*, session_id: str | None = None) -> dict[str
     _ensure_memory_files()
     heuristics = [
         dict(row)
-        for row in load_jsonl(user_heuristics_path())
+        for row in _load_jsonl(user_heuristics_path())
         if str(row.get("scope") or "") == "user_profile"
         and str(row.get("status") or "") == "active"
         and isinstance(row.get("provenance"), dict)
@@ -422,7 +422,9 @@ def refresh_operator_dense_profile(*, session_id: str | None = None) -> dict[str
         encoded = json.dumps(payload, ensure_ascii=False, indent=2)
     with writing(payload, session_id):
         operator_dense_profile_path().write_text(encoded + "\n", encoding="utf-8")
-    return payload
+    from core.memory.revocation import authorize_payload
+
+    return payload if authorize_payload(payload, session_id) else {}
 
 
 def normalized_history(history: Any) -> list[dict[str, str]]:
@@ -548,7 +550,7 @@ def update_user_heuristics(*, session_id: str, user_input: str, project_id: str 
         return
     existing = {
         str(row.get("heuristic_id") or "").strip(): row
-        for row in load_jsonl(user_heuristics_path())
+        for row in _load_jsonl(user_heuristics_path())
         if str(row.get("heuristic_id") or "").strip()
     }
     created_at = utcnow()
@@ -711,7 +713,7 @@ def update_session_summary(
         return
 
     latest: dict[str, Any] | None = None
-    for row in reversed(load_jsonl(session_summaries_path())):
+    for row in reversed(_load_jsonl(session_summaries_path())):
         if str(row.get("session_id") or "") == str(session_id):
             latest = row
             break
@@ -1329,7 +1331,7 @@ def _apply_feedback_to_heuristics(*, session_id: str) -> None:
         total_feedback = int(rejections.get("count") or 0) + int(approvals.get("count") or 0)
         rejection_rate = (int(rejections.get("count") or 0) / total_feedback) if total_feedback > 0 else 0.0
         if rejection_rate > 0.6:
-            rows = load_jsonl(user_heuristics_path())
+            rows = _load_jsonl(user_heuristics_path())
             for row in rows:
                 if str(row.get("category") or "") == "response_style":
                     old_conf = float(row.get("confidence") or 0.5)

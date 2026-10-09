@@ -23,6 +23,8 @@ from core.context_namespace import (
 from core.context_scope import ContextAccessPolicy
 from core.memory.files import (
     MAX_MEMORY_INDEX_BYTES,
+    _load_jsonl,
+    _rewrite_jsonl,
     chat_session_meta_path,
     conversation_log_path,
     default_memory_template,
@@ -199,7 +201,7 @@ def _load_erasure_rows(path: Path) -> list[dict[str, Any]]:
 
 def _rewrite_verified_erasure_rows(path: Path, rows: list[dict[str, Any]]) -> None:
     """A successful write is not an erasure receipt until its bytes are reread."""
-    rewrite_jsonl(path, rows)
+    _rewrite_jsonl(path, rows)
     if _load_erasure_rows(path) != rows:
         raise MemoryErasureError("erasure store did not retain the verified rewrite")
 
@@ -311,7 +313,7 @@ def _text_is_erased(text: str) -> bool:
     normalized = _erasure_digest_text(text)
     if not normalized:
         return False
-    for row in load_jsonl(memory_entries_path()):
+    for row in _load_jsonl(memory_entries_path()):
         if str(row.get("status") or "") != _ERASED_STATUS:
             continue
         salt = str(row.get("erasure_salt") or "")
@@ -405,7 +407,7 @@ def _rewrite_memory_mirror_locked() -> None:
         preamble, section = lines[: marker_index + 1], lines[marker_index + 1 :]
 
     active_rows = [
-        row for row in load_jsonl(memory_entries_path()) if _row_is_active_memory(row)
+        row for row in _load_jsonl(memory_entries_path()) if _row_is_active_memory(row)
     ]
     active_texts = {
         _erasure_digest_text(str(row.get("text") or "")) for row in active_rows
@@ -482,13 +484,13 @@ def _verify_erasure(erased_texts: list[str], erased_record_ids: list[str]) -> No
     # only to needles no surviving canonical row still owns; the id-bound checks stay unconditional.
     erased_ids = {str(record_id) for record_id in erased_record_ids}
     surviving_texts: list[str] = []
-    for row in load_jsonl(memory_entries_path()):
+    for row in _load_jsonl(memory_entries_path()):
         if str(row.get("status") or "") == _ERASED_STATUS or str(row.get("record_id")) in erased_ids:
             continue
         surviving_texts.append(str(row.get("text") or "").casefold())
     needles = [needle for needle in needles if not any(needle in text for text in surviving_texts)]
     for needle in needles:
-        for row in load_jsonl(memory_entries_path()):
+        for row in _load_jsonl(memory_entries_path()):
             if str(row.get("status") or "") == _ERASED_STATUS:
                 continue
             if needle in str(row.get("text") or "").casefold():
@@ -701,7 +703,7 @@ def _governed_excerpt_rows() -> list[dict[str, Any]]:
 
     rows = [
         row
-        for row in load_jsonl(memory_entries_path())
+        for row in _load_jsonl(memory_entries_path())
         if _row_is_active_memory(row)
         and not contains_secret(str(row.get("text") or ""))
         and _memory_expiry_is_current(row)
@@ -895,7 +897,7 @@ def sweep_governed_memory_rows(request_id: str) -> bool:
         return False
     _ensure_memory_files()
     with _MEMORY_ENTRY_LOCK:
-        rows = load_jsonl(memory_entries_path())
+        rows = _load_jsonl(memory_entries_path())
         kept = [
             row
             for row in rows
@@ -924,7 +926,7 @@ def list_memory_entries(
     )
     rows = [
         dict(row)
-        for row in load_jsonl(memory_entries_path())
+        for row in _load_jsonl(memory_entries_path())
         if _memory_command_row_allowed(
             row,
             access_policy=policy,
@@ -976,7 +978,7 @@ def recent_conversation_events(
     from core.memory.revocation import authorize_payload
 
     _ensure_memory_files()
-    rows = load_jsonl(conversation_log_path())
+    rows = _load_jsonl(conversation_log_path())
     out: list[dict[str, Any]] = []
     for row in reversed(rows):
         if str(row.get("session_id") or "") != str(session_id):
@@ -1001,7 +1003,7 @@ _SESSION_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")   # strict #rrggbb only â€
 
 
 def _parse_meta_dict(path: Path) -> dict[str, dict[str, Any]]:
-    from core.memory.carriers import read_session_metadata
+    from core.memory.carriers import _read_session_metadata as read_session_metadata
 
     return read_session_metadata(path)
 
@@ -1145,7 +1147,7 @@ def list_conversation_sessions(*, limit: int = 60) -> list[dict[str, Any]]:
     persisted, not an all-time history.
     """
     _ensure_memory_files()
-    rows = load_jsonl(conversation_log_path())
+    rows = _load_jsonl(conversation_log_path())
     meta = load_session_meta()
     by_session: dict[str, dict[str, Any]] = {}
     from core.context_namespace import list_chat_namespaces
@@ -1334,7 +1336,7 @@ def find_disputed_memory_facts(
         tuple[str, str, str],
         list[dict[str, Any]],
     ] = {}
-    for row in load_jsonl(memory_entries_path()):
+    for row in _load_jsonl(memory_entries_path()):
         if not _authorized_reader_payload(row, chat_id=policy.chat_id):
             continue
         if not _memory_dispute_row_allowed(
@@ -1597,7 +1599,7 @@ def search_session_summaries(
         if isinstance(meta, dict) and bool(meta.get("archived"))
     }
     latest_by_session: dict[str, dict[str, Any]] = {}
-    for row in load_jsonl(session_summaries_path()):
+    for row in _load_jsonl(session_summaries_path()):
         session_id = str(row.get("session_id") or "").strip()
         if not session_id:
             continue
@@ -1666,7 +1668,7 @@ def search_user_heuristics(
         return []
     query_tokens = set(keyword_tokens_filtered(" ".join([query_text, *(topic_hints or [])])))
     ranked: list[tuple[float, dict[str, Any]]] = []
-    for row in load_jsonl(user_heuristics_path()):
+    for row in _load_jsonl(user_heuristics_path()):
         metadata = {
             "scope": "user_profile",
             "source": "user_heuristic",
@@ -2139,9 +2141,11 @@ def _write_session_meta_atomic(meta: dict[str, Any]) -> None:
 
 def _forget_session_metadata(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
     from core.memory.carriers import (
+        _read_session_metadata as read_session_metadata,
+    )
+    from core.memory.carriers import (
         carries,
         prune_payload,
-        read_session_metadata,
         session_metadata_carriers,
         session_metadata_payload,
     )
@@ -2188,13 +2192,13 @@ def forget_sessions_memory(session_ids: Any) -> int:
     with _MEMORY_ENTRY_LOCK:
         target_ids = [
             str(row.get("record_id") or "").strip()
-            for row in load_jsonl(memory_entries_path())
+            for row in _load_jsonl(memory_entries_path())
             if str(row.get("session_id") or "").strip() in ids
             and str(row.get("record_id") or "").strip()
         ]
         erased_texts = _erase_rows_locked(target_ids)
         removed = len(erased_texts)
-        summaries = load_jsonl(session_summaries_path())
+        summaries = _load_jsonl(session_summaries_path())
         kept = [
             row for row in summaries if str(row.get("session_id") or "").strip() not in ids
         ]
@@ -2249,7 +2253,7 @@ def erase_finalizations_for_session(session_id: str) -> list[dict[str, Any]]:
                 seen.add(fid)
                 fids.append(fid)
 
-    for row in load_jsonl(conversation_log_path()):
+    for row in _load_jsonl(conversation_log_path()):
         if str(row.get("session_id") or "").strip() != sid:
             continue
         if isinstance(row, dict):
@@ -2290,7 +2294,7 @@ def delete_conversation_session(session_id: str) -> bool:
     # payloads, so the JSONL sweep further down finds nothing left to count and
     # the route reported ``deleted: False`` for every ordinary chat. Count what is
     # about to go before it goes.
-    if any(str(row.get("session_id") or "").strip() == sid for row in load_jsonl(conversation_log_path())):
+    if any(str(row.get("session_id") or "").strip() == sid for row in _load_jsonl(conversation_log_path())):
         removed = True
     # A8 rebind (D1): erase the session's governed payloads through the ONE
     # availability authority FIRST â€” the conversation log is still present to
@@ -2353,7 +2357,7 @@ def delete_conversation_session(session_id: str) -> bool:
     except Exception:
         pass
     for path in (conversation_log_path(), session_summaries_path()):
-        rows = load_jsonl(path)
+        rows = _load_jsonl(path)
         kept = [row for row in rows if str(row.get("session_id") or "").strip() != sid]
         if len(kept) != len(rows):
             rewrite_jsonl(path, kept)
@@ -2364,7 +2368,7 @@ def delete_conversation_session(session_id: str) -> bool:
     with _MEMORY_ENTRY_LOCK:
         target_ids = [
             str(row.get("record_id") or "").strip()
-            for row in load_jsonl(memory_entries_path())
+            for row in _load_jsonl(memory_entries_path())
             if str(row.get("session_id") or "").strip() == sid
             and str(row.get("record_id") or "").strip()
         ]
@@ -2411,7 +2415,7 @@ def combined_memory_entries() -> list[dict[str, Any]]:
     _ensure_memory_files()
     entries = [
         row
-        for row in load_jsonl(memory_entries_path())
+        for row in _load_jsonl(memory_entries_path())
         if str(row.get("status") or "") != _ERASED_STATUS
     ]
     seen = {str(row.get("text") or "").strip().lower() for row in entries}
@@ -2489,7 +2493,7 @@ def replace_name_memory(
     )
     if not policy.allow_user_profile_context:
         return 0
-    rows = load_jsonl(memory_entries_path())
+    rows = _load_jsonl(memory_entries_path())
     active_names = [
         row
         for row in rows

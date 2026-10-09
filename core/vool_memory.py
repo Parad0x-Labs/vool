@@ -438,7 +438,7 @@ class VoolMemory:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT content
+                SELECT *
                 FROM memory_blocks
                 WHERE block_name = ? AND agent_id = ?
                 LIMIT 1
@@ -446,7 +446,14 @@ class VoolMemory:
                 (name, self._agent_id),
             ).fetchone()
         content = str(row["content"]) if row else None
-        return content if content is not None and self.payload_is_current(content) else None
+        return content if content is not None and self.payload_is_current(self._block_payload(row)) else None
+
+    def _block_payload(self, row):
+        from core.memory.carriers import ROW_IDENTITIES, row_payload, schema_json_fields
+
+        with self._lock:
+            json_fields = schema_json_fields(self._conn.execute("PRAGMA table_info(memory_blocks)").fetchall())
+        return row_payload(row, structural_fields=ROW_IDENTITIES, json_fields=json_fields)
 
     @fenced_writer
     def block_write(self, block_name: str, content: str) -> None:
@@ -510,14 +517,14 @@ class VoolMemory:
         with self._lock:
             rows = self._conn.execute(
                 """
-                SELECT block_name
+                SELECT *
                 FROM memory_blocks
                 WHERE agent_id = ?
                 ORDER BY updated_at DESC, block_name ASC
                 """,
                 (self._agent_id,),
             ).fetchall()
-        return [str(row["block_name"]) for row in rows]
+        return [str(row["block_name"]) for row in rows if self.payload_is_current(self._block_payload(row))]
 
     @fenced_writer
     def node_store(
@@ -1696,10 +1703,10 @@ class VoolMemory:
     def node_count(self) -> int:
         with self._lock:
             row = self._conn.execute(
-                "SELECT COUNT(*) AS count FROM memory_nodes WHERE agent_id = ?",
+                "SELECT * FROM memory_nodes WHERE agent_id = ?",
                 (self._agent_id,),
-            ).fetchone()
-        return int(row["count"] if row else 0)
+            ).fetchall()
+        return sum(self._row_is_current(item) for item in row)
 
     # ── layer-1 source occurrences (CONTRACT mr29/1 §1) ─────────────────────
 
@@ -2058,12 +2065,12 @@ class VoolMemory:
             return 0
         with self._lock:
             row = self._conn.execute(
-                "SELECT count(*) FROM source_occurrences "
+                "SELECT * FROM source_occurrences "
                 "WHERE agent_id = ? AND chat_scope = ? "
                 "AND status = 'active' AND body != ''",
                 (self._agent_id, scope),
-            ).fetchone()
-        return int(row[0] if row else 0)
+            ).fetchall()
+        return sum(self._row_is_current(item) for item in row)
 
     def occurrence_search_semantic(
         self,
@@ -2436,7 +2443,9 @@ class VoolMemory:
         reader's packet (measured on the v14.x port, 2026-10-07). A store without the receipts table is
         untouched.
         """
-        with self._lock:
+        from core.memory.revocation import serialized
+
+        with serialized(self._authority_home), self._lock:
             exists = self._conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memory_receipts'",
             ).fetchone()
@@ -2481,7 +2490,7 @@ class VoolMemory:
             marks = ", ".join("?" for _ in stale)
             self._conn.execute(f"DELETE FROM memory_receipts WHERE occurrence_id IN ({marks})", stale)
             survivors = self._conn.execute(
-                f"SELECT occurrence_id, role, body, statement_at FROM source_occurrences "
+                f"SELECT * FROM source_occurrences "
                 f"WHERE occurrence_id IN ({marks}) AND status = 'active' AND body != '' "
                 f"ORDER BY COALESCE(statement_at, 0), rowid",
                 stale,
@@ -2498,6 +2507,10 @@ class VoolMemory:
 
                 from core.memory_receipts import write_receipt
             for row in survivors:
+                # A pending operation or subject withdrawal forbids reconstruction.
+                # The public rebuild path can restore eligible derivatives after completion.
+                if not self._row_is_current(row):
+                    continue
                 occurrence = SimpleNamespace(
                     occurrence_id=str(row["occurrence_id"]), role=str(row["role"] or "user"),
                     statement_at=row["statement_at"], body=str(row["body"] or ""),
@@ -2577,18 +2590,45 @@ class VoolMemory:
 
     def verify_forget_blocks(self, token: str, *, erasures: dict[str, Any]) -> None:
         """Verify unscoped prompt blocks without attributing another chat's copy to this one."""
+        from core.memory.carriers import ROW_IDENTITIES, carries, row_payload, schema_json_fields
         from core.memory.entries import _record_erasure_store
 
         try:
             with self._lock:
                 rows = self._conn.execute(
-                    "SELECT content FROM memory_blocks WHERE agent_id = ?", (self._agent_id,),
+                    "SELECT * FROM memory_blocks WHERE agent_id = ?", (self._agent_id,),
                 ).fetchall()
-            retained = any(text_carries_forget_token(str(row[0] or ""), token) for row in rows)
+                json_fields = schema_json_fields(self._conn.execute("PRAGMA table_info(memory_blocks)").fetchall())
+            retained = any(carries(row_payload(row, structural_fields=ROW_IDENTITIES, json_fields=json_fields), token)
+                           for row in rows)
             _record_erasure_store(erasures, "memory_blocks", "incomplete" if retained else "verified")
         except Exception:
             _record_erasure_store(erasures, "memory_blocks", "incomplete")
             raise
+
+    def _erase_forget_blocks(self, token: str) -> int:
+        """Erase every block carrier, preserving unrelated clauses when its identity survives."""
+        from core.memory.carriers import ROW_IDENTITIES, carries, row_payload, schema_json_fields
+
+        removed = 0
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM memory_blocks WHERE agent_id = ?", (self._agent_id,)).fetchall()
+            json_fields = schema_json_fields(self._conn.execute("PRAGMA table_info(memory_blocks)").fetchall())
+            for row in rows:
+                payload = row_payload(row, structural_fields=ROW_IDENTITIES, json_fields=json_fields)
+                if not carries(payload, token):
+                    continue
+                removed += 1
+                content = payload.pop("content", "")
+                salvage = "" if carries(payload, token) else _forget_salvage_content(str(content or ""), token)
+                if salvage:
+                    self._conn.execute("UPDATE memory_blocks SET content = ? WHERE block_name = ? AND agent_id = ?",
+                                       (salvage, row["block_name"], self._agent_id))
+                else:
+                    self._conn.execute("DELETE FROM memory_blocks WHERE block_name = ? AND agent_id = ?",
+                                       (row["block_name"], self._agent_id))
+            self._conn.commit()
+        return removed
 
     def record_revocation(self, token: str, *, chat_id: str) -> str | None:
         """Record a durable forget-law revocation for one chat scope.
@@ -2702,7 +2742,7 @@ class VoolMemory:
         batch = str(import_batch or "").strip()
         if not batch:
             return []
-        sql = ("SELECT occurrence_id FROM source_occurrences "
+        sql = ("SELECT * FROM source_occurrences "
                "WHERE agent_id = ? AND import_batch = ?")
         params: list[Any] = [self._agent_id, batch]
         if chat_scope is not None:
@@ -2710,7 +2750,7 @@ class VoolMemory:
             params.append(str(chat_scope))
         with self._lock:
             rows = self._conn.execute(sql, params).fetchall()
-        return [str(row["occurrence_id"]) for row in rows]
+        return [str(row["occurrence_id"]) for row in rows if self._row_is_current(row)]
 
     def node_invalidate_by_occurrence(
         self,
@@ -2738,14 +2778,14 @@ class VoolMemory:
         return len(node_ids)
 
     def occurrence_count(self, *, chat_scope: str | None = None) -> int:
-        sql = "SELECT COUNT(*) AS count FROM source_occurrences WHERE agent_id = ? AND status = 'active'"
+        sql = "SELECT * FROM source_occurrences WHERE agent_id = ? AND status = 'active'"
         params: list[Any] = [self._agent_id]
         if chat_scope is not None:
             sql += " AND chat_scope = ?"
             params.append(str(chat_scope))
         with self._lock:
-            row = self._conn.execute(sql, params).fetchone()
-        return int(row["count"] if row else 0)
+            rows = self._conn.execute(sql, params).fetchall()
+        return sum(self._row_is_current(row) for row in rows)
 
     def close(self) -> None:
         with self._lock:

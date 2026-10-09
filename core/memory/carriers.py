@@ -109,7 +109,7 @@ def session_metadata_carriers() -> tuple[Path, ...]:
     return (path, *copies)
 
 
-def read_session_metadata(path: Path) -> dict[str, dict[str, Any]]:
+def _read_session_metadata(path: Path) -> dict[str, dict[str, Any]]:
     """Decode the complete writer document without dropping unknown fields."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8") or "{}")
@@ -118,6 +118,15 @@ def read_session_metadata(path: Path) -> dict[str, dict[str, Any]]:
     if not isinstance(payload, dict) or any(not isinstance(row, dict) for row in payload.values()):
         raise ValueError("session metadata has an invalid owner or payload shape")
     return payload
+
+
+def read_session_metadata(path: Path) -> dict[str, dict[str, Any]]:
+    """Public metadata reads withhold withdrawn and pending rows."""
+    from core.memory.revocation import authorize_payload
+
+    home = path.parent.parent if path.parent.name == "data" else None
+    return {chat: row for chat, row in _read_session_metadata(path).items()
+            if authorize_payload(row, chat, home)}
 
 
 def session_metadata_payload(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -226,7 +235,7 @@ def verify_forget_stores(
     verify("operator_dense_profile", lambda: text_file(operator_dense_profile_path(), structured=True))
 
     def session_metadata() -> bool:
-        return any(carries(session_metadata_payload(read_session_metadata(path).get(chat_id, {})), token)
+        return any(carries(session_metadata_payload(_read_session_metadata(path).get(chat_id, {})), token)
                    for path in session_metadata_carriers())
 
     verify("chat_session_metadata", session_metadata)
