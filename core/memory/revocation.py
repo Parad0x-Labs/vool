@@ -191,7 +191,7 @@ def _prepare_forget_home(home: Path) -> None:
     with serialized(home):
         if not (directory / 'ledger.json').exists():
             _check_leases(directory)
-            if (directory / 'dependencies.json').exists() or any(directory.glob('lease-*')):
+            if _initialization_witnesses(directory):
                 raise RuntimeError('forget authority is absent for initialized memory')
             # Version 1 is a complete standalone authority. The existing
             # version migration adds routing durably before group publication.
@@ -244,21 +244,75 @@ def _check_leases(directory: Path) -> None:
             raise RuntimeError('forget authority has an unclean lease')
 
 
-def _existing_carriers(home: Path) -> bool:
+def _existing_carriers(home: Path, *, including_legacy: bool = False) -> bool:
+    """Retained memory in the home's carrier inventory.
+
+    The explicit-forget bootstrap's freshness line is the owner-store
+    inventory. An ordinary writer's line (``including_legacy``) covers the
+    whole inventory the forget sweep verifies: heuristics, dense profiles
+    and session metadata are retained memory too, with the metadata
+    filename family's recovery/staging copies, so no public writer may
+    initialize empty authority over any of them.
+    """
     data = home / 'data'
-    return any(p.exists() for p in (
+    if any(p.exists() for p in (
         data / 'memory' / 'vool_memory.db', data / 'memory' / 'nulla_memory.db',
         data / 'memory_entries.jsonl', data / 'conversation_log.jsonl',
         data / 'session_summaries.jsonl', data / 'MEMORY.md',
-    ))
+    )):
+        return True
+    if not including_legacy:
+        return False
+    if any(p.exists() for p in (
+        data / 'user_heuristics.jsonl', data / 'operator_dense_profile.json',
+    )):
+        return True
+    return any(data.glob('chat_session_meta.json*'))
+
+
+def _initialization_witnesses(directory: Path) -> bool:
+    """Durable proof this home already had initialized authority.
+
+    Routing and admission leases outlive the ledger they served; finding
+    either without a ledger means authority was lost, not absent.
+    """
+    return (directory / 'dependencies.json').exists() or any(directory.glob('lease-*'))
 
 
 @_authority_errors
-def prepare(runtime_home=None, *, allow_initialize=False, arm=True) -> None:
+def prepare(runtime_home=None, *, allow_initialize=False, arm=True,
+            allow_writer_initialize=False) -> None:
+    """Open (or deliberately create) this home's forget authority.
+
+    One policy tells a genuinely new home apart from lost initialized
+    authority using durable witnesses over the whole carrier inventory:
+
+    - ``allow_initialize`` is the explicit-forget bootstrap. It may upgrade a
+      legacy home that never had authority, but retained owner stores or a
+      durable witness (routing, an admission lease) mean that memory
+      predates this call or this authority was initialized and then lost;
+      recreating an empty ledger would silently discard its pending
+      forgets, so it fails closed instead.
+    - ``allow_writer_initialize`` is the only initialization an ordinary
+      writer may perform, and only over a genuinely new home: any retained
+      carrier — the whole sweep inventory, legacy carriers included — or
+      witness means memory predates this authority.
+    - Neither flag may read or write retained content on a missing,
+      unreadable or invalid ledger; those also fail closed below.
+    """
     directory = _directory(runtime_home)
     with serialized(runtime_home):
         if not (directory / 'ledger.json').exists():
-            if not allow_initialize or _existing_carriers(_home(runtime_home)):
+            witnesses = _initialization_witnesses(directory)
+            if allow_initialize:
+                if witnesses:
+                    raise RuntimeError('forget authority is absent for initialized memory')
+                if _existing_carriers(_home(runtime_home)):
+                    raise RuntimeError('forget authority is absent for retained memory')
+            elif allow_writer_initialize:
+                if witnesses or _existing_carriers(_home(runtime_home), including_legacy=True):
+                    raise RuntimeError('forget authority is absent for retained memory')
+            else:
                 raise RuntimeError('forget authority is absent for retained memory')
             _durable_write(directory / 'dependencies.json', {'version': 1, 'scopes': {}})
             _durable_write(directory / 'ledger.json', {'version': 2, 'operations': {}})
@@ -440,12 +494,38 @@ def writing(payload, chat_id=None, runtime_home=None):
     """Writers refuse revoked bytes while holding the completion fence."""
     from core.memory.carriers import carries
     with serialized(runtime_home):
-        prepare(runtime_home, allow_initialize=True, arm=False)
+        prepare(runtime_home, allow_writer_initialize=True, arm=False)
         rows = [row for data in _authority_set(runtime_home, chat_id).values() for row in data['operations'].values()]
         if any(row.get('kind', 'forget') == 'forget'
                and (not chat_id or not row['chat'] or row['chat'] == str(chat_id))
                and carries(payload, row['token']) for row in rows):
             raise RuntimeError('memory write carries revoked content')
+        yield
+
+
+@contextlib.contextmanager
+def _writing_rows(rows, runtime_home=None):
+    """Public multi-row rewrites admit each row under the shared fence.
+
+    A rewritten file serves several chats at once, so every row answers to
+    the scopes its own identity declares — exactly like the serving reader.
+    Another chat's retained row therefore survives an erasure rewrite while
+    this scope's revoked bytes are refused. The fence spans the actual
+    write, so no erasure verification or completion races a public rewrite.
+    """
+    from core.memory.carriers import carries
+    with serialized(runtime_home):
+        prepare(runtime_home, allow_writer_initialize=True, arm=False)
+        operations = [row for data in _authority_set(runtime_home, None).values()
+                      for row in data['operations'].values()]
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            scope = row.get('session_id') or row.get('chat_id') or row.get('chat_scope')
+            if any(operation.get('kind', 'forget') == 'forget'
+                   and (not scope or not operation['chat'] or operation['chat'] == str(scope))
+                   and carries(row, operation['token']) for operation in operations):
+                raise RuntimeError('memory write carries revoked content')
         yield
 
 
