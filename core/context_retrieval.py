@@ -4111,19 +4111,18 @@ def _whole_turn_units_facing_the_laws(
     # rides the lane as 60f9271b's law says: only the as-of law refuses it.
     retracted_slots: set[str] = set()
     try:
-        from core.temporal_selection import carries_undo_marker as _carries_undo
         from core.temporal_selection import retraction_marker as _retraction_marker
 
         bodies = body_by_key if isinstance(body_by_key, dict) else {}
         for key, verdict in verdict_map.items():
             text = str(bodies.get(key, "") or "")
-            why = str(getattr(verdict, "reason", "") or "")
             # a live retraction record the contract let coexist beside the slot's winner ("scrap that code" next to
             # the new code: eligible-coexists), or the retraction that won the slot. A record that is itself the
             # new value ("Quick update: 104 kg", "Correction: brown again") is the winner, not a retraction, however
             # its wording reads, and its superseded predecessor rides the lane.
-            if getattr(verdict, "eligible", False) and text and why in {"eligible-coexists", "slot-winner-retracted"} and (
-                    _retraction_marker(text) is not None or (_carries_undo(text) and not _span_is_revision(text))):
+            if getattr(verdict, "eligible", False) and text and (
+                    _retraction_marker(text) is not None
+                    or str(getattr(verdict, "reason", "")) == "slot-winner-retracted"):
                 retracted_slots.add(str(getattr(verdict, "slot", "") or ""))
     except Exception:  # pragma: no cover - the grammar is a pure function
         retracted_slots = set()
@@ -5347,17 +5346,22 @@ def _facet_relation_witnesses(query: str, body: str, discriminators: set[str]) -
     """
     if not discriminators & {"material", "held"}:
         return set()
-    text = _dialogue_turn_content(_temporal_analysis_body(body))
-    present = _query_terms_in_text(text.lower(), discriminators, _stemmed_token_set(text))
-    if len(present) < 2 or not _assertion_sentences(text):
-        return set()
     witnessed: set[str] = set()
-    if ("material" in discriminators and re.search(r"\b(?:use|used|using)\b", query, re.I)
-            and re.search(r"\b(?:using|made\s+(?:of|from))\s+(?:[\w-]+\s+){0,4}[\w-]+", text, re.I)):
-        witnessed.add("material")
     head = re.search(r"\b(?:what|which)\s+(?:[\w-]+\s+){0,3}?([\w-]+)\s+did\b.*?\bheld\b", query, re.I)
-    if head and head.group(1).lower() in present:
-        if re.search(r"\b(?:in|inside|into)\s+(?:[\w-]+\s+){0,5}" + re.escape(head.group(1)) + r"\b", text, re.I):
+    subject_terms = discriminators - {"material", "binding", "held", "storage"}
+    if head:
+        subject_terms -= {head.group(1).lower()}
+    assertions = [clause for sentence in _assertion_sentences(
+        _dialogue_turn_content(_temporal_analysis_body(body))) for clause in re.split(
+            r";|\b(?:and|but|while)\s+(?=(?:i|we|you|he|she|they)\b)", sentence, flags=re.I)]
+    for assertion in assertions:
+        present = _query_terms_in_text(assertion.lower(), subject_terms, _stemmed_token_set(assertion))
+        if len(present) < 2:
+            continue
+        if ("material" in discriminators and re.search(r"\b(?:use|used|using)\b", query, re.I)
+                and re.search(r"\b(?:using|made\s+(?:of|from))\s+(?:[\w-]+\s+){0,4}[\w-]+", assertion, re.I)):
+            witnessed.add("material")
+        if head and re.search(r"\b(?:in|inside|into)\s+(?:[\w-]+\s+){0,5}" + re.escape(head.group(1)) + r"\b", assertion, re.I):
             witnessed.add("held")
     return witnessed
 
@@ -8805,9 +8809,6 @@ def _historical_anchor_candidates(
 #: Temporal verdicts that WITHHOLD a record from the reader (a retraction, the as-of law, a closed or not-yet-open
 #: window). A superseded or duplicate value is not withheld: the packet marks replaced values itself and an extremum
 #: or sequence ask reads the whole dated scope, so those verdicts never empty the packet.
-#: Obligation kinds whose packet rows the absence gate's refusal binds: the single-facet asks the gate was built for.
-_PACKET_GATE_BOUND_KINDS = frozenset({"single_fact", "current_value", "existence", "aggregate"})
-
 #: The verdicts that refuse a whole turn in the lane: a retraction and the as-of law (the Keep law). The packet's
 #: own set below is wider, because the packet states current values.
 _LANE_REFUSING_VERDICTS = frozenset({"withdrawn", "future-relative-to-as-of"})
@@ -8859,22 +8860,14 @@ def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts
     owners before this function reads their decisions too."""
     refused: dict[str, str] = {}
     gate_keys = set(gate_refused or ())
-    # The absence gate judges a SINGLE-facet ask (another entity's value answering for an absent facet); the dated
-    # operand kinds (interval, sequence, order, aggregate) and an assistant-output ask select their rows by subject
-    # and are the packet's own law, so the gate's refusal does not bind their rows (measured 2026-10-07: with the
-    # past-tense gate on, "How many weeks ago did I participate in the 5K charity run?" refused the run record over
-    # {weeks, participate} and the packet lost its only operand). A preference obligation supplies the user's
-    # stated constraints for advice/planning; it does not claim the requested plan already exists in the records.
-    # Temporal verdicts and source revalidation still bind every kind.
-    kind = str(getattr(getattr(evidence_packet, "obligation", None), "kind", "") or "")
-    gate_binds = kind in _PACKET_GATE_BOUND_KINDS
+    # An obligation describes required operands; it never overrides a source refusal.
     try:
         owners = [(str(fact.get("occurrence_id") or ""), str(fact.get("role") or ""))
                   for fact in list(getattr(evidence_packet, "facts", []) or [])]
         # Generated predecessor notes have the same source owners as rows.
         # A gate key is recorded only for a user source during adjudication.
         owners += [(key, "user") for key in _packet_predecessor_keys(evidence_packet)]
-        for occ, role in owners:
+        for occ, _role in owners:
             if not occ:
                 continue
             verdict = (verdicts or {}).get(occ) if isinstance(verdicts, dict) else None
@@ -8888,7 +8881,7 @@ def _packet_refusals(evidence_packet: Any, *, gate_refused: Any = None, verdicts
                 # (review 2026-10-07: the deleted record leaked through the receipts packet with the kernel on).
                 refused[occ] = str(hydration_refused[occ])
                 continue
-            if gate_binds and occ in gate_keys and role == "user":
+            if occ in gate_keys:
                 refused[occ] = "absence-gate"
         # The record that replaced a shown row is named on that row ('[REPLACED later by ...]'), shown or not: its own
         # temporal verdict binds it, and with no verdict an as-of question still refuses a replacement stated after
@@ -9891,9 +9884,7 @@ def _capsule_v2_inject_retrieved(
         packet_only_occurrences: list[Any] = []
         packet_source_refusals: dict[str, str] = {}
         packet_fact_keys: set[str] = set()
-        if (evidence_packet is not None and not hits and not evidence_hits
-                and not chain_extras
-                and not (search_expansions and (whole_turn_units or recall_supplement))):
+        if evidence_packet is not None:
             from core.memory_receipts import receipts_for_scope
 
             packet_fact_keys = {str(f.get("occurrence_id") or "")
@@ -10214,8 +10205,7 @@ def _capsule_v2_inject_retrieved(
                 _vk = str(getattr(_po, "occurrence_id", "") or "")
                 _vv = verdicts.get(_vk)
                 _CAPSULE_DEBUG_DROPS.append((
-                    "POOLV " + _vk[:8] + " " + str(getattr(_po, "role", ""))[:1] + " "
-                    + str(getattr(_po, "body", "") or "")[:45],
+                    "POOLV " + _vk + " " + str(getattr(_po, "role", ""))[:1],
                     "elig=" + str(_vv.eligible if _vv is not None else "None")
                     + " reason=" + (str(_vv.reason) if _vv is not None else "no-verdict")
                     + " by=" + (str(getattr(_vv, "superseded_by", "") or "")[:8] if _vv is not None else "")))
@@ -10432,9 +10422,12 @@ def _capsule_v2_inject_retrieved(
     }
     facet_noise_gate = False
     _fp_absent_terms: set[str] = set()
+    from core.evidence_compiler import _prospective_preference_ask
+
     if (len(_fp_discriminators) >= 2
             and _query_shape(query) == "single"
             and not _query_is_count_shaped(query)
+            and not _prospective_preference_ask(query)
             and not _AS_OF_QUERY_RE.search(str(query or ""))):
         # A PAST ask faces the gate too: absence means never retained
         # anywhere the caller may read, which no temporal law repairs; its
@@ -10523,8 +10516,8 @@ def _capsule_v2_inject_retrieved(
             _fp_refused_keys.add(str(key))
         return True
 
-    if not hits and not evidence_hits and not phrase_lanes_found:
-        packet_units = []
+    packet_units = []
+    if evidence_packet is not None:
         packet_keys = {str(fact.get("occurrence_id") or "")
                        for fact in getattr(evidence_packet, "facts", []) or []}
         for key in packet_keys | _packet_predecessor_keys(evidence_packet):
@@ -10539,6 +10532,8 @@ def _capsule_v2_inject_retrieved(
         _whole_turn_units_facing_the_laws(
             packet_units, verdicts=verdicts, runtime_home=runtime_home,
             refused=packet_lane_refused, body_by_key=body_by_key, query=query)
+        packet_source_refusals.update(_hydration_refusals([], packet_lane_refused))
+    if not hits and not evidence_hits and not phrase_lanes_found:
         return _packet_only_injection(
             transcript, evidence_packet,
             {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": [],
@@ -10546,7 +10541,7 @@ def _capsule_v2_inject_retrieved(
             chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
             refused=_packet_refusals(
                 evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
-                hydration_refused={**packet_source_refusals, **_hydration_refusals([], packet_lane_refused)},
+                hydration_refused=packet_source_refusals,
                 query=query, question_as_of=question_as_of),
             check_revocations=True, runtime_home=runtime_home)
     context_text = " ".join(m.get("content", "") for m in transcript).lower()
@@ -10710,9 +10705,7 @@ def _capsule_v2_inject_retrieved(
             if _dbg_drops is None:
                 return
             _dbg_drops.append((
-                str(getattr(occ, "occurrence_id", ""))[:8] + " "
-                + str(getattr(occ, "role", ""))[:1] + " "
-                + str(getattr(occ, "body", "") or "")[:70], reason + (" " + detail if detail else ""),
+                str(getattr(occ, "occurrence_id", "")), reason,
             ))
 
 
@@ -11033,7 +11026,7 @@ def _capsule_v2_inject_retrieved(
                             + " decisive=" + str(decisive_span)
                             + " over=" + str(
                                 used_chars + len(line) + 1 - budget_chars)
-                            + " " + span_text[:60], ""))
+                            + " source=" + str(getattr(occurrence, "occurrence_id", "")), ""))
                     if multi_record_shape and span_terms:
                         truncated_matching_occurrences += 1
                     return False
@@ -11041,7 +11034,7 @@ def _capsule_v2_inject_retrieved(
             if os.environ.get("VOOL_CAPSULE_DEBUG_DROPS"):
                 _CAPSULE_DEBUG_DROPS.append((
                     "DELIVERED " + str(getattr(occurrence, "role", ""))[:1]
-                    + " score=" + str(source_score) + " " + span_text[:60], ""))
+                    + " score=" + str(source_score) + " source=" + str(getattr(occurrence, "occurrence_id", "")), ""))
             # An echo/acknowledgment span carries no value token, so it
             # answered nothing: it must not mark query terms as covered and
             # shadow the value-bearing record behind it (measured, F04-10:
@@ -12955,7 +12948,8 @@ def _capsule_v2_inject_retrieved(
             # D8-E: the packet faces the capsule's laws. Rows the absence gate or a temporal verdict refused this
             # turn (as-of, retraction, supersession, windows) leave the packet before it is rendered.
             _packet_refused = _packet_refusals(evidence_packet, gate_refused=_fp_refused_keys, verdicts=verdicts,
-                                               hydration_refused={**_hydration_refusals(evidence_receipts, _lane_refused),
+                                               hydration_refused={**packet_source_refusals,
+                                                                  **_hydration_refusals(evidence_receipts, _lane_refused),
                                                                   **_render_revoked},
                                                query=query, question_as_of=question_as_of)
             if _packet_refused:
