@@ -156,6 +156,14 @@ def obligations(question: str) -> Obligation:
     return ob
 
 
+def _prospective_preference_ask(question: str) -> bool:
+    """Planning consumes retained constraints; recalling earlier advice asks for a record."""
+    q = str(question or "")
+    return bool(_PREFERENCE_RE.search(q) and not re.search(
+        r"\b(?:did|have|has|had|was|were)\b|\b(?:earlier|previous|past)\s+(?:advice|tips?|suggestions?|recommendations?)\b",
+        q, re.IGNORECASE))
+
+
 def _obligation_kind(question: str) -> Obligation:
     q = str(question or "")
     if _SEQUENCE_RE.search(q) and re.search(r"\bI\s+(?:brought|mentioned|raised|talked|asked|discussed|came|started|told|said|wrote)\b|\bmy\b", q, re.IGNORECASE):
@@ -180,7 +188,7 @@ def _obligation_kind(question: str) -> Obligation:
         return Obligation("current_value", ["latest_unreplaced_value"], "the latest value in the slot, with its chain")
     if _AGGREGATE_RE.search(q):
         return Obligation("aggregate", ["typed_values>=2"], "every record with a value of the asked kind")
-    if _PREFERENCE_RE.search(q):
+    if _prospective_preference_ask(q):
         return Obligation("preference", ["user_preference"], "the user's own stated preferences on the subject")
     if _CURRENT_RE.search(q) and not _WHEN_RE.search(q):
         return Obligation("current_value", ["latest_unreplaced_value"], "the latest value in the slot, with its chain")
