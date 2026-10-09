@@ -109,6 +109,25 @@ def test_propose_then_approve_over_the_wire_reaches_the_testnet_rpc_once(app, wa
     assert status == 200 and [e["state"] for e in ev["events"]][-1] == "confirmed"
 
 
+@pytest.mark.parametrize("origin", ["x402_paykit", "mpp_paykit"])
+def test_a_pay_kit_payment_proposed_without_its_fetch_is_refused_before_the_pin_is_asked(app, wallet_env, origin):
+    """The owner's propose door takes a proposal's origin as given. A pay-kit payment proposed there has no fetched
+    request behind it, so no door can make it: approving it is refused before the PIN is asked (a wrong PIN is never
+    weighed), nothing is held or sent, and it waits in pending approval, as an x402 offer proposed on its own does."""
+    from core.wallet import custody, limits
+
+    _post(app, "/api/wallet/pocket/create", {"pin": "246810", "acknowledged_warning": True, "confirmation_phrase": custody.POCKET_CONFIRMATION_PHRASE})
+    status, body = _post(app, "/api/wallet/propose", {"destination": DESTINATION, "amount_minor": 1500, "asset": "SOL", "origin": origin, "idempotency_key": "x402pk:planted"})
+    assert status == 200 and body["proposal"]["origin"] == origin and body["proposal"]["state"] == "pending_approval", body
+    proposal_id = body["proposal"]["proposal_id"]
+    for pin in ("000000", "246810"):
+        status, refused = _post(app, "/api/wallet/approve", {"proposal_id": proposal_id, "pin": pin})
+        assert (refused["error"], refused["fault"]["context"]["reason"]) == ("wallet_approval_rejected", "no_x402_binding"), refused
+    assert limits.reservation_state(proposal_id) == "" and wallet_env["rpc"].send_count() == 0
+    status, still = _get(app, f"/api/wallet/proposals/{proposal_id}")
+    assert status == 200 and still["proposal"]["state"] == "pending_approval"
+
+
 def test_chat_turn_reply_carries_the_wallet_status_block(app, monkeypatch):
     """The chat door is the status path users actually see: an ordinary turn's reply payload
     carries the same public-safe wallet block the API serves, and never a secret."""
