@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.zcash.invoices import Invoice, format_zec
-from core.zcash.watch import ReceivedNote
+from core.zcash.watch import SHIELDED_POOLS, ReceivedNote
 
 PAID = "paid"
 OVERPAID = "overpaid"
@@ -92,7 +92,7 @@ def match_invoices(invoices: list[Invoice], notes: list[ReceivedNote], fresh: Fr
     distinct, doubtful = _distinct(notes)
     by_memo: dict[str, list[ReceivedNote]] = {}
     for note in distinct:
-        if note.pool in ("sapling", "orchard") and note.memo is not None:
+        if note.pool in SHIELDED_POOLS and note.memo is not None:
             by_memo.setdefault(note.memo.strip(), []).append(note)
     out: list[InvoiceStatus] = []
     for invoice in invoices:
