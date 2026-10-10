@@ -18,7 +18,6 @@ def test_mixed_profile_run_once_keeps_executor_reply(tmp_path, with_client_turn)
         context['client_turn_id'] = 'review-turn'
     agent = VoolAgent(backend_name='test-backend', device='review-profile', persona_id='default')
     result = agent.run_once(prompt, session_id_override=chat, source_context=context)
-    print({'request': prompt, 'result': result})
     assert 'Forget found no memory in this chat that matched "stored memory".' in result['response'], result
     assert not result.get('action_honesty_validator', {}).get('applied'), result
 

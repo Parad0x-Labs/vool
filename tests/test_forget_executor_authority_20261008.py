@@ -58,7 +58,6 @@ def _results(tmp_path, monkeypatch, request, reply, *, chat="authority-probe", t
     final = emit_turn_honesty_receipt(
         final, user_input=request, session_id=chat, source_context=context,
     )
-    print({"request": request, "input_reply": str(reply), "raw": raw, "final": final})
     return raw, final
 
 
