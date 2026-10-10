@@ -10,18 +10,58 @@ from __future__ import annotations
 import atexit
 import contextlib
 import dataclasses
-import fcntl
 import functools
 import inspect
 import json
 import os
 import sqlite3
 import threading
+import time
 import uuid
 from collections.abc import Mapping
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+
+try:
+    import fcntl
+except ImportError:  # Windows: no flock; lock one byte far past any content instead.
+    fcntl = None
+    import msvcrt
+
+_WINDOWS_LOCK_OFFSET = 0x7FFFFFFE
+
+
+def _flock(handle, *, blocking: bool = True) -> None:
+    """Exclusive advisory lock on ``handle``; ``BlockingIOError`` when ``blocking`` is false and it is held."""
+    if fcntl is not None:
+        fcntl.flock(handle, fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return
+    position = handle.tell()
+    handle.seek(_WINDOWS_LOCK_OFFSET)
+    try:
+        while True:
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                return
+            except OSError as exc:
+                if not blocking:
+                    raise BlockingIOError(str(exc)) from exc
+                time.sleep(0.05)
+    finally:
+        handle.seek(position)
+
+
+def _funlock(handle) -> None:
+    if fcntl is not None:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+        return
+    position = handle.tell()
+    handle.seek(_WINDOWS_LOCK_OFFSET)
+    try:
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+    finally:
+        handle.seek(position)
 
 _LOCK = threading.RLock()
 _LEASES: dict[Path, Any] = {}
@@ -97,13 +137,13 @@ def serialized(runtime_home=None):
             return
         directory.mkdir(parents=True, exist_ok=True)
         with (directory / 'lock').open('a+b') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            _flock(lock)
             _LOCAL.held = {**held, directory: lock}
             try:
                 yield
             finally:
                 _LOCAL.held = held
-                fcntl.flock(lock, fcntl.LOCK_UN)
+                _funlock(lock)
 
 
 def _read(directory: Path) -> dict:
@@ -237,10 +277,10 @@ def _check_leases(directory: Path) -> None:
             continue
         with path.open('rb') as lease:
             try:
-                fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _flock(lease, blocking=False)
             except BlockingIOError:
                 continue
-            fcntl.flock(lease, fcntl.LOCK_UN)
+            _funlock(lease)
             raise RuntimeError('forget authority has an unclean lease')
 
 
@@ -351,7 +391,7 @@ def prepare(runtime_home=None, *, allow_initialize=False, arm=True,
             path = directory / ('lease-' + uuid.uuid4().hex)
             lease = path.open('x+b')
             try:
-                fcntl.flock(lease, fcntl.LOCK_EX)
+                _flock(lease)
                 lease.write(b'armed\n')
                 lease.flush()
                 os.fsync(lease.fileno())
@@ -372,7 +412,7 @@ def poison(runtime_home=None) -> None:
         lease = _LEASES.pop(directory, None)
         if lease is not None:
             try:
-                fcntl.flock(lease, fcntl.LOCK_UN)
+                _funlock(lease)
             finally:
                 lease.close()
 
