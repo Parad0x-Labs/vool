@@ -5347,13 +5347,33 @@ def _facet_relation_assertions(body: str) -> list[str]:
     boundary = re.compile(
         r";|\b(?i:and|but|while)\s+(?="
         r"(?i:i|we|you|he|she|they|it)\b|[A-Z][\w'-]*\b|"
-        r"(?:(?!(?i:using|made|in|inside|into)\b)[\w'-]+\s+){1,12}"
+        r"(?:(?!(?i:using)\b)[\w'-]+\s+)+"
         r"(?i:is|are|was|were|am|has|have|had|do|does|did|will|would|shall|should|"
         r"can|could|may|might|must|[\w'-]+ed|[\w'-]+s|held|kept|put|took|made|"
         r"got|went|came|saw|wrote|bought|brought|built|set|cut|ran|gave|left)\b)"
     )
-    return [clause for sentence in _assertion_sentences(
-        _dialogue_turn_content(_temporal_analysis_body(body))) for clause in boundary.split(sentence)]
+    completed = re.compile(
+        r"\b(?:is|are|was|were|am|has|have|had|do|does|did|will|would|shall|should|"
+        r"can|could|may|might|must|[\w'-]{2,}ed|held|kept|put|took|made|got|went|"
+        r"came|saw|wrote|bought|brought|built|set|cut|ran|gave|left)\b"
+        r"|\b(?:i|we|you|he|she|they|it)\s+[\w'-]+\b", re.I,
+    )
+    assertions = []
+    for sentence in _assertion_sentences(_dialogue_turn_content(_temporal_analysis_body(body))):
+        start = 0
+        for join in boundary.finditer(sentence):
+            prefix = sentence[start:join.start()]
+            # A coordinated subject has not asserted anything yet: its one
+            # predicate follows the noun list and belongs to every member.
+            # A completed left assertion followed by a new predicate is a
+            # different owner, regardless of the right noun phrase's length
+            # or its intervening modifiers.
+            if join.group().strip().lower() == "and" and not completed.search(prefix):
+                continue
+            assertions.append(prefix)
+            start = join.end()
+        assertions.append(sentence[start:])
+    return assertions
 
 
 def _facet_relation_witnesses(query: str, body: str, discriminators: set[str]) -> set[str]:
