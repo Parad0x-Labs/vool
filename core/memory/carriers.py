@@ -122,11 +122,10 @@ def _read_session_metadata(path: Path) -> dict[str, dict[str, Any]]:
 
 def read_session_metadata(path: Path) -> dict[str, dict[str, Any]]:
     """Public metadata reads withhold withdrawn and pending rows."""
-    from core.memory.revocation import authorize_payload
+    from core.memory.revocation import _carrier_authority_home, authorize_payload
 
-    home = path.parent.parent if path.parent.name == "data" else None
     return {chat: row for chat, row in _read_session_metadata(path).items()
-            if authorize_payload(row, chat, home)}
+            if authorize_payload(row, chat, _carrier_authority_home(path))}
 
 
 def session_metadata_payload(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -346,6 +345,13 @@ def verify_forget_stores(
 
             verify(table, sql_rows)
         _verify_pages(conn, tables, chat_id, token, verify)
+
+        # The swarm learning dataset is a retained store in the same database:
+        # its full serialized payload answers to this operation like every
+        # other carrier, by the same owned-scope discipline its erasure uses.
+        from storage.swarm_memory import _sniffed_retained_copies
+
+        verify("swarm_sniffed_context", lambda: _sniffed_retained_copies(token, chat_id))
     except Exception:
         _record_erasure_store(erasures, "final_derivative_verification", "incomplete")
     finally:

@@ -244,6 +244,31 @@ def _check_leases(directory: Path) -> None:
             raise RuntimeError('forget authority has an unclean lease')
 
 
+def _carrier_authority_home(path) -> Path | None:
+    """The home owning the carrier store at ``path``, re-derived from the store itself.
+
+    Every reader, writer and forget in every process resolves the same owner
+    from the same store, so a configured database or a carrier file placed
+    outside the layout default keeps its own home's authority across restarts
+    and processes. A carrier under a home's ``data/`` directory (at any depth)
+    belongs to that home; a carrier placed directly in a directory belongs to
+    the nearest ancestor that holds the durable authority directory. A carrier
+    with neither has no persisted owner of its own: ``None`` lets the caller
+    govern it by the caller's own authority, and never by another home's.
+    """
+    try:
+        resolved = Path(path).expanduser().resolve()
+    except Exception:
+        return None
+    for ancestor in resolved.parents:
+        if ancestor.name == "data":
+            return ancestor.parent
+    for ancestor in resolved.parents:
+        if (ancestor / ".forget-authority").is_dir():
+            return ancestor
+    return None
+
+
 def _existing_carriers(home: Path, *, including_legacy: bool = False) -> bool:
     """Retained memory in the home's carrier inventory.
 
@@ -529,10 +554,79 @@ def _writing_rows(rows, runtime_home=None):
         yield
 
 
-def fenced_writer(fn=None, *, on_refused=_RAISE_REFUSAL, refusal_error=None):
-    """Fence a memory writer's full input shape, including future fields."""
+def _row_scope(row) -> str:
+    """The chat a carrier row declares, '' when it declares none."""
+    if not isinstance(row, Mapping):
+        return ""
+    return str(row.get("session_id") or row.get("chat_id") or row.get("chat_scope")
+               or row.get("origin_chat_id") or row.get("origin_session_id") or "")
+
+
+def _carrier_text_rows(text):
+    """The rows a raw carrier payload declares, as (scope, payload) pairs.
+
+    A JSON document of per-chat rows (the metadata carrier) and JSONL lines
+    declare one scope per row; any other shape is one unattributed payload.
+    A payload that does not fully parse is admitted whole — partial bytes are
+    never smuggled through their parseable subset.
+    """
+    stripped = str(text).strip()
+    if not stripped:
+        return [(None, stripped)]
+    try:
+        document = json.loads(stripped)
+    except Exception:
+        rows = []
+        for line in stripped.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except Exception:
+                return [(None, text)]
+        if not rows:
+            return [(None, text)]
+        return [(_row_scope(row), row) for row in rows]
+    if isinstance(document, Mapping) and document and all(isinstance(item, Mapping) for item in document.values()):
+        return [(str(key), item) for key, item in document.items()]
+    return [(_row_scope(document), document)]
+
+
+@contextlib.contextmanager
+def _writing_carrier_text(text, runtime_home=None):
+    """Public raw-carrier writes admit the complete payload under the fence.
+
+    The same row law as the public rewrite applies to the text boundary: a
+    payload whose rows declare their own scopes answers operation by
+    operation, so another chat's retained row survives this write while this
+    scope's revoked bytes are refused; a payload without row structure is
+    admitted whole and refused on any operation's token.
+    """
+    from core.memory.carriers import carries
+    with serialized(runtime_home):
+        prepare(runtime_home, allow_writer_initialize=True, arm=False)
+        operations = [row for data in _authority_set(runtime_home, None).values()
+                      for row in data['operations'].values()]
+        for scope, row in _carrier_text_rows(text):
+            if any(operation.get('kind', 'forget') == 'forget'
+                   and (not scope or not operation['chat'] or operation['chat'] == str(scope))
+                   and carries(row, operation['token']) for operation in operations):
+                raise RuntimeError('memory write carries revoked content')
+        yield
+
+
+def fenced_writer(fn=None, *, on_refused=_RAISE_REFUSAL, refusal_error=None, store_home=None):
+    """Fence a memory writer's full input shape, including future fields.
+
+    ``store_home`` resolves the authority home from the ACTUAL store the
+    writer touches (the bound arguments), so a writer aimed at a configured
+    database or an explicit carrier path is fenced by that store's own home —
+    never silently by the caller's current runtime home.
+    """
     if fn is None:
-        return lambda decorated: fenced_writer(decorated, on_refused=on_refused, refusal_error=refusal_error)
+        return lambda decorated: fenced_writer(decorated, on_refused=on_refused, refusal_error=refusal_error,
+                                               store_home=store_home)
     signature = inspect.signature(fn)
     @functools.wraps(fn)
     def wrapped(*args, **kwargs):
@@ -542,6 +636,8 @@ def fenced_writer(fn=None, *, on_refused=_RAISE_REFUSAL, refusal_error=None):
         if values.get('mem') is owner:
             values.pop('mem', None)
         runtime_home = getattr(owner, '_authority_home', None) or values.get('runtime_home')
+        if runtime_home is None and store_home is not None:
+            runtime_home = store_home(values)
         context = values.get('source_context') or {}
         runtime_home = runtime_home or context.get('runtime_home')
         scope = values.get('chat_scope') or values.get('session_id') or values.get('chat_id')
