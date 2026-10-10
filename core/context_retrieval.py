@@ -5337,70 +5337,6 @@ def _facet_request_content(query: str) -> str:
     return text
 
 
-def _facet_relation_assertions(body: str) -> list[str]:
-    """Separate coordinated assertions while preserving coordinated operands.
-
-    An explicit person or a noun phrase with a finite predicate starts its
-    own assertion. A list of objects before ``using`` stays with the action
-    that owns that relation; splitting every ``and`` loses real relations.
-    """
-    boundary = re.compile(
-        r";|\b(?i:and|but|while)\s+(?="
-        r"(?i:i|we|you|he|she|they|it)\b|[A-Z][\w'-]*\b|"
-        r"(?:(?!(?i:using)\b)[\w'-]+\s+)+"
-        r"(?i:is|are|was|were|am|has|have|had|do|does|did|will|would|shall|should|"
-        r"can|could|may|might|must|[\w'-]+ed|[\w'-]+s|held|kept|put|took|made|"
-        r"got|went|came|saw|wrote|bought|brought|built|set|cut|ran|gave|left)\b)"
-    )
-    completed = re.compile(
-        r"\b(?:is|are|was|were|am|has|have|had|do|does|did|will|would|shall|should|"
-        r"can|could|may|might|must|[\w'-]{2,}ed|held|kept|put|took|made|got|went|"
-        r"came|saw|wrote|bought|brought|built|set|cut|ran|gave|left)\b"
-        r"|\b(?:i|we|you|he|she|they|it)\s+[\w'-]+\b", re.I,
-    )
-    assertions = []
-    for sentence in _assertion_sentences(_dialogue_turn_content(_temporal_analysis_body(body))):
-        start = 0
-        for join in boundary.finditer(sentence):
-            prefix = sentence[start:join.start()]
-            # A coordinated subject has not asserted anything yet: its one
-            # predicate follows the noun list and belongs to every member.
-            # A completed left assertion followed by a new predicate is a
-            # different owner, regardless of the right noun phrase's length
-            # or its intervening modifiers.
-            if join.group().strip().lower() == "and" and not completed.search(prefix):
-                continue
-            assertions.append(prefix)
-            start = join.end()
-        assertions.append(sentence[start:])
-    return assertions
-
-
-def _facet_relation_witnesses(query: str, body: str, discriminators: set[str]) -> set[str]:
-    """Answer-role presence in one subject-matching assertion, beyond its label.
-
-    Material is the operand of "using"; the thing holding a subject is the
-    container in "in ...". Those relations can be stated without repeating
-    the question's category words. A bare subject mention proves neither.
-    """
-    if not discriminators & {"material", "held"}:
-        return set()
-    witnessed: set[str] = set()
-    head = re.search(r"\b(?:what|which)\s+(?:[\w-]+\s+){0,3}?([\w-]+)\s+did\b.*?\bheld\b", query, re.I)
-    subject_terms = discriminators - {"material", "binding", "held", "storage"}
-    if head:
-        subject_terms -= {head.group(1).lower()}
-    for assertion in _facet_relation_assertions(body):
-        present = _query_terms_in_text(assertion.lower(), subject_terms, _stemmed_token_set(assertion))
-        if len(present) < 2:
-            continue
-        if ("material" in discriminators and re.search(r"\b(?:use|used|using)\b", query, re.I)
-                and re.search(r"\b(?:using|made\s+(?:of|from))\s+(?:[\w-]+\s+){0,4}[\w-]+", assertion, re.I)):
-            witnessed.add("material")
-        if head and re.search(r"\b(?:in|inside|into)\s+(?:[\w-]+\s+){0,5}" + re.escape(head.group(1)) + r"\b", assertion, re.I):
-            witnessed.add("held")
-    return witnessed
-
 #: Asked-attribute words whose ANSWER SHAPE a pooled body already carries
 #: are not "absent facets": a "what times" ask is answered by clock values,
 #: a "percentages" ask by percent values, a "pieces/count" ask by numerals
@@ -10551,7 +10487,6 @@ def _capsule_v2_inject_retrieved(
                 _fp_present |= _query_terms_in_text(
                     _fp_body.lower(), _fp_discriminators,
                     _stemmed_token_set(_fp_body))
-                _fp_present |= _facet_relation_witnesses(_fp_content_query, _fp_body, _fp_discriminators)
         _fp_absent_terms = set(_fp_discriminators) - _fp_present
         # Granted scopes: a term the current pool lacks may live in a
         # granted chat whose records did not surface this turn — absence
