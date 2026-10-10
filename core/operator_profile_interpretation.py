@@ -63,7 +63,7 @@ class ProfileProposal:
 
 # --------------------------------------------------------------------------- normalization
 
-_CLAUSE_SPLIT_RE = re.compile(r"(?:[\n\r]+|(?<=[.!?;])\s+|\s+(?:and|but)\s+(?=(?:also\s+)?(?:please\s+)?(?:remember|save|call|address|refer|my|i|be|keep|reply|answer|respond|talk|speak|use|sign|treat|from|always|forget|stop|don't|do not)\b))", re.IGNORECASE)
+_CLAUSE_SPLIT_RE = re.compile(r"(?:[\n\r]+|(?<=[.!?;])\s{1,32}|\s{1,32}(?:and|but)\s{1,32}(?=(?:also\s+)?(?:please\s+)?(?:remember|save|call|address|refer|my|i|be|keep|reply|answer|respond|talk|speak|use|sign|treat|from|always|forget|stop|don't|do not)\b))", re.IGNORECASE)
 _LEADING_FILLER_RE = re.compile(r"^(?:(?:hey|hi|hello|yo|ok|okay|oh|btw|by the way|also|and|so|well|please|pls|plz|vool|vool)[,!\s]+)+", re.IGNORECASE)
 _TRAILING_FILLER_RE = re.compile(r"(?:[,\s]+(?:please|pls|plz|thanks|thank you|thx|ok|okay|from now on|going forward|in future|in the future|always|by default|for good|permanently|if you can|if possible|btw))+\s*[.!?]*$", re.IGNORECASE)
 _QUOTED_RE = re.compile(r"[\"“”'‘’]([^\"“”'‘’]{1,200})[\"“”'‘’]")
