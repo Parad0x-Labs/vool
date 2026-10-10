@@ -2118,6 +2118,15 @@ def maybe_handle_memory_command(
             _record_erasure_store(erasures, "semantic_nodes", "incomplete")
         memory_entries.forget_profile_derivatives(token, access_policy=resolved_policy, erasures=erasures)
         _forget_persisted_copies(token, chat_id=resolved_session, erasures=erasures)
+        try:
+            from storage.swarm_memory import _forget_sniffed_copies
+
+            _forget_sniffed_copies(token, resolved_session, erasures)
+        except Exception as exc:
+            LOGGER.warning("swarm dataset erasure failed: %s", type(exc).__name__)
+            from core.memory.entries import _record_erasure_store
+
+            _record_erasure_store(erasures, "swarm_sniffed_context", "incomplete")
         from core.turn_context import forget_chat_context_pages
 
         forget_chat_context_pages(chat_id=resolved_session, token=token, erasures=erasures)
@@ -2137,7 +2146,7 @@ def maybe_handle_memory_command(
             "dialogue_derivatives", "session_summaries", "context_capsule_versions",
             "memory_fts", "source_fts", "source_embeddings",
             "user_heuristics", "operator_dense_profile", "persisted_packet_cache_copies", "packet_receipt_ledgers",
-            "context_pages", "chat_session_metadata",
+            "context_pages", "chat_session_metadata", "swarm_sniffed_context",
         )
         for store in required_stores:
             if store not in erasures.get("stores", {}):

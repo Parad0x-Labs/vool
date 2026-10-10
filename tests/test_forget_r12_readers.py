@@ -76,7 +76,7 @@ def test_swarm_learning_dataset_withholds_a_forgotten_combination_everywhere(tmp
 
     with get_connection() as conn:
         raw = [dict(row) for row in conn.execute('SELECT prompt_json, result_json FROM sniffed_context').fetchall()]
-    assert any(CODE in str(row) for row in raw), 'the unswept dataset must keep its raw bytes'
+    assert not any(CODE in str(row) for row in raw), 'a completed forget leaves no raw dataset copy'
 
     served = swarm_memory.get_recent_contexts()
     assert CODE not in str(served)
