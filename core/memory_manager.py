@@ -20,7 +20,7 @@ class MemoryManager:
     def __init__(self):
         from core.memory.revocation import prepare
 
-        prepare(allow_initialize=True, arm=False)
+        prepare(allow_writer_initialize=True, arm=False)
         # Short term transient memory exists only in memory for the run
         self.short_term: list[dict[str, Any]] = []
 
