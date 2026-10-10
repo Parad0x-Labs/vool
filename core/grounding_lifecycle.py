@@ -451,7 +451,7 @@ def _identity_from(source_context: Any, *, task_id: str = "") -> TurnIdentity:
         bound_request_id=bound_request_id,
         turn_id=str(context.get("cancel_turn_id") or context.get("turn_id") or "").strip(),
         task_id=str(task_id or context.get("task_id") or "").strip(),
-        session_id=str(context.get("session_id") or context.get("runtime_session_id") or "").strip(),
+        session_id=str(context.get("session_id") or context.get("runtime_session_id") or context.get("chat_id") or "").strip(),
         execution_id=str(fence.get("execution_id") or "").strip(),
         generation=str(fence.get("generation") or "").strip(),
         runtime_epoch=str(fence.get("runtime_epoch") or "").strip(),
@@ -513,9 +513,20 @@ def _record_for(source_context: Any) -> GroundingLifecycle | None:
     if not lifecycle_id:
         return None
     record = _RECORDS.get(lifecycle_id)
+    if record is not None and not _lifecycle_identity_matches(record.identity, _identity_from(source_context)):
+        return None
     if record is not None:
         _RECORDS.move_to_end(lifecycle_id)
     return record
+
+
+def _lifecycle_identity_matches(owner: TurnIdentity, seen: TurnIdentity) -> bool:
+    """Copied stamps and indexed aliases may widen an owner, never contradict it."""
+    if any(getattr(owner, field) and getattr(seen, field)
+           and getattr(owner, field) != getattr(seen, field) for field in ("turn_id", "session_id")):
+        return False
+    return all(not getattr(owner, field) or getattr(owner, field) == getattr(seen, field)
+               for field in ("execution_id", "generation", "runtime_epoch"))
 
 
 # ------------------------------------------------------------------------------- writers
@@ -552,7 +563,7 @@ def register_required(
             # the turn arrives first.
             for token in seen.tokens:
                 candidate = _RECORDS.get(_INDEX.get(token, ""))
-                if candidate is not None and candidate.identity.same_generation_as(seen):
+                if candidate is not None and _lifecycle_identity_matches(candidate.identity, seen):
                     existing = candidate
                     break
         if existing is not None:
@@ -574,7 +585,7 @@ def register_required(
         # prevent. The first writer wins and the second adopts it.
         for token in seen.tokens:
             candidate = _RECORDS.get(_INDEX.get(token, ""))
-            if candidate is not None and candidate.identity.same_generation_as(seen):
+            if candidate is not None and _lifecycle_identity_matches(candidate.identity, seen):
                 candidate.identity = _merge_identity(candidate.identity, seen)
                 _index_unlocked(candidate)
                 source_context[LIFECYCLE_ID_KEY] = candidate.lifecycle_id
@@ -898,7 +909,12 @@ def record_memory_records(
         items = [dict(entry) for entry in list(entries) if isinstance(entry, dict)]
     except TypeError:
         return 0
-    usable = [entry for entry in items if str(entry.get("summary") or "").strip()]
+    from core.grounding_publication import _RECORDS_ABSENCE_MARKER
+
+    # Text support cannot manufacture a runtime decision, even when an
+    # admitted source quotes the marker on a line of its own.
+    usable = [entry for entry in items if str(entry.get("summary") or "").strip()
+              and str(entry.get("summary") or "").strip() != _RECORDS_ABSENCE_MARKER]
     if not usable:
         return 0
     with _LOCK:
@@ -913,6 +929,47 @@ def record_memory_records(
         ]
         record.memory_records = (*record.memory_records, *added)
         return len(added)
+
+
+def record_records_absence(
+    source_context: dict[str, Any], *, delivery_identity: TurnIdentity | None, session_id: str,
+) -> bool:
+    """Accept the memory producer's decision only for the lifecycle owning this delivery.
+
+    A copied stamp is a lookup hint, not ownership. Turn and session conflicts
+    are refused, as is any changed execution generation; the check and write
+    occur under the ledger lock so no earlier owner's row can be mutated.
+    """
+    if delivery_identity is None:
+        return False
+    seen = _identity_from(source_context)
+    fields = ("turn_id", "request_id", "bound_request_id", "session_id",
+              "execution_id", "generation", "runtime_epoch")
+
+    def agrees(owner: TurnIdentity, current: TurnIdentity) -> bool:
+        return all(not (getattr(owner, field) and getattr(current, field))
+                   or getattr(owner, field) == getattr(current, field) for field in fields)
+
+    if not agrees(delivery_identity, seen):
+        return False
+    if str(source_context.get("chat_id") or session_id) != session_id:
+        return False
+    if seen.session_id and seen.session_id != session_id:
+        return False
+    with _LOCK:
+        record = _record_for(source_context)
+        if record is None or not agrees(record.identity, seen):
+            return False
+        if record.identity.session_id and record.identity.session_id != session_id:
+            return False
+        if not set(record.identity.tokens).intersection(seen.tokens):
+            return False
+        from core.grounding_publication import _RECORDS_ABSENCE_MARKER
+
+        entry = {"summary": _RECORDS_ABSENCE_MARKER, "source": "memory_record"}
+        if entry not in record.memory_records:
+            record.memory_records = (*record.memory_records, entry)
+        return True
 
 
 def record_stable_knowledge(
@@ -1556,7 +1613,7 @@ def adopt_lifecycle_id(source_context: dict[str, Any] | None) -> str:
     with _LOCK:
         for token in seen.tokens:
             record = _RECORDS.get(_INDEX.get(token, ""))
-            if record is not None and record.identity.same_generation_as(seen):
+            if record is not None and _lifecycle_identity_matches(record.identity, seen):
                 source_context[LIFECYCLE_ID_KEY] = record.lifecycle_id
                 return record.lifecycle_id
     return ""

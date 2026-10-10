@@ -424,10 +424,11 @@ def _with_semantic_memory_capsule(
             # anchor; it is removed again because the assembler appends the real
             # current user message itself (with its payload labels).
             carrier_turn = {"role": "user", "content": query}
-            injection_context = {"chat_id": clean_session}
-            for field in ("runtime_home", "question_as_of", "search_expansions"):
-                if field in (source_context or {}):
-                    injection_context[field] = source_context[field]
+            # Preserve the caller's stamped lifecycle and turn identity. The
+            # injector publishes its own non-factual decision directly to that
+            # row; harvesting <retrieved_context> remains factual-only.
+            injection_context = dict(source_context or {})
+            injection_context["chat_id"] = clean_session
             injection_args = {"source_context": injection_context}
             if _context_retrieval.query_requests_complete_collection(query):
                 from core.context_capsule_v2 import estimate_tokens, resolve_budget

@@ -5337,6 +5337,25 @@ def _facet_request_content(query: str) -> str:
     return text
 
 
+def _facet_relation_assertions(body: str) -> list[str]:
+    """Separate coordinated assertions while preserving coordinated operands.
+
+    An explicit person or a noun phrase with a finite predicate starts its
+    own assertion. A list of objects before ``using`` stays with the action
+    that owns that relation; splitting every ``and`` loses real relations.
+    """
+    boundary = re.compile(
+        r";|\b(?i:and|but|while)\s+(?="
+        r"(?i:i|we|you|he|she|they|it)\b|[A-Z][\w'-]*\b|"
+        r"(?:(?!(?i:using|made|in|inside|into)\b)[\w'-]+\s+){1,12}"
+        r"(?i:is|are|was|were|am|has|have|had|do|does|did|will|would|shall|should|"
+        r"can|could|may|might|must|[\w'-]+ed|[\w'-]+s|held|kept|put|took|made|"
+        r"got|went|came|saw|wrote|bought|brought|built|set|cut|ran|gave|left)\b)"
+    )
+    return [clause for sentence in _assertion_sentences(
+        _dialogue_turn_content(_temporal_analysis_body(body))) for clause in boundary.split(sentence)]
+
+
 def _facet_relation_witnesses(query: str, body: str, discriminators: set[str]) -> set[str]:
     """Answer-role presence in one subject-matching assertion, beyond its label.
 
@@ -5351,10 +5370,7 @@ def _facet_relation_witnesses(query: str, body: str, discriminators: set[str]) -
     subject_terms = discriminators - {"material", "binding", "held", "storage"}
     if head:
         subject_terms -= {head.group(1).lower()}
-    assertions = [clause for sentence in _assertion_sentences(
-        _dialogue_turn_content(_temporal_analysis_body(body))) for clause in re.split(
-            r";|\b(?:and|but|while)\s+(?=(?:i|we|you|he|she|they)\b)", sentence, flags=re.I)]
-    for assertion in assertions:
+    for assertion in _facet_relation_assertions(body):
         present = _query_terms_in_text(assertion.lower(), subject_terms, _stemmed_token_set(assertion))
         if len(present) < 2:
             continue
@@ -8046,6 +8062,9 @@ def inject_retrieved(
         )
         return _verify_memory_delivery(delivery, transcript, resolved_session_id, source_context)
     try:
+        from core.grounding_lifecycle import turn_identity
+
+        delivery_identity = turn_identity(source_context)
         delivery = _capsule_v2_inject_retrieved(
             resolved_session_id,
             query,
@@ -8063,34 +8082,46 @@ def inject_retrieved(
             search_expansions=tuple(str(x) for x in list(
                 (source_context or {}).get("search_expansions") or [])[:_SEARCH_EXPANSION_LIMIT]),
         )
-        return _verify_memory_delivery(delivery, transcript, resolved_session_id, source_context)
+        return _verify_memory_delivery(
+            delivery, transcript, resolved_session_id, source_context,
+            absence_identity=delivery_identity,
+        )
     except Exception:
         _set_retrieval_telemetry({"capsule_mode": "error", "web_calls": 0, "model_calls": 0, "evidence_refs": []})
         return transcript
 
 
-def _publish_records_absence(source_context: Mapping[str, Any] | None, added: list[dict[str, str]]) -> None:
-    """Hand THIS delivery's typed records-absence to the turn's grounding lifecycle.
+@dataclass(frozen=True)
+class _RecordsAbsenceDecision:
+    chat_id: str
 
-    The marker rides OUTSIDE the factual ``<retrieved_context>`` capsule, and the capsule
-    harvest only reads wrapped blocks, so without this handoff the standalone marker would
-    never reach publication. Identity bound: the row lands only on the lifecycle already
-    stamped into THIS caller's context (``record_memory_records`` no-ops otherwise — none is
-    minted), and it is read from the exact bytes admitted for this turn, never from global
-    telemetry, so no later or foreign turn can borrow it. Called only after the delivery was
-    authorized against the revocation authority, so a withheld or unreadable-revocation turn
-    hands off nothing.
-    """
+
+class _RecordsAbsenceDelivery(list):
+    """The producer's decision travels beside its messages, never inside source prose."""
+
+    def __init__(self, messages, *, chat_id: str):
+        super().__init__(messages)
+        self.decision = _RecordsAbsenceDecision(chat_id=chat_id)
+
+
+def _records_absence_injection(transcript, *, chat_id: str):
+    from core.grounding_publication import _RECORDS_ABSENCE_MARKER
+
+    return _RecordsAbsenceDelivery(
+        _inject_render_block(transcript, _RECORDS_ABSENCE_MARKER), chat_id=chat_id,
+    )
+
+
+def _publish_records_absence(source_context, delivery, session_id, identity) -> None:
+    """Publish only a producer decision, after revocation and delivery-identity validation."""
     if not isinstance(source_context, dict):
         return
+    if not isinstance(delivery, _RecordsAbsenceDelivery) or delivery.decision.chat_id != session_id:
+        return
     try:
-        from core.grounding_publication import _RECORDS_ABSENCE_MARKER
+        from core.grounding_lifecycle import record_records_absence
 
-        if not any(_RECORDS_ABSENCE_MARKER in str(item.get("content") or "") for item in added):
-            return
-        from core.grounding_lifecycle import record_memory_records
-
-        record_memory_records(source_context, entries=[{"summary": _RECORDS_ABSENCE_MARKER, "source": "memory_record"}])
+        record_records_absence(source_context, delivery_identity=identity, session_id=session_id)
     except Exception:
         LOGGER.debug("records-absence lifecycle handoff failed", exc_info=True)
 
@@ -8100,6 +8131,8 @@ def _verify_memory_delivery(
     transcript: list[dict[str, str]],
     session_id: str,
     source_context: Mapping[str, Any] | None,
+    *,
+    absence_identity=None,
 ) -> list[dict[str, str]]:
     """Validate a complete delivery against one unchanged authority generation.
 
@@ -8136,7 +8169,7 @@ def _verify_memory_delivery(
                 allowed = False
                 revoked = None
     if allowed:
-        _publish_records_absence(source_context, added)
+        _publish_records_absence(source_context, delivery, session_id, absence_identity)
         return delivery
     telemetry = get_last_retrieval_telemetry()
     telemetry["delivery_withheld"] = "revocation_unreadable" if revoked is None else "revocation_changed"
@@ -8977,14 +9010,16 @@ def _packet_only_injection(transcript: list[dict[str, str]], evidence_packet: An
         telemetry["evidence_packet_facts"] = list(getattr(evidence_packet, "facts", []) or [])
         telemetry["evidence_packet_snapshot"] = {"chat_id": str(chat_id or ""), "packet_text": text}
         _kernel_packet_envelope(chat_id, question, evidence_packet, telemetry)
+    if not getattr(evidence_packet, "facts", None) and telemetry.get("capsule_mode") == "no_hits":
+        telemetry["records_absence"] = telemetry.get("records_absence") or {
+            "kind": "records_absence", "reason": "no_hits", "source_ids": [],
+        }
     if telemetry.get("records_absence") and not getattr(evidence_packet, "facts", None):
         # The typed absence rides OUTSIDE the factual capsule: a record question the gate
         # refused must still publish the records notice, and a capsule with no facts stays
         # empty. The marker is a retrieval decision, never support content.
-        from core.grounding_publication import _RECORDS_ABSENCE_MARKER
-
         _set_retrieval_telemetry(telemetry)
-        return _inject_render_block(transcript, _RECORDS_ABSENCE_MARKER)
+        return _records_absence_injection(transcript, chat_id=chat_id)
     if not text:
         _set_retrieval_telemetry(telemetry)
         return transcript
@@ -9946,7 +9981,10 @@ def _capsule_v2_inject_retrieved(
     # own lanes missed, and an abstaining question must keep abstaining.
     phrase_lanes_found = bool(search_expansions) and bool(whole_turn_units or recall_supplement)
     if not hits and not evidence_hits and not chain_extras and not phrase_lanes_found and evidence_packet is None:
-        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": []}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
+        # Empty discovery is itself the memory producer's no-record decision.
+        # It must reach publication even though no candidate reached the facet gate.
+        return _packet_only_injection(transcript, evidence_packet, {"capsule_mode": "no_hits", "web_calls": 0, "model_calls": 0, "evidence_refs": [],
+                                      "records_absence": {"kind": "records_absence", "reason": "no_hits", "source_ids": []}}, chat_id=str(session_id or ""), question=str(query or ""), budget_tokens=int(budget.free_tokens),
                                       refused=_packet_refusals(evidence_packet, query=query, question_as_of=question_as_of),
                                       check_revocations=True, runtime_home=runtime_home)
 
@@ -13101,11 +13139,10 @@ def _capsule_v2_inject_retrieved(
         # Every record this turn saw was refused and nothing else delivered: the factual
         # capsule stays EMPTY (a refused question must not grow one), and the typed absence
         # rides as its own system marker outside <retrieved_context>.
-        from core.grounding_publication import _RECORDS_ABSENCE_MARKER
-
         telemetry["records_absence"] = {"kind": "records_absence", "reason": "absence-gate",
                                         "source_ids": sorted(_fp_refused_keys)}
-        render_block = _RECORDS_ABSENCE_MARKER
+        _set_retrieval_telemetry(telemetry)
+        return _records_absence_injection(transcript, chat_id=str(session_id or ""))
     _set_retrieval_telemetry(telemetry)
     if not render_block:
         return transcript
