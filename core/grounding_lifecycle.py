@@ -525,8 +525,10 @@ def _lifecycle_identity_matches(owner: TurnIdentity, seen: TurnIdentity) -> bool
     if any(getattr(owner, field) and getattr(seen, field)
            and getattr(owner, field) != getattr(seen, field) for field in ("turn_id", "session_id")):
         return False
-    return all(not getattr(owner, field) or getattr(owner, field) == getattr(seen, field)
-               for field in ("execution_id", "generation", "runtime_epoch"))
+    # Finalization can present the same turn after its execution scope exits.
+    # Ordinary retained support keeps that established path; a new absence
+    # decision requires the live fence at its dedicated writer below.
+    return owner.same_generation_as(seen)
 
 
 # ------------------------------------------------------------------------------- writers
@@ -952,6 +954,9 @@ def record_records_absence(
 
     if not agrees(delivery_identity, seen):
         return False
+    fence_fields = ("execution_id", "generation", "runtime_epoch")
+    if any(getattr(delivery_identity, field) != getattr(seen, field) for field in fence_fields):
+        return False
     if str(source_context.get("chat_id") or session_id) != session_id:
         return False
     if seen.session_id and seen.session_id != session_id:
@@ -959,6 +964,8 @@ def record_records_absence(
     with _LOCK:
         record = _record_for(source_context)
         if record is None or not agrees(record.identity, seen):
+            return False
+        if any(getattr(record.identity, field) != getattr(seen, field) for field in fence_fields):
             return False
         if record.identity.session_id and record.identity.session_id != session_id:
             return False
