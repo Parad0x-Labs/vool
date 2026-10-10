@@ -25,6 +25,7 @@ from core.memory.files import (
     MAX_MEMORY_INDEX_BYTES,
     _load_jsonl,
     _rewrite_jsonl,
+    _write_text_atomic_raw,
     chat_session_meta_path,
     conversation_log_path,
     default_memory_template,
@@ -288,7 +289,7 @@ def forget_profile_derivatives(
                     return value
 
                 cleaned = prune(payload)
-                write_text_atomic(path, json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n")
+                _write_text_atomic_raw(path, json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n")
                 verified = json.loads(path.read_text(encoding="utf-8"))
                 if verified != cleaned or carries(verified):
                     raise MemoryErasureError("dense profile rewrite could not be verified")
@@ -455,7 +456,7 @@ def _rewrite_memory_mirror_locked() -> None:
 
     body = ["<!-- New memories append below -->", *bound, *preserved]
     content = "\n".join([*preamble, *body]).rstrip() + "\n"
-    write_text_atomic(path, content)
+    _write_text_atomic_raw(path, content)
     if path.read_text(encoding="utf-8") != content:
         raise MemoryErasureError("memory mirror rewrite could not be verified")
 

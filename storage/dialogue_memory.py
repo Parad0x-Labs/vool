@@ -18,13 +18,15 @@ def _authority_home_for_store() -> Path | None:
     """The home owning the configured dialogue store, when its path names one.
 
     Rows live in this database, so the pending-forget authority of that same
-    home governs their serving — the same binding the JSONL readers derive
-    from a ``data/`` parent.
+    home governs their serving — re-derived from the store path itself (the
+    ``data/`` layout, or the configured directory that holds the durable
+    authority), so another process configuring the same database discovers the
+    same barrier instead of silently consulting the caller's home.
     """
+    from core.memory.revocation import _carrier_authority_home
     from storage.db import active_default_db_path
 
-    path = Path(active_default_db_path())
-    return path.parent.parent if path.parent.name == "data" else None
+    return _carrier_authority_home(active_default_db_path())
 
 
 def _served(row: Any, scope: str | None, home: Path | None) -> bool:
@@ -192,7 +194,7 @@ def session_lexicon(session_id: str) -> dict[str, str]:
         conn.close()
 
 
-@fenced_writer
+@fenced_writer(store_home=lambda values: _authority_home_for_store())
 def upsert_lexicon_term(term: str, canonical: str, *, scope: str = "global", source: str = "manual", confidence: float = 0.75) -> None:
     _init_tables()
     conn = get_connection()
@@ -259,7 +261,7 @@ def get_dialogue_session(session_id: str) -> dict[str, Any]:
     return data
 
 
-@fenced_writer(on_refused=None)
+@fenced_writer(on_refused=None, store_home=lambda values: _authority_home_for_store())
 def update_dialogue_session(
     session_id: str,
     *,
@@ -340,7 +342,7 @@ def _archive_summary(
     return summary[:280]
 
 
-@fenced_writer(on_refused=None)
+@fenced_writer(on_refused=None, store_home=lambda values: _authority_home_for_store())
 def archive_dialogue_topic(
     session_id: str,
     *,
@@ -581,7 +583,7 @@ def _session_namespace_deleted(session_id: str) -> bool:
         return False
 
 
-@fenced_writer(on_refused=None)
+@fenced_writer(on_refused=None, store_home=lambda values: _authority_home_for_store())
 def record_dialogue_turn(
     session_id: str,
     *,
@@ -648,7 +650,7 @@ def record_dialogue_turn(
 # Response feedback loop
 # ---------------------------------------------------------------------------
 
-@fenced_writer
+@fenced_writer(store_home=lambda values: _authority_home_for_store())
 def record_response_feedback(
     session_id: str,
     *,

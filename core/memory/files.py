@@ -110,14 +110,14 @@ def _ensure_memory_sections(text: str) -> str:
     return normalized.rstrip() + "\n\n" + "\n\n".join(additions).rstrip() + "\n"
 
 
-@fenced_writer
+@fenced_writer(store_home=lambda values: _store_home(values.get("path")))
 def append_jsonl(path: Path, payload: dict[str, object]) -> None:
     with _JSONL_LOCK:
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
-@fenced_writer
+@fenced_writer(store_home=lambda values: _store_home(values.get("path")))
 def append_sequenced_jsonl(
     path: Path,
     payload: dict[str, object],
@@ -173,13 +173,20 @@ def _load_jsonl(path: Path) -> list[dict[str, object]]:
         return rows
 
 
+def _store_home(path: Path) -> Path | None:
+    """The authority home owning the carrier at ``path`` (revocation's binding)."""
+    from core.memory.revocation import _carrier_authority_home
+
+    return _carrier_authority_home(path)
+
+
 def load_jsonl(path: Path) -> list[dict[str, object]]:
     """Serve JSONL rows through the same authority as higher-level readers."""
     from core.memory.revocation import authorize_payload
 
-    home = path.parent.parent if path.parent.name == "data" else None
     return [row for row in _load_jsonl(path)
-            if authorize_payload(row, row.get("session_id") or row.get("chat_id") or row.get("chat_scope"), home)]
+            if authorize_payload(row, row.get("session_id") or row.get("chat_id") or row.get("chat_scope"),
+                                 _store_home(path))]
 
 
 def write_text_atomic(path: Path, text: str) -> None:
@@ -190,7 +197,21 @@ def write_text_atomic(path: Path, text: str) -> None:
     barrier every memory rewrite crosses; the erasure law depends on it (a row
     removal and its tombstone must land as ONE replace, and a mirror rewrite
     must never leave a half-written projection).
+
+    This is a public memory-writing entry point: the complete payload is
+    admitted under the actual carrier's shared fence before the replace, so no
+    revoked value re-enters a store after (or under) an erasure. Rows that
+    declare their own scope answer for themselves, exactly like the public
+    rewrite; the raw erasure boundary keeps its private helper below.
     """
+    from core.memory.revocation import _writing_carrier_text
+
+    with _writing_carrier_text(text, _store_home(path)):
+        _write_text_atomic_raw(path, text)
+
+
+def _write_text_atomic_raw(path: Path, text: str) -> None:
+    """Raw storage replace, also used by erasure under the forget's own admission."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex[:8]}")
     try:
@@ -220,20 +241,25 @@ def rewrite_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
     # shared writer fence is held across the actual write, and authority is
     # never initialized over a home that already retains memory. Raw erasure
     # rewrites stay on the private helper under the forget's own admission.
-    home = path.parent.parent if path.parent.name == "data" else None
-    with _writing_rows(rows, runtime_home=home):
+    # The fence home is the written carrier's own, not the caller's.
+    with _writing_rows(rows, runtime_home=_store_home(path)):
         _rewrite_jsonl(path, rows)
 
 
 def _rewrite_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
-    """Private storage rewrite, also used by erasure after command admission."""
+    """Private storage rewrite, also used by erasure after command admission.
+
+    Every caller admits its rows first — the public rewrite under the row
+    scopes, erasure under the forget's own admission — so the raw replace
+    below is the storage boundary, not a second public route to it.
+    """
     with _JSONL_LOCK:
         content = "\n".join(
             json.dumps(row, ensure_ascii=False)
             for row in rows
             if isinstance(row, dict)
         ).rstrip()
-        write_text_atomic(path, (content + "\n") if content else "")
+        _write_text_atomic_raw(path, (content + "\n") if content else "")
 
 
 def trim_jsonl_file(
