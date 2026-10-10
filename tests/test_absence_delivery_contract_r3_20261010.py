@@ -76,6 +76,12 @@ def deliver(profile, chat, question, ctx, door):
      "What binding material did I report using for the field atlas repair?", "cedar resin"),
     ("Remember: I packed the camera filters and the chess pieces are in the birch case.",
      "Which storage case did I say held the camera filters?", "birch case"),
+    ("Remember: I repaired the field atlas and the conservator in the side room varnished the stool using cedar resin.",
+     "What binding material did I report using for the field atlas repair?", "cedar resin"),
+    ("Remember: I repair the field atlas and the conservator in the side room varnishes the stool using cedar resin.",
+     "What binding material do I use for the field atlas repair?", "cedar resin"),
+    ("Remember: I repaired the field atlas and the artisan from a quiet remote valley near the old stone cottage beside the narrow lane polished a stool using cedar resin.",
+     "What binding material did I report using for the field atlas repair?", "cedar resin"),
 ])
 def test_relation_and_refusal_belong_to_the_asked_assertion(
         tmp_path, monkeypatch, door, body, question, operand):
@@ -184,6 +190,23 @@ def test_keep_a_real_relation_in_both_tenses(tmp_path, monkeypatch, door, tense,
     register_required(ctx, request_text=question)
     block, _ = deliver(profile, chat, question, ctx, door)
     assert "rice paste" in block, block
+    assert not any(row.get("summary") == _RECORDS_ABSENCE_MARKER
+                   for row in _record_for(ctx).memory_records)
+
+
+@pytest.mark.usefixtures("_hash_backend")
+@pytest.mark.parametrize("door", DOORS[:-1])
+@pytest.mark.parametrize("verb", ["are", "were"])
+def test_keep_the_relation_of_a_coordinated_subject(tmp_path, monkeypatch, door, verb):
+    configure(monkeypatch)
+    chat = "r3-real-container"
+    body = f"Remember: The camera filters and telescope lenses {verb} in the canvas case."
+    profile = _store(tmp_path, monkeypatch, chat, [(T, body)])
+    question = "Which storage case did I say held the camera filters?"
+    ctx = context(profile, chat)
+    register_required(ctx, request_text=question)
+    block, _ = deliver(profile, chat, question, ctx, door)
+    assert "canvas case" in block, block
     assert not any(row.get("summary") == _RECORDS_ABSENCE_MARKER
                    for row in _record_for(ctx).memory_records)
 
