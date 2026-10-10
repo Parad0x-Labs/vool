@@ -225,3 +225,50 @@ def test_keep_the_ordinary_correction_lane(tmp_path, monkeypatch, door):
     register_required(ctx, request_text=question)
     block, _ = deliver(profile, chat, question, ctx, door)
     assert "316" in block and "327" in block, block
+
+
+@pytest.mark.usefixtures("_hash_backend")
+def test_keep_retained_relation_at_post_scope_publication(tmp_path, monkeypatch):
+    from core.grounding_lifecycle import record_memory_records
+    from core.memory.entries import resolve_memory_access_policy
+    from core.memory_grounding import memory_record_rows
+    from core.semantic.semantic_admissions import bound_execution_context
+
+    configure(monkeypatch)
+    chat = "r3-after-scope"
+    question = "What binding material did I use for the field atlas repair?"
+    profile = _store(tmp_path, monkeypatch, chat, [
+        (T, "Remember: I repaired the field atlas using rice paste."),
+    ])
+    ctx = context(profile, chat)
+    fence = {"execution_id": "r3-reader", "generation": "1", "runtime_epoch": "r3-epoch"}
+    with bound_execution_context(fence):
+        register_required(ctx, request_text=question)
+        life = _record_for(ctx)
+        messages = cr.inject_retrieved(
+            chat, question, [{"role": "user", "content": question}], source_context=ctx,
+            access_policy=resolve_memory_access_policy(chat_id=chat),
+            env={"VOOL_CONTEXT_CAPSULE_V2": "1"})
+    factual = "\n".join(m["content"] for m in messages
+                        if "<retrieved_context>" in m.get("content", ""))
+    assert "rice paste" in factual
+    assert record_memory_records(ctx, entries=memory_record_rows(factual)) > 0
+    assert any("rice paste" in row["summary"] for row in life.memory_records)
+
+
+@pytest.mark.usefixtures("_hash_backend")
+@pytest.mark.parametrize("door", ["direct", "phrases", "whole-turn"])
+def test_absence_cannot_write_after_its_owner_scope_exits(tmp_path, monkeypatch, door):
+    from core.semantic.semantic_admissions import bound_execution_context
+
+    configure(monkeypatch)
+    chat = "r3-unbound-decision"
+    question = "What are the opening hours of the lantern workshop?"
+    profile = _store(tmp_path, monkeypatch, chat, [(T, "The lantern workshop roof is green.")])
+    ctx = context(profile, chat)
+    fence = {"execution_id": "r3-workshop", "generation": "1", "runtime_epoch": "r3-epoch"}
+    with bound_execution_context(fence):
+        register_required(ctx, request_text=question)
+        life = _record_for(ctx)
+    deliver(profile, chat, question, ctx, door)
+    assert not any(row.get("summary") == _RECORDS_ABSENCE_MARKER for row in life.memory_records)
