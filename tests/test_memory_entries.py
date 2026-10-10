@@ -28,6 +28,8 @@ from core.runtime_paths import configure_runtime_home
 @pytest.fixture(autouse=True)
 def isolated_memory_home(tmp_path):
     configure_runtime_home(tmp_path / "runtime-home")
+    from core.memory.revocation import initialize_memory_home
+    initialize_memory_home()
     memory_path().parent.mkdir(parents=True, exist_ok=True)
     for path in (
         conversation_log_path(),

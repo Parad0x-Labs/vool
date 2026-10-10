@@ -147,6 +147,11 @@ def append_tool_result_to_source_context(
             updated.get("runtime_tool_observations_evicted") or 0
         ) + evicted
     updated["runtime_tool_observations"] = observations[-32:]
+    if str(getattr(execution, "mode", "")) == "tool_executed":
+        # Record at the evidence owner: downstream context copies may omit this channel.
+        from core.grounding_lifecycle import record_typed_observations
+
+        record_typed_observations(updated, entries=[observation_payload])
     if history and history[-1] == observation_message:
         updated["conversation_history"] = history[-12:]
         return updated

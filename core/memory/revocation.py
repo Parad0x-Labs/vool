@@ -345,6 +345,39 @@ def _initialization_witnesses(directory: Path) -> bool:
 
 
 @_authority_errors
+def initialize_memory_home(runtime_home=None, *, db_path=None) -> None:
+    """Migrate a legacy home once, before opening or creating its memory.
+
+    Readers still require an existing authority. Routing, leases and owner
+    erasure rows are durable witnesses: none may be replaced by empty state.
+    A damaged ledger or owner store is never treated as a legacy installation.
+    """
+    home = _home(runtime_home)
+    directory = _directory(home)
+    with serialized(home):
+        ledger = directory / 'ledger.json'
+        if not ledger.exists():
+            _check_leases(directory)
+            if _initialization_witnesses(directory):
+                raise RuntimeError('forget authority is absent for initialized memory')
+            stores = {home / 'data' / 'memory' / name
+                      for name in ('vool_memory.db', 'nulla_memory.db')}
+            if db_path is not None:
+                stores.add(Path(db_path).resolve())
+            for store in stores:
+                if not store.exists():
+                    continue
+                with contextlib.closing(sqlite3.connect(store.as_uri() + '?mode=ro', uri=True)) as conn:
+                    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                    for table in ('memory_revocations', 'memory_erasure_operations'):
+                        if table in tables and conn.execute('SELECT 1 FROM ' + table + ' LIMIT 1').fetchone():
+                            raise RuntimeError('forget authority is absent for recorded erasure')
+            _durable_write(directory / 'dependencies.json', {'version': 1, 'scopes': {}})
+            _durable_write(ledger, {'version': 2, 'operations': {}})
+        prepare(home, arm=False)
+
+
+@_authority_errors
 def prepare(runtime_home=None, *, allow_initialize=False, arm=True,
             allow_writer_initialize=False) -> None:
     """Open (or deliberately create) this home's forget authority.
@@ -754,4 +787,5 @@ def _after_fork() -> None:
 
 
 atexit.register(_clean_exit)
-os.register_at_fork(after_in_child=_after_fork)
+if hasattr(os, 'register_at_fork'):
+    os.register_at_fork(after_in_child=_after_fork)

@@ -1850,13 +1850,15 @@ class TieredContextLoader:
         local_delivery = [ContextItem(
             item_id=f"delivery-local-{index}", layer="relevant", source_type="local_shard",
             title="Local planning candidate", content=json.dumps(candidate, default=str, sort_keys=True),
-            metadata={"origin_chat_id": str(candidate.get("origin_session_id") or
+            metadata={"content_hash": hashlib.sha256(json.dumps(candidate, default=str, sort_keys=True).encode()).hexdigest(),
+                      "origin_chat_id": str(candidate.get("origin_session_id") or
                       ("shared:swarm" if candidate.get("share_scope") != "local_only" else ""))},
         ) for index, candidate in enumerate(local_candidates)]
         swarm_delivery = [ContextItem(
             item_id=f"delivery-swarm-{index}", layer="relevant", source_type="swarm_metadata",
             title="Shared planning metadata", content=json.dumps(entry, default=str, sort_keys=True),
-            metadata={"origin_chat_id": str(entry.get("origin_chat_id") or entry.get("origin_session_id")
+            metadata={"content_hash": hashlib.sha256(json.dumps(entry, default=str, sort_keys=True).encode()).hexdigest(),
+                      "origin_chat_id": str(entry.get("origin_chat_id") or entry.get("origin_session_id")
                       or "shared:swarm")},
         ) for index, entry in enumerate(swarm_metadata)]
         delivered, delivery_excluded = _forget_safe_context_items(

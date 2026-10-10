@@ -10,6 +10,8 @@ Covers the three repaired contracts without network access:
 from types import SimpleNamespace
 
 from core import context_retrieval as cr
+from core.runtime_paths import active_vool_home
+from tests._real_revocation_backend import RealRevocationBackend
 
 QUERY = "What new kitchen gadget did I invest in before getting the Air Fryer?"
 
@@ -167,7 +169,7 @@ def _probe_capsule(main, focus, query):
     BE = "ollama:nomic-embed-text#retrieval-mrl384-v1"
     chat = "contract-probe"
 
-    class Mem:
+    class Mem(RealRevocationBackend):
         def __init__(self):
             self.calls = []
 
@@ -186,7 +188,7 @@ def _probe_capsule(main, focus, query):
             patch.object(cr, "embed_stamped", return_value=([1.0, 0.0, 0.0, 0.0], BE)):
         out = cr._capsule_v2_inject_retrieved(
             chat, query, [{"role": "user", "content": query}],
-            budget=resolve_budget(bucket="B", role="general"), runtime_home="/tmp/probe-home")
+            budget=resolve_budget(bucket="B", role="general"), runtime_home=str(active_vool_home()))
     return "\n".join(x["content"] for x in out if "retrieved_context" in x.get("content", ""))
 
 

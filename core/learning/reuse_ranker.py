@@ -48,6 +48,8 @@ def rank_reusable_procedures(
     for shard in eligible:
         score = 0.0
         class_match = shard.task_class == task_class
+        if not class_match:
+            continue
         if class_match:
             score += 5.0
         haystack = " ".join([shard.title, *shard.preconditions, *shard.steps])

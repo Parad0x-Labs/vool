@@ -53,6 +53,8 @@ def a8_env(tmp_path, monkeypatch):
     from core.runtime_paths import configure_runtime_home
 
     configure_runtime_home(home)
+    from core.memory.revocation import initialize_memory_home
+    initialize_memory_home(home)
     sdb.configure_default_db_path(tmp_path / "a8.db")
     from storage.migrations import run_migrations
 

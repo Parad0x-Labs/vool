@@ -30,6 +30,8 @@ The MUST-KEEP corpora were written before the fixes, from what each lane exists 
 """
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 # =================================================================================================
@@ -434,7 +436,7 @@ def _memory_lane(text: str, chat_id: str) -> tuple[bool, str]:
 def stocked_chat():
     """A chat whose memory store is NOT empty -- the condition the old guard could not see past."""
 
-    chat_id = "ctxmem-memory-stocked"
+    chat_id = "ctxmem-memory-stocked-" + uuid.uuid4().hex
     ensure_chat_namespace(chat_id)
     ensure_memory_files()
     claimed, _ = _memory_lane(

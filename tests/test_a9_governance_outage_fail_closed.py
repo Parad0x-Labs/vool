@@ -71,6 +71,8 @@ class _IsolatedStoresTestCase(unittest.TestCase):
         from core.runtime_paths import configure_runtime_home
 
         configure_runtime_home(home)
+        from core.memory.revocation import initialize_memory_home
+        initialize_memory_home(home)
         self._db_path = Path(self._tmp.name) / "a9outage.db"
         from storage.migrations import run_migrations
 

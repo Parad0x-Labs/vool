@@ -189,6 +189,7 @@
     "serialized": "authority",
     "begin_group": "authority",
     "prepare": "authority",
+    "initialize_memory_home": "authority",
     "poison": "authority",
     "begin": "authority",
     "complete": "authority",

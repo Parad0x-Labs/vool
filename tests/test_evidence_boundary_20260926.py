@@ -16,6 +16,7 @@ from dataclasses import replace
 
 import core.context_retrieval as cr
 from core.context_namespace import ensure_chat_namespace
+from tests._real_revocation_backend import RealRevocationBackend
 
 
 class _Node:
@@ -26,7 +27,7 @@ class _Node:
         self.timestamp = None
 
 
-class _FakeMem:
+class _FakeMem(RealRevocationBackend):
     def __init__(self, hits):
         self._hits = hits
 

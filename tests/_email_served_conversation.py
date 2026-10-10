@@ -98,10 +98,15 @@ class ModelView:
     prompt: str
     offered: frozenset[str]
     observed: tuple[dict[str, Any], ...]
+    conversation: str | None = None
 
     @property
     def history(self) -> str:
-        return self.prompt.split(OBSERVATION_HEADER, 1)[0]
+        if self.conversation is not None:
+            return self.conversation
+        history = self.prompt.split(OBSERVATION_HEADER, 1)[0]
+        # Retrieved records are ranked evidence, not chronological conversation.
+        return re.sub(r"<retrieved_context>.*?</retrieved_context>", "", history, flags=re.S)
 
     def results(self, intent: str) -> list[dict[str, Any]]:
         return [item for item in self.observed if item.get("intent") == intent]
@@ -156,7 +161,14 @@ class ScriptedEmailModel:
         messages = [m for m in (body.get("messages") or []) if isinstance(m, dict)]
         prompt = rig._all_text(messages)
         offered = frozenset(rig._tool_names(body))
-        view = ModelView(prompt=prompt, offered=offered, observed=tuple(_observations(prompt)))
+        view = ModelView(
+            prompt=prompt, offered=offered, observed=tuple(_observations(prompt)),
+            conversation=rig._all_text([
+                {**m, "content": str(m.get("content") or "").split(
+                    "Relevant context and evidence:", 1)[0].split(OBSERVATION_HEADER, 1)[0]}
+                for m in messages if m.get("role") in {"user", "assistant"}
+            ]),
+        )
         chosen: Action | None = None
         if PLANNER_WIRE_FORMAT in prompt:
             kind = "planner"

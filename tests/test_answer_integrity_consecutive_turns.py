@@ -258,6 +258,8 @@ def test_client_history_closes_failed_exchanges(tmp_path, monkeypatch) -> None:
 
     configure_runtime_home(tmp_path)
     try:
+        from core.memory.revocation import initialize_memory_home
+        initialize_memory_home()
         history = [
             {"role": "user", "content": "yo"},
             {"role": "assistant", "content": "Hey there."},

@@ -7,6 +7,7 @@ import pytest
 import core.context_retrieval as cr
 from core.active_mission import capture_active_mission_slots
 from core.context_namespace import ensure_chat_namespace
+from tests._real_revocation_backend import RealRevocationBackend
 
 
 class _Node:
@@ -16,7 +17,7 @@ class _Node:
         self.context_description = context_description
 
 
-class _FakeMem:
+class _FakeMem(RealRevocationBackend):
     def __init__(self, hits):
         self._hits = hits
         self.calls: list[str] = []
@@ -42,7 +43,7 @@ class _FakeMem:
         pass
 
 
-class _FakeMemNoHybrid:
+class _FakeMemNoHybrid(RealRevocationBackend):
     """An older memory backend that predates node_search_hybrid — getattr returns None."""
     def __init__(self, hits):
         self._hits = hits
@@ -56,7 +57,7 @@ class _FakeMemNoHybrid:
         pass
 
 
-class _FakeMemTopK:
+class _FakeMemTopK(RealRevocationBackend):
     def __init__(self, hits):
         self._hits = hits
         self.calls: list[tuple[str, int]] = []

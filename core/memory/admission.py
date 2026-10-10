@@ -644,10 +644,18 @@ def _structural_line_kinds(lines: list[str]) -> list[str | None]:
     return kinds
 
 
+# An explicit disclaimer of speech ownership is a source boundary, like a quote.
+# Physical ownership ("this bicycle is not mine") does not satisfy this frame.
+_DISOWNED_SPEECH_RE = re.compile(
+    r"\b(?:that|this|it)\s+(?:is|was)\s+[^.!?\n]{0,64}?"
+    r"\b(?:advice|preference|recommendation|opinion|practice|habit|choice|belief)"
+    r"\s*,?\s*(?:but\s+)?not\s+(?:mine|ours)\b", re.IGNORECASE)
+
+
 def classify_user_text(user_input: str) -> UserTextOrigin:
     """Classify one user-role message into authored / source / hypothetical spans.
 
-    Deterministic and typography-only.  Chat retention is unaffected: the caller
+    Deterministic source boundaries and explicit ownership disclaimers. Chat retention is unaffected: the caller
     keeps logging and semantically storing the RAW text; only admission into
     personal facts, profile heuristics and shorthand uses the authored spans.
     """
@@ -684,7 +692,13 @@ def classify_user_text(user_input: str) -> UserTextOrigin:
         if utterance_quotes:
             quoted_source_buffer.extend(utterance_quotes)
         if unquoted.strip():
-            segments.append(Segment(unquoted, AUTHORED))
+            if _DISOWNED_SPEECH_RE.search(unquoted):
+                for sentence in _SENTENCE_SPLIT_RE.split(unquoted):
+                    if sentence.strip():
+                        kind = SOURCE if _DISOWNED_SPEECH_RE.search(sentence) else AUTHORED
+                        segments.append(Segment(sentence, kind))
+            else:
+                segments.append(Segment(unquoted, AUTHORED))
 
     def _flush_source() -> None:
         if source_buffer:

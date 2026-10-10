@@ -19,6 +19,7 @@ import pytest
 import core.context_retrieval as cr
 from core.context_namespace import ensure_chat_namespace
 from core.memory.files import user_heuristics_path
+from tests._real_revocation_backend import RealRevocationBackend
 
 CASES = {case["id"]: case for case in [{'id': 'FA-01',
   'package': 'A',
@@ -272,7 +273,7 @@ class _Node:
         self.timestamp = None
 
 
-class _FakeMem:
+class _FakeMem(RealRevocationBackend):
     def __init__(self, hits):
         self._hits = hits
 

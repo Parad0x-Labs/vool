@@ -58,8 +58,8 @@ def chat_session_meta_path() -> Path:
 
 
 def ensure_memory_files(*, ensure_policy_table: callable) -> None:
-    from core.memory.revocation import prepare
-    prepare(allow_writer_initialize=True, arm=False)
+    from core.memory.revocation import initialize_memory_home
+    initialize_memory_home()
     path = memory_path()
     if not path.exists():
         path.write_text(default_memory_template(), encoding="utf-8")

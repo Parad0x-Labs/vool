@@ -427,7 +427,14 @@ def _with_semantic_memory_capsule(
             # Preserve the caller's stamped lifecycle and turn identity. The
             # injector publishes its own non-factual decision directly to that
             # row; harvesting <retrieved_context> remains factual-only.
-            injection_context = dict(source_context or {})
+            injection_context = {
+                key: value for key, value in (source_context or {}).items()
+                if key in {
+                    "runtime_home", "question_as_of", "search_expansions",
+                    "request_id", "turn_id", "cancel_turn_id", "task_id",
+                    "session_id", "runtime_session_id", "_grounding_lifecycle_id",
+                }
+            }
             injection_context["chat_id"] = clean_session
             injection_args = {"source_context": injection_context}
             if _context_retrieval.query_requests_complete_collection(query):

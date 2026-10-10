@@ -121,6 +121,7 @@ RUNTIME_TABLES = (
     "contribution_ledger",
     "dialogue_sessions",
     "dialogue_turns",
+    "tool_memo_cache",
     "curiosity_runs",
     "curiosity_topics",
     "dna_wallet_ledger",

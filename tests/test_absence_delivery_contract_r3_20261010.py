@@ -18,6 +18,11 @@ T = 1740823200.0
 DOORS = ("direct", "canonical", "phrases", "whole-turn", "no-hits")
 
 
+@pytest.fixture(autouse=True, params=("0", "1"))
+def evidence_kernel_mode(request, monkeypatch):
+    monkeypatch.setenv("VOOL_EVIDENCE_KERNEL", request.param)
+
+
 def configure(monkeypatch):
     mode = os.environ["VOOL_EVIDENCE_KERNEL"]
     for key in ("VOOL_MEMORY_RECEIPTS", "VOOL_EVIDENCE_COMPILER", "VOOL_EVIDENCE_VERIFY"):

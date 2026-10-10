@@ -975,7 +975,9 @@ def reset_retrieval_telemetry() -> None:
 
 
 def update_retrieval_telemetry(**fields: object) -> None:
-    _set_retrieval_telemetry({**get_last_retrieval_telemetry(), **fields})
+    # Updating diagnostics is not a serving read and must not open a memory
+    # store before the request's namespace has been authorized.
+    _set_retrieval_telemetry({**dict(_CAPSULE_TELEMETRY.get() or {}), **fields})
 
 
 # ─── admitted-evidence interface (shared boundary, mr29 board) ────────────────
@@ -4278,6 +4280,10 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
         for occurrence in unit:
             is_assistant = str(getattr(occurrence, "role", "") or "") == "assistant"
             raw = str(getattr(occurrence, "body", "") or "")
+            if assistant_ask and is_assistant:
+                windows = _requested_collection_windows(query, raw) or _structured_source_windows(query, raw)
+                if windows:
+                    raw = "\n".join(str(window.get("text") or "") for window in windows)
             if owned_only and not is_assistant:
                 if not _user_owned_statement_body(raw):
                     continue
@@ -4302,7 +4308,11 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
             if _whole_turn_already_delivered(delivered, role, _whole_turn_day_keys(occurrence), body):
                 continue
             time_label = _whole_turn_time_label(occurrence)
-            label = f"- {role} said ({time_label}): " if time_label else f"- {role} said: "
+            authority = _occurrence_authority_label(occurrence)
+            reported = _reported_source_label_match(occurrence)
+            if reported is not None:
+                authority += f' [reported source prefix "{reported.group(1)}"]'
+            label = f"- {authority} ({time_label}): " if time_label else f"- {authority}: "
             unit_lines.append(label + body)
             unit_rendered.append((occurrence, label + body))
         if not unit_lines:
@@ -4988,19 +4998,6 @@ def materialize_source_evidence(
                 "spans": [],
                 "neighbors": [],
             }
-        if occurrence.status != "active" or not occurrence.body:
-            return {
-                "version": EVIDENCE_CONTRACT_VERSION,
-                "occurrence_id": occurrence.occurrence_id,
-                "role": occurrence.role,
-                "authority": occurrence.authority,
-                "chat_scope": occurrence.chat_scope,
-                "complete": False,
-                "reason": f"occurrence_{occurrence.status or 'unavailable'}",
-                "body": "",
-                "spans": [],
-                "neighbors": [],
-            }
         if getattr(occurrence, "body_integrity", "") == "mismatch":
             # F16 integrity contract: the body's current bytes disagree with
             # the digest recorded at the authorized write. Damaged bytes are
@@ -5015,6 +5012,19 @@ def materialize_source_evidence(
                 "chat_scope": occurrence.chat_scope,
                 "complete": False,
                 "reason": "occurrence_integrity_mismatch",
+                "body": "",
+                "spans": [],
+                "neighbors": [],
+            }
+        if occurrence.status != "active" or not occurrence.body:
+            return {
+                "version": EVIDENCE_CONTRACT_VERSION,
+                "occurrence_id": occurrence.occurrence_id,
+                "role": occurrence.role,
+                "authority": occurrence.authority,
+                "chat_scope": occurrence.chat_scope,
+                "complete": False,
+                "reason": f"occurrence_{occurrence.status or 'unavailable'}",
                 "body": "",
                 "spans": [],
                 "neighbors": [],
@@ -5335,6 +5345,100 @@ def _facet_request_content(query: str) -> str:
     text = re.sub(r"\b(?:using|from|going\s+by)\s+(?:(?:the|a|an|when|it|was|is|of|date|time|logged)\s+)*"
                   r"(?:session|chat|conversation|logged)\b(?:\s+date)?", " ", text, flags=re.I)
     return text
+
+
+def _relation_assertions(body: str) -> list[str]:
+    """Keep coordinated objects, but separate coordinated finite assertions.
+
+    A trailing instrument belongs to its assertion, never an earlier
+    assertion whose subject happens to occur in the same sentence.
+    """
+    finite = re.compile(r"\b(?:am|is|are|was|were|has|have|had|"
+                        r"[a-z]+ed|[a-z]+es|repair|restore|pack|polish|varnish)\b", re.I)
+    result = []
+    for sentence in _assertion_sentences(body):
+        start = 0
+        for join in re.finditer(r"\b(?:and|but)\s+", sentence, re.I):
+            following = sentence[join.end():]
+            new_subject = re.match(r"(?:I|we|you|he|she|they|the|an?)\b|[A-Z][a-z]+\b", following)
+            if (new_subject and finite.search(sentence[start:join.start()])
+                    and finite.search(following)):
+                result.append(sentence[start:join.start()])
+                start = join.end()
+        result.append(sentence[start:])
+    return result
+
+
+_CONDITION_NEGATION_RE = re.compile(
+    r"\b(?:no|not|never|neither|nor|without|cannot|"
+    r"(?:ca|wo|ai|do|does|did|is|are|was|were|could|would|should|must|need|have|has|had)n['’]?t)\b",
+    re.I,
+)
+
+
+def _source_supports_asked_relation(query: str, body: str) -> bool:
+    """Require the asked subject and relation in one retained assertion.
+
+    Attribute nouns such as material/storage name an answer category;
+    an instrument or container value states that relation without repeating
+    the category's noun. This admits only source-bound relations.
+    """
+    question = _facet_request_content(query)
+    conditional = re.search(
+        r"\bwhat\s+(?:(?:must|should|will|does)\s+(?:happen|follow)|happens)"
+        r"\s+(?:when|whenever|if)\s+(.+?)[?.!]*$", question, re.I)
+    if conditional:
+        terms = (_query_overlap_terms(conditional.group(1)) - _FACET_FRAME_WORDS
+                 - _FACET_FRAME_EXTRA - _ANSWER_FRAME_FUNCTION_WORDS)
+        for assertion in _relation_assertions(body):
+            marker = re.search(r"\b(?:when|whenever|if)\s+", assertion, re.I)
+            parts = re.split(r"[,;]\s*", assertion[marker.end():], maxsplit=1) if marker else []
+            if len(parts) != 2:
+                continue
+            condition_text = parts[0].lower()
+            asked_condition = conditional.group(1).lower()
+            if (_CONDITION_NEGATION_RE.search(condition_text)
+                    or _CONDITION_NEGATION_RE.search(asked_condition)):
+                # Negation changes the condition. Only an explicit matching
+                # condition licenses this category-word exemption.
+                source_words = re.findall(r"[a-z0-9]+(?:['’][a-z]+)?", condition_text)
+                asked_words = re.findall(r"[a-z0-9]+(?:['’][a-z]+)?", asked_condition)
+                if source_words != asked_words:
+                    continue
+            carried = _query_terms_in_text(condition_text, terms, _stemmed_token_set(condition_text))
+            # Porter keeps short consonant-y roots (fly) but stems their -ies
+            # forms differently. The explicit inflection still binds the source.
+            for term in terms:
+                if (len(term) >= 3 and term.endswith("y") and term[-2] not in "aeiou"
+                        and re.search(r"\b" + re.escape(term[:-1] + "ies") + r"\b", condition_text)):
+                    carried.add(term)
+            if terms and terms <= carried:
+                if re.search(r"\b(?:must|should|will|shall|has\s+to|have\s+to)\b", parts[1], re.I):
+                    return True
+    subject = None
+    relation = None
+    if re.search(r"\b(?:use|used|using)\b", question, re.I):
+        match = re.search(r"\bfor\s+(.+?)[?.!]*$", question, re.I)
+        if match:
+            subject = match.group(1)
+            relation = re.compile(r"\b(?:using|with)\s+\S", re.I)
+    if subject is None and re.search(r"\b(?:storage|case|container|box|bag)\b", question, re.I):
+        match = re.search(r"\b(?:held|holds?|contains?|stored)\s+(.+?)[?.!]*$", question, re.I)
+        if match:
+            subject = match.group(1)
+            relation = re.compile(r"\b(?:in|inside)\s+\S", re.I)
+    if subject is None:
+        return False
+    terms = (_query_overlap_terms(subject) - _FACET_FRAME_WORDS
+             - _FACET_FRAME_EXTRA - _ANSWER_FRAME_FUNCTION_WORDS)
+    if not terms:
+        return False
+    for assertion in _relation_assertions(body):
+        for match in relation.finditer(assertion):
+            owner = assertion[:match.start()].lower()
+            if terms <= _query_terms_in_text(owner, terms, _stemmed_token_set(owner)):
+                return True
+    return False
 
 
 #: Asked-attribute words whose ANSWER SHAPE a pooled body already carries
@@ -10137,10 +10241,10 @@ def _capsule_v2_inject_retrieved(
         # it; the separate run adds the retractions the supplement's chain
         # probe found).
         supplement_verdicts: dict[str, Any] = {}
+        _supplement_candidates = []
         try:
             if recall_supplement:
                 _pool_keys = {cand.key for cand in candidates}
-                _supplement_candidates = []
                 _supplement_turn_keys = {
                     str(getattr(_o, "occurrence_id", "") or "")
                     for _o, _f in recall_supplement} - {""}
@@ -10182,6 +10286,7 @@ def _capsule_v2_inject_retrieved(
                     mixed_current_past=bool(scope.asks_past and scope.asks_current),
                     now_utc=_now_dt.now(_now_tz.utc),
                 )
+                supplement_verdicts = dict(_supplement_run)
                 from core.temporal_selection import EligibilityVerdict as _SupplementVerdict
                 from core.temporal_selection import is_stale_observation_for_current_ask as _stale_obs
 
@@ -10211,6 +10316,7 @@ def _capsule_v2_inject_retrieved(
         # and the merge's stale-clause trim needs those values.
         temporal_stale_values: set[str] = set()
         body_by_key = {cand.key: cand.body for cand in candidates}
+        body_by_key.update({cand.key: cand.body for cand in _supplement_candidates})
         _cand_by_key = {cand.key: cand for cand in candidates}
         for verdict in verdicts.values():
             if not verdict.eligible and verdict.key in body_by_key:
@@ -10526,6 +10632,8 @@ def _capsule_v2_inject_retrieved(
     def facet_noise(key: str, body: str) -> bool:
         """Whether ONE source record is absent-facet noise for this turn."""
         if not facet_noise_gate:
+            return False
+        if _source_supports_asked_relation(query, body):
             return False
         if (key in _fp_winners or key in _fp_coexists
                 or key in _fp_replacements):
@@ -12911,8 +13019,13 @@ def _capsule_v2_inject_retrieved(
     # between discovery and render shipped from the ranked copy after the main pack had refused it
     # (tests/test_requested_source_authority_contract.py). Both refusals are recorded on the telemetry.
     _lane_refused: list[dict[str, str]] = []
+    # A withdrawal found by either run of the temporal owner binds every delivery lane.
+    lane_verdicts = dict(verdicts)
+    lane_verdicts.update({key: verdict for key, verdict in supplement_verdicts.items()
+                          if not getattr(verdict, "eligible", False)
+                          or key not in lane_verdicts})
     whole_turn_units = _whole_turn_units_facing_the_laws(
-        whole_turn_units, verdicts=verdicts, runtime_home=runtime_home, refused=_lane_refused,
+        whole_turn_units, verdicts=lane_verdicts, runtime_home=runtime_home, refused=_lane_refused,
         body_by_key=locals().get("body_by_key"), receipts=evidence_receipts, delivered_text=render_block, query=query)
     if _lane_refused:
         telemetry["whole_turn_lane_refused"] = _lane_refused

@@ -72,7 +72,7 @@ def test_sidebar_uses_one_namespace_snapshot_and_preserves_deleted_state(monkeyp
     context_namespace.ensure_chat_namespace("visible")
     context_namespace.ensure_chat_namespace("deleted")
     context_namespace.set_chat_namespace_state("deleted", "deleted")
-    monkeypatch.setattr(entries, "load_jsonl", lambda _: [
+    monkeypatch.setattr(entries, "_load_jsonl", lambda _: [
         {"session_id": "visible", "user": "hello", "ts": "2026-09-05"}
         for _ in range(100)
     ] + [{"session_id": "deleted", "user": "private", "ts": "2026-09-05"}])

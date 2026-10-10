@@ -986,7 +986,7 @@ _VALUE_TOKEN_RE = re.compile(
 #: statement. Whether a retraction-with-no-replacement-value or a correction
 #: is decided by the value conflict law, not by the marker itself.
 _RETRACTION_MARKER_RE = re.compile(
-    r"\b(?:scratch\s+that|never\s+mind|pretend\s+(?:i|we)\s+never\s+said|"
+    r"\b(?:(?:scratch|scrap)\s+that|never\s+mind|pretend\s+(?:i|we)\s+never\s+said|"
     r"forget\s+(?:that|the|it|what\s+(?:i|we)\s+said)|disregard(?:\s+that)?|"
     r"ignore\s+(?:that|it|this|what\s+(?:i|we)\s+(?:said|told\s+you))|"
     r"cancel\s+(?:that|it)|on\s+second\s+thought|retract(?:ion|ions|ed|s)?|"
@@ -1140,7 +1140,7 @@ _RETRACTION_SAID_THING_HEADS = frozenset({
     "information", "mention", "quote", "paste", "link", "request",
     "question", "instruction", "command", "order", "suggestion", "proposal",
     "idea", "thought", "claim", "number", "figure", "value", "amount",
-    "total", "price", "estimate", "guess", "address", "name", "list",
+    "total", "price", "estimate", "guess", "address", "name", "list", "code",
     "change", "update", "edit", "correction", "version", "draft", "stuff",
     "thing", "one", "last",
     # what was planned or chosen
@@ -1263,7 +1263,7 @@ def retraction_marker_is_live(text: str, match: re.Match[str]) -> bool:
     words = [w.replace("’", "'") for w in re.findall(r"[A-Za-z'’]+", prefix.lower())]
     if _RETRACTION_DIRECTIVE_VERB_RE.match(marker):
         return _retraction_prefix_is_directive(words)
-    if marker.startswith("scratch"):
+    if marker.startswith(("scratch", "scrap")):
         return (_retraction_prefix_is_directive(words)
                 and _scratch_that_points_back(text, match.end()))
     if marker.startswith("cancel"):
@@ -1291,7 +1291,7 @@ def retraction_marker(text: str) -> re.Match[str] | None:
 #: removal request ("paste", "quote") is not an act word: it names the thing
 #: taken back.
 _RETRACTION_ACT_WORDS = frozenset({
-    "scratch", "never", "mind", "pretend", "forget", "disregard", "ignore",
+    "scratch", "scrap", "never", "mind", "pretend", "forget", "disregard", "ignore",
     "cancel", "second", "thought", "retract", "retraction", "retracted",
     "withdraw", "withdrawn", "withdrawing", "undo", "undone", "take", "pull",
     "tear", "down", "remove",

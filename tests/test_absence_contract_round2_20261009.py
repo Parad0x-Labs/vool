@@ -14,6 +14,11 @@ from tests.test_question_date_time_leg_20261002 import _hash_backend as _hash_ba
 T = 1740823200.0
 
 
+@pytest.fixture(autouse=True, params=("0", "1"))
+def evidence_kernel_mode(request, monkeypatch):
+    monkeypatch.setenv("VOOL_EVIDENCE_KERNEL", request.param)
+
+
 def _configure(monkeypatch):
     mode = os.environ.get("VOOL_EVIDENCE_KERNEL", "0")
     for key in ("VOOL_MEMORY_RECEIPTS", "VOOL_EVIDENCE_COMPILER", "VOOL_EVIDENCE_VERIFY"):

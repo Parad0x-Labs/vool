@@ -13,6 +13,7 @@ from core.context_namespace import (
 )
 from core.memory.entries import resolve_memory_access_policy
 from storage.dialogue_memory import record_dialogue_turn
+from tests._real_revocation_backend import RealRevocationBackend
 
 
 class _Node:
@@ -25,7 +26,7 @@ class _Node:
         )
 
 
-class _Memory:
+class _Memory(RealRevocationBackend):
     def __init__(self, hits=None):
         self.hits = list(hits or [])
         self.search_sessions: list[str] = []
@@ -312,7 +313,7 @@ def test_canonical_transcript_reads_only_the_persisted_policy_chat(
     monkeypatch.setattr(
         context_retrieval,
         "_open_memory",
-        lambda: None,
+        lambda: _Memory(),
     )
 
     transcript, source = canonical_runtime_transcript(

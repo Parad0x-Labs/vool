@@ -9,7 +9,7 @@ import re
 import sqlite3
 import threading
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -300,17 +300,16 @@ class VoolMemory:
     ) -> None:
         self._agent_id = str(agent_id or "").strip() or DEFAULT_AGENT_ID
         self._db_path = _resolve_db_path(runtime_home=runtime_home, db_path=db_path)
-        from core.memory.revocation import prepare
+        from core.memory.revocation import initialize_memory_home, prepare
         self._authority_home = (
             Path(runtime_home).expanduser().resolve() if runtime_home is not None
             else self._db_path.parent.parent.parent if self._db_path.parent.name == "memory"
             else self._db_path.parent
         )
-        # An ordinary store constructor may only initialize authority over a
-        # genuinely new home; the whole-carrier witness freshness policy inside
-        # prepare fails closed on retained memory (legacy carriers included).
-        # Legacy upgrade is reserved for the explicit admitted forget.
-        prepare(self._authority_home, allow_writer_initialize=not self._db_path.exists(), arm=False)
+        if self._db_path.exists():
+            initialize_memory_home(self._authority_home, db_path=self._db_path)
+        else:
+            prepare(self._authority_home, allow_writer_initialize=True, arm=False)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         # Occurrence-body integrity telemetry (F16): every serving read that
@@ -1806,14 +1805,14 @@ class VoolMemory:
                 "SELECT rowid AS source_sequence, * FROM source_occurrences WHERE occurrence_id = ? AND agent_id = ?",
                 (str(occurrence_id or ""), self._agent_id),
             ).fetchone()
-        return self._serving_occurrence(row) if row is not None else None
+        return self._serving_occurrence(row, diagnostic=True) if row is not None else None
 
     def _reset_integrity_refusals(self) -> None:
         """Begin a new gated read call: telemetry reflects THIS call."""
         with self._lock:
             self.last_integrity_refusals = []
 
-    def _serving_occurrence(self, row: sqlite3.Row) -> SourceOccurrence | None:
+    def _serving_occurrence(self, row: sqlite3.Row, *, diagnostic: bool = False) -> SourceOccurrence | None:
         """Convert a row for SERVING, refusing a damaged body (F16 integrity).
 
         The digest recorded at the authorized write is the integrity anchor:
@@ -1836,7 +1835,7 @@ class VoolMemory:
                     "occurrence_id": occurrence.occurrence_id,
                     "reason": "body_sha256_mismatch",
                 })
-            return None
+            return replace(occurrence, body="") if diagnostic else None
         return occurrence
 
     def occurrence_search(
@@ -2544,15 +2543,25 @@ class VoolMemory:
     def complete_erasure(self, operation_id: str) -> None:
         with self._lock:
             operation = self._conn.execute(
-                "SELECT chat_id, token, started_at FROM memory_erasure_operations WHERE operation_id = ?",
+                "SELECT chat_id, token, started_at, status FROM memory_erasure_operations WHERE operation_id = ?",
                 (operation_id,),
             ).fetchone()
             if operation is None:
                 raise RuntimeError("erasure operation is unavailable")
+            if operation["status"] == "complete":
+                return
+            # Pending jobs retain their recovery token. Once the permanent
+            # scoped revocation exists, the completed journal needs only its
+            # operation identity and status, not a second copy of the value.
+            revoked = self._conn.execute(
+                "SELECT 1 FROM memory_revocations WHERE chat_id = ? AND token = ?",
+                tuple(operation)[:2],
+            ).fetchone()
+            completed_token = "" if revoked is not None else operation["token"]
             self._conn.execute(
-                "UPDATE memory_erasure_operations SET status = 'complete' "
+                "UPDATE memory_erasure_operations SET status = 'complete', token = ? "
                 "WHERE chat_id = ? AND token = ? AND started_at <= ?",
-                tuple(operation),
+                (completed_token, *tuple(operation)[:3]),
             )
             self._conn.commit()
             status = self._conn.execute(
@@ -2583,7 +2592,7 @@ class VoolMemory:
         payload = dict(row)
         scope = payload.get("chat_scope")
         if not scope and "tags" in payload:
-            scopes = _session_scopes(tags=json.loads(payload["tags"] or "[]"), context_description=payload.get("context_description", ""))
+            scopes = _session_scopes(tags=_json_list(payload["tags"]), context_description=payload.get("context_description", ""))
             scope = next(iter(scopes)) if len(scopes) == 1 else None
         from core.memory.revocation import authorize_payload
         return authorize_payload(payload, scope, self._authority_home, owner_memory=self)
