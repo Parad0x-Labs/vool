@@ -382,6 +382,45 @@ class PolicyRefusalError(Exception):
     """Raised by the door transport when the outbound policy vetoes the fetch."""
 
 
+# Closed release egress registry: GitHub's release redirect uses this asset host.
+# Forge/API/codeload hosts and wildcard githubusercontent hosts are unnecessary.
+RELEASE_HOSTS = frozenset({"github.com", "release-assets.githubusercontent.com"})
+MAX_MANIFEST_BYTES = 2 * 1024 * 1024
+
+
+def _open_release_url(url: str, *, headers: dict[str, str], timeout: float):
+    from urllib.error import HTTPError
+    from urllib.parse import urljoin, urlsplit
+
+    from core.remote_fetch_policy import open_remote_url
+
+    initial = urlsplit(url)
+    loopback = initial.hostname in ("127.0.0.1", "localhost", "::1")
+    for _ in range(5):
+        parsed = urlsplit(url)
+        if parsed.username or parsed.password or parsed.fragment:
+            raise PolicyRefusalError("release URL contains credentials or a fragment")
+        if loopback:
+            if (parsed.scheme, parsed.hostname, parsed.port) != (initial.scheme, initial.hostname, initial.port):
+                raise PolicyRefusalError("sandbox release redirect left its origin")
+        elif (parsed.scheme != "https" or parsed.hostname not in RELEASE_HOSTS
+              or parsed.port not in (None, 443)):
+            raise PolicyRefusalError("release URL is outside the pinned GitHub release hosts")
+        if parsed.hostname == "github.com" and not parsed.path.startswith("/Parad0x-Labs/vool/releases/"):
+            raise PolicyRefusalError("release URL is outside this repository's releases")
+        try:
+            return open_remote_url(url, headers=headers, timeout=timeout, redirect_policy="refuse")
+        except HTTPError as exc:
+            if exc.code not in (301, 302, 303, 307, 308):
+                raise
+            location = exc.headers.get("Location", "")
+            exc.close()
+            if not location:
+                raise PolicyRefusalError("release redirect has no destination") from exc
+            url = urljoin(url, location)
+    raise PolicyRefusalError("too many release redirects")
+
+
 def door_fetch(url: str, headers: dict[str, str] | None = None, timeout: float = 60.0) -> object:
     """The production transport: the ONE outbound door inside the updater's named
     background scope. A policy veto raises — the caller converts it to a typed refusal."""
@@ -389,9 +428,7 @@ def door_fetch(url: str, headers: dict[str, str] | None = None, timeout: float =
 
     with named_background_effect_scope("self_update.artifact_download"):
         try:
-            from core.remote_fetch_policy import open_remote_url
-
-            return open_remote_url(str(url), headers=dict(headers or {}), timeout=float(timeout))
+            return _open_release_url(str(url), headers=dict(headers or {}), timeout=float(timeout))
         except Exception as exc:
             if _is_policy_refusal(exc):
                 raise PolicyRefusalError(str(exc)) from exc
@@ -404,13 +441,14 @@ def fetch_manifest_bytes(url: str, *, timeout: float = 15.0) -> bytes:
     from core.effect_gateway import named_background_effect_scope
 
     with named_background_effect_scope("self_update.manifest_check"):
-        from core.remote_fetch_policy import open_remote_url
-
-        response = open_remote_url(
+        response = _open_release_url(
             str(url), headers={"User-Agent": "vool-updater"}, timeout=float(timeout)
         )
         try:
-            return response.read()
+            raw = response.read(MAX_MANIFEST_BYTES + 1)
+            if len(raw) > MAX_MANIFEST_BYTES:
+                raise ValueError("release manifest exceeds size limit")
+            return raw
         finally:
             _close(response)
 

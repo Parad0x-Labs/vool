@@ -1749,7 +1749,10 @@
     "wallet.watch_only_hint": "watch-only: this proposal can be approved in an external wallet, not signed here",
     "vns.sound.help": "A gentle chime when work completes or needs you.",
     "vns.sound.preview": "Preview sound",
-    "vns.sound.blocked": "Sound playback is unavailable. Notifications remain in the bell."
+    "vns.sound.blocked": "Sound playback is unavailable. Notifications remain in the bell.",
+    "update.action_check": "Check for updates",
+    "settings.row.updates.label": "App updates",
+    "settings.row.updates.help": "Check for a signed release. Your settings and data stay in the runtime home."
   },
   "html_keys": [
     "bypass.modal_limits",

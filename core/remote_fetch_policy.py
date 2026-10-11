@@ -648,6 +648,7 @@ def open_remote_url(
     keyed_or_keyless: str = "",
     no_proxy: bool = False,
     credential_headers: tuple[str, ...] | None = None,
+    redirect_policy: str = "follow",
 ) -> Any:
     """Same ONE door, convenience form: build the urllib Request here so a
     caller with `(method, url, body, headers)` needs no raw urlopen/requests
@@ -685,6 +686,7 @@ def open_remote_url(
             provider_id=provider_id,
             keyed_or_keyless=keyed_or_keyless,
             no_proxy=no_proxy,
+            redirect_policy=redirect_policy,
         )
 
     if credential_headers is None:

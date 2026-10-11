@@ -106,7 +106,7 @@ write_result true "swapped; previous version kept at ${PRIOR}"
 # 4) optional relaunch (detached)
 if [[ -n "${RELAUNCH_CMD}" ]]; then
   # shellcheck disable=SC2086
-  if ! (eval "exec ${RELAUNCH_CMD}" >/dev/null 2>&1 &) ; then
+  if ! (eval "exec ${RELAUNCH_CMD}" >"${RESULT}.relaunch.log" 2>&1 &) ; then
     say "swap succeeded but relaunch command failed: ${RELAUNCH_CMD}"
     exit 0  # the swap itself succeeded; relaunch is the app supervisor's fallback
   fi

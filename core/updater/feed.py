@@ -41,6 +41,7 @@ class FeedConfig:
     helper_script: str = ""
     check_interval_seconds: int = DEFAULT_CHECK_INTERVAL
     source: str = "defaults"
+    allow_publisher_verified_adhoc: bool = False
 
     @property
     def has_feed(self) -> bool:
@@ -95,6 +96,7 @@ def load_feed_config(
         helper_script=pick("helper_script", "VOOL_UPDATE_HELPER_SCRIPT", ""),
         check_interval_seconds=max(60, interval),
         source="env" if came_from_env else ("config" if data else "defaults"),
+        allow_publisher_verified_adhoc=data.get("allow_publisher_verified_adhoc") is True,
     )
 
 

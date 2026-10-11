@@ -1749,9 +1749,12 @@
     "companion.state.unknown": "Nieznane",
     "vns.sound.help": "Delikatny dźwięk, gdy praca się kończy lub wymaga Twojej uwagi.",
     "vns.sound.preview": "Odsłuchaj dźwięk",
-    "vns.sound.blocked": "Odtwarzanie dźwięku jest niedostępne. Powiadomienia pozostają pod dzwonkiem."
+    "vns.sound.blocked": "Odtwarzanie dźwięku jest niedostępne. Powiadomienia pozostają pod dzwonkiem.",
+    "update.action_check": "Sprawdź aktualizacje",
+    "settings.row.updates.label": "Aktualizacje aplikacji",
+    "settings.row.updates.help": "Sprawdź dostępność podpisanej wersji. Ustawienia i dane pozostają w katalogu środowiska uruchomieniowego."
   },
-  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
+  "source_catalog_sha256": "c849bdd8318643be460aaa255dbf822733dbccc1131f50d37dce2bc1b487b08b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -62,6 +62,9 @@ _ALWAYS_PRESERVE = {
     ".env",
     ".vool_updating.lock",
     "data",  # defensive: the default (vool_home=None) data dir lives here
+    ".nulla_local",
+    ".nulla_runtime",
+    "Start_VOOL.sh", "Start_VOOL.command", "Talk_To_VOOL.sh", "Talk_To_VOOL.command",
 }
 
 # Watchdog-visible pause flag: while this file exists at the code root, the watchdog
@@ -203,8 +206,10 @@ def staged_top_level(release_root: Path, preserve: set[str]) -> list[Path]:
 
 
 def _copy_into(src: Path, dst: Path) -> None:
-    if src.is_dir():
-        shutil.copytree(src, dst, dirs_exist_ok=True)
+    if src.is_symlink():
+        dst.symlink_to(os.readlink(src))
+    elif src.is_dir():
+        shutil.copytree(src, dst, dirs_exist_ok=True, symlinks=True)
     else:
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
@@ -217,12 +222,23 @@ def backup_and_swap(release_root: Path, project_root: Path, preserve: set[str], 
     """
     backup_dir.mkdir(parents=True, exist_ok=True)
     replaced: list[str] = []
+    originals: dict[str, bool] = {}
     for staged in staged_top_level(release_root, preserve):
         name = staged.name
         current = project_root / name
-        if current.exists():
-            shutil.move(str(current), str(backup_dir / name))
+        originals[name] = current.exists() or current.is_symlink()
+        (backup_dir / "_originals.json").write_text(json.dumps(originals), encoding="utf-8")
+        # Journal BEFORE each move/copy, including the original's presence, so a
+        # partial copy failure can be restored without losing untouched entries.
         replaced.append(name)
+        manifest = backup_dir / "_replaced.json"
+        temporary = manifest.with_suffix(".tmp")
+        temporary.write_text(json.dumps(replaced, sort_keys=True), encoding="utf-8")
+        with temporary.open("rb") as durable:
+            os.fsync(durable.fileno())
+        os.replace(temporary, manifest)
+        if current.exists() or current.is_symlink():
+            shutil.move(str(current), str(backup_dir / name))
         _copy_into(staged, project_root / name)
     (backup_dir / "_replaced.json").write_text(json.dumps(replaced, sort_keys=True), encoding="utf-8")
     return replaced
@@ -235,16 +251,25 @@ def rollback_swap(project_root: Path, backup_dir: Path) -> None:
     try:
         replaced = json.loads(manifest.read_text(encoding="utf-8")) if manifest.exists() else []
     except Exception:
-        replaced = [p.name for p in backup_dir.iterdir() if p.name != "_replaced.json"]
+        replaced = [p.name for p in backup_dir.iterdir() if p.name not in ("_replaced.json", "_originals.json")]
+    originals_path = backup_dir / "_originals.json"
+    originals = json.loads(originals_path.read_text(encoding="utf-8")) if originals_path.exists() else {}
     for name in replaced:
+        if not isinstance(name, str) or Path(name).name != name or name in (".", ".."):
+            raise ValueError("invalid code rollback entry")
         swapped_in = project_root / name
         original = backup_dir / name
-        if swapped_in.exists():
-            if swapped_in.is_dir():
-                shutil.rmtree(swapped_in, ignore_errors=True)
+        if originals.get(name) is True and not (original.exists() or original.is_symlink()):
+            # Its move never completed, or this entry was already restored.
+            if not (swapped_in.exists() or swapped_in.is_symlink()):
+                raise FileNotFoundError(f"original code backup missing: {name}")
+            continue
+        if swapped_in.exists() or swapped_in.is_symlink():
+            if swapped_in.is_dir() and not swapped_in.is_symlink():
+                shutil.rmtree(swapped_in)
             else:
                 swapped_in.unlink(missing_ok=True)
-        if original.exists():
+        if original.exists() or original.is_symlink():
             shutil.move(str(original), str(swapped_in))
 
 

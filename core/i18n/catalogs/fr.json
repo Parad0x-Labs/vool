@@ -1749,9 +1749,12 @@
     "companion.state.unknown": "Inconnu",
     "vns.sound.help": "Un son doux quand le travail est terminé ou nécessite votre intervention.",
     "vns.sound.preview": "Écouter le son",
-    "vns.sound.blocked": "La lecture du son est indisponible. Les notifications restent dans la cloche."
+    "vns.sound.blocked": "La lecture du son est indisponible. Les notifications restent dans la cloche.",
+    "update.action_check": "Rechercher des mises à jour",
+    "settings.row.updates.label": "Mises à jour de l’application",
+    "settings.row.updates.help": "Rechercher une version signée. Les paramètres et les données restent dans le répertoire d’exécution."
   },
-  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
+  "source_catalog_sha256": "c849bdd8318643be460aaa255dbf822733dbccc1131f50d37dce2bc1b487b08b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1749,9 +1749,12 @@
     "companion.state.unknown": "Desconhecido",
     "vns.sound.help": "Um som suave quando o trabalho termina ou precisa da sua intervenção.",
     "vns.sound.preview": "Ouvir som",
-    "vns.sound.blocked": "A reprodução de som está indisponível. As notificações continuam no sino."
+    "vns.sound.blocked": "A reprodução de som está indisponível. As notificações continuam no sino.",
+    "update.action_check": "Verificar atualizações",
+    "settings.row.updates.label": "Atualizações da aplicação",
+    "settings.row.updates.help": "Verificar se existe uma versão assinada. As configurações e os dados permanecem no diretório de execução."
   },
-  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
+  "source_catalog_sha256": "c849bdd8318643be460aaa255dbf822733dbccc1131f50d37dce2bc1b487b08b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

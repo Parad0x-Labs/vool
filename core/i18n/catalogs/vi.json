@@ -1749,9 +1749,12 @@
     "companion.state.unknown": "Không rõ",
     "vns.sound.help": "Âm thanh nhẹ khi công việc hoàn tất hoặc cần bạn xử lý.",
     "vns.sound.preview": "Nghe thử",
-    "vns.sound.blocked": "Không thể phát âm thanh. Thông báo vẫn còn trong mục chuông."
+    "vns.sound.blocked": "Không thể phát âm thanh. Thông báo vẫn còn trong mục chuông.",
+    "update.action_check": "Kiểm tra bản cập nhật",
+    "settings.row.updates.label": "Cập nhật ứng dụng",
+    "settings.row.updates.help": "Kiểm tra phiên bản đã ký. Cài đặt và dữ liệu của bạn vẫn ở thư mục chạy ứng dụng."
   },
-  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
+  "source_catalog_sha256": "c849bdd8318643be460aaa255dbf822733dbccc1131f50d37dce2bc1b487b08b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

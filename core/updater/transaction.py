@@ -32,7 +32,6 @@ import os
 import random
 import shutil
 import time
-import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
@@ -40,6 +39,7 @@ from pathlib import Path
 from typing import Protocol
 
 from core.updater import platforms as platform_registry
+from core.updater.archive import extract_update_zip
 from core.updater.decision import UpdateDecision, decide_update
 from core.updater.download import DownloadReason, StagedDownloader, staged_artifact_name, verify_staged_artifact
 from core.updater.health import HealthResult
@@ -52,6 +52,7 @@ from core.updater.migrations import (
     run_migrations,
     snapshot_tree,
 )
+from core.updater.snapshot import restore_runtime, snapshot_runtime
 from core.updater.state import HighWaterStore, UpdaterPaths
 from core.updater.status import StatusStore, UpdateFault, UpdatePhase
 from core.updater.trust import TrustedPublishers
@@ -73,6 +74,7 @@ class Step(Enum):
     WORK_PAUSED = "work_paused"
     ACTIVE_STATE_RECEIVED = "active_state_received"
     SNAPSHOT_COMPLETE = "snapshot_complete"
+    SWAP_PLANNED = "swap_planned"
     HELPER_SHUTDOWN = "helper_shutdown"
     APP_STOPPED = "app_stopped"
     SWAPPED = "swapped"
@@ -85,16 +87,6 @@ class Step(Enum):
 
 
 _TERMINAL = (Step.FINALIZED, Step.ROLLED_BACK, Step.ABORTED)
-#: steps at/after which user-visible state has changed (crash here ⇒ rollback)
-_SWAP_POINT = Step.SWAPPED
-
-_ORDER = [step for step in Step]
-
-
-def _reached(before: Step, after: Step) -> bool:
-    return _ORDER.index(after) > _ORDER.index(before)
-
-
 class ExternalHelper(Protocol):
     """The out-of-process shutdown/relaunch contract (the updater must not depend on
     the app being alive, and the app cannot restart itself after exiting)."""
@@ -213,6 +205,7 @@ class UpdateFlow:
         clock: Callable[[], float] = time.time,
         crash_after: Step | None = None,
         notarization_waiver_reason: str = "",
+        allow_publisher_verified_adhoc: bool = False,
         prior_retention: int = 2,
         health_timeout: float = 90.0,
         snapshot_relpaths: tuple[str, ...] = SNAPSHOT_RELPATHS,
@@ -236,6 +229,7 @@ class UpdateFlow:
         self.clock = clock
         self.crash_after = crash_after
         self.notarization_waiver_reason = str(notarization_waiver_reason or "")
+        self.allow_publisher_verified_adhoc = bool(allow_publisher_verified_adhoc)
         self.prior_retention = int(prior_retention)
         self.health_timeout = float(health_timeout)
         self.snapshot_relpaths = tuple(snapshot_relpaths)
@@ -281,6 +275,10 @@ class UpdateFlow:
         return str(self._journal.payload_of(Step.DECIDED).get("target_version") or "")
 
     def _abort(self, detail: str, fault: UpdateFault = UpdateFault.UNEXPECTED) -> FlowResult:
+        if self._txid and (self._journal is None or not self._journal.has(Step.SWAPPED)):
+            with contextlib.suppress(OSError):
+                shutil.rmtree(self.app_path.parent / f".vool-stage-{self._txid}")
+        self.coordinator.resume_new_work()
         self._step(Step.ABORTED, {"detail": detail})
         self._publish(UpdatePhase.FAILED, detail=detail, fault=fault)
         return FlowResult(False, Step.ABORTED, detail=detail, txid=self._txid)
@@ -304,7 +302,9 @@ class UpdateFlow:
                 detail="transaction already terminal",
                 txid=self._txid,
             )
-        prior = Path(self._journal.payload_of(Step.SWAPPED).get("prior_path") or "")
+        swap_payload = self._journal.payload_of(Step.SWAPPED) or self._journal.payload_of(Step.SWAP_PLANNED)
+        prior_name = swap_payload.get("prior_path") or ""
+        prior = Path(prior_name) if prior_name else None
         previous_version = str(self._journal.payload_of(Step.DECIDED).get("installed_version") or "")
         # The delegated helper may have already RELAUNCHED the new version (its result
         # receipt precedes the relaunch), and a running new app holds the service
@@ -314,34 +314,52 @@ class UpdateFlow:
         # came up and the machine was left on the version that just failed health.)
         # The delegated helper is stopped with a PLAIN process stop: its
         # shutdown_app() IS the swap vehicle and must never run here.
-        if getattr(self.helper, "performs_swap", False):
-            stop = getattr(self.helper, "stop_running_app", None)
-            if callable(stop):
-                with contextlib.suppress(Exception):
-                    stop(timeout=10.0)
-        else:
-            with contextlib.suppress(Exception):
+        try:
+            if getattr(self.helper, "performs_swap", False):
+                stop = getattr(self.helper, "stop_running_app", None)
+                if not callable(stop) or stop(timeout=10.0) is False:
+                    raise RuntimeError("the new app could not be stopped for rollback")
+            else:
                 self.helper.shutdown_app()
-            with contextlib.suppress(Exception):
-                self.helper.wait_until_stopped(timeout=30.0)
-        if self._journal.has(Step.SWAPPED) and prior.exists():
-            if self.installer is not None:
+                if not self.helper.wait_until_stopped(timeout=30.0):
+                    raise RuntimeError("the new app did not stop for rollback")
+            if self._journal.has(Step.SWAPPED) or (prior is not None and prior.exists()):
+                if prior is None or not prior.exists() or self.installer is None:
+                    raise RuntimeError("the previous app backup is unavailable")
                 outcome = self.installer.restore_prior(self.app_path, prior, txid=self._txid)
                 if not outcome.ok:
-                    logger.error("restore_prior failed during rollback: %s", outcome.detail)
-        if self._journal.has(Step.SNAPSHOT_COMPLETE):
-            snapshot_dir = self.paths.transaction_dir(self._txid) / "config-snapshot"
-            destinations = [self.data_dir / rel for rel in self.snapshot_relpaths]
-            with contextlib.suppress(Exception):
+                    raise RuntimeError(f"restore_prior failed: {outcome.detail}")
+                # Mac restoration consumes its prior rename. Keep a new copy until
+                # the previous app has actually relaunched, so retry is possible.
+                if not prior.exists():
+                    shutil.copytree(self.app_path, prior, symlinks=True)
+            if self._journal.has(Step.SNAPSHOT_COMPLETE):
+                snapshot_dir = self.paths.transaction_dir(self._txid) / "config-snapshot"
+                destinations = [self.data_dir / rel for rel in self.snapshot_relpaths]
                 restore_tree(snapshot_dir, destinations)
+                runtime_snapshot = self.paths.transaction_dir(self._txid) / "runtime-snapshot"
+                if runtime_snapshot.exists():
+                    restore_runtime(self.data_dir, runtime_snapshot)
+            if not self.helper.relaunch(self.app_path):
+                raise RuntimeError("the previous app could not be relaunched")
+            previous_identity = str(self._journal.payload_of(Step.DECIDED).get("previous_identity") or previous_version)
+            previous_health = self.health_probe(timeout=self.health_timeout, expected_version=previous_identity or None)
+            if not previous_health.ok:
+                raise RuntimeError("the previous app was restored but did not become healthy")
+        except Exception as exc:
+            incomplete = f"Rollback incomplete: {exc}. Backups were retained; recovery is required"
+            self._write_receipt(ok=False, kind="rollback_failed", detail=incomplete,
+                                previous_version=previous_version, fault=UpdateFault.ROLLBACK_FAILED)
+            self._publish(UpdatePhase.FAILED, detail=incomplete, fault=UpdateFault.ROLLBACK_FAILED)
+            # Keep the nonterminal journal so startup recovery can retry.
+            return FlowResult(False, self._journal.last_step() or Step.CREATED,
+                              detail=incomplete, txid=self._txid, prior_path=prior)
         staged_bundle = self.app_path.parent / f".vool-stage-{self._txid}"
         with contextlib.suppress(Exception):
             if staged_bundle.exists():
                 shutil.rmtree(staged_bundle)
         if self._journal.has(Step.WORK_PAUSED):
             pass  # pause is one-way per boot; the receipt records it
-        with contextlib.suppress(Exception):
-            self.helper.relaunch(self.app_path)
         self._step(Step.ROLLED_BACK, {"detail": detail})
         receipt = self._write_receipt(
             ok=False,
@@ -406,7 +424,7 @@ class UpdateFlow:
             raise  # simulated hard crash: journal is already on disk for recovery
         except Exception as exc:  # never raise past a typed failure
             logger.exception("update flow failed unexpectedly")
-            if _reached(journal.last_step() or Step.CREATED, _SWAP_POINT) or journal.has(Step.SWAPPED):
+            if any(journal.has(step) for step in (Step.SWAPPED, Step.MIGRATED, Step.SWAP_PLANNED)):
                 return self._fail_and_rollback(f"unexpected failure: {exc}")
             return self._abort(f"unexpected failure: {exc}")
 
@@ -453,7 +471,7 @@ class UpdateFlow:
             raise
         except Exception as exc:
             logger.exception("update resume failed unexpectedly")
-            if journal.has(Step.SWAPPED):
+            if any(journal.has(step) for step in (Step.SWAPPED, Step.MIGRATED, Step.SWAP_PLANNED)):
                 return self._fail_and_rollback(f"unexpected failure: {exc}")
             return self._abort(f"unexpected failure: {exc}")
 
@@ -499,6 +517,7 @@ class UpdateFlow:
                 "installed_version": self.installed_version,
                 "sequence": manifest.sequence,
                 "expected_identity": manifest.expected_health_identity,
+                "previous_identity": self._previous_identity(),
             },
         )
         if (paused := self._maybe_pause(Step.DECIDED)) is not None:
@@ -544,29 +563,31 @@ class UpdateFlow:
         try:
             if staged_bundle.exists():
                 shutil.rmtree(staged_bundle)
-            with zipfile.ZipFile(staged_artifact) as archive:
-                for info in archive.infolist():
-                    archive.extract(info, staged_bundle)
-                    # Python's extract() does not apply the recorded mode; an app
-                    # bundle whose executable lost +x would pass verification and
-                    # then not run. Modes come from the archive itself.
-                    recorded_mode = (info.external_attr >> 16) & 0o777
-                    if recorded_mode:
-                        with contextlib.suppress(OSError):
-                            os.chmod(staged_bundle / info.filename, recorded_mode)
+            bundle_dir = extract_update_zip(staged_artifact, staged_bundle)
         except Exception as exc:
             with contextlib.suppress(Exception):
                 shutil.rmtree(staged_bundle, ignore_errors=True)
             return self._abort(f"could not unpack the update: {exc}", fault=UpdateFault.INSTALL_FAILED)
-        bundle_dir = staged_bundle
-        entries = [p for p in staged_bundle.iterdir()]
-        if len(entries) == 1 and entries[0].is_dir():
-            bundle_dir = entries[0]
         if self.installer is None:
             return self._abort(f"no installer for platform {self.platform}", fault=UpdateFault.NOT_APPLICABLE)
+        if self.allow_publisher_verified_adhoc and self.platform.startswith("macos-"):
+            try:
+                metadata = json.loads((bundle_dir / "Contents/Resources/BUILD_MANIFEST.json").read_text())
+                expected_arch = "arm64" if self.platform == "macos-arm64" else "x86_64"
+                if metadata.get("arch") != expected_arch or metadata.get("version") != manifest.version + "-beta":
+                    raise ValueError("the Mac payload's architecture/version does not match this signed offer")
+                if manifest.build_commit and metadata.get("exact_sha") != manifest.build_commit:
+                    raise ValueError("the Mac payload does not match the signed build commit")
+            except (OSError, ValueError) as exc:
+                return self._abort(f"incompatible Mac payload: {exc}", fault=UpdateFault.VERIFICATION_FAILED)
         require_notarization = None
         waiver = ""
-        if self.notarization_waiver_reason:
+        trust_policy = "platform-default"
+        running_policy = getattr(self.installer, "running_requires_notarization", None)
+        if self.allow_publisher_verified_adhoc and callable(running_policy):
+            require_notarization = running_policy(self.app_path)
+            trust_policy = "notarized-required" if require_notarization else "publisher-verified-adhoc"
+        elif self.notarization_waiver_reason:
             require_notarization = False
             waiver = self.notarization_waiver_reason
         verification = self.installer.verify_bundle(bundle_dir, require_notarization=require_notarization)
@@ -577,26 +598,35 @@ class UpdateFlow:
                 f"the new app bundle failed platform verification: {verification.detail}",
                 fault=UpdateFault.VERIFICATION_FAILED,
             )
-        self._step(Step.PREFLIGHT_OK, {"notarization_waiver": waiver})
+        if trust_policy == "publisher-verified-adhoc":
+            self.installer.clear_verified_quarantine(bundle_dir)
+        self._step(Step.PREFLIGHT_OK, {"notarization_waiver": waiver, "trust_policy": trust_policy})
 
         # 5) Pause new work (destructive guard).
-        pause = prepare_to_pause(self.coordinator, resolution=resolution)
-        if not pause.ok:
-            return self._abort(pause.plain_message, fault=UpdateFault.DESTRUCTIVE_WORK_ACTIVE)
-        self._step(Step.WORK_PAUSED, {"destructive_overridden": bool(pause.destructive)})
+        assert self._journal is not None
+        if not self._journal.has(Step.WORK_PAUSED):
+            pause = prepare_to_pause(self.coordinator, resolution=resolution)
+            if not pause.ok:
+                return self._abort(pause.plain_message, fault=UpdateFault.DESTRUCTIVE_WORK_ACTIVE)
+            self._step(Step.WORK_PAUSED, {"destructive_overridden": bool(pause.destructive)})
 
         # 6) Active-state receipt.
-        receipt = ActiveStateReceipt.capture(self._txid, self.coordinator, now=self.clock())
-        receipt_path = self.paths.transaction_dir(self._txid) / "active_state.json"
-        receipt_path.write_text(json.dumps(receipt.to_dict(), sort_keys=True, indent=2) + "\n", encoding="utf-8")
-        self._step(Step.ACTIVE_STATE_RECEIVED, {"active_work": len(receipt.active_work)})
+        if not self._journal.has(Step.ACTIVE_STATE_RECEIVED):
+            receipt = ActiveStateReceipt.capture(self._txid, self.coordinator, now=self.clock())
+            receipt_path = self.paths.transaction_dir(self._txid) / "active_state.json"
+            receipt_path.write_text(json.dumps(receipt.to_dict(), sort_keys=True, indent=2) + "\n", encoding="utf-8")
+            self._step(Step.ACTIVE_STATE_RECEIVED, {"active_work": len(receipt.active_work)})
 
         # 7) Snapshot compatible state/config (outside the bundle).
         self._publish(UpdatePhase.BACKING_UP)
         snapshot_dir = self.paths.transaction_dir(self._txid) / "config-snapshot"
         sources = [self.data_dir / rel for rel in self.snapshot_relpaths]
-        snapshot_tree(sources, snapshot_dir)
-        self._step(Step.SNAPSHOT_COMPLETE)
+        if not self._journal.has(Step.SNAPSHOT_COMPLETE):
+            snapshot_tree(sources, snapshot_dir)
+            snapshot_runtime(self.data_dir, self.paths.transaction_dir(self._txid) / "runtime-snapshot")
+            self._step(Step.SNAPSHOT_COMPLETE)
+        if (paused := self._maybe_pause(Step.SNAPSHOT_COMPLETE)) is not None:
+            return paused
 
         # 8) The swap path. A helper that performs the swap itself (the external
         # macOS script) gets the DELEGATED sequence: migrations run BEFORE the
@@ -615,13 +645,16 @@ class UpdateFlow:
             prepare = getattr(self.helper, "prepare", None)
             if callable(prepare):
                 prepare(txid=self._txid, staged_bundle=bundle_dir)
+            # Persist the intended prior BEFORE the detached swap script can run.
+            # Startup can distinguish an unstarted swap from a completed rename.
+            self._step(Step.SWAP_PLANNED, {"prior_path": str(expected_prior)})
             try:
                 self.helper.shutdown_app()
             except Exception as exc:
-                return self._abort(f"helper could not stop the app: {exc}", fault=UpdateFault.INSTALL_FAILED)
+                return self._fail_and_rollback(f"helper could not stop the app: {exc}", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.HELPER_SHUTDOWN, {"delegated": True})
             if not self.helper.wait_until_stopped(timeout=30.0):
-                return self._abort("the app did not stop in time; nothing was changed", fault=UpdateFault.INSTALL_FAILED)
+                return self._fail_and_rollback("the app did not stop in time", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.APP_STOPPED, {"delegated": True})
             # The script does the swap; journal the deterministic prior location so
             # rollback and startup recovery agree with it byte-for-byte.
@@ -647,6 +680,8 @@ class UpdateFlow:
             # 9) Atomic swap (prior kept).
             swap = self.installer.atomic_swap(bundle_dir, self.app_path, txid=self._txid)
             if not swap.ok:
+                if swap.prior_path is not None and swap.prior_path.exists():
+                    self._step(Step.SWAPPED, {"prior_path": str(swap.prior_path), "partial_swap": True})
                 return self._fail_and_rollback(f"app swap failed: {swap.detail}", fault=UpdateFault.INSTALL_FAILED)
             self._step(Step.SWAPPED, {"prior_path": str(swap.prior_path)})
 
@@ -698,6 +733,20 @@ class UpdateFlow:
             return self._fail_and_rollback(migration.plain_message, fault=UpdateFault.MIGRATION_FAILED)
         self._step(Step.MIGRATED, {"applied": migration.applied})
         return None
+
+    def _previous_identity(self) -> str:
+        try:
+            current = self.health_probe(timeout=min(3.0, self.health_timeout), expected_version=None)
+            if current.ok and current.reported_version:
+                return current.reported_version
+        except Exception:
+            logger.warning("could not capture the running app's health identity")
+        root = self.app_path / "Contents/Resources/app" if self.platform.startswith("macos-") else self.app_path
+        try:
+            source = json.loads((root / "config/build-source.json").read_text())
+            return str(source.get("commit_full") or self.installed_version)
+        except (OSError, ValueError):
+            return self.installed_version
 
 
 
@@ -774,7 +823,11 @@ def recover_interrupted_update(
         decided = journal.payload_of(Step.DECIDED)
         target_version = str(decided.get("target_version") or "")
 
-        if not journal.has(Step.SWAPPED):
+        swap_payload = journal.payload_of(Step.SWAPPED) or journal.payload_of(Step.SWAP_PLANNED)
+        prior_payload = swap_payload.get("prior_path") or ""
+        prior = Path(prior_payload) if prior_payload else None
+        swapped = journal.has(Step.SWAPPED) or (prior is not None and prior.exists())
+        if not swapped and not journal.has(Step.MIGRATED):
             staged_bundle = app_path.parent / f".vool-stage-{txid}"
             with contextlib.suppress(Exception):
                 if staged_bundle.exists():
@@ -791,41 +844,49 @@ def recover_interrupted_update(
         # Swap had happened: verify the new version actually works, against the
         # exact identity the transaction pinned when it was decided.
         expected_identity = str(decided.get("expected_identity") or target_version)
-        health = health_probe(timeout=30.0, expected_version=expected_identity)
-        if health.ok:
+        health = health_probe(timeout=30.0, expected_version=expected_identity) if swapped else None
+        if health is not None and health.ok:
             journal.append(Step.HEALTHY, {"reported_version": health.reported_version, "recovered": True})
             journal.append(Step.FINALIZED, {"recovered": True})
             status.publish(UpdatePhase.DONE, version=target_version)
             results.append(RecoveryResult(txid, "finalized", "new version healthy after crash recovery"))
             continue
 
-        prior_payload = journal.payload_of(Step.SWAPPED).get("prior_path") or ""
-        prior = Path(prior_payload) if prior_payload else None
         # stop the (possibly helper-relaunched) new version first: it holds the
         # service port the prior version needs (see rollback_active). A delegated
         # helper gets a plain stop — its shutdown_app() runs the swap script.
-        if getattr(helper, "performs_swap", False):
-            stop = getattr(helper, "stop_running_app", None)
-            if callable(stop):
-                with contextlib.suppress(Exception):
-                    stop(timeout=10.0)
-        else:
-            with contextlib.suppress(Exception):
-                helper.shutdown_app()
-            with contextlib.suppress(Exception):
-                helper.wait_until_stopped(timeout=30.0)
         try:
-            if installer is None:
-                raise RuntimeError(f"no recovery installer for {platform_key}")
-            if prior is None or not prior.exists():
-                raise RuntimeError("the prior app backup is unavailable")
-            restore = installer.restore_prior(app_path, prior, txid=txid)
-            if not restore.ok:
-                raise RuntimeError(restore.detail or "the prior app could not be restored")
+            if getattr(helper, "performs_swap", False):
+                stop = getattr(helper, "stop_running_app", None)
+                if not callable(stop) or not stop(timeout=10.0):
+                    raise RuntimeError("the new app could not be stopped for recovery")
+            else:
+                helper.shutdown_app()
+                if not helper.wait_until_stopped(timeout=30.0):
+                    raise RuntimeError("the new app could not be stopped for recovery")
+            if swapped:
+                if installer is None:
+                    raise RuntimeError(f"no recovery installer for {platform_key}")
+                if prior is None or not prior.exists():
+                    raise RuntimeError("the prior app backup is unavailable")
+                restore = installer.restore_prior(app_path, prior, txid=txid)
+                if not restore.ok:
+                    raise RuntimeError(restore.detail or "the prior app could not be restored")
+                if not prior.exists():
+                    shutil.copytree(app_path, prior, symlinks=True)
             snapshot_dir = tx_dir / "config-snapshot"
             if snapshot_dir.exists():
                 destinations = [data_dir / rel for rel in SNAPSHOT_RELPATHS]
                 restore_tree(snapshot_dir, destinations)
+            runtime_snapshot = tx_dir / "runtime-snapshot"
+            if runtime_snapshot.exists():
+                restore_runtime(data_dir, runtime_snapshot)
+            if not helper.relaunch(app_path):
+                raise RuntimeError("the prior app was restored but could not be restarted")
+            prior_health = health_probe(timeout=30.0, expected_version=str(
+                decided.get("previous_identity") or decided.get("installed_version") or "") or None)
+            if not prior_health.ok:
+                raise RuntimeError("the prior app was restored but did not become healthy")
         except Exception as exc:
             detail = f"Recovery rollback incomplete: {exc}"
             logger.error("%s", detail)
@@ -834,8 +895,6 @@ def recover_interrupted_update(
             # app or mark a rollback complete when restoration did not finish.
             results.append(RecoveryResult(txid, "rollback_failed", detail, prior_path=prior))
             continue
-        with contextlib.suppress(Exception):
-            helper.relaunch(app_path)
         journal.append(Step.ROLLED_BACK, {"detail": "automatic rollback during startup recovery"})
         status.publish(
             UpdatePhase.ROLLED_BACK,

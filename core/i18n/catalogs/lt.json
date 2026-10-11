@@ -1749,9 +1749,12 @@
     "companion.state.unknown": "Nežinoma",
     "vns.sound.help": "Švelnus garsas, kai darbas baigtas arba reikia jūsų veiksmo.",
     "vns.sound.preview": "Išbandyti garsą",
-    "vns.sound.blocked": "Garso paleisti nepavyko. Pranešimai lieka varpelio meniu."
+    "vns.sound.blocked": "Garso paleisti nepavyko. Pranešimai lieka varpelio meniu.",
+    "update.action_check": "Tikrinti atnaujinimus",
+    "settings.row.updates.label": "Programos atnaujinimai",
+    "settings.row.updates.help": "Tikrinti, ar yra pasirašyta versija. Nustatymai ir duomenys lieka vykdymo aplinkos kataloge."
   },
-  "source_catalog_sha256": "8de0716b6d5b3d6b23e5529bdea934251414c6a16a7ae3ed253f246f272a8ef5",
+  "source_catalog_sha256": "c849bdd8318643be460aaa255dbf822733dbccc1131f50d37dce2bc1b487b08b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

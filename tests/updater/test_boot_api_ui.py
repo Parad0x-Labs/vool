@@ -331,7 +331,7 @@ class TestFullJourneyViaApi:
             time.sleep(0.2)
         return subsystem.status_payload()["phase"]
 
-    def test_two_press_journey_finalizes_via_external_helper(self, journey):
+    def test_one_press_journey_finalizes_via_external_helper(self, journey):
         from core.web.api.runtime import RuntimeServices
         from core.web.api.service import dispatch_post
 
@@ -353,14 +353,12 @@ class TestFullJourneyViaApi:
 
         install = post("/api/update/install")
         assert install.status == 200, install.body
-        phase = self._wait_phase(journey.subsystem, {"ready_to_restart"})
-        assert phase == "ready_to_restart"
+        phase = self._wait_phase(journey.subsystem, {"done", "rolled_back", "failed"})
+        assert phase == "done", journey.subsystem.status_payload()["message"]
         payload = journey.subsystem.status_payload()
         assert payload["target_version"] == "0.6.0"
         assert "journey release notes" in payload["notes"]
 
-        restart = post("/api/update/restart")
-        assert restart.status == 200, restart.body
         final = self._wait_phase(journey.subsystem, {"done", "rolled_back", "failed"})
         assert final == "done", journey.subsystem.status_payload()["message"]
         assert journey.marker() == "new"
@@ -372,19 +370,15 @@ class TestFullJourneyViaApi:
 
     def test_restart_press_refuses_while_destructive_work_runs(self, journey):
         journey.subsystem.trigger_check()
-        install = self._post_press("/api/update/install")
-        assert install.status == 200
-        self._wait_phase(journey.subsystem, {"ready_to_restart"})
-
         handle = journey.subsystem.register_turn("big-cleanup", "deleting old files", destructive=True)
-        restart = self._post_press("/api/update/restart")
+        restart = self._post_press("/api/update/install")
         assert restart.status == 409
         payload = json.loads(restart.body.decode())
         assert "deleting old files" in payload["detail"]
         assert journey.marker() == "old"  # nothing restarted over the work
         journey.subsystem.complete_turn(handle.id)
 
-        restart = self._post_press("/api/update/restart")
+        restart = self._post_press("/api/update/install")
         assert restart.status == 200
         final = self._wait_phase(journey.subsystem, {"done", "rolled_back", "failed"})
         assert final == "done", journey.subsystem.status_payload()["message"]
@@ -394,8 +388,6 @@ class TestFullJourneyViaApi:
         journey.server.health_sick = True
         journey.subsystem.trigger_check()
         assert self._post_press("/api/update/install").status == 200
-        self._wait_phase(journey.subsystem, {"ready_to_restart"})
-        assert self._post_press("/api/update/restart").status == 200
         final = self._wait_phase(journey.subsystem, {"done", "rolled_back", "failed"})
         assert final == "rolled_back", journey.subsystem.status_payload()["message"]
         assert journey.marker() == "old"
