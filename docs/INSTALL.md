@@ -2,15 +2,15 @@
 
 This is the canonical install and quickstart doc.
 
-`main` is the current beta trunk. Use the default `main` installer path, or pin a release tag (below) for a reproducible install.
+User installs are pinned to `v0.7.0-beta`. Development on `main` is an explicit opt-in with `--ref main` and a matching script URL.
 
 ## Fast Path
 
 macOS / Linux:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.0-beta
 ```
 
 To install a specific release instead of the latest trunk on `main`, pin its tag both in the script URL and in `--ref`. `--ref` takes a branch name or a release tag (`v0.7.0-beta`), not a commit hash:
@@ -24,7 +24,7 @@ On Windows the same pin is `-Ref v0.7.0-beta`.
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1; powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1; powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.0-beta
 ```
 
 Local Windows checkout with guided installer:
@@ -58,23 +58,23 @@ bash Probe_VOOL_Stack.sh
 Force a supported install profile instead of taking the auto recommendation:
 
 ```bash
-bash bootstrap_vool.sh --install-profile local-only
+bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-only
 
-bash bootstrap_vool.sh --install-profile local-max
+bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-max
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -InstallProfile local-max
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.0-beta -InstallProfile local-max
 ```
 
 Safe one-line profile shortcuts for macOS / Linux:
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.sh && bash "$tmp" --install-profile ollama-only && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.0-beta --install-profile ollama-only && rm -f "$tmp"
 ```
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.sh && bash "$tmp" --install-profile ollama-max && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.0-beta --install-profile ollama-max && rm -f "$tmp"
 ```
 
 After install, inspect or switch profiles without editing env vars:
@@ -101,12 +101,40 @@ The probe reports:
 Manual local shortcut:
 
 ```bash
-git clone https://github.com/Parad0x-Labs/vool.git
+git clone --branch v0.7.0-beta --depth 1 https://github.com/Parad0x-Labs/vool.git
 cd vool
 bash Install_And_Run_VOOL.sh
 ```
 
-## What The Installer Does
+
+## Linux x86_64 tarball
+
+The v0.7 packaging workflow prepares `vool-0.7.0-beta-linux-x86_64.tar.gz`.
+Use this route only when that asset and its `.sha256` sidecar actually exist
+on the [v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta).
+An unrun workflow or a private draft is not a published download.
+
+```bash
+curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz
+curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz.sha256
+sha256sum -c vool-0.7.0-beta-linux-x86_64.tar.gz.sha256
+tar -xzf vool-0.7.0-beta-linux-x86_64.tar.gz
+bash vool-0.7.0-beta-linux-x86_64/install.sh
+~/.local/bin/vool
+# Server only: ~/.local/bin/vool --headless
+# Remove package: bash ~/.local/share/vool/current/uninstall.sh
+```
+
+No sudo or system Python is required. The payload lives in `~/.local/share/vool`,
+the command in `~/.local/bin/vool`, and the application menu entry in
+`~/.local/share/applications/vool.desktop`. Add `~/.local/bin` to PATH if needed.
+The desktop opens the local chat in your browser; closing the browser does not
+stop the runtime. Headless mode ends with Ctrl-C. Runtime profiles survive uninstall.
+The runtime and lean dependencies are included; Ollama/models and optional
+training/native GTK capabilities are separate. Supported package test targets:
+Ubuntu 22.04 and 24.04 on x86_64. AppImage and DEB follow in v0.7.1.
+
+## What The Source Installer Does
 
 1. creates a Python environment and installs dependencies
 2. probes hardware and selects an Ollama model tier

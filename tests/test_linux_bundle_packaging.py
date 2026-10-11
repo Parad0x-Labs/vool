@@ -174,3 +174,28 @@ def test_workflow_builds_once_smokes_both_targets_and_gates_release():
     assert "--clobber" not in release_step and "--draft" in release_step
     smoke_step = jobs["smoke"]["steps"][-2]["run"]
     assert "sha256sum -c" in smoke_step and "--expected-commit" in smoke_step
+
+
+def test_bootstrap_explicit_beta_pin_and_trunk_override_resolve_correct_archives(home):
+    bootstrap = ROOT / "installer/bootstrap_vool.sh"
+    environment = {"HOME": str(home), "PATH": "/usr/bin:/bin"}
+    result = subprocess.run(["bash", str(bootstrap), "--ref", "v0.7.0-beta", "--help"], env=environment, capture_output=True, text=True, check=True)
+    assert "default: v0.7.0-beta" in result.stdout
+    definitions = bootstrap.read_text().rsplit('main "$@"', 1)[0]
+    result = subprocess.run(["bash"], input=definitions + '\nparse_args --ref v0.7.0-beta\nprintf "%s\\n" "$ARCHIVE_URL"\n', env=environment, capture_output=True, text=True, check=True)
+    assert result.stdout.strip().endswith("/archive/refs/tags/v0.7.0-beta.tar.gz")
+    environment["VOOL_GITHUB_REF"] = "main"
+    result = subprocess.run(["bash"], input=definitions + '\nprintf "%s\\n" "$ARCHIVE_URL"\n', env=environment, capture_output=True, text=True, check=True)
+    assert result.stdout.strip().endswith("/archive/refs/heads/main.tar.gz")
+    assert not (home / "vool-local").exists()
+
+
+def test_user_install_docs_pin_script_and_source_to_the_beta_tag():
+    for name in ("README.md", "docs/INSTALL.md", "docs/getting-started/install.md"):
+        content = (ROOT / name).read_text()
+        assert "/vool/main/installer/bootstrap_vool." not in content
+        for line in content.splitlines():
+            if "bash bootstrap_vool.sh" in line or 'bash "$tmp"' in line:
+                assert "--ref v0.7.0-beta" in line
+            if "bootstrap_vool.ps1" in line and " -File " in line:
+                assert "-Ref v0.7.0-beta" in line
