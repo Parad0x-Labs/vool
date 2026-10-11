@@ -2229,7 +2229,7 @@ def maybe_handle_memory_command(
             # reply never says nothing matched (review 2026-10-08: a denied read answered "found no memory").
             return outcome("Forget could not be verified as fully applied: "
                           + ", ".join(failed_stores) + " could not be erased and verified on this turn"
-                          + (f", after {total_removed} entr{'y' if total_removed == 1 else 'ies'} were removed" if total_removed > 0 else "")
+                          + (f", after {total_removed} entr{'y was' if total_removed == 1 else 'ies were'} removed" if total_removed > 0 else "")
                           + ". Please retry the forget.", "partial" if total_removed > 0 else "failed")
         if total_removed <= 0:
             healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
@@ -2249,7 +2249,7 @@ def maybe_handle_memory_command(
 
 
 def _forget_persisted_copies(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
-    """Inspect persisted packet/cache copies; unattributed copies make erasure incomplete."""
+    """Erase the verified database carriers; preserve referenced task identities."""
     from core.memory.entries import _load_erasure_rows, _record_erasure_store
     from core.vool_memory import text_carries_forget_token
     from storage.db import get_connection
@@ -2263,53 +2263,60 @@ def _forget_persisted_copies(token: str, *, chat_id: str, erasures: dict[str, An
         names = [str(row[0]) for row in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
         ).fetchall()]
-        targets = [name for name in names if any(part in name.lower() for part in ("packet", "cache", "snapshot"))]
-        for table in targets:
+        from core.memory.carriers import (
+            _derivative_payload,
+            _derivative_scope,
+            _derivative_tables,
+            carries,
+        )
+
+        task_references = any(
+            str(foreign_key[2]).casefold() == "local_tasks"
+            for table in names for foreign_key in conn.execute(f"PRAGMA foreign_key_list({quoted(table)})")
+        )
+        for table in sorted(_derivative_tables(names)):
             store = "persisted_" + table
             try:
                 schema = conn.execute(f"PRAGMA table_info({quoted(table)})").fetchall()
-                columns = [str(row[1]) for row in schema]
                 identity = [str(row[1]) for row in schema if int(row[5])]
-                scope_column = next((column for column in ("chat_id", "chat_scope", "session_id", "origin_session_id") if column in columns), None)
-                payload_columns = [column for column in columns if column != scope_column]
-                json_columns = frozenset(str(row[1]) for row in schema
-                                         if "JSON" in str(row[2]).upper() or str(row[1]).lower().endswith("_json"))
-
-                def carries(row: Any, selected_columns: tuple[str, ...] = tuple(payload_columns),
-                            structured_columns: frozenset[str] = json_columns) -> bool:
-                    matched = False
-                    for column in selected_columns:
-                        value = row[column]
-                        if column in structured_columns:
-                            if value is None:
-                                continue
-                            decoded = json.loads(value) if isinstance(value, (str, bytes, bytearray)) else value
-                            value = json.dumps(decoded, ensure_ascii=False)
-                        if isinstance(value, bytes) and value:
-                            # Opaque persisted payloads have no text-erasure proof.
-                            raise RuntimeError("persisted payload has an opaque representation")
-                        if not isinstance(value, str):
-                            continue
-                        fingerprint = column in {"memo_key", "nonce"} or column.endswith(("_sha256", "_hash", "_digest"))
-                        if fingerprint and re.fullmatch(r"(?:k1:)?[0-9a-f]{32,128}", value):
-                            continue
-                        if text_carries_forget_token(value, token):
-                            matched = True
-                    return matched
-
-                suffix = f" WHERE {quoted(scope_column)} = ?" if scope_column else ""
-                params = (chat_id,) if scope_column else ()
+                structured = {str(row[1]) for row in schema
+                              if "JSON" in str(row[2]).upper() or str(row[1]).endswith("_json")}
+                scope_column, suffix, params = _derivative_scope(schema, chat_id)
                 rows = conn.execute(f"SELECT * FROM {quoted(table)}{suffix}", params).fetchall()
-                matched = [row for row in rows if carries(row)]
+                # Decode every row before writing: malformed and opaque carriers
+                # remain failures even when an earlier field already matched.
+                payloads = [(row, _derivative_payload(row, schema)) for row in rows]
+                matched = [(row, payload) for row, payload in payloads if carries(payload, token)]
                 if matched and (not scope_column or not identity):
                     _record_erasure_store(erasures, store, "incomplete")
                     continue
-                for row in matched:
-                    where = " AND ".join(f"{quoted(column)} = ?" for column in identity)
-                    conn.execute(f"DELETE FROM {quoted(table)} WHERE {where}", tuple(row[column] for column in identity))
+                for row, payload in matched:
+                    where = " AND ".join(f"{quoted(column)} IS ?" for column in identity)
+                    key = tuple(row[column] for column in identity)
+                    if table == "local_tasks" and task_references:
+                        updates = {}
+                        for column, value in payload.items():
+                            if not carries(value, token):
+                                continue
+                            if column in identity:
+                                raise ValueError("referenced task identity contains the forget target")
+                            if isinstance(value, (dict, list)):
+                                updates[column] = "{}" if isinstance(value, dict) else "[]"
+                            elif column in structured:
+                                updates[column] = "null"
+                            elif isinstance(value, str):
+                                updates[column] = ""
+                            else:
+                                raise ValueError("task payload cannot be safely redacted")
+                        assignments = ", ".join(f"{quoted(column)} = ?" for column in updates)
+                        conn.execute(f"UPDATE {quoted(table)} SET {assignments} WHERE {where}",
+                                     (*updates.values(), *key))
+                    else:
+                        conn.execute(f"DELETE FROM {quoted(table)} WHERE {where}", key)
                 conn.commit()
                 retained = conn.execute(f"SELECT * FROM {quoted(table)}{suffix}", params).fetchall()
-                if any(carries(row) for row in retained):
+                retained_payloads = [_derivative_payload(row, schema) for row in retained]
+                if any(carries(payload, token) for payload in retained_payloads):
                     raise RuntimeError("persisted copy could not be erased and verified")
                 _record_erasure_store(erasures, store, "verified", len(matched))
             except Exception:

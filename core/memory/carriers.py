@@ -153,6 +153,30 @@ def _quoted(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+def _derivative_tables(tables: Sequence[str]) -> set[str]:
+    """The database carrier inventory shared by erasure and final verification."""
+    return ({"learning_shards", "local_tasks", "response_feedback", "context_capsule_versions"}
+            | {name for name in tables if name.startswith("dialogue_")
+               or any(part in name for part in ("packet", "cache", "snapshot"))}) & set(tables)
+
+
+def _derivative_scope(schema: Sequence[Any], chat_id: str) -> tuple[str | None, str, tuple[str, ...]]:
+    names = {str(column[1]) for column in schema}
+    scope = next((name for name in ("session_id", "chat_id", "origin_session_id", "chat_scope")
+                  if name in names), None)
+    suffix = (f" WHERE {_quoted(scope)} = ? OR {_quoted(scope)} IS NULL OR {_quoted(scope)} = ''"
+              if scope else "")
+    return scope, suffix, (chat_id,) if scope else ()
+
+
+def _derivative_payload(row: Any, schema: Sequence[Any]) -> dict[str, Any]:
+    structured = [str(column[1]) for column in schema if "JSON" in str(column[2]).upper()]
+    if any(isinstance(value, (bytes, bytearray, memoryview)) and value
+           for column, value in dict(row).items() if column not in structured):
+        raise ValueError("derivative payload has an opaque representation")
+    return row_payload(row, structural_fields=ROW_IDENTITIES, json_fields=structured)
+
+
 def _scope(row: Mapping[str, Any]) -> str:
     return str(row.get("origin_chat_id") or row.get("session_id") or row.get("chat_id")
                or row.get("chat_scope") or row.get("origin_session_id") or "")
@@ -325,23 +349,13 @@ def verify_forget_stores(
     try:
         conn = get_connection()
         tables = {str(row[0]) for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-        targets = {"learning_shards", "local_tasks", "response_feedback", "context_capsule_versions"}
-        targets.update(name for name in tables if name.startswith("dialogue_")
-                       or any(part in name for part in ("packet", "cache", "snapshot")))
-        for table in sorted(targets & tables):
+        for table in sorted(_derivative_tables(tables)):
             def sql_rows(table: str = table) -> bool:
                 schema = conn.execute(f"PRAGMA table_info({_quoted(table)})").fetchall()
-                names = {str(column[1]) for column in schema}
-                scope = next((name for name in ("session_id", "chat_id", "origin_session_id", "chat_scope") if name in names), None)
-                suffix = (f" WHERE {_quoted(scope)} = ? OR {_quoted(scope)} IS NULL OR {_quoted(scope)} = ''"
-                          if scope else "")
-                params = (chat_id,) if scope else ()
-                structured = [str(column[1]) for column in schema if "JSON" in str(column[2]).upper()]
+                _scope_column, suffix, params = _derivative_scope(schema, chat_id)
                 rows = conn.execute(f"SELECT * FROM {_quoted(table)}{suffix}", params).fetchall()
-                if any(isinstance(value, (bytes, bytearray, memoryview)) and value
-                       for row in rows for column, value in dict(row).items() if column not in structured):
-                    raise ValueError("derivative payload has an opaque representation")
-                return any(carries(row_payload(row, structural_fields=ROW_IDENTITIES, json_fields=structured), token) for row in rows)
+                payloads = [_derivative_payload(row, schema) for row in rows]
+                return any(carries(payload, token) for payload in payloads)
 
             verify(table, sql_rows)
         _verify_pages(conn, tables, chat_id, token, verify)
