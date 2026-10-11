@@ -741,7 +741,7 @@ launch_refusal() {
   local message="$1"
   echo "VOOL cannot start: ${message}" >&2
   if command -v osascript >/dev/null 2>&1; then
-    osascript -e 'on run argv' -e 'display alert "VOOL cannot start" message (item 1 of argv) as critical' -e 'end run' "${message}" || true
+    osascript -e 'on run argv' -e 'display alert "VOOL cannot start" message (item 1 of argv) as critical giving up after 10' -e 'end run' "${message}" || true
   fi
   exit 1
 }

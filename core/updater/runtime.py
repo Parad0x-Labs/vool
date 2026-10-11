@@ -151,6 +151,7 @@ class UpdateSubsystem:
         self.health_timeout = float(health_timeout)
         self._press_lock = threading.Lock()
         self._started = False
+        self._recovering = False
         self._paused_txid = ""
         self._install_thread: threading.Thread | None = None
 
@@ -187,7 +188,7 @@ class UpdateSubsystem:
                 fetch=self._custom_fetch,
                 clock=self._clock,
                 sleeper=sleeper,
-                check_allowed=lambda: not self._press_lock.locked() and not self._worker_alive(),
+                check_allowed=lambda: not self._recovering and not self._press_lock.locked() and not self._worker_alive(),
             )
             self.controller = UpdateController(
                 offer_loader=lambda: self.service.current_offer() if self.service else None,
@@ -240,20 +241,44 @@ class UpdateSubsystem:
             return  # the detached transaction still owns recovery/finalization
         if not self.feed.has_target:
             return  # no configured app ⇒ nothing was ever swapped by this install
+        from core.updater.transaction import UpdateJournal
+
+        # Recovery that can stop this host must survive its exit, just like a
+        # normal update. Safe pre-swap cleanup may stay in the bounded thread.
+        for directory in self.paths.transactions.iterdir() if self.paths.transactions.is_dir() else ():
+            if not directory.is_dir():
+                continue
+            journal = UpdateJournal(directory)
+            if not journal.is_terminal() and any(journal.has(step) for step in (
+                Step.SWAPPED, Step.MIGRATED, Step.SWAP_PLANNED
+            )):
+                from core.updater.worker import start_worker
+
+                try:
+                    start_worker(self, None, "recovery-" + str(time.time_ns()), recovery=True)
+                except Exception as exc:
+                    from core.updater.status import UpdateFault
+
+                    self.status.publish(UpdatePhase.FAILED, fault=UpdateFault.ROLLBACK_FAILED,
+                                        detail=f"could not start recovery: {exc}")
+                return
         helper = self._make_helper()
         probe = self._make_probe()
+        self._recovering = True
+
+        def recover():
+            try:
+                return recover_interrupted_update(
+                    data_dir=self.data_dir, app_path=Path(self.feed.app_path),
+                    helper=helper, health_probe=probe, installed_version=self.installed_version,
+                    channel=self.feed.channel, platform=self.platform,
+                )
+            finally:
+                self._recovering = False
+
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="vool-update-recover")
         try:
-            future = executor.submit(
-                recover_interrupted_update,
-                data_dir=self.data_dir,
-                app_path=Path(self.feed.app_path),
-                helper=helper,
-                health_probe=probe,
-                installed_version=self.installed_version,
-                channel=self.feed.channel,
-                platform=self.platform,
-            )
+            future = executor.submit(recover)
             with contextlib.suppress(concurrent.futures.TimeoutError):
                 results = future.result(timeout=RECOVERY_BOUND_SECONDS)
                 for item in results or []:
@@ -408,6 +433,9 @@ class UpdateSubsystem:
             return PressOutcome(False, detail=self.status_payload()["unavailable_plain"] or "updates are unavailable")
         if not self.feed.has_target:
             return PressOutcome(False, detail="no app path is configured for this install, so nothing can be updated")
+        prior_status = self.status.load()
+        if self._recovering or (prior_status and prior_status.fault_code == "rollback_failed"):
+            return PressOutcome(False, detail="the previous update needs recovery before another can be installed")
         if self._worker_alive():
             return PressOutcome(False, detail="an update is already in progress")
         if not self._press_lock.acquire(blocking=False):

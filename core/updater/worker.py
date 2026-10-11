@@ -1,6 +1,7 @@
 """Detached continuation of a prepared, signed transaction across app shutdown."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -12,6 +13,26 @@ from pathlib import Path
 
 from core.updater.macos import _pid_has_exited
 from core.updater.state import UpdaterPaths, _atomic_write_json, _read_json
+
+
+def _cgroup_units(path: Path = Path("/proc/self/cgroup")) -> set[str]:
+    return {part for line in path.read_text().splitlines()
+            for part in line.split(":", 2)[-1].split("/") if part}
+
+
+def _systemd_scope_prefix(txid: str, *, platform: str | None = None,
+                          cgroup_path: Path = Path("/proc/self/cgroup")) -> list[str]:
+    if (platform or sys.platform) != "linux" or "vool-runtime.service" not in _cgroup_units(cgroup_path):
+        return []
+    binary = shutil.which("systemd-run")
+    if not binary:
+        raise ValueError("the updater cannot leave its runtime service; systemd-run is unavailable")
+    unit = "vool-update-" + hashlib.sha256(txid.encode()).hexdigest()[:24]
+    command = [binary, "--user", "--scope", "--quiet", "--collect", "--unit=" + unit]
+    help_result = subprocess.run([binary, "--help"], capture_output=True, text=True, timeout=5, check=False)
+    if "--expand-environment=" in help_result.stdout:
+        command.append("--expand-environment=no")
+    return [*command, "--"]
 
 
 def prune_finished_workers(data_dir: Path) -> None:
@@ -28,7 +49,11 @@ def prune_finished_workers(data_dir: Path) -> None:
             continue
         if not _pid_has_exited(int(lease["pid"])):
             continue
-        if not UpdateJournal(paths.transaction_dir(job.name)).is_terminal():
+        finished = _read_json(job / "recovery-result.json") or {}
+        if job.name.startswith("recovery-"):
+            if not finished.get("ok"):
+                continue
+        elif not UpdateJournal(paths.transaction_dir(job.name)).is_terminal():
             continue
         for name in ("code", "python"):
             directory = job / name
@@ -50,7 +75,7 @@ def worker_alive(data_dir: Path) -> bool:
     return command.returncode == 0 and marker in command.stdout
 
 
-def start_worker(subsystem, offer, txid: str) -> subprocess.Popen:
+def start_worker(subsystem, offer, txid: str, *, recovery: bool = False) -> subprocess.Popen:
     """Freeze code (and a bundled interpreter) OUTSIDE the replacement target.
 
     No private publisher material or user profile is copied. Parent already owns
@@ -86,18 +111,22 @@ def start_worker(subsystem, offer, txid: str) -> subprocess.Popen:
         "installed_version": subsystem.installed_version, "platform": subsystem.platform,
         "health_timeout": subsystem.health_timeout,
         "notarization_waiver_reason": subsystem.notarization_waiver_reason,
+        "recovery": recovery,
         "keys": {key: subsystem.trust.public_key_hex(key) for key in subsystem.trust.key_ids},
     })
-    (root / "manifest.json").write_bytes(offer.raw)
+    if not recovery:
+        (root / "manifest.json").write_bytes(offer.raw)
     env = dict(os.environ, PYTHONPATH=str(code), PYTHONDONTWRITEBYTECODE="1",
                VOOL_HOME=str(subsystem.data_dir.resolve().parent))
     log = root / "worker.log"
+    prefix = _systemd_scope_prefix(txid)
     with log.open("ab") as output:
-        process = subprocess.Popen([str(executable), "-m", "core.updater.worker", str(plan)],
+        process = subprocess.Popen([*prefix, str(executable), "-m", "core.updater.worker", str(plan)],
                                    cwd=code, env=env, stdin=subprocess.DEVNULL,
                                    stdout=output, stderr=output, start_new_session=True, close_fds=True)
     lease = {
         "pid": process.pid, "plan": str(plan), "txid": txid, "started_at": time.time(),
+        "scope": next((arg.split("=", 1)[1] + ".scope" for arg in prefix if arg.startswith("--unit=")), ""),
     }
     _atomic_write_json(root / "process.json", lease)
     _atomic_write_json(paths.root / "worker.json", lease)
@@ -112,6 +141,17 @@ def main() -> int:
     from core.updater.status import UpdateFault, UpdatePhase
     from core.updater.trust import TrustedPublishers
 
+    if sys.argv[1] == "--recover-startup":
+        subsystem = UpdateSubsystem()
+        if not subsystem.configured:
+            return 2
+        subsystem._recover_bounded()
+        if not subsystem._recovering and not subsystem._worker_alive():
+            if subsystem.status.load() and subsystem.status.load().fault_code == "rollback_failed":
+                return 1
+            (Path(subsystem.feed.app_path) / ".vool_updating.lock").unlink(missing_ok=True)
+        return 0
+
     plan = Path(sys.argv[1])
     params = json.loads(plan.read_text(encoding="utf-8"))
     subsystem = UpdateSubsystem(feed=FeedConfig(**params["feed"]),
@@ -125,10 +165,33 @@ def main() -> int:
         while time.monotonic() < deadline:
             lease = _read_json(subsystem.paths.root / "worker.json") or {}
             if lease.get("txid") == params["txid"] and lease.get("pid") == os.getpid():
+                if lease.get("scope") and lease["scope"] not in _cgroup_units():
+                    raise ValueError("the updater did not enter its independent service scope")
+                break
+            if lease.get("txid") == params["txid"] and lease.get("scope") and lease.get("pid") == os.getppid():
+                if lease["scope"] not in _cgroup_units():
+                    raise ValueError("the updater did not enter its independent service scope")
+                lease.update(launcher_pid=lease["pid"], pid=os.getpid())
+                _atomic_write_json(plan.with_name("process.json"), lease)
+                _atomic_write_json(subsystem.paths.root / "worker.json", lease)
                 break
             time.sleep(.02)
         else:
             raise ValueError("the parent did not publish the detached transaction lease; nothing was installed")
+        if params.get("recovery") is True:
+            from core.updater.transaction import recover_interrupted_update
+
+            results = recover_interrupted_update(
+                data_dir=subsystem.data_dir, app_path=Path(subsystem.feed.app_path),
+                helper=subsystem._make_helper(), health_probe=subsystem._make_probe(),
+                installed_version=subsystem.installed_version, channel=subsystem.feed.channel,
+                platform=subsystem.platform, status_store=subsystem.status,
+            )
+            ok = all(result.action != "rollback_failed" for result in results)
+            receipt = {"ok": ok, "actions": [{"txid": result.txid, "action": result.action} for result in results]}
+            _atomic_write_json(plan.with_name("recovery-result.json"), receipt)
+            print(json.dumps(receipt), flush=True)
+            return 0 if ok else 1
         raw = plan.with_name("manifest.json").read_bytes()
         verification = parse_and_verify_manifest(raw, subsystem.trust)
         if not verification.ok or verification.manifest is None:
@@ -146,7 +209,7 @@ def main() -> int:
         return 0 if result.ok else 1
     except Exception as exc:
         subsystem.status.publish(UpdatePhase.FAILED, detail=f"detached update failed: {exc}",
-                                 fault=UpdateFault.INSTALL_FAILED)
+                                 fault=UpdateFault.ROLLBACK_FAILED if params.get("recovery") else UpdateFault.INSTALL_FAILED)
         raise
 
 
