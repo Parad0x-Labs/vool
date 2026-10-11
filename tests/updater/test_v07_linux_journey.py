@@ -46,8 +46,10 @@ def _wait(callback, *, timeout=90):
     raise AssertionError(f"installed-source journey timed out: {last}")
 
 
-@pytest.mark.parametrize("unhealthy", [False, True])
-def test_one_press_restarts_installed_source_and_keeps_data(tmp_path, unhealthy):
+@pytest.mark.parametrize("scenario", ["healthy", "unhealthy", "interrupted"])
+def test_one_press_restarts_installed_source_and_keeps_data(tmp_path, scenario):
+    unhealthy = scenario == "unhealthy"
+    interrupted = scenario == "interrupted"
     home = tmp_path / "home"
     (home / "data").mkdir(parents=True)
     (home / "config").mkdir()
@@ -101,14 +103,40 @@ def test_one_press_restarts_installed_source_and_keeps_data(tmp_path, unhealthy)
             "manifest_url": feed + "/manifest.json", "channel": "beta", "health_url": origin + "/healthz",
         }))
     if unhealthy:
-        (new / "apps/vool_api_server.py").write_text("""import os,sqlite3
+        (new / "apps/vool_api_server.py").write_text("""import os,sqlite3,json
 from pathlib import Path
 home=Path(os.environ['VOOL_HOME'])
 with sqlite3.connect(home/'data/seed.db') as connection:
  connection.execute('DELETE FROM memory')
 (home/'config/profile.json').write_text('changed')
+with sqlite3.connect(home/'data/seed.db') as connection:
+ (home/'mutation-proof.json').write_text(json.dumps({'rows': connection.execute('SELECT * FROM memory').fetchall(), 'profile': (home/'config/profile.json').read_text()}))
 raise SystemExit(7)
 """)
+    if interrupted:
+        # Crash the OLD detached worker immediately after its real swap. On the
+        # next launch the new API must recover outside its own process, because
+        # rollback stops that API. A mismatched health identity forces recovery.
+        transaction = target / "core/updater/transaction.py"
+        text = transaction.read_text().replace(
+            "self._journal.append(step, payload)",
+            "self._journal.append(step, payload)\n        if step is Step.SWAPPED: os._exit(73)",
+        )
+        transaction.write_text(text)
+        (new / "config/build-source.json").write_text(json.dumps({"commit_full": "b" * 40,
+                                                                  "source_kind": "git", "dirty_state": True}))
+        entry = new / "apps/vool_api_server.py"
+        text = entry.read_text().replace("from __future__ import annotations", """from __future__ import annotations
+import os as _fixture_os,sqlite3 as _fixture_sqlite,json as _fixture_json
+from pathlib import Path as _FixturePath
+_fixture_home=_FixturePath(_fixture_os.environ['VOOL_HOME'])
+with _fixture_sqlite.connect(_fixture_home/'data/seed.db') as _fixture_connection:
+ _fixture_connection.execute('DELETE FROM memory')
+(_fixture_home/'config/profile.json').write_text('changed before startup recovery')
+with _fixture_sqlite.connect(_fixture_home/'data/seed.db') as _fixture_connection:
+ (_fixture_home/'mutation-proof.json').write_text(_fixture_json.dumps({'rows': _fixture_connection.execute('SELECT * FROM memory').fetchall(), 'profile': (_fixture_home/'config/profile.json').read_text()}))
+""")
+        entry.write_text(text)
     venv = target / ".venv"
     (venv / "bin").mkdir(parents=True)
     (venv / "bin/python").symlink_to(sys.executable)
@@ -155,6 +183,21 @@ raise SystemExit(7)
             assert notice["target_version"] == "0.7.1"
             response = _api(origin, "/api/update/install", {})
             assert response["accepted"]
+            if interrupted:
+                from core.updater.macos import _pid_has_exited
+
+                lease_path = home / "data/update_v2/worker.json"
+
+                def crashed():
+                    lease = json.loads(lease_path.read_text())
+                    return lease if _pid_has_exited(lease["pid"]) else None
+
+                _wait(crashed)
+                journals = list((home / "data/update_v2/transactions").glob("*/journal.jsonl"))
+                assert json.loads(journals[0].read_text().splitlines()[-1])["step"] == "swapped"
+                launched = subprocess.Popen(["bash", str(launcher)], env=env, stdout=log, stderr=log, start_new_session=True)
+                owned.add(launched.pid)
+                (tmp_path / "owned-pids.json").write_text(json.dumps(sorted(owned)))
 
             def terminal():
                 for journal in (home / "data/update_v2/transactions").glob("*/journal.jsonl"):
@@ -165,9 +208,20 @@ raise SystemExit(7)
                 assert status["phase"] != "failed", status
                 return None
 
-            assert _wait(terminal, timeout=150) == ("rolled_back" if unhealthy else "finalized")
+            assert _wait(terminal, timeout=150) == ("rolled_back" if unhealthy or interrupted else "finalized")
             after = _wait(lambda: _api(origin, "/healthz"))
-            assert after["runtime"]["app_version"] == ("0.7.0" if unhealthy else "0.7.1")
+            assert after["runtime"]["app_version"] == ("0.7.0" if unhealthy or interrupted else "0.7.1")
+            if unhealthy or interrupted:
+                proof = json.loads((home / "mutation-proof.json").read_text())
+                assert proof == {"rows": [], "profile": "changed before startup recovery" if interrupted else "changed"}
+                time.sleep(.5)  # the boot scheduler must not erase recovery truth
+                assert _api(origin, "/api/update/status")["phase"] == "rolled_back"
+            if interrupted:
+                results = list((home / "data/update_v2/workers").glob("recovery-*/recovery-result.json"))
+                _wait(lambda: any(path.exists() for path in results) or list(
+                    (home / "data/update_v2/workers").glob("recovery-*/recovery-result.json")))
+                results = list((home / "data/update_v2/workers").glob("recovery-*/recovery-result.json"))
+                assert json.loads(results[0].read_text())["ok"]
             with sqlite3.connect(database) as connection:
                 assert connection.execute("SELECT * FROM memory").fetchall() == [("retained",)]
                 assert connection.execute("PRAGMA quick_check").fetchall() == [("ok",)]

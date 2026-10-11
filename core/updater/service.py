@@ -130,17 +130,26 @@ class UpdateCheckService:
                 self._stop.wait(0.2)
                 continue
             try:
-                self.check_once()
+                self.check_once(preserve_failure=True)
             except Exception:  # a background check NEVER takes the app down
                 logger.exception("background update check failed")
             self._stop.wait(self.interval)
 
     # -- one check ----------------------------------------------------------- #
 
-    def check_once(self) -> CheckOutcome:
+    def check_once(self, *, preserve_failure: bool = False) -> CheckOutcome:
         with self._lock:
             if not self._check_allowed():
                 return CheckOutcome(False, "an update is already in progress")
+            previous = self.status.load()
+            if previous is not None and (
+                previous.fault_code == "rollback_failed" or (
+                    preserve_failure and previous.fault_code
+                    and previous.phase in (UpdatePhase.FAILED, UpdatePhase.ROLLED_BACK)
+                )
+            ):
+                self._offer = None
+                return CheckOutcome(False, "the previous update needs attention; recovery status was retained")
             self.status.publish(UpdatePhase.CHECKING)
             try:
                 raw = self._fetch(self.manifest_url)

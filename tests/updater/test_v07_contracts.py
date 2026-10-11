@@ -275,3 +275,76 @@ def test_worker_pruning_keeps_active_and_incomplete_jobs(tmp_path, monkeypatch):
     assert not (paths.root / "workers/finished/code").exists()
     assert not (paths.root / "workers/finished/python").exists()
     assert (paths.root / "workers/finished/worker.log").read_text() == "retained evidence"
+
+
+@pytest.mark.parametrize("fault", ["install_failed", "health_check_failed", "rollback_failed"])
+def test_background_checks_preserve_update_failure_until_manual_check(tmp_path, fault):
+    from core.updater.status import UpdateFault
+
+    private, public = generate_publisher_keypair()
+    document, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    calls = []
+    service = UpdateCheckService(manifest_url="fixture", trust=TrustedPublishers({"release-2026-01": public}),
+                                 installed_version="0.7.0", channel="beta", platform="macos-arm64", data_dir=tmp_path,
+                                 fetch=lambda _: (calls.append(True), manifest_bytes(document))[1])
+    service.status.publish(UpdatePhase.ROLLED_BACK if fault == "health_check_failed" else UpdatePhase.FAILED,
+                           previous_version="0.7.0", detail="injected update failure", fault=UpdateFault(fault))
+    assert not service.check_once(preserve_failure=True).ok
+    assert calls == [] and service.current_offer() is None
+    assert service.status.load().fault_code == fault
+    manual = service.check_once()
+    if fault == "rollback_failed":
+        assert not manual.ok and calls == []
+        assert service.status.load().fault_code == fault
+    else:
+        assert manual.ok and service.status.load().phase is UpdatePhase.READY
+        assert calls == [True]
+
+
+def test_startup_recovery_that_can_stop_its_host_is_detached(tmp_path, monkeypatch):
+    from core.updater import worker
+    from core.updater.feed import FeedConfig
+    from core.updater.runtime import UpdateSubsystem
+    from core.updater.transaction import Step, UpdateJournal
+
+    _, public = generate_publisher_keypair()
+    subsystem = UpdateSubsystem(feed=FeedConfig(manifest_url="fixture", app_path=str(tmp_path / "VOOL.app")),
+                                trust=TrustedPublishers({"test": public}), data_dir=tmp_path / "data", platform="macos-arm64")
+    UpdateJournal(subsystem.paths.transaction_dir("interrupted")).append(Step.SWAPPED)
+    calls = []
+    monkeypatch.setattr(subsystem, "_worker_alive", lambda: False)
+    monkeypatch.setattr(worker, "start_worker", lambda instance, offer, txid, **kwargs: calls.append((offer, txid, kwargs)))
+    monkeypatch.setattr(subsystem, "_make_helper", lambda: pytest.fail("recovery must not stop its own host in process"))
+    subsystem._recover_bounded()
+    assert len(calls) == 1 and calls[0][0] is None
+    assert calls[0][1].startswith("recovery-") and calls[0][2] == {"recovery": True}
+
+
+@pytest.mark.parametrize("membership", ["vool-runtime.service", "another.service"])
+def test_service_hosted_worker_uses_its_own_scope_without_changing_other_services(tmp_path, monkeypatch, membership):
+    import subprocess
+
+    from core.updater import worker
+
+    cgroup = tmp_path / "cgroup"
+    cgroup.write_text("0::/user.slice/app.slice/" + membership + "\n")
+    monkeypatch.setattr(worker.shutil, "which", lambda _: "/bin/systemd-run")
+    monkeypatch.setattr(worker.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(
+        a, 0, "--expand-environment=BOOL", ""))
+    command = worker._systemd_scope_prefix("owned-transaction", platform="linux", cgroup_path=cgroup)
+    if membership == "vool-runtime.service":
+        assert command[:5] == ["/bin/systemd-run", "--user", "--scope", "--quiet", "--collect"]
+        assert command[-2:] == ["--expand-environment=no", "--"]
+        assert command[5].startswith("--unit=vool-update-")
+    else:
+        assert command == []
+
+
+def test_service_hosted_worker_refuses_without_independent_scope_tool(tmp_path, monkeypatch):
+    from core.updater import worker
+
+    cgroup = tmp_path / "cgroup"
+    cgroup.write_text("0::/app.slice/vool-runtime.service\n")
+    monkeypatch.setattr(worker.shutil, "which", lambda _: None)
+    with pytest.raises(ValueError, match="cannot leave its runtime service"):
+        worker._systemd_scope_prefix("owned", platform="linux", cgroup_path=cgroup)

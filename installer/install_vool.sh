@@ -1043,6 +1043,15 @@ ensure_ollama_server() {
   return 0
 }
 
+# An interrupted worker must recover before a fresh update lock can strand this
+# launcher for ten minutes. The recovery process survives the host it restores;
+# this launcher waits on the existing lock and resumes when recovery releases it.
+export VOOL_UPDATE_APP_PATH="\${PROJECT_ROOT}"
+export VOOL_UPDATE_HEALTH_URL="\${VOOL_OPENCLAW_API_URL:-http://127.0.0.1:11435}/healthz"
+if [[ -f "\${PROJECT_ROOT}/.vool_updating.lock" ]]; then
+  VOOL_UPDATE_LAUNCHER_WAITING=1 "\${VENV_PY}" -m core.updater.worker --recover-startup \\
+    || { echo "Update recovery could not start; backups and update lock retained." >&2; exit 1; }
+fi
 if [[ "\${VOOL_LAUNCHD_SUPERVISOR:-0}" == "1" ]]; then
   API_LOG_PATH="\${VOOL_API_LOG_PATH:-\${VOOL_HOME}/logs/api-supervised.log}"
   mkdir -p "\$(dirname "\${API_LOG_PATH}")"

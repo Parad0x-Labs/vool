@@ -86,7 +86,7 @@ class LinuxProcessHelper(MacProcessHelper):
 
     def relaunch(self, app_path: Path) -> bool:
         self.lock_path.unlink(missing_ok=True)
-        if os.environ.get("VOOL_LAUNCHD_SUPERVISOR") == "1":
+        if os.environ.get("VOOL_LAUNCHD_SUPERVISOR") == "1" or os.environ.get("VOOL_UPDATE_LAUNCHER_WAITING") == "1":
             return True  # the existing installer-owned supervisor resumes
         try:
             receipt = json.loads((self.app_path / "install_receipt.json").read_text())
