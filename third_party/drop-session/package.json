@@ -1,0 +1,13 @@
+{
+  "name": "@vool/drop-session",
+  "version": "0.1.0-review.1",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=24.7.0" },
+  "exports": "./src/index.mjs",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "demo": "node demo.mjs"
+  }
+}
