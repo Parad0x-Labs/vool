@@ -65,10 +65,13 @@ per package. There are no ignored cache or state directories inside a package.
 Previously stored metadata-only approvals do not activate packages in this version.
 Review the full distribution, explicitly verify it again, then enable it. Updates remain
 disabled until verified and enabled; approval is never silently migrated.
+Managed add-ons also need a fresh authenticated store review when an older receipt
+does not bind the complete distribution; ordinary verification cannot replace that receipt.
 
 `requires` names installed plugin dependencies. Verification pins their recursive approval digests;
 each dependency must already be verified and enabled. A changed, updated, disabled or
 revoked dependency makes its dependants unavailable, including through cached tools.
+Admission rechecks enabled and revoked state for the whole captured closure after hashing.
 Re-verifying a dependency does not silently approve its new bytes for the parent: review
 and re-verify every parent too. Each `approval_digest` binds its package digest and dependency
 approvals, so a changed transitive dependency changes that approval even when the parent's

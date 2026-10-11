@@ -606,7 +606,8 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                     latest_dependency = lifecycle.record_for(dependency)
                     if latest_dependency is None or latest_dependency.approval_digest != digest:
                         raise PackageError("dependency authority changed before execution")
-                lifecycle.note_invocation(plugin_id, intent)
+                lifecycle.note_invocation(plugin_id, intent, expected_approval=approved_approval,
+                                          dependency_approvals=dependency_pins)
 
             result = run_plugin_tool(
                 intent=intent, arguments=dict(arguments or {}), handler=handler,
@@ -620,7 +621,7 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
             return replace(result, observation={**result.observation,
                 "package_sha256": approved_digest, "approval_sha256": approved_approval,
                 "dependency_sha256": dependency_packages, "dependency_approval_sha256": dependency_pins})
-    except (PackageError, PluginManifestError, OSError, ValueError, TypeError, RecursionError) as exc:
+    except (PackageError, PluginManifestError, lifecycle.LifecycleError, OSError, ValueError, TypeError, RecursionError) as exc:
         return PluginToolResult(ok=False, status="package_integrity_failed", error=str(exc),
                                 observation={"intent": intent, "package_sha256": approved_digest})
 

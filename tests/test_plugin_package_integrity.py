@@ -289,6 +289,41 @@ def test_source_changed_during_capture_is_refused_before_launch(inventory, monke
     assert not list((inventory / "scratch/.vool-packages").glob("invocation-*"))
 
 
+def test_dependency_disabled_after_hashing_is_refused_at_admission(inventory, monkeypatch):
+    from core import plugin_package
+    make_plugin(inventory, plugin_id="child")
+    pack = make_plugin(inventory, manifest_extra={"requires": ["child"]})
+    contract = _cached(inventory)
+    capture = plugin_package.capture_package
+    digest = lifecycle.manifest_digest
+    copied = False
+    disabled = False
+
+    def captured(root, *, destination=None):
+        nonlocal copied
+        identity = capture(root, destination=destination)
+        if destination is not None and Path(root) == pack:
+            copied = True
+        return identity
+
+    def disable_after_hash(root):
+        nonlocal disabled
+        identity = digest(root)
+        if copied and Path(root) == pack and not disabled:
+            lifecycle.disable("child")
+            disabled = True
+        return identity
+
+    # A real owner action occurs after the real availability walk has read its
+    # dependency state and finished hashing, before the child process can start.
+    monkeypatch.setattr(plugin_package, "capture_package", captured)
+    monkeypatch.setattr(lifecycle, "manifest_digest", disable_after_hash)
+    result = plugin_tools.execute_plugin_contract(contract, {"text": "hello"})
+    assert disabled
+    assert not result.ok
+    assert lifecycle.record_for("pack").invocations == 0
+
+
 def test_timeout_stops_owned_descendants_before_copy_cleanup(inventory):
     from tests._toolchain_fixtures import default_tools
     tools = default_tools()

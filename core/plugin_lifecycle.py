@@ -451,16 +451,29 @@ def disable(plugin_id: str) -> PluginRecord:
     return record
 
 
-def note_invocation(plugin_id: str, intent: str) -> None:
+def note_invocation(
+    plugin_id: str, intent: str, *, expected_approval: str = "",
+    dependency_approvals: dict[str, str] | None = None,
+) -> None:
     """Invocation is its own fact. Enabled does not mean invoked, and the receipt says which."""
 
-    record = _load(plugin_id)
-    if record is None:
-        return
-    record.invocations += 1
-    record.last_invoked_at = _utcnow()
-    record.note("invoked", intent=str(intent))
-    _save(record)
+    # Hashing may take time. Re-read owner authority at admission, under the same
+    # lock as store writes, so an invocation cannot overwrite a completed disable.
+    with _lock:
+        record = _load(plugin_id)
+        if expected_approval:
+            for identity, digest in {**(dependency_approvals or {}), plugin_id: expected_approval}.items():
+                current = record if identity == plugin_id else _load(identity)
+                if (current is None or current.stage != STAGE_ENABLED or current.enabled is not True
+                        or current.revoked_at or current.uninstalled_at
+                        or current.digest_schema != DIGEST_SCHEMA or current.approval_digest != digest):
+                    raise LifecycleError(f"{identity}: authority changed before execution")
+        if record is None:
+            return
+        record.invocations += 1
+        record.last_invoked_at = _utcnow()
+        record.note("invoked", intent=str(intent))
+        _save(record)
 
 
 def update(plugin_id: str, *, root: Path | None = None, version: str = "") -> PluginRecord:
