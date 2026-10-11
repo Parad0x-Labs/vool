@@ -313,6 +313,7 @@ header a { color:var(--accent); text-decoration:none; font-size:13px; margin-lef
 header a:hover { text-decoration:underline; }
 /* ---- Update chip (signed updater, 2026-09-01): discreet, top-right, state-colored ---- */
 #updateChip { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; }
+#updateCtrl [hidden] { display:none !important; }
 #updateChip .upd-ico { font-size:13px; line-height:1; }
 #updateChip.upd-ready { border-color:var(--accent); color:var(--accent); font-weight:600; }
 #updateChip.upd-working { color:var(--ink); }
@@ -1108,7 +1109,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <div class="upd-bar" id="updateBar" hidden><i id="updateBarFill"></i></div>
       <div class="upd-msg" id="updateMessage" data-testid="update-message" role="status"></div>
       <button type="button" class="pop-item" id="updateActionBtn" data-testid="update-action" hidden></button>
-      <button type="button" class="pop-item" id="updateCheckBtn" hidden data-i18n="header.update_check_again">Check again</button>
+      <button type="button" class="pop-item" id="updateCheckBtn" data-i18n="update.action_check">Check for updates</button>
     </div>
   </div>
   <!-- No Web0 header link: there is no plugin-enabled flag to drive it (the /web0 route is served
@@ -11608,19 +11609,14 @@ const UPDATE_LABELS = {
   done: pageT('update.done', 'Updated'), rolled_back: pageT('update.rolled_back', 'Rolled back'), failed: pageT('update.failed', 'Update failed'),
   unavailable: pageT('update.unavailable', 'Updates unavailable'), checking: pageT('update.checking', 'Checking…'), up_to_date: pageT('update.up_to_date', 'Up to date'),
 };
-const UPDATE_BUSY = new Set(['checking', 'downloading', 'verifying', 'installing', 'restarting']);
+const UPDATE_BUSY = new Set(['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting']);
 let _updateStatus = null;
 let _updateFast = false;
 
 function renderUpdateChip(payload) {
   _updateStatus = payload;
   const phase = payload && payload.phase ? payload.phase : 'idle';
-  if (!payload || (phase === 'idle' || phase === 'up_to_date' || phase === 'checking')) {
-    // idle/up-to-date keep the header clean; the chip reappears the moment there is news
-    updateChip.hidden = !(phase === 'up_to_date' && false);
-    if (phase === 'checking') { updateChip.hidden = false; }
-    if (updateChip.hidden) { updatePop.hidden = true; return; }
-  }
+  if (!payload) { updateChip.hidden = true; return; }
   updateChip.hidden = false;
   const label = UPDATE_LABELS[phase] || 'Update';
   let text = label;
@@ -11638,11 +11634,10 @@ function renderUpdateChip(payload) {
   updateMessageEl.textContent = payload.message || '';
   updateBar.hidden = !(phase === 'downloading' && payload.progress_percent != null);
   updateBarFill.style.width = `${payload.progress_percent || 0}%`;
-  updateActionBtn.hidden = true; updateCheckBtn.hidden = true;
+  updateActionBtn.hidden = true; updateCheckBtn.hidden = false;
+  updateCheckBtn.disabled = UPDATE_BUSY.has(phase);
   if (phase === 'ready') { updateActionBtn.hidden = false; updateActionBtn.textContent = pageT('update.action_update', 'Update'); }
   else if (phase === 'ready_to_restart') { updateActionBtn.hidden = false; updateActionBtn.textContent = pageT('update.action_restart', 'Restart'); }
-  else if (['done', 'rolled_back', 'failed'].includes(phase)) { updateCheckBtn.hidden = false; }
-  else if (phase === 'unavailable') { updateCheckBtn.hidden = true; }
   _updateFast = UPDATE_BUSY.has(phase);
 }
 
@@ -11676,7 +11671,7 @@ if (updateChip) {
   });
 }
 if (updateActionBtn) updateActionBtn.addEventListener('click', () => {
-  pressUpdate(updateActionBtn.textContent.trim().toLowerCase() === 'restart' ? 'restart' : 'install');
+  pressUpdate(_updateStatus && _updateStatus.phase === 'ready_to_restart' ? 'restart' : 'install');
 });
 if (updateCheckBtn) updateCheckBtn.addEventListener('click', async () => {
   try { await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',

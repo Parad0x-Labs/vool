@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "vd. ngắn gọn; không dùng danh sách gạch đầu dòng",
     "settings.row.toolbelt.help": "Kho capabilities: mô hình cục bộ, kết nối đám mây, kết nối tìm kiếm web và plugin, mỗi cái với trạng thái dò thật. Một capability chưa từng dò đọc là UNKNOWN — không phải thất bại cũng không phải sẵn sàng. Mở chỉ đọc trạng thái cục bộ.",
     "settings.row.toolbelt.label": "Dây đựng công cụ",
+    "settings.row.updates.help": "Kiểm tra phiên bản đã ký. Cài đặt và dữ liệu của bạn vẫn ở thư mục chạy ứng dụng.",
+    "settings.row.updates.label": "Cập nhật ứng dụng",
     "settings.row.usage.help": "Token chạy miễn phí trên mô hình cục bộ so với token chạy trên làn đám mây trả phí, theo từng mô hình.",
     "settings.row.usage.label": "Sử dụng token",
     "settings.row.usepod.effect": "Áp dụng ngay.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "Skill — cách VOOL dùng những sức mạnh đó",
     "skills.from_plugin_title": "Từ plugin: {plugin}",
     "skills.none_installed": "Chưa cài skill nào.",
+    "update.action_check": "Kiểm tra bản cập nhật",
     "update.action_restart": "Khởi động lại",
     "update.action_update": "Cập nhật",
     "update.checking": "Đang kiểm tra…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "Nghe thử",
     "vns.sound.blocked": "Không thể phát âm thanh. Thông báo vẫn còn trong mục chuông."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

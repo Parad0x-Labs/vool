@@ -10,11 +10,10 @@ and by embedders. It is:
     first-class `unavailable` state with a plain-language reason the UI must show,
     never silence, never a background thread pretending to work.
 
-The two-press contract: `press_install` (the Update button) downloads and verifies,
-then parks at READY_TO_RESTART; `press_restart` (the Restart button) resumes the SAME
-journaled transaction through swap + external helper + health + finalize-or-rollback.
-Both require a typed UserGesture — the web API creates it from a real UI click, the
-in-chat surface from an explicit "update now", the CLI from --i-pressed-update.
+One press prepares a signed transaction and hands its continuation to a detached
+worker outside the replacement target. The worker survives native-host shutdown,
+then swaps, relaunches, checks health and finalizes or restores the saved app/data.
+The restart endpoint is retained for older prepared journals.
 """
 from __future__ import annotations
 
@@ -22,10 +21,11 @@ import concurrent.futures
 import contextlib
 import logging
 import os
+import shlex
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
 
@@ -58,6 +58,7 @@ class UnavailableReason(str, Enum):
     DISABLED = "disabled"
     NO_TRUSTED_PUBLISHER = "no_trusted_publisher"
     NO_FEED = "no_feed_configured"
+    RAW_CHECKOUT = "raw_source_checkout"
 
     @property
     def plain(self) -> str:
@@ -68,6 +69,7 @@ class UnavailableReason(str, Enum):
                 "where updates would come from"
             ),
             UnavailableReason.NO_FEED: "no release feed address is configured",
+            UnavailableReason.RAW_CHECKOUT: "this source checkout has no install receipt; update with git pull",
         }[self]
 
 
@@ -120,6 +122,16 @@ class UpdateSubsystem:
         self.data_dir = Path(data_dir) if data_dir else _active_data_dir()
         self.installed_version = installed_version or _installed_version()
         self.platform = platform or platform_key()
+        if not self.feed.has_target:
+            source_root = Path(__file__).resolve().parents[2]
+            if self.platform.startswith("linux-") and (source_root / "install_receipt.json").is_file():
+                self.feed = replace(self.feed, app_path=str(source_root))
+            elif self.platform.startswith("macos-"):
+                for ancestor in source_root.parents:
+                    if ancestor.suffix == ".app" and source_root.is_relative_to(ancestor / "Contents/Resources"):
+                        self.feed = replace(self.feed, app_path=str(ancestor),
+                                            helper_script=str(ancestor / "Contents/Resources/update/mac_update_helper.sh"))
+                        break
         self.coordinator = coordinator or WorkCoordinator()
         self.catalog = migration_catalog or MigrationCatalog()
         self._custom_fetch = fetch
@@ -130,7 +142,7 @@ class UpdateSubsystem:
         # Explicit, journaled sandbox relief ONLY: VOOL_UPDATE_SANDBOX_WAIVER=1 marks
         # a sandbox journey that cannot notarize (no Apple Developer ID on the rig).
         # Production default stays fail-closed — un-notarized bundles are refused.
-        if not notarization_waiver_reason and str(os.environ.get("VOOL_UPDATE_SANDBOX_WAIVER") or "").strip() in ("1", "true", "yes"):
+        if not notarization_waiver_reason and os.environ.get("VOOL_TEST_MODE") == "1" and str(os.environ.get("VOOL_UPDATE_SANDBOX_WAIVER") or "").strip() in ("1", "true", "yes"):
             notarization_waiver_reason = (
                 "sandbox journey (VOOL_UPDATE_SANDBOX_WAIVER): no Developer ID available; "
                 "the production default refuses un-notarized bundles"
@@ -147,6 +159,10 @@ class UpdateSubsystem:
 
         if str(self.feed.source) == "disabled-by-env":
             reason = UnavailableReason.DISABLED
+        elif self.platform.startswith("linux-") and not (
+            self.feed.has_target and (Path(self.feed.app_path) / "install_receipt.json").is_file()
+        ):
+            reason = UnavailableReason.RAW_CHECKOUT
         elif not trust.is_configured:
             reason = UnavailableReason.NO_TRUSTED_PUBLISHER
         elif not self.feed.has_feed:
@@ -171,6 +187,7 @@ class UpdateSubsystem:
                 fetch=self._custom_fetch,
                 clock=self._clock,
                 sleeper=sleeper,
+                check_allowed=lambda: not self._press_lock.locked() and not self._worker_alive(),
             )
             self.controller = UpdateController(
                 offer_loader=lambda: self.service.current_offer() if self.service else None,
@@ -219,6 +236,8 @@ class UpdateSubsystem:
         return self
 
     def _recover_bounded(self) -> None:
+        if self._worker_alive():
+            return  # the detached transaction still owns recovery/finalization
         if not self.feed.has_target:
             return  # no configured app ⇒ nothing was ever swapped by this install
         helper = self._make_helper()
@@ -247,7 +266,18 @@ class UpdateSubsystem:
 
     # -- assembly ------------------------------------------------------------- #
 
+    def _worker_alive(self) -> bool:
+        from core.updater.worker import worker_alive
+
+        return worker_alive(self.data_dir)
+
     def _make_helper(self) -> ExternalHelper:
+        if self.platform.startswith("linux-"):
+            from core.updater.linux import LinuxProcessHelper
+
+            override = str(os.environ.get("VOOL_UPDATE_TARGET_PIDFILE") or "")
+            return LinuxProcessHelper(app_path=Path(self.feed.app_path),
+                                      pid_file=Path(override) if override else self.data_dir / "vool_api.pid")
         if self.feed.helper_script and self.feed.has_target:
             return ExternalScriptHelper(
                 script=Path(self.feed.helper_script),
@@ -258,9 +288,13 @@ class UpdateSubsystem:
                 # stop the app the helper just relaunched (measured in final-p1).
                 target_pid=lambda: _pidfile_pid_for(Path(self.feed.app_path)),
                 result_path=self.paths.root / "helper-result.json",
-                relaunch_cmd=_relaunch_cmd_for(Path(self.feed.app_path)),
+                relaunch_cmd=_relaunch_cmd_for(Path(self.feed.app_path), runtime_home=self.data_dir.resolve().parent,
+                                              health_url=self.feed.health_url),
             )
-        return MacProcessHelper()
+        return MacProcessHelper(pid_file=self.data_dir / "vool_api.pid",
+                                relaunch_cmd=shlex.split(_relaunch_cmd_for(Path(self.feed.app_path),
+                                                        runtime_home=self.data_dir.resolve().parent,
+                                                        health_url=self.feed.health_url)))
 
     def _make_probe(self):
         probe = HttpHealthProbe(self.feed.health_url, poll_interval=0.5, request_timeout=3.0)
@@ -268,6 +302,9 @@ class UpdateSubsystem:
 
     def make_flow(self, *, stop_after: Step | None = None) -> UpdateFlow:
         downloader = StagedDownloader(fetch=self._custom_fetch) if self._custom_fetch else StagedDownloader()
+        installer = installer_for(self.platform)
+        if self.platform.startswith("linux-") and installer is not None:
+            installer.runtime_home = self.data_dir.resolve().parent
         return UpdateFlow(
             data_dir=self.data_dir,
             app_path=Path(self.feed.app_path or self.data_dir / "unconfigured-app"),
@@ -280,10 +317,11 @@ class UpdateSubsystem:
             migration_catalog=self.catalog,
             helper=self._make_helper(),
             health_probe=self._make_probe(),
-            installer=installer_for(self.platform),
+            installer=installer,
             status_store=self.status,
             high_water=self.high_water,
             notarization_waiver_reason=self.notarization_waiver_reason,
+            allow_publisher_verified_adhoc=self.feed.allow_publisher_verified_adhoc,
             health_timeout=self.health_timeout,
             stop_after=stop_after,
         )
@@ -363,15 +401,18 @@ class UpdateSubsystem:
     # -- the two presses ------------------------------------------------------ #
 
     def press_install(self, gesture: UserGesture, *, resolution: DestructiveWorkResolution | None = None) -> PressOutcome:
-        """Update button: download + verify, then park at READY_TO_RESTART."""
+        """One press: prepare here, continue detached through restart/health/rollback."""
         if not isinstance(gesture, UserGesture):
             raise TypeError("installing an update requires an explicit UserGesture (a user pressed Update)")
         if not self.configured or self.controller is None:
             return PressOutcome(False, detail=self.status_payload()["unavailable_plain"] or "updates are unavailable")
         if not self.feed.has_target:
             return PressOutcome(False, detail="no app path is configured for this install, so nothing can be updated")
+        if self._worker_alive():
+            return PressOutcome(False, detail="an update is already in progress")
         if not self._press_lock.acquire(blocking=False):
             return PressOutcome(False, detail="an update is already in progress")
+        handed_off = False
         try:
             blocked = destructive_block(self.coordinator, resolution=resolution)
             if not blocked.ok:
@@ -379,28 +420,36 @@ class UpdateSubsystem:
             offer = self.service.current_offer() if self.service else None
             if offer is None:
                 return PressOutcome(False, detail="no update is ready to install")
-            tx_holder = {"txid": ""}
-
             def worker() -> None:
-                with contextlib.suppress(Exception):
-                    flow = self.make_flow(stop_after=Step.ARTIFACT_VERIFIED)
+                flow = self.make_flow(stop_after=Step.SNAPSHOT_COMPLETE)
+                try:
                     result = flow.run(offer.raw, offer.manifest, offer.decision, resolution=resolution)
-                    tx_holder["txid"] = result.txid
-                    if result.ok and result.terminal is Step.ARTIFACT_VERIFIED:
-                        self._paused_txid = result.txid
-                    elif not result.ok:
+                    if result.ok and result.terminal is Step.SNAPSHOT_COMPLETE:
+                        from core.updater.worker import start_worker
+
+                        process = start_worker(self, offer, result.txid)
+                        process.wait()  # monitoring only; the detached child owns completion
+                    else:
                         logger.info("install press failed: %s", result.detail)
+                except Exception as exc:
+                    logger.exception("could not hand off the prepared update")
+                    flow._abort(f"could not start the detached updater: {exc}")
+                finally:
+                    self.coordinator.resume_new_work()
+                    self._press_lock.release()
 
             self._install_thread = threading.Thread(target=worker, name="vool-update-install", daemon=True)
             self._install_thread.start()
+            handed_off = True
             deadline = self._clock() + 2.0
             while self._install_thread.is_alive() and self._clock() < deadline:
                 time.sleep(0.05)
             if self._install_thread.is_alive():
                 return PressOutcome(True, detail="download started", phase=UpdatePhase.DOWNLOADING.value)
-            return PressOutcome(bool(self._paused_txid), detail="download finished", txid=self._paused_txid)
+            return PressOutcome(True, detail="update started", phase=self.status_payload()["phase"])
         finally:
-            self._press_lock.release()
+            if not handed_off:
+                self._press_lock.release()
 
     def press_restart(self, gesture: UserGesture, *, resolution: DestructiveWorkResolution | None = None) -> PressOutcome:
         """Restart button: resume the parked transaction through swap + helper +
@@ -442,22 +491,15 @@ class UpdateSubsystem:
             return False
         if target_version and offer.manifest.version != target_version:
             return False
-        if not self._press_lock.acquire(blocking=False):
-            return False
-
-        def worker() -> None:
-            try:
-                flow = self.make_flow()
-                flow.run(offer.raw, offer.manifest, offer.decision)
-            finally:
-                self._press_lock.release()
-
-        threading.Thread(target=worker, name="vool-update-chat", daemon=True).start()
-        return True
+        return self.press_install(UserGesture(pressed_at=self._clock(), origin="chat")).accepted
 
     # -- work registration (the chat dispatch registers turns) ----------------- #
 
     def register_turn(self, work_id: str, description: str, *, destructive: bool = False) -> WorkHandle:
+        if self._worker_alive():
+            from core.updater.work import UpdateInProgressError
+
+            raise UpdateInProgressError("VOOL is finishing its update; try again after it restarts")
         handle = WorkHandle(str(work_id), description, destructive=destructive)
         self.coordinator.register(handle)
         return handle
@@ -525,9 +567,18 @@ def _pidfile_pid_for(app_path: Path) -> int:
     return 0
 
 
-def _relaunch_cmd_for(app_path: Path) -> str:
+def _relaunch_cmd_for(app_path: Path, *, runtime_home: Path | None = None, health_url: str = "") -> str:
     """How the external helper brings the app back up: the bundle's own launcher."""
-    return f"open -n {app_path}"
+    # Run the bundle's own executable. LaunchServices can queue `open` while the
+    # old native host is exiting, long past the transaction's health deadline.
+    # Direct exec preserves the native window and makes restart owned/bounded.
+    command = ["env"]
+    if runtime_home is not None:
+        command += [f"VOOL_HOME={runtime_home}"]
+    if health_url:
+        command += [f"VOOL_NATIVE_API_URL={health_url.removesuffix('/healthz')}"]
+    command.append(str(app_path / "Contents/MacOS/VOOL"))
+    return shlex.join(command)
 
 
 __all__ = [

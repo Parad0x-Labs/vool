@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "np. bądź zwięzły; bez list punktowanych",
     "settings.row.toolbelt.help": "Inwentarz możliwości: modele lokalne, połączenie z chmurą, połączenia wyszukiwania w sieci i wtyczki, każde z prawdziwym sondowanym stanem. Nigdy nie sondowana możliwość czyta się UNKNOWN, co nie jest ani porażką, ani dostępnością. Otwarcie czyta tylko stan lokalny.",
     "settings.row.toolbelt.label": "Pas narzędzi",
+    "settings.row.updates.help": "Sprawdź dostępność podpisanej wersji. Ustawienia i dane pozostają w katalogu środowiska uruchomieniowego.",
+    "settings.row.updates.label": "Aktualizacje aplikacji",
     "settings.row.usage.help": "Tokeny pobiegły za darmo na lokalnym modelu wobec tokenów na płatnym pasmie chmury, per model.",
     "settings.row.usage.label": "Użycie tokenów",
     "settings.row.usepod.effect": "Działa natychmiast.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "Umiejętności — jak VOOL używa tych możliwości",
     "skills.from_plugin_title": "Z wtyczki: {plugin}",
     "skills.none_installed": "Nie zainstalowano jeszcze żadnych umiejętności.",
+    "update.action_check": "Sprawdź aktualizacje",
     "update.action_restart": "Uruchom ponownie",
     "update.action_update": "Aktualizuj",
     "update.checking": "Sprawdzanie…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "Odsłuchaj dźwięk",
     "vns.sound.blocked": "Odtwarzanie dźwięku jest niedostępne. Powiadomienia pozostają pod dzwonkiem."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

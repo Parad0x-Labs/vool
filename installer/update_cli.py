@@ -24,7 +24,7 @@ from core.updater.macos import MacProcessHelper
 from core.updater.migrations import MigrationCatalog
 from core.updater.platforms import installer_for
 from core.updater.platforms import platform_key as live_platform_key
-from core.updater.runtime import boot_update_subsystem
+from core.updater.runtime import UpdateSubsystem, boot_update_subsystem
 from core.updater.service import UpdateCheckService, UpdateController, UserGesture
 from core.updater.state import UpdaterPaths
 from core.updater.status import StatusStore
@@ -52,7 +52,16 @@ def _installed_version() -> str:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    subsystem = boot_update_subsystem()
+    from dataclasses import replace
+
+    from core.updater.feed import load_feed_config
+
+    feed = load_feed_config()
+    if args.manifest_url:
+        feed = replace(feed, manifest_url=args.manifest_url)
+    if args.channel:
+        feed = replace(feed, channel=args.channel)
+    subsystem = UpdateSubsystem(feed=feed, data_dir=_data_dir(args), platform=_platform(args))
     payload = subsystem.trigger_check()
     if payload.get("message"):
         print(payload["message"])
@@ -188,10 +197,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--data-dir", default="", help="user-data dir (default: the active VOOL data dir)")
-    common.add_argument("--channel", default="stable", choices=("stable", "beta"))
     common.add_argument("--platform", default="", help="override platform key (default: this machine)")
 
     check = sub.add_parser("check", parents=[common], help="check for an update (never installs)")
+    check.add_argument("--channel", default=None, choices=("stable", "beta"))
     # Optional on purpose: cmd_check reads the feed from the shipped config (and the
     # VOOL_UPDATE_* staging overrides), never from this flag. Requiring it argparse-blocked
     # the documented honest state — a feed-less install must be able to run `check`, learn
@@ -225,6 +234,9 @@ def build_parser() -> argparse.ArgumentParser:
     recover.add_argument("--health-url", default="http://127.0.0.1:11435/healthz")
     recover.add_argument("--pid-file", default="")
     recover.set_defaults(func=cmd_recover)
+
+    for command in (status, applyp, restartp, recover):
+        command.add_argument("--channel", default="stable", choices=("stable", "beta"))
 
     return parser
 

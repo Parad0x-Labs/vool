@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "例如：要简洁；不要项目符号列表",
     "settings.row.toolbelt.help": "能力清单：本地模型、云端连接、网页搜索连接和插件，每一项都带有真实探测到的状态。从未探测过的能力显示为 UNKNOWN，这既不是失败也不是可用。打开它只读取本地状态。",
     "settings.row.toolbelt.label": "工具带",
+    "settings.row.updates.help": "检查已签名的版本。设置和数据保留在运行目录中。",
+    "settings.row.updates.label": "应用更新",
     "settings.row.usage.help": "在本地模型上免费运行的 token 与在付费云端通道上运行的 token 的对比，按模型分列。",
     "settings.row.usage.label": "token 用量",
     "settings.row.usepod.effect": "立即生效。",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "技能 — VOOL 如何使用那些能力",
     "skills.from_plugin_title": "来自插件:{plugin}",
     "skills.none_installed": "尚未安装任何技能。",
+    "update.action_check": "检查更新",
     "update.action_restart": "重启",
     "update.action_update": "更新",
     "update.checking": "检查中…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "试听声音",
     "vns.sound.blocked": "无法播放声音。通知仍保留在铃铛菜单中。"
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

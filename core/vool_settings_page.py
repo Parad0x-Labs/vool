@@ -892,6 +892,15 @@ def _settings_groups() -> list[dict]:
             "blurb": "The exact build answering you, and how to report a problem.",
             "rows": [
                 _row(
+                    id="updates",
+                    label="App updates",
+                    kind="custom",
+                    widget="updates",
+                    help="Check for a signed release. Your settings and data stay in the runtime home.",
+                    read={"url": "/api/update/status"},
+                    keywords="update upgrade release check version up to date",
+                ),
+                _row(
                     id="build",
                     label="This build",
                     kind="custom",
@@ -1498,6 +1507,7 @@ function renderWidget(row, host) {
   host.appendChild(stack);
   const w = row.widget;
   if (w === 'build') return widgetBuild(stack);
+  if (w === 'updates') return widgetUpdates(stack);
   if (w === 'usage') return widgetUsage(stack);
   if (w === 'addon_security') { if (window.VoolAddons) return window.VoolAddons.mountSecurity(stack); return; }
   if (w === 'provider_guide') return widgetProviderGuide(stack);
@@ -1936,6 +1946,32 @@ function widgetCompanionPet(stack) {
   });
   bar.appendChild(said);
   stack.appendChild(bar);
+}
+
+function widgetUpdates(stack) {
+  stack.textContent = '';
+  const src = state.sources['/api/update/status'];
+  const error = state.sourceErr['/api/update/status'];
+  const phase = src && src.phase || 'idle';
+  const message = phase === 'up_to_date' ? T('update.up_to_date', 'Up to date')
+    : error || src && src.message || T('settings.widget.loading', 'Loading…');
+  const status = el('div', 'subtle', message); status.setAttribute('role', 'status');
+  status.dataset.testid = 'settings-update-status'; stack.appendChild(status);
+  const check = el('button', 'btn', T('update.action_check', 'Check for updates'));
+  check.type = 'button'; check.dataset.testid = 'settings-update-check';
+  check.disabled = ['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting'].includes(phase);
+  check.addEventListener('click', async () => {
+    check.disabled = true;
+    try {
+      const response = await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || result.message || 'Update check failed');
+      await readSource('/api/update/status');
+      widgetUpdates(stack);
+    } catch (e) { status.textContent = String(e.message || e); check.disabled = false; }
+  });
+  stack.appendChild(check);
 }
 
 function widgetBuild(stack) {

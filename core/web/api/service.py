@@ -839,6 +839,8 @@ def _update_turn_guard(source_context: dict[str, Any] | None, session_id: str) -
     Fail-safe: no subsystem, no registration, the turn runs regardless."""
     import contextlib
 
+    from core.updater.work import UpdateInProgressError
+
     @contextlib.contextmanager
     def _noop():
         yield ""
@@ -868,6 +870,8 @@ def _update_turn_guard(source_context: dict[str, Any] | None, session_id: str) -
                 subsystem.complete_turn(work_id)
 
         return _guard()
+    except UpdateInProgressError:
+        raise  # never turn the update's pause-new-work refusal into an unguarded turn
     except Exception:
         return _noop()
 

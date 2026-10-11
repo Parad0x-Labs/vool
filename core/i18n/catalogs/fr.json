@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "p. ex. sois concis ; pas de listes à puces",
     "settings.row.toolbelt.help": "L'inventaire des capacités : modèles locaux, connexion cloud, connexions de recherche web et plugins, chacun avec son état réel sondé. Une capacité jamais sondée se lit UNKNOWN, qui n'est ni un échec ni une disponibilité. L'ouvrir ne lit que l'état local.",
     "settings.row.toolbelt.label": "Ceinture à outils",
+    "settings.row.updates.help": "Rechercher une version signée. Les paramètres et les données restent dans le répertoire d’exécution.",
+    "settings.row.updates.label": "Mises à jour de l’application",
     "settings.row.usage.help": "Jetons ayant tourné gratuitement sur un modèle local contre jetons ayant tourné sur une voie cloud payante, par modèle.",
     "settings.row.usage.label": "Usage des jetons",
     "settings.row.usepod.effect": "S'applique immédiatement.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "Compétences — comment VOOL utilise ces pouvoirs",
     "skills.from_plugin_title": "Du plugin : {plugin}",
     "skills.none_installed": "Aucune compétence installée pour l'instant.",
+    "update.action_check": "Rechercher des mises à jour",
     "update.action_restart": "Redémarrer",
     "update.action_update": "Mettre à jour",
     "update.checking": "Vérification…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "Écouter le son",
     "vns.sound.blocked": "La lecture du son est indisponible. Les notifications restent dans la cloche."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

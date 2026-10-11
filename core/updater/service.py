@@ -19,7 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.updater.decision import UpdateDecision, decide_update
+from core.updater.decision import UpdateDecision, UpdateDecisionReason, decide_update
 from core.updater.download import fetch_manifest_bytes
 from core.updater.manifest import ManifestVerification, VerifiedManifest, parse_and_verify_manifest
 from core.updater.state import HighWaterStore, UpdaterPaths
@@ -47,6 +47,23 @@ class UpdateOffer:
     manifest: VerifiedManifest
     decision: UpdateDecision
     created_at: float
+    installed_version: str = ""
+
+    @property
+    def available(self) -> bool:
+        return self.decision.should_install
+
+    @property
+    def target_version(self) -> str:
+        return self.manifest.version
+
+    @property
+    def changelog(self) -> list[str]:
+        return [line for line in self.manifest.notes.splitlines() if line.strip()][:8]
+
+    @property
+    def asset_url(self) -> str:
+        return self.decision.artifact.url if self.decision.artifact is not None else ""
 
 
 @dataclass(frozen=True)
@@ -73,6 +90,7 @@ class UpdateCheckService:
         fetch: Callable[[str], bytes] | None = None,
         clock: Callable[[], float] = time.time,
         sleeper: Callable[[float], None] = time.sleep,
+        check_allowed: Callable[[], bool] | None = None,
     ):
         self.manifest_url = str(manifest_url)
         self.trust = trust
@@ -87,6 +105,7 @@ class UpdateCheckService:
         self._fetch = fetch or (lambda url: fetch_manifest_bytes(url))
         self._clock = clock
         self._sleep = sleeper
+        self._check_allowed = check_allowed or (lambda: True)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._offer: UpdateOffer | None = None
@@ -107,6 +126,9 @@ class UpdateCheckService:
 
     def _loop(self) -> None:
         while not self._stop.is_set():
+            if not self._check_allowed():
+                self._stop.wait(0.2)
+                continue
             try:
                 self.check_once()
             except Exception:  # a background check NEVER takes the app down
@@ -117,30 +139,23 @@ class UpdateCheckService:
 
     def check_once(self) -> CheckOutcome:
         with self._lock:
+            if not self._check_allowed():
+                return CheckOutcome(False, "an update is already in progress")
             self.status.publish(UpdatePhase.CHECKING)
             try:
                 raw = self._fetch(self.manifest_url)
             except Exception as exc:
-                self.status.publish(UpdatePhase.IDLE)
+                self._offer = None
+                self.status.publish(UpdatePhase.FAILED, detail="update check failed; check your connection")
                 return CheckOutcome(False, f"manifest fetch failed: {exc}")
             verification = parse_and_verify_manifest(raw, self.trust)
             if not verification.ok or verification.manifest is None:
                 # Verified-refused manifests still leave a trail, but no offer.
                 logger.info("manifest refused: %s", verification.reason.value)
-                self.status.publish(UpdatePhase.IDLE)
+                self._offer = None
+                self.status.publish(UpdatePhase.FAILED, detail=f"release manifest refused: {verification.reason.value}")
                 return CheckOutcome(False, verification.reason.value, verification=verification)
             manifest = verification.manifest
-
-            # Advance the high-water for OUR channel once the document is verified —
-            # this is the commit point of the replay defense (see decision.retry rule).
-            if manifest.channel == self.channel:
-                self.high_water.record(
-                    self.channel,
-                    sequence=manifest.sequence,
-                    version=manifest.version,
-                    manifest_sha256=manifest.canonical_sha256,
-                    now=self._clock(),
-                )
 
             decision = decide_update(
                 manifest,
@@ -150,17 +165,24 @@ class UpdateCheckService:
                 high_water=self.high_water.load(self.channel),
                 installer_available=_installer_available(self.platform),
             )
+            # Compare against the PREVIOUS mark. Recording first would admit a
+            # conflicting document at a reused sequence as its own retry.
+            if manifest.channel == self.channel and decision.reason.name != "REPLAYED_MANIFEST":
+                self.high_water.record(self.channel, sequence=manifest.sequence, version=manifest.version,
+                                       manifest_sha256=manifest.canonical_sha256, now=self._clock())
             if decision.should_install:
                 self._offer = UpdateOffer(
-                    raw=raw, manifest=manifest, decision=decision, created_at=self._clock()
+                    raw=raw, manifest=manifest, decision=decision, created_at=self._clock(),
+                    installed_version=self.installed_version,
                 )
                 self.status.publish(UpdatePhase.READY, version=manifest.version)
             else:
                 self._offer = None
-                if decision.reason is not None and decision.reason.name == "UP_TO_DATE":
+                if decision.reason is UpdateDecisionReason.UP_TO_DATE:
                     self.status.publish(UpdatePhase.UP_TO_DATE)
                 else:
-                    self.status.publish(UpdatePhase.IDLE)
+                    self.status.publish(UpdatePhase.UNAVAILABLE, reason=decision.plain_message,
+                                        fault="update_not_applicable")
             return CheckOutcome(True, decision.reason.value, decision=decision, verification=verification)
 
     def current_offer(self) -> UpdateOffer | None:

@@ -5,9 +5,9 @@ Bundle verification (defense in depth beyond Ed25519):
   2. when a pinned `expected_authority` is configured, the signing certificate chain
      must show it (`codesign -dv`);
   3. `spctl --assess --type execute` (Gatekeeper) must accept the bundle when
-     notarization is required — the production default. The ONLY way around it is a
-     per-transaction explicit, journaled `notarization_waiver_reason` (dev sandboxes);
-     a dedicated test pins that the default refuses ad-hoc/un-notarized bundles.
+     notarization is required. The explicit publisher-verified ad-hoc production
+     policy preserves the running bundle's trust tier; certificate-signed running
+     bundles still require Gatekeeper acceptance. Test waivers are sandbox-only.
 
 Atomic swap = renames inside the app's parent directory (same volume ⇒ atomic):
   target → .<name>.prior-<txid>   (keep, for rollback and "run previous version")
@@ -55,6 +55,29 @@ class MacOSBundleInstaller:
         self.default_require_notarization = bool(default_require_notarization)
 
     # -- verification ------------------------------------------------------- #
+
+    def running_requires_notarization(self, app_path: Path) -> bool:
+        """Only a valid, explicitly ad-hoc running bundle may keep that trust tier.
+
+        Unknown, unsigned, damaged, certificate-signed and Developer ID bundles
+        all require Gatekeeper acceptance of the replacement (fail closed).
+        """
+        verification = self._run(["codesign", "--verify", "--deep", "--strict", str(app_path)])
+        info = self._run(["codesign", "-dv", "--verbose=4", str(app_path)])
+        detail = (info.stdout or "") + (info.stderr or "")
+        return not (verification.returncode == 0 and info.returncode == 0
+                    and "Signature=adhoc" in detail and "Authority=" not in detail)
+
+    def clear_verified_quarantine(self, bundle: Path) -> None:
+        """Called only after publisher/hash/artifact/codesign verification.
+
+        Python's HTTP download does not ordinarily set quarantine. A quarantined
+        ad-hoc payload still needs its verified extraction cleared before relaunch.
+        Touch only quarantine, never other xattrs or an unverified bundle.
+        """
+        result = self._run(["xattr", "-dr", "com.apple.quarantine", str(bundle)])
+        if result.returncode:
+            raise OSError(f"could not clear verified bundle quarantine: {result.stderr.strip()}")
 
     def verify_bundle(
         self, staged_bundle: Path, *, require_notarization: bool | None = None

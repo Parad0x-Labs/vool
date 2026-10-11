@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "उदा. संक्षेप में रहो; बुलेट सूचियाँ नहीं",
     "settings.row.toolbelt.help": "क्षमताओं की सूची: स्थानीय मॉडल, क्लाउड कनेक्शन, वेब-खोज कनेक्शन और प्लगइन, हर एक अपनी वास्तविक जाँची स्थिति के साथ। कभी जाँची न गई क्षमता UNKNOWN पढ़ती है, जो न असफल है न उपलब्ध। खोलना केवल स्थानीय स्थिति पढ़ता है।",
     "settings.row.toolbelt.label": "टूलबेल्ट",
+    "settings.row.updates.help": "हस्ताक्षरित रिलीज़ की जाँच करें। आपकी सेटिंग और डेटा रनटाइम फ़ोल्डर में बने रहते हैं।",
+    "settings.row.updates.label": "ऐप अपडेट",
     "settings.row.usage.help": "स्थानीय मॉडल पर मुफ़्त चले टोकन बनाम सशुल्क क्लाउड लेन पर चले टोकन, मॉडलवार।",
     "settings.row.usage.label": "टोकन उपयोग",
     "settings.row.usepod.effect": "तुरंत लागू।",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "स्किल — VOOL उन क्षमताओं का उपयोग कैसे करता है",
     "skills.from_plugin_title": "प्लगइन से: {plugin}",
     "skills.none_installed": "अभी कोई स्किल इंस्टॉल नहीं हैं।",
+    "update.action_check": "अपडेट जाँचें",
     "update.action_restart": "पुनः आरंभ करें",
     "update.action_update": "अपडेट करें",
     "update.checking": "जाँचा जा रहा है…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "ध्वनि सुनें",
     "vns.sound.blocked": "ध्वनि चलाना उपलब्ध नहीं है। सूचनाएँ घंटी में बनी रहती हैं।"
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

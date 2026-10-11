@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "예: 간결하게; 글머리 목록 없이",
     "settings.row.toolbelt.help": "역량 목록: 로컬 모델, 클라우드 연결, 웹 검색 연결, 플러그인. 각각 실제 탐색된 상태가 붙습니다. 한 번도 탐색되지 않은 역량은 UNKNOWN으로 읽히며, 실패도 사용 가능도 아닙니다. 여는 것은 로컬 상태만 읽습니다.",
     "settings.row.toolbelt.label": "도구 벨트",
+    "settings.row.updates.help": "서명된 릴리스를 확인합니다. 설정과 데이터는 실행 환경 디렉터리에 유지됩니다.",
+    "settings.row.updates.label": "앱 업데이트",
     "settings.row.usage.help": "로컬 모델에서 무료로 돈 토큰 대 유료 클라우드 차선에서 돈 토큰, 모델별로.",
     "settings.row.usage.label": "토큰 사용량",
     "settings.row.usepod.effect": "즉시 적용됩니다.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "스킬 — VOOL이 그 능력을 쓰는 방법",
     "skills.from_plugin_title": "플러그인 제공: {plugin}",
     "skills.none_installed": "아직 설치된 스킬이 없습니다.",
+    "update.action_check": "업데이트 확인",
     "update.action_restart": "재시작",
     "update.action_update": "업데이트",
     "update.checking": "확인 중…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "소리 미리 듣기",
     "vns.sound.blocked": "소리를 재생할 수 없습니다. 알림은 종 메뉴에 남아 있습니다."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

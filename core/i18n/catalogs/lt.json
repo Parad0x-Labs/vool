@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "pvz. būk glaustas; be sąrašų su taškais",
     "settings.row.toolbelt.help": "Galimybių inventorius: vietiniai modeliai, debesies ryšys, žiniatinklio paieškos ryšiai ir įskiepiai, kiekvienas su tikra išbandyta būsena. Niekada nebandoma galimybė skaitosi UNKNOWN — tai nei nesėkmė, nei prieinama. Atvėrus skaitoma tik vietinė būsena.",
     "settings.row.toolbelt.label": "Įrankių juosta",
+    "settings.row.updates.help": "Tikrinti, ar yra pasirašyta versija. Nustatymai ir duomenys lieka vykdymo aplinkos kataloge.",
+    "settings.row.updates.label": "Programos atnaujinimai",
     "settings.row.usage.help": "Tokenai, paleisti nemokamai vietiniame modelyje, prieš tokenus, paleistus mokamoje debesies juostoje, pagal modelį.",
     "settings.row.usage.label": "Tokenų naudojimas",
     "settings.row.usepod.effect": "Taikoma iškart.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "Įgūdžiai — kaip VOOL naudoja tas galias",
     "skills.from_plugin_title": "Iš papildinio: {plugin}",
     "skills.none_installed": "Kol kas neįdiegtas joks įgūdis.",
+    "update.action_check": "Tikrinti atnaujinimus",
     "update.action_restart": "Paleisti iš naujo",
     "update.action_update": "Atnaujinti",
     "update.checking": "Tikrinama…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "Išbandyti garsą",
     "vns.sound.blocked": "Garso paleisti nepavyko. Pranešimai lieka varpelio meniu."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

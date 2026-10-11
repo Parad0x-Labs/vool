@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "напр. будь краток; без списков",
     "settings.row.toolbelt.help": "Инвентарь возможностей: локальные модели, облачное подключение, подключения веб-поиска и плагины, каждое с реальным проверенным состоянием. Никогда не проверенная возможность читается как UNKNOWN — это ни провал, ни доступность. Открытие читает только локальное состояние.",
     "settings.row.toolbelt.label": "Пояс инструментов",
+    "settings.row.updates.help": "Проверить наличие подписанной версии. Настройки и данные остаются в каталоге среды выполнения.",
+    "settings.row.updates.label": "Обновления приложения",
     "settings.row.usage.help": "Токены, прошедшие бесплатно на локальной модели, против токенов на платном облачном канале, по моделям.",
     "settings.row.usage.label": "Использование токенов",
     "settings.row.usepod.effect": "Применяется сразу.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "Навыки — как VOOL использует эти возможности",
     "skills.from_plugin_title": "Из плагина: {plugin}",
     "skills.none_installed": "Пока не установлено ни одного навыка.",
+    "update.action_check": "Проверить обновления",
     "update.action_restart": "Перезапустить",
     "update.action_update": "Обновить",
     "update.checking": "Проверка…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "Прослушать звук",
     "vns.sound.blocked": "Воспроизведение звука недоступно. Уведомления остаются в меню колокольчика."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

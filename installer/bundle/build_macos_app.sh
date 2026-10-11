@@ -638,10 +638,9 @@ cat >"${APP}/Contents/Info.plist" <<PLIST
   <true/>
   <key>LSMinimumSystemVersion</key>
   <string>${MACOS_MIN_VERSION}</string>
-  <!-- THE LAUNCH CONTRACT. CFBundleExecutable is a shell script, so LaunchServices has no
-       Mach-O header to read; with this key absent it forges (x86_64, arm64) and launches the
-       app under Rosetta on Apple Silicon. Declaring the single architecture this bundle was
-       actually staged for is what keeps the process tree native. -->
+  <!-- THE LAUNCH CONTRACT. The self-contained executable is a native shim; the
+       developer wrapper remains a shell launcher. Declare the single architecture
+       staged into this bundle so both entry points select the intended runtime. -->
   <key>LSArchitecturePriority</key>
   <array>
     <string>${TARGET_ARCH}</string>
@@ -833,6 +832,14 @@ export PYTHONDONTWRITEBYTECODE=1
 export VOOL_EXPECTED_COMMIT="${BUNDLED_COMMIT}"
 export VOOL_NATIVE_API_URL="${VOOL_NATIVE_API_URL:-http://127.0.0.1:11435}"
 export VOOL_NATIVE_REQUIRE_OWNED_RUNTIME="1"
+export VOOL_UPDATE_APP_PATH="$(cd "${RES}/../.." && pwd)"
+export VOOL_UPDATE_HELPER_SCRIPT="${RES}/update/mac_update_helper.sh"
+export VOOL_UPDATE_HEALTH_URL="${VOOL_NATIVE_API_URL%/}/healthz"
+# Stop the native host, which gracefully releases its owned API before exiting.
+# Stopping only the API would leave the old native window/supervisor alive.
+export VOOL_UPDATE_TARGET_PIDFILE="${VOOL_HOME}/data/vool_native.pid"
+mkdir -p "${VOOL_HOME}/data"
+printf '%s\n' "$$" >"${VOOL_UPDATE_TARGET_PIDFILE}"
 
 echo "opening the native window"
 exec "${PY}" "${RES}/app/installer/bundle/vool_window.py"
@@ -906,6 +913,15 @@ LAUNCHER
 fi
 
 chmod +x "${APP}/Contents/MacOS/VOOL"
+if [[ "${SELF_CONTAINED}" -eq 1 ]]; then
+  # A shell main executable can be rejected by LaunchServices as missing despite
+  # being executable. Give it the exact target CPU slice, then exec the same
+  # bundle-relative script without losing PID, environment or spaced paths.
+  mv "${APP}/Contents/MacOS/VOOL" "${APP}/Contents/Resources/launcher.sh"
+  /usr/bin/clang -arch "${TARGET_ARCH}" -mmacosx-version-min="${MACOS_MIN_VERSION}" \
+    -Wall -Wextra -Werror -O2 "${PROJECT_ROOT}/installer/bundle/native_launcher.c" \
+    -o "${APP}/Contents/MacOS/VOOL" || die "native launch executable could not be built"
+fi
 touch "${APP}"  # nudge Finder to refresh the bundle icon
 
 # --- macOS notification helper ------------------------------------------------------------

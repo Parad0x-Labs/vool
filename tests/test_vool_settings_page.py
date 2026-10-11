@@ -28,6 +28,7 @@ AUTHORISED_WRITE_URLS = {
 LOCAL_READ_URLS = {
     "/api/settings/prefs",
     "/api/runtime/version",
+    "/api/update/status",  # the same local StatusStore used by the chat header
     # The Operator Profile store: a local SQLite read. No provider, no model, no Keychain.
     "/api/profile",
     # The derived first-run setup state (core/setup_progress.py): preference and project files,

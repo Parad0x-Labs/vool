@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "p. ej. sé conciso; sin listas con viñetas",
     "settings.row.toolbelt.help": "El inventario de capacidades: modelos locales, la conexión a la nube, conexiones de búsqueda web y plugins, cada una con su estado real sondeado. Una capacidad nunca sondeada lee UNKNOWN, que no es ni falla ni disponibilidad. Abrirlo solo lee estado local.",
     "settings.row.toolbelt.label": "Cinturón de herramientas",
+    "settings.row.updates.help": "Buscar una versión firmada. La configuración y los datos permanecen en el directorio de ejecución.",
+    "settings.row.updates.label": "Actualizaciones de la aplicación",
     "settings.row.usage.help": "Tokens que corrieron gratis en un modelo local contra tokens que corrieron en un carril de nube pago, por modelo.",
     "settings.row.usage.label": "Uso de tokens",
     "settings.row.usepod.effect": "Se aplica de inmediato.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "Habilidades — cómo usa VOOL esas capacidades",
     "skills.from_plugin_title": "Del plugin: {plugin}",
     "skills.none_installed": "Aún no hay habilidades instaladas.",
+    "update.action_check": "Buscar actualizaciones",
     "update.action_restart": "Reiniciar",
     "update.action_update": "Actualizar",
     "update.checking": "Comprobando…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "Escuchar sonido",
     "vns.sound.blocked": "El sonido no está disponible. Las notificaciones siguen en la campana."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

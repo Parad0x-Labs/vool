@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "למשל: תהיה תמציתי; בלי רשימות תבליטים",
     "settings.row.toolbelt.help": "מלאי היכולות: דגמים מקומיים, חיבור הענן, חיבורי חיפוש רשת ותוספים, כל אחד עם מצבו האמיתי שנבדק. יכולת שמעולם לא נבדקה נקראת UNKNOWN, שהוא לא כישלון ולא זמינות. פתיחה קוראת מצב מקומי בלבד.",
     "settings.row.toolbelt.label": "חגורת הכלים",
+    "settings.row.updates.help": "בדיקת גרסה חתומה. ההגדרות והנתונים נשארים בתיקיית סביבת הריצה.",
+    "settings.row.updates.label": "עדכוני יישום",
     "settings.row.usage.help": "אסימונים שרצו חינם על דגם מקומי מול אסימונים שרצו על נתיב ענן בתשלום, לפי דגם.",
     "settings.row.usage.label": "שימוש באסימונים",
     "settings.row.usepod.effect": "חל מיד.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "מיומנויות — איך VOOL משתמש בכוחות האלה",
     "skills.from_plugin_title": "מפלאגין: {plugin}",
     "skills.none_installed": "אין עדיין מיומנויות מותקנות.",
+    "update.action_check": "בדיקת עדכונים",
     "update.action_restart": "הפעלה מחדש",
     "update.action_update": "עדכון",
     "update.checking": "בודק…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "השמעת דוגמה",
     "vns.sound.blocked": "השמעת הצליל אינה זמינה. ההתראות נשארות בתפריט הפעמון."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

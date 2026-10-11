@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "z. B. sei knapp; keine Aufzählungen",
     "settings.row.toolbelt.help": "Das Fähigkeitsinventar: lokale Modelle, die Cloud-Verbindung, Websuch-Verbindungen und Plugins, jedes mit seinem echten geprüften Zustand. Eine nie geprüfte Fähigkeit liest sich UNKNOWN — weder gescheitert noch verfügbar. Das Öffnen liest nur lokalen Zustand.",
     "settings.row.toolbelt.label": "Werkzeuggürtel",
+    "settings.row.updates.help": "Nach einer signierten Version suchen. Einstellungen und Daten bleiben im Laufzeitverzeichnis.",
+    "settings.row.updates.label": "App-Updates",
     "settings.row.usage.help": "Token, die kostenlos auf einem lokalen Modell liefen, gegen Token auf einer bezahlten Cloud-Spalte, je Modell.",
     "settings.row.usage.label": "Token-Nutzung",
     "settings.row.usepod.effect": "Wirkt sofort.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "Skills — wie VOOL diese Fähigkeiten einsetzt",
     "skills.from_plugin_title": "Aus Plugin: {plugin}",
     "skills.none_installed": "Noch keine Skills installiert.",
+    "update.action_check": "Nach Updates suchen",
     "update.action_restart": "Neu starten",
     "update.action_update": "Aktualisieren",
     "update.checking": "Wird geprüft…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "Ton anhören",
     "vns.sound.blocked": "Die Tonwiedergabe ist nicht verfügbar. Benachrichtigungen bleiben im Glockenmenü."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

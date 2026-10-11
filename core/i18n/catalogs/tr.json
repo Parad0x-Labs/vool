@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "örn. kısa ol; madde listesi olmasın",
     "settings.row.toolbelt.help": "Yetenek envanteri: yerel modeller, bulut bağlantısı, web arama bağlantıları ve eklentiler, her biri gerçek yoklanmış durumuyla. Hiç yoklanmamış bir yetenek UNKNOWN okunur; bu ne başarısızdır ne kullanılabilir. Açmak yalnızca yerel durumu okur.",
     "settings.row.toolbelt.label": "Araç kemeri",
+    "settings.row.updates.help": "İmzalı bir sürümü kontrol edin. Ayarlarınız ve verileriniz çalışma dizininde kalır.",
+    "settings.row.updates.label": "Uygulama güncellemeleri",
     "settings.row.usage.help": "Yerel bir modelde ücretsüz çalışan tokenlar ile ücretli bir bulut şeridinde çalışan tokenlar, model başına.",
     "settings.row.usage.label": "Token kullanımı",
     "settings.row.usepod.effect": "Hemen geçerli.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "Beceriler — VOOL'un o güçleri nasıl kullandığı",
     "skills.from_plugin_title": "Eklentiden: {plugin}",
     "skills.none_installed": "Henüz beceri kurulu değil.",
+    "update.action_check": "Güncellemeleri kontrol et",
     "update.action_restart": "Yeniden başlat",
     "update.action_update": "Güncelle",
     "update.checking": "Kontrol ediliyor…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "Sesi dinle",
     "vns.sound.blocked": "Ses çalma kullanılamıyor. Bildirimler zil menüsünde kalır."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

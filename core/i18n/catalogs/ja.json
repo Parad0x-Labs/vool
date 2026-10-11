@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "例: 簡潔に。箇条書きなし",
     "settings.row.toolbelt.help": "能力の棚卸し：ローカルモデル、クラウド接続、ウェブ検索接続、プラグイン。各々に実際に調査された状態が付きます。一度も調査されていない能力はUNKNOWNと表示され、失敗でも利用可能でもありません。開くとローカル状態のみを読みます。",
     "settings.row.toolbelt.label": "ツールベルト",
+    "settings.row.updates.help": "署名済みのリリースを確認します。設定とデータは実行環境のディレクトリに保持されます。",
+    "settings.row.updates.label": "アプリの更新",
     "settings.row.usage.help": "ローカルモデルで無料で走ったトークンと、有料クラウドレーンで走ったトークンの対比（モデルごと）。",
     "settings.row.usage.label": "トークン使用量",
     "settings.row.usepod.effect": "即時に適用されます。",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "スキル — VOOLがその力を使う方法",
     "skills.from_plugin_title": "プラグインから:{plugin}",
     "skills.none_installed": "まだスキルがインストールされていません。",
+    "update.action_check": "更新を確認",
     "update.action_restart": "再起動",
     "update.action_update": "アップデート",
     "update.checking": "確認中…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "音を試聴",
     "vns.sound.blocked": "音を再生できません。通知はベルに残ります。"
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

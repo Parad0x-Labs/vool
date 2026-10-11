@@ -1107,6 +1107,8 @@
     "settings.row.style_notes.placeholder": "مثال: كن موجزًا؛ بلا قوائم نقطية",
     "settings.row.toolbelt.help": "جرد القدرات: النماذج المحلية، واتصال السحابة، واتصالات بحث الويب، والإضافات، كل واحدة بحالتها المفحوصة الحقيقية. قدرة لم تُفحص قط تُقرأ UNKNOWN، وهي ليست فشلًا ولا توفرًا. فتحه يقرأ الحالة المحلية فقط.",
     "settings.row.toolbelt.label": "حزام الأدوات",
+    "settings.row.updates.help": "تحقق من إصدار موقّع. تبقى الإعدادات والبيانات في مجلد بيئة التشغيل.",
+    "settings.row.updates.label": "تحديثات التطبيق",
     "settings.row.usage.help": "رموز جرت مجانًا على نموذج محلي مقابل رموز جرت على مسار سحابي مدفوع، لكل نموذج.",
     "settings.row.usage.label": "استخدام الرموز",
     "settings.row.usepod.effect": "يسري فورًا.",
@@ -1202,6 +1204,7 @@
     "sidebar.skills_title": "المهارات — كيف يستخدم VOOL تلك القدرات",
     "skills.from_plugin_title": "من إضافة: {plugin}",
     "skills.none_installed": "لا مهارات مثبتة بعد.",
+    "update.action_check": "التحقق من التحديثات",
     "update.action_restart": "إعادة التشغيل",
     "update.action_update": "تحديث",
     "update.checking": "جارٍ التحقق…",
@@ -1783,7 +1786,7 @@
     "vns.sound.preview": "معاينة الصوت",
     "vns.sound.blocked": "تشغيل الصوت غير متاح. تبقى الإشعارات في قائمة الجرس."
   },
-  "source_catalog_sha256": "78774cf84405db5cdf4a7015a5e36a0fde0abab7f6a36c6453f4ebbca428eef9",
+  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
