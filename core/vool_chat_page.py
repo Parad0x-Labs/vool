@@ -338,7 +338,7 @@ header a:hover { text-decoration:underline; }
 @media (prefers-reduced-motion: reduce) { #modelBtn.working .dot.ok { animation:none; } }
 #modelConnections .cp-chip { display:inline-flex; align-items:center; gap:5px; }
 #modelConnections .cp-sep { color:var(--muted); margin:0 1px; }
-.model-where { border-inline-start:1px solid var(--border); padding-inline-start:8px; white-space:nowrap; }
+.model-where { border-inline-start:1px solid var(--border); padding-inline-start:8px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #modelCtrl { flex-shrink:1; }
 #modelBtn { max-width:100%; }
 #modelPop { width:390px; min-width:min(280px,calc(100vw - 16px)); }
@@ -353,9 +353,11 @@ header a:hover { text-decoration:underline; }
 #modelConnectionDetail { margin-top:5px; white-space:pre-line; overflow-wrap:anywhere; }
 #modelConnect { border:0; padding:3px; color:var(--accent); background:transparent; font:inherit; cursor:pointer; }
 @media (min-width: 1200px) {
-  header { flex-wrap:nowrap; gap:7px; padding-inline:12px; }
+  /* Splitters can leave a narrow chat column even on a wide window. Let the header's
+     controls wrap in that actual space rather than paint over the Activity button. */
+  header { gap:7px; padding-inline:12px; }
   header .ver { max-width:50px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-  header #modelCtrl { flex:1 1 200px; }
+  header #modelCtrl { flex:1 1 200px; min-width:min(200px,100%); max-width:100%; }
   header #pinBtn, header #searchBtn, header #exportBtn, header #panelBtn { margin-left:0; padding-inline:7px; }
   header #updateChipTxt { max-width:45px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
   header #modelWhere { font-size:12px; }
@@ -2185,7 +2187,6 @@ function releaseApprovalTokenFor(chatId) { chatState(chatId).approvalToken = '';
 // The exact body a turn sends. Extracted from runTurn so the isolation contract is assertable on
 // the real payload: every field is read from the RUN's chat, never from the composer's display.
 function buildTurnRequestBody(run, modelId, modelSelection) {
-  if (modelForChat(run.chatId) === LOCAL_ONLY_MODEL) { modelId = LOCAL_ONLY_MODEL; modelSelection = 'pin'; }
   const owner = ownerOf(run);
   // Sticky is a PREFERENCE, not a pin (MF-22). On Auto, a chat sticks to its last cloud model and
   // sends that concrete id; when a catalog refresh made the stuck name unresolvable, the server
@@ -7143,12 +7144,15 @@ async function runTurn(text, queueItemId, opts) {
   run.text = '';
   try {
     const lastUser = owner.history.slice().reverse().find((m) => m && m.role === 'user') || {};
-    const selectedModel = opts.queuedModel || effectiveModel(chatId, lastUser.content || '');
+    // Resolve the owning chat's pin before the paid gate and carry it into the request inputs.
+    // Local Only must override queued or trial models without a later page-state lookup.
+    const chatModel = modelForChat(chatId);
+    const selectedModel = chatModel === LOCAL_ONLY_MODEL ? LOCAL_ONLY_MODEL : (opts.queuedModel || effectiveModel(chatId, lastUser.content || ''));
     // A try-once grant serving THIS turn reports "sticky" (a concrete id that degrades to
     // auto if unresolvable), never "pin" — it is not the operator's pin and must not
     // inherit the pin's hard-refusal semantics.
-    const trialServing = activeTryOnce(chatId, lastUser.content || '');
-    const modelSelection = opts.queuedModel ? 'pin' : trialServing ? 'sticky' : (modelForChat(chatId) !== 'vool') ? 'pin' : (selectedModel !== 'vool' ? 'sticky' : 'auto');
+    const trialServing = chatModel !== LOCAL_ONLY_MODEL && activeTryOnce(chatId, lastUser.content || '');
+    const modelSelection = chatModel === LOCAL_ONLY_MODEL ? 'pin' : opts.queuedModel ? 'pin' : trialServing ? 'sticky' : (chatModel !== 'vool') ? 'pin' : (selectedModel !== 'vool' ? 'sticky' : 'auto');
     // Restored pins need an explicit decision in this app session. A successful paid selection
     // already supplies it for the selected conversation, so the first send never asks twice.
     let sendRequiresPaidAck = false;
