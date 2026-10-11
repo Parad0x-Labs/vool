@@ -647,9 +647,9 @@ def _structural_line_kinds(lines: list[str]) -> list[str | None]:
 # An explicit disclaimer of speech ownership is a source boundary, like a quote.
 # Physical ownership ("this bicycle is not mine") does not satisfy this frame.
 _DISOWNED_SPEECH_RE = re.compile(
-    r"\b(?:that|this|it)\s+(?:is|was)\s+[^.!?\n]{0,64}?"
+    r"\b(?:that|this|it)\s{1,32}(?:is|was)\s{1,32}[^.!?\n]{0,64}?"
     r"\b(?:advice|preference|recommendation|opinion|practice|habit|choice|belief)"
-    r"\s*,?\s*(?:but\s+)?not\s+(?:mine|ours)\b", re.IGNORECASE)
+    r"\s{0,32},?\s{0,32}(?:but\s{1,32})?not\s{1,32}(?:mine|ours)\b", re.IGNORECASE)
 
 
 def classify_user_text(user_input: str) -> UserTextOrigin:
@@ -692,10 +692,10 @@ def classify_user_text(user_input: str) -> UserTextOrigin:
         if utterance_quotes:
             quoted_source_buffer.extend(utterance_quotes)
         if unquoted.strip():
-            if _DISOWNED_SPEECH_RE.search(unquoted):
+            if _DISOWNED_SPEECH_RE.search(" ".join(unquoted.split())):
                 for sentence in _SENTENCE_SPLIT_RE.split(unquoted):
                     if sentence.strip():
-                        kind = SOURCE if _DISOWNED_SPEECH_RE.search(sentence) else AUTHORED
+                        kind = SOURCE if _DISOWNED_SPEECH_RE.search(" ".join(sentence.split())) else AUTHORED
                         segments.append(Segment(sentence, kind))
             else:
                 segments.append(Segment(unquoted, AUTHORED))

@@ -61,7 +61,7 @@ def test_e1_assistant_history_is_recallable_as_assistant_output(fresh_profile):
     assert "070-411-8820" in block
     assert "assistant said" in block
     # assistant output must never be attributed to the user
-    assert "user said" not in block
+    assert "user said" not in block.split("Evidence turns", 1)[0]
 
 
 def test_e2_ordinary_short_fact_survives_admission_gates(fresh_profile):

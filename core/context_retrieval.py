@@ -295,6 +295,9 @@ _CAPSULE_TELEMETRY: ContextVar[dict[str, object] | None] = ContextVar(
     "vool_context_capsule_telemetry",
     default=None,
 )
+_CAPSULE_TELEMETRY_AUTHORITY: ContextVar[tuple[str, str] | None] = ContextVar(
+    "vool_context_capsule_telemetry_authority", default=None,
+)
 _TELEMETRY_DEFAULTS: dict[str, object] = {
     "capsule_mode": "not_run",
     "raw_context_chars": 0,
@@ -804,6 +807,14 @@ def _open_memory(runtime_home: str | None = None) -> VoolMemory | None:
 def _open_memory_for_runtime(runtime_home: str | None) -> VoolMemory | None:
     """Open the selected runtime store while preserving the test seam for the default home."""
     if str(runtime_home or "").strip():
+        from pathlib import Path
+
+        from core.runtime_paths import active_vool_home
+
+        # An explicitly captured default authority still uses the default
+        # opener; only a different home selects a different store.
+        if Path(str(runtime_home)).expanduser().resolve() == active_vool_home():
+            return _open_memory()
         return _open_memory(runtime_home=str(runtime_home).strip())
     return _open_memory()
 
@@ -812,9 +823,15 @@ def get_last_retrieval_telemetry() -> dict[str, object]:
     from core.memory.revocation import authorize_payload
 
     payload = {**_TELEMETRY_DEFAULTS, **dict(_CAPSULE_TELEMETRY.get() or {})}
-    if authorize_payload(payload):
+    authority = _CAPSULE_TELEMETRY_AUTHORITY.get()
+    chat_id, runtime_home = authority if authority else (None, None)
+    # Imported records retain the conservative multi-chat serving check.
+    if chat_id and any(scope != _session_scope_key(chat_id)
+                       for scope in payload.get("source_session_ids") or []):
+        chat_id = None
+    if authorize_payload(payload, chat_id, runtime_home):
         return payload
-    return {**_TELEMETRY_DEFAULTS, **_retrieval_diagnostics(payload)}
+    return {**_TELEMETRY_DEFAULTS, **_retrieval_diagnostics(payload, chat_id=chat_id, runtime_home=runtime_home)}
 
 
 #: The finite diagnostic-code vocabulary the projection may serve while an
@@ -864,7 +881,8 @@ _DIAGNOSTIC_CODE_VOCABULARY = frozenset({
 _SAFE_DIAGNOSTIC_CODE_RE = re.compile(r"[a-z0-9][a-z0-9_.:+-]{0,127}")
 
 
-def _retrieval_diagnostics(payload: Mapping[str, Any], _authorize=None) -> dict[str, Any]:
+def _retrieval_diagnostics(payload: Mapping[str, Any], _authorize=None, *,
+                           chat_id=None, runtime_home=None) -> dict[str, Any]:
     """Keep structural diagnostics when the serving gate withholds content.
 
     Codes, counts and storage identities describe a refusal; they do not carry
@@ -888,10 +906,11 @@ def _retrieval_diagnostics(payload: Mapping[str, Any], _authorize=None) -> dict[
             # lost authority reauthorizes nothing; an authority that never
             # existed has persisted no barrier and withholds nothing.
             try:
-                rows = [row for data in _authority_set().values()
-                        for row in data['operations'].values()]
+                rows = [row for data in _authority_set(runtime_home, chat_id).values()
+                        for row in data['operations'].values()
+                        if not chat_id or not row['chat'] or row['chat'] == chat_id]
             except Exception:
-                authority = _directory()
+                authority = _directory(runtime_home)
                 return not ((authority / 'ledger.json').exists()
                             or (authority / 'dependencies.json').exists()
                             or any(authority.glob('lease-*')))
@@ -972,11 +991,16 @@ def _set_retrieval_telemetry(payload: dict[str, object]) -> None:
 
 def reset_retrieval_telemetry() -> None:
     _CAPSULE_TELEMETRY.set(dict(_TELEMETRY_DEFAULTS))
+    _CAPSULE_TELEMETRY_AUTHORITY.set(None)
 
 
 def update_retrieval_telemetry(**fields: object) -> None:
     # Updating diagnostics is not a serving read and must not open a memory
     # store before the request's namespace has been authorized.
+    # Public content updates do not inherit another request's source authority.
+    # Numeric model counters add no retained bytes and keep the current binding.
+    if any(not isinstance(value, (int, float, bool, type(None))) for value in fields.values()):
+        _CAPSULE_TELEMETRY_AUTHORITY.set(None)
     _set_retrieval_telemetry({**dict(_CAPSULE_TELEMETRY.get() or {}), **fields})
 
 
@@ -3943,8 +3967,7 @@ def _whole_turn_body(text: str, max_chars: int | None = None, *, query: str = ""
     cut end marked; with none of their subject terms in the turn it is cut at its last line or
     sentence end before the bound (a numbered list keeps whole items), never mid-item."""
     max_chars = _TURN_LANE_UNIT_MAX_CHARS if max_chars is None else max_chars
-    body = " ".join(str(text or "").replace("\r", "").split(" ")).strip()
-    body = re.sub(r"[ \t]+\n", "\n", body)
+    body = str(text or "").strip()
     if len(body) <= max_chars:
         return body
     window = _whole_turn_window(body, max_chars, query, expansions)
@@ -4256,7 +4279,8 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
                       max_tokens: int | None = None, assistant_ask: bool = False,
                       owned_only: bool = False, query: str = "",
                       expansions: Sequence[str] = (),
-                      rendered: list[tuple[Any, str]] | None = None) -> tuple[list[str], int]:
+                      rendered: list[tuple[Any, str]] | None = None,
+                      rendered_spans: dict[tuple[int, str], dict] | None = None) -> tuple[list[str], int]:
     """Capsule-format lines for the ranked units within *max_tokens*: one '- <role> said (stated
     <date>): <turn>' line per turn ('recorded <date>' when only the ingestion time is known; no date
     with neither), the format every answer check already reads. A turn longer than its bound keeps
@@ -4280,41 +4304,51 @@ def _whole_turn_lines(units: list[list[Any]], *, delivered_text: str,
         for occurrence in unit:
             is_assistant = str(getattr(occurrence, "role", "") or "") == "assistant"
             raw = str(getattr(occurrence, "body", "") or "")
+            source_units = [raw]
             if assistant_ask and is_assistant:
                 windows = _requested_collection_windows(query, raw) or _structured_source_windows(query, raw)
                 if windows:
-                    raw = "\n".join(str(window.get("text") or "") for window in windows)
-            if owned_only and not is_assistant:
-                if not _user_owned_statement_body(raw):
-                    continue
-                from core.memory.admission import classify_user_text
+                    # Disjoint source windows remain separate evidence units.
+                    # Joining them invents a span that never existed in the source.
+                    source_units = [str(window.get("text") or "") for window in windows]
+            for raw in source_units:
+                if owned_only and not is_assistant:
+                    if not _user_owned_statement_body(raw):
+                        continue
+                    from core.memory.admission import classify_user_text
 
-                raw = classify_user_text(raw).authored_text
-            if not is_assistant and not assistant_ask:
-                # The capsule's admission, clause by clause: a "user said" line carries only what the user
-                # asserted. Assistant lines pasted inside the record ("ASSISTANT: You might instead book the
-                # Amber canyon walk") and pure question clauses ("Should I buy a 450 euro stove?") are not
-                # the user's facts and never ride the lane; the asserted clauses of a mixed turn still do.
-                raw = _lane_admitted_user_text(raw)
-            # Redacted whole, before any cut: a window opening mid-turn must never separate a
-            # secret's label from its value.
-            redacted = redact_secrets(raw)
-            raw = str(redacted[0] if isinstance(redacted, tuple) else redacted)
-            body = _whole_turn_body(raw, _TURN_LANE_ASSISTANT_ASK_MAX_CHARS if (assistant_ask and is_assistant) else None,
-                                    query=query, expansions=expansions)
-            if not body:
-                continue
-            role = "assistant" if is_assistant else "user"
-            if _whole_turn_already_delivered(delivered, role, _whole_turn_day_keys(occurrence), body):
-                continue
-            time_label = _whole_turn_time_label(occurrence)
-            authority = _occurrence_authority_label(occurrence)
-            reported = _reported_source_label_match(occurrence)
-            if reported is not None:
-                authority += f' [reported source prefix "{reported.group(1)}"]'
-            label = f"- {authority} ({time_label}): " if time_label else f"- {authority}: "
-            unit_lines.append(label + body)
-            unit_rendered.append((occurrence, label + body))
+                    raw = classify_user_text(raw).authored_text
+                if not is_assistant and not assistant_ask:
+                    # The capsule's admission, clause by clause: a "user said" line carries only what the user
+                    # asserted. Assistant lines pasted inside the record ("ASSISTANT: You might instead book the
+                    # Amber canyon walk") and pure question clauses ("Should I buy a 450 euro stove?") are not
+                    # the user's facts and never ride the lane; the asserted clauses of a mixed turn still do.
+                    raw = _lane_admitted_user_text(raw)
+                # Redacted whole, before any cut: a window opening mid-turn must never separate a
+                # secret's label from its value.
+                redacted = redact_secrets(raw)
+                raw = str(redacted[0] if isinstance(redacted, tuple) else redacted)
+                body = _whole_turn_body(raw, _TURN_LANE_ASSISTANT_ASK_MAX_CHARS if (assistant_ask and is_assistant) else None,
+                                        query=query, expansions=expansions)
+                if not body:
+                    continue
+                role = "assistant" if is_assistant else "user"
+                if _whole_turn_already_delivered(delivered, role, _whole_turn_day_keys(occurrence), body):
+                    continue
+                time_label = _whole_turn_time_label(occurrence)
+                authority = _occurrence_authority_label(occurrence)
+                reported = _reported_source_label_match(occurrence)
+                if reported is not None:
+                    authority += f' [reported source prefix "{reported.group(1)}"]'
+                label = f"- {authority} ({time_label}): " if time_label else f"- {authority}: "
+                unit_lines.append(label + body)
+                unit_rendered.append((occurrence, label + body))
+                source_body = str(getattr(occurrence, "body", "") or "")
+                source_start = source_body.find(body)
+                if rendered_spans is not None and source_start >= 0:
+                    rendered_spans[(id(occurrence), label + body)] = {
+                        "start": source_start, "end": source_start + len(body), "text": body,
+                    }
         if not unit_lines:
             continue
         cost = estimate_tokens("\n".join(unit_lines))
@@ -8080,6 +8114,15 @@ def inject_retrieved(
     (semantic + BM25 + recency) recall, a hardware-sized injection budget, and secret redaction
     on the injected content. Best-effort: any error returns the transcript unchanged.
     """
+    prior = dict(_CAPSULE_TELEMETRY.get() or {})
+    reset_retrieval_telemetry()
+    # Only finite write codes and counts may cross this retrieval boundary.
+    # Arbitrary prior diagnostic text must not borrow the next chat's authority.
+    # A prior capsule's source bytes and receipts never become this telemetry.
+    _set_retrieval_telemetry({key: value for key, value in prior.items()
+                              if (key in {"memory_store_status", "memory_store_reason"}
+                                  and isinstance(value, str) and value in _DIAGNOSTIC_CODE_VOCABULARY)
+                              or (key == "memory_store_count" and type(value) is int and value >= 0)})
     if not str(query or "").strip():
         _set_retrieval_telemetry({"capsule_mode": "skipped_empty_query", "web_calls": 0, "model_calls": 0, "evidence_refs": []})
         return transcript
@@ -8111,6 +8154,10 @@ def inject_retrieved(
         )
         return transcript
     resolved_session_id = policy.chat_id
+    from core.runtime_paths import active_vool_home
+
+    _CAPSULE_TELEMETRY_AUTHORITY.set((resolved_session_id, str(
+        (source_context or {}).get("runtime_home") or active_vool_home())))
     env_map = os.environ if env is None else env
     if not env_flag_enabled(env_map, _CAPSULE_V2_ENV, default=False):
         _set_retrieval_telemetry({"capsule_mode": "disabled", "web_calls": 0, "model_calls": 0, "evidence_refs": []})
@@ -13031,6 +13078,7 @@ def _capsule_v2_inject_retrieved(
         telemetry["whole_turn_lane_refused"] = _lane_refused
     turn_lines, turn_tokens = ([], 0)
     lane_rendered: list[tuple[Any, str]] = []
+    lane_spans: dict[tuple[int, str], dict] = {}
     try:
         # Rendered the same whether or not the opt-in sitting order is on. KNOWN CONFLICT (open): with
         # VOOL_CAPSULE_SITTING_ORDER on, a sitting's whole turns in this block sit apart from that
@@ -13044,6 +13092,7 @@ def _capsule_v2_inject_retrieved(
             _lane_cap = max(0, min(_TURN_LANE_MAX_TOKENS, int(budget.free_tokens)))
         turn_lines, turn_tokens = _whole_turn_lines(
             whole_turn_units, delivered_text=render_block, max_tokens=_lane_cap, rendered=lane_rendered,
+            rendered_spans=lane_spans,
             assistant_ask=_query_requests_assistant_output(query),
             owned_only=_advice_requires_owned_context(query),
             # a turn longer than its bound keeps the region this question (and its search
@@ -13191,7 +13240,7 @@ def _capsule_v2_inject_retrieved(
                 "chat_scope": str(getattr(_occurrence, "chat_scope", "") or ""),
                 "recorded_at": getattr(_occurrence, "recorded_at", None),
                 "statement_at": getattr(_occurrence, "statement_at", None),
-                "span": None,
+                "span": lane_spans.get((id(_occurrence), _lane_line)),
                 "line": _lane_line,
                 "delivered": True,
                 "delivery_stage": "whole_turn_lane",

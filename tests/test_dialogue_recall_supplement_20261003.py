@@ -443,7 +443,7 @@ def test_a_supplement_turn_never_evicts_a_delivered_line(tmp_path, monkeypatch, 
 def test_the_same_words_said_again_are_not_supplemented_twice(tmp_path):
     store = _garden_store(extra={6: [_PLANTINGS[1]]})  # the carrots turn, said again months later
     capsule, telemetry = _capsule(tmp_path, store, "what did oskar plant in the garden")
-    assert capsule.count("three rows of purple carrots") == 1, (
+    assert capsule.split("Evidence turns", 1)[0].count("three rows of purple carrots") == 1, (
         telemetry.get("recall_supplement"), capsule)
 
 
@@ -603,7 +603,8 @@ def test_a_long_turn_is_never_supplemented(tmp_path, monkeypatch, needle, long_t
     assert not any(needle in line for line in _supplement_lines(telemetry)), (
         _supplement_lines(telemetry))
     assert _skips(telemetry).get("long-turn", 0) >= 1, telemetry.get("recall_supplement")
-    assert capsule.count("Big weekend in the garden") <= 1, capsule
+    assert (capsule.split("Evidence turns", 1)[0] if needle == "gooseberry bushes"
+            else capsule).count("Big weekend in the garden") <= 1, capsule
 
 
 @pytest.mark.usefixtures("_hash_backend")

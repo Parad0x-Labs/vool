@@ -30,6 +30,7 @@ except ImportError:  # Windows: no flock; lock one byte far past any content ins
     import msvcrt
 
 _WINDOWS_LOCK_OFFSET = 0x7FFFFFFE
+_WINDOWS = os.name == 'nt'
 
 
 def _flock(handle, *, blocking: bool = True) -> None:
@@ -102,11 +103,30 @@ def _directory(runtime_home=None) -> Path:
 
 
 def _sync_directory(path: Path) -> None:
+    # The Windows CRT cannot open directories for fsync. File contents are
+    # flushed before publication, and the Windows rename uses WRITE_THROUGH.
+    if _WINDOWS:
+        return
     fd = os.open(path, os.O_RDONLY)
     try:
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+def _replace_file(source: Path, target: Path) -> None:
+    if not _WINDOWS:
+        os.replace(source, target)
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    move = ctypes.WinDLL('kernel32', use_last_error=True).MoveFileExW
+    move.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD)
+    move.restype = wintypes.BOOL
+    # Same-directory publication: never allow a copy across volumes.
+    if not move(str(source), str(target), 0x1 | 0x8):
+        raise ctypes.WinError(ctypes.get_last_error())
 
 
 def _durable_write(path: Path, payload) -> None:
@@ -117,7 +137,7 @@ def _durable_write(path: Path, payload) -> None:
             json.dump(payload, out, ensure_ascii=False)
             out.flush()
             os.fsync(out.fileno())
-        os.replace(tmp, path)
+        _replace_file(tmp, path)
         _sync_directory(path.parent)
         # Includes creation of the independent authority directory itself.
         _sync_directory(path.parent.parent)

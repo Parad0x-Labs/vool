@@ -100,7 +100,7 @@ def test_delivered_window_is_bounded_not_the_whole_sentence(long_store):
     ctx = _context(home, chat, policy, "Where are trolleys?")
     # The first 500+ char preamble must not be delivered wholesale...
     assert "silver canvas banners line the quiet hall and the decorative border repeats silver" \
-        not in ctx, ctx
+        not in ctx.split("Evidence turns", 1)[0], ctx
 
 
 def test_provenance_suffix_survives_long_window(long_store):

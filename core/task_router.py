@@ -2715,6 +2715,8 @@ def looks_like_bounded_repo_repair_request(user_input: str) -> bool:
         for marker in (
             " run tests ",
             " rerun tests ",
+            " run the tests ",
+            " rerun the tests ",
             " pytest ",
             " run lint ",
             " lint it ",

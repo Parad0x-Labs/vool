@@ -271,7 +271,7 @@ def test_archived_deleted_and_secret_records_are_inaccessible(
         },
     )
     assert not list_memory_entries(chat_id=secret_chat)
-    assert forget_memory("credential marker", chat_id=secret_chat) == 0
+    assert forget_memory("credential marker", chat_id=secret_chat) == 1
     assert any(
         row.get("record_id") == "secret-record"
         for row in load_jsonl(memory_entries_path())

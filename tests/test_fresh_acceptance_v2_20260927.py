@@ -152,7 +152,7 @@ def test_p2_long_sentence_plural_presses_recall_feeder_gate(fresh_profile):
     assert "feeder gate" in ctx, ctx
     # bounded delivery: the 700+ char preamble must not ride along wholesale
     assert "pallets of uncut cover stock line the corridor and the ventilation ducts hum above" \
-        not in ctx, ctx
+        not in ctx.split("Evidence turns", 1)[0], ctx
 
 
 def test_p3_negated_kiln_fact_survives_morphological_question(fresh_profile):

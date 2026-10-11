@@ -63,50 +63,84 @@ class ProfileProposal:
 
 # --------------------------------------------------------------------------- normalization
 
-_CLAUSE_SPLIT_RE = re.compile(r"(?:[\n\r]+|(?<=[.!?;])\s{1,32}|\s{1,32}(?:and|but)\s{1,32}(?=(?:also\s+)?(?:please\s+)?(?:remember|save|call|address|refer|my|i|be|keep|reply|answer|respond|talk|speak|use|sign|treat|from|always|forget|stop|don't|do not)\b))", re.IGNORECASE)
-_LEADING_FILLER_RE = re.compile(r"^(?:(?:hey|hi|hello|yo|ok|okay|oh|btw|by the way|also|and|so|well|please|pls|plz|vool|vool)[,!\s]+)+", re.IGNORECASE)
-_TRAILING_FILLER_RE = re.compile(r"(?:[,\s]+(?:please|pls|plz|thanks|thank you|thx|ok|okay|from now on|going forward|in future|in the future|always|by default|for good|permanently|if you can|if possible|btw))+\s*[.!?]*$", re.IGNORECASE)
+_CLAUSE_SPLIT_RE = re.compile(r"(?:[\n\r]+|(?<=[.!?;])\s{1,32}|\s{1,32}(?:and|but)\s{1,32}(?=(?:also\s{1,32})?(?:please\s{1,32})?(?:remember|save|call|address|refer|my|i|be|keep|reply|answer|respond|talk|speak|use|sign|treat|from|always|forget|stop|don't|do not)\b))", re.IGNORECASE)
+_LEADING_FILLER_RE = re.compile(r"^(?:(?:hey|hi|hello|yo|ok|okay|oh|btw|by the way|also|and|so|well|please|pls|plz|vool|vool)[,!\s]{1,32})+", re.IGNORECASE)
+_TRAILING_FILLERS = (
+    "please", "pls", "plz", "thanks", "thank you", "thx", "ok", "okay", "from now on",
+    "going forward", "in future", "in the future", "always", "by default", "for good",
+    "permanently", "if you can", "if possible", "btw",
+)
+
+
+def _trim_trailing_fillers(text: str) -> str:
+    # Scan the suffix backwards once. An unanchored repeated regex would
+    # retry an ever-shorter suffix at every position on an invalid tail.
+    tail = text.rstrip().rstrip(".!?").rstrip()
+    tokens = list(re.finditer(r"[^,\s]+", tail))
+    end = len(tokens)
+    cutoff = len(text)
+    while end:
+        for phrase in _TRAILING_FILLERS:
+            count = len(phrase.split())
+            if count > end:
+                continue
+            start = tokens[end - count].start()
+            stop = tokens[end - 1].end()
+            if start == 0 or tail[start:stop].lower() != phrase:
+                continue
+            prefix_end = start
+            while prefix_end and (tail[prefix_end - 1].isspace() or tail[prefix_end - 1] == ","):
+                prefix_end -= 1
+            if prefix_end == start:
+                continue
+            cutoff = prefix_end
+            end -= count
+            break
+        else:
+            break
+    return text[:cutoff]
+
 _QUOTED_RE = re.compile(r"[\"“”'‘’]([^\"“”'‘’]{1,200})[\"“”'‘’]")
 
 _DIRECTIVE_RE = re.compile(
-    r"\b(?:remember|memori[sz]e|save|store|note(?:\s+down)?|keep\s+in\s+mind|from\s+now\s+on|going\s+forward|"
-    r"in\s+(?:the\s+)?future|always|by\s+default|as\s+(?:a|the)\s+default|permanently|for\s+good|"
-    r"set\s+my|update\s+my|change\s+my|make\s+my\s+default|don'?t\s+forget)\b",
+    r"\b(?:remember|memori[sz]e|save|store|note(?:\s{1,32}down)?|keep\s{1,32}in\s{1,32}mind|from\s{1,32}now\s{1,32}on|going\s{1,32}forward|"
+    r"in\s{1,32}(?:the\s{1,32})?future|always|by\s{1,32}default|as\s{1,32}(?:a|the)\s{1,32}default|permanently|for\s{1,32}good|"
+    r"set\s{1,32}my|update\s{1,32}my|change\s{1,32}my|make\s{1,32}my\s{1,32}default|don'?t\s{1,32}forget)\b",
     re.IGNORECASE,
 )
-_WORK_SCOPE_RE = re.compile(r"\b(?:for|at|in|during)\s+work\b|\bwork\s+(?:chats?|mode|stuff|context|emails?)\b|\bwhen\s+(?:i'?m\s+)?working\b|\bprofessionally\b", re.IGNORECASE)
-_PERSONAL_SCOPE_RE = re.compile(r"\b(?:for|in)\s+personal\b|\bpersonal\s+(?:chats?|mode|stuff|context|emails?)\b|\boutside\s+(?:of\s+)?work\b|\bpersonally\b|\bprivately\b", re.IGNORECASE)
-_CHAT_SCOPE_RE = re.compile(r"\b(?:in|for)\s+this\s+(?:chat|conversation|thread|session)\b|\bjust\s+(?:for\s+)?(?:now|here|today)\b|\bfor\s+now\b|\bthis\s+time\b|\bhere\b", re.IGNORECASE)
+_WORK_SCOPE_RE = re.compile(r"\b(?:for|at|in|during)\s{1,32}work\b|\bwork\s{1,32}(?:chats?|mode|stuff|context|emails?)\b|\bwhen\s{1,32}(?:i'?m\s{1,32})?working\b|\bprofessionally\b", re.IGNORECASE)
+_PERSONAL_SCOPE_RE = re.compile(r"\b(?:for|in)\s{1,32}personal\b|\bpersonal\s{1,32}(?:chats?|mode|stuff|context|emails?)\b|\boutside\s{1,32}(?:of\s{1,32})?work\b|\bpersonally\b|\bprivately\b", re.IGNORECASE)
+_CHAT_SCOPE_RE = re.compile(r"\b(?:in|for)\s{1,32}this\s{1,32}(?:chat|conversation|thread|session)\b|\bjust\s{1,32}(?:for\s{1,32})?(?:now|here|today)\b|\bfor\s{1,32}now\b|\bthis\s{1,32}time\b|\bhere\b", re.IGNORECASE)
 _ATTACHED_TASK_RE = re.compile(
     r"\?|\b(?:tell me|what(?:'s| is| are)|explain|summari[sz]e|compare|describe|give me|write|create|implement|"
     r"code|build|fix|refactor|how (?:do|does|much|many)|why|list|show me|calculate|convert|translate)\b",
     re.IGNORECASE,
 )
 
-_UNDO_RE = re.compile(r"^(?:undo|revert|roll\s*back)(?:\s+(?:that|this|it|the\s+last\s+(?:change|one|thing)|my\s+last\s+change))?$", re.IGNORECASE)
-_SHOW_RE = re.compile(r"^(?:what\s+do\s+you\s+(?:remember|know)\s+about\s+me|show\s+(?:me\s+)?(?:my\s+)?profile|what(?:'s| is)\s+in\s+my\s+profile|what\s+have\s+you\s+(?:saved|remembered)\s+about\s+me)$", re.IGNORECASE)
+_UNDO_RE = re.compile(r"^(?:undo|revert|roll\s{0,32}back)(?:\s{1,32}(?:that|this|it|the\s{1,32}last\s{1,32}(?:change|one|thing)|my\s{1,32}last\s{1,32}change))?$", re.IGNORECASE)
+_SHOW_RE = re.compile(r"^(?:what\s{1,32}do\s{1,32}you\s{1,32}(?:remember|know)\s{1,32}about\s{1,32}me|show\s{1,32}(?:me\s{1,32})?(?:my\s{1,32})?profile|what(?:'s| is)\s{1,32}in\s{1,32}my\s{1,32}profile|what\s{1,32}have\s{1,32}you\s{1,32}(?:saved|remembered)\s{1,32}about\s{1,32}me)$", re.IGNORECASE)
 
 # --------------------------------------------------------------------------- category frames
 
-_NAME_IMPERATIVE_RE = re.compile(r"^(?:you\s+(?:can|may|should)\s+)?(?:call|address|refer\s+to)\s+me\s+(?:as\s+)?(?P<v>.+)$", re.IGNORECASE)
-_NAME_DECLARATION_RE = re.compile(r"^(?:my\s+name(?:'s|\s+is)|i\s+go\s+by|i\s+prefer\s+to\s+be\s+called|(?:set|change|update)\s+my\s+name\s+to)\s+(?P<v>.+)$", re.IGNORECASE)
-_NAME_WEAK_RE = re.compile(r"^(?i:i'?m|i\s+am|this\s+is|it'?s)\s+(?P<v>[A-Z][A-Za-z'\-]{1,30})$")
-_NAME_FORGET_RE = re.compile(r"^(?:forget|clear|drop|delete)\s+my\s+name\b|^stop\s+calling\s+me\b|^don'?t\s+(?:call|address)\s+me\s+(?:that|by\s+(?:my|any)\s+name|anything)\b", re.IGNORECASE)
+_NAME_IMPERATIVE_RE = re.compile(r"^(?:you\s{1,32}(?:can|may|should)\s{1,32})?(?:call|address|refer\s{1,32}to)\s{1,32}me\s{1,32}(?:as\s{1,32})?(?P<v>\S.*)$", re.IGNORECASE)
+_NAME_DECLARATION_RE = re.compile(r"^(?:my\s{1,32}name(?:'s|\s{1,32}is)|i\s{1,32}go\s{1,32}by|i\s{1,32}prefer\s{1,32}to\s{1,32}be\s{1,32}called|(?:set|change|update)\s{1,32}my\s{1,32}name\s{1,32}to)\s{1,32}(?P<v>\S.*)$", re.IGNORECASE)
+_NAME_WEAK_RE = re.compile(r"^(?i:i'?m|i\s{1,32}am|this\s{1,32}is|it'?s)\s{1,32}(?P<v>[A-Z][A-Za-z'\-]{1,30})$")
+_NAME_FORGET_RE = re.compile(r"^(?:forget|clear|drop|delete)\s{1,32}my\s{1,32}name\b|^stop\s{1,32}calling\s{1,32}me\b|^don'?t\s{1,32}(?:call|address)\s{1,32}me\s{1,32}(?:that|by\s{1,32}(?:my|any)\s{1,32}name|anything)\b", re.IGNORECASE)
 # "Calling me Skipper got old", "no more nicknames", "enough with the nickname": the owner is dropping the name
 # they are addressed by. It needs both halves -- the address frame AND a drop -- so "my cat's nickname is
 # Skipper" and "call me Skipper" forget nothing.
-_NAME_FRAME_RE = re.compile(r"\b(?:call(?:ing|ed)?\s+me|being\s+called|nick\s*names?|address(?:ing|ed)?\s+me)\b", re.IGNORECASE)
+_NAME_FRAME_RE = re.compile(r"\b(?:call(?:ing|ed)?\s{1,32}me|being\s{1,32}called|nick\s{0,32}names?|address(?:ing|ed)?\s{1,32}me)\b", re.IGNORECASE)
 _NAME_DROP_RE = re.compile(
-    r"\b(?:got|gets|getting|gotten|is|are)\s+(?:old|stale|annoying|tiresome)\b|\bno\s+more\b|"
-    r"\benough\s+(?:with|of)\b|\b(?:tired|sick)\s+of\b|\b(?:stop|drop|ditch|lose|quit)\b",
+    r"\b(?:got|gets|getting|gotten|is|are)\s{1,32}(?:old|stale|annoying|tiresome)\b|\bno\s{1,32}more\b|"
+    r"\benough\s{1,32}(?:with|of)\b|\b(?:tired|sick)\s{1,32}of\b|\b(?:stop|drop|ditch|lose|quit)\b",
     re.IGNORECASE,
 )
-_FORGET_ALL_RE = re.compile(r"^(?:forget|clear|delete|erase|wipe)\s+(?:everything|all|what)\s+(?:you\s+)?(?:know|remember|have|saved|stored)?\s*(?:about\s+me)?(?:\s+everything)?$|^forget\s+(?:my\s+)?(?:whole\s+)?profile$", re.IGNORECASE)
-_FORGET_CATEGORY_RE = re.compile(r"^(?:forget|clear|drop|delete|remove)\s+my\s+(?P<c>signature|email\s+signature|language|timezone|time\s*zone|locale|default\s+(?:email|inbox|mail)\s*(?:account)?|default\s+(?:social|x|twitter)\s*(?:account)?|(?:response|answer|reply)\s+(?:style|preference|preferences)|formatting(?:\s+preference)?)\b", re.IGNORECASE)
+_FORGET_ALL_RE = re.compile(r"^(?:forget|clear|delete|erase|wipe)\s{1,32}(?:everything|all|what)\s{1,32}(?:you\s{1,32})?(?:know|remember|have|saved|stored)?\s{0,32}(?:about\s{1,32}me)?(?:\s{1,32}everything)?$|^forget\s{1,32}(?:my\s{1,32})?(?:whole\s{1,32})?profile$", re.IGNORECASE)
+_FORGET_CATEGORY_RE = re.compile(r"^(?:forget|clear|drop|delete|remove)\s{1,32}my\s{1,32}(?P<c>signature|email\s{1,32}signature|language|timezone|time\s{0,32}zone|locale|default\s{1,32}(?:email|inbox|mail)\s{0,32}(?:account)?|default\s{1,32}(?:social|x|twitter)\s{0,32}(?:account)?|(?:response|answer|reply)\s{1,32}(?:style|preference|preferences)|formatting(?:\s{1,32}preference)?)\b", re.IGNORECASE)
 
 _SIGNATURE_RE = re.compile(
-    r"^(?:(?:set|update|change|save|remember|use)\s+)?(?:my\s+)?(?:e-?mail\s+)?signature\s*(?:is|should\s+be|will\s+be|reads?|to|as)?\s*[:\-–—]?\s*(?P<v>.+)$"
-    r"|^sign\s+(?:my\s+|all\s+(?:my\s+)?)?(?:e-?mails?|messages?)\s+(?:with|as)\s*[:\-–—]?\s*(?P<v3>.+)$",
+    r"^(?:(?:set|update|change|save|remember|use)\s{1,32})?(?:my\s{1,32})?(?:e-?mail\s{1,32})?signature\s{0,32}(?:is|should\s{1,32}be|will\s{1,32}be|reads?|to|as)?\s{0,32}[:\-–—]?\s{0,32}(?P<v>\S.*)$"
+    r"|^sign\s{1,32}(?:my\s{1,32}|all\s{1,32}(?:my\s{1,32})?)?(?:e-?mails?|messages?)\s{1,32}(?:with|as)\s{0,32}[:\-–—]?\s{0,32}(?P<v3>\S.*)$",
     re.IGNORECASE,
 )
 _LANGUAGES = {
@@ -114,40 +148,40 @@ _LANGUAGES = {
     "swedish", "norwegian", "danish", "finnish", "estonian", "latvian", "ukrainian", "czech", "slovak", "hungarian",
     "romanian", "greek", "turkish", "arabic", "hebrew", "hindi", "chinese", "mandarin", "japanese", "korean",
 }
-_LANGUAGE_RE = re.compile(r"^(?:(?:please\s+)?(?:reply|answer|respond|talk|speak|write|chat)(?:\s+to\s+me)?\s+(?:only\s+)?in|my\s+(?:preferred\s+)?language\s+is|use)\s+(?P<v>[A-Za-z]{3,20})(?:\s+(?:please|only|from\s+now\s+on|going\s+forward))*$", re.IGNORECASE)
-_TIMEZONE_RE = re.compile(r"^(?:my\s+time\s*zone\s+is|i'?m\s+(?:in|on)\s+(?:the\s+)?|time\s*zone\s*[:=]?\s*|set\s+my\s+time\s*zone\s+to)\s*(?P<v>[A-Za-z_]+(?:/[A-Za-z_\-]+){1,2}|utc|gmt)(?:\s+time\s*zone)?$", re.IGNORECASE)
+_LANGUAGE_RE = re.compile(r"^(?:(?:please\s{1,32})?(?:reply|answer|respond|talk|speak|write|chat)(?:\s{1,32}to\s{1,32}me)?\s{1,32}(?:only\s{1,32})?in|my\s{1,32}(?:preferred\s{1,32})?language\s{1,32}is|use)\s{1,32}(?P<v>[A-Za-z]{3,20})(?:\s{1,32}(?:please|only|from\s{1,32}now\s{1,32}on|going\s{1,32}forward))*$", re.IGNORECASE)
+_TIMEZONE_RE = re.compile(r"^(?:my\s{1,32}time\s{0,32}zone\s{1,32}is|i'?m\s{1,32}(?:in|on)\s{1,32}(?:the\s{1,32})?|time\s{0,32}zone\s{0,32}[:=]?\s{0,32}|set\s{1,32}my\s{1,32}time\s{0,32}zone\s{1,32}to)\s{0,32}(?P<v>[A-Za-z_]+(?:/[A-Za-z_\-]+){1,2}|utc|gmt)(?:\s{1,32}time\s{0,32}zone)?$", re.IGNORECASE)
 _STYLE_WORDS = {
     "concise": "concise", "brief": "concise", "short": "concise", "terse": "concise", "succinct": "concise",
     "detailed": "detailed", "thorough": "detailed", "long": "detailed", "comprehensive": "detailed",
     "formal": "formal", "casual": "casual", "direct": "direct", "blunt": "direct", "technical": "technical",
     "plain": "plain", "simple": "plain",
 }
-_STYLE_IMPERATIVE_RE = re.compile(r"^(?:be|stay|keep\s+(?:it|things|answers|replies|responses|your\s+(?:answers|replies|responses)))\s+(?:more\s+|very\s+|extra\s+)?(?P<v>[a-z]+)(?:\s+(?:and\s+)?(?:to\s+the\s+point|with\s+me))?$", re.IGNORECASE)
-_STYLE_PREFERENCE_RE = re.compile(r"^(?:i\s+(?:prefer|like|want)|give\s+me|i'?d\s+like)\s+(?:only\s+)?(?P<v>[a-z]+)\s+(?:answers|replies|responses|explanations)$", re.IGNORECASE)
-_STYLE_NOUN_RE = re.compile(r"^(?P<v>[a-z]+)\s+(?:answers|replies|responses)(?:\s+only)?$", re.IGNORECASE)
+_STYLE_IMPERATIVE_RE = re.compile(r"^(?:be|stay|keep\s{1,32}(?:it|things|answers|replies|responses|your\s{1,32}(?:answers|replies|responses)))\s{1,32}(?:more\s{1,32}|very\s{1,32}|extra\s{1,32})?(?P<v>[a-z]+)(?:\s{1,32}(?:and\s{1,32})?(?:to\s{1,32}the\s{1,32}point|with\s{1,32}me))?$", re.IGNORECASE)
+_STYLE_PREFERENCE_RE = re.compile(r"^(?:i\s{1,32}(?:prefer|like|want)|give\s{1,32}me|i'?d\s{1,32}like)\s{1,32}(?:only\s{1,32})?(?P<v>[a-z]+)\s{1,32}(?:answers|replies|responses|explanations)$", re.IGNORECASE)
+_STYLE_NOUN_RE = re.compile(r"^(?P<v>[a-z]+)\s{1,32}(?:answers|replies|responses)(?:\s{1,32}only)?$", re.IGNORECASE)
 # "answer in short telegram style", "respond in a formal tone", "answer me in short telegram
 # dev style with no fluff". This grammar was lost when the free-form style lane moved from
 # user_preferences.style_notes to this authority: only the be/keep imperatives survived, so the
 # answer/reply/respond-in-X-style family silently produced NO proposal and the preference
 # vanished (measured: 4 of the 8 shipped style commands captured nothing).
 _STYLE_IN_PHRASE_RE = re.compile(
-    r"^(?:answer|reply|respond|talk(?:\s+to\s+me)?|speak|write)\s+(?:me\s+)?(?:in|with|using)\s+(?P<v>.+?)\s+(?:style|tone|voice|manner|register)\b.*$",
+    r"^(?:answer|reply|respond|talk(?:\s{1,32}to\s{1,32}me)?|speak|write)\s{1,32}(?:me\s{1,32})?(?:in|with|using)\s{1,32}(?P<v>.{1,2000}?)\s{1,32}(?:style|tone|voice|manner|register)\b.*$",
     re.IGNORECASE,
 )
-_FORMAT_BULLETS_RE = re.compile(r"^(?:use|give\s+me|answer\s+(?:in|with)|reply\s+(?:in|with)|i\s+(?:prefer|like|want))\s+bullet\s*points?$|^bullet\s*points?(?:\s+(?:please|only))?$", re.IGNORECASE)
-_FORMAT_NO_BULLETS_RE = re.compile(r"^(?:no|avoid|skip|don'?t\s+use|never\s+use)\s+bullet\s*points?$|^(?:use\s+)?(?:plain\s+)?prose(?:\s+only)?$", re.IGNORECASE)
-_FORMAT_MARKDOWN_RE = re.compile(r"^(?P<neg>no|avoid|don'?t\s+use|never\s+use|skip)?\s*(?:use\s+)?markdown$", re.IGNORECASE)
+_FORMAT_BULLETS_RE = re.compile(r"^(?:use|give\s{1,32}me|answer\s{1,32}(?:in|with)|reply\s{1,32}(?:in|with)|i\s{1,32}(?:prefer|like|want))\s{1,32}bullet\s{0,32}points?$|^bullet\s{0,32}points?(?:\s{1,32}(?:please|only))?$", re.IGNORECASE)
+_FORMAT_NO_BULLETS_RE = re.compile(r"^(?:no|avoid|skip|don'?t\s{1,32}use|never\s{1,32}use)\s{1,32}bullet\s{0,32}points?$|^(?:use\s{1,32})?(?:plain\s{1,32})?prose(?:\s{1,32}only)?$", re.IGNORECASE)
+_FORMAT_MARKDOWN_RE = re.compile(r"^(?P<neg>no|avoid|don'?t\s{1,32}use|never\s{1,32}use|skip)?\s{0,32}(?:use\s{1,32})?markdown$", re.IGNORECASE)
 _ACCOUNT_EMAIL_RE = re.compile(
-    r"^(?:use|send\s+from|make)\s+my\s+(?P<v>[a-z0-9_.\-]+)\s+(?:inbox|e-?mail|mailbox|mail\s+account|email\s+account)(?:\s+(?:as\s+)?(?:the\s+|my\s+)?default)?$"
-    r"|^(?:my\s+)?default\s+(?:e-?mail|inbox|mail|mail\s+account|email\s+account)\s+(?:is|should\s+be|=|:)\s*(?P<v2>[a-z0-9_.\-]+)(?:\s+(?:inbox|account|email))?$",
+    r"^(?:use|send\s{1,32}from|make)\s{1,32}my\s{1,32}(?P<v>[a-z0-9_.\-]+)\s{1,32}(?:inbox|e-?mail|mailbox|mail\s{1,32}account|email\s{1,32}account)(?:\s{1,32}(?:as\s{1,32})?(?:the\s{1,32}|my\s{1,32})?default)?$"
+    r"|^(?:my\s{1,32})?default\s{1,32}(?:e-?mail|inbox|mail|mail\s{1,32}account|email\s{1,32}account)\s{1,32}(?:is|should\s{1,32}be|=|:)\s{0,32}(?P<v2>[a-z0-9_.\-]+)(?:\s{1,32}(?:inbox|account|email))?$",
     re.IGNORECASE,
 )
 _ACCOUNT_SOCIAL_RE = re.compile(
-    r"^(?:post|tweet)\s+from\s+my\s+(?P<v>[a-z0-9_.\-]+)\s+(?:x\s+|twitter\s+|social\s+)?account(?:\s+(?:as\s+)?(?:the\s+|my\s+)?default)?$"
-    r"|^(?:my\s+)?default\s+(?:x|twitter|social)\s+account\s+(?:is|should\s+be|=|:)\s*(?P<v2>[a-z0-9_.\-]+)$",
+    r"^(?:post|tweet)\s{1,32}from\s{1,32}my\s{1,32}(?P<v>[a-z0-9_.\-]+)\s{1,32}(?:x\s{1,32}|twitter\s{1,32}|social\s{1,32})?account(?:\s{1,32}(?:as\s{1,32})?(?:the\s{1,32}|my\s{1,32})?default)?$"
+    r"|^(?:my\s{1,32})?default\s{1,32}(?:x|twitter|social)\s{1,32}account\s{1,32}(?:is|should\s{1,32}be|=|:)\s{0,32}(?P<v2>[a-z0-9_.\-]+)$",
     re.IGNORECASE,
 )
-_CONTEXT_RE = re.compile(r"^(?:this\s+(?:chat|conversation|thread|one)\s+is\s+(?:a\s+)?(?:for\s+)?|treat\s+this\s+(?:chat|conversation|thread)\s+as\s+(?:a\s+)?|we'?re\s+(?:at|doing|in)\s+|this\s+is\s+(?:a\s+)?(?:for\s+)?)(?P<v>work|personal)(?:\s+(?:chat|conversation|thread|stuff|mode|now))?$", re.IGNORECASE)
+_CONTEXT_RE = re.compile(r"^(?:this\s{1,32}(?:chat|conversation|thread|one)\s{1,32}is\s{1,32}(?:a\s{1,32})?(?:for\s{1,32})?|treat\s{1,32}this\s{1,32}(?:chat|conversation|thread)\s{1,32}as\s{1,32}(?:a\s{1,32})?|we'?re\s{1,32}(?:at|doing|in)\s{1,32}|this\s{1,32}is\s{1,32}(?:a\s{1,32})?(?:for\s{1,32})?)(?P<v>work|personal)(?:\s{1,32}(?:chat|conversation|thread|stuff|mode|now))?$", re.IGNORECASE)
 
 
 def _style_value(raw: Any) -> str:
@@ -158,11 +192,13 @@ def _style_value(raw: Any) -> str:
     "short telegram dev") keeps the operator's words -- collapsing it to "concise" would
     silently discard the register they asked for. Empty/overlong/garbled input yields "".
     """
-    cleaned = re.sub(r"^(?:a|an|the)\s+", "", str(raw or "").strip().lower()).strip()
-    cleaned = re.sub(r"\s+(?:more|very|extra)$", "", cleaned).strip()
+    cleaned = re.sub(r"^(?:a|an|the)\s{1,32}", "", str(raw or "").strip().lower()).strip()
+    parts = cleaned.rsplit(None, 1)
+    if len(parts) == 2 and parts[1] in {"more", "very", "extra"}:
+        cleaned = parts[0].strip()
     if not cleaned:
         return ""
-    tokens = [token for token in re.split(r"[\s,]+", cleaned) if token]
+    tokens = cleaned.replace(",", " ").split()
     if not tokens:
         return ""
     if len(tokens) == 1:
@@ -193,7 +229,7 @@ def _clauses(text: str) -> list[str]:
 
 def _normalize_clause(clause: str) -> str:
     text = _LEADING_FILLER_RE.sub("", clause.strip())
-    text = _TRAILING_FILLER_RE.sub("", text)
+    text = _trim_trailing_fillers(text)
     return text.strip(" ,.!;:")
 
 
@@ -215,15 +251,15 @@ def _strip_scope_words(clause: str) -> str:
 
 
 def _strip_directive(clause: str) -> str:
-    text = re.sub(r"^(?:please\s+)?(?:remember|memori[sz]e|save|store|note(?:\s+down)?|keep\s+in\s+mind|don'?t\s+forget)(?:\s+(?:that|this|to|,))?\s+", "", clause, flags=re.IGNORECASE)
-    text = re.sub(r"^(?:from\s+now\s+on|going\s+forward|in\s+(?:the\s+)?future|always|by\s+default|permanently|for\s+good)[,\s]+", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"[,\s]+(?:from\s+now\s+on|going\s+forward|in\s+(?:the\s+)?future|always|by\s+default|permanently|for\s+good)\s*$", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"^(?:please\s{1,32})?(?:remember|memori[sz]e|save|store|note(?:\s{1,32}down)?|keep\s{1,32}in\s{1,32}mind|don'?t\s{1,32}forget)(?:\s{1,32}(?:that|this|to|,))?\s{1,32}", "", clause, flags=re.IGNORECASE)
+    text = re.sub(r"^(?:from\s{1,32}now\s{1,32}on|going\s{1,32}forward|in\s{1,32}(?:the\s{1,32})?future|always|by\s{1,32}default|permanently|for\s{1,32}good)[,\s]{1,32}", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"[,\s]{1,32}(?:from\s{1,32}now\s{1,32}on|going\s{1,32}forward|in\s{1,32}(?:the\s{1,32})?future|always|by\s{1,32}default|permanently|for\s{1,32}good)\s{0,32}$", "", text, flags=re.IGNORECASE)
     return text.strip(" ,.!;:")
 
 
 def _clean_value(value: str) -> str:
     text = str(value or "").strip().strip("\"'“”‘’")
-    text = _TRAILING_FILLER_RE.sub("", text)
+    text = _trim_trailing_fillers(text)
     return text.strip(" ,.!;:\"'")
 
 
@@ -304,7 +340,7 @@ def _frame(clause: str, normalized: str, *, explicit: bool, attached_task: bool)
         value = _name_value(name.group("v"))
         if not value:
             return None
-        if _NAME_DECLARATION_RE.match(body) and re.match(r"^(?:set|change|update)\s+my\s+name", body, re.IGNORECASE):
+        if _NAME_DECLARATION_RE.match(body) and re.match(r"^(?:set|change|update)\s{1,32}my\s{1,32}name", body, re.IGNORECASE):
             strength = "explicit"
         return ProfileProposal("preferred_name", value, strength, scope=scope, clause=clause)
     weak_name = _NAME_WEAK_RE.match(normalized)
