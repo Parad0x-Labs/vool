@@ -46,6 +46,25 @@ def _wait(callback, *, timeout=90):
     raise AssertionError(f"installed-source journey timed out: {last}")
 
 
+def _process_command(pid):
+    # Linux ps otherwise clips captured args to its terminal width (80 columns
+    # in CI). Keep the entire command, including installation paths with spaces.
+    return subprocess.run(["ps", "-ww", "-p", str(pid), "-o", "args="],
+                          capture_output=True, text=True, check=True).stdout
+
+
+def test_process_recording_keeps_long_arguments_with_spaces(tmp_path, monkeypatch):
+    monkeypatch.setenv("COLUMNS", "80")
+    argument = str(tmp_path / ("long installed source path " * 8))
+    process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", argument])
+    (tmp_path / "owned-pids.json").write_text(json.dumps([process.pid]))
+    try:
+        assert argument in _wait(lambda: _process_command(process.pid))
+    finally:
+        process.terminate()
+        process.wait(timeout=10)
+
+
 @pytest.mark.parametrize("scenario", ["healthy", "unhealthy", "interrupted", "manual", "manual_offline", "manual_unhealthy", "manual_interrupted"])
 def test_one_press_restarts_installed_source_and_keeps_data(tmp_path, scenario):
     unhealthy = scenario == "unhealthy"
@@ -206,6 +225,7 @@ with _fixture_sqlite.connect(_fixture_home/'data/seed.db') as _fixture_connectio
         (tmp_path / "owned-pids.json").write_text(json.dumps(sorted(owned)))
         try:
             _wait(lambda: _api(origin, "/healthz"))
+            assert _api(origin, "/api/update/check", {})["check_ok"]
             notice = _wait(lambda: (lambda value: value if value["phase"] == "ready" else None)(
                 _api(origin, "/api/update/status")))
             assert notice["target_version"] == "0.7.1"
@@ -277,7 +297,7 @@ with _fixture_sqlite.connect(_fixture_home/'data/seed.db') as _fixture_connectio
                     # Stop only this fixture's recorded current app, then invoke
                     # the terminal command while its API is unavailable.
                     pid = int((home / 'data/vool_api.pid').read_text())
-                    command = subprocess.run(['ps', '-p', str(pid), '-o', 'args='], capture_output=True, text=True).stdout
+                    command = _process_command(pid)
                     assert str(target) in command
                     owned.add(pid); os.kill(pid, signal.SIGTERM)
                     from core.updater.macos import _pid_has_exited
@@ -331,7 +351,10 @@ with _fixture_sqlite.connect(_fixture_home/'data/seed.db') as _fixture_connectio
                 owned.add(int(pidfile.read_text()))
             (tmp_path / "owned-pids.json").write_text(json.dumps(sorted(owned)))
             for pid in owned:
-                command = subprocess.run(["ps", "-p", str(pid), "-o", "args="], capture_output=True, text=True).stdout
+                try:
+                    command = _process_command(pid)
+                except subprocess.CalledProcessError:
+                    continue  # this fixture's recorded process has already exited
                 if str(tmp_path) in command:
                     try:
                         os.kill(pid, signal.SIGTERM)

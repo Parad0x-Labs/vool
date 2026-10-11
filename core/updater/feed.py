@@ -1,6 +1,6 @@
 """Feed configuration: WHERE signed manifests come from and WHAT gets updated.
 
-Shipped default `config/release/update_feed.json`:
+Configuration format (`config/release/update_feed.json`):
 
     {
       "manifest_url": "",          # empty = no release feed configured (honest disable)
@@ -8,6 +8,7 @@ Shipped default `config/release/update_feed.json`:
       "channel": "stable",
       "health_url": "http://127.0.0.1:11435/healthz",
       "helper_script": "",         # empty = in-process helper; else the external script
+       "auto_check": false,         # opt in explicitly, or press Check for updates
       "check_interval_seconds": 86400
     }
 
@@ -19,6 +20,8 @@ Environment overrides (release staging + sandbox journeys only):
 Empty manifest_url or an unpinned trust set is a FIRST-CLASS state, not an error: the
 subsystem boots, reports `unavailable` with the plain reason, and runs no background
 thread. The UI shows "Updates are unavailable" — never silence.
+With a configured feed, a fresh home waits for an explicit Check action or an
+operator's auto_check setting/feed override before contacting it.
 """
 from __future__ import annotations
 
@@ -42,6 +45,7 @@ class FeedConfig:
     check_interval_seconds: int = DEFAULT_CHECK_INTERVAL
     source: str = "defaults"
     allow_publisher_verified_adhoc: bool = False
+    auto_check: bool = False
 
     @property
     def has_feed(self) -> bool:
@@ -97,7 +101,35 @@ def load_feed_config(
         check_interval_seconds=max(60, interval),
         source="env" if came_from_env else ("config" if data else "defaults"),
         allow_publisher_verified_adhoc=data.get("allow_publisher_verified_adhoc") is True,
+        auto_check=data.get("auto_check") is True,
     )
 
 
-__all__ = ["FeedConfig", "load_feed_config"]
+def automatic_checks_enabled(*, feed: FeedConfig | None = None, data_dir: Path | None = None) -> bool:
+    """The shipped feed alone never grants permission to contact it."""
+    config = feed or load_feed_config()
+    if not config.has_feed or config.source == "disabled-by-env":
+        return False
+    # An operator-supplied feed override or auto_check setting is an explicit choice.
+    if config.auto_check or config.source == "env":
+        return True
+    if data_dir is None:
+        from core.runtime_paths import active_data_dir
+
+        data_dir = active_data_dir()
+    from core.updater.state import _read_json
+
+    choice = _read_json(Path(data_dir) / "update_v2" / "check_consent.json")
+    return (isinstance(choice, dict) and choice.get("enabled") is True
+            and choice.get("manifest_url") == config.manifest_url)
+
+
+def enable_automatic_checks(*, feed: FeedConfig, data_dir: Path) -> None:
+    """Persist the explicit Check action for this home and this exact feed."""
+    from core.updater.state import _atomic_write_json
+
+    _atomic_write_json(Path(data_dir) / "update_v2" / "check_consent.json",
+                       {"enabled": True, "manifest_url": feed.manifest_url})
+
+
+__all__ = ["FeedConfig", "automatic_checks_enabled", "enable_automatic_checks", "load_feed_config"]

@@ -4,6 +4,8 @@ import hashlib
 import json
 from unittest import mock
 
+import pytest
+
 from core.context_namespace import ensure_chat_namespace, grant_context_import
 from core.context_scope import ContextAccessPolicy
 from core.memory.learning import auto_capture_memory
@@ -35,7 +37,14 @@ from core.user_preferences import (
 from storage.db import get_connection
 
 
-def setup_function() -> None:
+@pytest.fixture(autouse=True)
+def setup_function(tmp_path, monkeypatch) -> None:
+    from core import runtime_paths
+
+    # Forget authority is durable home state; deleting only memory files does
+    # not reset it. Isolate the whole home and restore both selectors on teardown.
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "memory-home"))
+    monkeypatch.setattr(runtime_paths, "_VOOL_HOME_OVERRIDE", None)
     for path in (
         memory_path(),
         conversation_log_path(),

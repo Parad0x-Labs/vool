@@ -113,18 +113,21 @@ class UpdateCheckService:
 
     # -- lifecycle ----------------------------------------------------------- #
 
-    def start(self) -> threading.Thread:
+    def start(self, *, check_immediately: bool = True) -> threading.Thread:
         """Start checking in the background. Returns immediately; never blocks startup."""
         if self._thread is not None and self._thread.is_alive():
             return self._thread
-        self._thread = threading.Thread(target=self._loop, name="vool-update-check", daemon=True)
+        self._thread = threading.Thread(target=self._loop, kwargs={"check_immediately": check_immediately},
+                                        name="vool-update-check", daemon=True)
         self._thread.start()
         return self._thread
 
     def stop(self) -> None:
         self._stop.set()
 
-    def _loop(self) -> None:
+    def _loop(self, *, check_immediately: bool = True) -> None:
+        if not check_immediately and self._stop.wait(self.interval):
+            return
         while not self._stop.is_set():
             if not self._check_allowed():
                 self._stop.wait(0.2)

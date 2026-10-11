@@ -348,3 +348,158 @@ def test_service_hosted_worker_refuses_without_independent_scope_tool(tmp_path, 
     monkeypatch.setattr(worker.shutil, "which", lambda _: None)
     with pytest.raises(ValueError, match="cannot leave its runtime service"):
         worker._systemd_scope_prefix("owned", platform="linux", cgroup_path=cgroup)
+
+
+@pytest.fixture
+def configured_update_checks(tmp_path, monkeypatch):
+    import json
+
+    from core import runtime_paths
+    from core.updater import feed
+    from core.updater.runtime import UpdateSubsystem
+
+    home = tmp_path / "home"
+    config = tmp_path / "feed.json"
+    config.write_text(json.dumps({"manifest_url": "https://updates.example.invalid/manifest.json",
+                                  "app_path": str(tmp_path / "VOOL.app"), "channel": "beta"}))
+    monkeypatch.setattr(feed, "DEFAULT_CONFIG_PATH", config)
+    monkeypatch.delenv("VOOL_UPDATE_MANIFEST_URL", raising=False)
+    monkeypatch.delenv("VOOL_UPDATE_DISABLED", raising=False)
+    monkeypatch.setattr(runtime_paths, "_VOOL_HOME_OVERRIDE", home)
+    private, public = generate_publisher_keypair()
+    document, _ = build_manifest(private_hex=private, version="0.7.1", channel="beta")
+    calls = []
+    subsystem = UpdateSubsystem(feed=feed.load_feed_config(), trust=TrustedPublishers({"release-2026-01": public}),
+                                data_dir=home / "data", platform="macos-arm64", installed_version="0.7.0",
+                                fetch=lambda url: (calls.append(url), manifest_bytes(document))[1])
+    try:
+        yield subsystem, calls
+    finally:
+        if subsystem.service is not None:
+            subsystem.service.stop()
+            if subsystem.service._thread is not None:
+                subsystem.service._thread.join(timeout=2)
+                assert not subsystem.service._thread.is_alive()
+
+
+def test_fresh_feed_waits_for_a_user_check_and_the_census_uses_that_same_gate(configured_update_checks):
+    from core.first_run_pact import egress_census
+    from core.updater.feed import automatic_checks_enabled
+
+    subsystem, calls = configured_update_checks
+    subsystem.start()
+    assert subsystem.configured and subsystem.service._thread is None
+    assert not subsystem.service.check_once().ok
+    assert calls == []
+    door = next(row for row in egress_census()["doors"] if row["door"] == "updater_feed")
+    assert door["closed"] and not automatic_checks_enabled()
+
+    assert subsystem.trigger_check()["check_ok"]
+    assert calls == [subsystem.feed.manifest_url]
+    assert automatic_checks_enabled()
+    census = egress_census()
+    assert not next(row for row in census["doors"] if row["door"] == "updater_feed")["closed"]
+    assert census["proof"] == "partial"
+    assert "signed update checks may contact their configured feed" in census["residuals"]
+    assert subsystem.service._thread.is_alive()
+
+
+@pytest.mark.parametrize("choice", [None, "{", "[]", '{"enabled": false}', '{"enabled": "true"}',
+                                   '{"enabled": true, "manifest_url": "https://other.example.invalid/feed"}'])
+def test_absent_or_invalid_update_choice_cannot_open_the_feed(configured_update_checks, choice):
+    from core.updater.feed import automatic_checks_enabled
+
+    subsystem, calls = configured_update_checks
+    if choice is not None:
+        (subsystem.paths.root / "check_consent.json").write_text(choice)
+    subsystem.start()
+    assert not automatic_checks_enabled()
+    assert subsystem.service._thread is None
+    assert not subsystem.service.check_once().ok
+    assert calls == []
+
+
+def test_check_choice_survives_restart_but_cannot_enable_a_different_feed(configured_update_checks):
+    import threading
+    from dataclasses import replace
+
+    from core.updater.feed import automatic_checks_enabled
+    from core.updater.runtime import UpdateSubsystem
+
+    subsystem, calls = configured_update_checks
+    assert subsystem.trigger_check()["check_ok"]
+    assert automatic_checks_enabled(feed=subsystem.feed, data_dir=subsystem.data_dir)
+    assert not automatic_checks_enabled(feed=replace(subsystem.feed, manifest_url="https://other.example.invalid/feed"),
+                                       data_dir=subsystem.data_dir)
+    fetched = threading.Event()
+
+    def fetch(url):
+        fetched.set()
+        return subsystem._custom_fetch(url)
+
+    restarted = UpdateSubsystem(feed=subsystem.feed, trust=subsystem.trust, data_dir=subsystem.data_dir,
+                                platform="macos-arm64", fetch=fetch)
+    try:
+        restarted.start()
+        assert fetched.wait(timeout=2)
+        restarted.service.stop()
+        restarted.service._thread.join(timeout=2)
+        assert not restarted.service._thread.is_alive()
+        (subsystem.paths.root / "check_consent.json").unlink()
+        assert not restarted.service.check_once().ok
+        assert calls == [subsystem.feed.manifest_url] * 2
+    finally:
+        restarted.service.stop()
+        if restarted.service._thread is not None:
+            restarted.service._thread.join(timeout=2)
+
+
+def test_failure_to_save_the_user_choice_sends_no_update_request(configured_update_checks, monkeypatch):
+    from core.updater import runtime
+
+    subsystem, calls = configured_update_checks
+
+    def refuse(**kwargs):
+        raise OSError("injected read-only consent store")
+
+    monkeypatch.setattr(runtime, "enable_automatic_checks", refuse)
+    subsystem.start()
+    response = subsystem.trigger_check()
+    assert not response["check_ok"] and "no check was sent" in response["detail"]
+    assert calls == [] and subsystem.service._thread is None
+
+
+def test_census_tracks_the_live_feed_when_configuration_changes(configured_update_checks, monkeypatch):
+    from core import runtime_paths
+    from core.first_run_pact import egress_census
+    from core.updater import feed, runtime
+
+    subsystem, calls = configured_update_checks
+    assert subsystem.trigger_check()["check_ok"]
+    monkeypatch.setattr(runtime, "_SUBSYSTEM", subsystem)
+    feed.DEFAULT_CONFIG_PATH.write_text('{"manifest_url": "https://other.example.invalid/feed"}')
+    subsystem.service.check_once()
+    assert calls == [subsystem.feed.manifest_url] * 2
+    assert not next(row for row in egress_census()["doors"] if row["door"] == "updater_feed")["closed"]
+    monkeypatch.setattr(runtime_paths, "_VOOL_HOME_OVERRIDE", subsystem.data_dir.parent / "another-home")
+    assert next(row for row in egress_census()["doors"] if row["door"] == "updater_feed")["closed"]
+
+
+@pytest.mark.parametrize("setting, enabled", [(False, False), ("true", False), (1, False), (True, True)])
+def test_automatic_update_setting_requires_a_boolean_true(tmp_path, setting, enabled):
+    import json
+
+    from core.updater.feed import automatic_checks_enabled, load_feed_config
+
+    config = tmp_path / "feed.json"
+    config.write_text(json.dumps({"manifest_url": "https://updates.example.invalid/feed", "auto_check": setting}))
+    assert automatic_checks_enabled(feed=load_feed_config(config_path=config, env={}), data_dir=tmp_path) is enabled
+
+
+def test_operator_feed_override_is_explicit_and_the_disable_switch_still_wins(tmp_path):
+    from core.updater.feed import automatic_checks_enabled, load_feed_config
+
+    env = {"VOOL_UPDATE_MANIFEST_URL": "https://updates.example.invalid/feed"}
+    assert automatic_checks_enabled(feed=load_feed_config(env=env), data_dir=tmp_path)
+    env["VOOL_UPDATE_DISABLED"] = "1"
+    assert not automatic_checks_enabled(feed=load_feed_config(env=env), data_dir=tmp_path)

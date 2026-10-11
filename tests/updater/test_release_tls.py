@@ -29,7 +29,7 @@ def test_packaged_ca_roots_work_without_a_host_ca_installation(tmp_path, monkeyp
 def test_refusing_redirects_honors_tls_context_and_never_reuses_another_trust_set(tmp_path):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'disposable loopback TLS')])
-    now = datetime.datetime.now(datetime.UTC)
+    now = datetime.datetime.now(datetime.timezone.utc)
     certificate = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
         .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(days=1))
         .not_valid_after(now + datetime.timedelta(days=1))

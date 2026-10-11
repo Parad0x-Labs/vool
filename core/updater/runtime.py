@@ -30,7 +30,7 @@ from enum import Enum
 from pathlib import Path
 
 from core.updater.download import StagedDownloader
-from core.updater.feed import FeedConfig, load_feed_config
+from core.updater.feed import FeedConfig, automatic_checks_enabled, enable_automatic_checks, load_feed_config
 from core.updater.health import HttpHealthProbe
 from core.updater.macos import ExternalScriptHelper, MacProcessHelper
 from core.updater.migrations import MigrationCatalog
@@ -188,7 +188,8 @@ class UpdateSubsystem:
                 fetch=self._custom_fetch,
                 clock=self._clock,
                 sleeper=sleeper,
-                check_allowed=lambda: not self._recovering and not self._press_lock.locked() and not self._worker_alive(),
+                check_allowed=lambda: automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir)
+                and not self._recovering and not self._press_lock.locked() and not self._worker_alive(),
             )
             self.controller = UpdateController(
                 offer_loader=lambda: self.service.current_offer() if self.service else None,
@@ -233,7 +234,8 @@ class UpdateSubsystem:
             logger.info("update subsystem UNAVAILABLE: %s", self.unavailable_reason.value)
             return self
         assert self.service is not None
-        self.service.start()
+        if automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir):
+            self.service.start()
         return self
 
     def _recover_bounded(self) -> None:
@@ -415,6 +417,13 @@ class UpdateSubsystem:
             payload["check_ok"] = False
             payload["detail"] = payload["unavailable_plain"]
             return payload
+        try:
+            enable_automatic_checks(feed=self.feed, data_dir=self.data_dir)
+        except OSError:
+            payload = self.status_payload()
+            payload["check_ok"] = False
+            payload["detail"] = "Your update-check choice could not be saved; no check was sent."
+            return payload
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="vool-update-check")
         try:
             future = executor.submit(self.service.check_once)
@@ -441,6 +450,10 @@ class UpdateSubsystem:
         finally:
             with contextlib.suppress(Exception):
                 executor.shutdown(wait=False)
+            if self._started and automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir):
+                with contextlib.suppress(Exception):
+                    # The user's check already ran; schedule the next periodic check.
+                    self.service.start(check_immediately=False)
 
     # -- the two presses ------------------------------------------------------ #
 
