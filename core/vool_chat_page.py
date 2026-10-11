@@ -327,23 +327,49 @@ header a:hover { text-decoration:underline; }
 #updatePop .upd-msg { font-size:12.5px; margin-bottom:8px; }
 #updatePop .upd-bar { height:4px; border-radius:2px; background:var(--border); overflow:hidden; margin-bottom:8px; }
 #updatePop .upd-bar > i { display:block; height:100%; background:var(--accent); width:0%; transition:width .4s; }
-/* Cloud connection pill: red/amber/green/gray reflecting the real OpenRouter auth state. */
-#cloudPill { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:3px 10px; cursor:pointer; background:transparent; font:inherit; line-height:1; }
-#cloudPill:hover { border-color:var(--accent); }
-#cloudPill .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
-#cloudPill.ok .dot { background:var(--ok); box-shadow:0 0 6px var(--ok); }
-#cloudPill.bad .dot { background:var(--bad); box-shadow:0 0 6px var(--bad); }
-#cloudPill.warn .dot { background:var(--warn); }
-#cloudPill .cp-txt { white-space:nowrap; }
-#cloudPill .dot.ok { background:var(--ok); box-shadow:0 0 6px var(--ok); }
-#cloudPill .dot.bad { background:var(--bad); box-shadow:0 0 6px var(--bad); }
-#cloudPill .dot.warn { background:var(--warn); }
-/* Idle = steady glow; in use = a slow, gentle pulse on the connected (ok) dots only. */
+/* The model control owns connection state; the menu retains each provider's detail. */
+#modelStatus, #modelConnections { display:inline-flex; align-items:center; gap:5px; }
+#modelBtn .dot, #modelConnections .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
+#modelBtn .dot.ok, #modelConnections .dot.ok { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+#modelBtn .dot.bad, #modelConnections .dot.bad { background:var(--bad); }
+#modelBtn .dot.warn, #modelConnections .dot.warn { background:var(--warn); }
 @keyframes cpPulse { 0%,100% { box-shadow:0 0 3px var(--ok); opacity:.8; } 50% { box-shadow:0 0 11px var(--ok); opacity:1; } }
-#cloudPill.working .dot.ok, #cloudPill.working.ok .dot { animation:cpPulse 1.9s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { #cloudPill.working .dot.ok, #cloudPill.working.ok .dot { animation:none; } }
-#cloudPill .cp-chip { display:inline-flex; align-items:center; gap:5px; }
-#cloudPill .cp-sep { color:var(--muted); margin:0 1px; }
+#modelBtn.working .dot.ok { animation:cpPulse 1.9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { #modelBtn.working .dot.ok { animation:none; } }
+#modelConnections .cp-chip { display:inline-flex; align-items:center; gap:5px; }
+#modelConnections .cp-sep { color:var(--muted); margin:0 1px; }
+.model-where { border-inline-start:1px solid var(--border); padding-inline-start:8px; white-space:nowrap; }
+#modelCtrl { flex-shrink:1; }
+#modelBtn { max-width:100%; }
+#modelPop { width:390px; min-width:min(280px,calc(100vw - 16px)); }
+.run-switch { display:flex; gap:6px; padding:5px; border:1px solid var(--border); border-radius:12px; }
+.run-choice { flex:1; min-width:0; padding:10px 7px; border:1px solid transparent; border-radius:8px; color:var(--ink); background:transparent; font:inherit; cursor:pointer; }
+.run-choice[aria-checked="true"] { border-color:var(--accent); background:var(--field); }
+.run-choice b, .run-choice small { display:block; }
+.run-choice small { color:var(--muted); margin-top:4px; font-size:11px; }
+.run-hint { margin:9px 5px 12px; color:var(--muted); font-size:12px; }
+.model-footer { border-top:1px solid var(--border); padding:10px 5px 2px; color:var(--muted); font-size:12px; }
+.model-footer-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#modelConnectionDetail { margin-top:5px; white-space:pre-line; overflow-wrap:anywhere; }
+#modelConnect { border:0; padding:3px; color:var(--accent); background:transparent; font:inherit; cursor:pointer; }
+@media (min-width: 1200px) {
+  header { flex-wrap:nowrap; gap:7px; padding-inline:12px; }
+  header .ver { max-width:50px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  header #modelCtrl { flex:1 1 200px; }
+  header #pinBtn, header #searchBtn, header #exportBtn, header #panelBtn { margin-left:0; padding-inline:7px; }
+  header #updateChipTxt { max-width:45px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  header #modelWhere { font-size:12px; }
+  header .spacer { display:none; }
+  header > button { white-space:nowrap; }
+  /* Activity takes a third of the window. Keep model and run policy legible by using
+     compact Search/Export icons; their translated accessible names and titles remain. */
+  body.panel-open header #searchBtn, body.panel-open header #exportBtn { flex:0 0 30px; width:30px; height:30px; padding:0; font-size:0; }
+  body.panel-open header #searchBtn::before { content:'⌕'; font-size:18px; }
+  body.panel-open header #exportBtn::before { content:'⇩'; font-size:18px; }
+  body.panel-open header { gap:5px; }
+  body.panel-open header .ver { display:none; }
+  header #modelBtn .model-lane.auto + #modelLbl { flex-shrink:0; }
+}
 #menu { display:none; background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; cursor:pointer; }
 #log { flex:1; overflow-y:auto; padding:28px max(20px,calc((100% - 760px)/2)); display:flex; flex-direction:column; gap:14px; user-select:text; -webkit-user-select:text; cursor:text; background:var(--chat); }
 .msg { position:relative; max-width:min(760px,92%); padding:10px 34px 10px 14px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; user-select:text; -webkit-user-select:text; }
@@ -1044,19 +1070,27 @@ body:not(.panel-open) #xpanel { display:none; }
   <span class="brand"><img src="__VOOL_LOGO_URI__" width="34" height="34" alt="" aria-hidden="true"/>VOOL</span>
   <span class="ver" id="ver"></span>
   <div class="ctrl" id="modelCtrl">
-    <button type="button" class="ctrl-btn" id="modelBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modelPop" title="Which model answers" data-i18n-title="header.model_button_title"><span class="model-lane auto" id="modelLane" data-i18n="header.lane_auto">AUTO</span><span class="cb-lbl" id="modelLbl" data-i18n="header.model_auto_option">VOOL Auto</span><span class="caret">&#9662;</span></button>
+    <button type="button" class="ctrl-btn" id="modelBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modelPop"><span class="model-lane auto" id="modelLane" data-i18n="header.lane_auto">AUTO</span><span class="cb-lbl" id="modelLbl" data-i18n="header.model_auto_option">VOOL Auto</span><span class="model-where" id="modelWhere" data-i18n="header.run_local_first">Local first</span><span id="modelStatus" aria-hidden="true"><span class="dot"></span></span><span class="caret">&#9662;</span></button>
     <div class="popover below" id="modelPop" role="menu" aria-label="Model" data-i18n-aria-label="header.model_popover_title">
+      <div class="pop-title" id="runTitle" data-i18n="header.run_title">Where VOOL can run</div>
+      <div class="run-switch" role="radiogroup" aria-labelledby="runTitle">
+        <button type="button" class="run-choice" role="radio" aria-checked="true" data-run-model="vool"><b data-i18n="header.run_local_first">Local first</b><small data-i18n="header.run_local_first_hint">free cloud only if needed</small></button>
+        <button type="button" class="run-choice" role="radio" aria-checked="false" data-run-model="vool-local-only"><b data-i18n="header.run_computer_only">This computer only</b><small data-i18n="header.run_computer_only_hint">cloud blocked</small></button>
+      </div>
+      <div class="run-hint" data-i18n="header.run_explainer">Auto never picks a paid model. Choosing a model below pins it.</div>
+      <div class="run-hint" id="runLocalDisclosure" hidden data-i18n="header.model_local_only_explainer">Local Only routes among the models and tools on this machine and never reaches a cloud provider — not paid, not free, not for planning.</div>
       <div class="pop-title" data-i18n="header.model_popover_title">Model</div>
-      <button type="button" id="discoverModelsBtn" class="pop-item" role="menuitem">Discover models <span class="pi-hint">offers, prices and evidence</span></button>
       <div class="pop-prov" id="modelProv" hidden></div>
       <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-model="vool"><span class="pi-check"></span><span class="pi-body"><span data-i18n="header.model_auto_option">VOOL Auto</span> <span class="pi-hint" data-i18n="header.model_auto_hint">local-first &middot; free</span></span></button>
-      <button type="button" class="pop-item" role="menuitemradio" aria-checked="false" data-model="vool-local-only"><span class="pi-check"></span><span class="pi-body"><span data-i18n="header.model_local_only_option">VOOL Auto Local Only</span> <span class="pi-hint" data-i18n="header.model_local_only_hint">this machine only &middot; cloud blocked</span></span></button>
-      <div class="pop-hint" data-i18n-html="header.model_auto_explainer">Starts local. If the local lane cannot serve a substantive turn and a cloud key is connected, Auto may use the <b>free fallback you choose below</b>. Auto never selects a paid model. Pick any concrete free or paid model to hard-pin that exact model instead.</div>
-      <div class="pop-hint" data-i18n="header.model_local_only_explainer">Local Only routes among the models and tools on this machine and never reaches a cloud provider &mdash; not paid, not free, not for planning. When a turn needs live or current data, or a model this machine does not have, it says so instead of guessing.</div>
-      <div class="pop-note" data-i18n="header.model_connect_note">Connect a provider key in Settings to choose an exact cloud model or configure Auto&rsquo;s verified-free fallback.</div>
+      <div class="pop-hint" hidden data-i18n-html="header.model_auto_explainer">Starts local. If needed, Auto may use a verified-free cloud fallback. Auto never selects a paid model.</div>
+      <div class="pop-note" hidden data-i18n="header.model_connect_note">Connect a provider key in Settings to choose an exact cloud model or configure Auto’s verified-free fallback.</div>
+      <button type="button" id="discoverModelsBtn" class="pop-item" role="menuitem"><span data-i18n="header.run_discover">Discover models</span> <span class="pi-hint" data-i18n="header.run_discover_hint">offers, prices and evidence</span></button>
+      <div class="model-footer">
+        <div class="model-footer-row"><span id="modelConnections"></span><button id="modelConnect" type="button" data-i18n="header.run_connect">Connect</button></div>
+        <div id="modelConnectionDetail"></div>
+      </div>
     </div>
   </div>
-  <button type="button" id="cloudPill" title="OpenRouter cloud connection — click for Settings" aria-label="Cloud connection status" data-i18n-title="header.cloud_title" data-i18n-aria-label="header.cloud_aria"><span class="dot"></span><span class="cp-txt" data-i18n="header.cloud_local_only">Local only</span></button>
   <span class="spacer"></span>
   <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i">&#128204;</span><span class="pin-n"></span></button>
   <button id="searchBtn" type="button" aria-pressed="false" title="Search this chat (Cmd/Ctrl+F)" aria-label="Search this chat" data-i18n="header.search" data-i18n-title="header.search_title" data-i18n-aria-label="header.search_aria">Search</button>
@@ -1863,6 +1897,7 @@ function armTryOnce(chatId, model, label) {
   // One-turn trials may serve a turn even under an explicit pin (the click IS operator
   // intent), but they never REPLACE it: the grant dies with its one turn and the pin
   // is untouched. The send-time paid-ack gate still evaluates the trial model itself.
+  if (modelForChat(chatId) === LOCAL_ONLY_MODEL && !isLocalModel(model)) setModelValue('vool', chatId);
   tryOnceGrant = { chatId: String(chatId), model: String(model), label: String(label || model), consumed: false };
   return true;
 }
@@ -2150,6 +2185,7 @@ function releaseApprovalTokenFor(chatId) { chatState(chatId).approvalToken = '';
 // The exact body a turn sends. Extracted from runTurn so the isolation contract is assertable on
 // the real payload: every field is read from the RUN's chat, never from the composer's display.
 function buildTurnRequestBody(run, modelId, modelSelection) {
+  if (modelForChat(run.chatId) === LOCAL_ONLY_MODEL) { modelId = LOCAL_ONLY_MODEL; modelSelection = 'pin'; }
   const owner = ownerOf(run);
   // Sticky is a PREFERENCE, not a pin (MF-22). On Auto, a chat sticks to its last cloud model and
   // sends that concrete id; when a catalog refresh made the stuck name unresolvable, the server
@@ -8423,12 +8459,12 @@ function compactLabel(text, max) {
 }
 function reflectModel() {
   // Label priority: known tier -> friendly cloud name -> the raw id itself (never blank).
-  const label = MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue;
+  const label = modelValue === LOCAL_ONLY_MODEL ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
   reflectControl('modelPop', 'modelLbl', modelValue, { [modelValue]: label }, '');
   // When Auto is sticking to this chat's cloud model, mark the pill (📌) so the switching-stop is visible.
   const btn = document.getElementById('modelBtn'); const lbl = document.getElementById('modelLbl');
   const lane = document.getElementById('modelLane');
-  const laneKind = modelValue === 'vool' ? 'auto' : ((modelValue === LOCAL_ONLY_MODEL || isLocalModel(modelValue)) ? 'local' : 'cloud');
+  const laneKind = (modelValue === 'vool' || modelValue === LOCAL_ONLY_MODEL) ? 'auto' : ((modelValue === LOCAL_ONLY_MODEL || isLocalModel(modelValue)) ? 'local' : 'cloud');
   if (lane) { lane.textContent = pageT('header.lane_' + laneKind, laneKind); lane.className = 'model-lane ' + laneKind; }  // caps via CSS so the DOM i18n pass and this render agree
   if (lastConnectionSelection !== modelValue) {
     lastConnectionSelection = modelValue;
@@ -8437,14 +8473,29 @@ function reflectModel() {
   }
   if (modelValue === 'vool' && view.stickyModel) {
     if (lbl) lbl.textContent = pageT('header.model_auto_option', 'VOOL Auto') + ' 📌';
-    if (btn) btn.title = 'Auto is staying on this chat’s cloud model (' + view.stickyModel + ') for a consistent voice. Pick a model to change it, or start a new chat to reset.';
-  } else {
-    if (lbl) lbl.textContent = compactLabel(label);
-    // The tooltip carries the exact name unconditionally: the character cap is not the only thing
-    // that can hide it -- a narrow composer ellipsizes the label in CSS well before 30 characters,
-    // and a name the row happened to fit a moment ago must not lose its tooltip on a resize.
-    if (btn) btn.title = label + ' — the model that answers this chat';
+  } else if (lbl) lbl.textContent = compactLabel(label);
+  const where = document.getElementById('modelWhere');
+  const known = !!modelValue && (MODEL_LABELS[modelValue] || isLocalModel(modelValue) || CLOUD_MODEL_ID_RE.test(modelValue));
+  if (where) where.textContent = isLocalOnlyMode()
+    ? pageT('header.run_computer_only', 'This computer only')
+    : (known ? pageT('header.run_local_first', 'Local first') : String(modelValue || pageT('header.run_unknown', 'Unknown')));
+  document.querySelectorAll('#modelPop .run-choice').forEach((it) => {
+    const checked = known && (it.getAttribute('data-run-model') === LOCAL_ONLY_MODEL) === isLocalOnlyMode();
+    it.setAttribute('aria-checked', checked ? 'true' : 'false'); it.tabIndex = checked || (!known && it.getAttribute('data-run-model') === 'vool') ? 0 : -1;
+  });
+  const autoRow = document.querySelector('#modelPop .pop-item[data-model="vool"]');
+  if (autoRow) {
+    const auto = modelValue === 'vool' || isLocalOnlyMode();
+    autoRow.setAttribute('aria-checked', auto ? 'true' : 'false');
+    const check = autoRow.querySelector('.pi-check'); if (check) check.textContent = auto ? '✓' : '';
+    const hint = autoRow.querySelector('.pi-hint');
+    if (hint) hint.textContent = isLocalOnlyMode() ? pageT('header.run_computer_only_hint', 'cloud blocked') : pageT('header.model_auto_hint', 'local-first · free');
   }
+  const disclosure = document.getElementById('runLocalDisclosure'); if (disclosure) disclosure.hidden = !isLocalOnlyMode();
+  if (isLocalOnlyMode()) renderSelectionProvenance(null);
+  renderConnections(lastConnectionRows || []);
+  syncModelConnectionTitle();
+
 }
 // Keep an open popover inside the visible window. Measured before the fix at a 900x620 window: the
 // model popover rendered 754px tall with its top 256px ABOVE the viewport, so VOOL Auto and the
@@ -8582,12 +8633,21 @@ function initComposerControls() {
   });
   const bypassOverlay = document.getElementById('bypassOverlay'); if (bypassOverlay) bypassOverlay.addEventListener('click', (e) => { if (e.target === bypassOverlay) closeBypassModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bypassOverlay && !bypassOverlay.hidden) closeBypassModal(); });
+  document.querySelectorAll('#modelPop .run-choice').forEach((it) => {
+    it.addEventListener('click', (e) => { e.stopPropagation(); selectRunMode(it.getAttribute('data-run-model')); });
+    it.addEventListener('keydown', (e) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      e.preventDefault();
+      const next = document.querySelector('#modelPop .run-choice[data-run-model="' + (isLocalOnlyMode() ? 'vool' : LOCAL_ONLY_MODEL) + '"]');
+      if (next) { next.click(); next.focus(); }
+    });
+  });
   document.querySelectorAll('#modelPop .pop-item[data-model]:not(.cloud-dyn)').forEach((it) => {
     it.addEventListener('click', (e) => {
       e.stopPropagation();
       // Paid/OpenRouter tiers are disabled until a key is wired -- never select a dead tier.
       if (it.disabled || it.getAttribute('aria-disabled') === 'true') return;
-      modelValue = it.getAttribute('data-model');
+      modelValue = it.getAttribute('data-model') === 'vool' && isLocalOnlyMode() ? LOCAL_ONLY_MODEL : it.getAttribute('data-model');
       rememberActiveModel();
       releaseServerChatPin(displayedChat);
       // Selecting (or leaving) Local Only changes which rows may be offered at all, so the cloud
@@ -8614,7 +8674,7 @@ const orTestEl = document.getElementById('orTest');
 const orStatusEl = document.getElementById('orStatus');
 const orProviderEl = document.getElementById('orProvider');
 const orBaseUrlEl = document.getElementById('orBaseUrl');
-const cloudPillEl = document.getElementById('cloudPill');
+const cloudPillEl = document.getElementById('modelConnections');
 let cloudKeyConnected = false;
 
 // Client-side provider detection mirroring the server's detect_provider: a unique prefix
@@ -8663,7 +8723,7 @@ function paintCloudPill() { refreshCloudStatus(true); }   // re-fetch the live m
 // hover tooltip; no key -> a single "Local only" dot. paintCloudPill stays as a thin wrapper so the
 // existing callers (after a connection test) just re-fetch the live state.
 function _connStateClass(s) { return s === 'ok' ? 'ok' : (s === 'failed' ? 'bad' : (s === 'untested' ? 'warn' : '')); }
-function _connStateWord(s) { return s === 'ok' ? 'connected' : (s === 'failed' ? 'error' : (s === 'untested' ? 'not verified yet' : 'connected')); }
+function _connStateWord(s) { return s === 'ok' ? pageT('header.run_connected', 'connected') : (s === 'failed' ? pageT('header.run_error', 'error') : (s === 'untested' ? pageT('header.run_untested', 'not verified yet') : pageT('header.run_unknown', 'Unknown'))); }
 var lastConnectionSelection = null, lastConnectionRows = [];
 // What THIS chat's next turn routes to, read from the same selection the send reads: a pinned
 // cloud provider/model, Auto sticking to a cloud model, a local model, Local Only, or plain Auto.
@@ -8673,17 +8733,40 @@ const PROVIDER_LABELS = { usepod: 'UsePod', openrouter: 'OpenRouter', openai: 'O
 function chatRoute() {
   const sticky = modelValue === 'vool' && !!view.stickyModel;
   const selected = sticky ? view.stickyModel : modelValue;
-  if (!selected || selected === 'vool') return { kind: 'auto', provider: '', model: '' };
+  if (selected === 'vool') return { kind: 'auto', provider: '', model: '' };
+  if (!selected || (!MODEL_LABELS[selected] && !isLocalModel(selected) && !CLOUD_MODEL_ID_RE.test(selected))) return { kind:'unknown', provider:'', model:String(selected || '') };
   if (selected === LOCAL_ONLY_MODEL) return { kind: 'local-only', provider: '', model: '' };
   if (isLocalModel(selected) || MODEL_LABELS[selected]) return { kind: 'local', provider: '', model: String(selected) };
   const match = String(selected).match(/^(openrouter|openai|anthropic|groq|google|deepseek|moonshot|usepod|custom):/);
   return { kind: sticky ? 'sticky' : 'pin', provider: match ? match[1] : 'openrouter', model: match ? String(selected).slice(match[0].length) : String(selected) };
 }
 function selectedCloudProvider() { return chatRoute().provider; }
+function selectRunMode(value) {
+  if (value !== 'vool' && value !== LOCAL_ONLY_MODEL) return;
+  view.stickyModel = '';
+  if (tryOnceGrant && tryOnceGrant.chatId === String(displayedChat)) tryOnceGrant = null;
+  setModelValue(value);
+  rememberActiveModel();
+  releaseServerChatPin(displayedChat);
+  if (cloudKeyConnected) { if (isLocalOnlyMode()) clearCloudModels(); else renderCloudModels(); }
+  reflectModel();
+  positionPopover(document.getElementById('modelPop'), document.getElementById('modelBtn'));
+}
 function renderConnections(conns) {
   lastConnectionRows = conns || [];
   const route = chatRoute();
   const selected = route.provider;
+  const status = document.getElementById('modelStatus');
+  const detail = document.getElementById('modelConnectionDetail');
+  const connect = document.getElementById('modelConnect');
+  if (connect) connect.textContent = lastConnectionRows.length ? pageT('sidebar.settings', 'Settings') : pageT('header.run_connect', 'Connect');
+  if (detail) detail.textContent = lastConnectionRows.length ? lastConnectionRows.map(c => c.label + ' — ' + _connStateWord(c.state)).join('\n') : (route.kind !== 'auto' ? pageT('header.run_no_key', 'Cloud: no key connected') : '');
+  if (status) {
+    status.innerHTML = '';
+    const routeRows = selected ? [lastConnectionRows.find(c => c.id === 'cloud' && c.provider === selected) || {state:'untested'}] : lastConnectionRows;
+    const dots = route.kind === 'local' || route.kind === 'local-only' ? [{state:'ok'}] : (routeRows.length ? routeRows : [{state:'no_key'}]);
+    dots.forEach(c => { const dot = document.createElement('span'); dot.className = 'dot ' + _connStateClass(c.state); status.appendChild(dot); });
+  }
   if (selected) {
     const actual = lastConnectionRows.find(c => c.id === 'cloud' && c.provider === selected);
     conns = [actual || {id:'cloud',provider:selected,label:({usepod:'UsePod',openrouter:'OpenRouter'}[selected] || selected),state:'untested'}];
@@ -8691,25 +8774,29 @@ function renderConnections(conns) {
   if (!cloudPillEl) return;
   cloudPillEl.classList.remove('ok', 'bad', 'warn');
   cloudPillEl.innerHTML = '';
+  if (route.kind === 'unknown') {
+    cloudPillEl.textContent = route.model || pageT('header.run_unknown', 'Unknown');
+    cloudPillEl.title = cloudPillEl.textContent; syncModelConnectionTitle(); return;
+  }
   if (route.kind === 'local' || route.kind === 'local-only') {
     // A local route names no provider: nothing here is "connected to" for this chat.
     const d = document.createElement('span'); d.className = 'dot ok'; cloudPillEl.appendChild(d);
     const t = document.createElement('span'); t.className = 'cp-txt'; t.textContent = pageT('header.cloud_local', 'Local'); cloudPillEl.appendChild(t);
     cloudPillEl.title = route.kind === 'local-only'
-      ? 'VOOL Auto Local Only — this chat runs on this machine; cloud blocked. Click to choose a model.'
-      : 'This chat is pinned to the local model ' + route.model + ' — no cloud provider is used. Click to choose a model.';
-    return;
+      ? pageT('header.run_blocked_title', 'This chat runs on this computer; cloud blocked. Click to choose a model.')
+      : pageTF('header.run_local_title', 'This chat is pinned to the local model {model} — no cloud provider is used. Click to choose a model.', {model:route.model});
+    syncModelConnectionTitle(); return;
   }
   if (!conns || !conns.length) {
     const d = document.createElement('span'); d.className = 'dot'; cloudPillEl.appendChild(d);
-    const t = document.createElement('span'); t.className = 'cp-txt'; t.textContent = pageT('header.cloud_local_only', 'Local only'); cloudPillEl.appendChild(t);
-    cloudPillEl.title = 'No cloud key — running fully local. Click for Settings.';
-    return;
+    const t = document.createElement('span'); t.className = 'cp-txt'; t.textContent = pageT('header.run_no_key', 'Cloud: no key connected'); cloudPillEl.appendChild(t);
+    cloudPillEl.title = pageT('header.run_no_key_title', 'No cloud key — running fully local. Click for Settings.');
+    syncModelConnectionTitle(); return;
   }
   if (route.kind === 'auto') {
     // Auto's defaults are labelled as defaults, never painted as this chat's selection.
     const chip = document.createElement('span'); chip.className = 'cp-chip cp-auto';
-    chip.title = 'This chat is on VOOL Auto — the connections listed are the defaults Auto may use, not a selection for this chat.';
+    chip.title = pageT('header.run_auto_defaults', 'This chat is on VOOL Auto — the connections listed are the defaults Auto may use, not a selection for this chat.');
     const lbl = document.createElement('span'); lbl.className = 'cp-txt'; lbl.textContent = pageT('header.cloud_auto', 'Auto');
     chip.appendChild(lbl); cloudPillEl.appendChild(chip);
     const sep = document.createElement('span'); sep.className = 'cp-sep'; sep.textContent = '·'; cloudPillEl.appendChild(sep);
@@ -8719,15 +8806,23 @@ function renderConnections(conns) {
     const chip = document.createElement('span'); chip.className = 'cp-chip';
     const word = _connStateWord(c.state);
     chip.title = selected
-      ? c.label + ' — ' + word + (route.kind === 'sticky' ? ' — Auto is staying on ' : ' — this chat’s selected model: ') + route.model
-      : c.label + ' — ' + word + (route.kind === 'auto' && c.id === 'cloud' ? ' — an Auto default, not this chat’s selection' : '');
+      ? c.label + ' — ' + word + (route.kind === 'sticky' ? pageT('header.run_sticky_suffix', ' — Auto is staying on ') : pageT('header.run_selected_suffix', ' — this chat’s selected model: ')) + route.model
+      : c.label + ' — ' + word + (route.kind === 'auto' && c.id === 'cloud' ? pageT('header.run_default_suffix', ' — an Auto default, not this chat’s selection') : '');
     const dot = document.createElement('span'); dot.className = 'dot ' + _connStateClass(c.state);
     const lbl = document.createElement('span'); lbl.className = 'cp-txt'; lbl.textContent = c.provider === 'usepod' ? 'UsePod' : c.label;
     chip.appendChild(dot); chip.appendChild(lbl); cloudPillEl.appendChild(chip);
   });
   cloudPillEl.title = selected
-    ? 'This chat sends to ' + (PROVIDER_LABELS[selected] || selected) + ' · ' + route.model + ' — click to choose a model'
-    : 'This chat is on VOOL Auto; the connections shown are Auto’s defaults — click to choose a model';
+    ? pageTF('header.run_sends_title', 'This chat sends to {provider} · {model} — click to choose a model', {provider:PROVIDER_LABELS[selected] || selected,model:route.model})
+    : pageT('header.run_auto_defaults', 'This chat is on VOOL Auto — the connections listed are the defaults Auto may use, not a selection for this chat.');
+  syncModelConnectionTitle();
+}
+function syncModelConnectionTitle() {
+  const btn = document.getElementById('modelBtn'), where = document.getElementById('modelWhere');
+  const label = modelValue === 'vool' || modelValue === LOCAL_ONLY_MODEL ? pageT('header.model_auto_option', 'VOOL Auto') : (MODEL_LABELS[modelValue] || CLOUD_MODEL_LABELS[modelValue] || modelValue || pageT('header.run_unknown', 'Unknown'));
+  const detail = document.getElementById('modelConnectionDetail');
+  const sticky = modelValue === 'vool' && view.stickyModel ? pageT('header.run_sticky_suffix', ' — Auto is staying on ') + view.stickyModel : '';
+  if (btn) btn.title = [label, where ? where.textContent : '', cloudPillEl ? cloudPillEl.title + sticky : '', detail ? detail.textContent : ''].filter(Boolean).join(' — ');
 }
 // Is the active model a cloud service (so a turn actually hits OpenRouter/etc.)? A local tier is not.
 function isCloudModel() {
@@ -8737,7 +8832,7 @@ function isCloudModel() {
   return modelValue.indexOf('openrouter') === 0 || (!MODEL_LABELS[modelValue] && CLOUD_MODEL_ID_RE.test(modelValue));
 }
 // Idle vs in-use: pulse the connection dot only while a cloud turn is actually running.
-function setCloudWorking(on) { if (cloudPillEl) cloudPillEl.classList.toggle('working', !!on); }
+function setCloudWorking(on) { const btn = document.getElementById('modelBtn'); if (btn) btn.classList.toggle('working', !!on); }
 async function refreshCloudStatus(probe) {
   try {
     const selected = selectedCloudProvider();
@@ -8762,10 +8857,8 @@ function setCloudConnected(on) {
   if (orKeyEl) orKeyEl.value = '';
   const note = document.querySelector('#modelPop .pop-note');
   if (note) note.textContent = isLocalOnlyMode()
-    ? 'VOOL Auto Local Only is selected: cloud models are not offered and cannot be reached, whether or not a key is connected.'
-    : (cloudKeyConnected
-      ? 'Concrete selections are hard pins. Paid rows spend provider credits only when explicitly selected; VOOL Auto stays local-first and can use only the free fallback configured below.'
-      : 'Connect a provider key in Settings to choose a cloud model or configure Auto\u2019s free fallback.');
+    ? pageT('header.model_local_only_explainer', 'Local Only never reaches a cloud provider.')
+    : (cloudKeyConnected ? pageT('header.run_explainer', 'Auto never picks a paid model. Choosing a model below pins it.') : pageT('header.model_connect_note', 'Connect a provider key in Settings.'));
   // Add the live model list when connected; strip it back to the static popover when not.
   // Only the false->true TRANSITION renders: renderCloudModels() clears the rows before its
   // fetch, so a redundant pass blanks an already-open model menu for a full round trip. The
@@ -8878,7 +8971,7 @@ function makeLocalRow(m) {
   it.setAttribute('data-model', m.id);
   const chk = document.createElement('span'); chk.className = 'pi-check'; chk.textContent = modelValue === m.id ? '✓' : '';
   const body = document.createElement('span'); body.className = 'pi-body'; body.textContent = m.name;
-  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = 'on this machine · free · exact pin';
+  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = pageT('header.run_local_pin', 'on this computer · free · exact pin');
   body.appendChild(hint);
   it.appendChild(chk); it.appendChild(body);
   it.addEventListener('click', (e) => { e.stopPropagation(); pinLocalModel(m.id, it); });
@@ -8904,7 +8997,7 @@ async function renderLocalModels() {
   list.className = 'local-list local-dyn';
   const group = document.createElement('div');
   group.className = 'pop-group';
-  group.textContent = 'LOCAL · INSTALLED ON THIS MACHINE';
+  group.textContent = pageT('header.run_local_models', 'Local · installed on this computer');
   list.appendChild(group);
   rows.forEach((m) => list.appendChild(makeLocalRow(m)));
   pop.insertBefore(list, anchor);
@@ -8928,23 +9021,23 @@ function renderSelectionProvenance(sel) {
   if (!el) return;
   if (sel == null && isLocalOnlyMode()) {
     el.hidden = false;
-    el.innerHTML = '<span class="pp-row"><b>Routing</b><span>Local Only — this machine; cloud blocked</span></span>';
+    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_title', 'Where VOOL can run')) + '</b><span>' + esc(pageT('header.run_prov_local_only', 'Local Only — this machine; cloud blocked')) + '</span></span>';
     return;
   }
   if (!sel || !sel.ok) {
     el.hidden = false;
-    el.innerHTML = '<span class="pp-row"><b>Server selection</b><span class="pp-unknown">UNKNOWN — server did not answer</span></span>';
+    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span class="pp-unknown">' + esc(pageT('header.run_prov_unanswered', 'UNKNOWN — server did not answer')) + '</span></span>';
     return;
   }
   const pin = String(sel.model || '').trim();
   const provider = String(sel.provider || '').trim();
   const cost = String(sel.cost_state || '');
   const costCls = cost === 'paid' ? 'pp-paid' : cost === 'free' ? 'pp-free' : 'pp-unknown';
-  const costWord = cost === 'paid' ? 'PAID — may spend provider credits' : cost === 'free' ? 'free' : cost ? 'UNKNOWN' : 'not classified (local/Auto)';
-  const rows = ['<span class="pp-row"><b>Pinned</b><span>' + esc(pin ? (provider ? provider + ' · ' + pin : pin) : 'none — VOOL Auto routing') + '</span></span>',
-    '<span class="pp-row"><b>Spend class</b><span class="' + costCls + '">' + esc(costWord) + '</span></span>'];
+  const costWord = cost === 'paid' ? pageT('pay.reason_paid_classified', 'PAID — may spend provider credits') : cost === 'free' ? pageT('notif.free', 'free') : cost ? pageT('header.run_prov_unknown', 'UNKNOWN') : pageT('header.run_prov_unclassified', 'not classified (local/Auto)');
+  const rows = ['<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span>' + esc(pin ? (provider ? provider + ' · ' + pin : pin) : pageT('header.run_prov_none', 'none — VOOL Auto routing')) + '</span></span>',
+    '<span class="pp-row"><b>' + esc(pageT('header.run_prov_cost', 'Spend class')) + '</b><span class="' + costCls + '">' + esc(costWord) + '</span></span>'];
   if (sel.free_cloud_enabled && sel.auto_free_model && sel.auto_free_model !== 'auto') {
-    rows.push('<span class="pp-row"><b>Auto free fallback</b><span>' + esc(String(sel.auto_free_model)) + '</span></span>');
+    rows.push('<span class="pp-row"><b>' + esc(pageT('header.run_prov_fallback', 'Auto free fallback')) + '</b><span>' + esc(String(sel.auto_free_model)) + '</span></span>');
   }
   el.hidden = false;
   el.innerHTML = rows.join('');
@@ -11472,7 +11565,8 @@ inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
 
-if (cloudPillEl) cloudPillEl.addEventListener('click', () => document.getElementById('modelBtn').click());
+const modelConnectEl = document.getElementById('modelConnect');
+if (modelConnectEl) modelConnectEl.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('modelPop').classList.remove('open'); document.getElementById('modelBtn').setAttribute('aria-expanded', 'false'); document.getElementById('settingsBtn').click(); });
 initComposerControls();
 buildTabs();
 loadSessions();

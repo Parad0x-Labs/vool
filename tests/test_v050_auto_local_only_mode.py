@@ -711,7 +711,7 @@ class TestTheComposerOffersTheLane:
     def test_both_auto_lanes_are_offered_as_selectable_rows(self) -> None:
         html = self._page()
         assert 'data-model="vool"' in html
-        assert f'data-model="{mode.SELECTOR_VALUE}"' in html
+        assert f'data-run-model="{mode.SELECTOR_VALUE}"' in html
         assert "VOOL Auto Local Only" in html
 
     def test_the_row_says_what_the_lane_does_rather_than_only_naming_it(self) -> None:

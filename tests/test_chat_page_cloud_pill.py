@@ -8,8 +8,9 @@ HTML = render_vool_chat_html()
 
 
 def test_pill_element_and_state_classes_present():
-    assert 'id="cloudPill"' in HTML
-    for cls in ("#cloudPill.ok", "#cloudPill.bad", "#cloudPill.warn"):
+    assert 'id="modelStatus"' in HTML
+    assert 'id="cloudPill"' not in HTML
+    for cls in ("#modelBtn .dot.ok", "#modelBtn .dot.bad", "#modelBtn .dot.warn"):
         assert cls in HTML, cls
 
 
