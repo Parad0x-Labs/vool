@@ -32,11 +32,15 @@ answer exists to inspect, a whole-disk scan has already happened. Type-valid is 
 """
 from __future__ import annotations
 
+import contextlib
 import json
+import math
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -308,6 +312,9 @@ def run_plugin_tool(
     allow_network: bool = False,
     confinement: str = "auto",
     read_only: bool = False,
+    immutable_package: bool = False,
+    package_dependencies: dict[str, Path] | None = None,
+    before_start: Callable[[], None] | None = None,
 ) -> PluginToolResult:
     """Validate, then run one plugin tool. Never raises; every failure is a structured result."""
 
@@ -344,7 +351,7 @@ def run_plugin_tool(
     # writable root at all -- the kernel confinement makes the claim mechanical, and a
     # misdeclared plugin that tries to mutate local state fails inside the child instead of
     # publishing success. The executor additionally scan-checks the workspace afterwards.
-    writable: list[Path] = [] if read_only else [root]
+    writable: list[Path] = [] if read_only or immutable_package else [root]
     if scratch_dir and not read_only:
         try:
             Path(scratch_dir).mkdir(parents=True, exist_ok=True)
@@ -359,7 +366,8 @@ def run_plugin_tool(
             allow_network=bool(allow_network),
             mode=str(confinement or "auto"),
             working_directory=root,
-            readable_roots=(Path(scratch_dir).resolve(),) if scratch_dir else (),
+            readable_roots=(*(Path(p).resolve() for p in (package_dependencies or {}).values()),
+                            *((Path(scratch_dir).resolve(),) if scratch_dir else ())),
         )
     except ConfinementUnavailableError as exc:
         return PluginToolResult(
@@ -374,17 +382,45 @@ def run_plugin_tool(
         "arguments": filled,
         "context": {"scratch_dir": scratch_dir, "secrets": sorted((secrets or {}).keys())},
     }
+    child_env = build_child_env(env_allowlist=env_allowlist, secrets=secrets, scratch_dir=scratch_dir)
+    if immutable_package:
+        child_env["PYTHONDONTWRITEBYTECODE"] = "1"
+        child_env["VOOL_PLUGIN_DEPENDENCIES"] = json.dumps(
+            {pid: str(path) for pid, path in (package_dependencies or {}).items()}, sort_keys=True
+        )
+    if before_start is not None:
+        before_start()
     try:
-        completed = subprocess.run(
+        launch = dict(
+            cwd=str(root), env=child_env, shell=False,
+        )
+        duration = float(timeout_seconds or DEFAULT_TIMEOUT_SECONDS)
+        if immutable_package:
+            if not math.isfinite(duration):
+                duration = DEFAULT_TIMEOUT_SECONDS
+            duration = min(300.0, max(1.0, duration))
+            # The copy's lifetime owns the child's process group. Do not delete
+            # its executable tree while descendants continue using that tree.
+            with subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, text=True,
+                                  start_new_session=True, **launch) as child:
+                try:
+                    stdout, stderr = child.communicate(json.dumps(payload), timeout=duration)
+                    completed = subprocess.CompletedProcess(argv, child.returncode, stdout, stderr)
+                finally:
+                    # Only this invocation's recorded PID/group is addressed.
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(child.pid, signal.SIGKILL)
+                    child.wait()
+        else:
+            completed = subprocess.run(
             argv,
             input=json.dumps(payload),
             capture_output=True,
             text=True,
-            timeout=max(1.0, float(timeout_seconds or DEFAULT_TIMEOUT_SECONDS)),
-            cwd=str(root),
-            env=build_child_env(env_allowlist=env_allowlist, secrets=secrets, scratch_dir=scratch_dir),
-            shell=False,
-        )
+            timeout=max(1.0, duration),
+            **launch,
+            )
     except subprocess.TimeoutExpired:
         return PluginToolResult(
             ok=False,

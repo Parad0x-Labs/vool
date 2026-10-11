@@ -243,6 +243,7 @@ class TestServedPluginBudgets:
     ) -> None:
         home: Path = served["home"]
         plugin_dir: Path = served["plugin_dir"]
+        output_dir = served["scratch_root"] / PLUGIN_ID
         store_dir: Path = served["store_dir"]
         daemon: ServedDaemon = served["daemon"]
         provider: ScriptedProvider = served["provider"]
@@ -255,11 +256,11 @@ class TestServedPluginBudgets:
             provider,
             session="served-budget-a",
             tool=f"{PLUGIN_ID}__touch",
-            arguments={"path": str(plugin_dir / "served-a.txt")},
+            arguments={"path": str(output_dir / "served-a.txt")},
             text="write the marker",
         )
-        assert (plugin_dir / "served-a.txt").exists(), "the served plugin effect landed once"
-        assert calls_logged(plugin_dir) == [f"{PLUGIN_ID}.touch"], calls_logged(plugin_dir)
+        assert (output_dir / "served-a.txt").exists(), "the served plugin effect landed once"
+        assert calls_logged(plugin_dir, scratch_root=served["scratch_root"]) == [f"{PLUGIN_ID}.touch"], calls_logged(plugin_dir, scratch_root=served["scratch_root"])
         entries = _journal_entries(store_dir)
         assert [e for e in entries if str(e.get("path", "")).endswith("served-a.txt")], (
             "the served success journaled its effect"
@@ -271,11 +272,11 @@ class TestServedPluginBudgets:
             provider,
             session="served-budget-a",
             tool=f"{PLUGIN_ID}__touch",
-            arguments={"path": str(plugin_dir / "served-b.txt")},
+            arguments={"path": str(output_dir / "served-b.txt")},
             text="write the second marker",
         )
-        assert not (plugin_dir / "served-b.txt").exists(), "the refused effect wrote nothing"
-        assert calls_logged(plugin_dir) == [f"{PLUGIN_ID}.touch"], "zero handler calls on refusal"
+        assert not (output_dir / "served-b.txt").exists(), "the refused effect wrote nothing"
+        assert calls_logged(plugin_dir, scratch_root=served["scratch_root"]) == [f"{PLUGIN_ID}.touch"], "zero handler calls on refusal"
         entries = _journal_entries(store_dir)
         assert [e for e in entries if str(e.get("path", "")).endswith("served-b.txt")] == [], (
             "the refused effect left no Blackbox observation"
@@ -287,14 +288,15 @@ class TestServedPluginBudgets:
             provider,
             session="served-budget-b",
             tool=f"{PLUGIN_ID}__touch",
-            arguments={"path": str(plugin_dir / "served-c.txt")},
+            arguments={"path": str(output_dir / "served-c.txt")},
             text="write the other session's marker",
         )
-        assert (plugin_dir / "served-c.txt").exists(), "the isolated session's effect ran"
-        assert calls_logged(plugin_dir) == [f"{PLUGIN_ID}.touch", f"{PLUGIN_ID}.touch"]
+        assert (output_dir / "served-c.txt").exists(), "the isolated session's effect ran"
+        assert calls_logged(plugin_dir, scratch_root=served["scratch_root"]) == [f"{PLUGIN_ID}.touch", f"{PLUGIN_ID}.touch"]
 
     def test_served_parallel_sessions_race_for_the_last_project_unit(self, served) -> None:
         plugin_dir: Path = served["plugin_dir"]
+        output_dir = served["scratch_root"] / PLUGIN_ID
         daemon: ServedDaemon = served["daemon"]
         provider: ScriptedProvider = served["provider"]
 
@@ -312,7 +314,7 @@ class TestServedPluginBudgets:
                     provider,
                     session=f"served-race-{name}",
                     tool=f"{PLUGIN_ID}__touch",
-                    arguments={"path": str(plugin_dir / f"race-{name}.txt")},
+                    arguments={"path": str(output_dir / f"race-{name}.txt")},
                     text="win the unit",
                 )
             except Exception as exc:  # a lost race still answers; a broken turn does not
@@ -328,12 +330,13 @@ class TestServedPluginBudgets:
         for thread in threads:
             thread.join(timeout=300)
 
-        landed = [name for name in ("a", "b") if (plugin_dir / f"race-{name}.txt").exists()]
+        landed = [name for name in ("a", "b") if (output_dir / f"race-{name}.txt").exists()]
         assert len(landed) == 1, f"exactly one racer's effect may land, got {landed} ({outcomes})"
-        assert calls_logged(plugin_dir) == [f"{PLUGIN_ID}.touch"], "the handler ran for exactly one racer"
+        assert calls_logged(plugin_dir, scratch_root=served["scratch_root"]) == [f"{PLUGIN_ID}.touch"], "the handler ran for exactly one racer"
 
     def test_served_budget_holds_across_daemon_restart(self, served) -> None:
         plugin_dir: Path = served["plugin_dir"]
+        output_dir = served["scratch_root"] / PLUGIN_ID
         daemon: ServedDaemon = served["daemon"]
         provider: ScriptedProvider = served["provider"]
         home: Path = served["home"]
@@ -344,10 +347,10 @@ class TestServedPluginBudgets:
             provider,
             session="served-restart",
             tool=f"{PLUGIN_ID}__touch",
-            arguments={"path": str(plugin_dir / "restart-a.txt")},
+            arguments={"path": str(output_dir / "restart-a.txt")},
             text="spend the unit",
         )
-        assert (plugin_dir / "restart-a.txt").exists()
+        assert (output_dir / "restart-a.txt").exists()
 
         daemon.stop()
         daemon.start(timeout=240)
@@ -357,11 +360,11 @@ class TestServedPluginBudgets:
             provider,
             session="served-restart",
             tool=f"{PLUGIN_ID}__touch",
-            arguments={"path": str(plugin_dir / "restart-b.txt")},
+            arguments={"path": str(output_dir / "restart-b.txt")},
             text="try again after restart",
         )
-        assert not (plugin_dir / "restart-b.txt").exists(), "the exhaustion holds across restart"
-        assert calls_logged(plugin_dir) == [f"{PLUGIN_ID}.touch"], "zero handler calls after restart"
+        assert not (output_dir / "restart-b.txt").exists(), "the exhaustion holds across restart"
+        assert calls_logged(plugin_dir, scratch_root=served["scratch_root"]) == [f"{PLUGIN_ID}.touch"], "zero handler calls after restart"
 
     def test_served_operator_command_dispatch_is_budgeted(self, served) -> None:
         """The native command path: POST /api/commands/dispatch — the SAME
@@ -448,11 +451,11 @@ class TestServedMCPBudgets:
             provider,
             session="served-mcp-warm",
             tool=f"{PLUGIN_ID}__touch",
-            arguments={"path": str(served["plugin_dir"] / "mcp-warm.txt")},
+            arguments={"path": str(served["scratch_root"] / PLUGIN_ID / "mcp-warm.txt")},
             text="warm the registry",
         )
-        assert calls_logged(served["plugin_dir"]) == [f"{PLUGIN_ID}.touch"]
-        assert (served["plugin_dir"] / "mcp-warm.txt").exists()
+        assert calls_logged(served["plugin_dir"], scratch_root=served["scratch_root"]) == [f"{PLUGIN_ID}.touch"]
+        assert (served["scratch_root"] / PLUGIN_ID / "mcp-warm.txt").exists()
 
         _seed_budget(home, {"budget_class": "file_write", "scope": "session", "limit": 1})
 

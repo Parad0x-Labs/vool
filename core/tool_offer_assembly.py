@@ -81,9 +81,9 @@ _MIN_SKILL_CHARS = 200  # a body that would be cut below this is dropped rather 
 PROVENANCE = "core.tool_offer_assembly"
 
 _lock = threading.RLock()
-# (skill path, mtime) -> parsed Skill. Parsing is cheap; the cache exists so repeated turns do not
+# (skill path, package identity or legacy mtime) -> parsed Skill. The cache exists so repeated turns do not
 # re-read the same files, and `reset_skill_cache` exists so a test can prove the seam re-reads.
-_skill_cache: dict[tuple[str, float], Any] = {}
+_skill_cache: dict[tuple[str, str | float], Any] = {}
 
 
 @dataclass(frozen=True)
@@ -140,8 +140,10 @@ def _plugin_dirs() -> tuple[tuple[str, Path], ...]:
 
         disabled = _disabled_ids()
         from core.addon_store import available, is_managed
+        from core.plugin_lifecycle import is_available, record_for
         return tuple((pid, path) for pid, path in discovered_plugin_sources()
-                     if pid not in disabled and (not is_managed(pid) or available(pid, path)))
+                     if pid not in disabled and (not is_managed(pid) or available(pid, path))
+                     and (record_for(pid) is None or is_available(pid, root=path)))
     except Exception:
         return ()
 
@@ -169,7 +171,11 @@ def loaded_skills() -> tuple[Any, ...]:
                 mtime = os.stat(candidate).st_mtime
             except OSError:
                 continue
-            key = (str(candidate), mtime)
+            # An admitted package's digest invalidates cached guidance even when
+            # an upstream edit preserves the instruction file's timestamp.
+            from core.plugin_lifecycle import record_for
+            record = record_for(plugin_id)
+            key = (str(candidate), record.verified_digest if record else mtime)
             with _lock:
                 skill = _skill_cache.get(key)
             if skill is None:

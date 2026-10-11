@@ -648,15 +648,16 @@ def test_the_visible_pin_is_the_identity_the_request_carries(session) -> None:
     assert body["messages"] == [{"role": "user", "content": "prove the pin reaches the request"}], body
 
     _open_model_menu(page)
-    page.evaluate("""() => { document.querySelector('#modelPop .pop-item[data-model="vool-local-only"]').click(); }""")
+    page.evaluate("""() => { document.querySelector('#modelPop .run-choice[data-run-model="vool-local-only"]').click(); }""")
     page.wait_for_timeout(200)
     label = page.evaluate("() => document.getElementById('modelLbl').textContent")
-    assert label == "VOOL Auto Local Only", f"the visible selection did not change: {label!r}"
+    assert label == "VOOL Auto", f"the visible model did not stay Auto: {label!r}"
+    assert page.locator('#modelWhere').inner_text() == "This computer only"
     body = _send_and_capture(page, "local only turn")
     assert body["model"] == "vool-local-only" and body["model_selection"] == "pin", body
 
     _open_model_menu(page)
-    page.evaluate("""() => { document.querySelector('#modelPop .pop-item[data-model="vool"]').click(); }""")
+    page.evaluate("""() => { document.querySelector('#modelPop .run-choice[data-run-model="vool"]').click(); }""")
     page.wait_for_timeout(200)
     body = _send_and_capture(page, "auto turn")
     assert body["model"] == "vool" and body["model_selection"] == "auto", body

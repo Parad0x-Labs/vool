@@ -203,6 +203,14 @@ class ServedDaemon:
             }
         )
         env.update(self.env_extra)
+        # The session fence supplies a dead raw endpoint to every daemon. An explicit
+        # provider must replace that higher-priority endpoint too, or its governor's
+        # inventory misses the scripted resident model and depends on ambient free RAM.
+        # A deliberately supplied raw endpoint still wins, including refusal probes.
+        if "VOOL_RAW_OLLAMA_API_URL" not in self.env_extra:
+            endpoint = self.env_extra.get("OLLAMA_HOST") or self.env_extra.get("VOOL_OLLAMA_URL")
+            if endpoint:
+                env["VOOL_RAW_OLLAMA_API_URL"] = endpoint
         env.pop("PYTEST_CURRENT_TEST", None)
         return env
 
