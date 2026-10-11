@@ -129,6 +129,8 @@ class TestPluginBudgetDoor:
 
         workspace, _scratch = workspace_and_scratch
         plugin_dir = plugin_world["plugin_dir"]
+        from core.plugin_tools import plugin_scratch_dir
+        output_dir = plugin_scratch_dir(plugin_world["plugin_id"])
         session = auto_mode(f"openclaw:{uuid.uuid4().hex[:20]}")
         set_budget(("file_write", eb.SCOPE_SESSION, 1))
 
@@ -138,13 +140,13 @@ class TestPluginBudgetDoor:
         try:
             first = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "a.txt")},
+                {"path": str(output_dir / "a.txt")},
                 session_id=session,
                 workspace=workspace,
             )
             second = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "b.txt")},
+                {"path": str(output_dir / "b.txt")},
                 session_id=session,
                 workspace=workspace,
             )
@@ -152,12 +154,12 @@ class TestPluginBudgetDoor:
             close_effect_receipt_scope()
 
         assert first.ok, first.response_text
-        assert (plugin_dir / "a.txt").exists(), "the budgeted effect ran once"
+        assert (output_dir / "a.txt").exists(), "the budgeted effect ran once"
         assert second.ok is False
         assert second.status == "blocked_by_effect_budget"
         assert second.details["effect_budget"]["code"] == eb.REFUSAL_BUDGET_EXCEEDED
         assert second.details["executed"] is False
-        assert not (plugin_dir / "b.txt").exists(), "zero writes on refusal"
+        assert not (output_dir / "b.txt").exists(), "zero writes on refusal"
         assert calls_logged(plugin_world["plugin_dir"]) == [f"{plugin_world['plugin_id']}.touch"], (
             "zero handler calls on refusal: the confined child never ran a second time"
         )
@@ -178,6 +180,8 @@ class TestPluginBudgetDoor:
 
         workspace, _scratch = workspace_and_scratch
         plugin_dir = plugin_world["plugin_dir"]
+        from core.plugin_tools import plugin_scratch_dir
+        output_dir = plugin_scratch_dir(plugin_world["plugin_id"])
         session = auto_mode(f"openclaw:{uuid.uuid4().hex[:20]}")
         set_budget(("file_write", eb.SCOPE_SESSION, 5))
 
@@ -187,7 +191,7 @@ class TestPluginBudgetDoor:
         try:
             result = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "ok.txt")},
+                {"path": str(output_dir / "ok.txt")},
                 session_id=session,
                 workspace=workspace,
             )
@@ -235,6 +239,8 @@ class TestPluginBudgetDoor:
 
         workspace, _scratch = workspace_and_scratch
         plugin_dir = plugin_world["plugin_dir"]
+        from core.plugin_tools import plugin_scratch_dir
+        output_dir = plugin_scratch_dir(plugin_world["plugin_id"])
         session = auto_mode(f"openclaw:{uuid.uuid4().hex[:20]}")
         set_budget(("file_write", eb.SCOPE_SESSION, 1))
 
@@ -247,7 +253,7 @@ class TestPluginBudgetDoor:
             )
             after = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "after-crash.txt")},
+                {"path": str(output_dir / "after-crash.txt")},
                 session_id=session,
                 workspace=workspace,
             )
@@ -266,7 +272,7 @@ class TestPluginBudgetDoor:
         assert after.ok is False and after.status == "blocked_by_effect_budget", (
             "the crash exhausted the session budget: the next effect refuses"
         )
-        assert not (plugin_dir / "after-crash.txt").exists()
+        assert not (output_dir / "after-crash.txt").exists()
         assert calls_logged(plugin_world["plugin_dir"]) == [f"{plugin_world['plugin_id']}.mut.crash"]
 
     def test_retry_of_a_refused_effect_stays_refused_and_uncharged(
@@ -276,6 +282,8 @@ class TestPluginBudgetDoor:
 
         workspace, _scratch = workspace_and_scratch
         plugin_dir = plugin_world["plugin_dir"]
+        from core.plugin_tools import plugin_scratch_dir
+        output_dir = plugin_scratch_dir(plugin_world["plugin_id"])
         session = auto_mode(f"openclaw:{uuid.uuid4().hex[:20]}")
         set_budget(("file_write", eb.SCOPE_SESSION, 1))
 
@@ -285,14 +293,14 @@ class TestPluginBudgetDoor:
         try:
             first = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "one.txt")},
+                {"path": str(output_dir / "one.txt")},
                 session_id=session,
                 workspace=workspace,
             )
             refusals = [
                 _run(
                     f"{plugin_world['plugin_id']}.touch",
-                    {"path": str(plugin_dir / f"retry-{index}.txt")},
+                    {"path": str(output_dir / f"retry-{index}.txt")},
                     session_id=session,
                     workspace=workspace,
                 )
@@ -314,6 +322,8 @@ class TestPluginBudgetDoor:
 
         workspace, _scratch = workspace_and_scratch
         plugin_dir = plugin_world["plugin_dir"]
+        from core.plugin_tools import plugin_scratch_dir
+        output_dir = plugin_scratch_dir(plugin_world["plugin_id"])
         session_a = auto_mode(f"openclaw:{uuid.uuid4().hex[:20]}")
         session_b = auto_mode(f"openclaw:{uuid.uuid4().hex[:20]}")
         set_budget(("file_write", eb.SCOPE_SESSION, 1), ("file_write", eb.SCOPE_PROJECT, 2))
@@ -324,13 +334,13 @@ class TestPluginBudgetDoor:
         try:
             _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "a-one.txt")},
+                {"path": str(output_dir / "a-one.txt")},
                 session_id=session_a,
                 workspace=workspace,
             )
             blocked = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "a-two.txt")},
+                {"path": str(output_dir / "a-two.txt")},
                 session_id=session_a,
                 workspace=workspace,
             )
@@ -344,7 +354,7 @@ class TestPluginBudgetDoor:
         try:
             other = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "b-one.txt")},
+                {"path": str(output_dir / "b-one.txt")},
                 session_id=session_b,
                 workspace=workspace,
             )
@@ -359,7 +369,7 @@ class TestPluginBudgetDoor:
         try:
             exhausted = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "c-one.txt")},
+                {"path": str(output_dir / "c-one.txt")},
                 session_id=session_c,
                 workspace=workspace,
             )
@@ -368,7 +378,7 @@ class TestPluginBudgetDoor:
         assert exhausted.status == "blocked_by_effect_budget", (
             "the project rule refused the effect the session rule would have allowed"
         )
-        assert not (plugin_dir / "c-one.txt").exists()
+        assert not (output_dir / "c-one.txt").exists()
 
     def test_parallel_sessions_race_for_the_last_unit_and_exactly_one_wins(
         self, plugin_world, auto_mode, set_budget, workspace_and_scratch
@@ -377,6 +387,8 @@ class TestPluginBudgetDoor:
 
         workspace, _scratch = workspace_and_scratch
         plugin_dir = plugin_world["plugin_dir"]
+        from core.plugin_tools import plugin_scratch_dir
+        output_dir = plugin_scratch_dir(plugin_world["plugin_id"])
         set_budget(("file_write", eb.SCOPE_PROJECT, 1))
         barrier = threading.Barrier(4, timeout=30)
         outcomes: dict[str, object] = {}
@@ -392,7 +404,7 @@ class TestPluginBudgetDoor:
                 barrier.wait()
                 outcome = _run(
                     f"{plugin_world['plugin_id']}.touch",
-                    {"path": str(plugin_dir / f"{name}.txt")},
+                    {"path": str(output_dir / f"{name}.txt")},
                     session_id=session,
                     workspace=workspace,
                 )
@@ -417,9 +429,9 @@ class TestPluginBudgetDoor:
         assert calls_logged(plugin_world["plugin_dir"]) == [
             f"{plugin_world['plugin_id']}.touch"
         ], "the handler ran for the winner and nobody else"
-        assert (plugin_dir / f"{winners[0]}.txt").exists()
+        assert (output_dir / f"{winners[0]}.txt").exists()
         for name in losers:
-            assert not (plugin_dir / f"{name}.txt").exists()
+            assert not (output_dir / f"{name}.txt").exists()
 
     def test_restart_keeps_the_exhaustion_and_reconciliation_releases_only_stale_units(
         self, plugin_world, auto_mode, set_budget, workspace_and_scratch
@@ -428,6 +440,8 @@ class TestPluginBudgetDoor:
 
         workspace, _scratch = workspace_and_scratch
         plugin_dir = plugin_world["plugin_dir"]
+        from core.plugin_tools import plugin_scratch_dir
+        output_dir = plugin_scratch_dir(plugin_world["plugin_id"])
         session = auto_mode(f"openclaw:{uuid.uuid4().hex[:20]}")
         set_budget(("file_write", eb.SCOPE_SESSION, 1))
 
@@ -437,7 +451,7 @@ class TestPluginBudgetDoor:
         try:
             _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "spent.txt")},
+                {"path": str(output_dir / "spent.txt")},
                 session_id=session,
                 workspace=workspace,
             )
@@ -451,7 +465,7 @@ class TestPluginBudgetDoor:
         try:
             after_restart = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "post-restart.txt")},
+                {"path": str(output_dir / "post-restart.txt")},
                 session_id=session,
                 workspace=workspace,
             )
@@ -460,7 +474,7 @@ class TestPluginBudgetDoor:
         assert after_restart.status == "blocked_by_effect_budget", (
             "budgets hold across restart: the spent unit stays spent"
         )
-        assert not (plugin_dir / "post-restart.txt").exists()
+        assert not (output_dir / "post-restart.txt").exists()
 
         # a reservation that never began its attempt (a crash between reserve and consume)
         # is the one thing reconciliation releases — and the returned unit is spendable.
@@ -473,7 +487,7 @@ class TestPluginBudgetDoor:
         try:
             held = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "while-held.txt")},
+                {"path": str(output_dir / "while-held.txt")},
                 session_id=session_b,
                 workspace=workspace,
             )
@@ -489,7 +503,7 @@ class TestPluginBudgetDoor:
         try:
             recovered = _run(
                 f"{plugin_world['plugin_id']}.touch",
-                {"path": str(plugin_dir / "recovered.txt")},
+                {"path": str(output_dir / "recovered.txt")},
                 session_id=session_b,
                 workspace=workspace,
             )
