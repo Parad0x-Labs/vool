@@ -228,10 +228,10 @@ class UpdateSubsystem:
         if self._started:
             return self
         self._started = True
+        self._recover_bounded()
         if not self.configured:
             logger.info("update subsystem UNAVAILABLE: %s", self.unavailable_reason.value)
             return self
-        self._recover_bounded()
         assert self.service is not None
         self.service.start()
         return self
@@ -241,6 +241,19 @@ class UpdateSubsystem:
             return  # the detached transaction still owns recovery/finalization
         if not self.feed.has_target:
             return  # no configured app ⇒ nothing was ever swapped by this install
+        from core.updater.rollback import incomplete_rollbacks
+
+        if incomplete_rollbacks(self):
+            from core.updater.worker import start_worker
+
+            try:
+                start_worker(self, None, 'recovery-rollback-' + str(time.time_ns()), rollback_recovery=True)
+            except Exception as exc:
+                from core.updater.status import UpdateFault
+
+                self.status.publish(UpdatePhase.FAILED, fault=UpdateFault.ROLLBACK_FAILED,
+                                    detail=f'could not start rollback recovery: {exc}')
+            return
         from core.updater.transaction import UpdateJournal
 
         # Recovery that can stop this host must survive its exit, just like a
@@ -316,7 +329,7 @@ class UpdateSubsystem:
                 relaunch_cmd=_relaunch_cmd_for(Path(self.feed.app_path), runtime_home=self.data_dir.resolve().parent,
                                               health_url=self.feed.health_url),
             )
-        return MacProcessHelper(pid_file=self.data_dir / "vool_api.pid",
+        return MacProcessHelper(pid_file=self.data_dir / "vool_api.pid", app_path=Path(self.feed.app_path),
                                 relaunch_cmd=shlex.split(_relaunch_cmd_for(Path(self.feed.app_path),
                                                         runtime_home=self.data_dir.resolve().parent,
                                                         health_url=self.feed.health_url)))
@@ -356,6 +369,9 @@ class UpdateSubsystem:
     def status_payload(self) -> dict:
         """The one shape the API and the UI chip render."""
         status = self.status.load()
+        from core.updater.rollback import rollback_candidate
+
+        candidate = rollback_candidate(self)
         payload: dict = {
             "configured": self.configured,
             "unavailable_reason": self.unavailable_reason.value if self.unavailable_reason else "",
@@ -363,6 +379,9 @@ class UpdateSubsystem:
             "installed_version": self.installed_version,
             "channel": self.feed.channel,
             "has_target": self.feed.has_target,
+            "rollback_available": candidate is not None and not self._recovering and not self._worker_alive()
+                                  and (not status or status.fault_code != 'rollback_failed'),
+            "rollback_version": candidate['version'] if candidate else '',
             "phase": (status.phase.value if status else UpdatePhase.IDLE.value),
             "message": (status.message if status else ""),
             "target_version": (status.target_version if status else ""),
@@ -479,6 +498,44 @@ class UpdateSubsystem:
             if not handed_off:
                 self._press_lock.release()
 
+    def press_rollback(self, gesture: UserGesture) -> PressOutcome:
+        """Explicit previous-code rollback; never replace current history with old data."""
+        if not isinstance(gesture, UserGesture):
+            raise TypeError('rollback requires an explicit UserGesture')
+        if self._recovering or self._worker_alive() or not self._press_lock.acquire(blocking=False):
+            return PressOutcome(False, detail='an update or recovery is already in progress')
+        try:
+            from core.updater.rollback import rollback_candidate
+            from core.updater.work import prepare_to_pause
+            from core.updater.worker import start_worker
+
+            prior_status = self.status.load()
+            if prior_status and prior_status.fault_code == 'rollback_failed':
+                return PressOutcome(False, detail='incomplete recovery must be repaired before another rollback')
+            candidate = rollback_candidate(self)
+            if candidate is None:
+                return PressOutcome(False, detail='No compatible, verified previous version is retained. Your data was not changed.')
+            decision = prepare_to_pause(self.coordinator)
+            if not decision.ok:
+                return PressOutcome(False, detail=decision.plain_message)
+            txid = 'rollback-' + str(time.time_ns())
+            self.status.publish(UpdatePhase.INSTALLING)
+            start_worker(self, None, txid, rollback=candidate)
+
+            def monitor():
+                while self._worker_alive():
+                    time.sleep(.2)
+                self.coordinator.resume_new_work()
+
+            threading.Thread(target=monitor, daemon=True, name='vool-rollback-monitor').start()
+            return PressOutcome(True, detail='Returning to the previous version; current data is kept', txid=txid,
+                                phase=UpdatePhase.INSTALLING.value)
+        except Exception as exc:
+            self.coordinator.resume_new_work()
+            return PressOutcome(False, detail=str(exc))
+        finally:
+            self._press_lock.release()
+
     def press_restart(self, gesture: UserGesture, *, resolution: DestructiveWorkResolution | None = None) -> PressOutcome:
         """Restart button: resume the parked transaction through swap + helper +
         health, finalizing or rolling back. Runs on a worker thread; the UI follows
@@ -582,16 +639,21 @@ def _pidfile_pid_for(app_path: Path) -> int:
     (VOOL_UPDATE_TARGET_PIDFILE overrides for sandbox installs of a cloned app)."""
     import os
 
+    from core.updater.macos import _pid_belongs_to_app
+
     override = str(os.environ.get("VOOL_UPDATE_TARGET_PIDFILE") or "").strip()
-    if override:
-        with contextlib.suppress(Exception):
-            return int(Path(override).read_text(encoding="utf-8").strip() or "0")
+    paths = [Path(override)] if override else []
     with contextlib.suppress(Exception):
         from core.runtime_paths import active_data_dir
 
-        pidfile = active_data_dir() / "vool_api.pid"
-        if pidfile.exists():
-            return int(pidfile.read_text(encoding="utf-8").strip() or "0")
+        paths.append(active_data_dir() / "vool_api.pid")
+    for pidfile in paths:
+        try:
+            pid = int(pidfile.read_text(encoding="utf-8").strip() or "0")
+        except (OSError, ValueError):
+            continue
+        if _pid_belongs_to_app(pid, app_path):
+            return pid
     return 0
 
 

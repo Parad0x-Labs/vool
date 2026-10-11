@@ -46,7 +46,7 @@ def _wait(callback, *, timeout=90):
     raise AssertionError(f"installed-source journey timed out: {last}")
 
 
-@pytest.mark.parametrize("scenario", ["healthy", "unhealthy", "interrupted"])
+@pytest.mark.parametrize("scenario", ["healthy", "unhealthy", "interrupted", "manual", "manual_offline", "manual_unhealthy", "manual_interrupted"])
 def test_one_press_restarts_installed_source_and_keeps_data(tmp_path, scenario):
     unhealthy = scenario == "unhealthy"
     interrupted = scenario == "interrupted"
@@ -102,6 +102,34 @@ def test_one_press_restarts_installed_source_and_keeps_data(tmp_path, scenario):
         (code / "config/release/update_feed.json").write_text(json.dumps({
             "manifest_url": feed + "/manifest.json", "channel": "beta", "health_url": origin + "/healthz",
         }))
+    if scenario == 'manual_offline':
+        entry = new / 'apps/vool_api_server.py'
+        text = entry.read_text().replace('from __future__ import annotations', '''from __future__ import annotations
+import os as _offline_os
+from pathlib import Path as _OfflinePath
+if (_OfflinePath(_offline_os.environ['VOOL_HOME'])/'current-runtime-broken').exists():
+ raise SystemExit(7)
+''')
+        entry.write_text(text)
+    if scenario == 'manual_unhealthy':
+        entry = target / 'apps/vool_api_server.py'
+        text = entry.read_text().replace('from __future__ import annotations', '''from __future__ import annotations
+import os as _rollback_os, sqlite3 as _rollback_sqlite
+from pathlib import Path as _RollbackPath
+_rollback_home = _RollbackPath(_rollback_os.environ['VOOL_HOME'])
+if (_rollback_home/'manual-trigger').exists():
+ with _rollback_sqlite.connect(_rollback_home/'data/seed.db') as _rollback_db:
+  _rollback_db.execute('DELETE FROM memory')
+ (_rollback_home/'config/profile.json').write_text('manual rollback mutation')
+ (_rollback_home/'manual-mutation-proof').write_text('old process actually mutated current data')
+ raise SystemExit(7)
+''')
+        entry.write_text(text)
+    if scenario == 'manual_interrupted':
+        entry = new / 'core/updater/rollback.py'
+        text = entry.read_text().replace("_save(path, state, 'swapped')",
+                                         "_save(path, state, 'swapped')\n        os._exit(73)")
+        entry.write_text(text)
     if unhealthy:
         (new / "apps/vool_api_server.py").write_text("""import os,sqlite3,json
 from pathlib import Path
@@ -147,7 +175,7 @@ with _fixture_sqlite.connect(_fixture_home/'data/seed.db') as _fixture_connectio
     (target / "workspace/retained").write_text("workspace")
     (target / "install_receipt.json").write_text(json.dumps({"runtime_home": str(home)}))
     launcher = target / "Start_VOOL.sh"
-    launcher.write_text(f'#!/bin/bash\ncd "$(dirname "$0")"\nexec .venv/bin/python -m apps.vool_api_server --port {port}\n')
+    launcher.write_text(f'#!/bin/bash\ncd "$(dirname "$0")"\nexec "$(pwd)/.venv/bin/python" -m apps.vool_api_server --port {port}\n')
     launcher.chmod(0o755)
     protected = {name: (target / name).read_bytes() for name in (
         "Start_VOOL.sh", "install_receipt.json", ".venv/retained", ".git/local-only", "workspace/retained"
@@ -226,6 +254,75 @@ with _fixture_sqlite.connect(_fixture_home/'data/seed.db') as _fixture_connectio
                 assert connection.execute("SELECT * FROM memory").fetchall() == [("retained",)]
                 assert connection.execute("PRAGMA quick_check").fetchall() == [("ok",)]
             assert profile.read_text() == '{"preference":"brief","wallet":"disposable-watch-only"}'
+            if scenario.startswith('manual'):
+                with sqlite3.connect(database) as connection:
+                    connection.execute("INSERT INTO memory VALUES ('written after update')")
+                profile.write_text('settings and disposable key changed after updating')
+                status = _wait(lambda: (lambda value: value if value['rollback_available'] else None)(
+                    _api(origin, '/api/update/status')))
+                assert status['rollback_version'] == '0.7.0'
+                import urllib.error
+
+                with pytest.raises(urllib.error.HTTPError) as refusal:
+                    _api(origin, '/api/update/rollback', {'expected_data_dir': str(tmp_path / 'other-profile')})
+                assert refusal.value.code == 409
+                with pytest.raises(urllib.error.HTTPError) as refusal:
+                    request = urllib.request.Request(origin + '/api/update/rollback', data=b'{}',
+                        headers={'Content-Type': 'application/json', 'Origin': 'https://untrusted.invalid'})
+                    urllib.request.urlopen(request, timeout=3)
+                assert refusal.value.code == 403
+                if scenario == 'manual_unhealthy':
+                    (home / 'manual-trigger').touch()
+                if scenario == 'manual_offline':
+                    # Stop only this fixture's recorded current app, then invoke
+                    # the terminal command while its API is unavailable.
+                    pid = int((home / 'data/vool_api.pid').read_text())
+                    command = subprocess.run(['ps', '-p', str(pid), '-o', 'args='], capture_output=True, text=True).stdout
+                    assert str(target) in command
+                    owned.add(pid); os.kill(pid, signal.SIGTERM)
+                    from core.updater.macos import _pid_has_exited
+
+                    _wait(lambda: _pid_has_exited(pid))
+                    (home / 'current-runtime-broken').touch()
+                    broken = subprocess.Popen(['bash', str(launcher)], env=env, stdout=log, stderr=log,
+                                              start_new_session=True)
+                    owned.add(broken.pid)
+                    (tmp_path / 'owned-pids.json').write_text(json.dumps(sorted(owned)))
+                    assert broken.wait(timeout=30) == 7  # current backend genuinely cannot start
+                    cli = subprocess.run([sys.executable, '-m', 'installer.update_cli', 'rollback',
+                                          '--i-pressed-rollback', '--wait'], cwd=target, env=env,
+                                         capture_output=True, text=True, timeout=200)
+                    (tmp_path / 'rollback-cli.log').write_text(cli.stdout + cli.stderr)
+                    assert cli.returncode == 0, cli.stdout + cli.stderr
+                else:
+                    assert _api(origin, '/api/update/rollback', {})['accepted']
+                if scenario == 'manual_interrupted':
+                    from core.updater.macos import _pid_has_exited
+
+                    lease = home / 'data/update_v2/worker.json'
+                    _wait(lambda: (lambda value: value if value['txid'].startswith('rollback-') and
+                        _pid_has_exited(value['pid']) else None)(json.loads(lease.read_text())))
+                    state = next((home / 'data/update_v2/manual_rollbacks').glob('*/state.json'))
+                    assert json.loads(state.read_text())['phase'] == 'swapped'
+                    launched = subprocess.Popen(['bash', str(launcher)], env=env, stdout=log, stderr=log,
+                                                start_new_session=True)
+                    owned.add(launched.pid)
+                    (tmp_path / 'owned-pids.json').write_text(json.dumps(sorted(owned)))
+
+                def rollback_terminal():
+                    for path in (home / 'data/update_v2/manual_rollbacks').glob('*/state.json'):
+                        state = json.loads(path.read_text())
+                        if state['phase'] in ('completed', 'restored', 'aborted', 'rollback_failed'):
+                            return state['phase']
+
+                assert _wait(rollback_terminal, timeout=160) == ('restored' if scenario == 'manual_unhealthy' else 'completed')
+                assert _wait(lambda: _api(origin, '/healthz'))['runtime']['app_version'] == (
+                    '0.7.1' if scenario == 'manual_unhealthy' else '0.7.0')
+                with sqlite3.connect(database) as connection:
+                    assert connection.execute('SELECT * FROM memory').fetchall() == [('retained',), ('written after update',)]
+                assert profile.read_text() == 'settings and disposable key changed after updating'
+                if scenario == 'manual_unhealthy':
+                    assert (home / 'manual-mutation-proof').read_text() == 'old process actually mutated current data'
             assert all((target / name).read_bytes() == body for name, body in protected.items())
             assert not (target / ".vool_updating.lock").exists()
         finally:

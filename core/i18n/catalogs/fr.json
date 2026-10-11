@@ -1206,6 +1206,7 @@
     "skills.none_installed": "Aucune compétence installée pour l'instant.",
     "update.action_check": "Rechercher des mises à jour",
     "update.action_restart": "Redémarrer",
+    "update.action_rollback": "Revenir à {version}",
     "update.action_update": "Mettre à jour",
     "update.checking": "Vérification…",
     "update.done": "Mis à jour",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "Prêt à redémarrer",
     "update.ready_version": "Mise à jour prête · {version}",
     "update.restarting": "Redémarrage…",
+    "update.rollback_keeps_data": "Conserve les discussions, la mémoire, les clés et les paramètres actuels",
     "update.rolled_back": "Rétabli",
     "update.unavailable": "Mises à jour indisponibles",
     "update.up_to_date": "À jour",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "Écouter le son",
     "vns.sound.blocked": "La lecture du son est indisponible. Les notifications restent dans la cloche."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1206,6 +1206,7 @@
     "skills.none_installed": "Kol kas neįdiegtas joks įgūdis.",
     "update.action_check": "Tikrinti atnaujinimus",
     "update.action_restart": "Paleisti iš naujo",
+    "update.action_rollback": "Grįžti į {version}",
     "update.action_update": "Atnaujinti",
     "update.checking": "Tikrinama…",
     "update.done": "Atnaujinta",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "Paruošta paleisti iš naujo",
     "update.ready_version": "Atnaujinimas paruoštas · {version}",
     "update.restarting": "Paleidžiama iš naujo…",
+    "update.rollback_keeps_data": "Išsaugomi dabartiniai pokalbiai, atmintis, raktai ir nustatymai",
     "update.rolled_back": "Grąžinta atgal",
     "update.unavailable": "Atnaujinimai neprieinami",
     "update.up_to_date": "Naujausia versija",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "Išbandyti garsą",
     "vns.sound.blocked": "Garso paleisti nepavyko. Pranešimai lieka varpelio meniu."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

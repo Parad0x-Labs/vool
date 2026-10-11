@@ -217,6 +217,37 @@ def _pid_has_exited(pid: int) -> bool:
         return False
 
 
+def _pid_belongs_to_app(pid: int, app_path: Path) -> bool:
+    """Inspect this recorded PID only; a reused number is never ownership proof."""
+    if pid <= 1:
+        return False
+    root = Path(app_path).resolve()
+    process = subprocess.run(['ps', '-p', str(pid), '-o', 'args='], capture_output=True,
+                             text=True, timeout=5, check=False)
+    if process.returncode:
+        return False
+    command = process.stdout.strip()
+    native = root / 'Contents/MacOS/VOOL'
+    shell = root / 'Contents/Resources/launcher.sh'
+    if command.startswith(str(native)) or any(command.startswith(prefix + str(shell))
+                                              for prefix in ('bash ', '/bin/bash ')):
+        return True
+    api = '-m apps.vool_api_server' in command
+    window = str(root / 'Contents/Resources/app/installer/bundle/vool_window.py') in command
+    if not api and not window:
+        return False
+    embedded = root / ('Contents/Resources/python/bin' if root.suffix == '.app' else '.venv/bin')
+    if command.startswith(str(embedded) + '/'):
+        return True
+    expected_cwd = root / 'Contents/Resources/app' if root.suffix == '.app' else root
+    proc_cwd = Path(f'/proc/{pid}/cwd')
+    if proc_cwd.exists():
+        return proc_cwd.resolve() == expected_cwd
+    listing = subprocess.run(['lsof', '-a', '-p', str(pid), '-d', 'cwd', '-Fn'],
+                             capture_output=True, text=True, timeout=5, check=False)
+    return any(line == 'n' + str(expected_cwd) for line in listing.stdout.splitlines())
+
+
 class MacProcessHelper:
     """The production ExternalHelper for the macOS wrapper: stop the app via its
     pidfile (never killing an unrelated pid that reused the number), then relaunch
@@ -227,10 +258,12 @@ class MacProcessHelper:
         self,
         *,
         pid_file: Path | None = None,
+        app_path: Path | None = None,
         relaunch_cmd: list[str] | None = None,
         poll_interval: float = 0.2,
     ):
         self.pid_file = Path(pid_file) if pid_file else None
+        self.app_path = Path(app_path) if app_path else None
         self.relaunch_cmd = list(relaunch_cmd) if relaunch_cmd else []
         self.poll_interval = poll_interval
 
@@ -238,9 +271,10 @@ class MacProcessHelper:
         if self.pid_file is None or not self.pid_file.exists():
             return 0
         try:
-            return int(self.pid_file.read_text(encoding="utf-8").strip() or "0")
+            pid = int(self.pid_file.read_text(encoding="utf-8").strip() or "0")
         except (OSError, ValueError):
             return 0
+        return pid if self.app_path is None or _pid_belongs_to_app(pid, self.app_path) else 0
 
     def shutdown_app(self) -> None:
         import os

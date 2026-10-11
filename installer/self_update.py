@@ -215,7 +215,7 @@ def _copy_into(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
-def backup_and_swap(release_root: Path, project_root: Path, preserve: set[str], backup_dir: Path) -> list[str]:
+def backup_and_swap(release_root: Path, project_root: Path, preserve: set[str], backup_dir: Path, *, remove_absent: bool = False) -> list[str]:
     """Move each to-be-replaced top-level code entry into backup_dir, then copy the staged
     version in. Returns the list of replaced top-level names (for rollback). Preserve-set
     entries are never moved or overwritten.
@@ -223,8 +223,12 @@ def backup_and_swap(release_root: Path, project_root: Path, preserve: set[str], 
     backup_dir.mkdir(parents=True, exist_ok=True)
     replaced: list[str] = []
     originals: dict[str, bool] = {}
-    for staged in staged_top_level(release_root, preserve):
-        name = staged.name
+    staged_entries = {p.name: p for p in staged_top_level(release_root, preserve)}
+    names = set(staged_entries)
+    if remove_absent:
+        names.update(p.name for p in project_root.iterdir() if p.name not in preserve)
+    for name in sorted(names):
+        staged = staged_entries.get(name)
         current = project_root / name
         originals[name] = current.exists() or current.is_symlink()
         (backup_dir / "_originals.json").write_text(json.dumps(originals), encoding="utf-8")
@@ -239,7 +243,8 @@ def backup_and_swap(release_root: Path, project_root: Path, preserve: set[str], 
         os.replace(temporary, manifest)
         if current.exists() or current.is_symlink():
             shutil.move(str(current), str(backup_dir / name))
-        _copy_into(staged, project_root / name)
+        if staged is not None:
+            _copy_into(staged, project_root / name)
     (backup_dir / "_replaced.json").write_text(json.dumps(replaced, sort_keys=True), encoding="utf-8")
     return replaced
 

@@ -36,6 +36,7 @@ _ADAPTERS: dict[str, str] = {
     "http:POST:/api/update/check": "update.check",
     "http:POST:/api/update/install": "update.apply",
     "http:POST:/api/update/restart": "update.restart",
+    "http:POST:/api/update/rollback": "update.rollback",
     # turn-context privacy controls (C13): the GET listing is one command; the
     # POST door fans out to the eight-command family declared below.
     "http:GET:/api/context/pages": "context.pages.list",

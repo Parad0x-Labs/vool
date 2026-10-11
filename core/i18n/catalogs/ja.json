@@ -1206,6 +1206,7 @@
     "skills.none_installed": "まだスキルがインストールされていません。",
     "update.action_check": "更新を確認",
     "update.action_restart": "再起動",
+    "update.action_rollback": "{version} に戻す",
     "update.action_update": "アップデート",
     "update.checking": "確認中…",
     "update.done": "更新済み",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "再起動できます",
     "update.ready_version": "アップデート準備完了 · {version}",
     "update.restarting": "再起動中…",
+    "update.rollback_keeps_data": "現在のチャット、メモリ、キー、設定を保持します",
     "update.rolled_back": "ロールバックされました",
     "update.unavailable": "更新は利用できません",
     "update.up_to_date": "最新です",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "音を試聴",
     "vns.sound.blocked": "音を再生できません。通知はベルに残ります。"
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

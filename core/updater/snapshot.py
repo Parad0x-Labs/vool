@@ -1,4 +1,4 @@
-"""Consistent runtime DB/config backups at the updater's migration boundary."""
+"""Consistent runtime DB/config and file-history backups at the update boundary."""
 from __future__ import annotations
 
 import json
@@ -24,10 +24,15 @@ def snapshot_runtime(data_dir: Path, destination: Path) -> None:
         if any(p.is_symlink() for p in config.rglob("*")):
             raise ValueError("runtime config contains a symlink; backup refused")
         shutil.copytree(config, destination / "config")
-    databases = [p for p in data.rglob("*")
-                 if p.suffix.lower() in (".db", ".sqlite", ".sqlite3")
-                 and "update_v2" not in p.relative_to(data).parts]
-    if len(databases) > 64 or sum(p.stat().st_size for p in databases) > 8 * 1024**3:
+    files = []
+    for directory, dirs, names in os.walk(data, followlinks=False):
+        if Path(directory) == data:
+            dirs[:] = [name for name in dirs if name != 'update_v2']
+        if any((Path(directory) / name).is_symlink() for name in [*dirs, *names]):
+            raise ValueError('runtime data contains a symlink; backup refused')
+        files.extend(Path(directory) / name for name in names)
+    databases = [p for p in files if p.suffix.lower() in ('.db', '.sqlite', '.sqlite3')]
+    if len(databases) > 64 or len(files) > 100000 or sum(p.stat().st_size for p in files) > 8 * 1024**3:
         raise ValueError("runtime database backup exceeds limits")
     for database in sorted(databases):
         if database.is_symlink() or not database.is_file():
@@ -48,11 +53,21 @@ def snapshot_runtime(data_dir: Path, destination: Path) -> None:
                     raise ValueError("SQLite snapshot failed its integrity check")
         os.chmod(target, 0o600)
         entries.append({"path": relative.as_posix(), "kind": "sqlite", "present": True})
+    sidecars = {Path(str(path) + suffix) for path in databases for suffix in ('-wal', '-shm', '-journal')}
+    for path in sorted(set(files) - set(databases) - sidecars):
+        if not path.is_file():
+            raise ValueError('runtime history backup requires regular files')
+        relative = path.relative_to(home)
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+        os.chmod(target, 0o600)
+        entries.append({'path': relative.as_posix(), 'kind': 'file', 'present': True})
     (destination / "index.json").write_text(json.dumps(entries, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def restore_runtime(data_dir: Path, source: Path) -> None:
-    """Restore only this snapshot's DB/config. Caller must have stopped the app.
+    """Restore this snapshot's DB/config/history. Caller must have stopped the app.
 
     Keep backups intact if any operation fails; propagate the error to the status.
     WAL/SHM sidecars cannot accompany a restored database from another generation.
@@ -84,8 +99,10 @@ def restore_runtime(data_dir: Path, source: Path) -> None:
             if item["present"]:
                 os.replace(staged, target)
         else:
+            target.parent.mkdir(parents=True, exist_ok=True)
             staged = target.with_name(target.name + ".vool-restore")
             shutil.copy2(saved, staged)
-            for suffix in ("-wal", "-shm"):
-                Path(str(target) + suffix).unlink(missing_ok=True)
+            if item['kind'] == 'sqlite':
+                for suffix in ("-wal", "-shm", '-journal'):
+                    Path(str(target) + suffix).unlink(missing_ok=True)
             os.replace(staged, target)

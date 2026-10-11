@@ -1206,6 +1206,7 @@
     "skills.none_installed": "अभी कोई स्किल इंस्टॉल नहीं हैं।",
     "update.action_check": "अपडेट जाँचें",
     "update.action_restart": "पुनः आरंभ करें",
+    "update.action_rollback": "{version} पर वापस जाएँ",
     "update.action_update": "अपडेट करें",
     "update.checking": "जाँचा जा रहा है…",
     "update.done": "अपडेट हो गया",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "पुनः आरंभ के लिए तैयार",
     "update.ready_version": "अपडेट तैयार · {version}",
     "update.restarting": "पुनः आरंभ हो रहा है…",
+    "update.rollback_keeps_data": "आपकी मौजूदा चैट, मेमोरी, कुंजियाँ और सेटिंग सुरक्षित रहती हैं",
     "update.rolled_back": "पूर्ववत कर दिया गया",
     "update.unavailable": "अपडेट अनुपलब्ध",
     "update.up_to_date": "अद्यतित",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "ध्वनि सुनें",
     "vns.sound.blocked": "ध्वनि चलाना उपलब्ध नहीं है। सूचनाएँ घंटी में बनी रहती हैं।"
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -514,6 +514,7 @@ class UpdateFlow:
             Step.DECIDED,
             {
                 "target_version": manifest.version,
+                "platform": self.platform,
                 "installed_version": self.installed_version,
                 "sequence": manifest.sequence,
                 "expected_identity": manifest.expected_health_identity,
@@ -707,11 +708,18 @@ class UpdateFlow:
         self._step(Step.HEALTHY, {"reported_version": health.reported_version})
 
         # 12) Finalize: success receipt, prune old priors, DONE.
+        from core.updater.rollback import code_digest
+
+        prior = self._journal.payload_of(Step.SWAPPED) or {}
+        prior_path = Path(prior['prior_path']) if prior.get('prior_path') else None
+        prior_digest = code_digest(prior_path) if prior_path else ''
+        if prior_path is not None:
+            os.utime(prior_path, None)  # retention follows update time, not old bundle build time
         receipt_path = self._write_receipt(ok=True, kind="success", detail="update installed", previous_version=self.installed_version)
         if self.installer is not None:
             with contextlib.suppress(Exception):
                 self.installer.prune_priors(self.app_path, keep=self.prior_retention)
-        self._step(Step.FINALIZED)
+        self._step(Step.FINALIZED, {"prior_code_sha256": prior_digest})
         self._publish(UpdatePhase.DONE, version=manifest.version)
         return FlowResult(True, Step.FINALIZED, detail="update installed", txid=self._txid, receipt_path=receipt_path)
 
@@ -846,8 +854,11 @@ def recover_interrupted_update(
         expected_identity = str(decided.get("expected_identity") or target_version)
         health = health_probe(timeout=30.0, expected_version=expected_identity) if swapped else None
         if health is not None and health.ok:
+            from core.updater.rollback import code_digest
+
+            prior_digest = code_digest(prior) if prior is not None and prior.is_dir() else ''
             journal.append(Step.HEALTHY, {"reported_version": health.reported_version, "recovered": True})
-            journal.append(Step.FINALIZED, {"recovered": True})
+            journal.append(Step.FINALIZED, {"recovered": True, "prior_code_sha256": prior_digest})
             status.publish(UpdatePhase.DONE, version=target_version)
             results.append(RecoveryResult(txid, "finalized", "new version healthy after crash recovery"))
             continue

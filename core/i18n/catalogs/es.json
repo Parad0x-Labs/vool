@@ -1206,6 +1206,7 @@
     "skills.none_installed": "Aún no hay habilidades instaladas.",
     "update.action_check": "Buscar actualizaciones",
     "update.action_restart": "Reiniciar",
+    "update.action_rollback": "Volver a {version}",
     "update.action_update": "Actualizar",
     "update.checking": "Comprobando…",
     "update.done": "Actualizado",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "Listo para reiniciar",
     "update.ready_version": "Actualización lista · {version}",
     "update.restarting": "Reiniciando…",
+    "update.rollback_keeps_data": "Conserva los chats, la memoria, las claves y los ajustes actuales",
     "update.rolled_back": "Revertido",
     "update.unavailable": "Actualizaciones no disponibles",
     "update.up_to_date": "Al día",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "Escuchar sonido",
     "vns.sound.blocked": "El sonido no está disponible. Las notificaciones siguen en la campana."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

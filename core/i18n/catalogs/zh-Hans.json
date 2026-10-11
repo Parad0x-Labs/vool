@@ -1206,6 +1206,7 @@
     "skills.none_installed": "尚未安装任何技能。",
     "update.action_check": "检查更新",
     "update.action_restart": "重启",
+    "update.action_rollback": "回退到 {version}",
     "update.action_update": "更新",
     "update.checking": "检查中…",
     "update.done": "已更新",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "可以重启",
     "update.ready_version": "更新就绪 · {version}",
     "update.restarting": "正在重启…",
+    "update.rollback_keeps_data": "保留当前聊天、记忆、密钥和设置",
     "update.rolled_back": "已回滚",
     "update.unavailable": "更新不可用",
     "update.up_to_date": "已是最新",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "试听声音",
     "vns.sound.blocked": "无法播放声音。通知仍保留在铃铛菜单中。"
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1206,6 +1206,7 @@
     "skills.none_installed": "لا مهارات مثبتة بعد.",
     "update.action_check": "التحقق من التحديثات",
     "update.action_restart": "إعادة التشغيل",
+    "update.action_rollback": "الرجوع إلى {version}",
     "update.action_update": "تحديث",
     "update.checking": "جارٍ التحقق…",
     "update.done": "تم التحديث",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "جاهز لإعادة التشغيل",
     "update.ready_version": "التحديث جاهز · {version}",
     "update.restarting": "جارٍ إعادة التشغيل…",
+    "update.rollback_keeps_data": "يحتفظ بالمحادثات والذاكرة والمفاتيح والإعدادات الحالية",
     "update.rolled_back": "تم التراجع",
     "update.unavailable": "التحديثات غير متاحة",
     "update.up_to_date": "محدَّث",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "معاينة الصوت",
     "vns.sound.blocked": "تشغيل الصوت غير متاح. تبقى الإشعارات في قائمة الجرس."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

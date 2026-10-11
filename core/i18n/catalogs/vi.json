@@ -1206,6 +1206,7 @@
     "skills.none_installed": "Chưa cài skill nào.",
     "update.action_check": "Kiểm tra bản cập nhật",
     "update.action_restart": "Khởi động lại",
+    "update.action_rollback": "Quay lại {version}",
     "update.action_update": "Cập nhật",
     "update.checking": "Đang kiểm tra…",
     "update.done": "Đã cập nhật",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "Sẵn sàng khởi động lại",
     "update.ready_version": "Đã sẵn sàng cập nhật · {version}",
     "update.restarting": "Đang khởi động lại…",
+    "update.rollback_keeps_data": "Giữ nguyên cuộc trò chuyện, bộ nhớ, khóa và cài đặt hiện tại",
     "update.rolled_back": "Đã quay lại bản cũ",
     "update.unavailable": "Không có bản cập nhật",
     "update.up_to_date": "Đã mới nhất",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "Nghe thử",
     "vns.sound.blocked": "Không thể phát âm thanh. Thông báo vẫn còn trong mục chuông."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

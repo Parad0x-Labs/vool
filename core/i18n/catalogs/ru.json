@@ -1206,6 +1206,7 @@
     "skills.none_installed": "Пока не установлено ни одного навыка.",
     "update.action_check": "Проверить обновления",
     "update.action_restart": "Перезапустить",
+    "update.action_rollback": "Вернуться к {version}",
     "update.action_update": "Обновить",
     "update.checking": "Проверка…",
     "update.done": "Обновлено",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "Готово к перезапуску",
     "update.ready_version": "Обновление готово · {version}",
     "update.restarting": "Перезапуск…",
+    "update.rollback_keeps_data": "Сохраняет текущие чаты, память, ключи и настройки",
     "update.rolled_back": "Откатлено",
     "update.unavailable": "Обновления недоступны",
     "update.up_to_date": "Версия актуальна",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "Прослушать звук",
     "vns.sound.blocked": "Воспроизведение звука недоступно. Уведомления остаются в меню колокольчика."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1206,6 +1206,7 @@
     "skills.none_installed": "아직 설치된 스킬이 없습니다.",
     "update.action_check": "업데이트 확인",
     "update.action_restart": "재시작",
+    "update.action_rollback": "{version} 버전으로 되돌리기",
     "update.action_update": "업데이트",
     "update.checking": "확인 중…",
     "update.done": "업데이트됨",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "재시작 준비됨",
     "update.ready_version": "업데이트 준비됨 · {version}",
     "update.restarting": "재시작 중…",
+    "update.rollback_keeps_data": "현재 채팅, 메모리, 키 및 설정을 유지합니다",
     "update.rolled_back": "롤백됨",
     "update.unavailable": "업데이트 사용 불가",
     "update.up_to_date": "최신 상태",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "소리 미리 듣기",
     "vns.sound.blocked": "소리를 재생할 수 없습니다. 알림은 종 메뉴에 남아 있습니다."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

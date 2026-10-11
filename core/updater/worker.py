@@ -49,9 +49,12 @@ def prune_finished_workers(data_dir: Path) -> None:
             continue
         if not _pid_has_exited(int(lease["pid"])):
             continue
-        finished = _read_json(job / "recovery-result.json") or {}
+        finished = _read_json(job / "recovery-result.json") or _read_json(job / 'rollback-result.json') or {}
         if job.name.startswith("recovery-"):
             if not finished.get("ok"):
+                continue
+        elif job.name.startswith('rollback-'):
+            if not (finished.get('ok') or finished.get('restored_current')):
                 continue
         elif not UpdateJournal(paths.transaction_dir(job.name)).is_terminal():
             continue
@@ -75,7 +78,8 @@ def worker_alive(data_dir: Path) -> bool:
     return command.returncode == 0 and marker in command.stdout
 
 
-def start_worker(subsystem, offer, txid: str, *, recovery: bool = False) -> subprocess.Popen:
+def start_worker(subsystem, offer, txid: str, *, recovery: bool = False, rollback: dict | None = None,
+                 rollback_recovery: bool = False) -> subprocess.Popen:
     """Freeze code (and a bundled interpreter) OUTSIDE the replacement target.
 
     No private publisher material or user profile is copied. Parent already owns
@@ -112,9 +116,10 @@ def start_worker(subsystem, offer, txid: str, *, recovery: bool = False) -> subp
         "health_timeout": subsystem.health_timeout,
         "notarization_waiver_reason": subsystem.notarization_waiver_reason,
         "recovery": recovery,
+        "rollback": rollback, "rollback_recovery": rollback_recovery,
         "keys": {key: subsystem.trust.public_key_hex(key) for key in subsystem.trust.key_ids},
     })
-    if not recovery:
+    if not recovery and not rollback and not rollback_recovery:
         (root / "manifest.json").write_bytes(offer.raw)
     env = dict(os.environ, PYTHONPATH=str(code), PYTHONDONTWRITEBYTECODE="1",
                VOOL_HOME=str(subsystem.data_dir.resolve().parent))
@@ -143,7 +148,7 @@ def main() -> int:
 
     if sys.argv[1] == "--recover-startup":
         subsystem = UpdateSubsystem()
-        if not subsystem.configured:
+        if not subsystem.feed.has_target:
             return 2
         subsystem._recover_bounded()
         if not subsystem._recovering and not subsystem._worker_alive():
@@ -178,6 +183,14 @@ def main() -> int:
             time.sleep(.02)
         else:
             raise ValueError("the parent did not publish the detached transaction lease; nothing was installed")
+        if params.get('rollback') or params.get('rollback_recovery'):
+            from core.updater.rollback import recover_manual_rollbacks, run_manual_rollback
+
+            receipt = recover_manual_rollbacks(subsystem) if params.get('rollback_recovery') else run_manual_rollback(
+                subsystem, params['rollback'], params['txid'])
+            _atomic_write_json(plan.with_name('rollback-result.json'), receipt)
+            print(json.dumps(receipt), flush=True)
+            return 0 if receipt.get('ok') else 1
         if params.get("recovery") is True:
             from core.updater.transaction import recover_interrupted_update
 
@@ -209,7 +222,8 @@ def main() -> int:
         return 0 if result.ok else 1
     except Exception as exc:
         subsystem.status.publish(UpdatePhase.FAILED, detail=f"detached update failed: {exc}",
-                                 fault=UpdateFault.ROLLBACK_FAILED if params.get("recovery") else UpdateFault.INSTALL_FAILED)
+                                 fault=UpdateFault.ROLLBACK_FAILED if any(params.get(key) for key in
+                                 ('recovery', 'rollback', 'rollback_recovery')) else UpdateFault.INSTALL_FAILED)
         raise
 
 

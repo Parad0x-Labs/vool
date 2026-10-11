@@ -1206,6 +1206,7 @@
     "skills.none_installed": "אין עדיין מיומנויות מותקנות.",
     "update.action_check": "בדיקת עדכונים",
     "update.action_restart": "הפעלה מחדש",
+    "update.action_rollback": "חזרה לגרסה {version}",
     "update.action_update": "עדכון",
     "update.checking": "בודק…",
     "update.done": "עודכן",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "מוכן להפעלה מחדש",
     "update.ready_version": "העדכון מוכן · {version}",
     "update.restarting": "מפעיל מחדש…",
+    "update.rollback_keeps_data": "שומר על השיחות, הזיכרון, המפתחות וההגדרות הנוכחיים",
     "update.rolled_back": "שוחזר לאחור",
     "update.unavailable": "עדכונים אינם זמינים",
     "update.up_to_date": "מעודכן",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "השמעת דוגמה",
     "vns.sound.blocked": "השמעת הצליל אינה זמינה. ההתראות נשארות בתפריט הפעמון."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

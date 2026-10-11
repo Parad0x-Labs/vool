@@ -1206,6 +1206,7 @@
     "skills.none_installed": "Henüz beceri kurulu değil.",
     "update.action_check": "Güncellemeleri kontrol et",
     "update.action_restart": "Yeniden başlat",
+    "update.action_rollback": "{version} sürümüne geri dön",
     "update.action_update": "Güncelle",
     "update.checking": "Kontrol ediliyor…",
     "update.done": "Güncellendi",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "Yeniden başlatmaya hazır",
     "update.ready_version": "Güncelleme hazır · {version}",
     "update.restarting": "Yeniden başlatılıyor…",
+    "update.rollback_keeps_data": "Mevcut sohbetleri, belleği, anahtarları ve ayarları korur",
     "update.rolled_back": "Geri alındı",
     "update.unavailable": "Güncellemeler kullanılamıyor",
     "update.up_to_date": "Güncel",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "Sesi dinle",
     "vns.sound.blocked": "Ses çalma kullanılamıyor. Bildirimler zil menüsünde kalır."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

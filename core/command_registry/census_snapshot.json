@@ -2479,6 +2479,13 @@
       "registry_command_id": "update.restart",
       "surface": "http"
     },
+    "http:POST:/api/update/rollback": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/update/rollback",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "update.rollback",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/approval-method": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/wallet/approval-method",
@@ -2945,7 +2952,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 287,
-    "GENERATED_ADAPTER": 124,
+    "GENERATED_ADAPTER": 125,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

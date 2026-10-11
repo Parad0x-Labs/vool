@@ -1110,6 +1110,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <div class="upd-msg" id="updateMessage" data-testid="update-message" role="status"></div>
       <button type="button" class="pop-item" id="updateActionBtn" data-testid="update-action" hidden></button>
       <button type="button" class="pop-item" id="updateCheckBtn" data-i18n="update.action_check">Check for updates</button>
+      <button type="button" class="pop-item" id="updateRollbackBtn" data-testid="update-rollback" hidden></button>
     </div>
   </div>
   <!-- No Web0 header link: there is no plugin-enabled flag to drive it (the /web0 route is served
@@ -11601,6 +11602,7 @@ const updateBar = document.getElementById('updateBar');
 const updateBarFill = document.getElementById('updateBarFill');
 const updateActionBtn = document.getElementById('updateActionBtn');
 const updateCheckBtn = document.getElementById('updateCheckBtn');
+const updateRollbackBtn = document.getElementById('updateRollbackBtn');
 // The updater's state machine names stay exactly as shipped (phase keys below); only
 // their display words resolve through the catalog's update.* keys.
 const UPDATE_LABELS = {
@@ -11636,6 +11638,10 @@ function renderUpdateChip(payload) {
   updateBarFill.style.width = `${payload.progress_percent || 0}%`;
   updateActionBtn.hidden = true; updateCheckBtn.hidden = false;
   updateCheckBtn.disabled = UPDATE_BUSY.has(phase);
+  updateRollbackBtn.hidden = !payload.rollback_available;
+  updateRollbackBtn.disabled = UPDATE_BUSY.has(phase);
+  updateRollbackBtn.textContent = pageTF('update.action_rollback', 'Roll back to {version}', { version: payload.rollback_version || '' });
+  updateRollbackBtn.title = pageT('update.rollback_keeps_data', 'Keeps your current chats, memory, keys and settings');
   if (phase === 'ready') { updateActionBtn.hidden = false; updateActionBtn.textContent = pageT('update.action_update', 'Update'); }
   else if (phase === 'ready_to_restart') { updateActionBtn.hidden = false; updateActionBtn.textContent = pageT('update.action_restart', 'Restart'); }
   _updateFast = UPDATE_BUSY.has(phase);
@@ -11650,7 +11656,7 @@ async function refreshUpdateStatus() {
 }
 
 async function pressUpdate(action) {
-  const url = action === 'restart' ? '/api/update/restart' : '/api/update/install';
+  const url = { restart: '/api/update/restart', install: '/api/update/install', rollback: '/api/update/rollback' }[action];
   try {
     const r = await fetch(url, { method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: '{}' });
@@ -11678,6 +11684,7 @@ if (updateCheckBtn) updateCheckBtn.addEventListener('click', async () => {
     headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {}
   setTimeout(refreshUpdateStatus, 400);
 });
+if (updateRollbackBtn) updateRollbackBtn.addEventListener('click', () => pressUpdate('rollback'));
 setInterval(() => { if (!document.hidden) refreshUpdateStatus(); }, _updateFast ? 700 : 3500);
 refreshUpdateStatus();
 

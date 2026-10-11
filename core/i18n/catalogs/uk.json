@@ -1206,6 +1206,7 @@
     "skills.none_installed": "Ще не встановлено жодної навички.",
     "update.action_check": "Перевірити оновлення",
     "update.action_restart": "Перезапустити",
+    "update.action_rollback": "Повернутися до {version}",
     "update.action_update": "Оновити",
     "update.checking": "Перевірка…",
     "update.done": "Оновлено",
@@ -1217,6 +1218,7 @@
     "update.ready_to_restart": "Готово до перезапуску",
     "update.ready_version": "Оновлення готове · {version}",
     "update.restarting": "Перезапуск…",
+    "update.rollback_keeps_data": "Зберігає поточні чати, пам’ять, ключі та налаштування",
     "update.rolled_back": "Відкочено",
     "update.unavailable": "Оновлення недоступні",
     "update.up_to_date": "Версія актуальна",
@@ -1786,7 +1788,7 @@
     "vns.sound.preview": "Прослухати звук",
     "vns.sound.blocked": "Відтворення звуку недоступне. Сповіщення залишаються в меню дзвіночка."
   },
-  "source_catalog_sha256": "74691802dd467effdf5d3115bab7ab4b4fd5c2f3167c9623d09d656eed207a69",
+  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
