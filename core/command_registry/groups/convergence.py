@@ -55,7 +55,7 @@ def _gate_operator(inp, ctx) -> AuthorityDecision:
 def _gate_two_press(inp, ctx) -> ApprovalDecision:
     approval = ctx.approval_context or {}
     if not str(approval.get("gesture") or approval.get("authority_token") or "").strip():
-        return ApprovalDecision(required=True, reason="two-press consent required (the press is created server-side from the real UI gesture)")
+        return ApprovalDecision(required=True, reason="explicit user press required (the press is created server-side from the real UI gesture)")
     return ApprovalDecision(required=False)
 
 
@@ -82,6 +82,12 @@ class UpdateStatusInput:
 @dataclass(frozen=True)
 class UpdateApplyInput:
     resolve_destructive: str = ""
+
+
+@dataclass(frozen=True)
+class UpdateRollbackInput:
+    expected_app_path: str = ''
+    expected_data_dir: str = ''
 
 
 def _handle_update_status(inp, ctx):
@@ -123,9 +129,30 @@ def _handle_update_apply(inp, ctx) -> Any:
         return _legacy_fault("conflict", f"update apply refused: {outcome.detail or outcome.phase}", 409, payload)
     return HandlerOk(
         data=payload,
-        summary="Update applied (snapshot + rollback point per the update transaction)",
+        summary="Signed update started; completion is verified by update status",
         receipts=({"kind": "update_applied", "txid": outcome.txid, "origin": gesture.origin},),
     )
+
+
+def _handle_update_rollback(inp, ctx) -> Any:
+    import time
+    from pathlib import Path
+
+    from core.updater.runtime import boot_update_subsystem
+    from core.updater.service import UserGesture
+
+    subsystem = boot_update_subsystem()
+    if (inp.expected_app_path and Path(inp.expected_app_path).expanduser().resolve() != Path(subsystem.feed.app_path).resolve()) or (
+        inp.expected_data_dir and Path(inp.expected_data_dir).expanduser().resolve() != subsystem.data_dir.resolve()
+    ):
+        return _legacy_fault('conflict', 'The running app uses a different installation or data directory', 409)
+    gesture = UserGesture(pressed_at=time.time(), origin=str((ctx.approval_context or {}).get('origin') or 'web-ui'))
+    outcome = subsystem.press_rollback(gesture)
+    payload = dict(outcome.to_dict(), ok=outcome.accepted)
+    if not outcome.accepted:
+        return _legacy_fault('conflict', outcome.detail, 409, payload)
+    return HandlerOk(data=payload, summary='Previous-code rollback started; current user data is kept',
+                     receipts=({'kind': 'update_rollback', 'txid': outcome.txid, 'origin': gesture.origin},))
 
 
 def _destructive_resolution(override: str):
@@ -649,7 +676,7 @@ def register(reg) -> None:
         CommandSpec(
             command_id="update.apply",
             group="update",
-            description="Apply the staged update (two-press consent; snapshot + rollback)",
+            description="Install the signed update after one explicit press; retain recovery code and data",
             input_schema=UpdateApplyInput,
             effects="mutating",
             capabilities=frozenset({"self_update.apply"}),
@@ -669,7 +696,7 @@ def register(reg) -> None:
         CommandSpec(
             command_id="update.restart",
             group="update",
-            description="Run the update restart flow (two-press consent)",
+            description="Restart into a downloaded update after an explicit press",
             input_schema=UpdateApplyInput,
             effects="mutating",
             capabilities=frozenset({"self_update.apply"}),
@@ -683,6 +710,17 @@ def register(reg) -> None:
             lifecycle="preview",
         )
     )
+
+    reg.add(CommandSpec(
+        command_id='update.rollback', group='update',
+        description='Return to the retained previous app code while keeping current user data',
+        input_schema=UpdateRollbackInput, effects='mutating', capabilities=frozenset({'self_update.apply'}),
+        permission=ApprovalGate(kind='self_update.rollback',
+                                verifier='core.command_registry.groups.convergence:_gate_two_press'),
+        handler=Handler('core.command_registry.groups.convergence:_handle_update_rollback'),
+        availability=Availability('core.command_registry.groups.convergence:_probe_update_subsystem'),
+        exit_codes=(0, 2, 10, 20, 30), lifecycle='preview',
+    ))
 
     # -- settings ------------------------------------------------------------
     reg.add(

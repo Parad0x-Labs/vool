@@ -21,6 +21,7 @@ class LinuxSourceInstaller:
 
             runtime_home = active_vool_home()
         self.runtime_home = Path(runtime_home)
+        self.replace_full_code = False
 
     def verify_bundle(self, staged_bundle: Path, *, require_notarization=None) -> BundleVerification:
         if not looks_like_vool_release(staged_bundle):
@@ -41,7 +42,7 @@ class LinuxSourceInstaller:
             if prior.exists():
                 raise FileExistsError("code backup already exists for this transaction")
             preserve = compute_preserve_names(target, self.runtime_home)
-            backup_and_swap(staged_bundle, target, preserve, prior)
+            backup_and_swap(staged_bundle, target, preserve, prior, remove_absent=self.replace_full_code)
             return SwapOutcome(True, prior_path=prior)
         except Exception as exc:
             if prior.exists():
@@ -74,7 +75,7 @@ class LinuxProcessHelper(MacProcessHelper):
     """The installer-generated launcher owns env/venv/home; keep and execute it."""
 
     def __init__(self, *, app_path: Path, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(app_path=app_path, **kwargs)
         self.app_path = Path(app_path)
         self.lock_path = self.app_path / ".vool_updating.lock"
 

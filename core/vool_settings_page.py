@@ -1972,6 +1972,23 @@ function widgetUpdates(stack) {
     } catch (e) { status.textContent = String(e.message || e); check.disabled = false; }
   });
   stack.appendChild(check);
+  if (src && src.rollback_available) {
+    const rollback = el('button', 'btn', T('update.action_rollback', 'Roll back to {version}').replace('{version}', src.rollback_version || ''));
+    rollback.type = 'button'; rollback.dataset.testid = 'settings-update-rollback';
+    rollback.disabled = check.disabled;
+    rollback.addEventListener('click', async () => {
+      rollback.disabled = true;
+      try {
+        const response = await fetch('/api/update/rollback', { method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || result.message || 'Rollback could not start');
+        await readSource('/api/update/status'); widgetUpdates(stack);
+      } catch (e) { status.textContent = String(e.message || e); rollback.disabled = false; }
+    });
+    stack.appendChild(rollback);
+    stack.appendChild(el('div', 'subtle', T('update.rollback_keeps_data', 'Keeps your current chats, memory, keys and settings')));
+  }
 }
 
 function widgetBuild(stack) {

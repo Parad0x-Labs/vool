@@ -59,3 +59,50 @@ out({initial,after:stack.children[0].textContent,calls});
     assert result["initial"] == "Atnaujinta"
     assert result["after"] == "Version 0.7.1 ready"
     assert result["calls"] == [["POST", "/api/update/check"], ["GET", "/api/update/status"]]
+
+
+def test_header_rollback_uses_explicit_action_and_hides_when_unavailable():
+    code = slice_source(script(), 'const updateChip =', 'setInterval(maybeRepaintSidebarLifecycle')
+    result = run_node(DOM + """
+const calls=[]; const pageT=(key, fallback)=>fallback;
+const pageTF=(key,fallback,args)=>fallback.replace('{version}',args.version);
+globalThis.fetch=async(url,options)=>{calls.push([url,options&&options.method]);return {ok:true,json:async()=>({phase:'up_to_date'})};};
+globalThis.setTimeout=()=>1;globalThis.setInterval=()=>1;
+""" + code + """
+await new Promise(resolve=>process.nextTick(resolve));
+renderUpdateChip({phase:'up_to_date',rollback_available:true,rollback_version:'0.7.0'});
+const available=!updateRollbackBtn.hidden;const label=updateRollbackBtn.textContent;
+updateRollbackBtn.click();
+renderUpdateChip({phase:'installing',rollback_available:true,rollback_version:'0.7.0'});
+const busy=updateRollbackBtn.disabled;
+renderUpdateChip({phase:'rolled_back',rollback_available:false});
+await new Promise(resolve=>process.nextTick(resolve));
+out({available,label,busy,hidden:updateRollbackBtn.hidden,calls});
+""")
+    assert result['errors'] == []
+    assert result['available'] and result['busy'] and result['hidden']
+    assert result['label'] == 'Roll back to 0.7.0'
+    assert [call[0] for call in result['calls'] if call[1] == 'POST'] == ['/api/update/rollback']
+
+
+def test_settings_rollback_dispatches_and_explains_current_data_preservation():
+    import re
+
+    from core.vool_settings_page import render_vool_settings_html
+    source = next(part for part in re.findall(r'<script[^>]*>(.*?)</script>', render_vool_settings_html(), re.DOTALL)
+                  if 'function widgetUpdates(stack)' in part)
+    code = slice_source(source, 'function widgetUpdates(stack)', 'function widgetBuild(stack)')
+    result = run_node(DOM + """
+const state={sources:{'/api/update/status':{phase:'up_to_date',rollback_available:true,rollback_version:'0.7.0'}},sourceErr:{}};
+const T=(key,fallback)=>fallback;const el=(tag,cls,text)=>{const node=new El(tag);node.textContent=text;return node;};
+const calls=[];const readSource=async url=>{calls.push(['GET',url]);};
+globalThis.fetch=async(url,options)=>{calls.push([options.method,url]);return {ok:true,json:async()=>({accepted:true})};};
+const stack=new El();
+""" + code + """
+widgetUpdates(stack);const label=stack.children[2].textContent;const help=stack.children[3].textContent;
+stack.children[2].click();await new Promise(resolve=>process.nextTick(resolve));out({label,help,calls});
+""")
+    assert result['errors'] == []
+    assert result['label'] == 'Roll back to 0.7.0'
+    assert result['help'] == 'Keeps your current chats, memory, keys and settings'
+    assert result['calls'] == [['POST', '/api/update/rollback'], ['GET', '/api/update/status']]

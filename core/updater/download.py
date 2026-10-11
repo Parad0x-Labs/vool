@@ -388,6 +388,17 @@ RELEASE_HOSTS = frozenset({"github.com", "release-assets.githubusercontent.com"}
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 
 
+def _release_tls_context():
+    """System/custom roots plus the CA store shipped with the standalone runtime."""
+    import ssl
+
+    import certifi
+
+    context = ssl.create_default_context()
+    context.load_verify_locations(cafile=certifi.where())
+    return context  # CERT_REQUIRED and hostname checking remain enabled
+
+
 def _open_release_url(url: str, *, headers: dict[str, str], timeout: float):
     from urllib.error import HTTPError
     from urllib.parse import urljoin, urlsplit
@@ -395,6 +406,7 @@ def _open_release_url(url: str, *, headers: dict[str, str], timeout: float):
     from core.remote_fetch_policy import open_remote_url
 
     initial = urlsplit(url)
+    context = _release_tls_context() if initial.scheme == 'https' else None
     loopback = initial.hostname in ("127.0.0.1", "localhost", "::1")
     for _ in range(5):
         parsed = urlsplit(url)
@@ -409,7 +421,8 @@ def _open_release_url(url: str, *, headers: dict[str, str], timeout: float):
         if parsed.hostname == "github.com" and not parsed.path.startswith("/Parad0x-Labs/vool/releases/"):
             raise PolicyRefusalError("release URL is outside this repository's releases")
         try:
-            return open_remote_url(url, headers=headers, timeout=timeout, redirect_policy="refuse")
+            options = {'context': context} if context is not None else {}
+            return open_remote_url(url, headers=headers, timeout=timeout, redirect_policy="refuse", **options)
         except HTTPError as exc:
             if exc.code not in (301, 302, 303, 307, 308):
                 raise
