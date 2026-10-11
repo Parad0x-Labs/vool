@@ -190,12 +190,13 @@ def test_bootstrap_explicit_beta_pin_and_trunk_override_resolve_correct_archives
     assert not (home / "vool-local").exists()
 
 
-def test_user_install_docs_pin_script_and_source_to_the_beta_tag():
+def test_user_install_docs_pin_shell_script_and_source_to_the_beta_tag():
     for name in ("README.md", "docs/INSTALL.md", "docs/getting-started/install.md"):
         content = (ROOT / name).read_text()
-        assert "/vool/main/installer/bootstrap_vool." not in content
+        assert "/vool/main/installer/bootstrap_vool.sh" not in content
+        assert "/vool/main/installer/bootstrap_vool.ps1" in content
         for line in content.splitlines():
             if "bash bootstrap_vool.sh" in line or 'bash "$tmp"' in line:
                 assert "--ref v0.7.0-beta" in line
             if "bootstrap_vool.ps1" in line and " -File " in line:
-                assert "-Ref v0.7.0-beta" in line
+                assert "-Ref" not in line

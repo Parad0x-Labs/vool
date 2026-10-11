@@ -91,8 +91,18 @@ def smoke(archive: Path, scratch: Path, expected: str) -> None:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
+                    raise RuntimeError("Runtime shutdown timed out; forced kill is not a clean stop")
         if process.returncode != 0:
             raise RuntimeError(f"Runtime shutdown failed: {process.returncode}")
+    # The API routes uvicorn's logs to its profile after bootstrap. Retain them
+    # with the smoke evidence and require actual graceful shutdown and cleanup.
+    api_log = (profile / "data/logs/vool_api.log").read_text()
+    with (scratch / "runtime.log").open("a") as log:
+        log.write(api_log)
+    if "Application shutdown complete." not in api_log:
+        raise RuntimeError("Runtime did not prove graceful application shutdown")
+    if (profile / "data/vool_api.pid").exists():
+        raise RuntimeError("Runtime shutdown left its pidfile")
     try:
         fetch(origin, "/healthz")
     except (OSError, urllib.error.URLError):

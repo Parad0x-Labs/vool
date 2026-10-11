@@ -56,8 +56,8 @@ bash bootstrap_vool.sh --ref v0.7.0-beta
 ### Windows PowerShell
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
-powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.0-beta
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
 The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
@@ -65,7 +65,7 @@ The installer prepares the Python environment, checks your hardware, sets up the
 | Platform | Getting started |
 | --- | --- |
 | **macOS / Apple Silicon** | Primary desktop development target; source installer and macOS CI coverage. |
-| **Linux x86_64** | Beta-tag source installer; self-contained tarball build and Ubuntu 22.04/24.04 package acceptance in CI. See the install guide for artifact availability. |
+| **Linux** | Linux test shards cover the source installer; Linux x86_64 has a beta-tag source installer, self-contained tarball build and Ubuntu 22.04/24.04 package acceptance in CI. See the install guide for artifact availability. |
 | **Windows** | Experimental desktop path; PowerShell installer and Windows gauntlet coverage. Use WSL2/Linux for jobs requiring a Linux kernel sandbox. |
 
 For model choices, system requirements, checksums, and troubleshooting, see the [install guide](docs/INSTALL.md) and [Windows capability matrix](docs/WINDOWS_CAPABILITY_MATRIX.md).

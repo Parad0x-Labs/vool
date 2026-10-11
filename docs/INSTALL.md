@@ -2,7 +2,7 @@
 
 This is the canonical install and quickstart doc.
 
-User installs are pinned to `v0.7.0-beta`. Development on `main` is an explicit opt-in with `--ref main` and a matching script URL.
+macOS / Linux source installs are pinned to `v0.7.0-beta`. Development on `main` is an explicit opt-in with `--ref main` and a matching script URL.
 
 ## Fast Path
 
@@ -24,7 +24,7 @@ On Windows the same pin is `-Ref v0.7.0-beta`.
 Windows PowerShell:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1; powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.0-beta
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1; powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
 Local Windows checkout with guided installer:
@@ -64,7 +64,7 @@ bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-max
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.0-beta -InstallProfile local-max
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -InstallProfile local-max
 ```
 
 Safe one-line profile shortcuts for macOS / Linux:

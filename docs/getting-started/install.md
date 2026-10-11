@@ -36,11 +36,11 @@ bash bootstrap_vool.sh --ref v0.7.0-beta
 ```
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
-powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -Ref v0.7.0-beta
+Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
+powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
-The commands pin both the bootstrap script and its source download to `v0.7.0-beta`. To choose another release, change both the tag in the script URL and `--ref` (PowerShell: `-Ref`). The bootstrap accepts a branch name or a release tag, not a commit hash.
+The macOS / Linux commands pin both the bootstrap script and its source download to `v0.7.0-beta`. To choose another release, change both the tag in the script URL and `--ref`. The bootstrap accepts a branch name or a release tag, not a commit hash.
 
 The installer prepares the Python environment, checks your hardware, sets up the local
 model, and launches the local services. Allow time and disk space for the initial model
