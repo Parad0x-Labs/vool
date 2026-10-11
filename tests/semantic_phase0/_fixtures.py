@@ -155,19 +155,26 @@ def keep_the_checkout_clean(tmp_path_factory):
     then committed it. Moving the whole package's cwd to a temp directory closes it for every test
     here at once, rather than per suite and per turn.
     """
+    from core import runtime_paths
+
     workdir = tmp_path_factory.mktemp("vool_semantic_cwd")
     home = tmp_path_factory.mktemp("vool_semantic_home")
     previous_cwd = os.getcwd()
     previous_home = os.environ.get("VOOL_HOME")
+    previous_runtime_home = runtime_paths._VOOL_HOME_OVERRIDE
     # A disposable VOOL_HOME as well as a disposable cwd: the review asked for hermeticity against
     # the host home, and a turn that reads or writes the operator's real data dir is not hermetic
     # however clean the working directory is.
+    # The configured home takes priority over VOOL_HOME; isolate both authorities so real turns
+    # cannot leave memory or pending erasure state in the surrounding test session's home.
     os.environ["VOOL_HOME"] = str(home)
+    runtime_paths.configure_runtime_home(home)
     os.chdir(workdir)
     try:
         yield workdir
     finally:
         os.chdir(previous_cwd)
+        runtime_paths.configure_runtime_home(previous_runtime_home)
         if previous_home is None:
             os.environ.pop("VOOL_HOME", None)
         else:
