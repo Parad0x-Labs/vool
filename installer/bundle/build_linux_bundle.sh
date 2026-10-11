@@ -21,9 +21,12 @@ VERSION="$(git show "${SHA}:config/release/update_channel.json" | python3 -c 'im
 [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || { echo 'Invalid release version.' >&2; exit 1; }
 mkdir -p "${OUT}"
 OUT="$(cd "${OUT}" && pwd)"
+NAME="vool-${VERSION}-linux-x86_64"
+TARBALL="${NAME}.tar.gz"
+[[ ! -e "${OUT}/${TARBALL}" && ! -e "${OUT}/${TARBALL}.sha256" ]] \
+  || { echo 'Release output already exists; refusing to overwrite.' >&2; exit 1; }
 STAGE="$(mktemp -d "${OUT}/.linux-build.XXXXXX")"
 trap 'rm -rf -- "${STAGE}"' EXIT
-NAME="vool-${VERSION}-linux-x86_64"
 BUNDLE="${STAGE}/${NAME}"
 mkdir -p "${BUNDLE}/app"
 # Exact commit bytes: source, first-party plugins/skills and license notices.
@@ -60,7 +63,6 @@ chmod +x "${BUNDLE}/vool" "${BUNDLE}/install.sh" "${BUNDLE}/uninstall.sh"
 find "${BUNDLE}" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "${BUNDLE}/python/bin" -type f ! -name 'python*' -delete
 (cd "${BUNDLE}" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
-TARBALL="${NAME}.tar.gz"
 tar -czf "${STAGE}/${TARBALL}" -C "${STAGE}" "${NAME}"
 mv "${STAGE}/${TARBALL}" "${OUT}/${TARBALL}"
 (cd "${OUT}" && sha256sum "${TARBALL}" > "${TARBALL}.sha256")

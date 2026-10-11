@@ -42,7 +42,7 @@ def smoke(archive: Path, scratch: Path, expected: str) -> None:
         raise RuntimeError("Downloaded package is from the wrong source commit")
     # A fresh HOME and a stripped environment prevent runner credentials, provider
     # settings or system site-packages from qualifying as bundled dependencies.
-    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "CI": "true", "VOOL_UNATTENDED": "1"}
+    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "CI": "true", "VOOL_UNATTENDED": "1", "VOOL_LOCAL_MODELS_ENABLED": "0"}
     env["TMPDIR"] = str(scratch)
     env["XDG_CACHE_HOME"] = str(home / ".cache")
     subprocess.run(["bash", str(bundle / "install.sh")], env=env, check=True)

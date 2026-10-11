@@ -154,7 +154,7 @@ def test_bundle_scripts_parse_and_wrong_host_build_refuses_without_staging(tmp_p
 
 def test_builder_uses_standalone_locked_wheels_and_exact_source():
     script = (ROOT / "installer/bundle/build_linux_bundle.sh").read_text()
-    for contract in ("cpython-3.12.13-linux-x86_64-gnu", "--require-hashes", "--no-build", "--locked", 'git archive "${SHA}"', "pyvenv.cfg", "preflight_served_imports_or_exit"):
+    for contract in ("cpython-3.12.13-linux-x86_64-gnu", "--require-hashes", "--no-build", "--locked", 'git archive "${SHA}"', "pyvenv.cfg", "preflight_served_imports_or_exit", "refusing to overwrite"):
         assert contract in script
     assert "vool_install_linux_bundle" in (LINUX / "install.sh").read_text()
 
