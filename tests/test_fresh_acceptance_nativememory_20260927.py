@@ -129,11 +129,13 @@ def test_p4_bakery_base_form_question_delivers_destination(fresh_profile):
     assert "harbor office" in ctx, ctx
 
 
-def test_p5_negative_clause_survives_paraphrased_question(fresh_profile):
+def test_p5_paraphrased_question_without_a_record_for_it_is_refused(fresh_profile):
+    # NO RECORD = REFUSE: nothing stored says "visitors" means "guests" or "enter"
+    # means "admit", so the guests rule must not be delivered for this question.
     chat = "fa-pool"
     _store(fresh_profile, chat, POOL_RECORD)
     ctx = _context(fresh_profile, chat, "Can visitors enter without keycards?")
-    assert "does not admit guests without keycards" in ctx.lower(), ctx
+    assert ctx == "", ctx
 
 
 def test_p6_no_answer_question_yields_empty_context(fresh_profile):
