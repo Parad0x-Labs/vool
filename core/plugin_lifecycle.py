@@ -36,7 +36,6 @@ the opposite, and the opposite of fail-closed on a permission surface is a vulne
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import json
 import os
 import stat
@@ -46,6 +45,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from core.plugin_package import DIGEST_SCHEMA, PackageError, approval_digest, capture_package
 
 STORE_FILENAME = "plugin_lifecycle.json"
 SCHEMA = "vool.plugin_lifecycle.v1"
@@ -114,33 +115,11 @@ def store_path() -> Path:
 
 
 def manifest_digest(root: Path) -> str:
-    """A digest over everything that decides what this plugin CAN DO.
-
-    The manifest and every skill body: those are the files that declare tools, permission
-    actions, handlers and prompt guidance. A digest that covered only the manifest would let a
-    verified plugin change its skills afterwards.
-    """
-
-    digest = hashlib.sha256()
-    base = Path(root)
-    targets: list[Path] = []
-    manifest = base / ".codex-plugin" / "plugin.json"
-    if manifest.exists():
-        targets.append(manifest)
-    skills = base / "skills"
-    if skills.is_dir():
-        targets.extend(sorted(p for p in skills.rglob("SKILL.md") if p.is_file()))
-    for path in targets:
-        try:
-            digest.update(str(path.relative_to(base)).encode("utf-8"))
-            digest.update(b"\0")
-            digest.update(path.read_bytes())
-            digest.update(b"\0")
-        except OSError:
-            # A file that cannot be read cannot be attested to. Marking the digest poisoned is
-            # honest; returning a digest over what happened to be readable is not.
-            return ""
-    return digest.hexdigest() if targets else ""
+    """Compatibility name for the complete distribution digest, not just metadata."""
+    try:
+        return capture_package(Path(root)).digest
+    except PackageError:
+        return ""
 
 
 @dataclass
@@ -154,6 +133,9 @@ class PluginRecord:
     inspected_at: str = ""
     verified_at: str = ""
     verified_digest: str = ""
+    approval_digest: str = ""
+    digest_schema: str = ""
+    verified_dependencies: dict[str, str] = field(default_factory=dict)
     enabled_at: str = ""
     enabled: bool = False
     revoked_at: str = ""
@@ -311,7 +293,7 @@ def inspect(plugin_id: str, *, root: Path) -> PluginRecord:
         raise LifecycleError(f"{plugin_id}: the manifest could not be read ({type(exc).__name__})") from None
     record = _load(plugin_id) or PluginRecord(plugin_id=str(plugin_id))
     requested = [str(p).strip() for p in list(payload.get("permissions") or []) if str(p).strip()]
-    dependencies = [str(d).strip() for d in list(payload.get("requires") or []) if str(d).strip()]
+    dependencies = _declared_dependencies(payload)
     bindings = [str(b).strip() for b in list(payload.get("credential_bindings") or []) if str(b).strip()]
     record.root = str(pack)
     record.version = str(payload.get("version") or "")
@@ -333,6 +315,17 @@ def inspect(plugin_id: str, *, root: Path) -> PluginRecord:
     return _save(record)
 
 
+def _declared_dependencies(payload: dict) -> list[str]:
+    from core.plugin_tools import confined_plugin_id
+
+    dependencies = payload.get("requires", [])
+    if not isinstance(dependencies, list) or any(
+        not isinstance(item, str) or not confined_plugin_id(item) for item in dependencies
+    ):
+        raise LifecycleError("requires must contain valid plugin identities")
+    return sorted(set(dependencies))
+
+
 def _unresolved(dependencies: list[str]) -> list[str]:
     """Which declared dependencies are not satisfied by an installed, available plugin."""
 
@@ -341,9 +334,7 @@ def _unresolved(dependencies: list[str]) -> list[str]:
 
 
 def install(plugin_id: str, *, root: Path, source: str = "local") -> PluginRecord:
-    record = _load(plugin_id) or PluginRecord(plugin_id=str(plugin_id))
-    if record.stage == STAGE_DISCOVERED:
-        record = inspect(plugin_id, root=root)
+    record = inspect(plugin_id, root=root)
     if record.unresolved_dependencies:
         raise LifecycleError(
             f"{plugin_id}: unresolved dependencies {record.unresolved_dependencies}; install them first"
@@ -354,7 +345,13 @@ def install(plugin_id: str, *, root: Path, source: str = "local") -> PluginRecor
     record.installed_at = _utcnow()
     record.enabled = False
     record.verified_digest = ""
+    record.approval_digest = ""
+    record.digest_schema = ""
+    record.verified_dependencies = {}
     record.verified_at = ""
+    record.revoked_at = ""
+    record.revoked_reason = ""
+    record.uninstalled_at = ""
     record.note("installed", source=source, note="installed is not available: verify and enable are separate acts")
     return _save(record)
 
@@ -366,11 +363,13 @@ def verify(plugin_id: str, *, root: Path | None = None, expected_digest: str = "
     if record is None or record.stage in {STAGE_DISCOVERED, STAGE_UNINSTALLED}:
         raise LifecycleError(f"{plugin_id}: nothing installed to verify")
     pack = Path(root or record.root)
+    if pack.resolve() != Path(record.root).resolve():
+        raise LifecycleError(f"{plugin_id}: update the installed root before verifying a replacement")
     digest = manifest_digest(pack)
     if not digest:
         record.note("verify_failed", reason="the pack's declaring files could not be read")
         _save(record)
-        raise LifecycleError(f"{plugin_id}: the pack's declaring files could not be read, so nothing is attested")
+        raise LifecycleError(f"{plugin_id}: the complete package could not be captured, so nothing is attested")
     if expected_digest and expected_digest != digest:
         record.note("verify_failed", reason="digest mismatch", expected=expected_digest, actual=digest)
         _save(record)
@@ -381,10 +380,37 @@ def verify(plugin_id: str, *, root: Path | None = None, expected_digest: str = "
             assert_reviewed(plugin_id, pack)
         except Exception:
             raise LifecycleError(f"{plugin_id}: a valid security review of these exact files is required") from None
+    # Capture the declarations from the same complete identity, not a stale inspect record.
+    try:
+        identity = capture_package(pack)
+    except PackageError as exc:
+        raise LifecycleError(f"{plugin_id}: {exc}") from None
+    if identity.digest != digest:
+        raise LifecycleError(f"{plugin_id}: package changed during verification")
+    if identity.manifest.get("name") != plugin_id:
+        raise LifecycleError(f"{plugin_id}: package manifest identity does not match its installed identity")
+    dependencies = _declared_dependencies(identity.manifest)
+    pins = {}
+    for dependency in dependencies:
+        if dependency == plugin_id or not is_available(dependency):
+            raise LifecycleError(f"{plugin_id}: dependency {dependency} must be verified and enabled")
+        child = _load(dependency)
+        if child is None or not child.approval_digest:
+            raise LifecycleError(f"{plugin_id}: dependency approval disappeared")
+        pins[dependency] = child.approval_digest
+    record.declared_dependencies = dependencies
+    record.declared_permissions = [str(p) for p in identity.manifest.get("permissions", [])]
+    record.credential_bindings = [str(p) for p in identity.manifest.get("credential_bindings", [])]
+    record.version = str(identity.manifest.get("version") or "")
+    record.unresolved_dependencies = []
+    record.verified_dependencies = pins
+    record.digest_schema = DIGEST_SCHEMA
     record.verified_digest = digest
+    record.approval_digest = approval_digest(digest, pins)
     record.verified_at = _utcnow()
     record.stage = STAGE_VERIFIED
-    record.note("verified", digest=digest, note="verified is not enabled")
+    record.note("verified", digest=digest, approval_digest=record.approval_digest, digest_schema=DIGEST_SCHEMA,
+                dependencies=pins, note="verified is not enabled")
     return _save(record)
 
 
@@ -396,11 +422,21 @@ def enable(plugin_id: str) -> PluginRecord:
         raise LifecycleError(f"{plugin_id}: cannot enable from stage `{record.stage}` — verify it first")
     if record.revoked_at:
         raise LifecycleError(f"{plugin_id}: revoked ({record.revoked_reason}); re-install before enabling")
+    if record.digest_schema != DIGEST_SCHEMA or manifest_digest(Path(record.root)) != record.verified_digest:
+        raise LifecycleError(f"{plugin_id}: complete package verification is required before enabling")
+    if record.approval_digest != approval_digest(record.verified_digest, record.verified_dependencies):
+        raise LifecycleError(f"{plugin_id}: complete dependency approval is required before enabling")
+    for dependency, digest in record.verified_dependencies.items():
+        child = _load(dependency)
+        if child is None or child.approval_digest != digest or not is_available(dependency):
+            raise LifecycleError(f"{plugin_id}: dependency approval changed; verify again")
     record.enabled = True
     record.enabled_at = _utcnow()
     record.stage = STAGE_ENABLED
     record.note("enabled")
-    return _save(record)
+    _save(record)
+    _invalidate_registration(plugin_id)
+    return record
 
 
 def disable(plugin_id: str) -> PluginRecord:
@@ -410,7 +446,9 @@ def disable(plugin_id: str) -> PluginRecord:
     record.enabled = False
     record.stage = STAGE_VERIFIED if record.verified_digest else STAGE_INSTALLED
     record.note("disabled")
-    return _save(record)
+    _save(record)
+    _invalidate_registration(plugin_id)
+    return record
 
 
 def note_invocation(plugin_id: str, intent: str) -> None:
@@ -441,6 +479,9 @@ def update(plugin_id: str, *, root: Path | None = None, version: str = "") -> Pl
     record.root = str(pack)
     record.version = str(version or record.version)
     record.verified_digest = ""
+    record.approval_digest = ""
+    record.digest_schema = ""
+    record.verified_dependencies = {}
     record.verified_at = ""
     record.enabled = False
     record.stage = STAGE_INSTALLED
@@ -476,6 +517,9 @@ def uninstall(plugin_id: str) -> PluginRecord:
     record.stage = STAGE_UNINSTALLED
     record.uninstalled_at = _utcnow()
     record.verified_digest = ""
+    record.approval_digest = ""
+    record.digest_schema = ""
+    record.verified_dependencies = {}
     record.note("uninstalled", note="the record and its evidence are retained; the tools are not offered")
     _save(record)
     _invalidate_registration(plugin_id)
@@ -503,6 +547,18 @@ def is_available(plugin_id: str, *, root: Path | None = None) -> bool:
     verified. Any missing conjunct means the plugin's tools are not offered to the model.
     """
 
+    try:
+        return _available(plugin_id, root=root, seen=frozenset(), checked={})
+    except (OSError, ValueError, TypeError, RecursionError):
+        return False
+
+
+def _available(plugin_id: str, *, root: Path | None = None, seen: frozenset[str], checked: dict) -> bool:
+    if plugin_id in seen or len(set(checked) | seen | {plugin_id}) > 64:
+        return False
+    if plugin_id in checked:
+        return checked[plugin_id]
+    seen = seen | {plugin_id}
     record = _load(plugin_id)
     if record is None:
         return False
@@ -510,16 +566,28 @@ def is_available(plugin_id: str, *, root: Path | None = None) -> bool:
         return False
     if record.revoked_at or (record.uninstalled_at and record.stage == STAGE_UNINSTALLED):
         return False
-    if not record.verified_digest:
+    if not record.verified_digest or record.digest_schema != DIGEST_SCHEMA:
         return False
+    pack = Path(root or record.root)
+    if pack.resolve() != Path(record.root).resolve():
+        return False
+    if not isinstance(record.verified_dependencies, dict) or set(record.verified_dependencies) != set(record.declared_dependencies):
+        return False
+    if record.approval_digest != approval_digest(record.verified_digest, record.verified_dependencies):
+        return False
+    for dependency, digest in record.verified_dependencies.items():
+        current = _load(dependency)
+        if current is None or current.approval_digest != digest or not _available(dependency, seen=seen, checked=checked):
+            return False
     from core.addon_store import assert_reviewed, is_managed
     if is_managed(plugin_id):
         try:
             assert_reviewed(plugin_id, Path(root or record.root))
         except Exception:
             return False
-    digest = manifest_digest(Path(root or record.root))
-    return bool(digest) and digest == record.verified_digest
+    digest = manifest_digest(pack)
+    checked[plugin_id] = bool(digest) and digest == record.verified_digest
+    return checked[plugin_id]
 
 
 def available_plugin_ids() -> frozenset[str]:

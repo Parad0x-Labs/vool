@@ -26,7 +26,7 @@ intent = payload["intent"]
 args = payload.get("arguments") or {{}}
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 try:
-    with open(os.path.join(root, "calls.log"), "a", encoding="utf-8") as fh:
+    with open(os.path.join(os.environ.get("PLUGIN_SCRATCH", root), "calls.log"), "a", encoding="utf-8") as fh:
         fh.write(intent + "\\n")
 except OSError:
     pass
@@ -187,8 +187,11 @@ def widget_skill(*, allowed_tools: str = "[pack.echo]", body_extra: str = "") ->
     )
 
 
-def calls_logged(plugin_dir: Path) -> list[str]:
-    log = plugin_dir / "calls.log"
+def calls_logged(plugin_dir: Path, *, scratch_root: Path | None = None) -> list[str]:
+    # Mutable execution evidence belongs outside the immutable approved package.
+    from core.plugin_tools import plugin_scratch_dir
+    scratch = scratch_root / plugin_dir.name if scratch_root is not None else plugin_scratch_dir(plugin_dir.name)
+    log = scratch / "calls.log"
     if not log.is_file():
         return []
     return [line for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]

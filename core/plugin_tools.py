@@ -412,6 +412,14 @@ def register_plugin(plugin: LoadedPlugin) -> tuple[RuntimeToolContract, ...]:
 
     if not plugin.contracts:
         return ()
+    contracts = _available_contracts(plugin)
+    registered = tool_registry.register_all(contracts)
+    with _lock:
+        _PLUGIN_ROOTS[plugin.plugin_id] = Path(plugin.root)
+    return registered
+
+
+def _available_contracts(plugin: LoadedPlugin) -> tuple[RuntimeToolContract, ...]:
     contracts = plugin.contracts
     from core.plugin_lifecycle import is_available
 
@@ -421,10 +429,7 @@ def register_plugin(plugin: LoadedPlugin) -> tuple[RuntimeToolContract, ...]:
     elif not plugin.enabled or _owner_disabled(plugin.plugin_id):
         reason = disabled_reason(plugin.plugin_id)
         contracts = tuple(replace(c, supported=False, unsupported_reason=reason) for c in contracts)
-    registered = tool_registry.register_all(contracts)
-    with _lock:
-        _PLUGIN_ROOTS[plugin.plugin_id] = Path(plugin.root)
-    return registered
+    return contracts
 
 
 def discover_manifests(root: Path) -> tuple[Path, ...]:
@@ -444,8 +449,8 @@ def load_all(
 ) -> tuple[tuple[LoadedPlugin, ...], tuple[str, ...]]:
     """Load every plugin under ``root``. One bad pack is skipped, the rest still load.
 
-    Idempotent per process: a pack whose tools are already registered is reported as loaded
-    without re-registering (the registry refuses duplicates loudly, and a reload is `reset()`).
+    Identical contracts remain registered. Changed contracts or lifecycle availability
+    refresh this source's rows, preserving every other registry source.
 
     ``manifests`` is the listing a caller already holds -- the bounded storage probe's
     (`core.plugin_catalog.discover_and_register`) -- so the boot never walks the folder on the
@@ -454,16 +459,19 @@ def load_all(
 
     loaded: list[LoadedPlugin] = []
     errors: list[str] = []
-    known = set(tool_registry.registry_map())
     listing = tuple(Path(m) for m in manifests) if manifests is not None else discover_manifests(root)
     for manifest in listing:
         try:
             plugin = load_manifest(manifest)
-            if plugin.contracts and all(c.intent in known for c in plugin.contracts):
+            existing = tool_registry.contracts_from_source(f"plugin:{plugin.plugin_id}")
+            expected = _available_contracts(plugin)
+            if existing and tuple(existing) == expected:
                 with _lock:
                     _PLUGIN_ROOTS.setdefault(plugin.plugin_id, Path(plugin.root))
                 loaded.append(plugin)
                 continue
+            for previous in existing:
+                tool_registry.unregister(previous.intent)
             register_plugin(plugin)
             loaded.append(plugin)
         except (PluginManifestError, tool_registry.ToolRegistrationError) as exc:
@@ -510,16 +518,12 @@ def confinement_mode() -> str:
 def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, Any]):
     """Run a registered plugin contract's handler. Returns a `PluginToolResult`; never raises."""
 
+    from core import plugin_lifecycle as lifecycle
     from core.plugin_executor import PluginToolResult, run_plugin_tool
+    from core.plugin_package import PackageError, capture_package, execution_directory
 
     intent = str(contract.intent)
     plugin_id = str(contract.source or "")[len("plugin:"):]
-    # INVOKE is its own lifecycle act. Enabled does not mean invoked, and a lifecycle that could
-    # not tell the two apart would have no evidence for the stage it claims to have.
-    if plugin_id:
-        from core.plugin_lifecycle import note_invocation
-
-        note_invocation(plugin_id, intent)
     root = plugin_root_for(intent)
     if root is None:
         return PluginToolResult(
@@ -528,30 +532,97 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
             error=f"no plugin root is registered for {intent}",
             observation={"intent": intent},
         )
+    def current() -> bool:
+        return bool(contract.supported and not _owner_disabled(plugin_id)
+                    and lifecycle.is_available(plugin_id, root=root))
+
+    if not current():
+        return PluginToolResult(ok=False, status="package_unavailable", error=lifecycle_reason(plugin_id))
+    record = lifecycle.record_for(plugin_id)
+    if record is None:
+        return PluginToolResult(ok=False, status="package_unavailable", error="Package approval disappeared.")
+    approved_digest = record.verified_digest
+    approved_approval = record.approval_digest
+    dependency_pins: dict[str, str] = {}
+    dependency_packages: dict[str, str] = {}
+    dependency_roots: dict[str, Path] = {}
+
+    def dependencies(pid: str) -> None:
+        state = lifecycle.record_for(pid)
+        if state is None:
+            raise PackageError("approved dependency disappeared")
+        if not isinstance(state.verified_dependencies, dict):
+            raise PackageError("invalid dependency approval")
+        for dependency, digest in state.verified_dependencies.items():
+            confined_plugin_id(dependency)
+            if dependency in dependency_pins:
+                if dependency_pins[dependency] != digest:
+                    raise PackageError("conflicting dependency approvals")
+                continue
+            child = lifecycle.record_for(dependency)
+            if len(dependency_pins) >= 63:
+                raise PackageError("dependency closure limit exceeded")
+            if child is None or child.approval_digest != digest:
+                raise PackageError("approved dependency changed")
+            dependency_pins[dependency] = digest
+            dependency_packages[dependency] = child.verified_digest
+            dependency_roots[dependency] = Path(child.root)
+            dependencies(dependency)
+
     try:
-        handler = json.loads(str(contract.handler or "{}"))
-    except ValueError:
-        handler = {}
-    if not isinstance(handler, dict):
-        handler = {}
-    timeout = handler.get("timeout_seconds")
-    try:
-        timeout_seconds = float(timeout) if timeout is not None else 30.0
-    except (TypeError, ValueError):
-        timeout_seconds = 30.0
-    return run_plugin_tool(
-        intent=intent,
-        arguments=dict(arguments or {}),
-        handler=handler,
-        schema=dict(contract.json_schema or {}),
-        plugin_root=root,
-        env_allowlist=tuple(str(x) for x in (handler.get("env_allowlist") or ())),
-        scratch_dir=str(plugin_scratch_dir(plugin_id)),
-        timeout_seconds=timeout_seconds,
-        allow_network=bool(handler.get("network", False)),
-        confinement=confinement_mode(),
-        read_only=bool(getattr(contract, "side_effect_class", "") == "read_only"),
-    )
+        dependencies(plugin_id)
+        scratch = plugin_scratch_dir(plugin_id)
+        # Snapshots are siblings of writable scratch, never within a child's write grant.
+        with execution_directory(scratch.parent / ".vool-packages") as owned:
+            snapshot = owned / "package"
+            captured = capture_package(root, destination=snapshot)
+            if captured.digest != approved_digest:
+                raise PackageError("package changed after approval")
+            dependency_copies = {}
+            dependency_directory = owned / "dependencies"
+            dependency_directory.mkdir(mode=0o700)
+            for dependency, source in dependency_roots.items():
+                target = dependency_directory / dependency
+                if capture_package(source, destination=target).digest != dependency_packages[dependency]:
+                    raise PackageError("dependency changed after approval")
+                dependency_copies[dependency] = target
+            reviewed = load_manifest(snapshot / ".codex-plugin" / "plugin.json")
+            approved_contract = next((c for c in reviewed.contracts if c.intent == intent), None)
+            if approved_contract != contract:
+                return PluginToolResult(ok=False, status="package_contract_changed",
+                                        error="The cached tool differs from the approved manifest; reload its contracts.")
+            handler = json.loads(contract.handler)
+            timeout = handler.get("timeout_seconds", 30.0)
+            try:
+                timeout_seconds = float(timeout)
+            except (TypeError, ValueError):
+                timeout_seconds = 30.0
+
+            def before_start() -> None:
+                latest = lifecycle.record_for(plugin_id)
+                if not current() or latest is None or latest.approval_digest != approved_approval:
+                    raise PackageError("package authority changed before execution")
+                for dependency, digest in dependency_pins.items():
+                    latest_dependency = lifecycle.record_for(dependency)
+                    if latest_dependency is None or latest_dependency.approval_digest != digest:
+                        raise PackageError("dependency authority changed before execution")
+                lifecycle.note_invocation(plugin_id, intent)
+
+            result = run_plugin_tool(
+                intent=intent, arguments=dict(arguments or {}), handler=handler,
+                schema=dict(contract.json_schema or {}), plugin_root=snapshot,
+                env_allowlist=tuple(str(x) for x in (handler.get("env_allowlist") or ())),
+                scratch_dir=str(scratch), timeout_seconds=timeout_seconds,
+                allow_network=bool(handler.get("network", False)), confinement="auto",
+                read_only=contract.side_effect_class == "read_only", immutable_package=True,
+                package_dependencies=dependency_copies, before_start=before_start,
+            )
+            return replace(result, observation={**result.observation,
+                "package_sha256": approved_digest, "approval_sha256": approved_approval,
+                "dependency_sha256": dependency_packages, "dependency_approval_sha256": dependency_pins})
+    except (PackageError, PluginManifestError, OSError, ValueError, TypeError, RecursionError) as exc:
+        return PluginToolResult(ok=False, status="package_integrity_failed", error=str(exc),
+                                observation={"intent": intent, "package_sha256": approved_digest})
 
 
 def reset_roots() -> None:
