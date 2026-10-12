@@ -729,3 +729,57 @@ def test_split_guidance_remains_protected_when_history_and_memory_are_shed() -> 
         )
     assert caught.value.telemetry["rejection_reason"] == "context_window_exceeded"
     assert caught.value.telemetry["system_prompt_preserved"] is True
+
+
+@pytest.mark.parametrize("carrier", ["primary", "turn_directives"])
+def test_memory_evidence_cannot_satisfy_protected_instructions(carrier) -> None:
+    from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+    from core.memory_prompt_builder import apply_memory_prefix_to_messages
+
+    primary = "Retain the immutable instruction contract."
+    additions = "Only answer from the supplied scoped records."
+    if carrier == "primary":
+        protected = primary
+        prefix = primary
+        messages = [{"role": "system", "content": "Different instruction body."}]
+    else:
+        protected = f"{primary}\n\n{additions}"
+        prefix = additions
+        messages = [
+            {"role": "system", "content": primary},
+            {"role": "system", "content": f"{TURN_DIRECTIVES_HEADER}\nDifferent instruction body."},
+        ]
+    messages.append({"role": "user", "content": "What do the records say?"})
+    augmented = apply_memory_prefix_to_messages(
+        messages, ModelRequest(task_kind="normalization_assist", prompt="What do the records say?"), prefix=prefix
+    )
+    with pytest.raises(PromptBudgetExceededError, match="instructions are missing") as caught:
+        fit_messages_to_context_window(
+            augmented, num_ctx=24576, output_reserve_tokens=476,
+            protected_system_prompt=protected, memory_prefix=prefix,
+        )
+    assert caught.value.telemetry["rejection_reason"] == "protected_instructions_missing"
+    assert caught.value.telemetry["estimated_prompt_tokens_after"] < 24100
+
+
+def test_canonical_memory_prefix_preserves_actual_split_instruction_body() -> None:
+    from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+    from core.memory_prompt_builder import apply_memory_prefix_to_messages
+
+    primary = "Retain all primary instructions."
+    additions = "Do not substitute an unrelated record."
+    messages = [
+        {"role": "system", "content": primary},
+        {"role": "system", "content": f"{TURN_DIRECTIVES_HEADER}\n{additions}"},
+        {"role": "user", "content": "What happened in the workshop?"},
+    ]
+    prefix = "Memory evidence quotes the instruction: " + additions
+    augmented = apply_memory_prefix_to_messages(
+        messages, ModelRequest(task_kind="normalization_assist", prompt="What happened in the workshop?"), prefix=prefix
+    )
+    result = fit_messages_to_context_window(
+        augmented, num_ctx=24576, output_reserve_tokens=476,
+        protected_system_prompt=f"{primary}\n\n{additions}", memory_prefix=prefix,
+    )
+    assert result.messages == augmented
+    assert result.telemetry["system_prompt_preserved"] is True

@@ -8,7 +8,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
-from core.internal_message_schema import is_turn_directives_message
+from core.internal_message_schema import TURN_DIRECTIVES_HEADER, is_turn_directives_message
 
 # Per-message chat-template cost. Measured at 5 tokens/message for qwen2.5's template
 # (<|im_start|>role\n ... <|im_end|>\n), taken as the slope between a 10- and a 50-message
@@ -526,7 +526,7 @@ def _system_prompt_preserved(
     primary_system_index = _primary_system_index(messages)
     if primary_system_index is None:
         return False
-    primary = _message_text(messages[primary_system_index].get("content"))
+    primary = _instruction_message_text(messages[primary_system_index], memory_prefix=memory_prefix)
     if protected in primary:
         return True
     # The request builder keeps the leading instructions cache-stable and appends
@@ -534,17 +534,29 @@ def _system_prompt_preserved(
     # system_prompt field is still the combined primary + additions. Require
     # BOTH exact pieces on the wire, in their instruction roles; history or
     # retrieved evidence containing the same words cannot satisfy protection.
-    if memory_prefix:
-        primary = primary.removeprefix(f"{memory_prefix}\n\n---\n\n")
     primary = primary.strip()
     if not primary or not protected.startswith(primary + "\n\n"):
         return False
     additions = protected[len(primary):].strip()
     return any(
         is_turn_directives_message(message)
-        and additions in _message_text(message.get("content"))
+        and additions in _instruction_message_text(message, memory_prefix=memory_prefix)
         for message in messages[primary_system_index + 1:]
     )
+
+
+def _instruction_message_text(message: dict[str, Any], *, memory_prefix: str) -> str:
+    """Instruction body only: canonical recalled evidence grants no authority."""
+    text = _message_text(message.get("content"))
+    if not memory_prefix:
+        return text
+    if is_turn_directives_message(message):
+        body = text[len(TURN_DIRECTIVES_HEADER):].lstrip("\n")
+        body = body.removeprefix(f"{memory_prefix}\n\n---\n\n")
+        return f"{TURN_DIRECTIVES_HEADER}\n{body}"
+    if text == memory_prefix:
+        return ""
+    return text.removeprefix(f"{memory_prefix}\n\n---\n\n")
 
 
 __all__ = [

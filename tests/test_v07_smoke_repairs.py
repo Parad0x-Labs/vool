@@ -158,3 +158,72 @@ def test_revoked_question_is_only_its_slice_and_does_not_claim_commands():
     assert revoked_memory_recall_clauses(
         "What is the workshop cabinet code and convert 100 EUR to USD?", revoked_tokens=tokens
     ) == ()
+
+
+@pytest.mark.parametrize(
+    ("subject", "fact", "private_question", "public_questions"),
+    [
+        ("Maya", "Maya's birthday is March 14.", "When is Maya's birthday?",
+         ("When was Maya Angelou born?", "When is Maya Angelou's birthday?", "What is Mayan civilization?")),
+        ("Alex Rivera", "Alex Rivera's locker code is YTR-4526.", "What is Alex Rivera's locker code?",
+         ("What is Alex Riverand's locker code?", "What is Alex Rivera Stone's locker code?")),
+    ],
+)
+def test_whole_subject_forget_uses_complete_entity_identity(subject, fact, private_question, public_questions):
+    _remember_and_forget(fact, subject)
+    result = _recall(private_question)
+    assert result is not None and "no record" in result["response"].lower()
+    for question in public_questions:
+        assert _recall(question) is None, question
+
+
+def test_full_relation_forget_does_not_claim_a_different_relation_or_entity():
+    _remember_and_forget("Maya's birthday is March 14.", "Maya's birthday")
+    assert _recall("When is Maya's birthday?") is not None
+    assert _recall("When is the birthday of Maya?") is not None
+    assert _recall("When is Maya's birthday party?") is None
+    assert _recall("What is Maya's birthday cake recipe?") is None
+    assert _recall("When is Maya Angelou's birthday?") is None
+    assert _recall("What is the meaning of Maya's birthday in astrology?") is None
+
+
+@pytest.mark.parametrize("sibling", ["Also explain photosynthesis.", "Also convert 100 EUR to USD at 1.10."])
+def test_api_erased_memory_claim_preserves_every_sibling_demand(sibling):
+    """Pin the real API handoff; stopping at the agent is instrumentation, not a model reply."""
+    from core.agent_runtime.answer_coverage import FAMILY_MEMORY_RECALL, demand_units, turn_slices
+    from core.web.api.runtime import run_agent
+
+    _remember_and_forget("Maya's birthday is March 14.", "Maya's birthday")
+    question = "When is Maya's birthday?"
+    message = f"{question} {sibling}"
+    captured = []
+
+    class AgentBoundaryReached(RuntimeError):
+        pass
+
+    class RecordAgentBoundary:
+        def run_once(self, user_text, *, session_id_override, source_context):
+            captured.append((user_text, source_context))
+            raise AgentBoundaryReached
+
+    with pytest.raises(AgentBoundaryReached):
+        run_agent(
+            RuntimeServices(agent=RecordAgentBoundary(), runtime_home=str(active_vool_home())),
+            message, session_id="erased-chat", source_context=_context(),
+            workspace_root_provider=lambda: str(active_vool_home() / "workspace"),
+        )
+    assert len(captured) == 1
+    assert captured[0][0] == message
+    context = captured[0][1]
+    answers = context["turn_answer_coverage"]["answers"]
+    answer = next(item for item in answers if item["family"] == FAMILY_MEMORY_RECALL)
+    memory_slice = next(item.slice_id for item in turn_slices(message) if item.text == question)
+    assert answer["consumed"] == [memory_slice]
+    units = demand_units(message)
+    assert len(units) == 2
+    assert answer["consumed_units"] == [unit.unit_id for unit in units if unit.slice_id == memory_slice]
+    assert len(answer["consumed_units"]) == 1
+    observations = context["runtime_tool_observations"]
+    observation = next(item for item in observations if item["intent"] == f"turn.slice_answer.{FAMILY_MEMORY_RECALL}")
+    assert observation["slice_text"] == question
+    assert "no record" in observation["response_preview"].lower()

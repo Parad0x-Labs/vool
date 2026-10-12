@@ -1825,7 +1825,7 @@ def _run_agent_locked(
             # and returning here would end the turn with the sibling never asked. This was the one
             # pre-agent exit with no arbitration -- the answer is still produced; it travels on as
             # a slice answer and the turn continues to `run_once`.
-            from core.agent_runtime.answer_coverage import FAMILY_MEMORY_RECALL, coverage_for
+            from core.agent_runtime.answer_coverage import FAMILY_MEMORY_RECALL, coverage_for, demand_units
 
             memory_coverage = coverage_for(
                 user_text,
@@ -1834,8 +1834,18 @@ def _run_agent_locked(
                     clause, recent_user_texts=()
                 ) or clause in revoked_recall_clauses,
             )
-            if memory_coverage.covers_whole_turn and (
-                not revoked_recall_clauses or not memory_coverage.uncovered
+            requested_units = demand_units(user_text)
+            consumed_units = tuple(
+                unit.unit_id for unit in requested_units
+                if unit.slice_id in memory_coverage.consumed
+            )
+            # Family arbitration discloses conflicts between registered
+            # lanes; an unregistered knowledge demand can still sit beside
+            # this recall. The actual requested-unit set owns completeness.
+            if (
+                memory_coverage.covers_whole_turn
+                and requested_units
+                and len(consumed_units) == len(requested_units)
             ):
                 update_retrieval_telemetry(web_calls=remote_fetch_attempt_count())
                 return finalize_turn_trace(memory_recall)
@@ -1845,6 +1855,8 @@ def _run_agent_locked(
                 family=FAMILY_MEMORY_RECALL,
                 response=str(memory_recall.get("response") or ""),
                 reason="private_memory_recall",
+                consumed=memory_coverage.consumed,
+                consumed_units=consumed_units,
             )
         from core.usepod.price_wait import running_task
         with running_task(session_id, user_text, queue_item_id=base_context.get("price_wait_queue_id", ""), source_context=base_context):

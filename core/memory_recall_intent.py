@@ -13,6 +13,62 @@ anchoring rules in `field_is_the_subject` (see its docstring for why broadening 
 from __future__ import annotations
 
 import re
+import unicodedata
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class _RecallSubject:
+    subject: tuple[str, ...]
+    relation: tuple[str, ...] = ()
+
+
+_RECALL_SUBJECT_FRAMES = (
+    re.compile(r"^(?:what|when|where|who|which|how)(?:'s|s|\s+(?:is|are|was|were))\s+(.+)$"),
+    re.compile(r"^what\s+do\s+you\s+(?:remember|know)\s+(?:about|of)\s+(.+)$"),
+    re.compile(r"^(?:(?:do|can|could)\s+you\s+)?(?:remember|recall)\s+(?:about\s+)?(.+)$"),
+    re.compile(r"^(?:(?:can|could)\s+you\s+)?remind\s+me\s+(?:of|about)\s+(.+)$"),
+)
+_SUBJECT_WORD = re.compile(r"[^\W_]+(?:'[^\W_]+)*", re.UNICODE)
+
+
+def _recall_subject(text: str) -> _RecallSubject | None:
+    """Complete noun-phrase identity, with possessive/of relations kept typed.
+
+    A forgotten actor grants recall provenance for its own relations, never
+    a longer actor whose spelling merely contains it. Unknown text shapes
+    abstain; a privacy carrier's substring erase law is not a subject parser.
+    """
+    value = unicodedata.normalize("NFKC", str(text or "")).casefold().replace("’", "'")
+    value = " ".join(value.split()).strip(" .!?;")
+    if not value or re.search(r"[^\w\s'\-_]", value):
+        return None
+
+    def words(part: str) -> tuple[str, ...]:
+        return tuple(_SUBJECT_WORD.findall(part))
+
+    possessive = re.fullmatch(r"(.+?)'s\s+(.+)", value)
+    of_relation = re.fullmatch(r"(.+?)\s+of\s+(.+)", value)
+    if possessive or of_relation:
+        actor, relation = (
+            possessive.groups() if possessive else tuple(reversed(of_relation.groups()))
+        )
+        relation = re.sub(r"^(?:the|a|an)\s+", "", relation)
+        subject_words, relation_words = words(actor), words(relation)
+        return _RecallSubject(subject_words, relation_words) if subject_words and relation_words else None
+    subject_words = words(value)
+    return _RecallSubject(subject_words) if subject_words else None
+
+
+def _question_subject(text: str) -> _RecallSubject | None:
+    value = unicodedata.normalize("NFKC", str(text or "")).casefold().replace("’", "'")
+    value = " ".join(value.split()).strip(" .!?;")
+    value = re.sub(r"^(?:(?:please|also|and)\s+)+", "", value)
+    for frame in _RECALL_SUBJECT_FRAMES:
+        match = frame.fullmatch(value)
+        if match:
+            return _recall_subject(match.group(1))
+    return None
 
 
 def revoked_memory_recall_clauses(
@@ -30,19 +86,22 @@ def revoked_memory_recall_clauses(
     if not revoked_tokens:
         return ()
     from core.agent_runtime.answer_coverage import demand_units, turn_slices
-    from core.memory.carriers import carries
     from core.turn_ir import ClauseKind, parse_turn_ir
 
+    targets = tuple(subject for token in revoked_tokens if (subject := _recall_subject(token)) is not None)
     claimed: list[str] = []
     for item in turn_slices(user_text):
         units = demand_units(item.text)
         if units is None or len(units) != 1:
             continue
         clauses = parse_turn_ir(item.text).clauses
-        if len(clauses) == 1 and all(
-            clause.kind in {ClauseKind.KNOW, ClauseKind.RECALL}
-            and any(carries(clause.request_text, token) for token in revoked_tokens)
-            for clause in clauses
+        if len(clauses) != 1 or clauses[0].kind not in {ClauseKind.KNOW, ClauseKind.RECALL}:
+            continue
+        requested = _question_subject(clauses[0].request_text)
+        if requested and any(
+            target.subject == requested.subject
+            and (not target.relation or target.relation == requested.relation)
+            for target in targets
         ):
             claimed.append(item.text)
     return tuple(claimed)
