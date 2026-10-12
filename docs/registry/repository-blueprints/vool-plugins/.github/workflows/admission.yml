@@ -1,4 +1,6 @@
-name: Registry admission
+# Candidate-editable workflow: advisory only; never the required admission authority.
+# Production requires an authenticated external/protected check and independent signers.
+name: Registry advisory preflight
 on:
   pull_request:
     paths:
@@ -10,10 +12,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: admission-${{ github.event.pull_request.number || github.ref }}
+  group: registry-advisory-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  admission:
+  advisory-preflight:
+    name: Advisory package evidence check
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -53,7 +56,7 @@ jobs:
       - name: Install only the trusted release dependencies
         working-directory: vool
         run: uv sync --frozen --group ci
-      - name: Complete signed admission evidence
+      - name: Advisory validation of signed evidence
         working-directory: vool
         run: |
           uv run --frozen --group ci python -m tools.registry_ci --packages ../candidate/packages --reviews ../trusted/reviews --policy ../trusted/policy/policy.json --root ../trusted/policy/root.json --publication-commit "$CANDIDATE_SHA" --scratch "$RUNNER_TEMP/registry-scratch"

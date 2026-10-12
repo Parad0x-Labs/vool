@@ -8,6 +8,8 @@ Hermes, OpenClaw, Superpowers, Vercel and the existing built-in sources continue
 
 ## Author workflow
 
+Use the complete [author guide](AUTHOR-GUIDE.md), [website integration contract](WEBSITE-HANDOVER.md), [descriptive agent workflow](agent-workflow.json) and [licensed example](examples/meeting-brief/SKILL.md).
+
 Developers use `vool-community` or `python -m tools.community_skills`:
 
 1. Prepare metadata naming a stable `publisher/name`, semantic version, kind, summary, category, subcategory, licence and exact upstream GitHub commit/path. Website drafts receive immutable upload provenance instead.
@@ -19,7 +21,7 @@ Local preflight checks native format, bounded complete input, likely secrets and
 
 ## Private upload and publication
 
-Uploads remain private and unlisted. Local secret findings produce a redacted rejection and discard the payload. Other submissions are quarantined. Independent signed archive and secret reports are required before the author can consent to permanent public GitHub history. The consent binds the exact artifact checksum. Export rechecks report freshness and policy. It creates an outbox candidate, not public approval.
+Uploads remain private and unlisted. Local secret findings produce a redacted rejection and discard the payload. Other submissions are quarantined. Independent signed archive and secret reports are required before the author can consent to permanent public GitHub history. The consent binds the exact artifact checksum. Export rechecks report freshness and policy, then current account ownership, consent, state and exact artifact/review bytes. Already-exported files require the separately activated publisher receipt protocol. It creates an outbox candidate, not public approval.
 
 The isolated GitHub publisher places those exact bytes in the community repository and opens a PR. Final review binds the immutable GitHub commit and artifact path. A protected, maintainer-reviewed merge is followed by offline admission signatures and a protected canonical catalog update. Only that signed catalog projection appears in the approved browser, category lists and rankings. A failed new version does not replace a previous approved version.
 
@@ -33,7 +35,7 @@ Compatibility identifies the exact released VOOL version, source commit and plat
 
 The shipped trust root pins the policy's scanner/rule/configuration descriptor. The invocation target matrix is independently bound by the signed compatibility report and admission. It is deliberately excluded from the policy descriptor hash, so embedding a root in an app does not require that app to contain its own future commit hash. Changing a target matrix still requires fresh, signed exact-target results; it never reuses a compatibility verdict by matching a policy hash alone.
 
-Scanner adapters and independent review signers must be configured outside the web process. Unknown uploaded code runs only in disposable, isolated remote workers with no user credentials, signing keys or production access. Never execute it on the website server or an operator's installed app. The repository blueprints intentionally fail admission until real release pins, policy and signed reviews exist.
+Scanner adapters and independent review signers must be configured outside the web process. Unknown uploaded code runs only in disposable, isolated remote workers with no user credentials, signing keys or production access. Never execute it on the website server or an operator's installed app. The candidate-run repository blueprint workflow is advisory and refuses missing release pins, policy or signed reviews. Candidate-editable workflow results cannot authorize admission. The [trusted admission-service activation contract](ADMISSION-SERVICE.md) requires a protected check with authenticated source identity and independently observed scanner evidence.
 
 ## Native rules have priority
 
@@ -57,6 +59,6 @@ Installation verifies the complete native digest and exact recursive dependency 
 
 GitHub authorization code with state/PKCE, and Google/Apple OIDC with signature/issuer/audience/nonce/expiry checks, provide stable provider identities. Emails are not account-linking keys. Linking requires an authenticated same-origin session plus a new verified provider flow. Passwords and provider access/refresh tokens are not stored; short-lived VOOL sessions use hashed identifiers and essential secure cookies.
 
-Public profiles contain only the chosen namespace, bio and optional HTTPS/social handles. Handles are author-supplied; they do not confer a verified publisher badge. One account can star a stable package once. Version updates keep the same stars and download totals. Global/category ranks use stars with a deterministic ID tie-break. Downloads count request tickets served once, including anonymous use; retries reuse a ticket. These are download requests, not unique people or installed copies. Separate ratings, written reviews and install telemetry are not implemented in this version.
+Public profiles contain only the chosen namespace, bio and optional HTTPS/social handles. Chosen names stay reserved after private account deletion; direct public publication also reserves its publisher. Migration backfills current accounts and surviving publications; deleted unpublished names lost before migration cannot be reconstructed. Unknown ownership refuses self-claiming or transfer. Handles are author-supplied; they do not confer a verified publisher badge. One account can star a stable package once. Version updates keep the same stars and download totals. Global/category ranks use stars with a deterministic ID tie-break. Downloads count request tickets served once, including anonymous use; retries reuse a ticket. These are download requests, not unique people or installed copies. Separate ratings, written reviews and install telemetry are not implemented in this version.
 
 The API has no IP/user-agent retention fields and disables request logs. Hosting and identity providers process network connections; their retention policies must be configured and disclosed separately. Deployment instructions cover proxy logging, private permissions, encrypted backups and restore verification in [OPERATIONS.md](OPERATIONS.md).

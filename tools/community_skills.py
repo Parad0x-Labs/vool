@@ -91,12 +91,18 @@ def main(argv=None) -> int:
             info = decode((args.source / "registry.json").read_bytes(), 32768)
             raw = pack(args.source, info, args.scratch)
         report = preflight(raw, args.scratch)
-        print(canonical(report).decode())
         if report["findings"]:
+            print(canonical(report).decode())
             return 1
         if args.command == "pack":
             with args.output.open("xb") as output:
                 output.write(raw)
+            artifact = inspect(raw)
+            report.update(id=artifact["metadata"]["id"], kind=artifact["metadata"]["kind"],
+                          version=artifact["metadata"]["version"], artifact_length=len(raw),
+                          package_path="packages/" + artifact["sha256"] + ".json",
+                          output_file=str(args.output.resolve()))
+        print(canonical(report).decode())
         return 0
     except (RegistryError, OSError, ValueError) as exc:
         print(canonical({"status": "refused", "reason": str(exc)}).decode())
