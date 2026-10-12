@@ -7,8 +7,8 @@ pre-agent exit without one), and a memory clause read as owed to nobody, so any 
 end the turn on top of it. The detector now lives here so both consumers -- the lane and the
 arbitration -- read the same predicate, and the family can be registered like every other.
 
-Moved verbatim from `core/web/api/runtime.py`; the behavior is unchanged, including the measured
-anchoring rules in `field_is_the_subject` (see its docstring for why broadening is banned).
+The detector and formatter share complete subject/field intent; memory vocabulary alone never
+grants whole-profile authority. The legacy field-tail helper remains available to its callers.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ class _RecallSubject:
 _RECALL_SUBJECT_FRAMES = (
     re.compile(r"^(?:what|when|where|who|which|how)(?:'s|s|\s+(?:is|are|was|were))\s+(.+)$"),
     re.compile(r"^what\s+do\s+you\s+(?:remember|know)\s+(?:about|of)\s+(.+)$"),
-    re.compile(r"^(?:(?:do|can|could)\s+you\s+)?(?:remember|recall)\s+(?:about\s+)?(.+)$"),
+    re.compile(r"^(?:(?:do|can|could)\s+you\s+)?(?:remember|recall|know)\s+(?:about\s+)?(.+)$"),
     re.compile(r"^(?:(?:can|could)\s+you\s+)?remind\s+me\s+(?:of|about)\s+(.+)$"),
 )
 _SUBJECT_WORD = re.compile(r"[^\W_]+(?:'[^\W_]+)*", re.UNICODE)
@@ -107,59 +107,74 @@ def revoked_memory_recall_clauses(
     return tuple(claimed)
 
 
+@dataclass(frozen=True)
+class PrivateMemoryRecallIntent:
+    whole_profile: bool = False
+    fields: tuple[str, ...] = ()
+
+
+_PROFILE_SUBJECTS = frozenset({
+    ("me",), ("my", "profile"), ("my", "personal", "profile"), ("my", "user", "profile"),
+})
+_PROFILE_FIELD_SUBJECTS = {
+    ("name",): ("name",),
+    ("answer", "style"): ("answer_style",),
+    ("response", "style"): ("answer_style",),
+    ("preferred", "style"): ("answer_style",),
+    ("preferred", "answer", "style"): ("answer_style",),
+    ("project", "codename"): ("project_codename",),
+    ("active", "codename"): ("project_codename",),
+    ("codename",): ("project_codename",),
+    ("preference",): ("answer_style", "constraints"),
+    ("preferences",): ("answer_style", "constraints"),
+    ("constraints",): ("constraints",),
+}
+_PROFILE_READ_FRAME = re.compile(r"^(?:please\s+)?(?:show|list|summarize|summarise)\s+(.+)$")
+_PROFILE_STORED_FRAME = re.compile(r"^what\s+(?:is\s+(?:stored|saved)|have\s+you\s+(?:stored|saved))\s+about\s+(.+)$")
+_PROFILE_FIELD_COPULA_FRAME = re.compile(r"^what(?:'s|s|\s+(?:is|are))\s+(.+)$")
+
+
+def private_memory_recall_intent(user_text: str) -> PrivateMemoryRecallIntent:
+    """The complete requested subject owns profile or field recall authority.
+
+    Memory wording alone names an operation, never its private subject. A
+    third-party fact or a field used as a file modifier cannot claim a user
+    profile merely by containing remember/profile/style vocabulary.
+    """
+    from core.user_identity_authority import classify_identity_question
+
+    if classify_identity_question(user_text).asks_user_identity:
+        return PrivateMemoryRecallIntent(fields=("name",))
+    text = unicodedata.normalize("NFKC", str(user_text or "")).casefold().replace("’", "'")
+    text = " ".join(text.split()).strip(" .!?;")
+    subject = None
+    # Recall/show/storage operations ask for the contents. A location or
+    # timing question about the profile is not permission to dump it.
+    for frame in (_PROFILE_FIELD_COPULA_FRAME, *_RECALL_SUBJECT_FRAMES[1:], _PROFILE_READ_FRAME, _PROFILE_STORED_FRAME):
+        match = frame.fullmatch(text)
+        if match:
+            subject = _recall_subject(match.group(1))
+            break
+    if subject is None or subject.relation:
+        return PrivateMemoryRecallIntent()
+    if subject.subject in _PROFILE_SUBJECTS:
+        return PrivateMemoryRecallIntent(whole_profile=True)
+    if subject.subject[:1] == ("my",):
+        return PrivateMemoryRecallIntent(fields=_PROFILE_FIELD_SUBJECTS.get(subject.subject[1:], ()))
+    return PrivateMemoryRecallIntent()
+
+
 def looks_like_private_memory_recall(
     user_text: str,
     *,
     recent_user_texts: tuple[str, ...] | list[str] = (),
 ) -> bool:
-    text = " ".join(str(user_text or "").lower().split())
-    if not text:
-        return False
-    # A question about the user's OWN name is settings recall regardless of phrasing. The marker
-    # list below is literal, so it answered "what's my name?" and left "whats my name?", "yo say my
-    # name!" and "say my nam pls" to a model that then asked for a name already saved in settings.
     from core.user_identity_authority import classify_identity_question
 
-    if classify_identity_question(text, recent_user_texts=recent_user_texts).asks_user_identity:
+    if classify_identity_question(user_text, recent_user_texts=recent_user_texts).asks_user_identity:
         return True
-    # Explicit whole-profile recall — unambiguous, safe to claim on their own.
-    #
-    # "what is my name" / "what's my name" / "who am i" used to sit in this tuple as bare
-    # substrings, and that was a second, independent copy of the defect the classifier above was
-    # fixed for: `"who am i" in text` is true of "…and who am I meeting?", so even with the
-    # classifier correctly declining, the turn still reached the recall path and answered with the
-    # whole stored profile. They are gone rather than re-scoped — `classify_identity_question`
-    # is checked immediately above and is strictly broader for all three, so nothing is lost.
-    profile_markers = (
-        "profile recall",
-        "personal profile",
-        "persistent memory",
-        "stored about me",
-        "remember about me",
-        "what do you remember",
-        "who is the user",
-    )
-    if any(marker in text for marker in profile_markers):
-        return True
-    # Field-specific recall only counts when paired with a possessive/recall intent, so
-    # generic uses of these words (e.g. "set your response style", "the codename is X")
-    # no longer hijack the turn away from the model.
-    recall_intent = any(
-        phrase in text
-        for phrase in (
-            "what is my",
-            "what's my",
-            "what are my",
-            "do you remember my",
-            "do you know my",
-            "recall my",
-            "my stored",
-            "remind me of my",
-        )
-    )
-    if not recall_intent:
-        return False
-    return any(field_is_the_subject(text, field) for field in PRIVATE_MEMORY_FIELDS)
+    intent = private_memory_recall_intent(user_text)
+    return intent.whole_profile or bool(intent.fields)
 
 
 #: The stored fields this lane holds a value for.
@@ -225,5 +240,6 @@ __all__ = [
     "PRIVATE_MEMORY_FIELDS",
     "field_is_the_subject",
     "looks_like_private_memory_recall",
+    "private_memory_recall_intent",
     "revoked_memory_recall_clauses",
 ]

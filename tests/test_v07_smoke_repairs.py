@@ -295,6 +295,50 @@ def test_known_name_does_not_answer_an_unavailable_private_field(question):
     assert _recall(question) is None
 
 
+@pytest.mark.parametrize("question", [
+    "What do you remember about my answer style?", "What do you remember about my project codename?",
+    "What do you remember about Maya's birthday?", "What do you remember about photosynthesis?",
+    "What do you remember about my answer style file?",
+    "Where is my profile?",
+])
+def test_memory_wording_does_not_grant_whole_user_profile_authority(question):
+    from tests.operator_profile_rig import set_owner_preferred_name
+
+    ensure_chat_namespace("erased-chat", grant_confirmed_profile=True)
+    set_owner_preferred_name("Ari")
+    assert "Ari" in _recall("What is my name?")["response"]
+    assert _recall(question) is None
+
+
+def test_explicit_whole_profile_and_available_field_recall_keep_their_authority():
+    from tests.operator_profile_rig import set_owner_preferred_name
+
+    ensure_chat_namespace("erased-chat", grant_confirmed_profile=True)
+    set_owner_preferred_name("Ren")
+    with VoolMemory(runtime_home=str(active_vool_home()), agent_id=SEMANTIC_MEMORY_AGENT_ID) as memory:
+        memory.block_write("preferences", "Answer style: short paragraphs")
+    broad = _recall("What do you remember about me?")
+    assert "Ren" in broad["response"] and "short paragraphs" in broad["response"]
+    field = _recall("What do you remember about my answer style?")
+    assert "short paragraphs" in field["response"]
+    assert "Ren" not in field["response"]
+
+
+def test_local_provider_manifest_binds_selected_environment_and_refreshes_endpoint(monkeypatch):
+    from core.model_registry import ModelRegistry
+    from core.runtime_provider_defaults import _ensure_local_ollama_provider
+
+    monkeypatch.setenv("VOOL_RAW_OLLAMA_API_URL", "http://127.0.0.1:9")
+    registry = ModelRegistry()
+    env = {"VOOL_RAW_OLLAMA_API_URL": "http://127.0.0.1:19001", "VOOL_CONTEXT_BUCKET": "A"}
+    assert _ensure_local_ollama_provider(registry, model_tag="qwen3:8b", bundle_role="general", env=env)
+    assert registry.get_manifest("ollama-local", "qwen3:8b").runtime_config["base_url"] == env["VOOL_RAW_OLLAMA_API_URL"]
+    assert not _ensure_local_ollama_provider(registry, model_tag="qwen3:8b", bundle_role="general", env=env)
+    changed = {**env, "VOOL_RAW_OLLAMA_API_URL": "http://127.0.0.1:19002"}
+    assert _ensure_local_ollama_provider(registry, model_tag="qwen3:8b", bundle_role="general", env=changed)
+    assert registry.get_manifest("ollama-local", "qwen3:8b").runtime_config["base_url"] == changed["VOOL_RAW_OLLAMA_API_URL"]
+
+
 def test_fresh_boot_auth_refuses_discovery_before_any_ssh_or_key_lookup(monkeypatch):
     from core import policy_engine
     from core.web.api.runtime import _bootstrap_public_hive_auth
@@ -367,7 +411,7 @@ def test_fresh_boot_model_preparation_creates_no_download_worker(installed, monk
 
     policy_engine.load(force_reload=True)
     assert policy_engine.get("network.outbound_enabled") is False
-    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model: installed)
+    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model, **kwargs: installed)
 
     def unexpected_worker(*args, **kwargs):
         raise AssertionError("fresh boot must not start a model download worker")
@@ -393,7 +437,7 @@ def test_malformed_outbound_consent_cannot_start_automatic_model_download(consen
     policy_path.parent.mkdir(parents=True, exist_ok=True)
     policy_path.write_text(yaml.safe_dump({"network": {"outbound_enabled": consent}}), encoding="utf-8")
     policy_engine.load(force_reload=True)
-    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model: False)
+    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model, **kwargs: False)
 
     def unexpected_worker(*args, **kwargs):
         raise AssertionError("malformed saved consent must not start a download worker")
@@ -409,7 +453,7 @@ def test_local_only_vetoes_automatic_model_download_despite_saved_consent(monkey
     from core.web.api.runtime import start_ollama_model_pull
 
     policy_engine.set_operator_policy_values({"network.outbound_enabled": True, "system.local_only_mode": True})
-    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model: False)
+    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model, **kwargs: False)
 
     def unexpected_worker(*args, **kwargs):
         raise AssertionError("Local Only must not start a model download worker")

@@ -391,8 +391,11 @@ class ModelPullProgress:
     pull is still running, instead of a snapshot frozen at boot.
     """
 
-    def __init__(self, model_tag: str) -> None:
+    def __init__(self, model_tag: str, *, env: dict[str, str] | None = None) -> None:
         self._done = threading.Event()
+        # The asynchronous job owns the selected endpoint, resolved once at
+        # intake. Progress publication cannot change its execution destination.
+        self._base_url = ollama_base_url(env)
         self.public: dict[str, Any] = {
             "model": str(model_tag or ""),
             "status": "starting",
@@ -417,6 +420,10 @@ class ModelPullProgress:
     @property
     def status(self) -> str:
         return str(self.public.get("status") or "")
+
+    @property
+    def base_url(self) -> str:
+        return self._base_url
 
 
 def normalized_ollama_tag(model_tag: str) -> str:
@@ -545,12 +552,14 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
     """
     body = json.dumps({"model": model_tag, "stream": True}).encode("utf-8")
     request = urllib.request.Request(
-        f"{ollama_base_url()}/api/pull",
+        f"{progress.base_url}/api/pull",
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=_OLLAMA_PULL_READ_TIMEOUT_SECONDS) as response:
+    from core.provider_http import urlopen
+
+    with urlopen(request, timeout=_OLLAMA_PULL_READ_TIMEOUT_SECONDS) as response:
         for raw_line in response:
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line:
@@ -575,7 +584,7 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
 def ensure_ollama_model(model_tag: str | None = None, *, progress: ModelPullProgress | None = None) -> None:
     active_model = str(model_tag or "").strip() or default_runtime_model_tag()
     tracker = progress if progress is not None else ModelPullProgress(active_model)
-    if ollama_model_installed(active_model):
+    if ollama_model_installed(active_model, env={"VOOL_RAW_OLLAMA_API_URL": tracker.base_url}):
         tracker.update(status="ready", percent=100, detail="already installed")
         return
     logger.info(
@@ -607,13 +616,22 @@ def start_ollama_model_pull(model_tag: str | None = None, *, env: dict[str, str]
     Under the canonical LocalModelPolicy's disabled mode this is a typed no-op: no thread, no
     Ollama traffic, no local model download — boot of a cloud-only runtime must never pull.
     """
-    active_model = str(model_tag or "").strip() or default_runtime_model_tag()
-    progress = ModelPullProgress(active_model)
-    if not local_models_enabled(env=env):
+    selected_env = _automatic_provider_env({
+        **(dict(os.environ) if env is None else dict(env)),
+        "VOOL_RAW_OLLAMA_API_URL": ollama_base_url(env),
+    })
+    local_enabled = local_models_enabled(env=selected_env)
+    if not local_enabled:
+        # Choosing a default tag can consult inventory too. The disabled
+        # policy must take effect before selection, not only before the job.
+        selected_env = {**selected_env, "VOOL_ALLOW_OLLAMA_TAGS_FOR_DEFAULT": "0", "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "0"}
+    active_model = str(model_tag or "").strip() or default_runtime_model_tag(env=selected_env)
+    progress = ModelPullProgress(active_model, env=selected_env)
+    if not local_enabled:
         progress.update(status="skipped", detail="local models disabled by policy")
         progress.finish()
         return progress
-    if not _automatic_ollama_access_allowed(env):
+    if not _automatic_ollama_access_allowed(selected_env):
         progress.update(status="skipped", detail="automatic remote model preparation disabled by outbound policy")
         progress.finish()
         return progress
@@ -621,7 +639,7 @@ def start_ollama_model_pull(model_tag: str | None = None, *, env: dict[str, str]
     # a missing model does not grant permission to download it. Explicit model
     # installation still uses ensure_ollama_model at its owning action seam.
     if policy_engine.local_only_mode() or policy_engine.get("network.outbound_enabled", False) is not True:
-        installed = ollama_model_installed(active_model) if env is None else ollama_model_installed(active_model, env=env)
+        installed = ollama_model_installed(active_model, env={"VOOL_RAW_OLLAMA_API_URL": progress.base_url})
         if installed:
             progress.update(status="ready", percent=100, detail="already installed")
         else:
@@ -2529,39 +2547,20 @@ def _compact_block_lines(block_text: str, *, max_lines: int = 3) -> str:
 
 
 def _format_private_memory_recall(values: dict[str, str], *, user_text: str = "") -> str:
-    text = " ".join(str(user_text or "").lower().split())
-    broad_recall = any(
-        marker in text
-        for marker in (
-            "profile recall",
-            "personal profile",
-            "what do you remember",
-            "remember about me",
-            "stored about me",
-            "persistent memory",
+    from core.memory_recall_intent import private_memory_recall_intent
+
+    intent = private_memory_recall_intent(user_text)
+    if not intent.whole_profile:
+        formats = {
+            "name": "Your name is {value}.",
+            "answer_style": "Your preferred answer style is {value}.",
+            "project_codename": "Your active project codename is {value}.",
+            "constraints": "Your stored constraints are {value}.",
+        }
+        return " ".join(
+            formats[field].format(value=values[field])
+            for field in intent.fields if values.get(field)
         )
-    )
-    # Field-scoped answer: for a single-field question, reply with just that field
-    # rather than dumping the whole profile. A broad or multi-field recall falls
-    # through to the summary below.
-    asked: list[str] = []
-    if values.get("name") and (
-        "my name" in text or "who am i" in text or "who is the user" in text
-    ):
-        asked.append(f"Your name is {values['name']}.")
-    if values.get("answer_style") and any(
-        p in text for p in ("answer style", "response style", "preferred style")
-    ):
-        asked.append(f"Your preferred answer style is {values['answer_style']}.")
-    if values.get("project_codename") and "codename" in text:
-        asked.append(f"Your active project codename is {values['project_codename']}.")
-    field_scoped = any(field in text for field in (
-        "my name", "who am i", "who is the user", "answer style", "response style", "preferred style", "codename",
-    ))
-    if not broad_recall and field_scoped:
-        # Another stored field cannot stand in for the field requested. An
-        # unavailable field leaves its demand unresolved for ordinary recall.
-        return " ".join(asked)
     # Broad or multi-field recall — summarise what is stored.
     parts: list[str] = []
     if values.get("name"):
