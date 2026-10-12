@@ -67,3 +67,40 @@ def test_durable_recovery_restores_a_crashed_filesystem_transition(tmp_path, mon
     assert destination.exists() and plugin_lifecycle.is_available(plugin_id)
     assert not path.exists() and not owned.exists()
     client.close()
+
+
+def test_invalid_update_does_not_mutate_pending_recovery(tmp_path, monkeypatch):
+    _, source, info, policy, keys, client, plugin_id = installed_fixture(tmp_path, monkeypatch)
+    try:
+        previous = plugin_lifecycle.record_for(plugin_id)
+        root = tmp_path / "plugin-home"
+        owned = root / ".registry-scratch/invocation-invalid-update"
+        owned.mkdir()
+        destination = Path(previous.root)
+        destination.rename(owned / "previous")
+        journal = {"schema": "vool.registry.transaction.v1", "plugin_id": plugin_id, "root": str(root.resolve()),
+            "owned": owned.name, "source": previous.source, "new_digest": "f" * 64,
+            "previous": dataclasses.asdict(previous), "receipt": json.loads(_receipt_path(plugin_id).read_text()),
+            "was_disabled": False}
+        path = _journal_path(plugin_id)
+        path.parent.mkdir(exist_ok=True)
+        before = canonical(journal)
+        path.write_bytes(before)
+        info["version"] = "1.0.1"
+        manifest = source / ".codex-plugin/plugin.json"
+        value = json.loads(manifest.read_text())
+        value["version"] = info["version"]
+        manifest.write_bytes(canonical(value))
+        (source / "skills/echo/SKILL.md").write_text("No frontmatter in this update.\n")
+        invalid = pack(source, info, tmp_path / "invalid")
+        client.accept(catalog_fixture(invalid, policy, keys, sequence=2), now=NOW)
+        with pytest.raises(RegistryError, match="native skill validation"):
+            install(client, invalid, package_id="alice/echo", version="1.0.1", target=TARGET,
+                    accepted=True, enable=False, now=NOW)
+        assert path.read_bytes() == before
+        assert (owned / "previous").is_dir() and not destination.exists()
+        assert dataclasses.asdict(plugin_lifecycle.record_for(plugin_id)) == dataclasses.asdict(previous)
+        recover(plugin_id, root)
+        assert destination.is_dir() and not path.exists()
+    finally:
+        client.close()

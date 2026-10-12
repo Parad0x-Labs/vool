@@ -169,7 +169,6 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     root = plugin_catalog.configured_plugins_root()
     destination = root / "plugins" / plugin_id
     with _INSTALL_LOCK, plugin_lifecycle._lock, _filesystem_lock(root) as scratch, execution_directory(scratch) as owned:
-        recover(plugin_id, root)
         snapshot = owned / "package"
         materialize(raw, snapshot)
         # This parser validates declarations and creates no subprocess. Candidate
@@ -177,6 +176,7 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
         findings = native_format_findings(snapshot, artifact)
         require(not findings, "native skill validation failed: " + "; ".join(
             item["path"] + ": " + item["reason"] for item in findings))
+        recover(plugin_id, root)
         for dependency, pin in entry["dependencies"].items():
             child = plugin_lifecycle.record_for(dependency)
             require(child and plugin_lifecycle.is_available(dependency) and child.approval_digest == pin,
