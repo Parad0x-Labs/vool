@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import urllib.parse
 from pathlib import Path
 
 from core.plugin_package import execution_directory
-from core.registry.artifact import inspect, materialize, metadata, pack
+from core.registry.artifact import inspect, materialize, metadata, native_identity, pack
 from core.registry.codec import RegistryError, canonical, decode, require
 
 
@@ -18,7 +17,7 @@ def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
     require(bool(license_bytes.strip()) and len(license_bytes) <= 1024 * 1024, "licence text required")
     destination.mkdir()  # Never overwrite an existing project.
     publisher, name = info["id"].split("/")
-    plugin_id = "registry-" + hashlib.sha256(info["id"].encode()).hexdigest()[:24]
+    plugin_id = native_identity(info["id"])
     (destination / ".codex-plugin").mkdir()
     manifest = {"name": plugin_id, "version": info["version"], "description": info["summary"],
                 "skills": "./skills/", "requires": [], "permissions": [],

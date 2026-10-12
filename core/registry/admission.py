@@ -42,6 +42,9 @@ def validate_policy(policy: dict) -> str:
 
 
 def admit(artifact: dict, policy: dict, evidence: dict, *, now: int) -> dict:
+    from core.registry.validation import manifest_authority
+
+    manifest_authority(artifact["manifest"])
     policy_digest = validate_policy(policy)
     from core.registry.rules import analyze
 

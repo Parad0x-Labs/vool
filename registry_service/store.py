@@ -5,16 +5,19 @@ output is private until an independently signed admission is published.
 """
 from __future__ import annotations
 
+import base64
 import contextlib
 import hashlib
+import hmac
 import re
 import secrets
 import sqlite3
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from core.registry.artifact import inspect
-from core.registry.codec import IDENTITY, RegistryError, canonical, decode, require
+from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, require
 from core.registry.intake import secret_findings
 
 
@@ -27,12 +30,17 @@ class Store:
                 CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, namespace TEXT UNIQUE,
                     profile BLOB NOT NULL, created INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS namespace_reservations (namespace TEXT PRIMARY KEY);
+                CREATE TABLE IF NOT EXISTS namespace_owners (namespace TEXT PRIMARY KEY,
+                    account TEXT REFERENCES accounts(id) ON DELETE CASCADE, verified INTEGER NOT NULL DEFAULT 0);
+                CREATE TABLE IF NOT EXISTS publisher_names (namespace TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS identities (provider TEXT, subject TEXT,
                     account TEXT REFERENCES accounts(id) ON DELETE CASCADE, PRIMARY KEY(provider,subject));
                 CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, account TEXT REFERENCES accounts(id)
                     ON DELETE CASCADE, csrf TEXT NOT NULL, expires INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS oauth (hash TEXT PRIMARY KEY, provider TEXT, verifier TEXT,
                     nonce TEXT, browser TEXT, expires INTEGER, link_account TEXT);
+                CREATE INDEX IF NOT EXISTS oauth_browser_provider ON oauth(browser,provider);
+                CREATE INDEX IF NOT EXISTS oauth_expiry ON oauth(expires);
                 CREATE TABLE IF NOT EXISTS submissions (id TEXT PRIMARY KEY, account TEXT REFERENCES accounts(id)
                     ON DELETE CASCADE, created INTEGER, package_id TEXT, version TEXT, sha256 TEXT,
                     artifact BLOB, state TEXT, findings BLOB, consent INTEGER DEFAULT 0,
@@ -44,13 +52,22 @@ class Store:
                 CREATE TABLE IF NOT EXISTS download_tickets (id TEXT PRIMARY KEY, sha256 TEXT,
                     expires INTEGER, served INTEGER DEFAULT 0);
                 CREATE TABLE IF NOT EXISTS download_counts (package_id TEXT PRIMARY KEY, requests INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS service_keys (name TEXT PRIMARY KEY, value BLOB NOT NULL);
+                CREATE TABLE IF NOT EXISTS upload_leases (id TEXT PRIMARY KEY,
+                    account TEXT REFERENCES accounts(id) ON DELETE CASCADE, namespace TEXT NOT NULL, expires INTEGER NOT NULL);
             """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(public_versions)")}
             if "inspection" not in columns:
                 db.execute("ALTER TABLE public_versions ADD COLUMN inspection BLOB")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(submissions)")}
+            if "publisher_bound" not in columns:
+                db.execute("ALTER TABLE submissions ADD COLUMN publisher_bound INTEGER NOT NULL DEFAULT 0")
             # A public name survives private account deletion without retaining
             # provider/account identifiers. Legacy state must be unambiguous.
             db.execute("BEGIN IMMEDIATE")
+            db.execute("INSERT OR IGNORE INTO service_keys VALUES ('download-hmac',?)", (secrets.token_bytes(32),))
+            self._ticket_key = db.execute("SELECT value FROM service_keys WHERE name='download-hmac'").fetchone()[0]
+            require(isinstance(self._ticket_key, bytes) and len(self._ticket_key) == 32, "invalid private download key")
             namespaces = {row[0] for row in db.execute("SELECT namespace FROM accounts WHERE namespace IS NOT NULL")}
             for row in db.execute("SELECT package_id,version,entry FROM public_versions"):
                 entry = decode(row["entry"])
@@ -61,10 +78,15 @@ class Store:
                         all(IDENTITY.fullmatch(part) for part in row["package_id"].split("/")),
                         "published namespace migration requires valid matching metadata")
                 namespaces.add(row["package_id"].split("/")[0])
+                db.execute("INSERT OR IGNORE INTO publisher_names VALUES (?)", (row["package_id"].split("/")[0],))
             for namespace in namespaces:
                 require(isinstance(namespace, str) and bool(IDENTITY.fullmatch(namespace)),
                         "namespace migration requires valid names")
                 db.execute("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", (namespace,))
+            # Legacy account handles are not proof of a GitHub publisher link.
+            db.execute("""INSERT OR IGNORE INTO namespace_owners(namespace,account)
+                SELECT namespace,id FROM accounts WHERE namespace IS NOT NULL
+                AND namespace NOT IN (SELECT namespace FROM publisher_names)""")
         path.chmod(0o600)
 
     @contextlib.contextmanager
@@ -123,6 +145,7 @@ class Store:
                 try:
                     if row["namespace"] is None:
                         db.execute("INSERT INTO namespace_reservations VALUES (?)", (namespace,))
+                        db.execute("INSERT INTO namespace_owners(namespace,account) VALUES (?,?)", (namespace, account))
                     db.execute("UPDATE accounts SET namespace=?, profile=? WHERE id=?", (namespace, canonical(value), account))
                 except sqlite3.IntegrityError:
                     raise RegistryError("namespace already reserved; transfer requires maintainer review") from None
@@ -131,8 +154,29 @@ class Store:
 
     def public_profile(self, namespace: str) -> dict:
         with self.connection() as db:
-            row = db.execute("SELECT profile FROM accounts WHERE namespace=?", (namespace,)).fetchone()
+            row = db.execute("""SELECT profile FROM accounts JOIN namespace_owners AS owner
+                ON owner.account=accounts.id AND owner.namespace=accounts.namespace
+                WHERE owner.namespace=? AND (owner.verified=1 OR NOT EXISTS
+                (SELECT 1 FROM publisher_names WHERE namespace=owner.namespace))""", (namespace,)).fetchone()
         return {"namespace": namespace, **decode(row[0])} if row else {"namespace": namespace, "bio": "", "handles": {}}
+
+    def reserve_publication(self, package_id: str) -> None:
+        """Operator-only pending/direct publisher reservation; no author HTTP route."""
+        parts = package_id.split("/") if isinstance(package_id, str) else []
+        require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts), "invalid publisher package id")
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", (parts[0],))
+            db.execute("INSERT OR IGNORE INTO publisher_names VALUES (?)", (parts[0],))
+
+    @staticmethod
+    def _upload_namespace(db, account: str) -> str:
+        row = db.execute("""SELECT accounts.namespace FROM accounts JOIN namespace_owners AS owner
+            ON owner.account=accounts.id AND owner.namespace=accounts.namespace WHERE accounts.id=?
+            AND (owner.verified=1 OR NOT EXISTS
+            (SELECT 1 FROM publisher_names WHERE namespace=owner.namespace))""", (account,)).fetchone()
+        require(row and row[0], "namespace required; known publishers need a verified account association")
+        return row[0]
 
     def session(self, account: str, *, now: int) -> tuple[str, str]:
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
@@ -160,23 +204,63 @@ class Store:
             db.execute("DELETE FROM accounts WHERE id=?", (account,))
             db.execute("DELETE FROM oauth WHERE link_account=?", (account,))
 
-    def upload(self, account: str, raw: bytes, *, now: int) -> dict:
+    @contextlib.contextmanager
+    def upload_slot(self, account: str, *, now: int):
+        """Reserve quota and one of four shared slots before reading or parsing."""
+        token = secrets.token_hex(16)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("DELETE FROM upload_leases WHERE expires<=?", (now,))
+            namespace = self._upload_namespace(db, account)
+            pending = db.execute("SELECT count(*) FROM upload_leases WHERE account=?", (account,)).fetchone()[0]
+            count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, now - 86400)).fetchone()[0]
+            require(count + pending < 10, "daily submission quota reached")
+            require(pending == 0, "concurrent upload already active for this account")
+            require(db.execute("SELECT count(*) FROM upload_leases").fetchone()[0] < 4, "concurrent upload capacity reached")
+            db.execute("INSERT INTO upload_leases VALUES (?,?,?,?)", (token, account, namespace, now + 300))
+        try:
+            yield token
+        finally:
+            with self.connection() as db:
+                db.execute("DELETE FROM upload_leases WHERE id=? AND account=?", (token, account))
+
+    def _check_upload_slot(self, db, account: str, token: str, now: int) -> str:
+        namespace = self._upload_namespace(db, account)
+        row = db.execute("SELECT namespace FROM upload_leases WHERE id=? AND account=? AND expires>?",
+                         (token, account, now)).fetchone()
+        require(row and row[0] == namespace, "upload reservation expired or ownership changed")
+        return namespace
+
+    def upload(self, account: str, raw: bytes, *, now: int, _slot: str | None = None) -> dict:
+        if _slot is None:
+            with self.upload_slot(account, now=now) as slot:
+                return self.upload(account, raw, now=now, _slot=slot)
+        started = time.monotonic()
+        with self.connection() as db:
+            namespace = self._check_upload_slot(db, account, _slot, now)
         artifact = inspect(raw)
-        profile = self.profile(account)
-        require(profile["namespace"] == artifact["metadata"]["id"].split("/")[0], "package publisher must match your namespace")
+        require(namespace == artifact["metadata"]["id"].split("/")[0], "package publisher must match your namespace")
         findings = secret_findings(artifact["files"])
         identifier = secrets.token_hex(16)
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, now - 86400)).fetchone()[0]
+            completed = now + int(time.monotonic() - started)
+            self._check_upload_slot(db, account, _slot, completed)
+            count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, completed - 86400)).fetchone()[0]
             require(count < 10, "daily submission quota reached")
             db.execute("INSERT INTO submissions (id,account,created,package_id,version,sha256,artifact,state,findings) VALUES (?,?,?,?,?,?,?,?,?)",
-                       (identifier, account, now, artifact["metadata"]["id"], artifact["metadata"]["version"], artifact["sha256"],
+                       (identifier, account, completed, artifact["metadata"]["id"], artifact["metadata"]["version"], artifact["sha256"],
                         None if findings else raw, "rejected" if findings else "quarantined", canonical(findings)))
         return self.submission(account, identifier)
 
-    def draft(self, account: str, value: dict, *, now: int) -> dict:
+    def draft(self, account: str, value: dict, *, now: int, _slot: str | None = None) -> dict:
         """Simple website SKILL.md + licence intake; GitHub provenance is bound later."""
+        if _slot is None:
+            with self.upload_slot(account, now=now) as slot:
+                return self.draft(account, value, now=now, _slot=slot)
+        started = time.monotonic()
+        with self.connection() as db:
+            namespace = self._check_upload_slot(db, account, _slot, now)
         from core.plugin_package import execution_directory
         from core.registry.artifact import pack
         from tools.community_skills import initialize, preflight
@@ -184,8 +268,7 @@ class Store:
         require(isinstance(value, dict) and set(value) == {"metadata", "skill_markdown", "license_text"}, "invalid skill draft")
         info = dict(value["metadata"])
         require("source" not in info and info.get("kind") == "skill", "draft source is assigned by the server")
-        profile = self.profile(account)
-        info["source"] = {"upload_id": secrets.token_hex(16), "namespace": profile["namespace"]}
+        info["source"] = {"upload_id": secrets.token_hex(16), "namespace": namespace}
         require(all(isinstance(value[field], str) and 0 < len(value[field]) <= 32768
                     for field in ("skill_markdown", "license_text")), "draft text exceeds limit")
         scratch = self.path.parent / "scratch"
@@ -196,10 +279,14 @@ class Store:
             (source / "skills" / name / "SKILL.md").write_text(value["skill_markdown"], encoding="utf-8")
             raw = pack(source, info, scratch)
             local = preflight(raw, scratch)
-        result = self.upload(account, raw, now=now)
+        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot)
         if local["findings"] and result["state"] != "rejected":
             with self.connection() as db:
                 db.execute("UPDATE submissions SET state='held', findings=? WHERE id=?", (canonical(local["findings"]), result["id"]))
+        # This marker is assigned only to bytes constructed by this service,
+        # never to an author-supplied artifact or self-declared social handle.
+        with self.connection() as db:
+            db.execute("UPDATE submissions SET publisher_bound=1 WHERE id=? AND account=?", (result["id"], account))
         return self.submission(account, result["id"])
 
     def submission(self, account: str, identifier: str) -> dict:
@@ -300,6 +387,18 @@ class Store:
             previous = db.execute("SELECT sha256 FROM public_versions WHERE package_id=? AND version=?", (package_id, version)).fetchone()
             require(not previous or previous[0] == artifact["sha256"], "published versions are immutable")
             db.execute("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", (package_id.split("/")[0],))
+            namespace = package_id.split("/")[0]
+            db.execute("INSERT OR IGNORE INTO publisher_names VALUES (?)", (namespace,))
+            bound = db.execute("""SELECT submissions.account FROM submissions JOIN accounts
+                ON accounts.id=submissions.account WHERE sha256=? AND artifact=? AND publisher_bound=1
+                AND consent=1 AND state IN ('ready_for_github','published') AND accounts.namespace=?""",
+                (artifact["sha256"], raw, namespace)).fetchone() if "upload_id" in artifact["metadata"]["source"] else None
+            if bound:
+                db.execute("UPDATE namespace_owners SET verified=1 WHERE namespace=? AND account=?", (namespace, bound[0]))
+            else:
+                # A GitHub import cannot turn an earlier website claimant into
+                # its publisher. Verified external account linking is pending.
+                db.execute("UPDATE namespace_owners SET verified=0 WHERE namespace=?", (namespace,))
             db.execute("INSERT OR IGNORE INTO public_versions (package_id,version,sha256,entry,artifact,published,inspection) VALUES (?,?,?,?,?,?,?)", (package_id, version,
                 artifact["sha256"], canonical(entry), raw, now, canonical(inspection)))
             db.execute("UPDATE public_versions SET inspection=? WHERE package_id=? AND version=?", (canonical(inspection), package_id, version))
@@ -334,22 +433,28 @@ class Store:
         return {"stars": stars, "download_requests": row[0] if row else 0}
 
     def ticket(self, sha256: str, *, now: int) -> str:
-        self.public_artifact(sha256)
-        token = secrets.token_urlsafe(24)
+        require(isinstance(sha256, str) and bool(HEX.fullmatch(sha256)), "invalid artifact checksum")
         with self.connection() as db:
-            db.execute("DELETE FROM download_tickets WHERE expires<=?", (now,))
-            require(db.execute("SELECT count(*) FROM download_tickets").fetchone()[0] < 10000, "download service capacity reached")
-            db.execute("INSERT INTO download_tickets (id,sha256,expires) VALUES (?,?,?)", (token, sha256, now + 900))
-        return token
+            require(db.execute("SELECT 1 FROM public_versions WHERE sha256=?", (sha256,)).fetchone(), "approved artifact not found")
+        # Fixed binary encoding fits the native client's bounded ticket field:
+        # checksum (32), expiry (8), nonce (16), HMAC-SHA256 (32). No issue row.
+        payload = bytes.fromhex(sha256) + (now + 900).to_bytes(8, "big") + secrets.token_bytes(16)
+        return base64.urlsafe_b64encode(payload + hmac.digest(self._ticket_key, payload, "sha256")).decode().rstrip("=")
 
     def download(self, sha256: str, ticket: str, *, now: int) -> bytes:
+        require(isinstance(ticket, str) and bool(re.fullmatch(r"[A-Za-z0-9_-]{118}", ticket)), "invalid download ticket")
+        token = base64.b64decode(ticket + "==", altchars=b"-_", validate=True)
+        require(len(token) == 88 and base64.urlsafe_b64encode(token).decode().rstrip("=") == ticket and
+                hmac.compare_digest(token[56:], hmac.digest(self._ticket_key, token[:56], "sha256")), "invalid download ticket signature")
+        expires = int.from_bytes(token[32:40], "big")
+        require(token[:32].hex() == sha256 and now < expires <= now + 900, "download ticket expired or mismatched")
         raw, entry = self.public_artifact(sha256)
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT * FROM download_tickets WHERE id=? AND sha256=? AND expires>?", (ticket, sha256, now)).fetchone()
-            require(row, "download ticket expired or unknown")
-            if not row["served"]:
-                db.execute("UPDATE download_tickets SET served=1 WHERE id=?", (ticket,))
+            db.execute("DELETE FROM download_tickets WHERE expires<=?", (now,))
+            served = db.execute("INSERT OR IGNORE INTO download_tickets(id,sha256,expires,served) VALUES (?,?,?,1)",
+                (hashlib.sha256(token).hexdigest(), sha256, expires))
+            if served.rowcount:
                 db.execute("INSERT INTO download_counts VALUES (?,1) ON CONFLICT(package_id) DO UPDATE SET requests=requests+1", (entry["metadata"]["id"],))
         return raw
 
@@ -359,3 +464,4 @@ class Store:
             db.execute("DELETE FROM oauth WHERE expires<=?", (now,))
             db.execute("DELETE FROM download_tickets WHERE expires<=?", (now,))
             db.execute("UPDATE submissions SET artifact=NULL, review=NULL, state='expired' WHERE created<? AND state NOT IN ('published','rejected','expired')", (now - 7 * 86400,))
+            db.execute("DELETE FROM upload_leases WHERE expires<=?", (now,))

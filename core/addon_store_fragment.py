@@ -143,7 +143,7 @@ function renderRegistry(host,query){
   const r=registryReview,info=r.metadata;
   host.append(node('h3',info.id+' · '+info.version),node('p',info.summary));nativeControlNotice(host,r);
   const details=node('details');details.append(node('summary',tr('registry_evidence','Exact files, permissions and source')),
-   node('pre',JSON.stringify({sha256:r.sha256,source:info.source,permissions:r.permissions,dependencies:r.dependencies,files:r.files},null,2)));host.append(details);
+   node('pre',JSON.stringify({sha256:r.sha256,source:info.source,permissions:r.permissions,tools:r.tools,credential_bindings:r.credential_bindings,dependencies:r.dependencies,files:r.files},null,2)));host.append(details);
   Object.entries(r.instructions||{}).forEach(([name,body])=>{const item=node('details');item.append(node('summary',name),node('pre',body));host.append(item);});
   const acts=node('div',undefined,'addon-actions');host.append(acts);
   const accept=enabled=>action(async()=>{await post({action:'registry_install',id:r.id,version:r.version,review_id:r.review_id,accepted:true,enable:enabled});registryReview=null;tab='installed';_pluginCatalog=await(await fetch('/api/plugins')).json();data=await read();});

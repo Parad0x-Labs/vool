@@ -28,6 +28,11 @@ _PRIVATE = {".git", ".ssh", ".aws", ".gnupg", "credentials.json", "id_rsa", "id_
 _DEVICES = {"con", "prn", "aux", "nul"} | {f"{prefix}{number}" for prefix in ("com", "lpt") for number in range(1, 10)}
 
 
+def native_identity(package_id: str) -> str:
+    """One stable native identity for each publisher/package pair."""
+    return "registry-" + hashlib.sha256(package_id.encode("utf-8")).hexdigest()[:24]
+
+
 def path_name(value: str) -> str:
     require(isinstance(value, str) and 0 < len(value) <= 512 and bool(_PATH.fullmatch(value)),
             "invalid package path")
@@ -138,7 +143,8 @@ def inspect(raw: bytes) -> dict:
     manifest = decode(content.get(".codex-plugin/plugin.json", b""), limit=1024 * 1024)
     require(isinstance(manifest, dict) and bool(IDENTITY.fullmatch(str(manifest.get("name", "")))) and
             manifest.get("version") == value["metadata"]["version"], "native manifest identity mismatch")
-    require(manifest["name"].startswith("registry-"), "public packages must use the SDK registry- identity namespace")
+    require(manifest["name"] == native_identity(value["metadata"]["id"]),
+            "native manifest identity is not bound to the package id")
     dependencies = manifest.get("requires", [])
     require(isinstance(dependencies, list) and len(dependencies) <= 64 and
             all(isinstance(item, str) and bool(IDENTITY.fullmatch(item)) for item in dependencies) and

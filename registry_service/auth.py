@@ -119,15 +119,20 @@ class Auth:
         self.providers = {provider.name: provider for provider in providers}
         require(len(self.providers) == len(providers), "duplicate provider registration")
 
-    def begin(self, name: str, *, now: int, link_account: str = "") -> tuple[str, str]:
+    def begin(self, name: str, *, now: int, link_account: str = "", browser: str = "") -> tuple[str, str]:
         require(name in self.providers, "login provider is not configured")
         provider, endpoints = self.providers[name], PROVIDERS[name]
-        state, nonce, browser, verifier = (secrets.token_urlsafe(32) for _ in range(4))
+        require(isinstance(browser, str) and (not browser or bool(re.fullmatch(r"[A-Za-z0-9_-]{32,128}", browser))),
+                "invalid login browser binding")
+        browser = browser or secrets.token_urlsafe(32)
+        state, nonce, verifier = (secrets.token_urlsafe(32) for _ in range(3))
         state_hash = hashlib.sha256(state.encode()).hexdigest()
         browser_hash = hashlib.sha256(browser.encode()).hexdigest()
         with self.store.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
             db.execute("DELETE FROM oauth WHERE expires<=?", (now,))
-            require(db.execute("SELECT count(*) FROM oauth").fetchone()[0] < 1000, "login service capacity reached")
+            require(db.execute("SELECT count(*) FROM oauth WHERE browser=? AND provider=?", (browser_hash, name)).fetchone()[0] < 8,
+                    "pending login capacity reached for this browser and provider")
             db.execute("INSERT INTO oauth VALUES (?,?,?,?,?,?,?)", (state_hash, name, verifier, nonce, browser_hash, now + 600, link_account))
         params = {"client_id": provider.client_id, "redirect_uri": self.origin + "/registry/api/auth/" + name + "/callback",
                   "response_type": "code", "state": state}

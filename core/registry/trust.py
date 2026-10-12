@@ -223,9 +223,10 @@ def validate_entry(entry: dict, root: dict, now: int) -> None:
     require(type(entry["artifact_length"]) is int and 0 < entry["artifact_length"] <= 24 * 1024 * 1024 and
             isinstance(entry["dependencies"], dict) and len(entry["dependencies"]) <= 64 and
             all(HEX.fullmatch(str(pin)) for pin in entry["dependencies"].values()), "unbounded admission")
+    from core.registry.artifact import native_identity
     from core.registry.codec import COMMIT, IDENTITY
 
-    require(bool(IDENTITY.fullmatch(str(entry["plugin_id"]))) and
+    require(entry["plugin_id"] == native_identity(entry["metadata"]["id"]) and
             all(IDENTITY.fullmatch(str(key)) for key in entry["dependencies"]), "invalid native plugin identity")
     targets = entry["targets"]
     require(isinstance(targets, list) and 0 < len(targets) <= 32 and

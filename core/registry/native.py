@@ -150,11 +150,12 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             accepted: bool, enable: bool, now: int) -> dict:
     """Explicit owner consent. Public review cannot grant a runtime permission."""
     from core import plugin_catalog, plugin_lifecycle
-    from core.registry.validation import native_format_findings
+    from core.registry.validation import manifest_authority, native_format_findings
 
     require(accepted is True and type(enable) is bool, "explicit local installation consent is required")
     entry = catalog.resolve(package_id, version, target=target, now=now)
     artifact = inspect(raw)
+    authority = manifest_authority(artifact["manifest"])
     from core.registry.rules import analyze
 
     require(not analyze(artifact["files"])["conflicts"], "instructions cannot override VOOL native controls")
@@ -162,7 +163,9 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             artifact["native_digest"] == entry["native_digest"] and artifact["metadata"] == entry["metadata"] and
             artifact["manifest"]["name"] == entry["plugin_id"], "download differs from signed admission")
     plugin_id = entry["plugin_id"]
-    require(plugin_id.startswith("registry-"), "public registry plugins must use the reserved registry- prefix")
+    from core.registry.artifact import native_identity
+
+    require(plugin_id == native_identity(package_id), "native plugin identity is not bound to the package id")
     # Only the application-owned state path may authorize the runtime predicate.
     require(Path(catalog.db.execute("PRAGMA database_list").fetchone()[2]).resolve() ==
             (home() / "config" / STATE_NAME).resolve(), "client trust state belongs to another runtime")
@@ -218,7 +221,7 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             journal_path.unlink()
             return {"status": "installed", "id": package_id, "version": version, "plugin_id": plugin_id,
                     "enabled": record.enabled, "native_digest": record.verified_digest,
-                    "permissions": record.declared_permissions, "note": "Runtime permission checks still apply."}
+                    **authority, "note": "Runtime permission checks still apply."}
         except Exception:
             if moved and destination.exists():
                 destination.rename(owned / "failed")
@@ -242,6 +245,8 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
 
 
 def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict, now: int) -> dict:
+    from core.registry.validation import manifest_authority
+
     entry = catalog.resolve(package_id, version, target=target, now=now)
     value = inspect(raw)
     from core.registry.rules import analyze, notices
@@ -251,7 +256,7 @@ def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
         set(entry["native_rule_review"]["overlaps"]) | {item["control"] for item in boundaries["native_control_overlaps"]})
     require(value["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"], "preview input differs from admission")
     return {"id": package_id, "version": version, "sha256": value["sha256"], "metadata": value["metadata"], **boundaries,
-            "permissions": value["manifest"].get("permissions", []), "dependencies": entry["dependencies"],
+            **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"],
             "instructions": {name: data.decode("utf-8") for name, data in value["files"].items() if name.endswith("/SKILL.md")},
             "files": [{key: val for key, val in item.items() if key != "content"} for item in value["entries"]],
             "reviewed": True, "installed": False, "enabled": False}

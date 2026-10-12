@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from core.registry.admission import CHECKS, admit, validate_policy
-from core.registry.artifact import inspect, pack
+from core.registry.artifact import inspect, native_identity, pack
 from core.registry.codec import canonical, digest
 
 NOW = 1802336400
@@ -42,7 +42,7 @@ def artifact_fixture(tmp_path, *, executable=False):
     root = tmp_path / "author"
     (root / ".codex-plugin").mkdir(parents=True)
     (root / ".codex-plugin" / "plugin.json").write_text(json.dumps({
-        "name": "registry-alice-echo", "version": "1.0.0", "skills": "./skills/", "requires": []}))
+        "name": native_identity("alice/echo"), "version": "1.0.0", "skills": "./skills/", "requires": []}))
     skill = root / "skills" / "echo"
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text("---\nname: echo\ndescription: Summarize a provided message\n---\nSummarize only the provided message.\n")

@@ -1,6 +1,7 @@
 """JSON API for the website developer. No HTML rendering, arbitrary fetches or package execution."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import time
 import urllib.parse
@@ -17,6 +18,7 @@ from registry_service.auth import Auth
 from registry_service.store import Store
 
 PREFIX = "/registry/api"
+UPLOAD_BODY_TIMEOUT = 30
 
 
 def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.time, discovery=None) -> Starlette:
@@ -46,6 +48,12 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         value = decode(await body(request, limit=32768), 32768)
         require(isinstance(value, dict), "JSON object required")
         return value
+
+    async def upload_body(read):
+        try:
+            return await asyncio.wait_for(read, timeout=UPLOAD_BODY_TIMEOUT)
+        except TimeoutError:
+            raise RegistryError("upload body timed out") from None
 
     async def public_catalog(request):
         if request.query_params.get("channel") == "discovery":
@@ -117,16 +125,18 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             return JSONResponse({"submissions": await run_in_threadpool(store.submissions, who)})
         require(request.headers.get("content-type", "").split(";")[0] == "application/vnd.vool.registry+json",
                 "registry artifact content type required")
-        raw = await body(request)
-        return JSONResponse(await run_in_threadpool(store.upload, who, raw, now=now()), status_code=201)
+        with store.upload_slot(who, now=now()) as slot:
+            raw = await upload_body(body(request))
+            return JSONResponse(await run_in_threadpool(store.upload, who, raw, now=now(), _slot=slot), status_code=201)
 
     async def submission(request):
         return JSONResponse(await run_in_threadpool(store.submission, account(request), request.path_params["identifier"]))
 
     async def draft(request):
         who = account(request, mutation=True)
-        value = await json_body(request)
-        return JSONResponse(await run_in_threadpool(store.draft, who, value, now=now()), status_code=201)
+        with store.upload_slot(who, now=now()) as slot:
+            value = await upload_body(json_body(request))
+            return JSONResponse(await run_in_threadpool(store.draft, who, value, now=now(), _slot=slot), status_code=201)
 
     async def consent(request):
         value = await json_body(request)
@@ -159,7 +169,8 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         link = ""
         if request.method == "POST":
             link = account(request, mutation=True)
-        url, browser = await run_in_threadpool(auth.begin, request.path_params["provider"], now=now(), link_account=link)
+        url, browser = await run_in_threadpool(auth.begin, request.path_params["provider"], now=now(), link_account=link,
+                                             browser=request.cookies.get("vool_registry_oauth", ""))
         response = RedirectResponse(url, status_code=303)
         # Apple posts its callback cross-site; this short-lived flow cookie has no
         # session authority and is bound to random state in the server's table.

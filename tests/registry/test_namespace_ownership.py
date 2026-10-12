@@ -5,12 +5,21 @@ from threading import Barrier
 import pytest
 from starlette.testclient import TestClient
 
+from core.registry.artifact import inspect
 from core.registry.codec import RegistryError, canonical
 from core.registry.trust import TrustedCatalog
 from registry_service.api import PREFIX, create_app
 from registry_service.auth import Auth, Provider
 from registry_service.store import Store
-from tests.registry.helpers import NOW, TARGET, artifact_fixture, catalog_fixture, trust_fixture
+from tests.registry.helpers import (
+    NOW,
+    TARGET,
+    artifact_fixture,
+    catalog_fixture,
+    evidence_fixture,
+    signed,
+    trust_fixture,
+)
 
 
 def _profile(namespace, *, bio="", github=""):
@@ -18,10 +27,21 @@ def _profile(namespace, *, bio="", github=""):
 
 
 @pytest.fixture
-def published_service(tmp_path):
+def published_service(tmp_path, request):
     raw, _, _ = artifact_fixture(tmp_path)
     policy, keys, root = trust_fixture()
     store = Store(tmp_path / "private" / "accounts.sqlite")
+    if getattr(request, "param", None) == "website":
+        author = store.identity("github", "publisher-original", now=NOW)
+        store.profile(author, _profile("alice", bio="Original author", github="alice"))
+        artifact = inspect(raw)
+        draft = store.draft(author, {"metadata": {key: val for key, val in artifact["metadata"].items() if key != "source"},
+            "skill_markdown": artifact["files"]["skills/echo/SKILL.md"].decode(),
+            "license_text": artifact["files"]["LICENSE"].decode()}, now=NOW)
+        with store.connection() as db:
+            raw = db.execute("SELECT artifact FROM submissions WHERE id=?", (draft["id"],)).fetchone()[0]
+        store.review(draft["id"], signed(evidence_fixture(raw, policy), keys["review"]), policy, root["signed"], now=NOW)
+        store.consent(author, draft["id"], draft["sha256"], public=True)
     catalog = TrustedCatalog(root, tmp_path / "trust" / "state", now=NOW)
     try:
         catalog.accept(catalog_fixture(raw, policy, keys), now=NOW)
@@ -31,6 +51,7 @@ def published_service(tmp_path):
         catalog.close()
 
 
+@pytest.mark.parametrize("published_service", ["website"], indirect=True)
 def test_deleted_publisher_cannot_be_reclaimed_in_served_catalog(published_service):
     store, catalog, app, raw = published_service
     author = store.identity("github", "publisher-original", now=NOW)
@@ -178,7 +199,7 @@ def test_deletion_purges_private_rows_and_retains_only_public_name_reservation(p
         store.submission(owner, submission["id"])
     with store.connection() as db:
         assert db.execute("SELECT count(*) FROM accounts WHERE id=?", (owner,)).fetchone()[0] == 0
-        for table in ("identities", "sessions", "submissions", "stars"):
+        for table in ("identities", "sessions", "submissions", "stars", "namespace_owners"):
             assert db.execute(f"SELECT count(*) FROM {table} WHERE account=?", (owner,)).fetchone()[0] == 0
         assert db.execute("SELECT count(*) FROM oauth WHERE link_account=?", (owner,)).fetchone()[0] == 0
         reservations = [dict(row) for row in db.execute("SELECT * FROM namespace_reservations")]
