@@ -192,6 +192,9 @@ _CONDITIONAL_OFFER_RE = re.compile(
     r"just\s+(?:say|tell|let)|once\s+you|when\s+you)\b",
     re.IGNORECASE,
 )
+#: "I'll create the files next, then run the suite" lays out a plan for a later step; it does not
+#: say a file is being made on this turn, so there is no waiting user to protect.
+_DEFERRED_PLAN_RE = re.compile(r"\b(?:next|later|afterwards|after\s+(?:that|this))\b", re.IGNORECASE)
 _UNBACKED_PROMISE_NOTE = "(I cannot verify that file from this turn's execution record.)"
 
 #: What a persistence claim is ABOUT. Memory, preferences and standing rules are the things a user
@@ -622,6 +625,28 @@ def _deliverable_claim_fragments(text: str) -> list[str]:
     return fragments
 
 
+def _build_claim_sentence(body: str) -> bool:
+    """Whether some sentence reports this runtime's own finished build (files written, tests run)."""
+    return any(
+        _BUILD_CLAIM_RE.search(sentence)
+        and not (_BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence))
+        for sentence in _split_sentences(body)
+    )
+
+
+def _only_a_file_count(fragment: str) -> bool:
+    """A claim fragment that counts files ("created both files") and names no document or file.
+
+    Inside a build report such a count is the build's own output: the build law, which reads the
+    turn's execution record, decides it, as it did before deliverable claims existed. A named file
+    or a document, deck, spreadsheet or PDF stays a deliverable claim."""
+    return (
+        _COMPLETED_FILE_COUNT_RE.search(fragment) is not None
+        and _DELIVERABLE_CLAIM_RE.search(fragment) is None
+        and _SPECIFIC_DELIVERABLE_NAME_RE.search(fragment) is None
+    )
+
+
 def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
     """What kind of finished work a reply claims: ``""``, ``"mutation"``, ``"build"`` or ``"persistence"``.
 
@@ -675,7 +700,8 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
         if modal_context and not self_report:
             continue
         return "deliverable" if _deliverable_claim_fragments(body) else "mutation"
-    if _deliverable_claim_fragments(body):
+    fragments = _deliverable_claim_fragments(body)
+    if fragments and not (_build_claim_sentence(body) and all(map(_only_a_file_count, fragments))):
         return "deliverable"
     for sentence in _split_sentences(body):
         if not _BUILD_CLAIM_RE.search(sentence):
@@ -858,6 +884,20 @@ _FILE_COUNT_WORDS = {"one": 1, "both": 2, "two": 2, "three": 3, "four": 4, "five
                      "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "dozen": 12}
 
 
+_PATH_CHAR_RE = re.compile(r"[\w~/.\\-]")
+
+
+def _trailing_path_run(prefix: str) -> str:
+    """The run of path characters that ends ``prefix``, found in one backward pass.
+
+    A ``[...]+$`` search retries from every start inside a long run that a later character breaks,
+    which is quadratic in the run's length; this walk reads each character once."""
+    start = len(prefix)
+    while start > 0 and _PATH_CHAR_RE.fullmatch(prefix[start - 1]):
+        start -= 1
+    return prefix[start:]
+
+
 def _claimed_file_names(claims: list[str]) -> set[str] | None:
     names: set[str] = set()
     for text in claims:
@@ -887,16 +927,16 @@ def _claimed_file_names(claims: list[str]) -> set[str] | None:
                     return None  # A bounded parse cannot discard an unparsed directory.
             else:
                 # Passive claims and completion lists may have no production verb.
-                path_prefix = re.search(r"[\w~/./\\-]+$", prefix)
+                path_prefix = _trailing_path_run(prefix)
                 if re.fullmatch(r"[\w ~/./\\-]{1,120}", prefix):
                     name = prefix + name
                 elif path_prefix:
-                    if (path_prefix.start() == 0 and prefix_start > 0
-                            and re.fullmatch(r"[\w~/./\\-]", text[prefix_start - 1])):
+                    if (len(path_prefix) == len(prefix) and prefix_start > 0
+                            and _PATH_CHAR_RE.fullmatch(text[prefix_start - 1])):
                         return None
                     if re.fullmatch(r"[\w ~/./\\-]+", prefix) and "/" in prefix and " " in prefix:
                         return None
-                    name = path_prefix.group(0) + name
+                    name = path_prefix + name
             # "was created at /abs/dir/a.txt": the preposition that introduces a location is not part
             # of the path it introduces.
             name = name.strip()
@@ -1077,7 +1117,8 @@ def _strip_unbacked_file_promises(
         sentences = _SENTENCE_SPLIT_RE.split(line)
         survivors = []
         for sentence in sentences:
-            if _DELIVERABLE_PROMISE_RE.search(sentence) and not _CONDITIONAL_OFFER_RE.search(sentence):
+            if (_DELIVERABLE_PROMISE_RE.search(sentence) and not _CONDITIONAL_OFFER_RE.search(sentence)
+                    and not _DEFERRED_PLAN_RE.search(sentence)):
                 removed.append(sentence.strip())
                 continue
             survivors.append(sentence)
@@ -1849,7 +1890,15 @@ def enforce_final_action_honesty(
         str(output.get("mode") or output.get("mode_override") or "").strip().lower() == "tool_executed"
         or _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context)
     ):
-        return output
+        # A build report that counts or names its files ("created 3 files") is held to what this
+        # turn wrote once the turn has file writes to compare it with: one written file does not
+        # back three.
+        claimed = _deliverable_claim_fragments(response) if claim_kind == "build" else []
+        if not (claimed and _turn_file_writes(session_id=session_id, source_context=source_context)):
+            return output
+        if _turn_wrote_a_file(session_id=session_id, source_context=source_context, claimed=claimed):
+            return output
+        claim_kind = "deliverable"
     if _location_answer_has_verified_past_receipt(output, session_id=session_id, source_context=source_context):
         return output
 
