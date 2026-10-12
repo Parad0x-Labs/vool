@@ -413,6 +413,10 @@ class _IntakeSession:
     #: (``_verification_identity``). An outcome is reused only for exactly that identity; any change
     #: -- another placement on the same endpoint included -- is verified again before storing.
     verified_identity: str = ""
+    #: Bumped by every change to what this session would verify or store (a new paste, another
+    #: provider, endpoint or placement, a newer verification, completion). A verification's outcome
+    #: is accepted only if nothing moved while its request was in flight.
+    generation: int = 0
 
 
 _INTAKE_SESSIONS: dict[str, _IntakeSession] = {}
@@ -577,6 +581,7 @@ def _intake_classify(inp, ctx):
             session.outcome = None  # a new paste invalidates any earlier verification
             session.endpoint = ""
             session.verified_identity = ""
+            session.generation += 1  # ...and any verification still in flight
     suggestion = shortlist.suggestion
     payload = {
         "family": key_format.family,
@@ -619,10 +624,13 @@ def _intake_preview(inp, ctx):
                 from core.cloud_providers import CUSTOM_NO_KEY_VALUE
 
                 session.value = CUSTOM_NO_KEY_VALUE
+            selected = (session.provider_id, session.base_url, session.auth, session.value)
             session.provider_id = descriptor.provider_id
             session.auth = descriptor.custom_auth if descriptor.user_endpoint else ""
             if str(descriptor.auth_style or "") != "url_path_token":
                 session.base_url = base_url
+            if selected != (session.provider_id, session.base_url, session.auth, session.value):
+                session.generation += 1  # a verification in flight was for the old selection
             if session.verified_identity != _verification_identity(descriptor, session.value):
                 # The selection moved away from what was verified: that outcome answers nothing now.
                 session.outcome = None
@@ -665,21 +673,36 @@ def _intake_verify(inp, ctx):
 
         with _intake_lock():
             session.value = CUSTOM_NO_KEY_VALUE
+    # What THIS request verifies, fixed before any I/O: the value sent and the session generation it
+    # belongs to. The answer describes exactly this value at exactly this destination, so it is
+    # recorded only if the session still holds them when the answer arrives.
+    with _intake_lock():
+        session.generation += 1
+        generation = session.generation
+        value = session.value
     try:
-        outcome = verify_provider_credential(session.value, descriptor)
+        outcome = verify_provider_credential(value, descriptor)
     except Exception as exc:
         return HandlerOk(
             data={"outcome": "network_unavailable", "provider_id": descriptor.provider_id, "detail": f"verification could not run: {type(exc).__name__}"},
             summary="the key was NOT stored",
         )
     with _intake_lock():
+        if session.generation != generation or session.value != value:
+            # Another paste, destination, placement or verification arrived while this request was
+            # in flight. Its outcome answers for a key or place the session no longer holds.
+            return _intake_fault(
+                "intake_changed",
+                "the key or where it goes changed while it was being checked; nothing was recorded -- check again",
+                409,
+            )
         session.provider_id = descriptor.provider_id
         if str(descriptor.auth_style or "") != "url_path_token":
             session.base_url = base_url  # a path token's session already holds the origin it was split to
         session.outcome = outcome
         session.endpoint = descriptor.verify_endpoint
         session.auth = descriptor.custom_auth if descriptor.user_endpoint else ""
-        session.verified_identity = _verification_identity(descriptor, session.value)
+        session.verified_identity = _verification_identity(descriptor, value)
     data = {key: value for key, value in outcome.to_dict().items() if key != "status"}
     return HandlerOk(
         data={"outcome": str(outcome.status), **data, "label": descriptor.label, "kind": descriptor.kind,
@@ -797,6 +820,7 @@ def _intake_complete(inp, ctx):
         session = _INTAKE_SESSIONS.get(str(inp.session_id or ""))
         if session is not None:
             _INTAKE_SESSIONS.pop(str(inp.session_id), None)
+            session.generation += 1  # a verification still in flight can no longer record into it
     if session is None or not session.value:
         return _intake_fault("intake_session_expired", "re-paste the key; sessions are memory-only", 410)
     if not session.provider_id:

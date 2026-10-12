@@ -257,3 +257,159 @@ def test_save_for_later_keeps_the_placement_through_retry(home, monkeypatch, pla
         assert result.data["promoted"] is True, result.data
         assert not any(r["auth_present"] for r in server.requests), "a Bearer header was sent"
         assert committed_custom_auth(f"{server.url}/v1") == placement
+
+
+# ── a verification answers only for the key and destination it was sent with (re-audit T-0045 P1) ──
+
+GOOD = "nv1_good-disposable-0123456789"
+BAD = "nv1_bad-disposable-0123456789"
+
+
+def _bearer(value: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(f"Bearer {value}".encode()).hexdigest()
+
+
+class _Held:
+    """Answers the first KEYED request only once released, so a test can change the session mid-flight.
+    (A custom endpoint is first asked without a key, to tell a public model list from a keyed one.)"""
+
+    def __init__(self, first, rest):
+        import threading
+
+        self.entered, self.release = threading.Event(), threading.Event()
+        self.first, self.rest = first, rest
+
+    def __call__(self, record):
+        if record["auth_present"] and not self.entered.is_set():
+            self.entered.set()
+            assert self.release.wait(12)
+            return self.first(record)
+        return self.rest(record)
+
+
+def _verify_in_background(fr, sid, base_url, auth="bearer"):
+    import threading
+
+    class In:
+        pass
+
+    rows: list = []
+    verify = In(); verify.session_id, verify.provider_id, verify.base_url, verify.auth = sid, "custom", base_url, auth
+    thread = threading.Thread(target=lambda: rows.append(fr._intake_verify(verify, None)))
+    thread.start()
+    return thread, rows
+
+
+def _paste(fr, sid, value):
+    class In:
+        pass
+
+    classify = In(); classify.session_id, classify.value = sid, value
+    fr._intake_classify(classify, None)
+
+
+def _answer_by_key(record):
+    return (200, MODELS) if record["auth_sha256"] == _bearer(GOOD) else (401, {"error": {"code": "invalid_api_key"}})
+
+
+def _keys_sent(server) -> list[str]:
+    return [r["auth_sha256"] for r in server.requests if r["auth_present"]]
+
+
+def test_a_key_pasted_while_another_is_verified_is_never_stored_as_verified(home, monkeypatch):
+    from core.command_registry.groups import first_run as fr
+    from core.credential_intelligence.binding import load_index
+
+    monkeypatch.setattr("core.web.api.registry_authorities.bind_saved_cloud_key", lambda _pid: None)
+    held = _Held(_answer_by_key, _answer_by_key)
+    with FakeProviderServer(responses=held) as server:
+        sid = fr._intake_begin(None, None).data["session_id"]
+        _paste(fr, sid, GOOD)
+        thread, rows = _verify_in_background(fr, sid, f"{server.url}/v1")
+        try:
+            assert held.entered.wait(12)
+            _paste(fr, sid, BAD)  # the same session takes a new key while GOOD is still being checked
+        finally:
+            held.release.set()
+            thread.join(15)
+        assert not thread.is_alive()
+        assert getattr(rows[0], "detail", {}).get("error") == "intake_changed", rows
+        # GOOD's answer recorded nothing: completing now stores nothing
+        assert getattr(_complete(fr, sid, "store"), "detail", {}).get("error") == "provider_mismatch"
+        # checked again, BAD itself is asked, and refused
+        sid = fr._intake_begin(None, None).data["session_id"]
+        _paste(fr, sid, BAD)
+        thread, rows = _verify_in_background(fr, sid, f"{server.url}/v1")
+        thread.join(15)
+        assert rows[0].data["outcome"] != "verified"
+        stored = _complete(fr, sid, "store")
+        assert _keys_sent(server)[0] == _bearer(GOOD) and set(_keys_sent(server)[1:]) == {_bearer(BAD)}
+    assert getattr(stored, "detail", {}).get("error") == "not_verified"
+    row = (load_index() or {}).get("custom")
+    assert not (isinstance(row, dict) and row.get("status") == "verified")
+
+
+def test_an_old_refusal_does_not_judge_the_key_pasted_after_it(home, monkeypatch):
+    from core.command_registry.groups import first_run as fr
+
+    monkeypatch.setattr("core.web.api.registry_authorities.bind_saved_cloud_key", lambda _pid: None)
+    held = _Held(_answer_by_key, _answer_by_key)
+    with FakeProviderServer(responses=held) as server:
+        sid = fr._intake_begin(None, None).data["session_id"]
+        _paste(fr, sid, BAD)
+        thread, rows = _verify_in_background(fr, sid, f"{server.url}/v1")
+        try:
+            assert held.entered.wait(12)
+            _paste(fr, sid, GOOD)
+        finally:
+            held.release.set()
+            thread.join(15)
+        assert getattr(rows[0], "detail", {}).get("error") == "intake_changed", rows
+        # BAD's refusal arrived after GOOD was pasted: it judged nothing; GOOD verifies on its own check
+        thread, rows = _verify_in_background(fr, sid, f"{server.url}/v1")
+        thread.join(15)
+        assert rows[0].data["outcome"] == "verified"
+        stored = _complete(fr, sid, "store")
+    assert stored.data["binding"]["status"] == "verified"
+
+
+def test_a_destination_changed_while_verifying_is_verified_where_it_now_points(home, monkeypatch):
+    from core.command_registry.groups import first_run as fr
+
+    class In:
+        pass
+
+    monkeypatch.setattr("core.web.api.registry_authorities.bind_saved_cloud_key", lambda _pid: None)
+    keyed_only = lambda r: (200, MODELS) if r["auth_present"] else (401, {})  # noqa: E731
+    held = _Held(keyed_only, keyed_only)
+    with FakeProviderServer(responses=held) as first, \
+            FakeProviderServer(responses=lambda _r: (401, {"error": {"code": "invalid_api_key"}})) as second:
+        sid = fr._intake_begin(None, None).data["session_id"]
+        _paste(fr, sid, GOOD)
+        thread, rows = _verify_in_background(fr, sid, f"{first.url}/v1")
+        try:
+            assert held.entered.wait(12)
+            preview = In(); preview.session_id, preview.provider_id, preview.base_url, preview.auth = (
+                sid, "custom", f"{second.url}/v1", "bearer")
+            fr._intake_preview(preview, None)
+        finally:
+            held.release.set()
+            thread.join(15)
+        assert getattr(rows[0], "detail", {}).get("error") == "intake_changed", rows
+        stored = _complete(fr, sid, "store")
+        assert len(_keys_sent(second)) == 1, "the new destination was stored without being asked"
+    assert getattr(stored, "detail", {}).get("error") == "not_verified"
+
+
+def test_an_unchanged_session_still_reuses_its_one_verification(home, monkeypatch):
+    from core.command_registry.groups import first_run as fr
+
+    monkeypatch.setattr("core.web.api.registry_authorities.bind_saved_cloud_key", lambda _pid: None)
+    with FakeProviderServer(responses=_answer_by_key) as server:
+        fr_, sid, verified = _intake("custom", f"{server.url}/v1", "bearer", value=GOOD)
+        assert verified.data["outcome"] == "verified"
+        stored = _complete(fr_, sid, "store")
+        assert _keys_sent(server) == [_bearer(GOOD)]
+    assert stored.data["binding"]["status"] == "verified"
