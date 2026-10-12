@@ -837,6 +837,21 @@ def _separate_file_execution_clause(text: str) -> bool:
     return False
 
 
+#: "Can you explain how to make a PDF accessible?" asks for an explanation in a polite request's
+#: clothes; it starts with no question word, so the imperative reading below took it as an order.
+_POLITE_HOW_RE = re.compile(
+    r"^\s*(?:can|could|would|will)\s+you\s+(?:please\s+)?"
+    r"(?:explain|tell\s+me|show\s+me|teach\s+me|walk\s+me\s+through|describe|remind\s+me)\s+how\b",
+    re.I,
+)
+#: ...unless the same turn also hands the result over as a file ("... and give it to me as a PDF").
+_DELIVERY_ORDER_RE = re.compile(
+    r"\b(?:give|send|hand)\s+(?:it|this|that|them|the\s+\w+)\s+(?:over\s+|back\s+)?(?:to\s+me\s+)?(?:as|in)\b"
+    r"|\bas\s+an?\s+(?:downloadable\s+)?file\b|\b(?:export|save|put)\s+(?:it|this|that|them)\s+(?:as|to|in(?:to)?)\b",
+    re.I,
+)
+
+
 def asks_for_a_file(text: str) -> bool:
     """Is this turn ordering a FILE (the `file.deliver` demand), not asking ABOUT a format?
 
@@ -856,7 +871,8 @@ def asks_for_a_file(text: str) -> bool:
     explanatory = asks_how_to(instruction) or re.match(
         r"^\s*(?:(?:explain|describe|tell\s+me|show\s+me)\s+how|teach\s+me\s+(?:how|to))\b", instruction, re.I
     )
-    if explanatory:
+    # ...unless the same turn also hands the result over as a file ("... and give it to me as a PDF").
+    if explanatory and not _DELIVERY_ORDER_RE.search(raw):
         return False
 
     if not _QUESTION_HEAD_RE.match(raw):
