@@ -91,7 +91,8 @@ jobs:
           cd "$W/src"
           "$W/venv/bin/python" -m pip download --quiet --no-deps --no-binary :all: "cryptography==${CRYPTO_VERSION}" -d "$W/src"
           echo "${CRYPTO_SDIST_SHA256}  cryptography-${CRYPTO_VERSION}.tar.gz" | shasum -a 256 -c -
-          env RUSTUP_TOOLCHAIN="${RUST_TOOLCHAIN}" OPENSSL_DIR="$W/stage/private/etc/ssl" OPENSSL_STATIC=1 \
+          # maturin's PEP 517 hook runs the `maturin` CLI by name, so the venv's bin goes on PATH.
+          env PATH="$W/venv/bin:$PATH" RUSTUP_TOOLCHAIN="${RUST_TOOLCHAIN}" OPENSSL_DIR="$W/stage/private/etc/ssl" OPENSSL_STATIC=1 \
             ARCHFLAGS="-arch x86_64" CARGO_BUILD_TARGET=x86_64-apple-darwin \
             RUSTFLAGS="--remap-path-prefix=$HOME=/home --remap-path-prefix=$W=/build" \
             "$W/venv/bin/python" -m pip wheel --no-deps --no-build-isolation "$W/src/cryptography-${CRYPTO_VERSION}.tar.gz" -w "$OUT"
