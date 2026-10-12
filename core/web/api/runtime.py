@@ -1816,6 +1816,10 @@ def _run_agent_locked(
             )
         memory_recall = _memory_recall_response(runtime, user_text=user_text, source_context=base_context)
         if memory_recall is not None:
+            # Completed erasure supplies scoped recall provenance that a
+            # stateless profile-field detector cannot infer. Keep that claim
+            # local to this turn; never expose revocation tokens in the result.
+            revoked_recall_clauses = tuple(memory_recall.pop("_revoked_recall_clauses", ()))
             # Same answer-coverage contract as the identity lane above: a recall question alone is
             # this lane's whole turn; beside another family's clause it is one slice of the turn,
             # and returning here would end the turn with the sibling never asked. This was the one
@@ -1828,9 +1832,11 @@ def _run_agent_locked(
                 FAMILY_MEMORY_RECALL,
                 probe=lambda clause: _looks_like_private_memory_recall(
                     clause, recent_user_texts=()
-                ),
+                ) or clause in revoked_recall_clauses,
             )
-            if memory_coverage.covers_whole_turn:
+            if memory_coverage.covers_whole_turn and (
+                not revoked_recall_clauses or not memory_coverage.uncovered
+            ):
                 update_retrieval_telemetry(web_calls=remote_fetch_attempt_count())
                 return finalize_turn_trace(memory_recall)
             record_slice_answer(
@@ -2195,7 +2201,12 @@ def _memory_recall_response(
     # fetched before classifying rather than after -- but only for the messages that need them,
     # so an ordinary chat turn does not pay for a history read it will never use.
     recent_user_texts = _recent_user_texts(chat_id) if needs_prior_turns_to_classify(user_text) else ()
-    if not _looks_like_private_memory_recall(user_text, recent_user_texts=recent_user_texts):
+    private_recall = _looks_like_private_memory_recall(
+        user_text, recent_user_texts=recent_user_texts
+    )
+    from core.request_trust import request_is_owner_local
+
+    if not private_recall and not request_is_owner_local(context):
         return None
     identity = classify_identity_question(user_text, recent_user_texts=recent_user_texts)
     try:
@@ -2223,6 +2234,32 @@ def _memory_recall_response(
         runtime_home = str(runtime.runtime_home or context.get("runtime_home") or "").strip() or None
         agent_id = str(context.get("agent_id") or "").strip() or SEMANTIC_MEMORY_AGENT_ID
         with VoolMemory(runtime_home=runtime_home, agent_id=agent_id) as memory:
+            if request_is_owner_local(context):
+                from core.memory.revocation import revoked_tokens, serialized
+                from core.memory_recall_intent import revoked_memory_recall_clauses
+
+                # The same completion fence and durable authority used by
+                # serving carriers decide absence. An unreadable ledger or
+                # pending erasure raises; neither becomes a no-record claim.
+                with serialized(memory._authority_home):
+                    tokens = revoked_tokens(
+                        chat_id, runtime_home, owner_memory=memory
+                    )
+                    revoked_clauses = revoked_memory_recall_clauses(
+                        user_text, revoked_tokens=tokens
+                    )
+                    if revoked_clauses:
+                        return {
+                            "response": "I have no record of that information in this chat; it was forgotten.",
+                            "confidence": 0.95,
+                            "source": "local_private_memory",
+                            "route_reason": "completed_scoped_erasure",
+                            "model_calls": 0,
+                            "web_calls": 0,
+                            "_revoked_recall_clauses": revoked_clauses,
+                        }
+            if not private_recall:
+                return None
             values = _private_memory_values(
                 memory,
                 include_profile=True,

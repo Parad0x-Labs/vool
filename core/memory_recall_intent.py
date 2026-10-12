@@ -15,6 +15,39 @@ from __future__ import annotations
 import re
 
 
+def revoked_memory_recall_clauses(
+    user_text: str,
+    *,
+    revoked_tokens: tuple[str, ...] | list[str],
+) -> tuple[str, ...]:
+    """Read questions whose subject the scoped forget authority revoked.
+
+    The tokens must come from a completed, authorized erasure read. Text
+    alone cannot decide that a person's fact belongs to private memory;
+    the persisted revocation supplies that provenance. Commands and quoted
+    data do not become recall requests merely by repeating a forgotten word.
+    """
+    if not revoked_tokens:
+        return ()
+    from core.agent_runtime.answer_coverage import demand_units, turn_slices
+    from core.memory.carriers import carries
+    from core.turn_ir import ClauseKind, parse_turn_ir
+
+    claimed: list[str] = []
+    for item in turn_slices(user_text):
+        units = demand_units(item.text)
+        if units is None or len(units) != 1:
+            continue
+        clauses = parse_turn_ir(item.text).clauses
+        if len(clauses) == 1 and all(
+            clause.kind in {ClauseKind.KNOW, ClauseKind.RECALL}
+            and any(carries(clause.request_text, token) for token in revoked_tokens)
+            for clause in clauses
+        ):
+            claimed.append(item.text)
+    return tuple(claimed)
+
+
 def looks_like_private_memory_recall(
     user_text: str,
     *,
@@ -133,4 +166,5 @@ __all__ = [
     "PRIVATE_MEMORY_FIELDS",
     "field_is_the_subject",
     "looks_like_private_memory_recall",
+    "revoked_memory_recall_clauses",
 ]
