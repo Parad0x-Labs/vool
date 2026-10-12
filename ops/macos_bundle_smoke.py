@@ -229,20 +229,26 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
         after = run.chat(origin, "recall-after-forget", QUESTION, model, chat_timeout)
         run.record("recall after forget does not return the fact", MARKER not in after.lower(), after[:300])
     finally:
-        if process.poll() is None:
+        early_exit = process.poll()
+        if early_exit is not None:
+            print(f"the native host had already exited with {early_exit} before teardown", flush=True)
+        else:
             process.send_signal(signal.SIGTERM)  # Only the native host started above.
             try:
                 process.wait(timeout=60)
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()
-        for name in ("app.log", "ollama.log"):
-            source = support / name
-            if source.exists():
-                shutil.copy2(source, scratch / name)
-        api_log = support / "runtime/data/logs/vool_api.log"
-        if api_log.exists():
-            shutil.copy2(api_log, scratch / "vool_api.log")
+        # Every log the app wrote under its support folder, kept as evidence and its tail printed,
+        # so a failure is readable from the job log itself.
+        logs = scratch / "logs"
+        logs.mkdir(exist_ok=True)
+        for source in sorted(support.rglob("*.log")) if support.exists() else []:
+            target = logs / str(source.relative_to(support)).replace("/", "__")
+            shutil.copy2(source, target)
+            tail = source.read_text(errors="replace").splitlines()[-60:]
+            print(f"----- {source.relative_to(support)} (last {len(tail)} lines) -----", flush=True)
+            print("\n".join(tail), flush=True)
     try:
         request(origin, "/healthz", timeout=5)
     except (OSError, ValueError, urllib.error.URLError):

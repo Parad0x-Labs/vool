@@ -223,4 +223,5 @@ jobs:
             ${{ runner.temp }}/smoke/*.json
             ${{ runner.temp }}/smoke/*.log
             ${{ runner.temp }}/smoke/*.png
+            ${{ runner.temp }}/smoke/logs/
           if-no-files-found: warn
