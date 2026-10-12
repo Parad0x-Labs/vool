@@ -7212,6 +7212,51 @@ def _cancel_token_from(source_context: dict[str, Any] | None):
     return _CallableCancelToken(token)
 
 
+WORKSPACE_PATH_REFUSED = "workspace_path_refused"
+#: Workspace writes whose single target is `arguments["path"]`, resolved by the handler with
+#: `_resolve_workspace_path(..., write=True)` before anything is touched.
+WORKSPACE_PATH_WRITE_INTENTS = frozenset({"workspace.write_file", "workspace.replace_in_file", "workspace.ensure_directory"})
+
+
+def workspace_path_refusal(intent: str, raw_path: Any, *, workspace_root: Path) -> RuntimeExecutionResult | None:
+    """The typed refusal for a workspace write whose path the handler would refuse, or None.
+
+    The same predicate the handler applies first (`_resolve_workspace_path(..., write=True)`:
+    confinement to the workspace, and never this runtime's protected state or running code),
+    decided BEFORE dispatch. Measured live 2026-10-06: `workspace.write_file` to a file inside the
+    running code was refused by that check ("nothing was touched"), but the refusal was raised past
+    the dispatch claim, so the A6 boundary recorded it as "Outcome unknown -- reconciliation
+    required", the effect obligation stayed open, finalization refused the turn
+    (OBLIGATIONS_OPEN) and the HTTP request ended in a 500. A path refused before anything was
+    written is a known outcome: nothing was written.
+    """
+    if intent not in WORKSPACE_PATH_WRITE_INTENTS:
+        return None
+    try:
+        _resolve_workspace_path(str(raw_path or ""), workspace_root=workspace_root, write=True)
+    except ValueError as exc:
+        text = f"{intent} refused: {exc} Nothing was written."
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status=WORKSPACE_PATH_REFUSED,
+            response_text=text,
+            details={
+                "executed": False,
+                "path": str(raw_path or ""),
+                "workspace_root": str(workspace_root),
+                "observation": _tool_observation(
+                    intent=intent,
+                    tool_surface="workspace",
+                    ok=False,
+                    status=WORKSPACE_PATH_REFUSED,
+                    error=str(exc),
+                ),
+            },
+        )
+    return None
+
+
 SANDBOX_CWD_OUTSIDE_WORKSPACE = "cwd_outside_workspace"
 
 

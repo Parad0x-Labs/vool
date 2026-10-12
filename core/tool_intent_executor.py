@@ -1232,6 +1232,26 @@ def _execute_tool_intent_impl(
                     intent=intent, tool_surface="file", ok=False, status="format_not_requested",
                 )},
             )
+    if intent in {"workspace.write_file", "workspace.replace_in_file", "workspace.ensure_directory"}:
+        # A path the handler refuses (outside the workspace, protected state, running code) is
+        # refused HERE, before the permission decision and before the dispatch claim: raised inside
+        # the handler it was recorded as an unknown outcome, which held the turn's obligations open
+        # and ended the request in an HTTP 500 (measured live 2026-10-06). Same predicate as the
+        # handler (`workspace_path_refusal`).
+        from core.runtime_execution_tools import _workspace_root, workspace_path_refusal
+
+        refusal = workspace_path_refusal(intent, arguments.get("path"), workspace_root=_workspace_root(source_context))
+        if refusal is not None:
+            return ToolIntentExecution(
+                handled=True,
+                ok=False,
+                status=refusal.status,
+                response_text=refusal.response_text,
+                user_safe_response_text=refusal.response_text,
+                mode="tool_failed",
+                tool_name=intent,
+                details=dict(refusal.details or {}),
+            )
     if intent == "code.task.step":
         from core.code_assistant.step_validation import step_argument_error
 
