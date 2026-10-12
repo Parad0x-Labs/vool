@@ -124,10 +124,14 @@ class TestProductionReachability:
         closure = _transitive_closure(entries, graph)
         legacy = "installer.self_update"
         assert legacy in by_module  # the module still exists (its pure helpers + tests)
-        assert legacy not in closure, (
-            "installer.self_update is reachable from a production entry — the legacy "
-            "detached updater was re-wired instead of the signed authority"
-        )
+        assert legacy in closure  # Linux reuses only the tested protected-swap helpers.
+        paths = [*UPDATER_PACKAGE.glob("*.py"), REPO / "core/self_update_offer.py", REPO / "core/runtime_backbone.py"]
+        for path in paths:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    callee = getattr(node.func, "id", getattr(node.func, "attr", ""))
+                    assert callee != "spawn_detached_update", f"legacy install lane re-wired in {path.name}"
 
     def test_the_chat_shell_carries_the_update_chip_contract(self):
         """The UI surface must expose the status poll + both presses; a chat page that

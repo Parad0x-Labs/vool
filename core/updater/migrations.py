@@ -34,6 +34,7 @@ class MigrationReason(Enum):
     OK = "ok"
     NO_PATH = "no_migration_path"
     STEP_FAILED = "migration_step_failed"
+    RESTORE_FAILED = "migration_restore_failed"
     DATA_TOO_NEW = "data_schema_too_new"
 
 
@@ -78,6 +79,8 @@ class MigrationResult:
                 "Your settings were already updated by a newer version of the app; this version "
                 "can't safely use them, so nothing was changed."
             )
+        if self.reason is MigrationReason.RESTORE_FAILED:
+            return "Settings recovery is incomplete. Keep the update backups and contact support."
         return "Settings update result unknown."  # pragma: no cover
 
 
@@ -136,7 +139,7 @@ def restore_tree(snapshot_dir: Path, destinations: list[Path]) -> None:
         if destination.exists():
             shutil.rmtree(destination) if destination.is_dir() else destination.unlink()
         if restored.exists():
-            shutil.move(str(restored), str(destination))
+            shutil.copytree(restored, destination) if restored.is_dir() else shutil.copy2(restored, destination)
 
 
 def read_recorded_schema(user_home: Path) -> str:
@@ -187,12 +190,15 @@ def run_migrations(
     for index, step in enumerate(steps):
         step_snapshot = snapshot_root / f"step-{index:02d}-{step.name}"
         affected = [home / rel for rel in step.affected_paths]
+        snapshot_complete = False
         try:
             snapshot_tree(affected, step_snapshot)
+            snapshot_complete = True
             step.forward(MigrationContext(user_home=home, snapshot_dir=step_snapshot, step_name=step.name))
         except Exception as exc:
             logger.warning("migration step %s failed: %s", step.name, exc)
             rolled_back: list[str] = []
+            restore_errors: list[str] = []
             for done_step, done_snapshot, _done_affected in reversed(applied):
                 try:
                     if done_step.backward is not None:
@@ -207,18 +213,21 @@ def run_migrations(
             # Snapshot restores run failed-step-first, then completed steps in reverse:
             # each earlier snapshot overwrites the later one, so the LAST restore is
             # step 0's — the user data ends at its exact pre-migration state.
-            restore_order = [(step_snapshot, affected)] + [(snap, aff) for _, snap, aff in reversed(applied)]
+            restore_order = ([(step_snapshot, affected)] if snapshot_complete else []) + [
+                (snap, aff) for _, snap, aff in reversed(applied)
+            ]
             for snap, aff in restore_order:
                 try:
                     restore_tree(snap, aff)
                 except Exception as rexc:
                     logger.error("migration snapshot restore ALSO failed: %s", rexc)
+                    restore_errors.append(str(rexc))
             return MigrationResult(
                 False,
-                MigrationReason.STEP_FAILED,
+                MigrationReason.RESTORE_FAILED if restore_errors else MigrationReason.STEP_FAILED,
                 applied=[s.name for s, _, _ in applied],
                 rolled_back=rolled_back,
-                detail=f"{step.name}: {exc}",
+                detail=f"{step.name}: {exc}" + (f"; restore failed: {'; '.join(restore_errors)}" if restore_errors else ""),
             )
         applied.append((step, step_snapshot, affected))
 

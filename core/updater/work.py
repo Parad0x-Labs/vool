@@ -10,6 +10,7 @@ lifecycle registering handles) is a documented integration seam, not a guess.
 """
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -63,19 +64,34 @@ class WorkCoordinator:
 
     def __init__(self) -> None:
         self._active: dict[str, WorkHandle] = {}
+        self._lock = threading.RLock()
+        self._paused = False
 
     def register(self, handle: WorkHandle) -> WorkHandle:
-        self._active[handle.id] = handle
+        with self._lock:
+            if self._paused:
+                raise UpdateInProgressError("VOOL is updating; try again after it restarts")
+            self._active[handle.id] = handle
         return handle
 
     def complete(self, handle_id: str) -> None:
-        self._active.pop(str(handle_id), None)
+        with self._lock:
+            self._active.pop(str(handle_id), None)
 
     def active(self) -> list[WorkHandle]:
-        return list(self._active.values())
+        with self._lock:
+            return list(self._active.values())
 
     def active_destructive(self) -> list[WorkHandle]:
-        return [h for h in self._active.values() if h.destructive]
+        return [h for h in self.active() if h.destructive]
+
+    def resume_new_work(self) -> None:
+        with self._lock:
+            self._paused = False
+
+
+class UpdateInProgressError(RuntimeError):
+    """The update's quiescence boundary refuses a newly arriving turn."""
 
 
 def destructive_block(
@@ -95,10 +111,13 @@ def prepare_to_pause(
 ) -> PauseDecision:
     """Pause-all gate: refuses while destructive work runs unless explicitly resolved.
     Non-destructive work is paused (its hooks run) and the decision succeeds."""
-    destructive = coordinator.active_destructive()
-    if destructive and (resolution is None or not resolution.covers(destructive)):
-        return PauseDecision(False, PauseReason.DESTRUCTIVE_WORK_ACTIVE, destructive)  # pragma: no cover - mirrored by destructive_block
-    for handle in coordinator.active():
+    with coordinator._lock:
+        destructive = coordinator.active_destructive()
+        if destructive and (resolution is None or not resolution.covers(destructive)):
+            return PauseDecision(False, PauseReason.DESTRUCTIVE_WORK_ACTIVE, destructive)
+        coordinator._paused = True
+        active = coordinator.active()
+    for handle in active:
         if handle.pause is not None:
             try:
                 handle.pause()

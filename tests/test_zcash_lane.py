@@ -782,6 +782,66 @@ def test_a_receipt_made_from_the_console_is_remembered_in_the_next_chat(chain) -
         assert len(facts) == 1 and txid in facts[0]["text"]
 
 
+@pytest.mark.parametrize("txid", [
+    "3d1a788ee8be62a587bcdd165917f6e92599fe571aa668196513bebae1c36dde",
+    "0" + "a" * 63,
+])
+def test_confirmed_transaction_hashes_are_remembered_after_a_registry_restart(chain, monkeypatch, txid) -> None:
+    from core import secret_redaction
+    from core.context_namespace import ensure_chat_namespace
+    from core.memory.entries import list_memory_entries
+
+    monkeypatch.setattr(secret_redaction, "_public_identifiers", {})
+    lane = _ready_lane(chain)
+    invoice = lane.create_invoice("0.05", payer="Ana")
+    chain.pay(invoice.memo, 5_000_000, height=990)
+    # The view-only adapter reports a real transaction-shaped identifier, including
+    # the zero-free hexadecimal shape that also matches the base58 secret rule.
+    chain.txs[-1]["txid"] = bytes.fromhex(txid)[::-1]
+    chain._db()
+    chain.write()
+    assert len(lane.refresh()["receipted"]) == 1
+
+    monkeypatch.setattr(secret_redaction, "_public_identifiers", {})
+    assert secret_redaction.contains_secret(txid) is ("0" not in txid)
+    restarted = ZcashLane(devtool=Devtool(wallet_dir=chain.wallet))
+    session = "zcash-receipt-after-registry-restart"
+    ensure_chat_namespace(session)
+    for _ in range(2):
+        restarted.refresh(source_context={"session_id": session})
+        facts = [e for e in list_memory_entries(chat_id=session, limit=50)
+                 if invoice.invoice_id in str(e.get("text") or "")]
+        assert len(facts) == 1 and txid in facts[0]["text"]
+
+
+@pytest.mark.parametrize("location", ["payer", "label", "txid"])
+def test_confirmed_receipt_identifiers_never_exempt_secret_material(chain, monkeypatch, location) -> None:
+    from core import secret_redaction
+    from core.context_namespace import ensure_chat_namespace
+    from core.memory.entries import list_memory_entries
+
+    monkeypatch.setattr(secret_redaction, "_public_identifiers", {})
+    monkeypatch.setattr(secret_redaction, "_exact_secrets", {})
+    txid = "a" * 64
+    secret = txid if location == "txid" else "b" * 64
+    secret_redaction.register_exact_secret(secret)
+    lane = _ready_lane(chain)
+    invoice = lane.create_invoice("0.05", **({location: secret} if location != "txid" else {}))
+    chain.pay(invoice.memo, 5_000_000, height=990)
+    chain.txs[-1]["txid"] = bytes.fromhex(txid)[::-1]
+    chain._db()
+    chain.write()
+    assert len(lane.refresh()["receipted"]) == 1
+    session = "zcash-receipt-secret-refusal"
+    ensure_chat_namespace(session)
+    lane.refresh(source_context={"session_id": session})
+    assert lane.store.get(invoice.invoice_id).paid_txid == txid
+    assert any(r["invoice_id"] == invoice.invoice_id for r in lane.store.unremembered())
+    assert not any(invoice.invoice_id in str(e.get("text") or "")
+                   for e in list_memory_entries(chat_id=session, limit=50))
+    assert secret_redaction.contains_secret(secret)
+
+
 def test_export_lists_paid_invoices_and_defuses_spreadsheet_formulas(chain) -> None:
     lane = _ready_lane(chain)
     paid = lane.create_invoice("0.1", label="=HYPERLINK(evil)", payer="Bo")

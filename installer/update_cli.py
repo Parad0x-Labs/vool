@@ -24,7 +24,7 @@ from core.updater.macos import MacProcessHelper
 from core.updater.migrations import MigrationCatalog
 from core.updater.platforms import installer_for
 from core.updater.platforms import platform_key as live_platform_key
-from core.updater.runtime import boot_update_subsystem
+from core.updater.runtime import UpdateSubsystem, boot_update_subsystem
 from core.updater.service import UpdateCheckService, UpdateController, UserGesture
 from core.updater.state import UpdaterPaths
 from core.updater.status import StatusStore
@@ -52,7 +52,16 @@ def _installed_version() -> str:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    subsystem = boot_update_subsystem()
+    from dataclasses import replace
+
+    from core.updater.feed import load_feed_config
+
+    feed = load_feed_config()
+    if args.manifest_url:
+        feed = replace(feed, manifest_url=args.manifest_url)
+    if args.channel:
+        feed = replace(feed, channel=args.channel)
+    subsystem = UpdateSubsystem(feed=feed, data_dir=_data_dir(args), platform=_platform(args))
     payload = subsystem.trigger_check()
     if payload.get("message"):
         print(payload["message"])
@@ -95,6 +104,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def _build_flow(args: argparse.Namespace, coordinator: WorkCoordinator) -> UpdateFlow:
     helper = MacProcessHelper(
+        app_path=Path(args.app_path).expanduser().resolve(),
         pid_file=Path(args.pid_file).expanduser() if getattr(args, "pid_file", "") else None,
         relaunch_cmd=shlex_split(getattr(args, "relaunch_cmd", "") or ""),
     )
@@ -156,8 +166,64 @@ def cmd_apply(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def cmd_rollback(args: argparse.Namespace) -> int:
+    """Ask a live app first (its work gate); otherwise use the detached local helper."""
+    import time
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    from dataclasses import replace
+
+    from core.updater.feed import load_feed_config
+
+    if not args.i_pressed_rollback:
+        print('Refusing rollback: use --i-pressed-rollback for an explicit request.')
+        return 2
+    feed = load_feed_config()
+    feed = replace(feed, app_path=args.app_path or feed.app_path,
+                   health_url=args.health_url or feed.health_url)
+    address = urllib.parse.urlsplit(feed.health_url)
+    if address.scheme not in ('http', 'https') or address.hostname not in ('localhost', '127.0.0.1', '::1'):
+        print('Rollback requires a loopback health URL.')
+        return 2
+    origin = urllib.parse.urlunsplit((address.scheme, address.netloc, '', '', ''))
+    request = urllib.request.Request(origin + '/api/update/rollback', data=json.dumps({
+        'expected_app_path': feed.app_path, 'expected_data_dir': str(_data_dir(args)),
+    }).encode(),
+                                     headers={'Content-Type': 'application/json', 'Origin': origin})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            outcome = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        print(f'Running app refused rollback ({exc.code}); its work gate was respected.')
+        return 1
+    except urllib.error.URLError:
+        subsystem = UpdateSubsystem(feed=feed, data_dir=_data_dir(args), platform=_platform(args))
+        outcome = subsystem.press_rollback(UserGesture(pressed_at=time.time(), origin='cli')).to_dict()
+    if not outcome.get('accepted'):
+        print(outcome.get('detail') or 'Rollback could not start; current data was kept.')
+        return 1
+    print('Rollback started. Current chats, memory, keys and settings are kept.')
+    if not args.wait:
+        return 0
+    state = _data_dir(args) / 'update_v2/manual_rollbacks' / outcome['txid'] / 'state.json'
+    deadline = time.monotonic() + 180
+    while time.monotonic() < deadline:
+        from core.updater.state import _read_json
+
+        result = _read_json(state)
+        phase = result.get('phase') if isinstance(result, dict) else ''
+        if phase in ('completed', 'restored', 'aborted', 'rollback_failed'):
+            print(f'Rollback result: {phase}')
+            return 0 if phase == 'completed' else 1
+        time.sleep(.2)
+    print('Rollback is still pending; inspect update status before trying again.')
+    return 1
+
+
 def cmd_recover(args: argparse.Namespace) -> int:
     helper = MacProcessHelper(
+        app_path=Path(args.app_path).expanduser().resolve(),
         pid_file=Path(args.pid_file).expanduser() if getattr(args, "pid_file", "") else None
     )
     probe = HttpHealthProbe(args.health_url)
@@ -188,10 +254,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--data-dir", default="", help="user-data dir (default: the active VOOL data dir)")
-    common.add_argument("--channel", default="stable", choices=("stable", "beta"))
     common.add_argument("--platform", default="", help="override platform key (default: this machine)")
 
     check = sub.add_parser("check", parents=[common], help="check for an update (never installs)")
+    check.add_argument("--channel", default=None, choices=("stable", "beta"))
     # Optional on purpose: cmd_check reads the feed from the shipped config (and the
     # VOOL_UPDATE_* staging overrides), never from this flag. Requiring it argparse-blocked
     # the documented honest state — a feed-less install must be able to run `check`, learn
@@ -225,6 +291,16 @@ def build_parser() -> argparse.ArgumentParser:
     recover.add_argument("--health-url", default="http://127.0.0.1:11435/healthz")
     recover.add_argument("--pid-file", default="")
     recover.set_defaults(func=cmd_recover)
+
+    rollback = sub.add_parser('rollback', parents=[common], help='return to retained previous code; keep current user data')
+    rollback.add_argument('--i-pressed-rollback', action='store_true')
+    rollback.add_argument('--app-path', default='', help='app bundle or receipt-bound source installation')
+    rollback.add_argument('--health-url', default='')
+    rollback.add_argument('--wait', action='store_true', help='wait up to 180 seconds for the durable result')
+    rollback.set_defaults(func=cmd_rollback)
+
+    for command in (status, applyp, restartp, recover):
+        command.add_argument("--channel", default="stable", choices=("stable", "beta"))
 
     return parser
 

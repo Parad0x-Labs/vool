@@ -561,7 +561,7 @@ def _open_enforced(
             # hop back through THIS door for re-validation instead of letting urllib's
             # default handler follow it beyond the validated origin. A request whose URL
             # itself carries a credential (a path token) also refuses ambient proxies.
-            response = _no_redirect_opener(no_proxy=no_proxy).open(request, timeout=timeout)
+            response = _no_redirect_opener(no_proxy=no_proxy, context=context).open(request, timeout=timeout)
         elif no_proxy:
             # Keyed credential traffic (verification): an ambient proxy env var must never
             # sit between the key and the pinned host. Same lifecycle, proxy-free transport.
@@ -594,7 +594,7 @@ def _no_redirect_opener(*, no_proxy: bool = False, pinned_addresses: tuple[str, 
     origin-pinned caller can re-validate every hop through this door. ``no_proxy`` also empties
     the proxy handler, for a request whose URL itself carries a credential."""
     global _NO_REDIRECT_OPENER, _NO_REDIRECT_NO_PROXY_OPENER
-    cached = None if pinned_addresses is not None else (_NO_REDIRECT_NO_PROXY_OPENER if no_proxy else _NO_REDIRECT_OPENER)
+    cached = None if pinned_addresses is not None or context is not None else (_NO_REDIRECT_NO_PROXY_OPENER if no_proxy else _NO_REDIRECT_OPENER)
     if cached is None:
         import urllib.error
         import urllib.request
@@ -609,10 +609,12 @@ def _no_redirect_opener(*, no_proxy: bool = False, pinned_addresses: tuple[str, 
             from core.pinned_http import pinned_http_handlers
 
             handlers.extend(pinned_http_handlers(pinned_addresses, context=context))
+        elif context is not None:
+            handlers.append(urllib.request.HTTPSHandler(context=context))
         if no_proxy or pinned_addresses is not None:
             handlers.insert(0, urllib.request.ProxyHandler({}))
         cached = urllib.request.build_opener(*handlers)
-        if pinned_addresses is not None:
+        if pinned_addresses is not None or context is not None:
             return cached  # Per-request approval, never cache across targets or DNS answers.
         if no_proxy:
             _NO_REDIRECT_NO_PROXY_OPENER = cached
@@ -648,6 +650,7 @@ def open_remote_url(
     keyed_or_keyless: str = "",
     no_proxy: bool = False,
     credential_headers: tuple[str, ...] | None = None,
+    redirect_policy: str = "follow",
 ) -> Any:
     """Same ONE door, convenience form: build the urllib Request here so a
     caller with `(method, url, body, headers)` needs no raw urlopen/requests
@@ -685,6 +688,7 @@ def open_remote_url(
             provider_id=provider_id,
             keyed_or_keyless=keyed_or_keyless,
             no_proxy=no_proxy,
+            redirect_policy=redirect_policy,
         )
 
     if credential_headers is None:

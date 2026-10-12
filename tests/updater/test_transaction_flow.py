@@ -107,7 +107,7 @@ class Harness:
         return json.loads((self.data_dir / "config" / "settings.json").read_text(encoding="utf-8"))
 
     def health(self, *, timeout: float, expected_version: str | None = None) -> HealthResult:
-        if self.health_forced_fail:
+        if self.health_forced_fail and self.marker() == "new":
             return HealthResult(False, "forced failure for the test")
         marker = self.marker()
         reported = self.target_version if marker == "new" else self.installed_version
@@ -252,6 +252,55 @@ def harness(tmp_path: Path):
 
 
 class TestHappyPath:
+    @pytest.mark.parametrize("case", ["adhoc", "certificate", "mislabeled_architecture"])
+    def test_production_trust_policy_and_payload_cpu_are_enforced(self, harness, case):
+        import io
+
+        from core.updater.manifest import parse_and_verify_manifest
+
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as zipped:
+            zipped.writestr("VOOL.app/Contents/marker.txt", "new")
+            zipped.writestr("VOOL.app/Contents/Resources/BUILD_MANIFEST.json", json.dumps({
+                "arch": "x86_64" if case == "mislabeled_architecture" else "arm64", "version": "0.6.0-beta",
+            }))
+        blob = archive.getvalue()
+        document, _ = build_manifest(private_hex=harness._keys[0], artifacts={"macos-arm64": blob})
+        raw = manifest_bytes(document)
+        manifest = parse_and_verify_manifest(raw, TrustedPublishers({"release-2026-01": harness._keys[1]})).manifest
+        assert manifest is not None
+        decision = decide_update(manifest, installed_version="0.5.0", channel="stable",
+                                 platform_key="macos-arm64", high_water={}, installer_available=True)
+        harness.server.blob = blob
+        commands = []
+
+        def run(command):
+            commands.append(command)
+            if command[0] == "codesign" and "-dv" in command:
+                return Completed(0, err="Authority=Developer ID Application: Publisher" if case == "certificate" else "Signature=adhoc")
+            if command[0] == "spctl":
+                return Completed(1, err="not notarized")
+            return Completed(0)
+
+        harness.installer._run = run
+        flow = harness.make_flow(allow_publisher_verified_adhoc=True, notarization_waiver_reason="")
+        result = flow.run(raw, manifest, decision)
+        if case == "adhoc":
+            assert result.ok and harness.marker() == "new"
+            journal = UpdateJournal(harness.data_dir / "update_v2/transactions" / result.txid)
+            assert journal.payload_of(Step.PREFLIGHT_OK) == {"notarization_waiver": "", "trust_policy": "publisher-verified-adhoc"}
+            assert any(command[:3] == ["xattr", "-dr", "com.apple.quarantine"] for command in commands)
+            assert not any(command[0] == "spctl" for command in commands)
+        else:
+            assert not result.ok and result.terminal is Step.ABORTED
+            assert harness.marker() == "old" and harness.config()["setting"] == "original"
+            assert not harness.shutdown_log
+            assert not any(command[0] == "xattr" for command in commands)
+            if case == "certificate":
+                assert any(command[0] == "spctl" for command in commands)
+            else:
+                assert "architecture/version" in result.detail
+
     def test_full_flow_installs_and_finalizes(self, harness):
         result = harness.make_flow().run(harness.raw_manifest, harness.manifest, harness.decision)
         assert result.ok, result.detail
@@ -403,8 +452,12 @@ class TestRollback:
         )
         result = flow.run(harness.raw_manifest, harness.manifest, harness.decision)
         assert not result.ok
-        assert result.terminal is Step.ROLLED_BACK
+        assert result.terminal is not Step.ROLLED_BACK
         assert harness.marker() == "old"
+        status = StatusStore(harness.data_dir / "update_v2" / "status.json").load()
+        assert status.phase is UpdatePhase.FAILED
+        assert status.fault_code == "rollback_failed"
+        assert "recovery is incomplete" in status.message
 
     def test_failed_swap_leaves_previous_version_runnable(self, harness, monkeypatch):
         import core.updater.macos as macos_module
@@ -435,6 +488,24 @@ class TestRollback:
 
 
 class TestCrashRecovery:
+    def test_delegated_crash_before_swap_restores_migrated_data(self, harness):
+        class Delegated(InProcessHelper):
+            performs_swap = True
+
+        flow = harness.make_flow(helper=Delegated(), crash_after=Step.SWAP_PLANNED)
+        with pytest.raises(SimulatedCrashError):
+            flow.run(harness.raw_manifest, harness.manifest, harness.decision)
+        assert harness.marker() == "old"
+        assert harness.config()["setting"] == "migrated"
+        results = recover_interrupted_update(
+            data_dir=harness.data_dir, app_path=harness.app_path,
+            helper=InProcessHelper(), health_probe=harness.health,
+            installed_version="0.5.0", platform="macos-arm64",
+        )
+        assert [result.action for result in results] == ["rolled_back"]
+        assert harness.config()["setting"] == "original"
+        assert harness.marker() == "old"
+
     def _crashed_flow(self, harness, crash_after: Step):
         flow = harness.make_flow(crash_after=crash_after)
         with pytest.raises(SimulatedCrashError):

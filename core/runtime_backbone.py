@@ -15,11 +15,10 @@ def run_update_check_once() -> None:
 
     The legacy GitHub-releases checker this function used to call is retired from
     production (2026-09-01 amendment): there is one signed-manifest authority now.
-    This seam remains so the existing background loop keeps a periodic pulse, and it
+    This seam is an explicit manual check; the subsystem owns the ONLY scheduler. It
     mirrors the new authority's result into the legacy availability cache the in-chat
     offer reads. Best-effort and fail-safe, exactly as before.
     """
-    import contextlib
 
     with contextlib.suppress(Exception):
         from core.updater.runtime import get_update_subsystem
@@ -61,17 +60,11 @@ def _legacy_availability_from_subsystem(subsystem):
 def _web0_task_poll_loop() -> None:
     """Daemon thread: poll the order book and auto-claim tasks when capacity allows.
 
-    Also hosts the periodic self-update check (24h-gated inside), so no extra thread is
-    needed — it runs shortly after boot and roughly hourly thereafter.
+    Update checks have their own single scheduler in core.updater.service.
     """
     import time
-    loops = 0
     while True:
         time.sleep(30)
-        loops += 1
-        if loops % 120 == 1:  # ~ every hour; the network call itself is 24h-gated
-            with contextlib.suppress(Exception):
-                run_update_check_once()
         try:
             from core.helper_scheduler import HelperScheduler
             from core.order_book import global_order_book
@@ -202,7 +195,6 @@ def build_provider_registry_snapshot(
         except Exception:
             prewarm_results = tuple()
     # Web0 background workers (task poll loop) — start once at boot
-    import contextlib
     with contextlib.suppress(Exception):
         start_web0_background_workers()
     # Web0 capability announce — fire-and-forget, no-op when gate is off

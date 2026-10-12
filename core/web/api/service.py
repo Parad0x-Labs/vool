@@ -839,6 +839,8 @@ def _update_turn_guard(source_context: dict[str, Any] | None, session_id: str) -
     Fail-safe: no subsystem, no registration, the turn runs regardless."""
     import contextlib
 
+    from core.updater.work import UpdateInProgressError
+
     @contextlib.contextmanager
     def _noop():
         yield ""
@@ -868,6 +870,8 @@ def _update_turn_guard(source_context: dict[str, Any] | None, session_id: str) -
                 subsystem.complete_turn(work_id)
 
         return _guard()
+    except UpdateInProgressError:
+        raise  # never turn the update's pause-new-work refusal into an unguarded turn
     except Exception:
         return _noop()
 
@@ -3044,7 +3048,7 @@ def dispatch_post(
         result = calendar_alerts.sync_now(str(body.get("account_id") or ""))
         return apply_runtime_headers(json_response(200, result), runtime)
 
-    if normalized_path in {"/api/update/install", "/api/update/restart"}:
+    if normalized_path in {"/api/update/install", "/api/update/restart", "/api/update/rollback"}:
         # The REAL UI click arrives here: owner-local (the app's own webview) + the
         # transport CSRF guard already ran. The typed UserGesture is created on the
         # server from THIS request — a truthy body flag is never a press.
@@ -3052,10 +3056,12 @@ def dispatch_post(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _ur_command = "update.apply" if normalized_path == "/api/update/install" else "update.restart"
+        _ur_command = {'/api/update/install': 'update.apply', '/api/update/restart': 'update.restart',
+                       '/api/update/rollback': 'update.rollback'}[normalized_path]
         status_code, payload = _cr_forward(
             _ur_command,
-            {"resolve_destructive": str(body.get("resolve_destructive") or "").strip()},
+            {key: str(body.get(key) or '') for key in ('expected_app_path', 'expected_data_dir')}
+            if _ur_command == 'update.rollback' else {"resolve_destructive": str(body.get("resolve_destructive") or "").strip()},
             approval_context={"gesture": "web-ui-press", "origin": "web-ui"},
         )
         if isinstance(payload, dict):

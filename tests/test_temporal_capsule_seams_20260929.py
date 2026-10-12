@@ -48,13 +48,12 @@ def _profile(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _hash_backend():
+def _hash_backend(monkeypatch):
     from core import embedding_service
 
-    original = embedding_service._best_embed_model
-    embedding_service._best_embed_model = lambda: None
-    yield
-    embedding_service._best_embed_model = original
+    # Share the undo stack with composition_env. Manual restoration can run
+    # before its monkeypatch teardown and leave this stub in later modules.
+    monkeypatch.setattr(embedding_service, "_best_embed_model", lambda: None)
 
 
 def _ingest_live(profile: Path, chat: str, turns: list[dict]) -> None:
