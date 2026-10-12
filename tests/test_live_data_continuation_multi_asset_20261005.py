@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+
 import pytest
 
 from core.agent_runtime.live_data_plan import build_live_data_plan
