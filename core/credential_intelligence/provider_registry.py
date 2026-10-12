@@ -35,8 +35,9 @@ class ProviderDescriptor:
     verify_method: str = "GET"
     #: Where the key rides the verification request, as the provider documents it: "bearer"
     #: (``Authorization: Bearer …``), "header" (``auth_name: key``, e.g. Brave's
-    #: ``X-Subscription-Token``) or "body" (JSON field ``auth_name`` of a POST). The verifier refuses
-    #: anything else — a query-string placement would put the key in the URL.
+    #: ``X-Subscription-Token``) or "body" (JSON field ``auth_name`` of a POST); for a user endpoint
+    #: only, "none" (an open server the operator says takes no key: nothing is ever sent). The
+    #: verifier refuses anything else — a query-string placement would put the key in the URL.
     auth_style: str = "bearer"
     auth_name: str = ""
     #: Extra query params merged into the verification URL (e.g. a minimal search query).
@@ -95,6 +96,27 @@ class ProviderDescriptor:
         """This descriptor verified at an operator-supplied base URL (user endpoints only)."""
         return replace(self, verify_endpoint=f"{str(base_url or '').strip().rstrip('/')}{self.verify_path}")
 
+    def with_custom_auth(self, placement: str) -> ProviderDescriptor:
+        """This user endpoint with the key placement its operator chose (``core.cloud_providers``
+        vocabulary: bearer, header:<Name>, none). A fixed provider's documented placement is never
+        overridden: only a user endpoint documents nothing about its own auth."""
+        if not self.user_endpoint:
+            return self
+        from core.cloud_providers import custom_auth_parts
+
+        style, name = custom_auth_parts(placement)
+        return replace(self, auth_style=style, auth_name=name)
+
+    @property
+    def custom_auth(self) -> str:
+        """The placement this descriptor carries, in ``core.cloud_providers`` vocabulary."""
+        style = str(self.auth_style or "bearer").strip().lower()
+        if style == "none":
+            return "none"
+        if style == "header" and self.auth_name:
+            return f"header:{self.auth_name}"
+        return "bearer"
+
 
 class ProviderRegistry:
     """An immutable provider_id → descriptor mapping."""
@@ -146,6 +168,11 @@ def default_registry() -> ProviderRegistry:
         path_token = getattr(cfg, "auth_placement", "") == "url_path_token"
         if cfg.user_base_url:
             base = custom_base_url()
+            from core.cloud_providers import committed_custom_auth, custom_auth_parts
+
+            # The placement the operator chose WITH this endpoint and key (their binding row), so
+            # Test, discovery and refresh send the key exactly where the chat lane does.
+            custom_style, custom_name = custom_auth_parts(committed_custom_auth(base))
         elif getattr(cfg, "endpoint_slot", ""):
             # The endpoint committed beside this provider's key (UsePod's origin), else its documented one.
             from core.cloud_providers import resolved_base_url
@@ -169,6 +196,8 @@ def default_registry() -> ProviderRegistry:
             # any other way, so this is the one fact that decides whether a real key verifies.
             auth_style = "header" if cfg.auth_header else "bearer"
             auth_name = cfg.auth_header
+            if cfg.user_base_url:
+                auth_style, auth_name = custom_style, custom_name
         extra_headers = dict(cfg.extra_headers)
         if pid == "openrouter":
             # The attribution headers the probe always sent (X-Title et al.): one policy means

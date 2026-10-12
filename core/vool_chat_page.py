@@ -1854,7 +1854,7 @@ function isLocalOnlyMode() { return modelValue === LOCAL_ONLY_MODEL; }
 // providers use), a vendor/name[:tag] slug, or either with an optional provider: prefix. Friendly
 // labels are filled in as the catalog loads; the raw id is the safe fallback. NOTE: this matches
 // bare ids, so any check that must EXCLUDE the local tiers pairs it with !MODEL_LABELS[modelValue].
-const CLOUD_MODEL_ID_RE = /^(?:[a-z0-9_-]+:)?[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)?(?::[A-Za-z0-9._-]+)?$/;
+const CLOUD_MODEL_ID_RE = /^(?:[a-z0-9_-]+:)?(?!(?:[^\/]*\/)*\.{1,2}(?:[\/:]|$))[A-Za-z0-9._@-]+(?:\/[A-Za-z0-9._@-]+){0,4}(?::[A-Za-z0-9._-]+)?$/;
 const CLOUD_MODEL_LABELS = {};
 // Id -> catalog row for every row served by /api/cloud/models this session. The
 // send-time paid-pin guard reads the SAME server catalog verdicts, never its own guess.
@@ -9367,6 +9367,36 @@ function buildAutoFallbackControl(freeModels) {
   return bar;
 }
 
+// A model id typed by hand, for a provider whose own endpoint may serve models it does not list (the
+// custom OpenAI-compatible endpoint says so with `accepts_typed_model`). The id goes through the same
+// server-owned pin as a catalogue row, cost confirmation included; only the shape is checked here.
+function buildTypedModelRow(provider) {
+  const row = document.createElement('div'); row.className = 'pop-order cloud-toolbar cloud-dyn cloud-typed';
+  const lab = document.createElement('label'); lab.textContent = 'Model id';
+  const input = document.createElement('input'); input.type = 'text'; input.placeholder = 'exact id the endpoint serves';
+  input.autocomplete = 'off'; input.spellcheck = false; input.setAttribute('aria-label', 'Type a model id for this endpoint');
+  const use = document.createElement('button'); use.type = 'button'; use.className = 'pop-item cloud-dyn'; use.textContent = 'Use';
+  const hint = document.createElement('span'); hint.className = 'pi-hint';
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); use.click(); } });
+  use.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const id = input.value.trim();
+    if (!id || !CLOUD_MODEL_ID_RE.test(id)) { hint.textContent = 'Not a model id (letters, digits, . _ - @, up to five / parts, optional :tag).'; return; }
+    hint.textContent = 'Checking model and price…'; use.disabled = true;
+    try {
+      if (await switchCloudModel(id, id, use, provider)) {
+        hint.textContent = '';
+        const pop = document.getElementById('modelPop'), btn = document.getElementById('modelBtn');
+        if (pop) pop.classList.remove('open'); if (btn) btn.setAttribute('aria-expanded', 'false');
+      } else if (!use.dataset.selectionError) hint.textContent = 'Not pinned.';
+      else hint.textContent = use.dataset.selectionError;
+    } finally { use.disabled = false; }
+  });
+  lab.appendChild(input); row.appendChild(lab); row.appendChild(use); row.appendChild(hint);
+  return row;
+}
+
 async function renderCloudModels() {
   const revision = ++cloudCatalogRevision;
   const pop = document.getElementById('modelPop');
@@ -9429,6 +9459,7 @@ async function renderCloudModels() {
     });
     pop.insertBefore(row, anchor);
     pop.insertBefore(retry, anchor);
+    if (data && data.accepts_typed_model) pop.insertBefore(buildTypedModelRow(provider), anchor);
     positionPopover(pop, document.getElementById('modelBtn'));
     return;
   }
@@ -9455,6 +9486,7 @@ async function renderCloudModels() {
   pop.insertBefore(picker, anchor);
   autoFreeModel = String((data && data.auto_free_model) || 'auto');
   if ((data && data.provider) === 'openrouter') pop.insertBefore(buildAutoFallbackControl(free), anchor);
+  if (data && data.accepts_typed_model) pop.insertBefore(buildTypedModelRow(provider), anchor);
   pop.insertBefore(buildCloudToolbar(renderMatches), anchor);
   function group(text) { const g = document.createElement('div'); g.className = 'pop-group cloud-dyn'; g.textContent = text; return g; }
   const list = document.createElement('div'); list.className = 'cloud-list cloud-dyn';

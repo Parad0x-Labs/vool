@@ -2518,6 +2518,64 @@ def dispatch_get(
                 _up_payload["refresh"] = _up_refresh
             return apply_runtime_headers(json_response(200, _up_payload), runtime)
 
+        if prov == "custom":
+            # The operator's own endpoint has no curated list: its catalogue is what capability
+            # discovery OBSERVED at the endpoint now configured (?refresh=1 observes it again). Only
+            # rows seen available under the live key/endpoint generations are offered; a list from a
+            # previous endpoint, or one degraded to unknown, never is. Prices are not published by
+            # an operator endpoint, so none are invented.
+            from core.credential_intelligence.discovery import discovery_snapshot, refresh_discovery
+
+            _cu_refresh: dict[str, Any] | None = None
+            if str((query.get("refresh") or [""])[0] or "").strip() in {"1", "true", "yes"}:
+                try:
+                    _cu_assertion = refresh_discovery("custom")
+                    _cu_status = str(getattr(_cu_assertion, "last_refresh_status", "") or "")
+                    _cu_refresh = {"ok": _cu_status in {"verified", "public_endpoint", "empty_catalogue"},
+                                   "status": _cu_status}
+                    if not _cu_refresh["ok"]:
+                        _cu_refresh["error"] = _cu_status or "no catalogue observed"
+                except Exception as exc:
+                    _cu_refresh = {"ok": False, "error": f"catalogue fetch failed ({type(exc).__name__})"}
+            _cu_entry = discovery_snapshot(["custom"]).get("custom") or {}
+            _cu_rows: list[dict[str, Any]] = []
+            if _cu_entry.get("generations_match"):
+                for _cu_model in _cu_entry.get("models") or []:
+                    if _cu_model.get("status") != "available" or _cu_model.get("evidence") != "observed":
+                        continue
+                    _cu_id = str(_cu_model.get("model_id") or "")
+                    if not _cu_id:
+                        continue
+                    _cu_rows.append({
+                        "id": _cu_id,
+                        "name": str(_cu_model.get("display_name") or _cu_id),
+                        "context_length": int(_cu_model.get("context_window") or 0),
+                        "free": False,
+                        "coding": False,
+                        "provider": "custom",
+                        "supports_images": "image" in {str(x).lower() for x in (_cu_model.get("input_modalities") or ())},
+                    })
+            if order == "name" or order == "featured":
+                _cu_rows.sort(key=lambda r: str(r["id"]).lower())
+            elif order == "context":
+                _cu_rows.sort(key=lambda r: int(r.get("context_length") or 0), reverse=True)
+            _cu_cfg = config_for("custom")
+            _cu_payload: dict[str, Any] = {
+                "provider": "custom",
+                "label": _cu_cfg.label if _cu_cfg else "Custom",
+                "models": _cu_rows,
+                "free_count": 0,
+                "age_seconds": None,
+                "order": order,
+                "catalogue_status": str(_cu_entry.get("last_refresh_status") or ""),
+                # The picker offers a typed model id for this provider: an endpoint may serve models
+                # it does not list, or list none at all.
+                "accepts_typed_model": True,
+            }
+            if _cu_refresh is not None:
+                _cu_payload["refresh"] = _cu_refresh
+            return apply_runtime_headers(json_response(200, _cu_payload), runtime)
+
         # Direct provider: curated static list (no live free catalog).
         from core.cloud_model_catalog import curated_models
 

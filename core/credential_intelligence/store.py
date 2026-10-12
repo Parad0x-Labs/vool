@@ -474,6 +474,10 @@ class CredentialStore:
             "checked_at": str(getattr(outcome, "checked_at", "") or "") if outcome is not None else "",
             "label": descriptor.label,
         }
+        if descriptor.user_endpoint:
+            # Where this endpoint's key travels is part of the pair the operator chose; the row the
+            # transaction commits carries it, so it can never be applied to another endpoint's key.
+            intent["auth"] = descriptor.custom_auth
         if paired:
             prior_base = self._strict_get(endpoint_slot)
             prior_key = self._strict_get(slot)
@@ -662,6 +666,8 @@ class CredentialStore:
         }
         if endpoint:
             row["endpoint"] = endpoint
+        if intent.get("auth"):
+            row["auth"] = str(intent.get("auth"))
         rows[descriptor.provider_id] = row
         self._commit_index_locked(rows)  # committed AND verified before the intent closes (R3)
         self._journal_close(slot, PHASE_DONE)
@@ -1182,6 +1188,8 @@ class CredentialStore:
                             "storage_backend": str(getattr(self._cm, "active_backend", lambda: "vault")()),
                             "endpoint": endpoint,
                         }
+                        if intent.get("auth"):
+                            rows[pid]["auth"] = str(intent.get("auth"))
                         with contextlib.suppress(Exception):
                             self._cm.delete_credential(quarantine_slot_for(descriptor))
                         report.adopted.append(pid)

@@ -297,7 +297,7 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
             return apply_runtime_headers(json_response(413, {"error": "request body too large"}), runtime)
     except (TypeError, ValueError):
         return apply_runtime_headers(json_response(400, {"error": "unserializable body"}), runtime)
-    unknown = set(body.keys()) - {"name", "value", "label", "delete", "provider", "base_url"}
+    unknown = set(body.keys()) - {"name", "value", "label", "delete", "provider", "base_url", "auth"}
     if unknown:
         return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
     # "Auto-detect from the key" on the Settings form sent a value with no provider and no slot, and
@@ -485,6 +485,21 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
             json_response(200, {"name": name, "provider": provider_id, "connected": False, "removed": removed}), runtime
         )
     value = body.get("value")
+    custom_auth = ""
+    if provider_id == "custom":
+        # Where the custom endpoint's key travels: Bearer (default), a named header, or no key at all
+        # for an open self-hosted server -- whose key slot then holds a fixed marker that is never sent.
+        from core.cloud_providers import CUSTOM_AUTH_NONE, CUSTOM_NO_KEY_VALUE, normalize_custom_auth
+
+        custom_auth = normalize_custom_auth(body.get("auth"))
+        if not custom_auth:
+            return apply_runtime_headers(json_response(400, {
+                "error": "auth must be bearer, header:<Name> (not a reserved header) or none"}), runtime)
+        if custom_auth == CUSTOM_AUTH_NONE:
+            value = CUSTOM_NO_KEY_VALUE
+    elif str(body.get("auth") or "").strip():
+        return apply_runtime_headers(json_response(400, {
+            "error": "only the custom endpoint takes a key placement; this provider documents its own"}), runtime)
     if not isinstance(value, str) or not value.strip():
         return apply_runtime_headers(json_response(400, {"error": "missing or invalid value"}), runtime)
     if len(value) > 8192:
@@ -527,7 +542,7 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
             # them left a mixed pair with no recovery record. The store's operator-pair door
             # journals the operation, decides it by read-back and leaves a coherent binding row
             # (honestly `unverified` — this door proves nothing about the key itself).
-            refused = _commit_operator_pair("custom", value.strip(), base_url, runtime)
+            refused = _commit_operator_pair("custom", value.strip(), base_url, runtime, auth=custom_auth)
             if refused is not None:
                 return refused
         elif usepod_binding is not None:
@@ -621,7 +636,7 @@ def bind_saved_cloud_key(provider_id: str) -> None:
             refresh_path_token_lanes(provider_id)
 
 
-def _commit_operator_pair(provider_id: str, secret: str, endpoint: str, runtime) -> ApiResponse | None:
+def _commit_operator_pair(provider_id: str, secret: str, endpoint: str, runtime, *, auth: str = "") -> ApiResponse | None:
     """Commit a key and its endpoint as ONE operator-asserted pair through the store's transaction
     (journaled, decided by read-back, a coherent ``unverified`` binding row), or return the typed
     refusal response. ``None`` means the pair committed."""
@@ -635,8 +650,12 @@ def _commit_operator_pair(provider_id: str, secret: str, endpoint: str, runtime)
     )
 
     registry = default_registry()
+    descriptor = registry.get(provider_id)
+    if descriptor is not None and descriptor.user_endpoint:
+        # The placement chosen with THIS pair, never the one committed with the previous pair.
+        descriptor = descriptor.with_custom_auth(auth)
     try:
-        CredentialStore(registry).save_operator_pair(registry.get(provider_id), secret, endpoint=endpoint)
+        CredentialStore(registry).save_operator_pair(descriptor, secret, endpoint=endpoint)
     except IntakeRefusedError as exc:
         return apply_runtime_headers(json_response(400, {"error": str(exc)}), runtime)
     except StorageConflictError as exc:
@@ -809,10 +828,22 @@ def set_cloud_model_authority(body: dict, headers: dict, runtime, client_host: s
                 )
             else:
                 code = "paid_model_confirm_required"
-                message = (
-                    "That model is PAID per the cached OpenRouter catalog. Confirm the pin "
-                    "to spend provider credits."
-                )
+                if _resolved_provider == "openrouter":
+                    message = (
+                        "That model is PAID per the cached OpenRouter catalog. Confirm the pin "
+                        "to spend provider credits."
+                    )
+                elif _resolved_provider == "custom":
+                    message = (
+                        "VOOL cannot see what your own endpoint charges, so its models are treated "
+                        "as PAID. Confirm the pin to use it; any per-token cost is billed by that endpoint."
+                    )
+                else:
+                    _paid_cfg = PROVIDERS.get(_resolved_provider)
+                    message = (
+                        f"{_paid_cfg.label if _paid_cfg else _resolved_provider} bills its models per "
+                        "token. Confirm the pin to spend provider credits."
+                    )
             return apply_runtime_headers(
                 json_response(
                     409,

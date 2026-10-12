@@ -2226,7 +2226,30 @@ function widgetKeys(stack) {
     T('keys.base_url_hint', 'Custom endpoint: the OpenAI-compatible base URL, ending in /v1 — https://host/v1, or http://127.0.0.1:port/v1 for a server on this machine. Plain http to any other host is refused so the key never travels in clear.'));
   baseUrlHint.hidden = true;
   const needsBaseUrl = () => { const v = prov.value.trim(); const meta = PROVIDER_META[v]; return meta ? !!meta.user_base_url : v === 'custom'; };
-  const syncBaseUrl = () => { const show = needsBaseUrl(); baseUrl.hidden = !show; baseUrlHint.hidden = !show; };
+  /* Where a custom endpoint's key goes. An endpoint the operator typed in documents nothing about its
+     auth, so they say: a Bearer token (the OpenAI convention), the bare key in a header they name
+     (Azure's api-key, a proxy's x-api-key), or no key at all for an open server on their own machine.
+     The server validates the header name and commits the choice with the endpoint and key. */
+  const keyAuth = document.createElement('select');
+  keyAuth.className = 'inp key-auth'; keyAuth.hidden = true; keyAuth.setAttribute('aria-label', T('keys.auth_aria', 'Where the key goes'));
+  [['bearer', T('keys.auth_bearer', 'Key as Bearer token (most APIs)')],
+   ['header', T('keys.auth_header', 'Key in a named header')],
+   ['none', T('keys.auth_none', 'No key (open server)')]].forEach(([v, label]) => { const o = el('option', null, label); o.value = v; keyAuth.appendChild(o); });
+  const keyHeader = document.createElement('input');
+  keyHeader.type = 'text'; keyHeader.className = 'inp key-auth-header'; keyHeader.hidden = true; keyHeader.autocomplete = 'off'; keyHeader.spellcheck = false;
+  keyHeader.placeholder = T('keys.auth_header_placeholder', 'header name, e.g. api-key'); keyHeader.setAttribute('aria-label', T('keys.auth_header_aria', 'Header that carries the key'));
+  const authValue = () => keyAuth.value === 'none' ? 'none' : keyAuth.value === 'header' ? 'header:' + keyHeader.value.trim() : 'bearer';
+  const syncAuth = () => {
+    const show = needsBaseUrl();
+    keyAuth.hidden = !show;
+    keyHeader.hidden = !show || keyAuth.value !== 'header';
+    const open = show && keyAuth.value === 'none';
+    key.disabled = open;
+    if (open) key.value = '';
+    key.placeholder = open ? T('keys.no_key_placeholder', 'no key needed') : '';
+  };
+  keyAuth.addEventListener('change', syncAuth);
+  const syncBaseUrl = () => { const show = needsBaseUrl(); baseUrl.hidden = !show; baseUrlHint.hidden = !show; syncAuth(); };
   prov.addEventListener('change', syncBaseUrl);
 
   /* A path-token provider (UsePod: the credential rides the URL path, not a header) accepts a
@@ -2288,9 +2311,33 @@ function widgetKeys(stack) {
   const selectedGroup = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; const g = o && o.parentElement; return (g && g.tagName === 'OPTGROUP' && g.dataset.family) || ''; };
   const selectedLabel = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; return o && prov.value ? o.textContent : ''; };
   const failText = (res) => res.j.detail || res.j.error || ('HTTP ' + res.status);
+  const openEndpoint = () => needsBaseUrl() && keyAuth.value === 'none';
+  /* The explicit "use anyway" for a custom endpoint that answered but cannot confirm a key. Offered
+     only when the server says this session's outcome allows it; it stores the pair as unconfirmed and
+     the first message is what judges the key. */
+  const useAnyway = el('button', 'btn key-use-anyway', T('keys.use_anyway', 'Use this endpoint anyway')); useAnyway.type = 'button'; useAnyway.hidden = true;
+  let assertableSession = '';
+  useAnyway.addEventListener('click', async () => {
+    if (!assertableSession) return;
+    useAnyway.disabled = true;
+    try {
+      const done = await intakePost('/api/intake/complete', { session_id: assertableSession, persist: 'asserted' });
+      assertableSession = ''; useAnyway.hidden = true;
+      if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
+      key.value = '';
+      const note = T('keys.stored_unconfirmed', 'Stored sealed on this machine as an UNCONFIRMED custom endpoint. It is now the active model provider; your first message will show whether the key works.');
+      setSt('saved', note);
+      widgetCache.keySaveNote = note;
+      await readSource('/api/settings/credentials');
+      renderPane();
+    } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
+    finally { useAnyway.disabled = false; }
+  });
   const saveVerified = async () => {
-    const v = key.value;
+    assertableSession = ''; useAnyway.hidden = true;
+    const v = openEndpoint() ? 'no-key' : key.value;
     if (!v.trim()) { setSt('failed', T('keys.paste_first', 'Paste a key first.')); return; }
+    if (needsBaseUrl() && keyAuth.value === 'header' && !keyHeader.value.trim()) { setSt('failed', T('keys.auth_header_first', 'Name the header that carries the key (for example api-key). Nothing was sent anywhere.')); keyHeader.focus(); return; }
     save.disabled = true;
     try {
       setSt('saving', T('keys.recognising', 'Recognising the key on this machine…'));
@@ -2315,6 +2362,7 @@ function widgetKeys(stack) {
       if (needsBaseUrl()) {
         if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first', 'Not stored — enter the base URL of the endpoint first (for example https://host/v1). Nothing was sent anywhere.')); baseUrl.focus(); return; }
         verifyBody.base_url = baseUrl.value.trim();
+        verifyBody.auth = authValue();
       }
       /* A path-token provider (UsePod): the origin field names an endpoint the operator chose. Left
          empty, the provider's documented origin applies. The paste (a token or a whole proxy URL) is
@@ -2323,7 +2371,14 @@ function widgetKeys(stack) {
       setSt('saving', tfmt('keys.asking', 'Asking {label} once whether it accepts this key…', { label: label }));
       const verified = await intakePost('/api/intake/verify', verifyBody);
       if (!verified.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(verified) })); return; }
-      if (verified.j.outcome !== 'verified') { setSt('failed', verifyOutcomeMessage(label, verified.j)); return; }
+      if (verified.j.outcome !== 'verified') {
+        setSt('failed', verifyOutcomeMessage(label, verified.j));
+        if (verified.j.can_use_unconfirmed) {
+          assertableSession = sid; useAnyway.hidden = false;
+          setSt('failed', verifyOutcomeMessage(label, verified.j) + ' ' + T('keys.use_anyway_hint', 'If this is your own server and you trust it, you can use it anyway; the first message will show whether the key works.'));
+        }
+        return;
+      }
       setSt('saving', tfmt('keys.storing', '{label} accepted the key. Storing it sealed on this machine…', { label: label }));
       const done = await intakePost('/api/intake/complete', { session_id: sid });
       if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
@@ -2346,7 +2401,7 @@ function widgetKeys(stack) {
   /* Save-for-later runs the same local recognition and the same ONE provider selection, then
      stores WITHOUT asking anyone: nothing is sent anywhere. The key lands in quarantine. */
   later.addEventListener('click', async () => {
-    const v = key.value;
+    const v = openEndpoint() ? 'no-key' : key.value;
     if (!v.trim()) { setSt('failed', T('keys.paste_first', 'Paste a key first.')); return; }
     later.disabled = true;
     try {
@@ -2372,6 +2427,7 @@ function widgetKeys(stack) {
       if (needsBaseUrl()) {
         if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first_short', 'Not stored — enter the base URL of the endpoint first. Nothing was sent anywhere.')); baseUrl.focus(); return; }
         laterBody.base_url = baseUrl.value.trim();
+        laterBody.auth = authValue();
       }
       if (isPathTokenProvider() && origin.value.trim()) laterBody.base_url = origin.value.trim();
       /* preview pins the provider on the session without any request; complete stores quarantined */
@@ -2420,7 +2476,9 @@ function widgetKeys(stack) {
   /* The Test button's answer for a stored key, in the same terms. */
   function keyTestMessage(label, j) {
     const state = String(j.state || '');
+    if (state === 'ok' && /open endpoint/.test(String(j.detail || ''))) return tfmt('keys.test.ok_open', 'Connection verified — {label} answers without a key, as you chose.', { label: label });
     if (state === 'ok') return tfmt('keys.test.ok', 'Connection verified — {label} accepted your key.', { label: label });
+    if (state === 'untested' && j.checked_at) return tfmt('keys.test.unconfirmable', '{label} is reachable, but it lists its models without a key, so it cannot confirm yours. Your first message will.', { label: label });
     const reason = state === 'failed' ? String(j.detail || '') : state;
     const http = j.http_status ? ' (HTTP ' + j.http_status + ')' : '';
     const p = { label: label, http: http };
@@ -2439,7 +2497,7 @@ function widgetKeys(stack) {
     return tfmt('keys.test.unconfirmed', 'Could not confirm the key with {label}; the key itself was not judged{detail}.',
       { label: label, detail: j.detail ? tfmt('keys.test.refused_detail', ' ({detail})', { detail: j.detail }) : '' });
   }
-  form.appendChild(prov); form.appendChild(baseUrl); form.appendChild(origin); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later);
+  form.appendChild(prov); form.appendChild(baseUrl); form.appendChild(keyAuth); form.appendChild(keyHeader); form.appendChild(origin); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later); form.appendChild(useAnyway);
   stack.appendChild(form);
   stack.appendChild(baseUrlHint);
   stack.appendChild(originHint);

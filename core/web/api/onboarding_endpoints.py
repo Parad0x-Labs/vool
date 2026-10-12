@@ -212,6 +212,8 @@ def _command_input(command_id: str, body: dict) -> dict:
             data["session_id"] = _opt_str(body, "session_id")
             data["provider_id"] = _opt_str(body, "provider_id")
             data["base_url"] = _opt_str(body, "base_url")
+            # A custom endpoint's key placement (bearer / header:<Name> / none); validated by the handler.
+            data["auth"] = _opt_str(body, "auth")
         elif command_id == "intake.quarantine.retry" or command_id == "intake.quarantine.delete":
             data = {"provider_id": _opt_str(body, "provider_id")}
             return data
