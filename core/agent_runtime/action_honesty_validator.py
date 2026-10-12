@@ -133,7 +133,7 @@ _DELIVERABLE_OBJECT = (
 )
 #: The object as a bare extension (".md") or a filename ("backup.zip"). Only after a production verb:
 #: "Here's your config.yaml:" introduces content shown in the reply, not a file said to exist.
-_DELIVERABLE_NAMED_FILE = rf"(?:(?<![\w.])\.{_DATA_FILE_EXTENSION}\b(?!\.\w)|\b[\w-]+\.{_DATA_FILE_EXTENSION}\b(?!\.\w))"
+_DELIVERABLE_NAMED_FILE = rf"(?:(?<![\w.])\.{_DATA_FILE_EXTENSION}\b(?!\.\w)|(?<![\w~/./\\-])[\w~/./\\-]+(?:[ \t]+[\w~/./\\-]+){{0,5}}\.{_DATA_FILE_EXTENSION}\b(?!\.\w))"
 _DELIVERABLE_VERB = (
     r"(?:created|generated|made|built|prepared|produced|saved|exported|converted|attached|wrote|written|"
     r"compiled|put\s+together|uploaded|rendered|packaged|zipped|compressed|archived|bundled)"
@@ -141,17 +141,17 @@ _DELIVERABLE_VERB = (
 #: Words between the verb and the object that make the object a source rather than the product.
 _DELIVERABLE_SOURCE_WORD = r"(?:of|from|about|on|with|by|based|describing|summari[sz]ing|explaining|using|for)"
 _DELIVERABLE_CLAIM_RE = re.compile(
-    rf"\b(?:"
+    rf"(?:"
     # "saved it as a Word document", "exported the budget to Excel", "created a three-slide PowerPoint presentation"
     # Not the adjective ("the attached notes.txt", "your exported data"): that names a file someone
     # else provided or the reply is talking about, not one this turn produced.
     rf"(?<!\bthe\s)(?<!\byour\s)(?<!\bmy\s)(?<!\bthis\s)(?<!\bthat\s)"
-    rf"{_DELIVERABLE_VERB}(?:\s+(?!{_DELIVERABLE_SOURCE_WORD}\b)[\w'-]+){{0,6}}?\s+(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})"
+    rf"\b{_DELIVERABLE_VERB}(?:\s+(?!{_DELIVERABLE_SOURCE_WORD}\b)[\w'-]+){{0,6}}?\s+(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})"
     # "your Word document is ready", "the PDF has been generated"
-    rf"|(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})\s+(?:is|are|was|were|has\s+(?:now\s+)?been|have\s+(?:now\s+)?been)\s+(?:(?:now|successfully)\s+)?"
+    rf"|(?:\b{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})\s+(?:is|are|was|were|has\s+(?:now\s+)?been|have\s+(?:now\s+)?been)\s+(?:(?:now|successfully)\s+)?"
     rf"(?:ready|created|generated|saved|exported|attached|available|done|complete|uploaded|made|prepared)"
     # "here is your PowerPoint file", "attached is the spreadsheet"
-    rf"|(?:here(?:'s|\s+is|\s+are)|attached\s+(?:is|are))\s+(?:your|the)\s+(?:[\w-]+\s+){{0,2}}?{_DELIVERABLE_OBJECT}"
+    rf"|\b(?:here(?:'s|\s+is|\s+are)|attached\s+(?:is|are))\s+(?:your|the)\s+(?:[\w-]+\s+){{0,2}}?{_DELIVERABLE_OBJECT}"
     rf")",
     re.IGNORECASE,
 )
@@ -577,6 +577,9 @@ _COMPLETED_FILE_COUNT_RE = re.compile(
     rf"|{_FILE_COUNT_WORD_PATTERN}\s+files?\s+(?:are|were|have\s+been)\s+(?:saved|created|written|generated|ready))\b", re.I,
 )
 _FILE_LIST_HEADING_RE = re.compile(r"^\s*(?:files?\s+(?:created|saved|written|generated)|(?:created|saved|written|generated)\s+files?)\s*:\s*$", re.I)
+_QUALIFIED_FILE_COMPLETION_START_RE = re.compile(
+    rf"^\s*(?:(?:i|i've|i\s+have)\s+)?{_DELIVERABLE_VERB}\s+", re.I,
+)
 
 
 def _deliverable_claim_fragments(text: str) -> list[str]:
@@ -599,6 +602,18 @@ def _deliverable_claim_fragments(text: str) -> list[str]:
     for sentence in _split_sentences(normalized):
         for clause in re.split(r",\s*(?:but|however)\s+|;\s*", sentence, flags=re.I):
             match = _DELIVERABLE_CLAIM_RE.search(clause) or _COMPLETED_FILE_COUNT_RE.search(clause)
+            if match is None:
+                # Recognize a literal qualified target even when its directory is
+                # too large for the bounded name parser. It must fail verification,
+                # rather than disappear from the file-evidence obligation.
+                start = _QUALIFIED_FILE_COMPLETION_START_RE.match(clause)
+                filename = _SPECIFIC_DELIVERABLE_NAME_RE.search(clause) if start else None
+                if start and filename:
+                    target = clause[start.end():filename.end()]
+                    before_directory = re.split(r"[/\\]", target, maxsplit=1)[0]
+                    if ("/" in target or "\\" in target) and not re.search(
+                            rf"\b{_DELIVERABLE_SOURCE_WORD}\b", before_directory, re.I):
+                        match = start
             if match is None:
                 continue
             if _DELIVERABLE_NOT_DONE_RE.search(clause[:match.end()]) or _NOT_A_SELF_CLAIM_RE.search(clause):
@@ -843,7 +858,7 @@ _FILE_COUNT_WORDS = {"one": 1, "both": 2, "two": 2, "three": 3, "four": 4, "five
                      "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "dozen": 12}
 
 
-def _claimed_file_names(claims: list[str]) -> set[str]:
+def _claimed_file_names(claims: list[str]) -> set[str] | None:
     names: set[str] = set()
     for text in claims:
         text = _file_claim_text(text)
@@ -851,15 +866,61 @@ def _claimed_file_names(claims: list[str]) -> set[str]:
             name = match.group(0)
             # A bounded preceding object span allows real filenames with spaces.
             # Do not accept an arbitrary suffix of a different written basename.
-            prefix = text[max(0, match.start() - 240):match.start()]
-            boundaries = list(re.finditer(rf"\b{_DELIVERABLE_VERB}\s+|[,;:]\s*|\b(?:and|into|as|to)\s+", prefix, re.I))
+            prefix_start = max(0, match.start() - 240)
+            prefix = text[prefix_start:match.start()]
+            boundaries = list(re.finditer(rf"\b{_DELIVERABLE_VERB}\s+|\(\s*at\s+|[,;:]\s*|\b(?:and|into|as|to)\s+", prefix, re.I))
+            # Once a directory begins, words within its components are literal.
+            # A later separator is prose only after an earlier complete filename,
+            # or in the runtime's explicit parenthesized location annotation.
+            first_separator = re.search(r"[/\\]", prefix)
+            if first_separator:
+                boundaries = [boundary for boundary in boundaries
+                              if boundary.start() < first_separator.start()
+                              or boundary.group(0).lstrip().startswith("(")
+                              or _SPECIFIC_DELIVERABLE_NAME_RE.search(prefix[:boundary.start()])]
             if boundaries:
                 extra = prefix[boundaries[-1].end():]
                 extra = re.sub(r"^(?:the|a|an|your)\s+", "", extra, flags=re.I)
-                if re.fullmatch(r"[\w ~/.-]{0,120}", extra):
+                if re.fullmatch(r"[\w ~/.-]{0,240}", extra):
                     name = extra + name
-            names.add(name.replace("\\", "/").rsplit("/", 1)[-1].casefold())
+                elif "/" in extra or "\\" in extra:
+                    return None  # A bounded parse cannot discard an unparsed directory.
+            else:
+                # Passive claims and completion lists may have no production verb.
+                path_prefix = re.search(r"[\w~/./\\-]+$", prefix)
+                if re.fullmatch(r"[\w ~/./\\-]{1,120}", prefix):
+                    name = prefix + name
+                elif path_prefix:
+                    if (path_prefix.start() == 0 and prefix_start > 0
+                            and re.fullmatch(r"[\w~/./\\-]", text[prefix_start - 1])):
+                        return None
+                    if re.fullmatch(r"[\w ~/./\\-]+", prefix) and "/" in prefix and " " in prefix:
+                        return None
+                    name = path_prefix.group(0) + name
+            names.add(name.replace("\\", "/").strip())
     return names
+
+
+def _file_claim_matches_output(claim: str, outputs: set[str], context: dict[str, object] | None) -> bool:
+    """A named directory is part of the claim, not a disposable display prefix.
+
+    A bare filename retains its display-name contract. Qualified paths require the
+    same lexical path, or an absolute/relative mapping under the turn's existing
+    workspace root. Do not infer a root from an unrelated output or the process cwd.
+    """
+    if "/" not in claim:
+        return any(claim.casefold() == name.rsplit("/", 1)[-1].casefold() for name in outputs)
+    root = str((context or {}).get("workspace_root") or (context or {}).get("workspace") or "")
+    root = root.replace("\\", "/")
+
+    def identity(name: str) -> str:
+        normalized = posixpath.normpath(name.replace("\\", "/"))
+        if posixpath.isabs(root) and not posixpath.isabs(normalized) and not normalized.startswith("~"):
+            normalized = posixpath.normpath(posixpath.join(root, normalized))
+        return normalized
+
+    expected = identity(claim)
+    return any(expected == identity(name) for name in outputs)
 
 
 def _output_file_names(*details: object, identities_only: bool = False) -> set[str]:
@@ -971,16 +1032,16 @@ def _turn_wrote_a_file(
     claims = list(claimed or [])
     families = _claimed_deliverable_families(claims)
     expected_names = _claimed_file_names(claims)
+    if expected_names is None:
+        return False
     minimum_count = _promised_file_count(claims)
     if minimum_count is None:
         return False
     if expected_names or minimum_count:
-        written_names = _turn_file_output_names(session_id=session_id, source_context=source_context)
-        basenames = {name.rsplit("/", 1)[-1].casefold() for name in written_names}
-        if not expected_names.issubset(basenames):
-            return False
         identities = _turn_file_output_names(session_id=session_id, source_context=source_context,
                                              identities_only=True)
+        if any(not _file_claim_matches_output(name, identities, source_context) for name in expected_names):
+            return False
         if len(identities) < minimum_count:
             return False
     made = set().union(*writes)

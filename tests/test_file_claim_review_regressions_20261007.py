@@ -38,7 +38,7 @@ CASES = [
  ("user_uploaded", "The two files you uploaded contain meeting notes.", "none", [], True),
  ("name_case_differs", "I saved Notes.MD for you.", "receipts", R("notes.md"), True),
  ("name_with_space", "I saved my notes.md for you.", "receipts", R("my notes.md"), True),
- ("name_fullpath_claim", "I saved exports/notes.md for you.", "receipts", R("notes.md"), True),
+ ("name_fullpath_claim", "I saved exports/notes.md for you.", "receipts", R("exports/notes.md"), True),
  ("fabricated_backtick_wrote", "I wrote `notes.md` for you.", "none", [], False),
  ("fabricated_backtick_saved", "I saved `report.csv` with the totals.", "none", [], False),
  ("fabricated_bold_saved", "I saved **report.csv** with the totals.", "none", [], False),
