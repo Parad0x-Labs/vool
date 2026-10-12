@@ -342,6 +342,9 @@ _DIRECT_MAP: dict[str, tuple[str, str | None, str | None]] = {
     "tool_executed": ("tool.completed", None, "completed"),
     "tool_failed": ("tool.failed", STAGE_REPAIRING, "failed"),
     "tool_repeat_blocked": ("task.stage_changed", STAGE_REPAIRING, "running"),
+    # A note the user attached while the task worked, picked up at a step boundary
+    # (core/followup_continuity.py). Summary is the runtime's own "Picked up your note: ..." line.
+    "followup_note_applied": ("task.stage_changed", STAGE_PLANNING, "running"),
     "tool_fallback_to_research": ("task.stage_changed", STAGE_SEARCHING, "running"),
     "tool_synthesizing": ("task.stage_changed", STAGE_VERIFYING, "running"),
     "tool_loop_completed": ("task.stage_changed", STAGE_VERIFYING, "running"),

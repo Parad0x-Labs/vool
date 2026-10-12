@@ -169,6 +169,22 @@ _UNFULFILLED_FAST_PATH_REASONS = frozenset(
 _log = logging.getLogger(__name__)
 
 
+def _forbid_side_answer_actions(runtime_source_context: dict[str, Any]) -> None:
+    """A side answer to a question asked while a task runs may only answer.
+
+    It runs beside the task, outside the session's turn gate, so it must not be able to act: a
+    second actor in the same chat could start, repeat or contradict the work the task is doing.
+    The marker is server-owned (`core.followup_continuity`); a caller-sent copy never survives
+    ingress. Restriction only: this can turn actions off, never on.
+    """
+    from core.agent_runtime.intent_claims import NO_COMMANDS_CONTEXT_KEY, ActionPolicy
+    from core.followup_continuity import SIDE_ANSWER_CONTEXT_KEY
+
+    if runtime_source_context.get(SIDE_ANSWER_CONTEXT_KEY):
+        runtime_source_context["action_policy"] = ActionPolicy.FORBIDDEN.value
+        runtime_source_context[NO_COMMANDS_CONTEXT_KEY] = True
+
+
 def _augment_history_from_session_log(
     history: list[dict[str, str]] | None,
     *,
@@ -1927,6 +1943,7 @@ class VoolAgent(
         runtime_source_context["action_policy"] = constraints.policy.value
         if constraints.forbid_commands:
             runtime_source_context[NO_COMMANDS_CONTEXT_KEY] = True
+        _forbid_side_answer_actions(runtime_source_context)
         # Forget admission precedes every memory-bearing effect of the turn,
         # including normalization's dialogue state and profile sibling clauses.
         from core.persistent_memory import _preadmit_forget_turn
@@ -2365,6 +2382,7 @@ class VoolAgent(
             from core.agent_runtime.intent_claims import ActionPolicy
 
             runtime_source_context["action_policy"] = ActionPolicy.FORBIDDEN.value
+        _forbid_side_answer_actions(runtime_source_context)
 
         def _guard_final_result(
             result: dict,

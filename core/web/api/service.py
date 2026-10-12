@@ -6154,6 +6154,38 @@ def _dispatch_post_inner(
         state = request_cancel(cancel_session, cancel_turn)
         return apply_runtime_headers(json_response(200, {"ok": True, "state": state}), runtime)
 
+    if normalized_path == "/api/chat/followup":
+        # A message sent while this chat's task is still working. It never waits behind the task:
+        # a stop stops it, a note is attached to it, a plan change is held for a yes/no, and a
+        # question comes back as route `answer` for the page to run as a side answer. With no live
+        # task the route is `run_now`. Owner-local with the same transport guards as cancel.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.followup_continuity import handle_followup
+        from core.web.api.runtime import host_header_allowed
+
+        def _ph_followup(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        ct = _ph_followup("content-type").lower()
+        if ct and "json" not in ct:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _ph_followup("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        unknown = set(body.keys()) - {"session_id", "text", "idempotency_key"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        outcome = handle_followup(
+            str(body.get("session_id") or ""),
+            str(body.get("text") or ""),
+            idempotency_key=str(body.get("idempotency_key") or ""),
+        )
+        return apply_runtime_headers(json_response(200 if outcome.get("ok") else 400, outcome), runtime)
+
     if normalized_path == "/api/chat/pin":
         # Pin or unpin one message to a chat (owner-local snapshot). Loopback + the same POST guards.
         # Enforced, not assumed: pin/unpin into any session must not be
@@ -7055,6 +7087,19 @@ def _dispatch_post_inner(
         # registers a cancel Event under (session_id, turn_id) for this turn.
         inbound_source_context["price_wait_queue_id"] = str(body.get("queue_item_id") or "").strip()[:200] if owner_local else ""
         inbound_source_context["cancel_turn_id"] = str(body.get("turn_id") or "").strip()[:80]
+        # A question asked while a task runs in this chat is answered beside it, not after it. The
+        # side-answer marker is server-owned: a caller-sent copy is always dropped, and the page's
+        # request for one is honoured only while this chat really has a live task (owner-local).
+        from core import followup_continuity as _followups
+
+        inbound_source_context.pop(_followups.SIDE_ANSWER_CONTEXT_KEY, None)
+        inbound_source_context.pop(_followups.SIDE_ANSWER_SNAPSHOT_KEY, None)
+        inbound_source_context.pop(_followups.FOLLOWUP_NOTES_CONTEXT_KEY, None)
+        if owner_local and str(body.get("followup_mode") or "").strip() == "side_answer":
+            _active_snapshot = _followups.task_snapshot(session_id)
+            if _active_snapshot is not None:
+                inbound_source_context[_followups.SIDE_ANSWER_CONTEXT_KEY] = True
+                inbound_source_context[_followups.SIDE_ANSWER_SNAPSHOT_KEY] = _active_snapshot
         requested_workspace = str(
             body.get("workspace")
             or body.get("workspace_root")
@@ -7525,12 +7570,16 @@ def _dispatch_post_inner(
         # and the per-turn cancel signal must reach the in-flight tool (a long command in a code
         # task) rather than only the visible reply. Registered before the call, released in the
         # finally, on every exit path.
+        from core import followup_continuity as _buf_followups
         from core.live_turns import register_turn as _buf_register_turn
         from core.live_turns import unregister_turn as _buf_unregister_turn
 
         _buf_cancel_turn = str(source_context.get("cancel_turn_id") or "").strip()
+        _buf_task_turn = bool(_buf_cancel_turn) and not source_context.get(_buf_followups.SIDE_ANSWER_CONTEXT_KEY)
         if _buf_cancel_turn:
             source_context["cancel_event"] = _buf_register_turn(session_id, _buf_cancel_turn)
+        if _buf_task_turn:
+            _buf_followups.begin_task(session_id, _buf_cancel_turn, user_text)
         try:
             with _update_turn_guard(source_context, session_id):
                 result = run_agent_provider(
@@ -7550,6 +7599,8 @@ def _dispatch_post_inner(
         finally:
             if _buf_cancel_turn:
                 _buf_unregister_turn(session_id, _buf_cancel_turn)
+            if _buf_task_turn:
+                _buf_followups.end_task(session_id, _buf_cancel_turn)
             # The buffered lane's turn is over here, answered or failed: release its attachments.
             if _attachment_turn:
                 _release_turn_attachments(session_id, _attachment_turn)
