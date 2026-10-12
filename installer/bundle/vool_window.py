@@ -1301,6 +1301,142 @@ def _install_native_frame_authority() -> None:
         install_macos_frame_authority()
 
 
+class NativeWebKitProfileError(RuntimeError):
+    """The isolated native profile could not prove a nonpersistent datastore."""
+
+
+def _verify_nonpersistent_store(store: object) -> None:
+    try:
+        persistent = store.isPersistent()
+    except Exception as exc:
+        raise NativeWebKitProfileError("WebKit datastore persistence is unavailable") from exc
+    if persistent is not False:
+        raise NativeWebKitProfileError("WebKit refused an unverified or persistent datastore")
+
+
+class _IsolatedDataStoreFactory:
+    def __init__(self, original: object, store: object) -> None:
+        self.original = original
+        self.store = store
+
+    def defaultDataStore(self):  # noqa: N802 -- public Cocoa selector
+        _verify_nonpersistent_store(self.store)
+        return self.store
+
+    def nonPersistentDataStore(self):  # noqa: N802
+        return self.defaultDataStore()
+
+    def allWebsiteDataTypes(self):  # noqa: N802
+        return self.original.allWebsiteDataTypes()
+
+
+class _IsolatedConfigurationAllocation:
+    def __init__(self, allocation: object, owner: _IsolatedWebKit) -> None:
+        self.allocation = allocation
+        self.owner = owner
+
+    def init(self):
+        try:
+            _verify_nonpersistent_store(self.owner.store)
+            config = self.allocation.init()
+            config.setWebsiteDataStore_(self.owner.store)
+            bound = config.websiteDataStore()
+            _verify_nonpersistent_store(bound)
+            if bound is not self.owner.store and bound != self.owner.store:
+                raise NativeWebKitProfileError("WebKit configuration did not retain the owned datastore")
+        except NativeWebKitProfileError:
+            raise
+        except Exception as exc:
+            raise NativeWebKitProfileError("WebKit configuration could not bind the isolated datastore") from exc
+        self.owner.configured_views += 1
+        _log("WebKit isolated configuration bound persistent=false")
+        return config
+
+
+class _IsolatedConfigurationFactory:
+    def __init__(self, original: object, owner: _IsolatedWebKit) -> None:
+        self.original = original
+        self.owner = owner
+
+    def alloc(self):
+        try:
+            _verify_nonpersistent_store(self.owner.store)
+            return _IsolatedConfigurationAllocation(self.original.alloc(), self.owner)
+        except NativeWebKitProfileError:
+            raise
+        except Exception as exc:
+            raise NativeWebKitProfileError("WebKit configuration allocation is unavailable") from exc
+
+    def new(self):
+        return self.alloc().init()
+
+
+class _IsolatedWebKit:
+    """A Cocoa-backend namespace facade; the system WebKit module is untouched.
+
+    WKWebView copies its configuration at initialization. Bind the owned store
+    before returning a configuration to the backend, whose current implementation
+    otherwise assigns its datastore only after the native view already exists.
+    """
+
+    def __init__(self, original: object) -> None:
+        self.original = original
+        self.configured_views = 0
+        try:
+            self.store = original.WKWebsiteDataStore.nonPersistentDataStore()
+            _verify_nonpersistent_store(self.store)
+            self.WKWebsiteDataStore = _IsolatedDataStoreFactory(original.WKWebsiteDataStore, self.store)
+            self.WKWebViewConfiguration = _IsolatedConfigurationFactory(original.WKWebViewConfiguration, self)
+        except NativeWebKitProfileError:
+            raise
+        except Exception as exc:
+            raise NativeWebKitProfileError("isolated WebKit datastore is unavailable") from exc
+
+    def __getattr__(self, name: str):
+        return getattr(self.original, name)
+
+
+_ISOLATED_WEBKIT: _IsolatedWebKit | None = None
+
+
+def native_webkit_profile_status() -> dict:
+    """Observable proof of the actual configuration binding, without profile paths."""
+    if _ISOLATED_WEBKIT is None:
+        return {"mode": "platform-default", "configured_views": 0}
+    _verify_nonpersistent_store(_ISOLATED_WEBKIT.store)
+    return {"mode": "nonpersistent", "is_persistent": False,
+            "configured_views": _ISOLATED_WEBKIT.configured_views}
+
+
+def _install_isolated_webkit_profile() -> bool:
+    if sys.platform != "darwin":
+        return False
+    try:
+        from core.runtime_paths import runtime_home_is_isolated
+
+        if not runtime_home_is_isolated():
+            return False
+        from webview.platforms import cocoa
+
+        instances = getattr(cocoa.BrowserView, "instances", None)
+        if not isinstance(instances, dict) or instances:
+            raise NativeWebKitProfileError("cannot bind an isolated datastore after native views exist")
+        original = cocoa.WebKit
+        if isinstance(original, _IsolatedWebKit):
+            original = original.original
+        owned = _IsolatedWebKit(original)
+        # Change only this backend's module reference, never WebKit's ObjC classes.
+        cocoa.WebKit = owned
+        global _ISOLATED_WEBKIT
+        _ISOLATED_WEBKIT = owned
+        _log("WebKit isolated datastore ready persistent=false")
+        return True
+    except NativeWebKitProfileError:
+        raise
+    except Exception as exc:
+        raise NativeWebKitProfileError("isolated Cocoa backend is unavailable") from exc
+
+
 def _start_notification_bridge(window: object) -> object | None:
     """macOS notifications: run the notification helper for this host's lifetime (installer/bundle/native_notifications.py).
     A notification the person clicks brings this window forward and opens the matching bell item. Fail-soft: the bell
@@ -1382,6 +1518,11 @@ def main() -> int:
             _log(f"pywebview import failed ({exc!r})")
             return _no_native_window(exc)
 
+        try:
+            isolated_webkit = _install_isolated_webkit_profile()
+        except NativeWebKitProfileError as exc:
+            _log(f"ERROR: native WebKit profile refused ({exc})")
+            return 1
         api = _WindowApi()
         _claim_macos_app_name()          # so the menu bar / Cmd-Tab say VOOL, not VOOL/Python
         _install_native_frame_authority()
@@ -1400,16 +1541,26 @@ def main() -> int:
             _run_post_start(_post_start)
 
         menu = _settings_menu(api)
+        # An ambient Qt override must not bypass the verified Cocoa datastore.
+        start_options = {"gui": "cocoa"} if isolated_webkit else {}
         try:
-            webview.start(_post_start_all, menu=menu)
+            webview.start(_post_start_all, menu=menu, **start_options)
         except TypeError:
             # An older pywebview without the `menu` keyword: start the window anyway. Settings
             # stays reachable from the chat sidebar and from Cmd+, inside the page; only the menu
             # bar entry is missing. Never trade the whole window for the menu.
             _log("pywebview does not accept a menu; starting without the Settings menu item")
-            webview.start(_post_start_all)
+            try:
+                webview.start(_post_start_all, **start_options)
+            except TypeError as exc:
+                if isolated_webkit:
+                    raise NativeWebKitProfileError("verified Cocoa backend could not start") from exc
+                raise
         _log("native window closed")
         return 3 if runtime_lost.is_set() else 0
+    except NativeWebKitProfileError as exc:
+        _log(f"ERROR: native WebKit profile refused ({exc})")
+        return 1
     except Exception as exc:
         _log(f"native window failed ({exc!r})")
         return _no_native_window(exc)

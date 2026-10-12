@@ -35,6 +35,23 @@ SERVER_SCRIPT = REPO / "apps" / "vool_api_server.py"
 
 BASE_PATH = "/usr/bin:/bin"
 
+_COCOA_PROFILE_FIXTURE = """
+import sys, types
+class _ProfileStore:
+    def isPersistent(self):
+        return False
+_profile_cocoa = types.ModuleType('webview.platforms.cocoa')
+_profile_cocoa.BrowserView = types.SimpleNamespace(instances={})
+_profile_cocoa.WebKit = types.SimpleNamespace(
+    WKWebsiteDataStore=types.SimpleNamespace(nonPersistentDataStore=lambda: _ProfileStore()),
+    WKWebViewConfiguration=object,
+)
+_profile_platforms = types.ModuleType('webview.platforms')
+_profile_platforms.cocoa = _profile_cocoa
+sys.modules['webview.platforms'] = _profile_platforms
+sys.modules['webview.platforms.cocoa'] = _profile_cocoa
+"""
+
 
 def _driver(tmp_path: Path, name: str, body: str, env: dict[str, str] | None = None,
             timeout: float = 90.0) -> subprocess.CompletedProcess:
@@ -42,7 +59,7 @@ def _driver(tmp_path: Path, name: str, body: str, env: dict[str, str] | None = N
     home = tmp_path / ("home-" + name)
     home.mkdir(exist_ok=True)
     driver = tmp_path / f"driver_{name}.py"
-    driver.write_text(textwrap.dedent(body))
+    driver.write_text(_COCOA_PROFILE_FIXTURE + textwrap.dedent(body))
     full_env = {
         "PATH": BASE_PATH,
         "HOME": str(home),
@@ -54,8 +71,7 @@ def _driver(tmp_path: Path, name: str, body: str, env: dict[str, str] | None = N
 
 
 def _open_log(home_name: str, tmp_path: Path) -> str:
-    state = Path("Library/Application Support") if sys.platform == "darwin" else Path(".local/state")
-    log_file = tmp_path / home_name / state / "VOOL" / "open.log"
+    log_file = tmp_path / home_name.replace("home-", "vool-home-", 1) / "logs" / "open.log"
     return log_file.read_text() if log_file.exists() else ""
 
 
@@ -99,7 +115,7 @@ _RUNTIME_DEATH_DRIVER = """
     def create_window(*a, **k):
         assert sys.platform != 'darwin' or frame_ready == [True]
         w = FakeWindow(); created["w"] = w; return w
-    def start(fn=None):
+    def start(fn=None, **kwargs):
         deadline = time.time() + 15
         while not created.get("w").destroyed.is_set():
             if time.time() > deadline:
@@ -173,7 +189,7 @@ _SIGTERM_DRIVER = """
         print("WINDOW-CREATED", flush=True)
         return FakeWindow()
     fake.create_window = create_window
-    def start(fn=None):
+    def start(fn=None, **kwargs):
         deadline = time.time() + 15
         while time.time() < deadline:
             time.sleep(0.02)
