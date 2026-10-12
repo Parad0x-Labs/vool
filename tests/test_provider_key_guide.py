@@ -79,7 +79,8 @@ def test_served_guide_choose_save_restart_test_and_remove(vault_home, monkeypatc
             page.goto(f'http://127.0.0.1:{server.server_port}/settings#keys')
             page.get_by_role('searchbox',name='Find a provider',exact=True).wait_for()
             assert provider.request_count == 0
-            assert page.locator('.key-guide-category').count() == 3
+            assert page.locator('.key-guide-category').count() == 4
+            assert page.locator('.key-guide-category').filter(has_text='Market data').count() == 1
             assert page.locator('.key-guide-category[open]').count() == 0
             search=page.get_by_role('searchbox',name='Find a provider',exact=True)
             search.fill('Eyebrow')
