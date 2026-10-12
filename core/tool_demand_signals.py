@@ -810,7 +810,7 @@ def _separate_file_execution_clause(text: str) -> bool:
     format_context = bool(re.search(r"\b(?:pdfs?|csv|tsv|docx|xlsx|pptx|word\s+documents?|excel|zip|tarball|powerpoint|spreadsheet|workbook|presentation|markdown|json|ya?ml|files?|downloadable)\b", raw, re.I))
     if not format_context:
         return False
-    for separator, clause in zip(parts[1::2], parts[2::2]):
+    for separator, clause in zip(parts[1::2], parts[2::2], strict=True):
         action = re.sub(r"^\s*(?:then\s+|also\s+)?(?:please\s+)?", "", clause, flags=re.I)
         if asks_how_to(action):
             continue
