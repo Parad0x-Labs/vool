@@ -292,3 +292,63 @@ def test_malformed_saved_outbound_values_cannot_start_auth_discovery(consent, mo
     assert _bootstrap_public_hive_auth(
         project_root=Path.cwd(), target_path=active_vool_home() / "config" / "agent-bootstrap.json"
     ) == {"ok": False, "status": "disabled_by_policy"}
+
+
+@pytest.mark.parametrize("installed", [False, True])
+def test_fresh_boot_model_preparation_creates_no_download_worker(installed, monkeypatch):
+    from core import policy_engine
+    from core.web.api.runtime import start_ollama_model_pull
+
+    policy_engine.load(force_reload=True)
+    assert policy_engine.get("network.outbound_enabled") is False
+    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model: installed)
+
+    def unexpected_worker(*args, **kwargs):
+        raise AssertionError("fresh boot must not start a model download worker")
+
+    monkeypatch.setattr("core.web.api.runtime.threading.Thread", unexpected_worker)
+    progress = start_ollama_model_pull("isolated-download-boundary:1b")
+    assert progress.wait(timeout=0)
+    assert progress.status == ("ready" if installed else "skipped")
+    if installed:
+        assert progress.public["percent"] == 100
+    else:
+        assert "outbound" in progress.public["detail"].lower()
+
+
+@pytest.mark.parametrize("consent", [None, 1, "true", "false", {}, []])
+def test_malformed_outbound_consent_cannot_start_automatic_model_download(consent, monkeypatch):
+    import yaml
+
+    from core import policy_engine
+    from core.web.api.runtime import start_ollama_model_pull
+
+    policy_path = active_vool_home() / "config" / "default_policy.yaml"
+    policy_path.parent.mkdir(parents=True, exist_ok=True)
+    policy_path.write_text(yaml.safe_dump({"network": {"outbound_enabled": consent}}), encoding="utf-8")
+    policy_engine.load(force_reload=True)
+    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model: False)
+
+    def unexpected_worker(*args, **kwargs):
+        raise AssertionError("malformed saved consent must not start a download worker")
+
+    monkeypatch.setattr("core.web.api.runtime.threading.Thread", unexpected_worker)
+    progress = start_ollama_model_pull("isolated-download-boundary:1b")
+    assert progress.wait(timeout=0)
+    assert progress.status == "skipped"
+
+
+def test_local_only_vetoes_automatic_model_download_despite_saved_consent(monkeypatch):
+    from core import policy_engine
+    from core.web.api.runtime import start_ollama_model_pull
+
+    policy_engine.set_operator_policy_values({"network.outbound_enabled": True, "system.local_only_mode": True})
+    monkeypatch.setattr("core.web.api.runtime.ollama_model_installed", lambda model: False)
+
+    def unexpected_worker(*args, **kwargs):
+        raise AssertionError("Local Only must not start a model download worker")
+
+    monkeypatch.setattr("core.web.api.runtime.threading.Thread", unexpected_worker)
+    progress = start_ollama_model_pull("isolated-download-boundary:1b")
+    assert progress.wait(timeout=0)
+    assert progress.status == "skipped"

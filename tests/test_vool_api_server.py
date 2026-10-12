@@ -55,6 +55,27 @@ from core.web.api.runtime import (
 )
 
 
+@contextlib.contextmanager
+def _saved_automatic_outbound_consent():
+    """Install explicit consent in this test's disposable active profile."""
+    from core import policy_engine
+    from core.runtime_paths import active_config_home_dir
+
+    target = active_config_home_dir() / "default_policy.yaml"
+    original = target.read_bytes() if target.exists() else None
+    try:
+        policy_engine.set_operator_policy_values({
+            "network.outbound_enabled": True, "system.local_only_mode": False,
+        })
+        yield
+    finally:
+        if original is None:
+            target.unlink(missing_ok=True)
+        else:
+            target.write_bytes(original)
+        policy_engine.load(force_reload=True)
+
+
 class OpenClawTurnScaffoldingTests(unittest.TestCase):
     QUEUED = "[Queued user message that arrived while the previous turn was still active]"
 
@@ -1584,7 +1605,9 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         model_registry = mock.Mock()
         model_registry.startup_warnings.return_value = []
 
-        with mock.patch.dict(os.environ, {"VOOL_OLLAMA_MODEL": "qwen3:8b"}, clear=False), mock.patch(
+        with _saved_automatic_outbound_consent(), mock.patch.dict(
+            os.environ, {"VOOL_OLLAMA_MODEL": "qwen3:8b"}, clear=False
+        ), mock.patch(
             "core.web.api.runtime.bootstrap_runtime_mode",
             return_value=mock.Mock(backend_selection=mock.Mock(backend_name="mlx", device="mps")),
         ), mock.patch(
@@ -1660,7 +1683,9 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
             "VOOL_OLLAMA_MODEL": "gemma3:4b",
         }
 
-        with mock.patch.dict(os.environ, {"VOOL_OLLAMA_MODEL": ""}, clear=False), mock.patch(
+        with _saved_automatic_outbound_consent(), mock.patch.dict(
+            os.environ, {"VOOL_OLLAMA_MODEL": ""}, clear=False
+        ), mock.patch(
             "core.web.api.runtime.bootstrap_runtime_mode",
             return_value=mock.Mock(
                 backend_selection=mock.Mock(backend_name="mlx", device="mps"),
@@ -1742,6 +1767,7 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         provider_env = {"VOOL_INSTALL_PROFILE": "local-only"}
 
         with contextlib.ExitStack() as stack:
+            stack.enter_context(_saved_automatic_outbound_consent())
             stack.enter_context(mock.patch.dict(os.environ, {"VOOL_OLLAMA_MODEL": ""}, clear=False))
             stack.enter_context(
                 mock.patch(
@@ -3010,7 +3036,9 @@ class OllamaModelPullTests(unittest.TestCase):
             release.wait(timeout=10)
             progress.update(status="ready", percent=100, detail="pull complete")
 
-        with mock.patch("core.web.api.runtime.ensure_ollama_model", side_effect=slow_pull):
+        with _saved_automatic_outbound_consent(), mock.patch(
+            "core.web.api.runtime.ensure_ollama_model", side_effect=slow_pull
+        ):
             began = time.monotonic()
             progress = start_ollama_model_pull("qwen3:4b")
             elapsed = time.monotonic() - began
@@ -3028,7 +3056,9 @@ class OllamaModelPullTests(unittest.TestCase):
 
     def test_pull_thread_reports_failure_and_always_releases_waiters(self) -> None:
         # A failed pull must not leave the deferred prewarm blocked forever.
-        with mock.patch("core.web.api.runtime.ensure_ollama_model", side_effect=RuntimeError("no such model")):
+        with _saved_automatic_outbound_consent(), mock.patch(
+            "core.web.api.runtime.ensure_ollama_model", side_effect=RuntimeError("no such model")
+        ):
             progress = start_ollama_model_pull("vool-missing:1b")
             self.assertTrue(progress.wait(timeout=5))
 
@@ -3050,7 +3080,9 @@ class OllamaModelPullTests(unittest.TestCase):
         model_registry = mock.Mock()
         model_registry.startup_warnings.return_value = []
 
-        with mock.patch.dict(os.environ, {"VOOL_OLLAMA_MODEL": "qwen3:4b"}, clear=False), mock.patch(
+        with _saved_automatic_outbound_consent(), mock.patch.dict(
+            os.environ, {"VOOL_OLLAMA_MODEL": "qwen3:4b"}, clear=False
+        ), mock.patch(
             "core.web.api.runtime.bootstrap_runtime_mode",
             return_value=mock.Mock(backend_selection=mock.Mock(backend_name="mlx", device="mps")),
         ), mock.patch("core.web.api.runtime.is_first_boot", return_value=False), mock.patch(

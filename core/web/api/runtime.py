@@ -581,6 +581,16 @@ def start_ollama_model_pull(model_tag: str | None = None) -> ModelPullProgress:
         progress.update(status="skipped", detail="local models disabled by policy")
         progress.finish()
         return progress
+    # Startup is an automatic action. Local inventory is safe to inspect, but
+    # a missing model does not grant permission to download it. Explicit model
+    # installation still uses ensure_ollama_model at its owning action seam.
+    if policy_engine.local_only_mode() or policy_engine.get("network.outbound_enabled", False) is not True:
+        if ollama_model_installed(active_model):
+            progress.update(status="ready", percent=100, detail="already installed")
+        else:
+            progress.update(status="skipped", detail="automatic downloads disabled by outbound policy")
+        progress.finish()
+        return progress
 
     def _worker() -> None:
         try:
