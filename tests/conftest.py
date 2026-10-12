@@ -877,6 +877,7 @@ def _fresh_web_engine_memory():
 # These modules exercise mocked providers or an owned HTTP fixture, never a real model load.
 # Their transport assertions must not depend on live host RAM or resident user models.
 _MOCK_PROVIDER_RESOURCE_MODULES = {
+    "test_prompt_budget_guard.py",
     "test_openai_compatible_adapter.py",
     "test_ollama_tools_required_repair.py",
     "test_provider_model_attestation.py",

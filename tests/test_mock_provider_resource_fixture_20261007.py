@@ -32,3 +32,14 @@ def test_pinned_low_memory_still_refuses_before_provider_http(monkeypatch, path)
             else:
                 list(adapter.stream_text_task(request))
     post.assert_not_called()
+
+
+@pytest.mark.parametrize("available,expected", [(64.0, True), (4.0, False)])
+def test_owned_daemon_host_fixture_keeps_the_real_load_decision(monkeypatch, available, expected):
+    from core import resource_governor, system_resources
+    from tests.served_provider_fixture_20261007 import configure_fixture_host
+    # Preserve the parent process inputs; only the explicitly opted-in child owns these pins.
+    monkeypatch.setattr(system_resources, "snapshot", system_resources.snapshot)
+    monkeypatch.setattr(resource_governor, "resident_models", resource_governor.resident_models)
+    configure_fixture_host(available)
+    assert plan_model_load("qwen2.5:14b").ok is expected

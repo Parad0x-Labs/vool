@@ -1139,7 +1139,12 @@ def _execute_tool_intent_impl(
     # incidental files or misclassifying a protected-source refusal as an unknown effect.
     from core.deliverables import DOWNLOAD_ONLY_KEY
 
-    if intent in {"workspace.write_file", "machine.write_file"} and bool(
+    filesystem_mutation = (
+        intent.startswith("workspace.") and is_mutating_tool_intent(intent)
+    ) or intent in {
+        "machine.write_file", "machine.ensure_directory", "machine.move_path", "machine.download_file",
+    }
+    if filesystem_mutation and bool(
         (source_context or {}).get(DOWNLOAD_ONLY_KEY)
     ):
         response = (

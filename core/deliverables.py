@@ -1101,8 +1101,9 @@ def downloadable_request_without_workspace_target(text: str) -> bool:
     if not asks_for_a_file(text) or not requested_formats(text) or explicit_path_in(text):
         return False
     return re.search(
-        r"\b(?:in|into|to|on)\s+(?:(?:my|the|this|our)\s+)?"
-        r"(?:workspace|project|repo|repository|folder|directory|desktop|downloads?|documents?)\b",
+        r"\b(?:in|into|to|on)\s+(?:(?:my|the|this|our|current)\s+)?"
+        r"(?:workspace|project|repo|repository|desktop|downloads?|documents?|"
+        r"(?:[\w'-]+\s+){0,4}?(?:folder|directory))\b",
         text,
         re.I,
     ) is None
@@ -1163,16 +1164,31 @@ def requested_formats(text: str) -> tuple[str, ...]:
         r"\b(?:zip|compress)\s+(?:up\s+)?(?:them|it|these|those|both|all|the\s+files)\b",
         raw, re.I,
     )
-    if bundle_order and "zip" in formats:
-        return ("zip",)
     outer_archive = re.search(
         r"\b(?:as|in|inside|into)\s+(?:(?:a|an|one|single|the)\s+)?\.?(zip|tar\.gz|tarball)\b",
         raw, re.I,
     )
-    if outer_archive:
-        archive_format = "zip" if outer_archive.group(1).lower() == "zip" else "tar.gz"
-        if archive_format in formats:
-            return (archive_format,)
+    archive_order = bundle_order or outer_archive
+    if archive_order:
+        archive_format = "zip" if bundle_order else (
+            "zip" if outer_archive.group(1).lower() == "zip" else "tar.gz"
+        )
+        # A following output clause belongs to the user independently of the bundle.
+        # Keep preceding explicit output clauses too, but discard bundled member formats.
+        separate = re.compile(
+            r"(?:[,;.]\s*|\band\s+)(?:also\s+|then\s+)?"
+            r"(?=(?:give\s+me|send\s+(?:me\s+)?|make|create|generate|export|produce|put|a\s+separate|separately)\b)",
+            re.I,
+        )
+        parts = separate.split(ordered)
+        outputs = {archive_format}
+        for part in parts:
+            if re.search(r"\b(?:zip|compress|tar(?:\.gz|ball)?)\b", part, re.I):
+                # 'CSV in a zip and a separate PDF' has already been split above.
+                continue
+            if len(parts) > 1:
+                outputs.update(fmt for fmt, pattern in _NAMED_FORMAT_PATTERNS if pattern.search(part))
+        return tuple(fmt for fmt in formats if fmt in outputs)
     return formats
 
 

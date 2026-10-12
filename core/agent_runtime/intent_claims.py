@@ -203,7 +203,7 @@ _NO_ACTION_RE = re.compile(
     re.IGNORECASE,
 )
 _SPECIFIC_NO_ACTION_RE = re.compile(
-    r"\bdo\s+not\s+(?:inspect|open|read|list|search|check|run|write|create|edit|change|delete|remove|rename|move)\b",
+    r"\b(?:do\s+not|don['’]?t)\s+(?:inspect|open|read|list|search|check|run|write|create|edit|change|delete|remove|rename|move)\b",
     re.IGNORECASE,
 )
 _CONVERSATIONAL_OPENING_RE = re.compile(
@@ -341,8 +341,9 @@ def _negation_is_scoped(value: str, match: re.Match[str]) -> bool:
     if not _SCOPED_NEGATION_OBJECT_RE.match(value[match.end() :]):
         return False
     from core.agent_runtime import build_request_intent
+    from core.tool_demand_signals import asks_for_a_file
 
-    return bool(build_request_intent.imperative_build_sentences(value))
+    return bool(build_request_intent.imperative_build_sentences(value) or asks_for_a_file(value))
 
 
 def action_policy_for_text(text: str) -> ActionPolicy:

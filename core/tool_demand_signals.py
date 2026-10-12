@@ -188,6 +188,7 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             # Data formats that double as reply formats (json, yaml) stay out, as in the pattern above,
             # and "how to make a PDF ..." asks about the task instead of ordering it.
             r"|(?<!how to )\b(?:export|download|give\s+me|send\s+me|make\s+me|make|create|generate|produce|prepare)\s+an?\s+"
+            r"(?:(?:sample|short|simple|brief|one-page)\s+){0,2}"
             r"(?:csv|tsv|pdf|xlsx|docx|pptx|excel|zip)\b(?!\s+(?:format|formatting|response|answer|reply)\b)"
             # These nouns name deliverable artifacts without needing an extra "file" noun.
             r"|\b(?:i\s+(?:need|want|would\s+like)|(?:make|create|build|generate|prepare)(?:\s+me)?)\s+"
@@ -803,13 +804,21 @@ def asks_for_a_file(text: str) -> bool:
 
     instruction = re.sub(r"^\s*(?:can|could|would)\s+you\s+(?:please\s+)?", "", raw, flags=re.I)
     explanatory = asks_how_to(instruction) or re.match(
-        r"^\s*(?:explain|describe|teach\s+me|tell\s+me|show\s+me)\s+how\b", instruction, re.I
+        r"^\s*(?:(?:explain|describe|tell\s+me|show\s+me)\s+how|teach\s+me\s+(?:how|to))\b", instruction, re.I
     )
-    separate_order = re.search(
-        r"(?:[.!?]\s+|[,;]\s*(?:then|also)\s+)(?:please\s+)?"
-        r"(?:export|create|make|generate|produce|prepare|give\s+me|send\s+me)\b", raw, re.I
-    )
-    if explanatory and not separate_order:
+    if explanatory:
+        if raw.rstrip().endswith("?") and not re.search(r"\b(?:then|also|for\s+me)\b", raw, re.I):
+            # A how-to question can name parallel steps without asking us to perform them.
+            return False
+        clauses = re.split(r"[.!?;]\s+|,\s*(?:and\s+)?|\band\s+(?:then\s+|also\s+)?", raw, flags=re.I)
+        for clause in clauses[1:]:
+            if not re.match(r"\s*(?:then\s+|also\s+)?(?:please\s+)?(?:export|create|make|generate|produce|prepare|give\s+me|send\s+me)\b", clause, re.I):
+                continue
+            if "file.deliver" in resolve_demand_signals(clause).explicit_intents:
+                return True
+            # 'make one' refers to the format being explained, not an unrelated checklist.
+            if re.match(r"\s*(?:then\s+|also\s+)?(?:export|create|make|generate|produce)\s+one\b", clause, re.I):
+                return True
         return False
     if not _QUESTION_HEAD_RE.match(raw):
         # An imperative ("write a script and zip it up", "export this to CSV") orders the file

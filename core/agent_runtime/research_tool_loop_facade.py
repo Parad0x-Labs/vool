@@ -253,6 +253,19 @@ def _completes_turn(intent: str) -> bool:
         return False
 
 
+def _pending_delivery_formats(context: dict[str, Any], steps: list[dict[str, Any]]) -> set[str]:
+    from core.deliverables import REQUESTED_FORMATS_KEY
+
+    wanted = set(context.get(REQUESTED_FORMATS_KEY) or ())
+    made = {
+        str((step.get("observation") or {}).get("format") or "")
+        for step in steps
+        if step.get("ok") and step.get("tool_name") == "file.deliver"
+        and isinstance(step.get("observation"), dict)
+    }
+    return wanted - made
+
+
 def _code_task_report_completed_the_turn(executed_steps: list[dict[str, Any]]) -> bool:
     """Whether this turn's last real step published a completed code task report and no coding task the
     turn worked on is unfinished (the completion law in `enforce_code_task_completion`)."""
@@ -2131,6 +2144,7 @@ class ResearchToolLoopFacadeMixin:
                 and execution.ok
                 and not (executed_steps and executed_steps[-1].get("deferred_calls"))
                 and _completes_turn(str(execution.tool_name or tool_name))
+                and not _pending_delivery_formats(loop_source_context, executed_steps)
             ):
                 loop_stop_reason = "tool_completed_turn"
                 break
@@ -2567,6 +2581,9 @@ class ResearchToolLoopFacadeMixin:
                 delivered = [text for index, text in enumerate(delivered) if text and text not in delivered[:index]]
                 if delivered:
                     final_message = "\n\n".join(delivered)
+                pending_formats = _pending_delivery_formats(loop_source_context, executed_steps)
+                if pending_formats:
+                    final_message += "\n\nStill missing requested output: " + ", ".join(sorted(pending_formats)) + "."
             if not final_message:
                 final_message = self._tool_loop_final_message(None, executed_steps)
         elif reject_reason:
