@@ -129,6 +129,7 @@ def test_sabotage_plugin_hiding_is_load_bearing(tmp_path, monkeypatch) -> None:
     from core import capability_graph, plugin_tools, tool_registry
     from core.runtime_flags import override
 
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin_lifecycle.json"))
     manifest = tmp_path / "plugins" / "sab-pack" / ".codex-plugin"
     manifest.mkdir(parents=True)
     (manifest / "plugin.json").write_text(
