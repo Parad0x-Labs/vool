@@ -84,6 +84,7 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     companion = fields.get("companion") if isinstance(fields.get("companion"), dict) else None
     fee = fields.get("dna_fee") if isinstance(fields.get("dna_fee"), dict) else None
     to_address = str(fields.get("to_address") or "")
+    paykit = fields.get("paykit") if isinstance(fields.get("paykit"), dict) else None
     warnings: list[dict[str, str]] = []
     if origin == proposals.ORIGIN_USEPOD:
         from core.wallet import purpose
@@ -103,6 +104,13 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
             warnings.append({"code": "unknown_purpose", "text": str(payment_purpose.get("note") or "The payment purpose is not on record.")})
         recipient_line = f"To {provider}'s payment account {to_address}"
         recipient_kind = "provider_pay_to"
+        primary = "Approve and pay"
+    elif paykit:
+        site = str(paykit.get("resource_origin") or "the site")
+        headline = f"Pay {site} for one request"
+        amount_line = f"Pay {amount_human} {asset} (the exact price the site asked for this request)"
+        recipient_line = f"To the site's payment account {short_address(to_address)} (the full address is under View details)"
+        recipient_kind = "paykit_pay_to"
         primary = "Approve and pay"
     elif origin == proposals.ORIGIN_DNA_FEE:
         headline = "Pay accrued DNA service fees to the treasury"
@@ -137,6 +145,8 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     if companion:
         both = _human(_int(fields.get("fee_max_minor")) + _int(companion.get("fee_max_minor")), fields.get("fee_decimals", fields.get("decimals")))
         network_line = f"Network fee: at most {both} {gas} for both transactions (payment at most {payment_fee_max} {gas}, fee collection at most {_human(companion.get('fee_max_minor'), companion.get('fee_decimals'))} {gas})"
+    elif paykit and paykit.get("sponsored"):
+        network_line = "Network fee: paid by the site (its fee payer signs and pays it; this wallet pays none)"
     else:
         network_line = f"Network fee: at most {payment_fee_max} {gas} (estimated {_human(fields.get('fee_estimate_minor'), fields.get('fee_decimals', fields.get('decimals')))} {gas})"
     if fields.get("balance_stale"):
@@ -147,10 +157,10 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         elif cue == "non_system_owner_recipient":
             warnings.append({"code": cue, "text": "The recipient account is owned by a program, not a plain wallet."})
     actions: list[dict[str, Any]] = [{
-        "kind": "provider_payment" if origin == proposals.ORIGIN_USEPOD else ("fee_collection" if origin == proposals.ORIGIN_DNA_FEE else "transfer"),
+        "kind": "provider_payment" if origin == proposals.ORIGIN_USEPOD else ("fee_collection" if origin == proposals.ORIGIN_DNA_FEE else ("paid_request" if paykit else "transfer")),
         "proposal_id": str(getattr(proposal, "proposal_id", "") or ""), "to": to_address, "amount_minor": _int(fields.get("amount_minor")), "asset": asset,
         "network_fee_max_minor": _int(fields.get("fee_max_minor")), "gas_asset": gas,
-        "authorization": "this approval, exactly as shown; one signature, one send",
+        "authorization": "this approval, exactly as shown; one signature, sent once with the one request it pays for" if paykit else "this approval, exactly as shown; one signature, one send",
     }]
     if companion:
         actions.append({
@@ -167,6 +177,10 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         details.append(["Recipient token account", str(fields.get("recipient_token_account") or "")])
         details.append(["Payer token account", str(fields.get("payer_token_account") or "")])
         details.append(["Token mint", str(fields.get("mint") or "")])
+    if paykit:
+        details.append(["Paid request", f"{paykit.get('method')} {paykit.get('url')}"])
+        details.append(["Payment protocol", "MPP charge, built by Solana pay-kit" if paykit.get("protocol") == "mpp" else "x402 exact, built by Solana pay-kit"])
+        details.append(["Network fee payer", f"the site's fee payer {paykit.get('fee_payer')}" if paykit.get("sponsored") else "this wallet"])
     details.append(["Exact amount", f"{amount_human} {asset} = {_int(fields.get('amount_minor'))} atomic units"])
     details.append(["Network fee bound", f"estimated {_human(fields.get('fee_estimate_minor'), fields.get('fee_decimals', fields.get('decimals')))} {gas} · at most {payment_fee_max} {gas} = {_int(fields.get('fee_max_minor'))} atomic units"])
     fee_parts = fields.get("fee_parts") or {}

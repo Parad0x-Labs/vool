@@ -434,11 +434,9 @@ class PaymentLifecycle:
 
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         if transfers.is_pilot_transfer(proposal) or custody.seal_policy(proposal.wallet_id) == custody.PILOT_SEAL_POLICY:
-            if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
-                # a pay-kit payment is never a plain transfer: no sheet can pay it, so none is named
-                raise self._fault("wallet_network_disabled", proposal, reason="paykit_pilot_lane_not_supported")
-            # a Crypto Pilot transfer moves only through the pilot lane (quote, approval sheet, one dispatch), whatever
-            # the row's readiness: on a ready row the legacy doors name the sheet, elsewhere they keep the lane stop
+            # a Crypto Pilot transfer (a pay-kit payment from a Pilot wallet too) moves only through the pilot lane
+            # (quote, approval sheet, one dispatch), whatever the row's readiness: on a ready row the legacy doors name
+            # the sheet, elsewhere they keep the lane stop
             reason = capabilities.REASON_PILOT_TRANSFER_NEEDS_QUOTE_APPROVAL if capabilities.pilot_transfer_ready(spec) else capabilities.REASON_PILOT_LANE_INCOMPLETE
             raise self._fault("wallet_network_disabled", proposal, reason=reason)
         if not capabilities.transfer_lane_ready(spec):
@@ -768,15 +766,13 @@ class PaymentLifecycle:
             raise self._fault("wallet_duplicate_payment", proposal, reason="not_awaiting_approval", status=proposal.state)
         if not transfers.is_pilot_transfer(proposal):
             raise self._fault("wallet_quote_mismatch", proposal, reason="not_a_pilot_transfer")
-        if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
-            # a pay-kit payment reaches its resource only through pay-kit: a plain transfer to its payee buys nothing
-            raise self._fault("wallet_quote_mismatch", proposal, reason="paykit_pilot_lane_not_supported")
         self._require_owns_request(proposal)
         self._require_names_a_request(proposal)
         self._require_channel_on(proposal)
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         quote = quotes.require_open_quote(quote_id, proposal=proposal, quote_digest=quote_digest, account_address=profile.public_key, source_context=self.source_context)
+        paykit_binding = self._require_paykit_quote(proposal, quote, spec) if str(proposal.origin) in proposals.PAYKIT_ORIGINS else None
         recipient = dict(getattr(proposal, "recipient", {}) or {})
         if recipient:
             # the quote the owner reviewed must name the same Contacts binding, and Contacts must still hold that exact destination
@@ -830,9 +826,28 @@ class PaymentLifecycle:
         try:
             baseline = settlement.control_baseline()
             fresh = self._revalidate_svm(proposal, profile, spec, quote, companion=companion) if spec.is_svm else self._revalidate_evm(proposal, profile, spec, quote)
+            if paykit_binding is not None:
+                return self._claim_sign_and_deliver_paykit(proposal, profile, spec, quote, challenge, decision, baseline, fresh, binding=paykit_binding)
             return self._claim_sign_and_send(proposal, profile, spec, quote, challenge, decision, baseline, fresh, companion=companion)
         finally:
             transfers.release_marker(marker_key, marker)
+
+    def _require_paykit_quote(self, proposal: proposals.TransactionProposal, quote: dict[str, Any], spec: chains.ChainIdentity) -> dict[str, Any]:
+        """A pay-kit payment on the Crypto Pilot sheet, before any credential: pay-kit is installed, the request's binding
+        is still exactly what the quote showed, and an MPP challenge is still payable. Returns the binding; every
+        refusal is typed, with nothing asked, held or sent."""
+        from core.wallet import paykit_mpp, paykit_x402
+        from core.wallet import x402 as wallet_x402
+
+        paykit_x402.require_available(source_context=self.source_context)
+        binding = paykit_x402.binding_for(proposal.proposal_id)
+        if binding is None or not spec.is_svm:
+            raise self._fault("wallet_signing_unavailable", proposal, reason="paykit_binding_missing")
+        if quote["fields"].get("paykit") != paykit_x402.pilot_quote_block(binding, proposal):
+            raise self._fault("wallet_quote_mismatch", proposal, reason="paykit_binding_changed_since_the_quote")
+        if int(binding.get("version") or 0) == wallet_x402.BINDING_VERSION_PAYKIT_MPP:
+            paykit_mpp.refuse_unpayable_on_pilot(binding, source_context=self.source_context)
+        return binding
 
     def _repeat_pilot_approval(self, proposal: proposals.TransactionProposal, existing: dict[str, Any], *, quote_id: str, quote_digest: str) -> dict[str, Any]:
         """The same approval arriving again (a retried request, a reloaded sheet): the consumed quote's id and digest
@@ -1214,6 +1229,232 @@ class PaymentLifecycle:
         with contextlib.suppress(Exception):
             settlement.apply_transition(cid, transfers.STATE_RELEASED, transfers.STATE_SIGNED_REVOKED, detail={"why": reason})
 
+    # -- a pay-kit payment from a Crypto Pilot wallet: one credential, one signing session, one paid request -----------
+    def _claim_sign_and_deliver_paykit(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, spec: chains.ChainIdentity, quote: dict[str, Any],
+                                       challenge: Any, decision: Any, baseline: dict[str, Any], fresh: dict[str, Any], *, binding: dict[str, Any]) -> dict[str, Any]:
+        """The Pilot lane's claim (:meth:`_claim_pilot`: the quote consumed, the amount and this wallet's fee ceiling held,
+        the transfer row inserted), then pay-kit builds the payment inside the signing session and the key signs only
+        through the guard: the approved payee, amount and asset, the blockhash the lane read and recorded with the
+        claim, nothing else. Every read pay-kit's builder may make is made before the key opens. A sponsored payment's
+        id is the resource's fee payer's signature, unknown until the chain proves it, so the row keeps this wallet's own
+        signature (``payer_signature``) as the key the observer finds it by; an unsponsored one's id is that signature."""
+        from core.vool_wallet import b58encode
+        from core.wallet import paykit_mpp, paykit_x402, pilot_custody, settlement, transfers
+        from core.wallet import x402 as wallet_x402
+        from core.wallet.store import connection
+
+        mpp = int(binding.get("version") or 0) == wallet_x402.BINDING_VERSION_PAYKIT_MPP
+        terms = paykit_mpp.terms_for(binding, proposal, payer=profile.public_key) if mpp else paykit_x402.terms_for(binding, proposal)
+        payer_pays_fee = bool(terms.get("payer_pays_fee"))
+        terms["recent_blockhash"] = str(fresh["blockhash"])
+        try:
+            reader = paykit_mpp.reader_before_signing(binding, fresh["rpc"], blockhash=fresh["blockhash"]) if mpp else None
+        except WalletFault:
+            raise
+        except Exception as exc:
+            raise self._fault("wallet_quote_unavailable", proposal, reason=f"paykit_read_failed:{type(exc).__name__}") from None
+        terms_digest = hashlib.sha256(json.dumps({**terms, "request_digest": str(binding.get("request_digest") or "")}, sort_keys=True).encode("utf-8")).hexdigest()
+        pid = proposal.proposal_id
+        effects: dict[str, Any] = {}
+        with contextlib.ExitStack() as stack:
+            try:
+                session = stack.enter_context(pilot_custody.signing_session(profile.wallet_id, decision.pin_unlock, source_context=self.source_context))
+            except WalletFault as exc:
+                if exc.code != "wallet_unlock_throttled":
+                    self._count_approval_refusal(proposal, decision, reason=exc.code, fault_code=exc.code)
+                raise
+            # the key is open from here to the end of the block: only local work happens inside
+            claimed = self._claim_pilot(proposal, profile, spec, quote, challenge, baseline, fresh)
+            try:
+                reservation = reconciliation.reserve_payment_effect(proposal, message_digest=terms_digest, source_context=self.source_context)
+                if str(reservation.get("outcome") or "") != "reserved":
+                    raise self._fault("wallet_duplicate_payment", proposal, reason="effect_in_flight")
+                effects = {"sign": self._open_effect(self._base(proposal), effect_class=EFFECT_CLASS_SIGN), "transaction": self._open_effect(self._base(proposal), effect_class=EFFECT_CLASS_TRANSACTION)}
+                guarded = paykit_x402.GuardedSigner(paykit_x402.PilotKeySigner(session), terms=terms)
+                self._begin_attempt(effects["sign"])  # consume immediately BEFORE the signing execution
+                if mpp:
+                    header = paykit_mpp.build_authorization(binding, guarded, rpc=None, proposal=proposal, reader=reader)
+                else:
+                    header = paykit_x402.build_payment_header(binding, guarded, blockhash=str(fresh["blockhash"]))
+                if not guarded.signed_message:
+                    raise wallet_fault("wallet_signature_invalid", authority=AUTHORITY, context={"proposal_id": pid, "reason": "paykit_built_without_signing"}, source_context=self.source_context)
+                own = b58encode(bytes(guarded.signature))
+                with connection() as conn:
+                    limits._begin_immediate(conn)
+                    transfers.transition(
+                        conn, pid, transfers.STATE_SIGNED, expected_state=transfers.STATE_CLAIMED, now=time.time(), owner_token=claimed["owner_token"],
+                        tx_id=own if payer_pays_fee else None, payer_signature=own, lease_until=time.time() + settlement.SIGNER_BUDGET_SECONDS,
+                        effect_instance_id=str(reservation.get("effect_instance_id") or ""),
+                    )
+            except transfers.TransferTransitionError as exc:
+                for effect in effects.values():
+                    self._cancel_effect(effect, reason=str(exc))
+                if "cancel_requested" in str(exc):
+                    settlement.finalize_cancel(pid)
+                    raise self._fault("wallet_approval_rejected", proposal, reason="owner_cancelled_before_signing") from None
+                settlement.release_claimed(pid, reason=f"sign_cas_lost:{exc}")
+                raise self._fault("wallet_duplicate_payment", proposal, reason=f"sign_cas_lost:{exc}") from None
+            except WalletFault as exc:
+                for effect in effects.values():
+                    self._cancel_effect(effect, reason=exc.code)
+                settlement.release_claimed(pid, reason=exc.code)
+                raise self._fault(exc.code, proposal, reason=str(exc.context.get("reason") or exc.code)) from None
+            except Exception as exc:  # pay-kit refused to build: nothing was signed or sent
+                for effect in effects.values():
+                    self._cancel_effect(effect, reason=type(exc).__name__)
+                settlement.release_claimed(pid, reason=f"paykit_build_failed:{type(exc).__name__}")
+                raise self._fault("wallet_signing_unavailable", proposal, reason=f"paykit_build_failed:{type(exc).__name__}") from None
+        # the key is gone: everything below reads the network
+        if pilot_custody.credential_generation(profile.wallet_id) != int(getattr(session, "generation", 1)):
+            for effect in effects.values():
+                self._cancel_effect(effect, reason="credential_rotated_before_send")
+            settlement.revoke_signed(pid, reason="credential_rotated_before_send")
+            raise self._fault("wallet_signing_unavailable", proposal, reason="credential_rotated_before_send", status=transfers.STATE_SIGNED_REVOKED)
+        return self._deliver_paykit(proposal, profile, binding, fresh, effects, guarded, header=header, mpp=mpp)
+
+    def _deliver_paykit(self, proposal: proposals.TransactionProposal, profile: custody.WalletProfile, binding: dict[str, Any], fresh: dict[str, Any],
+                        effects: dict[str, Any], guarded: Any, *, header: tuple[str, str], mpp: bool) -> dict[str, Any]:
+        """The pay-kit transmit site of the Crypto Pilot lane: the STORED request goes once to the challenged origin with
+        the payment. Before it leaves, the guards of :meth:`send_signed` (the endpoint proves the row's chain, the
+        blockhash still has validity left, the target passes the outbound policy, the effect record is marked dispatched,
+        and one transaction checks the freeze, the environment, the control epochs, the deadline, the cancel flag, the
+        owner token and the payment channel while moving the row to ``dispatching``); any refusal there revokes the
+        signed payment, which never leaves. After it the row is ``unknown`` until the chain says otherwise: only a
+        transaction the chain proves carries this wallet's signature over exactly these bytes becomes its id, never one
+        the resource merely names. Nothing is released here once the request left."""
+        from core.runtime_continuity import get_unresolved_effect, mark_effect_dispatched
+        from core.wallet import controls, environment, paykit_mpp, paykit_x402, settlement, transfers
+        from core.wallet import x402 as wallet_x402
+        from core.wallet.store import connection
+
+        pid = proposal.proposal_id
+        row = transfers.get_transfer_by_id(pid) or {}
+        spec = chains.resolve_network(str(row.get("network") or proposal.network))
+        client = fresh["rpc"]
+        url = str(binding.get("url") or "")
+        method = str(binding.get("method") or "GET")
+        try:
+            stored_headers = dict(json.loads(str(binding.get("request_headers_json") or "{}")))
+        except ValueError:
+            stored_headers = {}
+        request_body = base64.b64decode(str(binding.get("request_body_b64") or ""))
+
+        def unsent_effects(reason: str) -> None:
+            # the signature was made; the request that would carry it never starts
+            self._close_effect(effects.get("sign"), ok=True, reason="signed")
+            self._cancel_effect(effects.get("transaction"), reason=reason)
+
+        def not_sent(reason: str) -> WalletFault:
+            settlement.revoke_signed(pid, reason=reason)
+            unsent_effects(reason)
+            return self._fault("wallet_broadcast_failed", proposal, reason=reason, status=transfers.STATE_SIGNED_REVOKED)
+
+        try:
+            self._require_svm_identity(client, spec)
+            height = int(client._call("getBlockHeight", [{"commitment": RpcClient.COMMITMENT}]))
+        except Exception as exc:
+            settlement.record_evidence(pid, "pre_send_read_failed", error=type(exc).__name__)
+            raise not_sent(f"signed_not_sent:endpoint_unreadable_before_send:{type(exc).__name__}") from None
+        if height + settlement.SVM_SEND_MARGIN_BLOCKS >= int(row.get("last_valid_block_height") or 0):
+            raise not_sent("signed_not_sent:blockhash_validity_consumed")
+        try:
+            outbound.validate_target(url)
+        except WalletFault as exc:
+            # the target itself is refused before anything is marked or sent: the payment never sees it
+            raise not_sent(f"signed_not_sent:target_refused:{exc.context.get('reason') or exc.code}") from None
+        logical = reconciliation.logical_effect_id(pid)
+        instance = str(row.get("effect_instance_id") or "")
+        if not mark_effect_dispatched(logical_effect_id=logical, effect_instance_id=instance, claimed_by=AUTHORITY):
+            record = get_unresolved_effect(logical) or {}
+            if not (str(record.get("state") or "") == "dispatched" and str(record.get("effect_instance_id") or "") == instance):
+                raise not_sent("signed_not_sent:effect_mark_refused")
+        now = time.time()
+        try:
+            with connection() as conn:
+                limits._begin_immediate(conn)
+                if limits._frozen(conn):
+                    raise self._fault("wallet_limit_exceeded", proposal, limit="frozen", reason="panic_freeze_blocks_send")
+                if environment._active(conn).environment != str(row["environment"]):
+                    raise self._fault("wallet_environment_inactive", proposal, reason="environment_changed_before_send")
+                epochs = controls.epochs(conn)
+                if (epochs["freeze"], epochs["enabled"], epochs["environment"]) != (int(row["epoch_freeze"]), int(row["epoch_enabled"]), int(row["epoch_environment"])):
+                    raise self._fault("wallet_approval_rejected", proposal, reason="controls_changed_before_send")
+                if now >= float(row.get("dispatch_deadline") or 0):
+                    raise self._fault("wallet_broadcast_failed", proposal, reason="dispatch_deadline_passed")
+                # the channel is read under the send's write lock: one turned off after the signature sends nothing
+                self._require_channel_on(proposal, conn=conn)
+                transfers.transition(conn, pid, transfers.STATE_DISPATCHING, expected_state=transfers.STATE_SIGNED, now=now, owner_token=str(row["owner_token"]),
+                                     dispatch_claimed_at=now, attempts_sent=int(row.get("attempts_sent") or 0) + 1)
+        except transfers.TransferTransitionError as exc:
+            unsent_effects(str(exc))
+            if "cancel_requested" in str(exc):
+                settlement.finalize_cancel(pid)
+                raise self._fault("wallet_approval_rejected", proposal, reason="owner_cancelled_before_sending") from None
+            raise self._fault("wallet_duplicate_payment", proposal, reason=f"send_cas_lost:{exc}") from None
+        except WalletFault as exc:
+            # the guard refused after the effect mark: the payment never left, the row leaves the sendable state
+            settlement.revoke_signed(pid, reason="send_guard_refused")
+            unsent_effects(exc.code)
+            raise
+        base = self._base(proposal)
+        receipts.journal_intended({**base, "state": proposals.STATE_SIGNED, "tx_id": str(row.get("tx_id") or "")}, source_context=self.source_context)
+        self._begin_attempt(effects.get("transaction"))
+        answer: dict[str, Any] | None = None
+        unanswered = ""
+        try:
+            answer = outbound.fetch(
+                url, method=method, headers={**{str(k): str(v) for k, v in stored_headers.items()}, "Accept": str(stored_headers.get("accept") or "*/*")},
+                body=request_body or None, payment_headers={header[0]: header[1]}, payment_origin=wallet_x402._origin_of(url), payment_redirect="refuse", timeout=20.0,
+            )
+        except WalletFault as exc:
+            # once the row is dispatching every outcome is the chain's to decide, a refusal before the socket included
+            unanswered = f"{'refused_before_sending' if outbound.refused_before_sending(exc) else 'submit_unknown'}:{exc.context.get('reason') or exc.code}"
+        except Exception as exc:  # transport UNKNOWN: the signed payment may have arrived; never blind-retry
+            unanswered = f"submit_unknown:{type(exc).__name__}"
+        status = int(answer["status"]) if answer is not None else 0
+        body = bytes(answer["body"] or b"") if answer is not None else b""
+        claim = (paykit_mpp if mpp else paykit_x402).settlement_claim(answer.get("headers")) if answer is not None else {}
+        claimed_tx = str(claim.get("transaction") or "")
+        kind = "no_answer" if answer is None else ("submitted" if status < 400 and claimed_tx else "other_error")
+        resource_digest = redaction.publish_identifier(hashlib.sha256(body).hexdigest())
+        with connection() as conn:
+            limits._begin_immediate(conn)
+            current = transfers.get_transfer(conn, pid) or row
+            evidence = settlement.appended_evidence(current, "paykit_answer", resource_status=status, resource_digest=resource_digest, resource_bytes=len(body),
+                                                    claimed=redaction.publish_identifier(claimed_tx) if claimed_tx else "", unanswered=unanswered or None)
+            try:
+                transfers.transition(conn, pid, transfers.STATE_UNKNOWN, expected_state=transfers.STATE_DISPATCHING, now=time.time(), owner_token=str(row["owner_token"]),
+                                     evidence_kind=kind, evidence_json=evidence)
+            except transfers.TransferTransitionError:
+                # the observer already moved a dispatch whose answer it thought lost: the answer is kept as evidence
+                transfers.update_columns(conn, pid, evidence_json=evidence)
+        verdict, _charged = paykit_x402.chain_settlement(client, claimed_tx, signed_message=guarded.signed_message, payer=profile.public_key)
+        current = transfers.get_transfer_by_id(pid) or row
+        if verdict in ("settled", "failed") and not current.get("tx_id"):
+            # the transaction the resource named carries this wallet's signature over exactly these bytes: it is the id
+            redaction.publish_identifier(claimed_tx)
+            with connection() as conn:
+                transfers.update_columns(conn, pid, tx_id=claimed_tx, evidence_json=settlement.appended_evidence(current, "paykit_transaction_proven", verdict=verdict))
+        view = settlement.observe_bounded(pid, rpc=client, budget_seconds=_CONFIRM_BUDGET_SECONDS) or transfers.latest_receipt(pid) or {}
+        state = str(view.get("state") or "")
+        delivered = answer is not None and status < 400 and state == transfers.STATE_CONFIRMED
+        settled_tx = str((transfers.get_transfer_by_id(pid) or {}).get("tx_id") or "")
+        wallet_x402._update_binding(
+            str(binding.get("request_digest") or ""), state=wallet_x402.BINDING_DELIVERED if delivered else wallet_x402.BINDING_PAID,
+            tx_signature=settled_tx if state in (transfers.STATE_CONFIRMED, transfers.STATE_FAILED_ON_CHAIN) else "", resource_status=status,
+            resource_digest=resource_digest, resource_bytes=len(body),
+        )
+        if delivered:
+            paykit_x402._DELIVERED_BODIES[pid] = body
+        self._close_effect(effects.get("sign"), ok=True, reason="signed")
+        self._close_effect(effects.get("transaction"), ok=state not in (transfers.STATE_FAILED_ON_CHAIN,), reason=state)
+        receipts.journal_terminal({**base, "state": state, "tx_id": view.get("tx_id") or "", "evidence_kind": view.get("evidence_kind")}, source_context=self.source_context)
+        receipts.register_execution(source_context=self.source_context, proposal=proposal, ok=state == transfers.STATE_CONFIRMED, status=state, tx_signature=view.get("tx_id") or "")
+        return {"transfer": view, "duplicate": False, "paykit": {
+            "protocol": "mpp" if mpp else "x402", "resource_status": status, "delivered": delivered, "unanswered": unanswered,
+            "claimed_transaction_unproven": bool(claimed_tx and verdict not in ("settled", "failed")),
+        }}
+
     # -- the pilot lane's only transmit site -----------------------------------------------------------------------
     def _owner_resend(self, proposal_id: str, *, baseline: dict[str, Any] | None, rpc: RpcClient | None) -> dict[str, Any]:
         """D9: the owner's resend of the same signed bytes (EVM). The guard is the resend's own: not frozen now, Crypto
@@ -1289,6 +1530,9 @@ class PaymentLifecycle:
         row = transfers.get_transfer_by_id(proposal.proposal_id)
         if row is None:
             raise self._fault("wallet_not_found", proposal, reason="no_transfer_row")
+        if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
+            # a pay-kit payment leaves only with the one request it pays for (:meth:`_deliver_paykit`), never on its own
+            raise self._fault("wallet_network_disabled", proposal, reason="paykit_payment_leaves_with_its_request", status=str(row["state"]))
         if row["state"] != transfers.STATE_SIGNED:
             raise self._fault("wallet_duplicate_payment", proposal, reason=f"not_signed:{row['state']}", status=str(row["state"]))
         spec = chains.resolve_network(row["network"])

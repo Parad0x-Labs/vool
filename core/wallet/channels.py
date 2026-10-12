@@ -177,8 +177,9 @@ def _networks(channel: PaymentChannel) -> list[str]:
     if channel.channel_id == CHANNEL_X402:
         rows = [spec for spec in chains.all_networks() if chains.SCHEME_EXACT in spec.schemes]
     else:
-        # the pay-kit lane pays from a VOOL pocket wallet on a Solana row that no Crypto Pilot lane owns
-        rows = [spec for spec in chains.all_networks() if spec.is_svm and not capabilities.is_pilot_row(spec)]
+        # the pay-kit lane pays on every Solana row whose transfer lane is ready: from a VOOL pocket wallet on a row no
+        # Crypto Pilot lane owns, and from a Crypto Pilot wallet's sheet on a row whose Pilot lane is ready
+        rows = [spec for spec in chains.all_networks() if spec.is_svm and capabilities.transfer_lane_ready(spec)]
     return [spec.network for spec in rows]
 
 

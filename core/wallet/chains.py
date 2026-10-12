@@ -141,8 +141,8 @@ def _devnet_assets() -> Mapping[str, AssetSpec]:
 #: shipped before the Crypto Pilot keep their identities, names, schemes and assets; the pilot adds the
 #: five Mainnet rows and Robinhood Chain Testnet. Facts verified against official sources and live
 #: identity reads on 2026-09-14 (delivery/NETWORK-MATRIX.json). Mainnet rows declare no x402 scheme. The one
-#: Mainnet token is USDC on Solana, for the UsePod x402 payment lane only (proposals refuse it for every other
-#: origin); the pilot's own transfers move native coins only.
+#: Mainnet token is USDC on Solana, for the UsePod x402 payment lane and the Solana pay-kit lanes only (proposals
+#: refuse it for every other origin); the pilot's own transfers move native coins only.
 _REGISTRY: dict[str, ChainIdentity] = {
     SOLANA_DEVNET: ChainIdentity(
         network=SOLANA_DEVNET, family=FAMILY_SVM, testnet=True,

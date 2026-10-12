@@ -229,7 +229,7 @@ _WRITABLE: frozenset[str] = frozenset({
     "tx_id", "raw_b64", "owner_token", "lease_until", "dispatch_claimed_at", "attempts_sent", "cancel_requested_at", "evidence_json",
     "evidence_kind", "charged_fee_minor", "balance_after_minor", "block_ref", "block_hash", "finality_seen", "effect_instance_id",
     "a6_resolved_at", "a6_outcome", "offered_exit_json", "crossing_block", "crossing_block_hash", "stopped_waiting_at", "observe_until",
-    "fee_state", "fee_known_minor", "fee_missing_json", "fee_fork",
+    "fee_state", "fee_known_minor", "fee_missing_json", "fee_fork", "payer_signature",
 })
 
 #: the fee the record settled with: exact (every component the row's receipt must carry was read) or bounded (the
@@ -597,6 +597,10 @@ def transition(conn: Any, proposal_id: str, new_state: str, *, expected_state: s
     row = get_transfer(conn, proposal_id) or {}
     if projection.proposal_edge is not None:
         extra_columns: dict[str, Any] = {"tx_signature": row.get("tx_id") or ""} if projection.tx_signature_from_row else {}
+        if not extra_columns and row.get("tx_id") and row.get("payer_signature") and row["payer_signature"] != row["tx_id"]:
+            # a sponsored pay-kit payment's id is the fee payer's signature, known only once the chain proved it: the
+            # proposal carries it from the edge that follows the proof
+            extra_columns = {"tx_signature": str(row["tx_id"])}
         proposals._transition(conn, str(proposal_id), projection.proposal_edge[1], expected_state=projection.proposal_edge[0],
                               detail={"transfer_state": new_state, "reason": projection.reason, **dict(detail or {})}, **extra_columns)
     if projection.hold == _HOLD_RELEASE:

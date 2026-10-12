@@ -122,6 +122,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("wallet_usepod_operations", "digest_version", "INTEGER NOT NULL DEFAULT 1"),
     ("wallet_usepod_operations", "payment_kind", "TEXT NOT NULL DEFAULT 'unknown'"),
     ("wallet_transfers", "fee_fork", "TEXT NOT NULL DEFAULT ''"),
+    # this wallet's own signature over a pay-kit payment's message: the key the observer finds a sponsored payment by,
+    # whose id is the resource's fee payer's signature and unknown until the chain proves it ('' = not a pay-kit row)
+    ("wallet_transfers", "payer_signature", "TEXT NOT NULL DEFAULT ''"),
     ("wallet_x402_bindings", "resource_method", "TEXT NOT NULL DEFAULT 'GET'"),
     ("wallet_x402_bindings", "facilitator_id", "TEXT NOT NULL DEFAULT ''"),
     ("wallet_x402_bindings", "eip712_name", "TEXT NOT NULL DEFAULT ''"),

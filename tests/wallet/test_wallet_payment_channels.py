@@ -86,9 +86,9 @@ def test_every_channel_starts_on_and_the_owners_choice_is_kept_in_the_wallet_sto
     assert list(rows) == ["x402", "paykit_x402", "paykit_mpp"]
     assert all(row["on"] and row["default_on"] for row in rows.values()), rows
     # what each channel can pay on today comes from the registry: VOOL's x402 on the rows that declare the exact scheme,
-    # pay-kit on the Solana row no Crypto Pilot lane owns
+    # pay-kit on every Solana row whose transfer lane is ready (Mainnet's through the Crypto Pilot sheet)
     assert rows["x402"]["networks"] == ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "eip155:84532", "eip155:11155111", "eip155:97"], rows["x402"]
-    assert rows["paykit_x402"]["networks"] == rows["paykit_mpp"]["networks"] == ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"]
+    assert rows["paykit_x402"]["networks"] == rows["paykit_mpp"]["networks"] == ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"]
 
     off = channels.set_on("paykit_mpp", False)
     assert off["on"] is False and channels.is_on("paykit_mpp") is False and channels.is_on("paykit_x402") is True

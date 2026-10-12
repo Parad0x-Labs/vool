@@ -10,9 +10,15 @@ Evidence rules (Solana): a status read at ``confirmed`` commitment decides. ``pr
 error is failed only once it is ``finalized``; a null status proves nothing about a transmitted transaction, so an
 ``unknown`` row stays unknown and, past the blockhash's last valid height, offers the owner a stop-waiting exit that
 keeps the liability counted.
+
+A pay-kit payment the resource's fee payer sponsored has the fee payer's signature as its id, unknown until the chain
+proves which transaction carries this wallet's own signature (``payer_signature``): until then the payer's latest
+transactions are read for it, and past the last valid height the same stop-waiting exit is offered. Its fee is the
+resource's, so this wallet is charged nothing for it.
 """
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import logging
@@ -292,6 +298,74 @@ def _svm_fee(client: Any, tx_id: str) -> int | None:
     return None
 
 
+def _charged_fee(client: Any, row: dict[str, Any], tx_id: str) -> int | None:
+    """The fee this wallet was charged for the row's transaction. A pay-kit payment whose id is another signer's (the
+    resource's fee payer cosigned and paid: the transaction's first signature is not this wallet's) charged it
+    nothing; any other transaction charged what the chain says (:func:`_svm_fee`)."""
+    own = str(row.get("payer_signature") or "")
+    if own and own != str(tx_id):
+        return 0
+    return _svm_fee(client, tx_id)
+
+
+#: how many of the payer's latest transactions one pass reads to find a pay-kit payment whose id is still unknown
+PAYKIT_DISCOVERY_LIMIT = 25
+
+
+def _carries_payer_signature(answer: dict[str, Any], *, payer: str, payer_signature: str, tx_id: str) -> bool:
+    """Whether a ``getTransaction`` answer (base64) is the transaction ``tx_id`` and carries ``payer_signature`` as this
+    wallet's signature, verifying over the transaction's own message: the bytes this wallet signed, whoever paid the fee."""
+    from solders.message import to_bytes_versioned
+    from solders.pubkey import Pubkey
+    from solders.signature import Signature
+    from solders.transaction import VersionedTransaction
+
+    try:
+        tx = VersionedTransaction.from_bytes(base64.b64decode(str(answer["transaction"][0])))
+        message = bytes(to_bytes_versioned(tx.message))
+        key = Pubkey.from_string(payer)
+        index = list(tx.message.account_keys).index(key)
+        mine = Signature.from_string(payer_signature)
+    except Exception:
+        return False
+    if index >= len(tx.signatures) or tx.signatures[index] != mine or not mine.verify(key, message):
+        return False
+    return str(tx.signatures[0]) == str(tx_id)
+
+
+def _discover_paykit_tx(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
+    """A pay-kit payment whose id is still unknown: the payer's latest transactions since the claim's blockhash are read,
+    and the one carrying this wallet's own signature over its own message is the payment. Its id is written for the
+    status read that follows. Not found, and past the blockhash's last valid height, the owner is offered the
+    stop-waiting exit, as for a transfer whose status the chain does not know."""
+    from core.wallet import redaction
+
+    proposal_id, payer, own = str(row["proposal_id"]), str(row["from_address"]), str(row.get("payer_signature") or "")
+    since = int(row.get("blockhash_slot") or 0)
+    entries = client._call("getSignaturesForAddress", [payer, {"limit": PAYKIT_DISCOVERY_LIMIT, "commitment": "confirmed"}])
+    for entry in entries if isinstance(entries, list) else []:
+        signature = str((entry or {}).get("signature") or "") if isinstance(entry, dict) else ""
+        if not signature or int(entry.get("slot") or 0) < since:
+            continue
+        answer = client._call("getTransaction", [signature, {"encoding": "base64", "commitment": "confirmed", "maxSupportedTransactionVersion": 0}])
+        if isinstance(answer, dict) and _carries_payer_signature(answer, payer=payer, payer_signature=own, tx_id=signature):
+            redaction.publish_identifier(signature)
+            with connection() as conn:
+                transfers.update_columns(conn, proposal_id, tx_id=signature, evidence_json=appended_evidence(row, "paykit_transaction_found", slot=entry.get("slot")))
+            return transfers.get_transfer_by_id(proposal_id)
+    height = None
+    with contextlib.suppress(Exception):
+        height = int(client._call("getBlockHeight", [{"commitment": "confirmed"}]))
+    last_valid = int(row.get("last_valid_block_height") or 0)
+    offered = json.loads(row.get("offered_exit_json") or "{}") if row.get("offered_exit_json") else {}
+    if str(row["state"]) == transfers.STATE_UNKNOWN and height is not None and last_valid and height > last_valid:
+        offered = {"exit": EXIT_STOP_WAITING, "observed_at": clock(), "height": height, "last_valid_block_height": last_valid, "status": "not_found_after_last_valid"}
+    with connection() as conn:
+        transfers.update_columns(conn, proposal_id, offered_exit_json=json.dumps(offered, sort_keys=True),
+                                 evidence_json=appended_evidence(row, "paykit_transaction_not_found", height=height, last_valid_block_height=last_valid))
+    return transfers.get_transfer_by_id(proposal_id)
+
+
 def _svm_balance(client: Any, address: str) -> int | None:
     with contextlib.suppress(Exception):
         return int(client.balance(address))
@@ -373,7 +447,7 @@ def _observe_svm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
                     transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(
                         row, "principal_unproven", status=status, slot=slot, answer="token_balances_disagree" if proven is False else "no_token_balances"))
                 return transfers.get_transfer_by_id(proposal_id)
-        fee = _svm_fee(client, tx_id)
+        fee = _charged_fee(client, row, tx_id)
         balance_after = _svm_balance(client, str(row["from_address"]))
         columns: dict[str, Any] = {"block_ref": slot, "finality_seen": status, "evidence_json": appended_evidence(row, "status", status=status, slot=slot, fee=fee), "offered_exit_json": "{}"}
         if balance_after is not None:
@@ -382,7 +456,7 @@ def _observe_svm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
             return row
         return apply_transition(proposal_id, transfers.STATE_CONFIRMED, state, charged_fee_minor=fee, **columns)
     if status == "finalized":
-        fee = _svm_fee(client, tx_id)
+        fee = _charged_fee(client, row, tx_id)
         if state == transfers.STATE_STOPPED_WAITING or state in (transfers.STATE_PENDING, transfers.STATE_UNKNOWN):
             return apply_transition(proposal_id, transfers.STATE_FAILED_ON_CHAIN, state, charged_fee_minor=fee, block_ref=slot, finality_seen=status,
                                     evidence_json=appended_evidence(row, "status", status=status, slot=slot, err=json.dumps(err, sort_keys=True, default=str)[:200]), offered_exit_json="{}")
@@ -760,6 +834,14 @@ def observe_once(proposal_id: str, *, rpc: Any = None) -> dict[str, Any] | None:
     # a settled EVM row with a bounded fee stays observable within its horizon, for the refinement alone
     refining = (state in (transfers.STATE_CONFIRMED, transfers.STATE_FAILED_ON_CHAIN) and str(row.get("fee_state") or "") == transfers.FEE_BOUNDED
                 and float(row.get("observe_until") or 0) > clock() and str(row.get("family")) == chains.FAMILY_EVM)
+    if observable and not row.get("tx_id") and row.get("payer_signature") and str(row.get("family")) == chains.FAMILY_SVM:
+        # a sponsored pay-kit payment whose id the chain has not proved yet: find it by this wallet's own signature
+        try:
+            row = _discover_paykit_tx(row, _svm_client(row, rpc)) or row
+        except Exception as exc:  # the node did not answer well: recorded, nothing moves
+            with connection() as conn:
+                transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(row, "read_failed", error=type(exc).__name__))
+            row = transfers.get_transfer_by_id(proposal_id) or row
     if (observable or refining) and row.get("tx_id"):
         try:
             if str(row.get("family")) == chains.FAMILY_SVM:
