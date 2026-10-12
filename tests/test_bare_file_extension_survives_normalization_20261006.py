@@ -40,3 +40,11 @@ def test_a_bare_extension_stays_one_token(text, kept):
 )
 def test_names_numbers_and_sentence_ends_are_unchanged(text):
     assert normalize_user_text(text).normalized_text == text
+
+
+@pytest.mark.parametrize("extension", [".css", ".toml", ".jsonl", ".custom", ".CSS", ".3mf", ".žalia", ".tar.zst"])
+def test_unlisted_extensions_are_literal_not_capability_grants(extension):
+    text = f"Please save the output as a {extension} file."
+    kept = f"as a {extension} file"
+    assert kept in normalize_user_text(text).normalized_text
+    assert kept in adapt_user_input(text, session_id="openclaw:unlistedextension0001").normalized_text
