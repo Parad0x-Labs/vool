@@ -94,6 +94,8 @@ def served_world(tmp_path, monkeypatch):
     from core.runtime_flags import override
 
     monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "home" / "plugin_lifecycle.json"))
+    monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
     monkeypatch.setenv("SECRET_TOKEN_FOR_DRIVE", "must-not-cross")
     # This pack's contract is the PLUGIN + MCP drive: the widget skill must take its seat.
     # The native library (a separate lane, its own pack) would otherwise claim the skill

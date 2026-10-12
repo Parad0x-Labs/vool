@@ -31,8 +31,8 @@ Local models need considerably more memory than the app itself. Sizing guidance 
 Run the bootstrap script for your platform:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.0-beta
 ```
 
 ```powershell
@@ -40,7 +40,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/insta
 powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
-To install a specific release instead of the latest `main`, use the release tag in the script URL and pass it with `--ref v0.7.0-beta` (PowerShell: `-Ref v0.7.0-beta`). The bootstrap accepts a branch name or a release tag, not a commit hash.
+The macOS / Linux commands pin both the bootstrap script and its source download to `v0.7.0-beta`. To choose another release, change both the tag in the script URL and `--ref`. The bootstrap accepts a branch name or a release tag, not a commit hash.
 
 The installer prepares the Python environment, checks your hardware, sets up the local
 model, and launches the local services. Allow time and disk space for the initial model

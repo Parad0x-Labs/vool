@@ -232,6 +232,7 @@ def _plugin_registered(tmp_path, monkeypatch):
     from core import tool_registry
     from core.runtime_flags import override
 
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin_lifecycle.json"))
     manifest = tmp_path / "plugins" / "p0-pack" / ".codex-plugin"
     manifest.mkdir(parents=True)
     (manifest / "plugin.json").write_text(
