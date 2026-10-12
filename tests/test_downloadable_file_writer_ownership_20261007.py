@@ -27,8 +27,8 @@ def test_advice_and_explicit_destinations_do_not_change_ownership(text):
 def test_wrong_writer_is_refused_before_permission_or_dispatch(intent, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("permission or dispatch was reached")
-    monkeypatch.setattr(tool_intent_executor, "decide_tool_permission", forbidden)
-    monkeypatch.setattr(tool_intent_executor, "execute_runtime_tool", forbidden)
+    monkeypatch.setattr(tool_intent_executor, "_sync_registry_sources", forbidden)
+    monkeypatch.setattr(tool_intent_executor, "execute_authorized_runtime_tool", forbidden)
     execution = tool_intent_executor._execute_tool_intent_impl(
         {"intent": intent, "arguments": {"path": "page.html", "content": "hello"}},
         task_id="delivery-boundary", session_id="delivery-boundary",
