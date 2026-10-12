@@ -1315,7 +1315,10 @@ def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now:
         # argument-correction budget teaching the model which writer owns a download.
         from core.deliverables import FORMATS
 
-        named = [name for name in context.get("delivery_formats_requested", ()) if name in FORMATS]
+        format_values = context.get("delivery_formats_requested")
+        named = [name for name in format_values if isinstance(name, str) and name in FORMATS] if isinstance(
+            format_values, (list, tuple)
+        ) else []
         facts.append(
             "This turn requests downloadable artifacts without a workspace destination. "
             "Author their content directly in file.deliver; do not use workspace.write_file or "
