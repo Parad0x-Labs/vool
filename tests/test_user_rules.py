@@ -400,3 +400,142 @@ def test_repoops_push_of_a_banned_commit_is_refused_before_consent_and_runs_afte
     pushed = door("repo.push", {"repo_session_id": sid, "simulate": False}, ctx)
     assert pushed.ok is True, pushed.response_text
     assert remote_ref(bare, "feature") == head(root)
+
+
+# ── exceptions: a chat or project lifting a broader rule on the user's command ──
+
+
+def _gate(cmd: str, root: Path, chat: str) -> dict:
+    from core.execution_gate import ExecutionGate
+    from core.remote_fetch_policy import remote_fetch_policy_scope
+
+    with remote_fetch_policy_scope({"surface": "openclaw", "session_id": chat}):
+        return ExecutionGate.evaluate_command(cmd, cwd=str(root))
+
+
+def test_a_chat_exception_lifts_a_global_word_ban_in_that_chat_only(home, tmp_path):
+    root = _repo(tmp_path)
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    reply, saved, kind = _say("in this chat, allow ffff", "chat-a")
+    assert kind == "saved" and saved[0].is_exception and saved[0].scope == "chat"
+    assert "rule 1" in reply
+
+    allowed = _gate('git commit -am "ffff cleanup"', root, "chat-a")
+    assert allowed["decision"] == "advice_only"  # back to the ordinary approval gate, not refused
+    assert "exception" in allowed["reason"] and "rule 1" in allowed["reason"]
+    # The exception lifts only the word it names, and only here.
+    assert _gate('git commit -am "xxx cleanup"', root, "chat-a")["decision"] == "blocked"
+    assert _gate('git commit -am "ffff cleanup"', root, "chat-b")["decision"] == "blocked"
+
+
+def test_ignoring_a_rule_by_number_lifts_it_whole_and_the_reply_says_so(home):
+    _say("add global rule: never say 'alpha' or 'beta'", "chat-a")
+    _, saved, kind = _say("ignore global rule 1 in this chat", "chat-a")
+    assert kind == "saved" and saved[0].overrides_rule_no == 1
+    review = ur.review_reply("alpha and beta", chat_id="chat-a")
+    assert review.text == "alpha and beta" and not review.hits
+    assert "rule 1" in ur.override_note(review.overrides)
+    assert ur.mask_reply_terms("alpha and beta", chat_id="chat-b")[1]
+
+
+def test_removing_the_exception_restores_the_ban(home, tmp_path):
+    root = _repo(tmp_path)
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    _, saved, _ = _say("allow ffff in this chat", "chat-a")
+    assert _gate('git commit -am "ffff"', root, "chat-a")["decision"] == "advice_only"
+    _, removed, kind = _say(f"remove rule {saved[0].rule_no}", "chat-a")
+    assert kind == "removed" and removed[0].is_exception
+    assert _gate('git commit -am "ffff"', root, "chat-a")["decision"] == "blocked"
+
+
+def test_a_project_exception_binds_the_project_and_a_chat_rule_still_wins_inside_it(home, tmp_path):
+    from core import project_store
+    from core.context_namespace import ensure_chat_namespace
+
+    folder = tmp_path / "orion"
+    folder.mkdir()
+    ok, project = project_store.create_project("Orion", str(folder))
+    assert ok, project
+    pid = str(project["id"])
+    for chat in ("p-1", "p-2"):
+        ensure_chat_namespace(chat, project_id=pid)
+    _say("add global rule: never say 'alpha'", "p-1")
+    _, saved, kind = _say("in this project, allow alpha", "p-1")
+    assert kind == "saved" and saved[0].scope == "project" and saved[0].scope_ref == pid
+
+    assert ur.mask_reply_terms("alpha", chat_id="p-2")[1] == []  # every chat in the project
+    assert ur.mask_reply_terms("alpha", chat_id="outside")[1]  # not outside it
+    # A narrower chat rule inside the project bans the word again: the narrowest scope wins.
+    _say("add chat rule: never say 'alpha'", "p-2")
+    assert ur.mask_reply_terms("alpha", chat_id="p-2")[1]
+    assert ur.mask_reply_terms("alpha", chat_id="p-1")[1] == []
+
+
+def test_an_exception_never_lifts_its_own_or_a_narrower_scope(home, tmp_path):
+    from core import project_store
+    from core.context_namespace import ensure_chat_namespace
+
+    _say("add chat rule: never say 'alpha'", "chat-a")
+    reply, saved, kind = _say("ignore rule 1 in this chat", "chat-a")
+    assert kind == "refused" and not saved and "remove rule 1" in reply
+
+    folder = tmp_path / "p"
+    folder.mkdir()
+    ok, project = project_store.create_project("P", str(folder))
+    assert ok, project
+    ensure_chat_namespace("p-chat", project_id=str(project["id"]))
+    _say("add chat rule: never say 'beta'", "p-chat")
+    reply, saved, kind = _say("in this project, allow beta", "p-chat")
+    assert kind == "refused" and not saved and "remove rule" in reply  # a project exception cannot lift a chat rule
+
+    _say("add global rule: never say 'gamma'", "no-project-chat")
+    reply, saved, kind = _say("in this project, allow gamma", "no-project-chat")
+    assert kind == "refused" and not saved and "isn't a project" in reply
+    assert ur.mask_reply_terms("beta", chat_id="p-chat")[1]
+
+
+def test_allow_with_no_rule_behind_it_is_ordinary_chat(home):
+    assert ur.handle_rule_command("allow cookies in this chat", chat_id="chat-a") is None
+    reply, saved, kind = _say("in this chat, ignore rule 9", "chat-a")
+    assert kind == "refused" and not saved and "no active rule 9" in reply
+    assert ur.active_rules(chat_id="chat-a", include_exceptions=True) == []
+
+
+def test_the_prompt_block_names_lifted_rules_and_stays_byte_stable(home):
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    _say("in this chat, allow ffff", "chat-a")
+    first = ur.rules_prompt_block(chat_id="chat-a")
+    assert first == ur.rules_prompt_block(chat_id="chat-a")
+    assert "allows here: ffff" in first and "Do not refuse because of a lifted rule" in first
+    git_line = next(line for line in first.splitlines() if line.startswith("Never put these words"))
+    assert "xxx" in git_line and "ffff" not in git_line
+    other = ur.rules_prompt_block(chat_id="chat-b")
+    assert "ffff" in next(line for line in other.splitlines() if line.startswith("Never put these words"))
+
+
+def test_repoops_commit_with_a_lifted_word_runs_and_names_the_exception(repo_world):
+    from tests.repoops._harness import door, head
+
+    root, _bare = repo_world
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    _say("in this chat, allow ffff", "chat-a")
+    sid, ctx = _open_bound_session(root, "chat-a")
+    before = head(root)
+    (root / "calc.py").write_text("def add(a, b):\n    return a + b  # ffff\n", encoding="utf-8")
+    done = door("repo.git", {"repo_session_id": sid, "operation": "commit", "message": "ffff fix"}, ctx)
+    assert done.ok is True and head(root) != before
+    assert "exception" in done.response_text and "rule 1" in done.response_text
+
+
+def test_the_reply_guard_is_idempotent_over_a_sealed_reply(home):
+    # The served turn re-runs the honesty seal verify-only on the sealed bytes; a guard that added
+    # its note twice crashed the turn ("final-action-honesty would mutate post-admission bytes").
+    from core.agent_runtime.action_honesty_validator import _enforce_user_rule_words
+
+    _say("add global rule: never say 'alpha' or 'beta'", "chat-a")
+    _say("in this chat, allow alpha", "chat-a")
+    for chat, text in (("chat-a", "the alpha team"), ("chat-b", "the alpha team"), ("chat-a", "alpha and beta")):
+        once = _enforce_user_rule_words({"response": text}, session_id=chat, source_context={"chat_id": chat})
+        twice = _enforce_user_rule_words(dict(once), session_id=chat, source_context={"chat_id": chat})
+        assert once["response"] != text
+        assert twice["response"] == once["response"], (chat, text)

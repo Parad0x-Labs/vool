@@ -72,22 +72,27 @@ class GitRunner:
     #: The chat/project whose user rules bind this runner's outbound operations
     #: (``core.user_rules.scope_keys_for``). Empty keys still apply global and folder-project rules.
     rule_scope: dict[str, str] = field(default_factory=dict)
+    #: Notes naming the user-rule exceptions that let an operation through ("Allowed by your exception ...").
+    rule_notes: list[str] = field(default_factory=list)
 
     def _rules_refusal(self, operation: str, **content: object) -> GitResult | None:
         """Refuse an operation whose message, name or added content carries a word the user's
-        rules ban from git. Nothing in this module runs the operation after a refusal."""
-        from core.user_rules import git_outbound_refusal
+        rules ban from git. Nothing in this module runs the operation after a refusal. A word the
+        chat's or project's exception lifted passes, and the exception is noted."""
+        from core.user_rules import git_outbound_check
 
-        refusal = git_outbound_refusal(
+        verdict = git_outbound_check(
             self.root,
             operation,
             chat_id=str(self.rule_scope.get("chat") or ""),
             project_id=str(self.rule_scope.get("project") or ""),
             **content,
         )
-        if refusal is None:
+        if verdict.refusal is None:
+            if verdict.note and verdict.note not in self.rule_notes:
+                self.rule_notes.append(verdict.note)
             return None
-        return GitResult(operation, False, "refused_by_user_rule", (), head=self.head(), detail=refusal.reason)
+        return GitResult(operation, False, "refused_by_user_rule", (), head=self.head(), detail=verdict.refusal.reason)
 
     def run(self, *argv: str) -> tuple[int, str, str]:
         command = ["git", "-C", str(self.root), *argv]

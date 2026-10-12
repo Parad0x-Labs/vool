@@ -31,37 +31,53 @@ import re
 import subprocess
 import uuid
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 from storage.db import get_connection
 
 __all__ = [
+    "KIND_EXCEPTION",
+    "KIND_RULE",
+    "RULE_NOTE_RE",
     "SCOPES",
     "TARGET_GIT",
     "TARGET_REPLY",
+    "GitRuleVerdict",
+    "Lift",
+    "ReplyReview",
+    "Resolution",
     "RuleRefusal",
     "UserRule",
     "active_rules",
+    "add_exception",
     "add_rule",
     "chat_project_id",
     "extract_terms",
     "find_banned_terms",
+    "git_outbound_check",
     "git_outbound_refusal",
     "handle_rule_command",
     "list_rules_text",
     "mask_reply_terms",
     "observe_rules_turn",
+    "override_note",
     "parse_rule_command",
     "project_ids_for_path",
     "remove_rules",
+    "resolve_rules",
+    "review_reply",
     "rules_prompt_block",
     "sandbox_git_refusal",
     "scope_keys_for",
 ]
 
 SCOPES = ("global", "project", "chat")
+#: Narrower scopes rank higher. An exception lifts only rules from a strictly broader scope.
+_SCOPE_RANK = {"global": 0, "project": 1, "chat": 2}
+KIND_RULE = "rule"
+KIND_EXCEPTION = "exception"
 TARGET_REPLY = "reply"
 TARGET_GIT = "git"
 ALL_TARGETS = (TARGET_REPLY, TARGET_GIT)
@@ -94,9 +110,17 @@ class UserRule:
     status: str = "active"
     created_at: str = ""
     removed_at: str = ""
+    #: ``rule`` (a ban or instruction) or ``exception`` (a narrower scope lifting a broader rule).
+    kind: str = KIND_RULE
+    #: For an exception: the rule number it lifts whole, or 0 when it lifts only ``terms``.
+    overrides_rule_no: int = 0
 
     def applies_to(self, target: str) -> bool:
         return target in self.targets
+
+    @property
+    def is_exception(self) -> bool:
+        return self.kind == KIND_EXCEPTION
 
     def scope_label(self) -> str:
         if self.scope == "global":
@@ -148,9 +172,16 @@ CREATE TABLE IF NOT EXISTS user_rules (
   created_at TEXT NOT NULL,
   created_turn TEXT NOT NULL DEFAULT '',
   removed_at TEXT NOT NULL DEFAULT '',
-  removed_turn TEXT NOT NULL DEFAULT ''
+  removed_turn TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT 'rule',
+  overrides_rule_no INTEGER NOT NULL DEFAULT 0
 )
 """
+#: Columns added after the table's first shape; a store created before them gains them in place.
+_LATER_COLUMNS = (
+    ("kind", "TEXT NOT NULL DEFAULT 'rule'"),
+    ("overrides_rule_no", "INTEGER NOT NULL DEFAULT 0"),
+)
 _IDX = "CREATE INDEX IF NOT EXISTS idx_user_rules_active ON user_rules(status, scope, scope_ref)"
 
 
@@ -163,6 +194,10 @@ def _utcnow() -> str:
 def _ensure(conn: Any) -> None:
     conn.execute(_DDL)
     conn.execute(_IDX)
+    present = {str(row[1]) for row in conn.execute("PRAGMA table_info(user_rules)").fetchall()}
+    for name, ddl in _LATER_COLUMNS:
+        if name not in present:
+            conn.execute(f"ALTER TABLE user_rules ADD COLUMN {name} {ddl}")
 
 
 def _row_to_rule(row: Any) -> UserRule:
@@ -187,6 +222,8 @@ def _row_to_rule(row: Any) -> UserRule:
         status=str(row["status"]),
         created_at=str(row["created_at"] or ""),
         removed_at=str(row["removed_at"] or ""),
+        kind=str(row.get("kind") or KIND_RULE),
+        overrides_rule_no=int(row.get("overrides_rule_no") or 0),
     )
 
 
@@ -329,11 +366,12 @@ def active_rules(
     chat_id: str = "",
     project_id: str = "",
     project_ids: Iterable[str] = (),
+    include_exceptions: bool = False,
 ) -> list[UserRule]:
-    """Every active rule that binds a turn in ``chat_id`` (and its project), oldest first.
+    """Every active rule stored for a turn in ``chat_id`` (and its project), broadest scope first.
 
     Global rules always; project rules for ``project_id`` and any ``project_ids``; chat rules for
-    ``chat_id`` only.
+    ``chat_id`` only. These are the rules as written; :func:`resolve_rules` applies exceptions.
     """
     projects = {p for p in [str(project_id or "").strip(), *(str(p).strip() for p in project_ids)] if p}
     chat = str(chat_id or "").strip()
@@ -349,7 +387,82 @@ def active_rules(
         "SELECT * FROM user_rules WHERE status = 'active' AND (" + " OR ".join(clauses) + ") "
         "ORDER BY CASE scope WHEN 'global' THEN 0 WHEN 'project' THEN 1 ELSE 2 END, rule_no"
     )
-    return _query(sql, tuple(params))
+    rows = _query(sql, tuple(params))
+    return rows if include_exceptions else [row for row in rows if not row.is_exception]
+
+
+@dataclass(frozen=True)
+class Lift:
+    """One exception lifting a broader rule here: whole (``terms == ()``) or for some words."""
+
+    rule: UserRule
+    exception: UserRule
+    terms: tuple[str, ...] = ()
+
+    def describe(self) -> str:
+        # No parentheses: the reply guard wraps its note in them and must find its own note again
+        # (a second pass over the sealed reply has to leave it byte-identical).
+        what = "" if not self.terms else " for " + ", ".join(self.terms)
+        where = "this project" if self.exception.scope == "project" else "this chat"
+        return (f"exception {self.exception.rule_no} for {where} lifts "
+                f"{self.rule.scope_label()} rule {self.rule.rule_no}{what}")
+
+
+@dataclass(frozen=True)
+class Resolution:
+    """The rules in force for one chat after its exceptions are applied."""
+
+    rules: tuple[UserRule, ...] = ()
+    lifts: tuple[Lift, ...] = ()
+    exceptions: tuple[UserRule, ...] = ()
+    #: The rules as written (before exceptions), so a check can say what an exception allowed.
+    written: tuple[UserRule, ...] = ()
+
+    def lift_for(self, rule_no: int, term: str) -> Lift | None:
+        key = str(term or "").lower()
+        for lift in self.lifts:
+            if lift.rule.rule_no != rule_no:
+                continue
+            if not lift.terms or key in {t.lower() for t in lift.terms}:
+                return lift
+        return None
+
+    def lifts_for_rule(self, rule_no: int) -> list[Lift]:
+        return [lift for lift in self.lifts if lift.rule.rule_no == rule_no]
+
+
+def resolve_rules(
+    *,
+    chat_id: str = "",
+    project_id: str = "",
+    project_ids: Iterable[str] = (),
+) -> Resolution:
+    """Apply exceptions: a chat exception lifts project and global rules, a project exception lifts
+    global rules, never the other way round. A rule lifted whole leaves the result; a rule lifted
+    for some words keeps its other words. Exceptions only remove restrictions a rule imposed."""
+    rows = active_rules(chat_id=chat_id, project_id=project_id, project_ids=project_ids, include_exceptions=True)
+    written = [row for row in rows if not row.is_exception]
+    exceptions = [row for row in rows if row.is_exception]
+    effective: list[UserRule] = []
+    lifts: list[Lift] = []
+    for rule in written:
+        narrower = [e for e in exceptions if _SCOPE_RANK.get(e.scope, 0) > _SCOPE_RANK.get(rule.scope, 0)]
+        whole = next((e for e in narrower if e.overrides_rule_no == rule.rule_no), None)
+        if whole is not None:
+            lifts.append(Lift(rule=rule, exception=whole))
+            continue
+        kept: list[str] = []
+        for term in rule.terms:
+            exc = next(
+                (e for e in narrower if e.overrides_rule_no == 0 and term.lower() in {t.lower() for t in e.terms}),
+                None,
+            )
+            if exc is None:
+                kept.append(term)
+            else:
+                lifts.append(Lift(rule=rule, exception=exc, terms=(term,)))
+        effective.append(rule if len(kept) == len(rule.terms) else replace(rule, terms=tuple(kept)))
+    return Resolution(rules=tuple(effective), lifts=tuple(lifts), exceptions=tuple(exceptions), written=tuple(written))
 
 
 def _rules_for_scope(scope: str, scope_ref: str) -> list[UserRule]:
@@ -544,7 +657,7 @@ def add_rule(
     if clean_scope == "chat" and not ref:
         return RuleChange("refused", "I can't tell which chat this is, so I didn't save a chat rule.")
     for existing in _rules_for_scope(clean_scope, ref):
-        if existing.text.lower() == body.lower():
+        if not existing.is_exception and existing.text.lower() == body.lower():
             return RuleChange("duplicate", f"That's already rule {existing.rule_no} ({existing.scope_label()}). Nothing changed.", (existing,))
     terms = extract_terms(body)
     targets = _targets_for(body)
@@ -604,6 +717,98 @@ def remove_rules(rules: Iterable[UserRule], *, turn_id: str = "") -> list[UserRu
     return targets
 
 
+def _insert_row(*, scope: str, ref: str, text: str, terms: tuple[str, ...], targets: tuple[str, ...],
+                kind: str, overrides_rule_no: int, turn_id: str) -> UserRule:
+    now = _utcnow()
+    rule_id = ("exc-" if kind == KIND_EXCEPTION else "rule-") + uuid.uuid4().hex[:12]
+    conn = get_connection()
+    try:
+        _ensure(conn)
+        cursor = conn.execute(
+            "INSERT INTO user_rules (rule_id, scope, scope_ref, text, terms_json, targets_json, status, created_at, "
+            "created_turn, kind, overrides_rule_no) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)",
+            (rule_id, scope, ref, text, json.dumps(list(terms)), json.dumps(list(targets)), now, str(turn_id or ""),
+             kind, int(overrides_rule_no)),
+        )
+        conn.commit()
+        rule_no = int(cursor.lastrowid)
+    finally:
+        conn.close()
+    return UserRule(rule_no=rule_no, rule_id=rule_id, scope=scope, scope_ref=ref, text=text, terms=terms,
+                    targets=targets, created_at=now, kind=kind, overrides_rule_no=int(overrides_rule_no))
+
+
+def add_exception(
+    scope: str,
+    *,
+    chat_id: str = "",
+    project_id: str = "",
+    rule_no: int = 0,
+    words: Iterable[str] = (),
+    turn_id: str = "",
+) -> RuleChange:
+    """Save an exception: this chat or project lifts a BROADER rule, whole (``rule_no``) or for
+    ``words``. A chat exception lifts project and global rules; a project exception lifts global
+    rules. It never lifts a rule of its own scope (remove that rule instead) and never adds a ban."""
+    clean_scope = "project" if str(scope or "").strip().lower() == "project" else "chat"
+    ref = _scope_ref(clean_scope, chat_id=chat_id, project_id=project_id)
+    if not ref:
+        where = "a project" if clean_scope == "project" else "a chat I can identify"
+        return RuleChange("refused", f"This isn't {where}, so there's nowhere to attach the exception. Nothing was saved.")
+    rank = _SCOPE_RANK[clean_scope]
+    resolution = resolve_rules(chat_id=chat_id, project_id=project_id)
+    written = {rule.rule_no: rule for rule in resolution.written}
+    existing = [e for e in resolution.exceptions if e.scope == clean_scope and e.scope_ref == ref]
+    here = "this chat" if clean_scope == "chat" else "this project"
+    if rule_no:
+        rule = written.get(int(rule_no))
+        if rule is None:
+            return RuleChange("refused", f"There's no active rule {rule_no} here. Nothing was saved. "
+                              "Say \"what are my rules\" to see the numbers.")
+        if _SCOPE_RANK[rule.scope] >= rank:
+            return RuleChange("refused", f"Rule {rule.rule_no} is a {rule.scope_label()} rule, not a broader one, so an "
+                              f"exception for {here} can't lift it. To drop it, say \"remove rule {rule.rule_no}\". "
+                              "Nothing was saved.")
+        for exc in existing:
+            if exc.overrides_rule_no == rule.rule_no:
+                return RuleChange("duplicate", f"That's already exception {exc.rule_no}. Nothing changed.", (exc,))
+        saved = _insert_row(scope=clean_scope, ref=ref, text=f"lift rule {rule.rule_no} here", terms=(), targets=ALL_TARGETS,
+                            kind=KIND_EXCEPTION, overrides_rule_no=rule.rule_no, turn_id=turn_id)
+        return RuleChange("saved", (f"Saved exception {saved.rule_no} for {here}: {rule.scope_label()} rule {rule.rule_no} "
+                                    f"(\"{rule.text}\") no longer applies here. Other chats are unchanged. "
+                                    f"To undo it, say \"remove rule {saved.rule_no}\"."), (saved,))
+    wanted = [w for w in dict.fromkeys(_clean_term(w) for w in words) if w]
+    broader = [rule for rule in written.values() if _SCOPE_RANK[rule.scope] < rank]
+    lifted: list[str] = []
+    lifted_rules: list[UserRule] = []
+    for word in wanted:
+        hit = [rule for rule in broader if word.lower() in {t.lower() for t in rule.terms}]
+        if hit:
+            lifted.append(word)
+            lifted_rules.extend(r for r in hit if r not in lifted_rules)
+    if not lifted:
+        own = [rule for rule in written.values() if _SCOPE_RANK[rule.scope] >= rank
+               and {w.lower() for w in wanted} & {t.lower() for t in rule.terms}]
+        if own:
+            rule = own[0]
+            return RuleChange("refused", f"{', '.join(wanted)} is banned by {rule.scope_label()} rule {rule.rule_no}, which "
+                              f"is not broader than {here}, so an exception can't lift it. To drop it, say "
+                              f"\"remove rule {rule.rule_no}\". Nothing was saved.")
+        return RuleChange("none", f"No broader rule bans {', '.join(wanted) or 'that'} here, so there's nothing to "
+                          "allow. Nothing was saved.")
+    for exc in existing:
+        if exc.overrides_rule_no == 0 and {t.lower() for t in lifted} <= {t.lower() for t in exc.terms}:
+            return RuleChange("duplicate", f"That's already exception {exc.rule_no}. Nothing changed.", (exc,))
+    saved = _insert_row(scope=clean_scope, ref=ref, text="allow " + ", ".join(lifted) + " here", terms=tuple(lifted),
+                        targets=ALL_TARGETS, kind=KIND_EXCEPTION, overrides_rule_no=0, turn_id=turn_id)
+    rules_txt = ", ".join(f"{r.scope_label()} rule {r.rule_no}" for r in sorted(lifted_rules, key=lambda r: r.rule_no))
+    ignored = [w for w in wanted if w not in lifted]
+    tail = f" No broader rule bans {', '.join(ignored)}, so that needed no exception." if ignored else ""
+    return RuleChange("saved", (f"Saved exception {saved.rule_no} for {here}: {', '.join(lifted)} allowed here despite "
+                                f"{rules_txt}. Other chats are unchanged.{tail} To undo it, say "
+                                f"\"remove rule {saved.rule_no}\"."), (saved,))
+
+
 # ── chat commands ────────────────────────────────────────────────────────────
 
 _SCOPE_WORD = r"(?P<scope>global|chat|local|project|this\s+chat(?:'s)?|this\s+project(?:'s)?)"
@@ -647,9 +852,9 @@ _LIST_WHAT_RE = re.compile(
     re.IGNORECASE,
 )
 _LIST_SHORT_RE = re.compile(r"^\s*(?:my\s+)?" + _SCOPE_WORD + r"?\s*rules\s*\??\s*$", re.IGNORECASE)
-_REMOVE_VERB = r"(?:remove|delete|drop|forget|clear|cancel|lift|erase|scrap|undo)"
+_REMOVE_VERB = r"(?:remove|delete|drop|forget|clear|cancel|erase|scrap)"
 _REMOVE_NUM_RE = re.compile(
-    _LEAD + _REMOVE_VERB + r"\s+(?:the\s+)?(?:" + _SCOPE_WORD + r"\s+)?rules?\s*(?:#|number|no\.?|nr\.?)?\s*"
+    _LEAD + _REMOVE_VERB + r"\s+(?:the\s+)?(?:" + _SCOPE_WORD + r"\s+)?(?:rules?|exceptions?)\s*(?:#|number|no\.?|nr\.?)?\s*"
     r"(?P<nums>\d+(?:\s*(?:,|and|&)\s*#?\d+)*)\s*[.!]?\s*$",
     re.IGNORECASE,
 )
@@ -663,6 +868,33 @@ _REMOVE_ABOUT_RE = re.compile(
     r"that\s+(?:says|mentions|bans|blocks))\s+(?P<needle>.+?)\s*[.!]?\s*$",
     re.IGNORECASE,
 )
+
+
+_EXC_VERB = r"(?:ignore|override|overrule|lift|suspend|skip|disable|waive|pause|turn\s+off|switch\s+off)"
+_EXC_SCOPE_TAIL = r"(?:\s+(?:in|for)\s+(?:this\s+)?(?P<scope>chat|project)|\s+(?P<here>here|for\s+now))?\s*[.!]?\s*$"
+_EXC_SCOPE_LEAD = r"(?:in|for)\s+this\s+(?P<scope>chat|project)\s*[,:]?\s+"
+_EXC_RULE_RES = (
+    re.compile(_LEAD + _EXC_VERB + r"\s+(?:the\s+)?(?:(?:global|project)\s+)?rule\s*(?:#|number|no\.?)?\s*(?P<num>\d+)"
+               + _EXC_SCOPE_TAIL, re.IGNORECASE),
+    re.compile(_LEAD + _EXC_SCOPE_LEAD + _EXC_VERB + r"\s+(?:the\s+)?(?:(?:global|project)\s+)?rule\s*(?:#|number|no\.?)?"
+               r"\s*(?P<num>\d+)\s*[.!]?\s*$", re.IGNORECASE),
+)
+_ALLOW_VERB = (r"(?:(?:you\s+(?:can|may)\s+(?:now\s+)?(?:use|say|write))|allow|permit|unban|unblock|whitelist|"
+               r"accept|let\s+me\s+(?:use|say))")
+_EXC_WORD_RES = (
+    re.compile(_LEAD + _ALLOW_VERB + r"\s+(?:the\s+)?(?:words?\s+|terms?\s+)?(?P<list>.+?)" + _EXC_SCOPE_TAIL, re.IGNORECASE),
+    re.compile(_LEAD + _EXC_SCOPE_LEAD + _ALLOW_VERB + r"\s+(?:the\s+)?(?:words?\s+|terms?\s+)?(?P<list>.+?)\s*[.!]?\s*$",
+               re.IGNORECASE),
+)
+
+
+def _allow_words(raw: str) -> tuple[str, ...]:
+    """The single words an allow command names (quoted words, or a plain list of single words)."""
+    quoted = [_clean_term(m.group(1)) for m in _QUOTED_RE.finditer(raw)]
+    words = [w for w in quoted if w] or _split_list(raw)
+    if not words or any(" " in w for w in words) or len(words) > MAX_TERMS_PER_RULE:
+        return ()
+    return tuple(words)
 
 
 _RULE_BODY_LEAD_RE = re.compile(r"^(?:that|which|saying|says|to\s+say)\s+", re.IGNORECASE)
@@ -679,11 +911,15 @@ _REDACTION_MARK_RE = re.compile(r"\[redacted(?:-[a-z-]+)?\]", re.IGNORECASE)
 
 @dataclass(frozen=True)
 class RuleCommand:
-    action: str  # add | list | remove_numbers | remove_all | remove_about
+    action: str  # add | list | remove_numbers | remove_all | remove_about | except_rule | except_words
     scope: str = ""  # "", global, project, chat
     body: str = ""
     numbers: tuple[int, ...] = ()
     needle: str = ""
+    words: tuple[str, ...] = ()
+    #: The message itself says "rule"; an allow command without it is only a command when a rule
+    #: actually bans the word here (otherwise "allow cookies in this chat" is ordinary chat).
+    names_rules: bool = True
 
 
 def _norm_scope(raw: str | None) -> str:
@@ -709,7 +945,21 @@ def parse_rule_command(text: str) -> RuleCommand | None:
     if not raw or len(raw) > MAX_RULE_CHARS + 200:
         return None
     lowered = raw.lower()
-    if "rule" not in lowered or re.search(r"\bskills?\b", lowered):
+    if re.search(r"\bskills?\b", lowered):
+        return None
+    for pattern in _EXC_RULE_RES:
+        match = pattern.match(raw)
+        if match:
+            scope = "project" if str(match.group("scope") or "").lower() == "project" else "chat"
+            return RuleCommand("except_rule", scope=scope, numbers=(int(match.group("num")),))
+    for pattern in _EXC_WORD_RES:
+        match = pattern.match(raw)
+        if match:
+            words = _allow_words(match.group("list"))
+            if words:
+                scope = "project" if str(match.group("scope") or "").lower() == "project" else "chat"
+                return RuleCommand("except_words", scope=scope, words=words, names_rules="rule" in lowered)
+    if "rule" not in lowered:
         return None
     match = _REMOVE_NUM_RE.match(raw)
     if match:
@@ -742,7 +992,7 @@ def parse_rule_command(text: str) -> RuleCommand | None:
 
 
 def _visible_rules(chat_id: str, project_id: str, scope: str = "") -> list[UserRule]:
-    rules = active_rules(chat_id=chat_id, project_id=project_id)
+    rules = active_rules(chat_id=chat_id, project_id=project_id, include_exceptions=True)
     if scope:
         rules = [rule for rule in rules if rule.scope == scope]
     return rules
@@ -755,12 +1005,24 @@ def list_rules_text(chat_id: str, project_id: str, scope: str = "") -> str:
         if scope == "project" and not project_id:
             return "This chat isn't in a project, so there are no project rules here."
         return f"You have no active {label}rules{'' if scope else ' for this chat'}."
+    resolution = resolve_rules(chat_id=chat_id, project_id=project_id)
+    written_nos = {rule.rule_no for rule in resolution.written}
     lines = [f"Active {label}rules{'' if scope else ' for this chat'}:"]
     for rule in rules:
+        if rule.is_exception:
+            target = (f"lifts rule {rule.overrides_rule_no}" if rule.overrides_rule_no
+                      else "allows " + ", ".join(rule.terms))
+            gone = " (that rule is no longer active)" if rule.overrides_rule_no and rule.overrides_rule_no not in written_nos else ""
+            lines.append(f"- Exception {rule.rule_no} ({rule.scope_label()}): {target} here{gone}")
+            continue
         lines.append(f"- Rule {rule.rule_no} ({rule.scope_label()}): {rule.text}")
         lines.append(f"  {_enforcement_line(rule)}")
+        for lift in resolution.lifts_for_rule(rule.rule_no):
+            lines.append(f"  Lifted here{' for ' + ', '.join(lift.terms) if lift.terms else ''} by exception "
+                         f"{lift.exception.rule_no} ({lift.exception.scope_label()}).")
     if not scope and len({rule.scope for rule in rules}) > 1:
-        lines.append("Bans from every scope apply together. To lift one, remove the rule that sets it.")
+        lines.append("Bans from every scope apply together, except where this chat or its project made an exception "
+                     "(say \"in this chat, allow <word>\" or \"ignore rule <number> in this chat\").")
     lines.append("To remove one, say \"remove rule <number>\".")
     return "\n".join(lines)
 
@@ -783,14 +1045,30 @@ def handle_rule_command(
     project = str(project_id or "").strip() or chat_project_id(chat)
     if command.action == "list":
         return list_rules_text(chat, project, command.scope), [], "listed"
-    if not owner_local:
-        return ("Rules can only be added or removed from this computer's own VOOL. Nothing changed.", [], "refused")
+    if command.action in {"except_rule", "except_words"}:
+        if command.action == "except_words" and not command.names_rules:
+            # "allow X" with no mention of rules is a rules command only when a broader rule here
+            # actually bans X; otherwise it is ordinary conversation and not this lane's to answer.
+            resolution = resolve_rules(chat_id=chat, project_id=project)
+            banned = {t.lower() for rule in resolution.written for t in rule.terms}
+            if not any(word.lower() in banned for word in command.words):
+                return None
+        if not owner_local:
+            return ("Rules can only be changed from this computer's own VOOL. Nothing changed.", [], "refused")
+        change = add_exception(command.scope, chat_id=chat, project_id=project,
+                               rule_no=command.numbers[0] if command.numbers else 0,
+                               words=command.words, turn_id=turn_id)
+        return change.report, list(change.rules), change.kind
     if command.action == "add":
         if secret_carved or _REDACTION_MARK_RE.search(command.body):
             return ("Part of that message looked like a key or other secret, so I didn't save it as a rule: "
                     "the rule would not say what you typed. Nothing was saved.", [], "refused")
+        if not owner_local:
+            return ("Rules can only be added or removed from this computer's own VOOL. Nothing changed.", [], "refused")
         change = add_rule(command.scope, command.body, chat_id=chat, project_id=project, turn_id=turn_id)
         return change.report, list(change.rules), change.kind
+    if not owner_local:
+        return ("Rules can only be added or removed from this computer's own VOOL. Nothing changed.", [], "refused")
     visible = _visible_rules(chat, project, command.scope)
     if command.action == "remove_numbers":
         by_no = {rule.rule_no: rule for rule in visible}
@@ -822,7 +1100,8 @@ def handle_rule_command(
 def _removed_report(removed: list[UserRule]) -> str:
     if not removed:
         return "Nothing was removed."
-    parts = [f"rule {rule.rule_no} ({rule.scope_label()}): \"{rule.text}\"" for rule in removed]
+    parts = [f"{'exception' if rule.is_exception else 'rule'} {rule.rule_no} ({rule.scope_label()}): \"{rule.text}\""
+             for rule in removed]
     return "Removed " + "; ".join(parts) + ". It no longer applies." if len(parts) == 1 else (
         "Removed " + "; ".join(parts) + ". They no longer apply."
     )
@@ -831,25 +1110,38 @@ def _removed_report(removed: list[UserRule]) -> str:
 # ── enforcement: prompt ──────────────────────────────────────────────────────
 
 
+def _sorted_words(words: Iterable[str]) -> list[str]:
+    # Total order (case-folded, then exact) so an unchanged rule set renders byte-identical text.
+    return sorted(set(words), key=lambda t: (t.lower(), t))
+
+
 def rules_prompt_block(*, chat_id: str = "", project_id: str = "") -> str:
     """The rules that bind this chat, as one system-prompt block, or "" when there are none.
 
-    Stable for a chat until a rule is added or removed, so it belongs in the cached prefix.
+    Stable for a chat until a rule or exception is added or removed, so it belongs in the cached
+    prefix: rules in scope order then number, words in a total order, no times or counts.
     """
     project = str(project_id or "").strip() or chat_project_id(chat_id)
-    rules = active_rules(chat_id=chat_id, project_id=project)
-    if not rules:
+    resolution = resolve_rules(chat_id=chat_id, project_id=project)
+    if not resolution.written:
         return ""
     lines = ["User rules. The user set these. Follow every one in every reply and every action:"]
     for scope, heading in (("global", "Global"), ("project", "This project"), ("chat", "This chat")):
-        scoped = [rule for rule in rules if rule.scope == scope]
+        scoped = [rule for rule in resolution.written if rule.scope == scope]
         if not scoped:
             continue
         lines.append(f"{heading}:")
-        lines.extend(f"- {rule.text}" for rule in scoped)
-    # Total order (case-folded, then exact) so an unchanged rule set renders byte-identical text.
-    reply_words = sorted({t for rule in rules if rule.applies_to(TARGET_REPLY) for t in rule.terms}, key=lambda t: (t.lower(), t))
-    git_words = sorted({t for rule in rules if rule.applies_to(TARGET_GIT) for t in rule.terms}, key=lambda t: (t.lower(), t))
+        for rule in scoped:
+            lifts = resolution.lifts_for_rule(rule.rule_no)
+            if any(not lift.terms for lift in lifts):
+                lines.append(f"- {rule.text} [lifted here by the user's exception: it does not apply in this chat]")
+            elif lifts:
+                allowed = _sorted_words(t for lift in lifts for t in lift.terms)
+                lines.append(f"- {rule.text} [the user's exception allows here: {', '.join(allowed)}]")
+            else:
+                lines.append(f"- {rule.text}")
+    reply_words = _sorted_words(t for rule in resolution.rules if rule.applies_to(TARGET_REPLY) for t in rule.terms)
+    git_words = _sorted_words(t for rule in resolution.rules if rule.applies_to(TARGET_GIT) for t in rule.terms)
     if reply_words:
         lines.append("Never write these words in a reply: " + ", ".join(reply_words) + ".")
     if git_words:
@@ -858,29 +1150,66 @@ def rules_prompt_block(*, chat_id: str = "", project_id: str = "") -> str:
     git_only = [t for t in git_words if t not in reply_words]
     if git_only:
         lines.append("These are banned from git only and are fine in replies: " + ", ".join(git_only) + ".")
+    if resolution.lifts:
+        lines.append("Where the user lifted a broader rule here, do what they ask and say in one short line "
+                     "which rule their exception lifted. Do not refuse because of a lifted rule.")
     lines.append("Apply each rule exactly as written: a ban covers only the exact words and places it names. "
-                 "Bans from all scopes add up. When a chat or project rule conflicts with a global rule on "
-                 "anything else, the narrower scope wins.")
+                 "Bans from all scopes add up unless the user lifted one for this chat or project; a chat "
+                 "or project exception overrides a broader rule. When a chat or project rule conflicts "
+                 "with a global rule on anything else, the narrower scope wins.")
     return "\n".join(lines)
 
 
 # ── enforcement: replies ─────────────────────────────────────────────────────
 
 
-def mask_reply_terms(text: str, *, chat_id: str = "", project_id: str = "") -> tuple[str, list[Violation]]:
-    """Replace every banned word (rules binding replies in this chat) with :data:`REPLY_MASK`."""
+@dataclass(frozen=True)
+class ReplyReview:
+    text: str
+    hits: tuple[Violation, ...] = ()
+    #: Exceptions that let a word through which a broader rule would have masked.
+    overrides: tuple[Lift, ...] = ()
+
+
+def review_reply(text: str, *, chat_id: str = "", project_id: str = "") -> ReplyReview:
+    """Mask every word the rules in force here ban from replies; report words an exception let through."""
     body = str(text or "")
     if not body:
-        return body, []
+        return ReplyReview(body)
     project = str(project_id or "").strip() or chat_project_id(chat_id)
-    rules = [rule for rule in active_rules(chat_id=chat_id, project_id=project) if rule.terms]
-    hits = find_banned_terms(body, rules, target=TARGET_REPLY, where="reply")
-    if not hits:
-        return body, []
+    resolution = resolve_rules(chat_id=chat_id, project_id=project)
+    hits = find_banned_terms(body, [rule for rule in resolution.rules if rule.terms], target=TARGET_REPLY, where="reply")
+    overrides: list[Lift] = []
+    for hit in find_banned_terms(body, [rule for rule in resolution.written if rule.terms], target=TARGET_REPLY, where="reply"):
+        lift = resolution.lift_for(hit.rule.rule_no, hit.term)
+        if lift is not None and lift not in overrides:
+            overrides.append(lift)
     masked = body
     for term in sorted({hit.term for hit in hits}, key=len, reverse=True):
         masked = _term_pattern(term).sub(REPLY_MASK, masked)
-    return masked, hits
+    return ReplyReview(text=masked, hits=tuple(hits), overrides=tuple(overrides))
+
+
+def mask_reply_terms(text: str, *, chat_id: str = "", project_id: str = "") -> tuple[str, list[Violation]]:
+    """Replace every banned word (rules in force for replies in this chat) with :data:`REPLY_MASK`."""
+    review = review_reply(text, chat_id=chat_id, project_id=project_id)
+    return review.text, list(review.hits)
+
+
+#: The note the reply guard appends, so a second pass over an already-guarded reply finds it.
+RULE_NOTE_RE = re.compile(r"\n\n\((?:Your rules? |Allowed by your exception: )[^()]*\)\s*$")
+
+
+def override_note(overrides: Iterable[Lift]) -> str:
+    """One line naming the rules an exception lifted, or ""."""
+    unique: list[str] = []
+    for lift in overrides:
+        line = lift.describe()
+        if line not in unique:
+            unique.append(line)
+    if not unique:
+        return ""
+    return "Allowed by your exception: " + "; ".join(unique) + "."
 
 
 # ── enforcement: git ─────────────────────────────────────────────────────────
@@ -912,9 +1241,25 @@ def _added_lines(diff_text: str) -> str:
     return "\n".join(line[1:] for line in diff_text.splitlines() if line.startswith("+") and not line.startswith("+++"))
 
 
-def _git_scope_rules(root: Path, chat_id: str, project_id: str) -> list[UserRule]:
+@dataclass(frozen=True)
+class GitRuleVerdict:
+    """A git effect's rules verdict: a refusal, or None plus any exceptions that let words through."""
+
+    refusal: RuleRefusal | None = None
+    overrides: tuple[Lift, ...] = ()
+
+    @property
+    def note(self) -> str:
+        return override_note(self.overrides)
+
+
+def _git_resolution(root: Path | None, chat_id: str, project_id: str) -> Resolution:
     keys = scope_keys_for(None, chat_id=chat_id, project_id=project_id) if (chat_id or project_id) else _ledger_scope_keys()
-    rules = active_rules(chat_id=keys["chat"], project_id=keys["project"], project_ids=project_ids_for_path(root))
+    folder_projects = project_ids_for_path(root) if root is not None else []
+    return resolve_rules(chat_id=keys["chat"], project_id=keys["project"], project_ids=folder_projects)
+
+
+def _git_rules(rules: Iterable[UserRule]) -> list[UserRule]:
     return [rule for rule in rules if rule.terms and rule.applies_to(TARGET_GIT)]
 
 
@@ -925,11 +1270,26 @@ def _refusal(operation: str, hits: list[Violation]) -> RuleRefusal:
     rules_txt = ", ".join(f"rule {n}" for n in rule_nos)
     where_txt = f" in the {', '.join(places)}" if places else ""
     reason = (f"Refused: this git {operation} carries {', '.join(repr(t) for t in terms)}{where_txt}, which "
-              f"your {rules_txt} bans from git. Nothing was {'committed' if operation == 'commit' else 'run'}.")
+              f"your {rules_txt} bans from git. Nothing was {'committed' if operation == 'commit' else 'run'}. "
+              "To allow it here, say for example \"in this chat, allow "
+              f"{terms[0] if terms else 'that word'}\" or remove the rule.")
     return RuleRefusal(operation=operation, reason=reason, violations=tuple(hits), rule_nos=rule_nos)
 
 
-def git_outbound_refusal(
+def _classify(operation: str, hits: list[Violation], resolution: Resolution) -> GitRuleVerdict:
+    """Split matches against the rules AS WRITTEN into what an exception lifted and what still binds."""
+    binding: list[Violation] = []
+    overrides: list[Lift] = []
+    for hit in hits:
+        lift = resolution.lift_for(hit.rule.rule_no, hit.term)
+        if lift is None:
+            binding.append(hit)
+        elif lift not in overrides:
+            overrides.append(lift)
+    return GitRuleVerdict(refusal=_refusal(operation, binding) if binding else None, overrides=tuple(overrides))
+
+
+def git_outbound_check(
     repo_root: str | Path,
     operation: str,
     *,
@@ -941,56 +1301,65 @@ def git_outbound_refusal(
     unpublished_head: str = "",
     chat_id: str = "",
     project_id: str = "",
-) -> RuleRefusal | None:
-    """Refuse a git effect whose outbound content carries a word a rule bans from git.
+) -> GitRuleVerdict:
+    """The rules verdict for a git effect's outbound content.
 
     Content checked (only what this effect ADDS): ``message``; ``names`` (branch, tag, ref);
     the staged diff when ``staged``; tracked working-tree changes when ``tracked_changes``
     (``commit -a``); for a push, commit messages, added lines and file names of
     ``rev_range`` (base, head), or of every commit reachable from ``unpublished_head`` that no
-    remote has yet. Returns None when no rule binds or nothing matches. A check that cannot read
-    the content completely refuses: an unread commit is not a clean one.
+    remote has yet. A word a rule bans refuses the effect unless this chat's or project's
+    exception lifted that rule here; then the verdict names the exception instead. A check that
+    cannot read the content completely refuses while any ban is in force: an unread commit is
+    not a clean one.
     """
     root = Path(repo_root)
-    rules = _git_scope_rules(root, chat_id, project_id)
-    if not rules:
-        return None
+    resolution = _git_resolution(root, chat_id, project_id)
+    written = _git_rules(resolution.written)
+    if not written:
+        return GitRuleVerdict()
     hits: list[Violation] = []
-    hits += find_banned_terms(message, rules, target=TARGET_GIT, where="message")
+    hits += find_banned_terms(message, written, target=TARGET_GIT, where="message")
     for name in names:
-        hits += find_banned_terms(str(name or ""), rules, target=TARGET_GIT, where="branch or tag name")
+        hits += find_banned_terms(str(name or ""), written, target=TARGET_GIT, where="branch or tag name")
     try:
         if staged:
             hits += find_banned_terms(_added_lines(_git_text(root, "diff", "--cached", "--no-color", "--no-ext-diff", "-U0")),
-                                      rules, target=TARGET_GIT, where="committed changes")
+                                      written, target=TARGET_GIT, where="committed changes")
             hits += find_banned_terms(_git_text(root, "diff", "--cached", "--name-only", "--diff-filter=ACR"),
-                                      rules, target=TARGET_GIT, where="file names")
+                                      written, target=TARGET_GIT, where="file names")
         if tracked_changes:
             hits += find_banned_terms(_added_lines(_git_text(root, "diff", "--no-color", "--no-ext-diff", "-U0")),
-                                      rules, target=TARGET_GIT, where="committed changes")
+                                      written, target=TARGET_GIT, where="committed changes")
         if rev_range is not None or unpublished_head:
             if rev_range is not None:
                 base, head = (str(rev_range[0] or "").strip(), str(rev_range[1] or "").strip())
                 log_args = (f"{base}..{head}",) if base else (head, "--not", "--remotes")
             else:
-                head = unpublished_head
-                log_args = (head, "--not", "--remotes")
+                log_args = (unpublished_head, "--not", "--remotes")
             messages = _git_text(root, "log", "--no-color", "--format=%B%x00", *log_args)
-            hits += find_banned_terms(messages, rules, target=TARGET_GIT, where="commit messages")
+            hits += find_banned_terms(messages, written, target=TARGET_GIT, where="commit messages")
             patches = _git_text(root, "log", "--no-color", "--no-ext-diff", "--format=", "-p", "-U0", *log_args)
-            hits += find_banned_terms(_added_lines(patches), rules, target=TARGET_GIT, where="pushed changes")
+            hits += find_banned_terms(_added_lines(patches), written, target=TARGET_GIT, where="pushed changes")
             files = _git_text(root, "log", "--no-color", "--format=", "--name-only", "--diff-filter=ACR", *log_args)
-            hits += find_banned_terms(files, rules, target=TARGET_GIT, where="file names")
+            hits += find_banned_terms(files, written, target=TARGET_GIT, where="file names")
     except _ScanIncomplete as exc:
-        rule_nos = tuple(rule.rule_no for rule in rules)
-        return RuleRefusal(
+        binding = _git_rules(resolution.rules)
+        if not binding:
+            return GitRuleVerdict()  # every ban is lifted here; there is nothing left to enforce
+        return GitRuleVerdict(refusal=RuleRefusal(
             operation=operation,
             reason=(f"Refused: your rules ban words from git, and I couldn't check this {operation} completely "
                     f"({exc}). Nothing was {'committed' if operation == 'commit' else 'run'}."),
             incomplete=True,
-            rule_nos=rule_nos,
-        )
-    return _refusal(operation, hits) if hits else None
+            rule_nos=tuple(rule.rule_no for rule in binding),
+        ))
+    return _classify(operation, hits, resolution)
+
+
+def git_outbound_refusal(repo_root: str | Path, operation: str, **content: Any) -> RuleRefusal | None:
+    """:func:`git_outbound_check`, refusal only."""
+    return git_outbound_check(repo_root, operation, **content).refusal
 
 
 # ── enforcement: shell git (sandbox.run_command) ─────────────────────────────
@@ -1043,48 +1412,54 @@ def _option_values(rest: list[str], short: str, long: str) -> list[str]:
     return values
 
 
-def sandbox_git_refusal(argv: list[str], *, cwd: str = "") -> RuleRefusal | None:
-    """The rules check for a git command run through the shell tool, read from its argv.
+def sandbox_git_check(argv: list[str], *, cwd: str = "") -> GitRuleVerdict:
+    """The rules verdict for a git command run through the shell tool, read from its argv.
 
     Covers the commit/tag/merge message, branch and tag names, push refspecs and, when the
     working directory is known, what a commit or push would add. Used by the command gate before
     any approval is asked, so nobody is asked to approve a command a rule will refuse.
     """
     if not argv:
-        return None
+        return GitRuleVerdict()
     sub, rest, repo_opt = _git_subcommand(argv)
     if sub not in _GIT_OUTBOUND:
-        return None
+        return GitRuleVerdict()
     root_text = repo_opt or cwd
     root = Path(root_text) if root_text else None
     keys = _ledger_scope_keys()
-    project_ids = project_ids_for_path(root) if root is not None else []
-    rules = [rule for rule in active_rules(chat_id=keys["chat"], project_id=keys["project"], project_ids=project_ids)
-             if rule.terms and rule.applies_to(TARGET_GIT)]
-    if not rules:
-        return None
-    message = "\n".join(_option_values(rest, "-m", "--message"))
+    resolution = _git_resolution(root, keys["chat"], keys["project"])
+    written = _git_rules(resolution.written)
+    if not written:
+        return GitRuleVerdict()
+    messages = _option_values(rest, "-m", "--message")
+    message = "\n".join(messages)
     positional = [token for token in rest if not token.startswith("-")]
     names: list[str] = []
     if sub in {"tag", "branch", "switch", "checkout"}:
-        names = [token for token in positional if token not in set(_option_values(rest, "-m", "--message"))]
+        names = [token for token in positional if token not in set(messages)]
     hits: list[Violation] = []
-    hits += find_banned_terms(message, rules, target=TARGET_GIT, where="message")
+    hits += find_banned_terms(message, written, target=TARGET_GIT, where="message")
     for name in names:
-        hits += find_banned_terms(name, rules, target=TARGET_GIT, where="branch or tag name")
+        hits += find_banned_terms(name, written, target=TARGET_GIT, where="branch or tag name")
     if sub == "push":
         for token in positional[1:]:
-            hits += find_banned_terms(token.lstrip("+"), rules, target=TARGET_GIT, where="push ref")
-    if hits:
-        return _refusal(sub, hits)
-    if root is None or not _is_inside_repo(root):
-        return None
+            hits += find_banned_terms(token.lstrip("+"), written, target=TARGET_GIT, where="push ref")
+    verdict = _classify(sub, hits, resolution)
+    if verdict.refusal is not None or root is None or not _is_inside_repo(root):
+        return verdict
+    content = GitRuleVerdict()
     if sub == "commit":
-        return git_outbound_refusal(root, "commit", staged=True, tracked_changes=_commit_all(rest),
-                                    chat_id=keys["chat"], project_id=keys["project"])
-    if sub == "push":
-        return git_outbound_refusal(root, "push", unpublished_head="HEAD", chat_id=keys["chat"], project_id=keys["project"])
-    return None
+        content = git_outbound_check(root, "commit", staged=True, tracked_changes=_commit_all(rest),
+                                     chat_id=keys["chat"], project_id=keys["project"])
+    elif sub == "push":
+        content = git_outbound_check(root, "push", unpublished_head="HEAD", chat_id=keys["chat"], project_id=keys["project"])
+    overrides = tuple(dict.fromkeys((*verdict.overrides, *content.overrides)))
+    return GitRuleVerdict(refusal=content.refusal, overrides=overrides)
+
+
+def sandbox_git_refusal(argv: list[str], *, cwd: str = "") -> RuleRefusal | None:
+    """:func:`sandbox_git_check`, refusal only."""
+    return sandbox_git_check(argv, cwd=cwd).refusal
 
 
 def _commit_all(rest: list[str]) -> bool:

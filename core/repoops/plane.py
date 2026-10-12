@@ -3336,6 +3336,8 @@ class RepoOpsRuntime:
             text=(
                 f"`git {operation}` {outcome.status}."
                 + (f" Conflicted: {', '.join(outcome.conflicted_paths)}." if outcome.conflicted_paths else "")
+                + (f" {outcome.detail}" if outcome.status == "refused_by_user_rule" and outcome.detail else "")
+                + ("".join(f" {note}" for note in runner.rule_notes) if outcome.ok else "")
             ),
             step_id=step_id,
             # `ok` and `status` are carried by the result itself; spreading the git payload's own
@@ -3400,11 +3402,14 @@ class RepoOpsRuntime:
 
     def _user_rules_refusal(self, session: RepoSession, plan: dict[str, Any], *, source_context: dict[str, Any] | None):
         """A push whose commits, changes or ref carry a word the user's rules ban from git is refused
-        here, before consent is asked for or spent. Narrow-only: no match is not an approval."""
-        from core.user_rules import git_outbound_refusal, scope_keys_for
+        here, before consent is asked for or spent. Narrow-only: no match is not an approval.
+
+        Returns ``(refusal_result | None, note)``; the note names any exception that let a word
+        through, for the push's own reply."""
+        from core.user_rules import git_outbound_check, scope_keys_for
 
         keys = scope_keys_for(source_context, chat_id="" if source_context else session.session_id)
-        refusal = git_outbound_refusal(
+        verdict = git_outbound_check(
             session.root,
             "push",
             names=(str(plan.get("ref") or ""),),
@@ -3412,15 +3417,15 @@ class RepoOpsRuntime:
             chat_id=keys["chat"],
             project_id=keys["project"],
         )
-        if refusal is None:
-            return None
+        if verdict.refusal is None:
+            return None, verdict.note
         return self._result(
             session,
             ok=False,
             status="refused_by_user_rule",
-            text=refusal.reason,
-            user_rules=refusal.as_dict(),
-        )
+            text=verdict.refusal.reason,
+            user_rules=verdict.refusal.as_dict(),
+        ), ""
 
     def push_request(self, arguments: dict[str, Any], *, source_context: dict[str, Any] | None):
         session, err = self._require(arguments.get("repo_session_id"))
@@ -3434,7 +3439,7 @@ class RepoOpsRuntime:
         if not ref:
             return self._result(session, ok=False, status="invalid_arguments", text="The push plan needs a ref.")
         plan = self._plan(session, remote=remote, ref=ref, force=bool(arguments.get("force") or False))
-        ruled = self._user_rules_refusal(session, plan, source_context=source_context)
+        ruled, rule_note = self._user_rules_refusal(session, plan, source_context=source_context)
         if ruled is not None:
             return ruled
         plan_hash = _sha(_canonical(plan))
@@ -3452,6 +3457,7 @@ class RepoOpsRuntime:
             text=(
                 f"Push plan: {remote} {plan['sha'][:12]} -> refs/heads/{ref} "
                 f"(from {plan['from_remote_sha'][:12] or 'nothing'}). Nothing has been sent."
+                + (f" {rule_note}" if rule_note else "")
             ),
             plan=session.push_plan,
             plan_hash=plan_hash,
@@ -3783,7 +3789,7 @@ class RepoOpsRuntime:
                 fault_id=fault,
             )
 
-        ruled = self._user_rules_refusal(session, current, source_context=source_context)
+        ruled, rule_note = self._user_rules_refusal(session, current, source_context=source_context)
         if ruled is not None:
             return ruled
 
@@ -3989,6 +3995,8 @@ class RepoOpsRuntime:
             except Exception:
                 journaled = False
         text = f"Push {outcome['outcome']}: {current['remote']} {current['sha'][:12]} -> refs/heads/{current['ref']}."
+        if rule_note:
+            text += f" {rule_note}"
         if not classified:
             text += (
                 " NOTE: the durable effect ledger did not record this outcome, so an identical push "

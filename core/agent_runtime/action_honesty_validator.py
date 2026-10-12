@@ -897,7 +897,8 @@ def _enforce_user_rule_words(
     session_id: str | None,
     source_context: dict[str, object] | None,
 ) -> dict[str, Any]:
-    """Mask every word the user's rules ban from replies in this chat (core.user_rules).
+    """Mask every word the user's rules in force here ban from replies (core.user_rules), and say
+    which exception let a word through that a broader rule would have masked.
 
     The rules lane's own answer is exempt: it quotes the user's rules back to them.
     """
@@ -905,26 +906,38 @@ def _enforce_user_rule_words(
     if not response.strip() or not str(session_id or "").strip():
         return output
     try:
-        from core.user_rules import RULES_TURN_MARKER, mask_reply_terms, scope_keys_for
+        from core.user_rules import RULE_NOTE_RE, RULES_TURN_MARKER, override_note, review_reply, scope_keys_for
 
         if isinstance(source_context, dict) and source_context.get(RULES_TURN_MARKER):
             return output
         keys = scope_keys_for(source_context) if isinstance(source_context, dict) and (
             source_context.get("chat_id") or source_context.get("session_id")
         ) else scope_keys_for(None, chat_id=str(session_id))
-        masked, hits = mask_reply_terms(response, chat_id=keys["chat"], project_id=keys["project"])
+        # The sealed reply is guarded again verify-only (K-08), so this pass must be idempotent:
+        # a reply that already carries this guard's note and has nothing left to mask is final.
+        existing = RULE_NOTE_RE.search(response)
+        body = response[: existing.start()] if existing else response
+        review = review_reply(body, chat_id=keys["chat"], project_id=keys["project"])
     except Exception:
         return output
-    if not hits:
+    if existing is not None and not review.hits:
+        return output
+    if not review.hits and not review.overrides:
         return output
     guarded = dict(output)
-    rule_nos = sorted({hit.rule.rule_no for hit in hits})
-    note = "rule " + ", ".join(str(n) for n in rule_nos) if len(rule_nos) == 1 else "rules " + ", ".join(str(n) for n in rule_nos)
-    guarded["response"] = f"{masked}\n\n(Your {note} blocked {len(hits)} word{'s' if len(hits) != 1 else ''} here.)"
+    notes: list[str] = []
+    if review.hits:
+        rule_nos = sorted({hit.rule.rule_no for hit in review.hits})
+        named = ("rule " if len(rule_nos) == 1 else "rules ") + ", ".join(str(n) for n in rule_nos)
+        notes.append(f"Your {named} blocked {len(review.hits)} word{'s' if len(review.hits) != 1 else ''} here.")
+    if review.overrides:
+        notes.append(override_note(review.overrides))
+    guarded["response"] = f"{review.text}\n\n(" + " ".join(notes) + ")"
     guarded["user_rule_validator"] = {
         "applied": True,
-        "rules": rule_nos,
-        "terms": sorted({hit.term for hit in hits}),
+        "rules": sorted({hit.rule.rule_no for hit in review.hits}),
+        "terms": sorted({hit.term for hit in review.hits}),
+        "exceptions": sorted({lift.exception.rule_no for lift in review.overrides}),
     }
     return guarded
 
