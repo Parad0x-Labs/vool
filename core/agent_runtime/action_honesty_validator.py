@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
 from contextlib import suppress
 from typing import Any
@@ -172,7 +173,7 @@ _GENERIC_FILE_PROMISE_RE = re.compile(
     r"\b(?:i['’]?ll|i\s+will|let\s+me|i['’]?m\s+going\s+to|i\s+am\s+going\s+to)"
     r"\s+(?:now\s+)?(?:go\s+ahead\s+and\s+)?"
     r"(?:create|generate|make|build|prepare|produce|save|export|convert|compile|render|attach)"
-    r"(?:\s+(?:the|a|an|one|both|all|each|two|three|four|five|six|those|these|your|new|other|\d+))*"
+    r"(?:\s+(?:the|a|an|one|both|all|each|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|those|these|your|new|other|\d+))*"
     r"\s+files?\b",
     re.IGNORECASE,
 )
@@ -559,30 +560,50 @@ def _describes_a_stored_record(sentence: str, match: re.Match[str]) -> bool:
 
 
 def _file_claim_text(text: str) -> str:
-    # Formatting around a filename cannot remove its evidence obligation. Keep the
-    # actual spelling (including spaces) for identity matching below.
+    # Read displayed filenames, not Markdown's punctuation or link destination.
+    text = re.sub(
+        rf"\[([^\]\n]{{1,240}}\.{_DATA_FILE_EXTENSION})\]\([^\n)]*\)",
+        r"\1", text, flags=re.I,
+    )
     return re.sub(
-        rf"(?:`|\*\*|__|[\"'])([^`*\"'\n]{{1,240}}\.{_DATA_FILE_EXTENSION})(?:`|\*\*|__|[\"'])",
+        rf"(?:`|\*{{1,2}}|_{{1,2}}|[\"'])([^`*\"'\n]{{1,240}}\.{_DATA_FILE_EXTENSION})(?:`|\*{{1,2}}|_{{1,2}}|[\"'])",
         r"\1", text, flags=re.I,
     )
 
 
+_FILE_COUNT_WORD_PATTERN = r"(?:one|both|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|\d+)"
 _COMPLETED_FILE_COUNT_RE = re.compile(
-    rf"\b{_DELIVERABLE_VERB}\s+(?:(?:the|all)\s+)?"
-    r"(?:one|both|two|three|four|five|six|\d+)\s+files?\b", re.I,
+    rf"\b(?:{_DELIVERABLE_VERB}\s+(?:(?:the|all)\s+)?(?:a\s+)?{_FILE_COUNT_WORD_PATTERN}\s+files?"
+    rf"|{_FILE_COUNT_WORD_PATTERN}\s+files?\s+(?:are|were|have\s+been)\s+(?:saved|created|written|generated|ready))\b", re.I,
 )
+_FILE_LIST_HEADING_RE = re.compile(r"^\s*(?:files?\s+(?:created|saved|written|generated)|(?:created|saved|written|generated)\s+files?)\s*:\s*$", re.I)
 
 
 def _deliverable_claim_fragments(text: str) -> list[str]:
+    normalized = _file_claim_text(text)
     fragments = []
-    for sentence in _split_sentences(_file_claim_text(text)):
-        match = _DELIVERABLE_CLAIM_RE.search(sentence) or _COMPLETED_FILE_COUNT_RE.search(sentence)
-        if match is None:
-            continue
-        if _DELIVERABLE_NOT_DONE_RE.search(sentence[:match.end()]) or _NOT_A_SELF_CLAIM_RE.search(sentence):
-            continue
-        # Bind every file in the completed clause, not only the first regex match.
-        fragments.append(sentence)
+    # A completion heading owns the immediately following list, not unrelated prose.
+    listing: list[str] = []
+    for line in [*normalized.splitlines(), ""]:
+        if _FILE_LIST_HEADING_RE.match(line):
+            if listing:
+                fragments.append(", ".join(listing))
+            listing = [line]
+        elif listing and re.match(r"\s*(?:[-*+] |\d+[.)] )", line):
+            listing.append(re.sub(r"^\s*(?:[-*+] |\d+[.)] )", "", line))
+        elif listing:
+            fragments.append(", ".join(listing))
+            listing = []
+    # Separate a disclosed failure from the successful clause it qualifies. Don't
+    # split bare commas: they may join several outputs that all need evidence.
+    for sentence in _split_sentences(normalized):
+        for clause in re.split(r",\s*(?:but|however)\s+|;\s*", sentence, flags=re.I):
+            match = _DELIVERABLE_CLAIM_RE.search(clause) or _COMPLETED_FILE_COUNT_RE.search(clause)
+            if match is None:
+                continue
+            if _DELIVERABLE_NOT_DONE_RE.search(clause[:match.end()]) or _NOT_A_SELF_CLAIM_RE.search(clause):
+                continue
+            fragments.append(clause)
     return fragments
 
 
@@ -638,7 +659,7 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
         )
         if modal_context and not self_report:
             continue
-        return "mutation"
+        return "deliverable" if _deliverable_claim_fragments(body) else "mutation"
     if _deliverable_claim_fragments(body):
         return "deliverable"
     for sentence in _split_sentences(body):
@@ -818,7 +839,8 @@ _SPECIFIC_DELIVERABLE_NAME_RE = re.compile(
     re.IGNORECASE,
 )
 _OUTPUT_FILE_KEYS = frozenset({"filename", "file_name", "path", "file_path", "output_path", "target"})
-_FILE_COUNT_WORDS = {"one": 1, "both": 2, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+_FILE_COUNT_WORDS = {"one": 1, "both": 2, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+                     "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "dozen": 12}
 
 
 def _claimed_file_names(claims: list[str]) -> set[str]:
@@ -850,14 +872,14 @@ def _output_file_names(*details: object, identities_only: bool = False) -> set[s
                 for key in ("path", "file_path", "output_path", "target", "filename", "file_name", "name"):
                     inner = value.get(key)
                     if isinstance(inner, str) and inner and (key != "name" or "." in inner):
-                        names.add(inner.replace("\\", "/").rstrip("/"))
+                        names.add(posixpath.normpath(inner.replace("\\", "/")))
                         # Several aliases in one observation describe one output, not several.
                         return
             for key, inner in value.items():
                 if isinstance(inner, str) and (
                     key in _OUTPUT_FILE_KEYS or (key == "name" and "." in inner)
                 ):
-                    name = inner.replace("\\", "/").rstrip("/")
+                    name = posixpath.normpath(inner.replace("\\", "/"))
                     if name:
                         names.add(name)
                 elif depth < 3 and key not in {"arguments", "input", "content"}:
@@ -911,7 +933,7 @@ def _promised_file_count(claims: list[str]) -> int | None:
             continue
         body = match.group(0)
         count = re.search(
-            r"\b(one|both|two|three|four|five|six|\d+)(?:\s+(?:new|other|your|these|those)){0,2}\s+files?\b",
+            rf"\b({_FILE_COUNT_WORD_PATTERN})(?:\s+(?:new|other|your|these|those)){{0,2}}\s+files?\b",
             body, re.IGNORECASE,
         )
         if count:
