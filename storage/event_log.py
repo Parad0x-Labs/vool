@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -13,9 +14,12 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _init_table() -> None:
-    conn = get_connection()
+def _init_table(conn: sqlite3.Connection | None = None) -> None:
+    owned = conn is None
+    conn = get_connection() if owned else conn
     try:
+        if not owned and not conn.in_transaction:
+            conn.execute("BEGIN IMMEDIATE")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS event_log_v2 (
@@ -34,9 +38,11 @@ def _init_table() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_event_log_trace_id ON event_log_v2(trace_id)"
         )
-        conn.commit()
+        if owned:
+            conn.commit()
     finally:
-        conn.close()
+        if owned:
+            conn.close()
 
 
 def append_event(
@@ -48,11 +54,21 @@ def append_event(
     payload: dict[str, Any],
     trace_id: str | None = None,
     event_id: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> str:
-    _init_table()
+    """Append an event and its hash, using the caller's transaction when supplied.
+
+    The caller owns commit, rollback and close; no active database path is
+    resolved when a connection is supplied.
+    """
+    owned = conn is None
+    if owned:
+        _init_table()
+    else:
+        _init_table(conn)
     event_id = event_id or str(uuid.uuid4())
     trace_id = trace_id or payload.get("trace_id")
-    conn = get_connection()
+    conn = get_connection() if owned else conn
     try:
         conn.execute(
             """
@@ -71,9 +87,11 @@ def append_event(
                 _utcnow(),
             ),
         )
-        conn.commit()
+        if owned:
+            conn.commit()
     finally:
-        conn.close()
+        if owned:
+            conn.close()
 
     append_hashed_event(
         event_id,
@@ -85,6 +103,7 @@ def append_event(
             "trace_id": trace_id,
             "payload": payload,
         },
+        **({"conn": conn} if not owned else {}),
     )
     return event_id
 

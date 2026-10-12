@@ -1360,6 +1360,14 @@ class VoolAgent(
         self._public_presence_sync_thread: threading.Thread | None = None
         self._public_presence_sync_inflight = False
         self._public_presence_sync_pending = False
+        # Runtime stop ends the sync lane (stopped + a new epoch); start reopens it.
+        self._public_presence_sync_stopped = False
+        self._public_presence_sync_epoch = 0
+        self._public_presence_sync_write_lock = threading.Lock()
+        self._public_presence_sync_wake = threading.Event()
+        # This runtime session's store, pinned at start: the sync lane's audit writes go through
+        # caller-owned transactions on that path and never re-resolve the active database later.
+        self._public_presence_sync_store_path: str | None = None
         self._idle_commons_running = False
         self._idle_commons_thread: threading.Thread | None = None
         self._last_user_activity_ts = time.time()
@@ -1405,6 +1413,7 @@ class VoolAgent(
         # every start (a test runtime included) so an agent's first boot still registers before
         # any turn. Only the RECURRING research threads (heartbeat, idle-commons) sit behind the
         # production/research boundary gate.
+        agent_presence_runtime.reopen_public_presence_sync(self)
         self._sync_public_presence(status=self._idle_public_presence_status())
         if self._background_runtime_threads_enabled():
             self._start_public_presence_heartbeat()
@@ -6695,7 +6704,7 @@ class VoolAgent(
         )
 
     def stop_background_runtime_threads(self) -> dict[str, bool]:
-        """Stop the idle-commons and presence loops (runtime shutdown)."""
+        """Stop the idle-commons and presence loops and the one-shot presence sync (runtime shutdown)."""
         return agent_presence_runtime.stop_background_runtime_threads(self)
 
     def _maybe_run_autonomous_hive_research_once(self) -> None:
