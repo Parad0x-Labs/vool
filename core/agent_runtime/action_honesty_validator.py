@@ -67,7 +67,7 @@ _HONEST_NO_EXECUTION_RESPONSE = (
 # ledger records as absent.
 _BUILD_OBJECT = (
     r"(?:files?|scripts?|tests?|folders?|director(?:y|ies)|packages?|projects?|crates?|modules?|"
-    r"scaffolds?|repos?|repositor(?:y|ies)|[\w./-]+\.[A-Za-z]{2,5})"
+    r"scaffolds?|repos?|repositor(?:y|ies)|(?<![\w./-])[\w./-]+\.[A-Za-z]{2,5})"
 )
 # Determiners, quantifiers and counts between the verb and its object: "both files", "the two
 # files", "all three scripts". Zero or more, so the bare "created files" still matches.

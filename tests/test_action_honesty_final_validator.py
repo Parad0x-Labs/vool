@@ -439,7 +439,7 @@ def test_the_claim_execution_deadline_stops_a_real_nonreturning_worker(tmp_path)
     assert json.loads((tmp_path / "claim-worker.json").read_text())["phase"] == "execution"
 
 
-@pytest.mark.parametrize("tail", ["a" * 50000, "a/" * 30000 + "z"])
+@pytest.mark.parametrize("tail", ["a" * 50000, "a/" * 30000 + "z"], ids=["long-word", "long-path"])
 def test_new_file_claim_shapes_remain_bounded(tail, tmp_path):
     setup = "from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty"
     call = (
@@ -515,3 +515,10 @@ def test_exemption_clauses_still_split_at_their_own_boundaries():
     assert _split_clauses("hello  ,  world") == ["hello  ", "world"]
     assert _split_clauses("x,\ty") == ["x", "y"]
     assert _split_clauses("funds   sent") == ["funds   sent"]
+
+
+@pytest.mark.parametrize("text", ["Created /tmp/project/fizz.py.", "Created folder/fizz.py."])
+def test_path_token_boundary_still_detects_real_build_claims(text):
+    from core.agent_runtime.action_honesty_validator import completion_claim_kind
+
+    assert completion_claim_kind(text) == "build"
