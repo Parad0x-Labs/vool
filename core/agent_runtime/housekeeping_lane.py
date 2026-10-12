@@ -19,6 +19,14 @@ What this lane claims, and what it never claims:
 - Only the owner's local session may search across chats or change them. Elsewhere the lane says
   so instead of letting a model pretend.
 - Delete is not offered here: it cannot be undone, so it stays a click in the sidebar.
+- Each completed action is attested to the demand ledger for the demand it served; an asked,
+  refused, forbidden or failed action never is.
+
+What it does NOT make true: the reply and the writes need no model call from this lane, but the
+TURN is not model-free. The shared planner is admitted before the front door this lane sits in, so
+a compound message ("rename this chat to X and pin it") can be split by a planner model request
+first, and background extraction may run after the reply. Never report a housekeeping turn as
+having made zero model or provider requests.
 """
 from __future__ import annotations
 
@@ -547,6 +555,10 @@ class _Run:
     referent_ambiguous: bool = False
     search_hits: list[dict[str, Any]] | None = None  # this turn's search, for "pin 2" next time
     asked_choice: bool = False                        # the reply already asks which one
+    #: Positions in the plan whose action this turn actually completed: a search that ran, the
+    #: pinned list, or a write every target of which was read back. Asked, refused, forbidden or
+    #: failed actions are never here. This is what the lane attests to the demand ledger.
+    completed: list[int] = field(default_factory=list)
 
 
 def _resolve(run: _Run, target: Target | None, *, recalled: list[dict[str, Any]] | None) -> tuple[list[dict[str, Any]], str]:
@@ -587,14 +599,15 @@ def _hit_title(hit: dict[str, Any]) -> str:
     return str(info.get("title") or hit.get("title") or "New chat")
 
 
-def _do_search(run: _Run, action: Action, *, wants_pin_after: bool) -> None:
+def _do_search(run: _Run, action: Action, *, wants_pin_after: bool) -> bool:
+    """Run one search and answer it. True when the search ran (found, several, or none)."""
     from core.chat_housekeeping import search_chats
 
     if not action.value.strip():
         run.lines.append("What was it about? Give me a word or two from that conversation and I'll look.")
         run.referent, run.referent_ambiguous, run.asked_choice = [], True, True
         run.search_hits = []
-        return
+        return False
     result = search_chats(action.value, current_session_id=run.session_id)
     hits = [hit.to_dict() for hit in result.hits]
     run.details.append({"action": "search", "query": action.value, "result": {k: v for k, v in result.to_dict().items() if k != "hits"}, "hit_ids": [h["session_id"] for h in hits]})
@@ -603,7 +616,7 @@ def _do_search(run: _Run, action: Action, *, wants_pin_after: bool) -> None:
     if not result.ok:
         run.lines.append("What was it about? Give me a word or two from that conversation and I'll look.")
         run.referent, run.referent_ambiguous, run.asked_choice = [], True, True
-        return
+        return False
     if not hits:
         chats = f"{result.chats_searched} chat" + ("" if result.chats_searched == 1 else "s")
         projects = f"{result.projects_searched} project" + ("" if result.projects_searched == 1 else "s")
@@ -615,7 +628,7 @@ def _do_search(run: _Run, action: Action, *, wants_pin_after: bool) -> None:
             line += " Nothing was pinned."
         run.lines.append(line)
         run.referent, run.referent_ambiguous, run.asked_choice = [], True, True
-        return
+        return True
     if result.unique:
         hit = hits[0]
         line = "Found it: " + _chat_label(hit["title"], project_name=hit["project_name"], archived=hit["archived"], current=hit["is_current_chat"])
@@ -628,7 +641,7 @@ def _do_search(run: _Run, action: Action, *, wants_pin_after: bool) -> None:
             line += f"\n> {who + ': ' if who else ''}{hit['snippet']}"
         run.lines.append(line)
         run.referent, run.referent_ambiguous = [hit], False
-        return
+        return True
     run.lines.append(f"I found {len(hits)} chats that mention “{terms}”:")
     for number, hit in enumerate(hits, start=1):
         when = _when(hit["snippet_ts"] or hit["updated_at"])
@@ -644,6 +657,7 @@ def _do_search(run: _Run, action: Action, *, wants_pin_after: bool) -> None:
         run.lines.append("Say \"pin 1\" (or another number) to pin one.")
     run.referent, run.referent_ambiguous = hits, True
     run.asked_choice = True
+    return True
 
 
 def _verb(kind: str) -> str:
@@ -801,6 +815,55 @@ def _do_list_pinned(run: _Run) -> None:
     run.referent, run.referent_ambiguous = hits, len(hits) != 1
 
 
+def _note_completed_write(run: _Run, position: int, kind: str, written_before: int) -> None:
+    """A write completed when this action recorded at least one result and every one read back ok."""
+    own = [item for item in run.details[written_before:] if item.get("action") == kind]
+    if own and all(bool(item.get("ok")) for item in own):
+        run.completed.append(position)
+
+
+def _record_demand_receipts(message: str, run: _Run, *, plan_text: str) -> None:
+    """Attest, per demand unit, the actions this turn completed -- on the same discharge channel
+    the conductor and planned sub-turns use (`core.conductor.obligation_ledger`).
+
+    "Rename this chat to X and pin it" is two demands. Both writes ran and were read back, but the
+    lane attested neither, and the closure sweep found prose evidence for only one: the turn
+    certified 1 satisfied / 1 indeterminate over two real effects. Each completed action's clause
+    is located in the user's own text and bound to the demand unit(s) it spans through the one
+    geometry (`demands_served_by_spans`). A clause that is not found exactly once binds nothing,
+    and an asked, refused or failed action is never attested. Never raises.
+    """
+    try:
+        from core.agent_runtime.answer_coverage import demand_units
+        from core.conductor import obligation_ledger
+        from core.conductor.planner import demands_served_by_spans
+
+        active = obligation_ledger.active_set()
+        if active is None or not run.completed:
+            return
+        text = str(message or "")
+        units = demand_units(text)
+        if not units:
+            return
+        # The plan's actions are its clauses, one each, in the text the plan was parsed from.
+        clauses = split_clauses(" ".join(str(plan_text or "").split()))
+        spans: list[tuple[int, int, str]] = []
+        for position in run.completed:
+            if position >= len(clauses):
+                continue
+            clause = clauses[position]
+            first = text.find(clause)
+            if first < 0 or text.find(clause, first + 1) >= 0:
+                continue
+            spans.append((first, first + len(clause), f"{LANE_ID}:{position}"))
+        for unit_id, label in demands_served_by_spans(spans, units):
+            obligation_ledger.record_slice_consumption(
+                active[0], active[1], unit_id=unit_id, family=LANE_ID, evidence="slice_answer_record", excerpt=label,
+            )
+    except Exception:  # accounting never takes down an answered turn
+        return
+
+
 def execute_plan(plan: Plan, *, session_id: str, mutations_allowed: bool = True) -> _Run:
     from core import chat_housekeeping as hk
 
@@ -808,23 +871,28 @@ def execute_plan(plan: Plan, *, session_id: str, mutations_allowed: bool = True)
     recalled_entry = hk.recalled_results(run.session_id)
     recalled = list(recalled_entry.get("hits") or []) if recalled_entry else None
     for position, action in enumerate(plan.actions):
+        written_before = len(run.details)
         if action.kind == "search":
             # Only a singular "pin it" waits on a unique hit; "pin both" / "pin 2" name their own.
             following = next((a for a in plan.actions[position + 1:] if a.kind == "pin_chat"), None)
             wants_pin = following is not None and following.target is not None and following.target.kind == "pronoun"
-            _do_search(run, action, wants_pin_after=wants_pin)
+            if _do_search(run, action, wants_pin_after=wants_pin):
+                run.completed.append(position)
             continue
         if action.kind == "list_pinned":
             _do_list_pinned(run)
+            run.completed.append(position)
             continue
         if action.kind in _MUTATING and not mutations_allowed:
             run.lines.append(f"You asked me not to change anything, so I didn't {_verb(action.kind)} anything.")
             continue
         if action.kind in ("pin_message", "unpin_message"):
             _do_message_pin(run, action)
+            _note_completed_write(run, position, action.kind, written_before)
             continue
         if action.kind == "rename_project":
             _do_rename_project(run, action)
+            _note_completed_write(run, position, action.kind, written_before)
             continue
         chats, question = _resolve(run, action.target, recalled=recalled)
         if not chats:
@@ -850,6 +918,7 @@ def execute_plan(plan: Plan, *, session_id: str, mutations_allowed: bool = True)
             run.lines.append("I can only give one chat that name. Say which one, for example \"rename 1 to ...\".")
             continue
         _do_chat_action(run, action, chats)
+        _note_completed_write(run, position, action.kind, written_before)
         # The chats just acted on are what "it" means next.
         run.referent, run.referent_ambiguous = chats, False
     if run.search_hits is not None:
@@ -897,6 +966,7 @@ def maybe_handle_housekeeping_request(
         run.any_failure = True
         run.details.append({"action": "error", "error": f"{type(exc).__name__}: {exc}"[:300]})
     hk.record_handled_request(session_id, effective_input or text)
+    _record_demand_receipts(str(effective_input or text), run, plan_text=text)
     response = "\n".join(line for line in run.lines if line).strip() or "I didn't find anything to change."
     response = response.replace("…**.", "…**").replace("….", "…")
     details = {"lane": LANE_ID, "actions": run.details}
