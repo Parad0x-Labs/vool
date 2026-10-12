@@ -421,3 +421,120 @@ def test_daemon_without_ownership_marker_never_arms_the_parent_watch(tmp_path: P
     assert "SHOULD-EXIT=0" in done.stdout, (
         "an unmarked daemon must not watch any parent (updater relaunches, manual runs)"
     )
+
+
+# ------------------------------------------------------------------------------------------
+# A slow health answer from a live owned runtime is not a lost runtime
+# ------------------------------------------------------------------------------------------
+#
+# Measured 2026-10-12 on a GitHub Intel Mac (i7-8700B): during first-run work a /healthz answered
+# 200 after 2.3 s, past the watchdog's 1.5 s probe, and the native host closed the whole app with
+# "runtime lost" while the runtime was alive and serving. These drive the REAL supervisor against
+# a real HTTP server and a real owned child process; only the clock is stepped.
+
+
+class _HealthServer:
+    """A loopback /healthz whose answer the test switches: ok, slow (past the probe), or foreign."""
+
+    def __init__(self, commit: str) -> None:
+        import http.server
+        import threading
+
+        self.mode = "ok"
+        server = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                if server.mode == "slow":
+                    time.sleep(2.0)
+                sha = "b" * 40 if server.mode == "foreign" else commit
+                body = ('{"ok": true, "runtime": {"commit_full": "%s"}}' % sha).encode()
+                try:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except OSError:
+                    pass  # the probe already gave up on a slow answer
+
+            def log_message(self, *args: object) -> None:
+                pass
+
+        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}/healthz"
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def close(self) -> None:
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+
+def _watched_supervisor(tmp_path: Path, *, owned: bool):
+    sys.path.insert(0, str(REPO))
+    import installer.bundle.native_runtime_supervisor as nrs
+
+    commit = "a" * 40
+    server = _HealthServer(commit)
+    clock = [1000.0]
+    sup = nrs.NativeRuntimeSupervisor(
+        tmp_path, ["true"], expected_sha=commit, health_url=server.url,
+        unhealthy_grace=30.0, monotonic=lambda: clock[0],
+    )
+    child = None
+    if owned:
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+        sup.process = child
+    return nrs, sup, server, clock, child
+
+
+def test_slow_health_from_a_live_owned_runtime_is_tolerated_then_fatal_past_the_grace(tmp_path: Path) -> None:
+    nrs, sup, server, clock, child = _watched_supervisor(tmp_path, owned=True)
+    try:
+        sup.assert_alive()
+        server.mode = "slow"
+        sup.assert_alive()  # first late answer: the runtime is alive, the window stays
+        clock[0] += 20.0
+        sup.assert_alive()  # still inside the grace
+        server.mode = "ok"
+        sup.assert_alive()  # a good answer clears the failure window
+        server.mode = "slow"
+        clock[0] += 25.0
+        sup.assert_alive()  # a new window starts here, not at the first failure
+        clock[0] += 30.0
+        with pytest.raises(nrs.NativeRuntimeError, match="health endpoint is unavailable"):
+            sup.assert_alive()  # unhealthy for the whole grace: lost
+    finally:
+        child.kill()
+        child.wait()
+        server.close()
+
+
+def test_a_dead_owned_child_or_a_foreign_identity_is_fatal_at_once(tmp_path: Path) -> None:
+    nrs, sup, server, clock, child = _watched_supervisor(tmp_path, owned=True)
+    try:
+        server.mode = "foreign"
+        with pytest.raises(nrs.NativeRuntimeError, match="identity changed"):
+            sup.assert_alive()
+        server.mode = "slow"
+        sup.assert_alive()
+        child.kill()
+        child.wait()
+        with pytest.raises(nrs.NativeRuntimeError, match="owned runtime child exited"):
+            sup.assert_alive()  # the grace never covers a child that is gone
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+        server.close()
+
+
+def test_without_an_owned_child_an_unanswered_health_probe_is_fatal_at_once(tmp_path: Path) -> None:
+    nrs, sup, server, clock, _child = _watched_supervisor(tmp_path, owned=False)
+    try:
+        sup.assert_alive()
+        server.mode = "slow"
+        with pytest.raises(nrs.NativeRuntimeError, match="health endpoint is unavailable"):
+            sup.assert_alive()
+    finally:
+        server.close()
