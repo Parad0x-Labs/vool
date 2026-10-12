@@ -1214,6 +1214,24 @@ def _execute_tool_intent_impl(
                 tool_name=intent,
                 details=dict(refusal.details or {}),
             )
+    if intent in {"machine.write_file", "workspace.write_file"}:
+        # The turn ordered a downloadable file in a named format (`deliverables.requested_formats`,
+        # stamped by the tool loop); a disk writer producing another format answers a different
+        # request. Refused before the permission decision, as a correction the model can act on.
+        from core.deliverables import REQUESTED_FORMATS_KEY, ordered_file_writer_refusal
+
+        wrong_tool = ordered_file_writer_refusal(
+            intent, arguments.get("path"), tuple((source_context or {}).get(REQUESTED_FORMATS_KEY) or ())
+        )
+        if wrong_tool:
+            return ToolIntentExecution(
+                handled=True, ok=False, status="format_not_requested",
+                response_text=wrong_tool, user_safe_response_text=wrong_tool,
+                mode="tool_failed", tool_name=intent,
+                details={"executed": False, "observation": _tool_observation(
+                    intent=intent, tool_surface="file", ok=False, status="format_not_requested",
+                )},
+            )
     if intent == "code.task.step":
         from core.code_assistant.step_validation import step_argument_error
 

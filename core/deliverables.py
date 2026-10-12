@@ -1218,12 +1218,49 @@ def refuse_unrequested_format(*, filename: str, fmt: str, wanted: tuple[str, ...
     )
 
 
+#: Writers that put a file on disk instead of handing it to the user. When the turn ORDERED a file in a
+#: named format, one of these writing another format is the wrong tool for the order.
+DISK_WRITER_INTENTS = frozenset({"machine.write_file", "workspace.write_file"})
+
+
+def ordered_file_writer_refusal(intent: str, raw_path: Any, wanted: tuple[str, ...] | list[str]) -> str:
+    """The refusal text for a disk writer used on a turn that ordered a different file format, or "".
+
+    Measured live 2026-10-06: "Write a shell script ... plus a short usage note, and zip both files." -- the
+    model wrote backup_documents.sh with machine.write_file (refused by the machine lanes), never built
+    the zip, and the turn ended "I wasn't able to turn that into a completed action". The order was a
+    downloadable .zip; a writer producing a .sh on disk answers a different request. Writing a file
+    in the ordered format ("save it as notes.md in the project") is not refused here.
+    """
+    if intent not in DISK_WRITER_INTENTS:
+        return ""
+    named = tuple(str(item) for item in (wanted or ()) if str(item) in FORMATS)
+    if not named:
+        return ""
+    name = str(raw_path or "").strip().rsplit("/", 1)[-1]
+    extension = _extension_of(name).lstrip(".")
+    if extension == "tgz":
+        extension = "tar.gz"
+    extension = _ALIASES.get(extension, extension)
+    if extension in named:
+        return ""
+    shown = ", ".join("." + FORMATS[item][0].lstrip(".") for item in named)
+    bundle = " Several files to zip: ONE file.deliver call with filename *.zip and `files`." if any(
+        item in ("zip", "tar.gz") for item in named
+    ) else ""
+    return (
+        f"{intent} refused: this request orders a {shown} file to download, so it is delivered with file.deliver "
+        f"(filename ending {shown}), not written to disk.{bundle} Nothing was written."
+    )
+
+
 def supported_formats_summary() -> str:
     return "docx, xlsx, pptx, pdf, md, txt, csv, tsv, json, yaml, xml, html, zip, tar.gz, and source files such as .py or .js"
 
 
 __all__ = [
     "CODE_EXTENSIONS",
+    "DISK_WRITER_INTENTS",
     "FORMATS",
     "MAX_BUNDLE_FILES",
     "MAX_OUTPUT_BYTES",
@@ -1236,6 +1273,7 @@ __all__ = [
     "create_deliverable",
     "download_url",
     "markdown_blocks",
+    "ordered_file_writer_refusal",
     "read_deliverable",
     "refuse_unrequested_format",
     "requested_formats",
