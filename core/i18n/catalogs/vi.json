@@ -531,6 +531,8 @@
     "fault.wallet_dependency_unavailable.message": "Bản dựng này không ký được EVM hay mã hóa ABI: các thư viện Ethereum chưa cài trên máy này. Chưa ký hay gửi gì. Solana, lưu ký và trần chi tiêu không bị ảnh hưởng; sau khi cài thư viện, thử lại.",
     "fault.wallet_paykit_unavailable.action": "Cài phần bổ sung tùy chọn pay của VOOL trên Python 3.11 trở lên để bật thanh toán pay-kit; dù thế nào ví vẫn giữ bộ ký riêng, trần chi tiêu và bước phê duyệt của mình.",
     "fault.wallet_paykit_unavailable.message": "Bản dựng này không trả được các đề nghị x402 hay MPP trên Solana: phần bổ sung tùy chọn pay (Solana pay-kit, Python 3.11 trở lên) chưa cài trên máy này. Chưa ký hay gửi gì. Mọi chức năng ví khác chạy không cần nó; sau khi cài, thử lại.",
+    "fault.wallet_payment_channel_off.action": "Chỉ bật một kênh thanh toán trong cài đặt Tiền điện tử nếu bạn muốn thanh toán qua kênh đó; trần chi tiêu và sự chấp thuận của bạn áp dụng trên mọi kênh.",
+    "fault.wallet_payment_channel_off.message": "Khoản thanh toán đó đi qua một kênh thanh toán đang tắt, nên chưa ký hay gửi gì. Bật kênh trong Cài đặt, Tiền điện tử, Kênh thanh toán, rồi thử lại.",
     "fault.wallet_disabled.action": "Chỉ bật ví tường minh (VOOL_WALLET_ENABLED=1) nếu muốn thanh toán trên bản cài này.",
     "fault.wallet_disabled.message": "Ví đang tắt, nên chưa đề xuất hay gửi khoản thanh toán nào. Bật nó trước rồi thử lại.",
     "fault.wallet_duplicate_payment.action": "Kiểm tra biên lai của đề xuất sẵn có; dùng khóa idempotency mới cho một khoản thực sự mới.",
@@ -1788,7 +1790,7 @@
     "vns.sound.preview": "Nghe thử",
     "vns.sound.blocked": "Không thể phát âm thanh. Thông báo vẫn còn trong mục chuông."
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "b78365202a9af476f10da21eda241864ef3fb2d4e2fa6bec40e33a0ce36fef49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

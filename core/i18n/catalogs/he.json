@@ -531,6 +531,8 @@
     "fault.wallet_dependency_unavailable.message": "גרסה זו אינה יכולה לחתום EVM או לקודד ABI: ספריות ה-Ethereum אינן מותקנות במכונה זו. לא נחתם ולא נשלח דבר. Solana, משמורת ותקרות הוצאה אינן מושפעות; לאחר התקנת הספריות נסו שוב.",
     "fault.wallet_paykit_unavailable.action": "התקינו את התוספת האופציונלית pay של VOOL על Python 3.11 ומעלה כדי לאפשר תשלומי pay-kit; הארנק שומר בכל מקרה על החותם שלו, תקרות ההוצאה והאישור.",
     "fault.wallet_paykit_unavailable.message": "גרסה זו אינה יכולה לשלם הצעות x402 או MPP של Solana: התוספת האופציונלית pay (Solana pay-kit, Python 3.11 ומעלה) אינה מותקנת במכונה זו. לא נחתם ולא נשלח דבר. כל שאר פונקציות הארנק עובדות בלעדיה; לאחר התקנתה נסו שוב.",
+    "fault.wallet_payment_channel_off.action": "הפעילו ערוץ תשלום בהגדרות הקריפטו רק אם אתם רוצים שתשלומים יעברו דרכו; התקרה והאישור שלכם חלים על כל ערוץ.",
+    "fault.wallet_payment_channel_off.message": "התשלום הזה עובר דרך ערוץ תשלום כבוי, ולכן לא נחתם ולא נשלח דבר. הפעילו את הערוץ בהגדרות, קריפטו, ערוצי תשלום, ואז נסו שוב.",
     "fault.wallet_disabled.action": "הפעילו את הארנק במפורש (VOOL_WALLET_ENABLED=1) רק אם רוצים תשלומים בהתקנה זו.",
     "fault.wallet_disabled.message": "הארנק כבוי, ולכן לא הוצע ולא נשלח תשלום. הפעילו אותו קודם ואז נסו שוב.",
     "fault.wallet_duplicate_payment.action": "בדקו את קבלת ההצעה הקיימת; השתמשו במפתח חד-ערכיות חדש לתשלום חדש באמת.",
@@ -1788,7 +1790,7 @@
     "vns.sound.preview": "השמעת דוגמה",
     "vns.sound.blocked": "השמעת הצליל אינה זמינה. ההתראות נשארות בתפריט הפעמון."
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "b78365202a9af476f10da21eda241864ef3fb2d4e2fa6bec40e33a0ce36fef49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

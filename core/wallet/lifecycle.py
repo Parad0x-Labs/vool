@@ -551,6 +551,8 @@ class PaymentLifecycle:
         claimed = None
         with connection() as conn:
             limits._begin_immediate(conn)
+            # read under the claim's write lock: a channel turned off while the owner was asked holds nothing
+            self._require_channel_on(proposal, conn=conn)
             try:
                 proposals._cas(conn, proposal.proposal_id, proposals.STATE_APPROVED, expected_state=proposals.STATE_PENDING_APPROVAL, edges=proposals.TRANSITIONS,
                                detail={"method": method}, columns={})
@@ -600,6 +602,7 @@ class PaymentLifecycle:
         self._require_signable_row(proposal)
         self._require_owns_request(proposal)
         self._require_names_a_request(proposal)
+        self._require_channel_on(proposal)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         recipient = dict(getattr(proposal, "recipient", {}) or {})
         if recipient.get("resolution") == "contact":
@@ -711,6 +714,18 @@ class PaymentLifecycle:
         if not wallet_x402.names_a_request(proposal):
             raise self._fault("wallet_approval_rejected", proposal, reason="no_x402_binding", status=proposal.state)
 
+    def _require_channel_on(self, proposal: proposals.TransactionProposal, *, conn: Any = None) -> None:
+        """A payment whose channel the owner turned off (:mod:`core.wallet.channels`) is approved, claimed, handed to a
+        signer and submitted by no door: each refuses it before the owner is asked, anything is held or its signature
+        leaves. The refusal does not end it and releases nothing it holds; it pays once the channel is on again. Only
+        a payment that has not been sent is asked: a door answering for one already sent says so, whatever the
+        channel."""
+        from core.wallet import channels
+
+        channel = channels.for_origin(str(proposal.origin))
+        if channel is not None and not channels.is_on(channel.channel_id, conn=conn):
+            raise self._fault("wallet_payment_channel_off", proposal, reason="payment_channel_off", channel=channel.channel_id, channel_label=channel.label, status=proposal.state)
+
     def _require_held(self, proposal: proposals.TransactionProposal, *, request_id: str = "") -> None:
         """A claimed payment is handed to a signer, or its signature submitted, only while it holds its amount and its
         fee against the spend limits: the hold is what the limits count. The claim holds them in the transaction that
@@ -758,6 +773,7 @@ class PaymentLifecycle:
             raise self._fault("wallet_quote_mismatch", proposal, reason="paykit_pilot_lane_not_supported")
         self._require_owns_request(proposal)
         self._require_names_a_request(proposal)
+        self._require_channel_on(proposal)
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
         quote = quotes.require_open_quote(quote_id, proposal=proposal, quote_digest=quote_digest, account_address=profile.public_key, source_context=self.source_context)
@@ -961,6 +977,8 @@ class PaymentLifecycle:
             epochs = controls.epochs(conn)
             if epochs != baseline["epochs"]:
                 raise self._fault("wallet_approval_rejected", proposal, reason="controls_changed_during_approval")
+            # a channel turned off during the credential or the revalidation: refused here, nothing consumed or held
+            self._require_channel_on(proposal, conn=conn)
             from core.wallet import x402 as wallet_x402
 
             if not wallet_x402.owns_its_request(proposal, conn=conn):
@@ -1405,6 +1423,9 @@ class PaymentLifecycle:
         if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
             # an external wallet would sign a plain transfer this wallet then broadcasts: never the pay-kit payment
             raise self._fault("wallet_signing_unavailable", proposal, reason="paykit_external_signer_not_supported")
+        if not proposal.tx_signature and proposal.state in (proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE):
+            # no bytes to sign leave for a payment on a channel that is off: not a new request, a resumed one or a re-opened one
+            self._require_channel_on(proposal)
         if proposal.state == proposals.STATE_AWAITING_SIGNATURE and not proposal.tx_signature:
             record = external_signing.open_request_for_proposal(proposal.proposal_id)
             if record is not None and not external_signing.is_expired(record):
@@ -1512,6 +1533,8 @@ class PaymentLifecycle:
             self._require_not_frozen(proposal_for_freeze, door="submission")
             self._require_signable_row(proposal_for_freeze)
             if record["state"] == external_signing.STATE_OPEN and proposal_for_freeze.state == proposals.STATE_AWAITING_SIGNATURE and not proposal_for_freeze.tx_signature:
+                # only a signature that has not left is held back: a replayed answer for one already sent is a duplicate
+                self._require_channel_on(proposal_for_freeze)
                 self._require_held(proposal_for_freeze, request_id=record["request_id"])
         if record.get("family") == external_signing.FAMILY_EVM:
             return self._submit_evm_signature(record, signature_hex=signature_hex)

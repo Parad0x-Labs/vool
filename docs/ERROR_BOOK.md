@@ -8,8 +8,8 @@ of it: the codes, messages and actions below are exactly what the runtime emits.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `71bdf9996274668d5a8043abe47a3ec599ab14232cdb3309f0ffe608703c708e`
-- **Fault count:** 49
+- **Catalog digest:** `6fd480c906211dca4b6556cf3677e9d0b18f95e25cb0002ba092049cff3ad48d`
+- **Fault count:** 50
 
 A fault's `code` is stable and safe to match on; `user_message` is what a person sees;
 `operator_action` is what to do about it; `authority` names the module that owns the fault.
@@ -59,6 +59,7 @@ A fault's `code` is stable and safe to match on; `user_message` is what a person
 | `wallet_limit_exceeded` | medium | no | never | yes | That payment is above a spending limit, so it was not sent. | Nothing was sent, signed or changed | Review the per-transaction, daily and per-destination limits before retrying. | `core.wallet.limits` |
 | `wallet_not_found` | low | yes | retry_after_change | no | That wallet, proposal or destination was not recognised, so nothing was done. Check it and try again. | Nothing was sent, signed or changed | Check the wallet id, proposal id or destination address and try again. | `core.wallet.custody` |
 | `wallet_paykit_unavailable` | medium | yes | retry_after_change | no | This build cannot pay Solana x402 or MPP offers: the optional pay extra (Solana pay-kit, Python 3.11 or newer) is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again. | Nothing was sent, signed or changed | Install VOOL's optional pay extra on Python 3.11 or newer to enable pay-kit payments; the wallet keeps its own signer, spend caps and approval either way. | `core.wallet.paykit_x402` |
+| `wallet_payment_channel_off` | low | yes | retry_after_change | no | That payment goes through a payment channel that is turned off, so nothing was signed or sent. Turn the channel on in Settings, Crypto, Payment channels, then try again. | Nothing was sent, signed or changed | Turn a payment channel on in Crypto settings only if you want payments made through it; the cap and your approval apply on every channel. | `core.wallet.channels` |
 | `wallet_pin_invalid` | low | yes | retry_after_change | no | The PIN did not meet the policy or did not unlock the wallet, so nothing was signed. Check the PIN and try again. | Nothing was sent, signed or changed | Use a 6 to 12 digit PIN; a wrong PIN leaves the sealed key untouched. | `core.wallet.custody` |
 | `wallet_quote_expired` | low | yes | retry_after_change | no | This transfer preview expired or was replaced, so it cannot be approved and nothing was sent. Refresh the preview, then try again. | Nothing was sent, signed or changed | A quote lives for a short window and is superseded by a refresh or an environment switch; approval never carries over. | `core.wallet.quotes` |
 | `wallet_recipient_refused` | medium | yes | retry_after_change | no | That recipient cannot safely receive this transfer on this network, so nothing was prepared. Check the address, then try again. | Nothing was sent, signed or changed | Refused: a new Solana account below the rent minimum, an executable or off-curve account, a bad EIP-55 checksum, the zero address, precompiles and system contracts. | `core.wallet.quotes` |

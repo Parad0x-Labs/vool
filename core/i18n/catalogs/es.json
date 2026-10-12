@@ -531,6 +531,8 @@
     "fault.wallet_dependency_unavailable.message": "Esta compilación no puede firmar EVM ni codificar ABI: las bibliotecas de Ethereum no están instaladas en esta máquina. No se firmó ni envió nada. Solana, la custodia y los techos de gasto no se ven afectados; instala las bibliotecas y reintenta.",
     "fault.wallet_paykit_unavailable.action": "Instala el extra opcional pay de VOOL en Python 3.11 o posterior para habilitar los pagos con pay-kit; la cartera conserva su propio firmante, sus techos de gasto y su aprobación en cualquier caso.",
     "fault.wallet_paykit_unavailable.message": "Esta compilación no puede pagar ofertas x402 o MPP de Solana: el extra opcional pay (Solana pay-kit, Python 3.11 o posterior) no está instalado en esta máquina. No se firmó ni envió nada. Todo lo demás de la cartera funciona sin él; instálalo y reintenta.",
+    "fault.wallet_payment_channel_off.action": "Activa un canal de pago en los ajustes de Cripto solo si quieres que los pagos pasen por él; el tope y tu aprobación se aplican en todos los canales.",
+    "fault.wallet_payment_channel_off.message": "Ese pago pasa por un canal de pago que está desactivado, así que no se firmó ni se envió nada. Activa el canal en Ajustes, Cripto, Canales de pago, y reintenta.",
     "fault.wallet_disabled.action": "Activa la cartera explícitamente (VOOL_WALLET_ENABLED=1) solo si se desean pagos en esta instalación.",
     "fault.wallet_disabled.message": "El monedero está apagado, así que no se propuso ni envió ningún pago. Actívalo primero y reintenta.",
     "fault.wallet_duplicate_payment.action": "Comprueba el recibo de la propuesta existente; usa una clave de idempotencia nueva para un pago genuinamente nuevo.",
@@ -1788,7 +1790,7 @@
     "vns.sound.preview": "Escuchar sonido",
     "vns.sound.blocked": "El sonido no está disponible. Las notificaciones siguen en la campana."
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "b78365202a9af476f10da21eda241864ef3fb2d4e2fa6bec40e33a0ce36fef49",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

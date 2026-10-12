@@ -23,7 +23,7 @@ _STATUS_FOR_CODE = {
     "wallet_approval_rejected": 403, "wallet_x402_cap_exceeded": 403, "wallet_card_data_refused": 400, "wallet_not_found": 404,
     "wallet_simulation_failed": 502, "wallet_broadcast_failed": 502, "wallet_acknowledgement_required": 400,
     "wallet_device_auth_unavailable": 403, "wallet_device_auth_denied": 403, "wallet_export_unavailable": 400, "wallet_export_pin_not_accepted": 400, "wallet_dependency_unavailable": 403,
-    "wallet_paykit_unavailable": 403,
+    "wallet_paykit_unavailable": 403, "wallet_payment_channel_off": 403,
     "wallet_password_invalid": 400,
     "wallet_chain_identity_mismatch": 403, "wallet_outbound_refused": 403, "evm_pocket_custody_unavailable": 403, "x402_scheme_unavailable": 403,
     "wallet_caller_refused": 403, "wallet_environment_inactive": 409,
@@ -287,6 +287,15 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
 
             environment.set_active_environment(str(body.get("environment") or ""), source_context=source_context)
             return _ok({"crypto_pilot": crypto_pilot_status()})
+        if path == "/api/wallet/channels":
+            # the owner's choice of payment channels (Settings, Crypto, Payment channels): touches nothing but the choice
+            from core.wallet import channels
+
+            raw = body.get("on")
+            if not isinstance(raw, bool):
+                return _json(400, {"ok": False, "error": "channel_choice_invalid", "reason": "on_must_be_true_or_false"})
+            changed = channels.set_on(str(body.get("channel") or ""), raw, source_context=source_context)
+            return _ok({"channel": changed, "payment_channels": channels.status()})
         if path == "/api/wallet/limits":
             from core.wallet import limits
 

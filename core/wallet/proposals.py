@@ -182,6 +182,10 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "account_network_mismatch", "wallet_network": _canonical_network(profile.network), "proposal_network": _canonical_network(resolved_network)}, source_context=source_context)
     if origin not in ORIGINS:
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "unknown_origin", "origin": str(origin)}, source_context=source_context)
+    from core.wallet import channels
+
+    # a payment channel the owner turned off parks nothing, whichever door proposes on it
+    channels.require_origin_on(str(origin), source_context=source_context)
     dest = str(destination or "").strip()
     if not chains.destination_matches_family(resolved_network, dest):
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "invalid_destination"}, source_context=source_context)
