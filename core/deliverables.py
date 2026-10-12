@@ -995,12 +995,23 @@ def store_dir() -> Path:
     return active_data_dir() / "deliverables"
 
 
+def _store_path(deliverable_id: str, suffix: str) -> Path:
+    """A file of one deliverable, which by construction stays inside the deliverable store."""
+    if not _ID_RE.fullmatch(deliverable_id):
+        raise ValueError("not a deliverable id")
+    root = os.path.abspath(store_dir())
+    candidate = os.path.normpath(os.path.join(root, deliverable_id + suffix))
+    if os.path.dirname(candidate) != root:
+        raise ValueError("outside the deliverable store")
+    return Path(candidate)
+
+
 def _manifest_path(deliverable_id: str) -> Path:
-    return store_dir() / f"{deliverable_id}.json"
+    return _store_path(deliverable_id, ".json")
 
 
 def _bytes_path(deliverable_id: str) -> Path:
-    return store_dir() / f"{deliverable_id}.bin"
+    return _store_path(deliverable_id, ".bin")
 
 
 def _write_private(path: Path, data: bytes) -> None:
@@ -1040,6 +1051,8 @@ def sweep_expired(*, now: float | None = None) -> int:
             created = 0
         if created < cutoff:
             deliverable_id = manifest.stem
+            if not _ID_RE.fullmatch(deliverable_id):
+                continue  # Not a file this store wrote; leave it alone.
             _bytes_path(deliverable_id).unlink(missing_ok=True)
             manifest.unlink(missing_ok=True)
             removed += 1
@@ -1097,7 +1110,7 @@ def create_deliverable(
 
 def read_deliverable(*, deliverable_id: str, session_id: str) -> tuple[dict[str, Any], bytes] | None:
     """The record and bytes, only for the chat that created it; None for anything else."""
-    if not _ID_RE.match(str(deliverable_id or "")):
+    if not _ID_RE.fullmatch(str(deliverable_id or "")):
         return None
     with _LOCK:
         try:
