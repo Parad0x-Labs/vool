@@ -1785,11 +1785,24 @@ def dispatch_get(
     if normalized_path == "/api/cloud/providers":
         # The provider catalog for the Settings selector: id + label + key-id style, so the UI can
         # offer "Auto-detect / OpenAI / Anthropic / …" without hardcoding the list. No secrets.
-        from core.cloud_providers import PROVIDERS
+        # `key_from_environment` says, by presence only, that the provider's key comes from the
+        # environment (the lane routes on it although no Settings slot holds it), so the picker can
+        # count it as connected. A custom endpoint needs its base URL there too.
+        from core.cloud_providers import PROVIDERS, env_key_present
+
+        def _env_keyed(cfg) -> bool:
+            if not env_key_present(cfg.provider_id):
+                return False
+            if cfg.base_url_env_names:
+                import os as _os
+
+                return any(str(_os.environ.get(name) or "").strip() for name in cfg.base_url_env_names)
+            return True
 
         provider_rows = [
             {"id": cfg.provider_id, "label": cfg.label, "model_id_style": cfg.model_id_style,
-             "user_base_url": cfg.user_base_url, "auth_placement": cfg.auth_placement}
+             "user_base_url": cfg.user_base_url, "auth_placement": cfg.auth_placement,
+             "key_from_environment": _env_keyed(cfg)}
             for cfg in PROVIDERS.values()
         ]
         return apply_runtime_headers(json_response(200, {"providers": provider_rows}), runtime)

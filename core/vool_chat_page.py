@@ -9527,7 +9527,9 @@ async function refreshCredentials() {
     if (!rp.ok) throw new Error('Provider list unavailable');
     const jp = await rp.json();
     const slots = new Set((j.credentials || []).map((c) => c.name));
-    const configured = (jp.providers || []).filter((p) => p && p.id && slots.has('llm.cloud.' + p.id));
+    // A key in a Settings slot or in the environment (the server reports the latter by presence
+    // only): either way the lane routes on it, so the picker must offer it.
+    const configured = (jp.providers || []).filter((p) => p && p.id && (slots.has('llm.cloud.' + p.id) || p.key_from_environment === true));
     let accountless = false;
     // Include the wallet route even when another provider also has a saved key.
     try {
