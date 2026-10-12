@@ -27,7 +27,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from core.plugin_skills import parse_skill
+from core.plugin_skills import parse_skill, parse_skill_content
 
 # Where an unactivated skill is written. Deliberately not under the plugins tree: a half-written
 # skill must not be loadable, and `create` is not an authorisation to change behaviour.
@@ -469,7 +469,7 @@ def _skill_locations(slug: str) -> list[Path]:
     return locations
 
 
-def validate_skill(path: str) -> dict[str, Any]:
+def validate_skill(path: str, *, candidate_contracts: tuple = ()) -> dict[str, Any]:
     """Parse with the REAL loader and report what would stop this skill working.
 
     "It parsed" is the easy half and the less useful one. A skill with no description never ranks,
@@ -481,7 +481,16 @@ def validate_skill(path: str) -> dict[str, Any]:
     if not candidate.is_file():
         return {"status": "not_found", "reason": f"no SKILL.md at {candidate}", "path": str(candidate)}
 
-    skill = parse_skill(candidate)
+    try:
+        with candidate.open("rb") as source:
+            raw = source.read(1024 * 1024 + 1)
+        if len(raw) > 1024 * 1024:
+            raise ValueError("skill exceeds the validation byte limit")
+        preview_markdown = raw.decode("utf-8")
+    except (OSError, UnicodeError, ValueError):
+        return {"status": "invalid", "path": str(candidate),
+                "problems": ["the complete skill could not be read within the validation limit"]}
+    skill = parse_skill_content(preview_markdown, path=candidate)
     if skill is None:
         return {
             "status": "invalid",
@@ -493,6 +502,21 @@ def validate_skill(path: str) -> dict[str, Any]:
         }
 
     problems: list[str] = []
+    from core.registry.rules import analyze
+
+    boundaries = analyze({"SKILL.md": raw})
+    problems.extend(conflict["reason"] for conflict in boundaries["conflicts"])
+    full_match = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", preview_markdown, re.DOTALL)
+    full_body = full_match.group(2).strip() if full_match else ""
+    if len(full_body) > _MAX_BODY_CHARS:
+        problems.append(f"body exceeds {_MAX_BODY_CHARS} characters; the loader would truncate instructions")
+    try:
+        import yaml
+
+        if not isinstance(yaml.safe_load(full_match.group(1)), dict):
+            problems.append("frontmatter must be a YAML object")
+    except Exception:
+        problems.append("frontmatter could not be validated as YAML")
     if not skill.name.strip():
         problems.append("name is empty")
     if not skill.description.strip():
@@ -517,6 +541,9 @@ def validate_skill(path: str) -> dict[str, Any]:
             # conversational path was a skill with no allowed-tools at all. Registry
             # entries never override a builtin contract of the same name.
             contracts = runtime_tool_contract_map()
+            for contract in candidate_contracts:
+                if str(contract.source or "").startswith("plugin:"):
+                    contracts.setdefault(str(contract.intent), contract)
             for contract in registered_tools():
                 if str(contract.source or "").startswith("plugin:"):
                     contracts.setdefault(str(contract.intent), contract)
@@ -527,7 +554,7 @@ def validate_skill(path: str) -> dict[str, Any]:
                 if actions:
                     required_actions[tool] = actions
         except Exception:
-            unknown_tools = []
+            problems.append("tool contracts are unavailable; allowed-tools could not be validated")
         if unknown_tools:
             problems.append(
                 "allowed-tools names tools this runtime does not have: " + ", ".join(unknown_tools)
@@ -549,17 +576,15 @@ def validate_skill(path: str) -> dict[str, Any]:
 
     # The activation preview: the file's EXACT bytes, so the operator approves what will be
     # loaded rather than a paraphrase of it. Read after validation, never reconstructed.
-    try:
-        preview_markdown = candidate.read_text(encoding="utf-8")
-    except OSError:
-        preview_markdown = ""
-
     return {
         "status": "ok" if not problems else "invalid",
         "path": str(candidate),
         "name": skill.name,
         "description": skill.description,
         "body_characters": len(skill.body),
+        "full_body_characters": len(full_body),
+        "authority_notice": boundaries["authority_notice"],
+        "native_control_overlaps": boundaries["native_control_overlaps"],
         "allowed_tools": list(skill.allowed_tools),
         "unknown_tools": unknown_tools,
         "triggers": list(skill.triggers),

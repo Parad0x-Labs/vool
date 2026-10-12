@@ -1786,9 +1786,20 @@
     "companion.state.unknown": "Inconnu",
     "vns.sound.help": "Un son doux quand le travail est terminé ou nécessite votre intervention.",
     "vns.sound.preview": "Écouter le son",
-    "vns.sound.blocked": "La lecture du son est indisponible. Les notifications restent dans la cloche."
+    "vns.sound.blocked": "La lecture du son est indisponible. Les notifications restent dans la cloche.",
+    "addons.registry_tab": "Registre vérifié",
+    "addons.registry_title": "Compétences et extensions vérifiées",
+    "addons.registry_intro": "Les vérifications publiques concernent une version et une compilation précises de VOOL. Téléchargez le paquet pour l'inspecter, puis décidez de l'installer et de l'activer.",
+    "addons.native_authority": "Les compétences apportent des instructions. Les règles natives de VOOL, les paramètres du propriétaire, les plafonds de dépenses, la gestion des devises, les autorisations et les approbations prévalent toujours.",
+    "addons.registry_evidence": "Fichiers exacts, autorisations et source",
+    "addons.registry_install_only": "Installer sans activer",
+    "addons.registry_enable": "Installer et activer",
+    "addons.registry_refresh": "Parcourir le registre vérifié",
+    "addons.registry_network": "Ce bouton consulte le registre public. Aucun compte, conversation, fichier local ou clé de fournisseur n'est envoyé.",
+    "addons.registry_empty": "Aucune version approuvée ne correspond à cette compilation précise de VOOL et à votre recherche.",
+    "addons.registry_inspect": "Télécharger pour inspecter"
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "02a09cf679cd08450d8b601292aa0bfd3c208c10665478e58d9ec2c2a853e280",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

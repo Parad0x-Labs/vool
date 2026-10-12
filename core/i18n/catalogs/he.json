@@ -1786,9 +1786,20 @@
     "companion.state.unknown": "לא ידוע",
     "vns.sound.help": "צליל עדין כשהעבודה מסתיימת או נדרשת פעולה שלך.",
     "vns.sound.preview": "השמעת דוגמה",
-    "vns.sound.blocked": "השמעת הצליל אינה זמינה. ההתראות נשארות בתפריט הפעמון."
+    "vns.sound.blocked": "השמעת הצליל אינה זמינה. ההתראות נשארות בתפריט הפעמון.",
+    "addons.registry_tab": "מאגר שנבדק",
+    "addons.registry_title": "מיומנויות ותוספים שנבדקו",
+    "addons.registry_intro": "בדיקות ציבוריות חלות על גרסה ובנייה מסוימות של VOOL. הורידו את החבילה לבדיקה ואז החליטו אם להתקין ולהפעיל אותה.",
+    "addons.native_authority": "מיומנויות מספקות הוראות. הכללים המקוריים של VOOL, הגדרות הבעלים, מגבלות הוצאה, טיפול במטבעות, הרשאות ודרישות אישור תמיד קודמים להן.",
+    "addons.registry_evidence": "הקבצים המדויקים, ההרשאות והמקור",
+    "addons.registry_install_only": "התקנה ללא הפעלה",
+    "addons.registry_enable": "התקנה והפעלה",
+    "addons.registry_refresh": "עיון במאגר שנבדק",
+    "addons.registry_network": "כפתור זה מבקש את המאגר הציבורי. חשבונות, שיחות, קבצים מקומיים או מפתחות ספקים אינם נשלחים.",
+    "addons.registry_empty": "אין גרסאות מאושרות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
+    "addons.registry_inspect": "הורדה לבדיקה"
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "02a09cf679cd08450d8b601292aa0bfd3c208c10665478e58d9ec2c2a853e280",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

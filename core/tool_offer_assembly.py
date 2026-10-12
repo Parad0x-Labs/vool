@@ -143,6 +143,7 @@ def _plugin_dirs() -> tuple[tuple[str, Path], ...]:
         from core.plugin_lifecycle import is_available, record_for
         return tuple((pid, path) for pid, path in discovered_plugin_sources()
                      if pid not in disabled and (not is_managed(pid) or available(pid, path))
+                     and (not pid.startswith("registry-") or record_for(pid) is not None)
                      and (record_for(pid) is None or is_available(pid, root=path)))
     except Exception:
         return ()

@@ -1786,9 +1786,20 @@
     "companion.state.unknown": "Nieznane",
     "vns.sound.help": "Delikatny dźwięk, gdy praca się kończy lub wymaga Twojej uwagi.",
     "vns.sound.preview": "Odsłuchaj dźwięk",
-    "vns.sound.blocked": "Odtwarzanie dźwięku jest niedostępne. Powiadomienia pozostają pod dzwonkiem."
+    "vns.sound.blocked": "Odtwarzanie dźwięku jest niedostępne. Powiadomienia pozostają pod dzwonkiem.",
+    "addons.registry_tab": "Sprawdzony rejestr",
+    "addons.registry_title": "Sprawdzone umiejętności i wtyczki",
+    "addons.registry_intro": "Publiczne przeglądy dotyczą dokładnej wersji i kompilacji VOOL. Pobierz pakiet do sprawdzenia, a potem zdecyduj, czy go zainstalować i włączyć.",
+    "addons.native_authority": "Umiejętności dostarczają instrukcji. Natywne zasady VOOL, ustawienia właściciela, limity wydatków, obsługa walut, uprawnienia i zgody zawsze mają pierwszeństwo.",
+    "addons.registry_evidence": "Dokładne pliki, uprawnienia i źródło",
+    "addons.registry_install_only": "Zainstaluj bez włączania",
+    "addons.registry_enable": "Zainstaluj i włącz",
+    "addons.registry_refresh": "Przeglądaj sprawdzony rejestr",
+    "addons.registry_network": "Ten przycisk odpytuje publiczny rejestr. Konta, rozmowy, pliki lokalne i klucze dostawców nie są wysyłane.",
+    "addons.registry_empty": "Żadna zatwierdzona wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
+    "addons.registry_inspect": "Pobierz do sprawdzenia"
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "02a09cf679cd08450d8b601292aa0bfd3c208c10665478e58d9ec2c2a853e280",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1786,9 +1786,20 @@
     "companion.state.unknown": "अज्ञात",
     "vns.sound.help": "काम पूरा होने या आपकी कार्रवाई की ज़रूरत होने पर हल्की ध्वनि।",
     "vns.sound.preview": "ध्वनि सुनें",
-    "vns.sound.blocked": "ध्वनि चलाना उपलब्ध नहीं है। सूचनाएँ घंटी में बनी रहती हैं।"
+    "vns.sound.blocked": "ध्वनि चलाना उपलब्ध नहीं है। सूचनाएँ घंटी में बनी रहती हैं।",
+    "addons.registry_tab": "समीक्षित रजिस्ट्री",
+    "addons.registry_title": "समीक्षित कौशल और प्लगइन",
+    "addons.registry_intro": "सार्वजनिक समीक्षा किसी निश्चित संस्करण और VOOL बिल्ड पर लागू होती है। जाँच के लिए पैकेज डाउनलोड करें, फिर उसे स्थापित और सक्षम करने का निर्णय लें।",
+    "addons.native_authority": "कौशल निर्देश देते हैं। VOOL के मूल नियम, मालिक की सेटिंग, खर्च सीमाएँ, मुद्रा प्रबंधन, अनुमतियाँ और स्वीकृति की आवश्यकताएँ हमेशा प्राथमिक होती हैं।",
+    "addons.registry_evidence": "सटीक फ़ाइलें, अनुमतियाँ और स्रोत",
+    "addons.registry_install_only": "सक्षम किए बिना स्थापित करें",
+    "addons.registry_enable": "स्थापित और सक्षम करें",
+    "addons.registry_refresh": "समीक्षित रजिस्ट्री देखें",
+    "addons.registry_network": "यह बटन सार्वजनिक रजिस्ट्री से अनुरोध करता है। खाते, चैट, स्थानीय फ़ाइलें या प्रदाता की कुंजियाँ नहीं भेजी जातीं।",
+    "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई स्वीकृत संस्करण नहीं मिला।",
+    "addons.registry_inspect": "जाँच के लिए डाउनलोड करें"
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "02a09cf679cd08450d8b601292aa0bfd3c208c10665478e58d9ec2c2a853e280",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

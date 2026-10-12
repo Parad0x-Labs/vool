@@ -1786,9 +1786,20 @@
     "companion.state.unknown": "Bilinmiyor",
     "vns.sound.help": "İş tamamlandığında veya müdahaleniz gerektiğinde hafif bir ses.",
     "vns.sound.preview": "Sesi dinle",
-    "vns.sound.blocked": "Ses çalma kullanılamıyor. Bildirimler zil menüsünde kalır."
+    "vns.sound.blocked": "Ses çalma kullanılamıyor. Bildirimler zil menüsünde kalır.",
+    "addons.registry_tab": "İncelenmiş kayıt",
+    "addons.registry_title": "İncelenmiş beceriler ve eklentiler",
+    "addons.registry_intro": "Herkese açık incelemeler belirli bir sürüm ve VOOL derlemesi için geçerlidir. Paketi incelemek için indirin, ardından yükleyip etkinleştirmeye karar verin.",
+    "addons.native_authority": "Beceriler talimat sağlar. VOOL'un yerel kuralları, sahibinin ayarları, harcama limitleri, para birimi işlemleri, izinleri ve onay gereksinimleri her zaman önceliklidir.",
+    "addons.registry_evidence": "Tam dosyalar, izinler ve kaynak",
+    "addons.registry_install_only": "Etkinleştirmeden yükle",
+    "addons.registry_enable": "Yükle ve etkinleştir",
+    "addons.registry_refresh": "İncelenmiş kaydı keşfet",
+    "addons.registry_network": "Bu düğme herkese açık kaydı sorgular. Hesaplar, sohbetler, yerel dosyalar veya sağlayıcı anahtarları gönderilmez.",
+    "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için onaylanmış bir sürüm yok.",
+    "addons.registry_inspect": "İncelemek için indir"
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "02a09cf679cd08450d8b601292aa0bfd3c208c10665478e58d9ec2c2a853e280",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

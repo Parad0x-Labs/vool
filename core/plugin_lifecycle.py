@@ -426,6 +426,11 @@ def enable(plugin_id: str) -> PluginRecord:
         raise LifecycleError(f"{plugin_id}: complete package verification is required before enabling")
     if record.approval_digest != approval_digest(record.verified_digest, record.verified_dependencies):
         raise LifecycleError(f"{plugin_id}: complete dependency approval is required before enabling")
+    if record.source.startswith("registry:"):
+        from core.registry.native import runtime_allowed
+
+        if not runtime_allowed(record):
+            raise LifecycleError(f"{plugin_id}: registry approval is missing or revoked")
     for dependency, digest in record.verified_dependencies.items():
         child = _load(dependency)
         if child is None or child.approval_digest != digest or not is_available(dependency):
@@ -588,6 +593,11 @@ def _available(plugin_id: str, *, root: Path | None = None, seen: frozenset[str]
         return False
     if record.approval_digest != approval_digest(record.verified_digest, record.verified_dependencies):
         return False
+    if record.source.startswith("registry:"):
+        from core.registry.native import runtime_allowed
+
+        if not runtime_allowed(record):
+            return False
     for dependency, digest in record.verified_dependencies.items():
         current = _load(dependency)
         if current is None or current.approval_digest != digest or not _available(dependency, seen=seen, checked=checked):

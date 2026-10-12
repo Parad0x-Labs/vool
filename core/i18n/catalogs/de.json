@@ -1786,9 +1786,20 @@
     "companion.state.unknown": "Unbekannt",
     "vns.sound.help": "Ein sanfter Ton, wenn die Arbeit fertig ist oder Ihre Mitwirkung benötigt.",
     "vns.sound.preview": "Ton anhören",
-    "vns.sound.blocked": "Die Tonwiedergabe ist nicht verfügbar. Benachrichtigungen bleiben im Glockenmenü."
+    "vns.sound.blocked": "Die Tonwiedergabe ist nicht verfügbar. Benachrichtigungen bleiben im Glockenmenü.",
+    "addons.registry_tab": "Geprüftes Verzeichnis",
+    "addons.registry_title": "Geprüfte Skills und Plugins",
+    "addons.registry_intro": "Öffentliche Prüfungen gelten für eine genaue Version und einen VOOL-Build. Laden Sie das Paket zur Prüfung herunter und entscheiden Sie dann, ob Sie es installieren und aktivieren.",
+    "addons.native_authority": "Skills liefern Anweisungen. Native VOOL-Regeln, Einstellungen des Eigentümers, Ausgabenlimits, Währungshandhabung, Berechtigungen und Freigaben haben immer Vorrang.",
+    "addons.registry_evidence": "Genaue Dateien, Berechtigungen und Quelle",
+    "addons.registry_install_only": "Installieren, ohne zu aktivieren",
+    "addons.registry_enable": "Installieren und aktivieren",
+    "addons.registry_refresh": "Geprüftes Verzeichnis durchsuchen",
+    "addons.registry_network": "Diese Schaltfläche ruft das öffentliche Verzeichnis ab. Konten, Chats, lokale Dateien und Anbieter-Schlüssel werden nicht gesendet.",
+    "addons.registry_empty": "Keine freigegebenen Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
+    "addons.registry_inspect": "Zur Prüfung herunterladen"
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "02a09cf679cd08450d8b601292aa0bfd3c208c10665478e58d9ec2c2a853e280",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

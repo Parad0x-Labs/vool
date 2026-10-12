@@ -1786,9 +1786,20 @@
     "companion.state.unknown": "未知",
     "vns.sound.help": "工作完成或需要你处理时，播放轻柔的提示音。",
     "vns.sound.preview": "试听声音",
-    "vns.sound.blocked": "无法播放声音。通知仍保留在铃铛菜单中。"
+    "vns.sound.blocked": "无法播放声音。通知仍保留在铃铛菜单中。",
+    "addons.registry_tab": "已审核注册表",
+    "addons.registry_title": "已审核技能和插件",
+    "addons.registry_intro": "公开审核仅适用于特定版本和 VOOL 构建。下载软件包进行检查，然后决定是否安装和启用。",
+    "addons.native_authority": "技能只提供指导。VOOL 的原生规则、所有者设置、支出限额、货币处理、权限和批准要求始终优先。",
+    "addons.registry_evidence": "确切文件、权限和来源",
+    "addons.registry_install_only": "安装但不启用",
+    "addons.registry_enable": "安装并启用",
+    "addons.registry_refresh": "浏览已审核注册表",
+    "addons.registry_network": "此按钮会请求公开注册表。不会发送账户、聊天、本地文件或提供商密钥。",
+    "addons.registry_empty": "没有已批准版本符合此确切 VOOL 构建和搜索条件。",
+    "addons.registry_inspect": "下载以检查"
   },
-  "source_catalog_sha256": "5e7ed612d59d36a90fb8de835314e56d4ea9bc5e648d005354ed01e40ae77dfb",
+  "source_catalog_sha256": "02a09cf679cd08450d8b601292aa0bfd3c208c10665478e58d9ec2c2a853e280",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
