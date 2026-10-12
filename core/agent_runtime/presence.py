@@ -23,10 +23,9 @@ PRESENCE_SYNC_SESSION_TRANSACTIONS = True
 PRESENCE_AUDIT_STORAGE_WAIT_SECONDS = 5.0
 #: Poll step of that wait while another writer holds the database.
 PRESENCE_AUDIT_STORAGE_POLL_SECONDS = 0.01
-#: Upper bound on how long stop waits for a sync COMMIT already under way when it closes the sync
-#: epoch. The sync write lock is held only across the commit gate (epoch check, then COMMIT on a
-#: write that already owns SQLite's writer lock), never across a storage wait, so a free lock is
-#: taken at once. A commit still inside SQLite after this is reported, never silently waited for.
+#: How long stop waits for the sync write lock, which only an audit entry point outside the storage
+#: contract (one that cannot take a caller-owned connection) holds across its call; and the interval
+#: at which stop logs that it is still waiting for a COMMIT already past its commit point.
 PRESENCE_SYNC_COMMIT_WAIT_SECONDS = 5.0
 #: The busy wait of the presence lane's pinned effect-budget connection: storage's own 5 s, so the
 #: budget module behaves on the session store exactly as on its default path.
@@ -35,6 +34,37 @@ PRESENCE_BUDGET_STORE_BUSY_MS = 5000
 
 class SyncStoppedError(RuntimeError):
     """The sync's runtime stopped: its store connections open nothing and commit nothing more."""
+
+
+class _SyncCommitFence:
+    """Where a presence sync COMMIT and runtime stop meet.
+
+    A commit is decided inside SQLite, at the COMMIT statement's last interruptible step before
+    the commit itself (a progress callback; SQLite aborts the statement when it returns non-zero).
+    Under `cond` it is either refused, because stop has closed the epoch, or passed and recorded.
+    Stop closes the epoch under the same `cond`, so every commit is ordered against the close: one
+    passed before it is already being written by SQLite and stop waits for it to finish (it lands
+    before stop returns); every later one is refused and rolled back. `cond` is never held across
+    a SQLite call.
+    """
+
+    def __init__(self) -> None:
+        self.cond = threading.Condition()
+        self.passed: set[int] = set()
+
+
+_FENCE_INIT_LOCK = threading.Lock()
+
+
+def _sync_commit_fence(agent: Any) -> _SyncCommitFence:
+    fence = getattr(agent, "_public_presence_sync_fence", None)
+    if fence is None:
+        with _FENCE_INIT_LOCK:
+            fence = getattr(agent, "_public_presence_sync_fence", None)
+            if fence is None:
+                fence = _SyncCommitFence()
+                agent._public_presence_sync_fence = fence
+    return fence
 
 
 #: Python's legacy transaction control opens a transaction by itself only before these.
@@ -112,30 +142,62 @@ class _SyncGatedConnection(sqlite3.Connection):
     """A connection of one presence sync epoch: nothing it writes becomes durable once that
     epoch has closed.
 
-    Every COMMIT runs under the sync write lock with the epoch re-checked there; a closed epoch
-    rolls the whole transaction back instead (SyncStoppedError). Runtime stop closes the epoch
-    under the same lock and waits for a commit already under way, so a write of a stopped sync
-    either committed before stop returned or never commits. A write SQLite would commit by itself
-    (DDL outside a transaction, autocommit DML) is run inside a transaction so it meets the same
-    gate; executescript, which commits on its own, is refused. Until a gate is bound, nothing
-    commits.
+    Every COMMIT is decided inside SQLite at its commit point, through the sync's commit fence
+    (_SyncCommitFence): once stop has closed the epoch the COMMIT statement is aborted there and
+    the whole transaction rolled back (SyncStoppedError), including a COMMIT that had already
+    started when stop ran. A write SQLite would commit by itself (DDL outside a transaction,
+    autocommit DML) is run inside a transaction so it meets the same fence; executescript, which
+    commits on its own, is refused. Until a fence is bound, nothing commits.
     """
 
-    _sync_gate: tuple[Any, Callable[[], bool]] | None = None
+    _sync_gate: tuple[_SyncCommitFence, Callable[[], bool]] | None = None
 
-    def bind_sync_gate(self, lock: Any, is_open: Callable[[], bool]) -> None:
-        self._sync_gate = (lock, is_open)
+    def bind_sync_gate(self, fence: _SyncCommitFence, is_open: Callable[[], bool]) -> None:
+        self._sync_gate = (fence, is_open)
+
+    def _refuse(self) -> SyncStoppedError:
+        with contextlib.suppress(Exception):
+            self.rollback()
+        return SyncStoppedError("the presence sync stopped before this write committed; it was rolled back")
 
     def _commit_through_gate(self, do_commit: Callable[[], Any]) -> Any:
         gate = self._sync_gate
-        if gate is not None:
-            lock, is_open = gate
-            with lock:
-                if is_open():
-                    return do_commit()
-        with contextlib.suppress(Exception):
-            self.rollback()
-        raise SyncStoppedError("the presence sync stopped before this write committed; it was rolled back")
+        if gate is None or not gate[1]():
+            raise self._refuse()
+        fence, is_open = gate
+        decision = {"passed": False, "refused": False}
+
+        def _at_commit_point() -> int:
+            # SQLite calls this inside the COMMIT statement; its first call comes before the commit
+            # itself, the last point where the statement can still be aborted.
+            if decision["passed"] or decision["refused"]:
+                return 1 if decision["refused"] else 0
+            with fence.cond:
+                if not is_open():
+                    decision["refused"] = True
+                    return 1
+                decision["passed"] = True
+                fence.passed.add(id(self))
+            return 0
+
+        self.set_progress_handler(_at_commit_point, 1)
+        try:
+            result = do_commit()
+        except sqlite3.OperationalError:
+            if decision["refused"]:
+                raise self._refuse() from None
+            raise
+        finally:
+            with contextlib.suppress(Exception):
+                self.set_progress_handler(None, 0)
+            if decision["passed"]:
+                with fence.cond:
+                    fence.passed.discard(id(self))
+                    fence.cond.notify_all()
+        if not decision["passed"]:
+            # Never observed: SQLite committed without calling back at its commit point.
+            _LOG.error("presence sync COMMIT completed without a commit-point decision; the stop fence did not apply")
+        return result
 
     def commit(self) -> None:
         if not self.in_transaction:
@@ -252,7 +314,8 @@ def _sync_wake_event(agent: Any) -> threading.Event:
 
 
 def _sync_epoch_is_current(agent: Any, epoch: int) -> bool:
-    """Caller holds the presence or sync write lock. False once shutdown closed this sync's epoch."""
+    """False once shutdown closed this sync's epoch (stop changes it under the presence lock and
+    the commit fence, so a reader holding either sees a settled value)."""
     return int(getattr(agent, "_public_presence_sync_epoch", 0)) == epoch
 
 
@@ -369,10 +432,10 @@ def _write_session_audit(
     logged here. The caller — the sync thread — owns BEGIN, the effects, commit, rollback and
     teardown; the storage API only writes through the connection it is handed.
 
-    Only the commit runs under the sync write lock: BEGIN IMMEDIATE (which may wait for another
-    writer) and the three-row write happen outside it, and the commit goes through only if this
-    sync's epoch is still current at that moment. Stop closes the epoch under the same lock, so
-    a write still uncommitted when stop closes it is rolled back, never committed afterwards.
+    The commit is decided at SQLite's commit point through the sync's commit fence: it goes
+    through only if this sync's epoch is still current there. Stop closes the epoch through the
+    same fence, so a write not yet past its commit point when stop closes the epoch, including a
+    COMMIT statement already running, is rolled back, never committed afterwards.
     """
     from storage.db import StoreVersionError
 
@@ -423,7 +486,7 @@ def _write_session_audit(
                 event_type,
             )
             return "failed"
-        bind_gate(_sync_write_lock(agent), lambda: _sync_epoch_is_current(agent, epoch))
+        bind_gate(_sync_commit_fence(agent), lambda: _sync_epoch_is_current(agent, epoch))
         try:
             # Acquiring SQLite's writer lock IS ownership of the write: atomic, unlike a
             # preflight probe whose "free" can go stale before the write follows it.
@@ -500,13 +563,14 @@ def _epoch_guarded_audit(
     While another writer holds the database, the wait happens outside the sync write lock,
     woken by shutdown, for at most PRESENCE_AUDIT_STORAGE_WAIT_SECONDS: stop never queues
     behind a storage wait, and a waiting write is abandoned without writing afterwards. The
-    epoch is re-checked after the writer lock is acquired, before any effect, and again at the
-    commit gate under the sync write lock: a write that finishes while its runtime is still up
-    (stop's join included) commits into this session's pinned store; one still uncommitted when
-    stop closes the epoch is rolled back. Nothing of a stopped sync commits after stop returns,
-    into this store or any other. The sync write lock is a lock of its own, never the presence
-    lock: a turn updating its presence status must not wait on storage. A storage error stays in
-    this thread's log instead of escaping as an unhandled thread exception into whatever runs next.
+    epoch is re-checked after the writer lock is acquired, before any effect, and decided again
+    at SQLite's commit point through the commit fence: a write that finishes while its runtime is
+    still up (stop's join included) commits into this session's pinned store; one not past its
+    commit point when stop closes the epoch is rolled back. Nothing of a stopped sync commits
+    after stop returns, into this store or any other. Neither the fence nor the sync write lock
+    is the presence lock: a turn updating its presence status must not wait on storage. A storage
+    error stays in this thread's log instead of escaping as an unhandled thread exception into
+    whatever runs next.
     """
     signal = wake if wake is not None else threading.Event()
     pinned_store = str(store_path) if store_path else _presence_session_store(agent)
@@ -571,7 +635,7 @@ def _session_budget_store(agent: Any, epoch: int, store_path: str) -> Callable[[
         try:
             sqlite3.Connection.execute(conn, f"PRAGMA busy_timeout={int(PRESENCE_BUDGET_STORE_BUSY_MS)}")
             conn.isolation_level = ""
-            conn.bind_sync_gate(_sync_write_lock(agent), lambda: _sync_epoch_is_current(agent, epoch))
+            conn.bind_sync_gate(_sync_commit_fence(agent), lambda: _sync_epoch_is_current(agent, epoch))
         except BaseException:
             with contextlib.suppress(Exception):
                 conn.close()
@@ -1049,15 +1113,16 @@ def stop_background_runtime_threads(agent: Any, *, join_timeout: float = 2.0) ->
     goes back to `queued`. Threads are daemon threads: one that is still inside a call when
     the timeout passes ends with the process, and the report says so (False).
 
-    Nothing here waits on storage beyond its bound: the presence sync lane is joined for
-    `join_timeout`, then its epoch is closed under the sync write lock. A sync holds that lock
-    only across its commit gate (epoch check, then COMMIT of a write that already owns SQLite's
-    writer lock), so a free lock is taken at once; stop waits for a commit already under way
-    (PRESENCE_SYNC_COMMIT_WAIT_SECONDS at most) so that it lands before stop returns. A sync audit
-    write waiting for a busy database is woken and abandoned. A write already inside its
-    transaction when the epoch closes is rolled back at its commit gate, and the sync's budget
-    store opens nothing more: no write of the stopped sync commits after stop returns, into its
-    own store or any other. A thread still running after the join is reported (False).
+    The presence sync lane is joined for `join_timeout`, then its epoch is closed through the
+    sync's commit fence. Every sync COMMIT is decided at SQLite's commit point against that close:
+    one not yet there when the epoch closes (a write still inside its transaction, or a COMMIT
+    statement that started but has not reached the commit) is refused and rolled back without
+    stop waiting for it; one already past it is being written by SQLite, and stop waits for it so
+    it lands before stop returns. That is the only wait here that is not bounded by a timeout, and
+    it is a wait on SQLite finishing a commit decided before the close. A sync audit write waiting
+    for a busy database is woken and abandoned, and the sync's budget store opens nothing more:
+    no write of the stopped sync commits after stop returns, into its own store or any other. A
+    thread still running after the join is reported (False); it can no longer commit.
     """
     agent._idle_commons_running = False
     agent._public_presence_running = False
@@ -1088,29 +1153,41 @@ def stop_background_runtime_threads(agent: Any, *, join_timeout: float = 2.0) ->
             )
     # Close the epoch either way: a sync thread that outlived the join belongs to the ended
     # epoch, commits nothing from here on, and must not hold the lane shut for a later start.
-    # Lock order: write lock, then presence lock. A sync holds the write lock only across its
-    # commit gate, so a held lock means a COMMIT decided before this close is under way: wait for
-    # it (bounded) so it lands before stop returns, never after.
+    # Lock order: write lock, commit fence, presence lock. The write lock is held only by an audit
+    # entry point outside the storage contract (bounded wait); caller-owned commits never hold it.
     write_lock = getattr(agent, "_public_presence_sync_write_lock", None)
     acquired = True
     if write_lock is not None:
         acquired = write_lock.acquire(True, PRESENCE_SYNC_COMMIT_WAIT_SECONDS)
+    fence = _sync_commit_fence(agent)
     try:
-        with lock if lock is not None else contextlib.nullcontext():
-            agent._public_presence_sync_epoch = int(getattr(agent, "_public_presence_sync_epoch", 0)) + 1
-            agent._public_presence_sync_inflight = False
-            agent._public_presence_sync_thread = None
-            wake = getattr(agent, "_public_presence_sync_wake", None)
-            if wake is not None:
-                wake.set()
+        with fence.cond:
+            with lock if lock is not None else contextlib.nullcontext():
+                agent._public_presence_sync_epoch = int(getattr(agent, "_public_presence_sync_epoch", 0)) + 1
+                agent._public_presence_sync_inflight = False
+                agent._public_presence_sync_thread = None
+                wake = getattr(agent, "_public_presence_sync_wake", None)
+                if wake is not None:
+                    wake.set()
+            # From here every commit point refuses. A COMMIT that passed its commit point before
+            # the close is already being written by SQLite: it lands before stop returns.
+            waited_since = time.monotonic()
+            while fence.passed:
+                if not fence.cond.wait(PRESENCE_SYNC_COMMIT_WAIT_SECONDS) and fence.passed:
+                    _LOG.warning(
+                        "runtime stop: still waiting after %.1fs for %d presence sync commit(s) that "
+                        "passed their commit point before stop; they land before stop returns",
+                        time.monotonic() - waited_since,
+                        len(fence.passed),
+                    )
     finally:
         if write_lock is not None and acquired:
             write_lock.release()
     if not acquired:
         report["_public_presence_sync_thread"] = False
         _LOG.warning(
-            "runtime stop: a presence sync commit begun before stop was still inside SQLite after "
-            "%.1fs; the sync epoch is closed and no later commit of that sync can happen",
+            "runtime stop: an audit entry point outside the storage contract was still writing after "
+            "%.1fs; the sync epoch is closed and no later write of that sync can start",
             PRESENCE_SYNC_COMMIT_WAIT_SECONDS,
         )
     return report

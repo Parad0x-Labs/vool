@@ -278,6 +278,133 @@ def test_an_entered_write_under_stop_and_store_switch_is_rolled_back_everywhere(
     pact_rig.runtime.shutdown()
 
 
+class _CommitHold:
+    """Holds the sync thread's real COMMIT statement inside SQLite (scheduling only).
+
+    `at="start"`: an SQL trace callback holds the COMMIT when it starts executing, after the
+    product's pre-check and before SQLite reaches its commit point. `at="past_commit_point"`: the
+    COMMIT's own commit-point callback is wrapped and the hold placed on its next call, after the
+    fence has passed the commit and before SQLite has written it. Either way the commit is real
+    SQLite; nothing is faked.
+    """
+
+    def __init__(self, monkeypatch, at: str) -> None:
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        real_open = presence._open_session_store
+        hold = self
+
+        def _open(store_path):
+            conn = real_open(store_path)
+            if conn is None or threading.current_thread().name != "vool-public-presence-sync":
+                return conn
+            state = {"audit": False}  # only the audit transaction's COMMIT is held
+
+            def _trace(sql):
+                if "INSERT INTO AUDIT_LOG" in sql.upper():
+                    state["audit"] = True
+                if at == "start" and sql.strip().upper() == "COMMIT" and state["audit"] and not hold.entered.is_set():
+                    hold.entered.set()
+                    hold.release.wait(20.0)
+
+            conn.set_trace_callback(_trace)
+            if at != "start":
+                real_set = conn.set_progress_handler
+
+                def _set(handler, n):
+                    if handler is None:
+                        return real_set(None, n)
+                    calls = {"n": 0}
+
+                    def _wrapped():
+                        calls["n"] += 1
+                        decided = handler()
+                        if calls["n"] == 2 and decided == 0 and state["audit"] and not hold.entered.is_set():
+                            hold.entered.set()
+                            hold.release.wait(20.0)
+                        return decided
+
+                    return real_set(_wrapped, n)
+
+                conn.set_progress_handler = _set
+            return conn
+
+        monkeypatch.setattr(presence, "_open_session_store", _open)
+
+
+def test_a_commit_already_running_when_stop_runs_is_refused_and_stop_stays_bounded(pact_rig, monkeypatch, caplog):
+    """The sync's real COMMIT statement has started inside SQLite (past every Python-side check)
+    when stop runs. Stop must neither wait for it nor let it land: the epoch closes at once, and the
+    COMMIT, when it resumes, is refused at SQLite's commit point and rolled back. Before, stop waited
+    its 5 s lock bound, returned, and the COMMIT then landed one row after stop had returned."""
+    agent, bridge = _settled_agent(pact_rig)
+    session_db = _db(pact_rig)
+    rows_before = _sync_rows(session_db)
+    counts_before = _triple_counts(session_db)
+    hold = _CommitHold(monkeypatch, at="start")
+    bridge.release.set()
+    agent._sync_public_presence(status="busy")
+    worker = agent._public_presence_sync_thread
+    try:
+        assert hold.entered.wait(10.0), "the sync's audit transaction never reached its COMMIT"
+        with caplog.at_level(logging.WARNING, logger=presence.__name__):
+            report, elapsed = _timed_stop(agent, join_timeout=0.05)
+            assert elapsed is not None and elapsed < 0.35, f"stop took {elapsed:.3f}s with a COMMIT held before its commit point"
+            assert report["_public_presence_sync_thread"] is False
+            assert worker.is_alive(), "the COMMIT is still held inside SQLite"
+            rows_at_stop = _sync_rows(session_db)
+            hold.release.set()
+            worker.join(10.0)
+            assert not worker.is_alive()
+    finally:
+        hold.release.set()
+    assert rows_at_stop == rows_before
+    assert _sync_rows(session_db) == rows_before, "the COMMIT that was running at stop landed after stop returned"
+    assert _triple_counts(session_db) == counts_before, "the refused COMMIT left a partial triple"
+    assert _chain_valid(session_db)
+    assert any("rolled back, not written" in r.getMessage() for r in caplog.records), "the refusal was silent"
+    pact_rig.runtime.shutdown()
+
+
+def test_a_commit_past_its_commit_point_lands_before_stop_returns(pact_rig, monkeypatch):
+    """The other side of the fence: a COMMIT the fence passed before stop closed the epoch is being
+    written by SQLite. Stop waits for it, however long SQLite takes, so the row is already in the
+    store when stop returns: it never lands after."""
+    agent, bridge = _settled_agent(pact_rig)
+    session_db = _db(pact_rig)
+    rows_before = _sync_rows(session_db)
+    hold = _CommitHold(monkeypatch, at="past_commit_point")
+    bridge.release.set()
+    agent._sync_public_presence(status="busy")
+    worker = agent._public_presence_sync_thread
+    seen: dict[str, Any] = {}
+
+    def _stop() -> None:
+        started = time.monotonic()
+        seen["report"] = presence.stop_background_runtime_threads(agent, join_timeout=0.05)
+        seen["elapsed"] = time.monotonic() - started
+        seen["rows_at_return"] = _sync_rows(session_db)
+
+    stopper = threading.Thread(target=_stop, name="test-presence-stop", daemon=True)
+    try:
+        assert hold.entered.wait(10.0), "the sync's COMMIT never passed its commit point"
+        stopper.start()
+        stopper.join(1.0)
+        assert stopper.is_alive(), "stop returned while a commit it had let through was still being written"
+        hold.release.set()
+        stopper.join(10.0)
+        assert not stopper.is_alive()
+        worker.join(10.0)
+        assert not worker.is_alive()
+    finally:
+        hold.release.set()
+    new_rows = seen["rows_at_return"][len(rows_before):]
+    assert [d.get("errors") for _e, d in new_rows] == [["gated"]], "the passed commit was not in the store when stop returned"
+    assert _sync_rows(session_db) == seen["rows_at_return"], "a write landed after stop returned"
+    assert _sync_orphans(session_db) == 0 and _chain_valid(session_db)
+    pact_rig.runtime.shutdown()
+
+
 def test_a_waiting_write_is_abandoned_and_lands_in_no_database(pact_rig, caplog):
     """A write still WAITING for the SQLite writer lock when stop closes the epoch writes nowhere.
 
@@ -711,14 +838,14 @@ def test_a_closed_sync_gate_lets_no_statement_form_commit(tmp_path):
     commits nothing at all."""
     db = tmp_path / "gate.db"
     sqlite3.connect(db).close()
-    lock = threading.Lock()
+    fence = presence._SyncCommitFence()
     gate_open = {"value": True}
 
     def _connection(bound: bool = True):
         conn = presence._open_session_store(str(db))
         assert conn is not None
         if bound:
-            conn.bind_sync_gate(lock, lambda: gate_open["value"])
+            conn.bind_sync_gate(fence, lambda: gate_open["value"])
         return conn
 
     conn = _connection()
@@ -770,6 +897,7 @@ def test_a_closed_sync_gate_lets_no_statement_form_commit(tmp_path):
         unbound.close()
 
     assert sorted(refused) == sorted(attempts), f"a statement form committed past the closed gate: {refused}"
+    assert fence.passed == set()
     assert _tables(db) == ["kept"]
     with sqlite3.connect(db) as check:
         assert check.execute("SELECT count(*) FROM kept").fetchone()[0] == 0

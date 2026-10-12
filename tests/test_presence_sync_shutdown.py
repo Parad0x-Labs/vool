@@ -192,8 +192,43 @@ def test_start_stop_twice_leaves_no_first_run_sync_able_to_write_or_hold_the_lan
     agent._sync_public_presence(status="busy")  # the lane is open for the second run
     third_thread = agent._public_presence_sync_thread
     assert third_thread is not None
+    # Open means the second run's next pass reaches the bridge. Shut down only once it has: a
+    # pass that has not begun when stop begins is dropped by design (the next test), so shutting
+    # down at once would race the pass for the presence lock instead of joining it.
+    deadline = time.monotonic() + 10.0
+    while second_bridge.calls < 2 and time.monotonic() < deadline:
+        time.sleep(0.005)
+    assert second_bridge.calls == 2, "the second run's next pass never reached the bridge"
     pact_rig.runtime.shutdown()
     assert not third_thread.is_alive() and second_bridge.calls == 2
+
+
+def test_a_sync_not_yet_begun_when_stop_begins_makes_no_call_and_writes_nothing(pact_rig, monkeypatch):
+    """The other side of that race, held deterministically: the sync's thread is started but has
+    not begun its pass when stop begins. The pass is dropped: no bridge call (no network effect
+    after stop began), no audit row, and stop still joins the thread inside its bound."""
+    agent, bridge = _settled_agent(pact_rig)
+    bridge.release.set()
+    rows_before = _sync_rows(pact_rig)
+    real_worker = presence._public_presence_sync_worker
+
+    def _begins_after_stop(**kwargs):
+        deadline = time.monotonic() + 10.0
+        while not agent._public_presence_sync_stopped and time.monotonic() < deadline:
+            time.sleep(0.001)
+        return real_worker(**kwargs)
+
+    monkeypatch.setattr(presence, "_public_presence_sync_worker", _begins_after_stop)
+    agent._sync_public_presence(status="busy")
+    thread = agent._public_presence_sync_thread
+    assert thread is not None and thread.is_alive()
+
+    report = presence.stop_background_runtime_threads(agent, join_timeout=2.0)
+    assert report["_public_presence_sync_thread"] is True, "stop joined the dropped sync's thread"
+    assert not thread.is_alive()
+    assert bridge.calls == 0, "a pass that had not begun when stop began still reached the network"
+    assert _sync_rows(pact_rig) == rows_before
+    pact_rig.runtime.shutdown()
 
 
 def test_storage_gone_mid_sync_stays_inside_the_sync_thread(pact_rig, caplog, monkeypatch):
