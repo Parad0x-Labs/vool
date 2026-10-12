@@ -642,21 +642,140 @@ def _claims_false_payment(text: str) -> bool:
     return False
 
 
-#: Tool-name markers of a tool that writes, renders or exports a file. Marker-matched like the
-#: spend markers below: a hit only ever SUPPRESSES the replacement, it never invents a claim.
-_FILE_WRITE_TOOL_MARKERS = (
-    "write", "save", "export", "generate", "render", "create", "convert", "attach", "document", "docx",
-    "pptx", "xlsx", "pdf", "file", "deliver",
+#: Action words of a tool that CREATES or EXPORTS a file, read from the tool name's own segments
+#: ("workspace.write_file" -> write, "file.deliver" -> deliver). A noun ("file", "pdf", "document")
+#: is not an action: "workspace.read_file" and "pdf.extract_text" read a file and make nothing, so a
+#: name that merely mentions a file can never back a claim that one was made.
+_FILE_WRITE_ACTIONS = frozenset({
+    "write", "save", "export", "generate", "render", "create", "convert", "attach", "deliver",
+})
+#: Segments that mark a tool as reading or inspecting, never producing, whatever else it names.
+_FILE_READ_ACTIONS = frozenset({
+    "read", "extract", "ocr", "list", "search", "inspect", "view", "open", "get", "fetch", "stat", "find",
+    "grep", "glob", "preview", "parse", "summary", "summarize",
+})
+#: A receipt or fact that ran and failed, or was refused, is not a file.
+_FAILED_STATUSES = frozenset({
+    "failed", "failure", "error", "errored", "refused", "denied", "blocked", "rejected", "cancelled",
+    "canceled", "timeout", "timed_out", "aborted", "skipped", "pending", "pending_approval",
+})
+#: Output formats a claim can name, grouped as the files that would satisfy it.
+_DELIVERABLE_FAMILIES = (
+    (re.compile(r"\b(?:word|docx?|google\s+docs?)\b", re.IGNORECASE), frozenset({"docx", "doc"})),
+    (re.compile(r"\b(?:excel|xlsx|xls|spreadsheets?|workbooks?|google\s+sheets?)\b", re.IGNORECASE),
+     frozenset({"xlsx", "xls", "csv", "tsv", "ods"})),
+    (re.compile(r"\b(?:power\s*point|pptx|ppt|keynote|presentations?|(?:slide\s*)?decks?|slideshows?|google\s+slides?)\b",
+                re.IGNORECASE), frozenset({"pptx", "ppt", "key", "odp"})),
+    (re.compile(r"\bpdf\b", re.IGNORECASE), frozenset({"pdf"})),
+    (re.compile(r"\bodt\b", re.IGNORECASE), frozenset({"odt"})),
+    (re.compile(r"\bods\b", re.IGNORECASE), frozenset({"ods"})),
+    (re.compile(r"\bodp\b", re.IGNORECASE), frozenset({"odp"})),
+    (re.compile(r"\brtf\b", re.IGNORECASE), frozenset({"rtf"})),
+    (re.compile(r"\bepub\b", re.IGNORECASE), frozenset({"epub"})),
 )
+_TOOL_SEGMENT_RE = re.compile(r"[a-z0-9]+")
+_IDENTITY_KEYS = ("format", "filename", "file_name", "path", "file_path", "output_path", "target", "name", "media_type")
 
 
-def _turn_wrote_a_file(*, session_id: str | None, source_context: dict[str, object] | None) -> bool:
-    """Whether this turn's execution record shows a tool that writes or exports a file ran."""
-    for entry in _collect_executed_tools(session_id, source_context):
-        tool = str(entry.get("tool") or "").lower()
-        if any(marker in tool for marker in _FILE_WRITE_TOOL_MARKERS):
-            return True
-    return False
+def _claimed_deliverable_families(matches: list[str]) -> list[frozenset[str]]:
+    """The output formats the claimed (or promised) file would need, one family per format named."""
+    families: list[frozenset[str]] = []
+    for text in matches:
+        for pattern, family in _DELIVERABLE_FAMILIES:
+            if pattern.search(text) and family not in families:
+                families.append(family)
+    return families
+
+
+def _receipt_succeeded(receipt: dict[str, Any]) -> bool:
+    """Ran AND succeeded. ``executed`` alone is not success: a writer that ran and failed made nothing."""
+    execution = receipt.get("execution")
+    if not isinstance(execution, dict):
+        execution = {}
+    if execution.get("ok") is False or receipt.get("ok") is False or receipt.get("success") is False:
+        return False
+    for value in (execution.get("status"), execution.get("outcome"), receipt.get("status"), receipt.get("outcome")):
+        if str(value or "").strip().lower() in _FAILED_STATUSES:
+            return False
+    return _receipt_shows_execution(receipt)
+
+
+def _is_file_writer(tool: str) -> bool:
+    segments = set(_TOOL_SEGMENT_RE.findall(str(tool or "").lower()))
+    return bool(segments & _FILE_WRITE_ACTIONS) and not (segments & _FILE_READ_ACTIONS)
+
+
+def _output_formats(tool: str, *details: object) -> set[str]:
+    """Every output format a writer's record names: a format field, a file extension, or a format in
+    the tool's own name ("document.export_pdf")."""
+    known = {fmt for _, family in _DELIVERABLE_FAMILIES for fmt in family}
+    found = {segment for segment in _TOOL_SEGMENT_RE.findall(str(tool or "").lower()) if segment in known}
+
+    def _scan(value: object, depth: int) -> None:
+        if isinstance(value, dict):
+            for key, inner in value.items():
+                if key in _IDENTITY_KEYS and isinstance(inner, str):
+                    text = inner.strip().lower()
+                    tail = text.rsplit(".", 1)[-1] if "." in text else text
+                    tail = tail.rsplit("/", 1)[-1]
+                    if tail in known:
+                        found.add(tail)
+                elif depth < 3 and isinstance(inner, (dict, list)):
+                    _scan(inner, depth + 1)
+        elif isinstance(value, list) and depth < 3:
+            for inner in value[:16]:
+                _scan(inner, depth + 1)
+
+    for detail in details:
+        _scan(detail, 0)
+    return found
+
+
+def _turn_file_writes(*, session_id: str | None, source_context: dict[str, object] | None) -> list[set[str]]:
+    """This turn's SUCCESSFUL file-creating executions, each as the output formats it is known to have
+    made (empty when its record names none). Reads and failed or refused attempts are never here."""
+    writes: list[set[str]] = []
+    for receipt in list((source_context or {}).get("tool_receipts") or []):
+        if not isinstance(receipt, dict) or not _receipt_succeeded(receipt):
+            continue
+        tool = str(receipt.get("tool_name") or receipt.get("tool") or receipt.get("intent") or "")
+        if _is_file_writer(tool):
+            writes.append(_output_formats(tool, receipt.get("observation"), receipt.get("details"),
+                                          receipt.get("arguments"), receipt.get("execution")))
+    try:
+        from core.execution_truth import KIND_TOOL, facts_for_turn, resolve_turn_key
+
+        turn_key = resolve_turn_key(dict(source_context or {}), None)
+        for fact in facts_for_turn(turn_key, session_id=str(session_id or "").strip()):
+            if not (fact.in_category(KIND_TOOL) and fact.ok) or str(fact.status or "").lower() in _FAILED_STATUSES:
+                continue
+            if _is_file_writer(fact.name):
+                writes.append(_output_formats(fact.name, fact.detail))
+    except Exception:
+        pass
+    return writes
+
+
+def _turn_wrote_a_file(
+    *,
+    session_id: str | None,
+    source_context: dict[str, object] | None,
+    claimed: list[str] | None = None,
+) -> bool:
+    """Whether a tool that creates or exports a file SUCCEEDED on this turn, and made what was claimed.
+
+    When the claim names formats (a Word document, a PDF), every one of them needs a successful
+    writer whose record shows that format. A writer whose record names no output format cannot back
+    a format-named claim: "Your Word document is ready" after a plain text write is still false.
+    """
+    writes = _turn_file_writes(session_id=session_id, source_context=source_context)
+    if not writes:
+        return False
+    families = _claimed_deliverable_families(list(claimed or []))
+    if not families:
+        return True
+    made = set().union(*writes)
+    return all(family & made for family in families)
 
 
 def _strip_unbacked_file_promises(
@@ -673,7 +792,8 @@ def _strip_unbacked_file_promises(
     response = str(output.get("response") or "")
     if not response.strip() or not _DELIVERABLE_PROMISE_RE.search(response):
         return output
-    if _turn_wrote_a_file(session_id=session_id, source_context=source_context):
+    promised = [match.group(0) for match in _DELIVERABLE_PROMISE_RE.finditer(response)]
+    if _turn_wrote_a_file(session_id=session_id, source_context=source_context, claimed=promised):
         return output
     kept_lines: list[str] = []
     removed: list[str] = []
@@ -1436,7 +1556,8 @@ def enforce_final_action_honesty(
     if claim_kind == "deliverable":
         # A file said to exist needs a tool that WROTE one on this turn. Any other receipt (a web
         # lookup, a memory read) or a tool-flavoured mode is not evidence that a document exists.
-        if _turn_wrote_a_file(session_id=session_id, source_context=source_context):
+        claimed = [match.group(0) for match in _DELIVERABLE_CLAIM_RE.finditer(response)]
+        if _turn_wrote_a_file(session_id=session_id, source_context=source_context, claimed=claimed):
             return output
     elif (
         str(output.get("mode") or output.get("mode_override") or "").strip().lower() == "tool_executed"

@@ -38,8 +38,8 @@ def _guard(text: str, receipts: list | None = None) -> str:
     return str(out["response"])
 
 
-def _receipt(tool: str) -> dict:
-    return {"tool_name": tool, "intent": tool, "status": "executed", "execution": {"executed": True, "ok": True}}
+def _receipt(tool: str, **extra) -> dict:
+    return {"tool_name": tool, "intent": tool, "status": "executed", "execution": {"executed": True, "ok": True}, **extra}
 
 
 @pytest.mark.parametrize("reply", [LIVE_WORD, LIVE_POWERPOINT])
@@ -84,9 +84,57 @@ def test_answers_that_only_mention_a_format_are_untouched(reply):
 
 
 def test_a_file_writing_tool_this_turn_is_the_evidence_and_nothing_else_is():
-    assert _guard(LIVE_WORD, [_receipt("workspace.write_file")]) == LIVE_WORD
+    written = _receipt("workspace.write_file", arguments={"path": "packing-checklist.docx"})
+    assert _guard(LIVE_WORD, [written]) == LIVE_WORD
     # A tool ran, but not one that writes a file: still no document exists.
     assert _guard(LIVE_WORD, [_receipt("web.search")]) == _HONEST_NO_DELIVERABLE_RESPONSE
+
+
+CLAIM = "Your Word document is ready."
+
+
+def test_reading_a_file_is_not_making_one(tmp_path):
+    # Re-audit P1: the production read of a real file ran and succeeded, and its tool name says
+    # "file" -- it still made no Word document.
+    from core.runtime_execution_tools import _read_file
+
+    (tmp_path / "input.txt").write_text("some source text", encoding="utf-8")
+    result = _read_file({"path": "input.txt"}, workspace_root=tmp_path)
+    assert result.ok, result
+    read = {"tool_name": "workspace.read_file", "status": "executed", "execution": {"executed": True, "ok": result.ok}}
+    assert _guard(CLAIM, [read]) == _HONEST_NO_DELIVERABLE_RESPONSE
+    for reader in ("pdf.extract_text", "pdf.read", "pdf.ocr", "workspace.list_files"):
+        assert _guard("Your PDF is ready.", [_receipt(reader)]) == _HONEST_NO_DELIVERABLE_RESPONSE, reader
+
+
+@pytest.mark.parametrize(
+    "execution,status",
+    [
+        ({"executed": True, "ok": False}, "failed"),
+        ({"executed": True, "ok": False}, "executed"),
+        ({"executed": True, "status": "failed"}, "executed"),
+        ({"executed": True, "ok": True, "status": "refused"}, "refused"),
+    ],
+)
+def test_a_writer_that_ran_and_failed_made_no_file(execution, status):
+    failed = {"tool_name": "workspace.write_file", "status": status, "execution": execution,
+              "arguments": {"path": "report.docx"}}
+    assert _guard(CLAIM, [failed]) == _HONEST_NO_DELIVERABLE_RESPONSE
+
+
+def test_the_writer_must_have_made_the_format_claimed():
+    text_only = _receipt("workspace.write_file", arguments={"path": "notes.txt"})
+    assert _guard(CLAIM, [text_only]) == _HONEST_NO_DELIVERABLE_RESPONSE
+    # a writer whose record names no output cannot back a claim that names a format
+    assert _guard(CLAIM, [_receipt("workspace.write_file")]) == _HONEST_NO_DELIVERABLE_RESPONSE
+    docx = _receipt("file.deliver", observation={"filename": "plan.docx", "format": "docx"})
+    assert _guard(CLAIM, [docx]) == CLAIM
+    # two formats claimed, one made: the claim is still false
+    both = "I saved it as a Word document and exported a PDF copy."
+    assert _guard(both, [docx]) == _HONEST_NO_DELIVERABLE_RESPONSE
+    assert _guard(both, [docx, _receipt("file.deliver", observation={"format": "pdf"})]) == both
+    # a promise is held to the same evidence
+    assert _guard(LIVE_PDF_PROMISE, [_receipt("workspace.read_file")]) != LIVE_PDF_PROMISE
 
 
 def test_the_replacement_is_final_on_a_second_pass():
