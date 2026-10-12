@@ -1870,6 +1870,13 @@
       "registry_command_id": "chat.pin",
       "surface": "http"
     },
+    "http:POST:/api/chat/pin-chat": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/pin-chat",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chats.pin",
+      "surface": "http"
+    },
     "http:POST:/api/chat/queue": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/chat/queue",
@@ -2952,7 +2959,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 287,
-    "GENERATED_ADAPTER": 125,
+    "GENERATED_ADAPTER": 126,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

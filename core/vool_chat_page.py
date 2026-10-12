@@ -276,6 +276,8 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 /* Chats nest under their project/General header as a tree: indented, with a thin left guide line. */
 #sessions .session.nested { margin-left:11px; padding-left:12px; border-left:1px solid var(--border); border-top-left-radius:0; border-bottom-left-radius:0; }
 #sessions .session.nested.active { border-left-color:var(--accent); }
+#sessions .pin-head .proj-name::before { content:'\1F4CC  '; }
+#sessions .s-pin-mark { flex:0 0 auto; font-size:11px; opacity:.75; margin-left:4px; }
 #sessions .s-rename { flex:1; min-width:0; background:var(--bg); color:var(--ink); border:1px solid var(--accent); border-radius:6px; padding:2px 6px; font:inherit; font-size:13px; }
 #sessions .s-actions { display:none; gap:2px; flex:0 0 auto; }
 #sessions .session:hover .s-actions { display:flex; }
@@ -2809,6 +2811,13 @@ function makeSessionItem(s, archived, nested) {
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
     actions.appendChild(move);
   }
+  if (!archived) {
+    const pinB = document.createElement('button');
+    pinB.type = 'button'; pinB.className = 's-act'; pinB.textContent = s.pinned ? '\u{1F4CD}' : '\u{1F4CC}';
+    pinB.title = s.pinned ? 'Unpin chat' : 'Pin chat to the top';
+    pinB.addEventListener('click', (e) => { e.stopPropagation(); setChatPinned(s.session_id, !s.pinned); });
+    actions.appendChild(pinB);
+  }
   const ren = document.createElement('button');
   ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = 'Rename';
   ren.addEventListener('click', (e) => { e.stopPropagation(); startRename(item, title, s.session_id); });
@@ -2822,9 +2831,16 @@ function makeSessionItem(s, archived, nested) {
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
+  if (s.pinned && !archived) { const pm = document.createElement('span'); pm.className = 's-pin-mark'; pm.textContent = '\u{1F4CC}'; pm.title = 'Pinned'; item.appendChild(pm); }
   if (!archived) appendLifecycleBadge(item, sidebarLifecycleState(s.session_id));
   item.appendChild(actions);
   return item;
+}
+async function setChatPinned(sid, pinned) {
+  try {
+    await fetch('/api/chat/pin-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, pinned: !!pinned }) });
+  } catch (e) {}
+  await loadSessions();
 }
 async function deleteSession(sid, title) {
   if (!sid) return;
@@ -3260,6 +3276,22 @@ function renderSessions(sessions) {
     const pid = s.project_id;   // server-side binding
     if (pid && projects[pid]) { (byProject[pid] = byProject[pid] || []).push(s); }
     else general.push(s);
+  }
+  // Pinned chats first: a shortcut list above every group. A pinned chat also stays in its own
+  // group, so the group counts (computed server-side over every chat) remain true.
+  const PIN_KEY = '__pinned__';
+  const pinnedRows = active.filter((s) => s.pinned)
+    .sort((a, b) => String(b.pinned_at || '').localeCompare(String(a.pinned_at || '')));
+  if (pinnedRows.length) {
+    const pinCollapsed = !!collapsed[PIN_KEY];
+    const ph = document.createElement('div'); ph.className = 'proj-head pin-head' + (pinCollapsed ? ' collapsed' : '');
+    const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = pinCollapsed ? '▸' : '▾';
+    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'Pinned';
+    const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(pinnedRows.length);
+    ph.appendChild(c); ph.appendChild(n); ph.appendChild(cnt);
+    ph.addEventListener('click', () => { const cc = loadCollapsed(); cc[PIN_KEY] = !cc[PIN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
+    sessionsEl.appendChild(ph);
+    if (!pinCollapsed) { for (const s of pinnedRows) sessionsEl.appendChild(makeSessionItem(s, false, true)); }
   }
   // General (unassigned) pinned to the TOP and collapsible, like a project group.
   const GEN_KEY = '__general__';

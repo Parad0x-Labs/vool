@@ -30,6 +30,7 @@ _GROUP_MODULES = (
     "core.command_registry.groups.first_run",
     "core.command_registry.groups.lifeform_group",
     "core.command_registry.groups.agent_team_group",
+    "core.command_registry.groups.housekeeping_group",
 )
 
 

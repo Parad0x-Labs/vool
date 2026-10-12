@@ -1321,11 +1321,21 @@ def dispatch_get(
             counts[str(row.get("project_id") or "")] = (
                 counts.get(str(row.get("project_id") or ""), 0) + 1
             )
+        # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
+        # one that would otherwise fall outside the 100-row page.
+        from core.chat_housekeeping import pinned_chat_ids_from
+
+        pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
+        for row in every_session:
+            sid = str(row.get("session_id") or "")
+            row["pinned"] = sid in pinned_at
+            row["pinned_at"] = pinned_at.get(sid, "")
+        page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
         return apply_runtime_headers(
             json_response(
                 200,
                 {
-                    "sessions": every_session[:100],
+                    "sessions": page,
                     "counts": counts,
                     "total": sum(counts.values()),
                     "page_size": 100,
@@ -6283,6 +6293,47 @@ def _dispatch_post_inner(
         servable_ids = {p.get("id") for p in message_pins.list_servable_pins(session_id)}
         echoed_pin = pin if ok and pin.get("id") in servable_ids else {}
         return apply_runtime_headers(json_response(200 if ok else 400, {"ok": ok, "pin": echoed_pin, "pins": message_pins.list_servable_pins(session_id)}), runtime)
+
+    if normalized_path == "/api/chat/pin-chat":
+        # Pin or unpin a whole chat to the top of the sidebar. Same owner-local guards as
+        # /api/chat/pin; the write is read back by core.chat_housekeeping before it reports ok.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        import json as _json
+
+        from core import chat_housekeeping
+        from core.web.api.runtime import host_header_allowed
+
+        def _pch(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        ct = _pch("content-type").lower()
+        if ct and "json" not in ct:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _pch("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        try:
+            if len(_json.dumps(body)) > 4096:
+                return apply_runtime_headers(json_response(413, {"error": "request body too large"}), runtime)
+        except (TypeError, ValueError):
+            return apply_runtime_headers(json_response(400, {"error": "unserializable body"}), runtime)
+        if not isinstance(body, dict):
+            return apply_runtime_headers(json_response(400, {"error": "invalid body"}), runtime)
+        unknown = set(body.keys()) - {"session_id", "pinned"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        session_id = body.get("session_id")
+        if not isinstance(session_id, str) or not session_id.strip():
+            return apply_runtime_headers(json_response(400, {"error": "missing or invalid session_id"}), runtime)
+        if not isinstance(body.get("pinned"), bool):
+            return apply_runtime_headers(json_response(400, {"error": "pinned must be true or false"}), runtime)
+        result = chat_housekeeping.set_chat_pinned(session_id.strip(), body["pinned"])
+        status = 200 if result.ok else (404 if result.error in ("chat_not_found", "chat_deleted") else 400)
+        return apply_runtime_headers(json_response(status, {"ok": result.ok, "error": result.error or None, "pinned": bool(result.after.get("pinned")), "changed": result.changed}), runtime)
 
     if normalized_path in {"/api/model-radar/dismiss", "/api/model-radar/viewed", "/api/model-radar/preferences", "/api/model-radar/try-once"}:
         # One family with the same guard suite as the other owner-local
