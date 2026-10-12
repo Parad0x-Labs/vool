@@ -10,11 +10,10 @@ and by embedders. It is:
     first-class `unavailable` state with a plain-language reason the UI must show,
     never silence, never a background thread pretending to work.
 
-The two-press contract: `press_install` (the Update button) downloads and verifies,
-then parks at READY_TO_RESTART; `press_restart` (the Restart button) resumes the SAME
-journaled transaction through swap + external helper + health + finalize-or-rollback.
-Both require a typed UserGesture — the web API creates it from a real UI click, the
-in-chat surface from an explicit "update now", the CLI from --i-pressed-update.
+One press prepares a signed transaction and hands its continuation to a detached
+worker outside the replacement target. The worker survives native-host shutdown,
+then swaps, relaunches, checks health and finalizes or restores the saved app/data.
+The restart endpoint is retained for older prepared journals.
 """
 from __future__ import annotations
 
@@ -22,15 +21,16 @@ import concurrent.futures
 import contextlib
 import logging
 import os
+import shlex
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
 
 from core.updater.download import StagedDownloader
-from core.updater.feed import FeedConfig, load_feed_config
+from core.updater.feed import FeedConfig, automatic_checks_enabled, enable_automatic_checks, load_feed_config
 from core.updater.health import HttpHealthProbe
 from core.updater.macos import ExternalScriptHelper, MacProcessHelper
 from core.updater.migrations import MigrationCatalog
@@ -58,6 +58,7 @@ class UnavailableReason(str, Enum):
     DISABLED = "disabled"
     NO_TRUSTED_PUBLISHER = "no_trusted_publisher"
     NO_FEED = "no_feed_configured"
+    RAW_CHECKOUT = "raw_source_checkout"
 
     @property
     def plain(self) -> str:
@@ -68,6 +69,7 @@ class UnavailableReason(str, Enum):
                 "where updates would come from"
             ),
             UnavailableReason.NO_FEED: "no release feed address is configured",
+            UnavailableReason.RAW_CHECKOUT: "this source checkout has no install receipt; update with git pull",
         }[self]
 
 
@@ -120,6 +122,16 @@ class UpdateSubsystem:
         self.data_dir = Path(data_dir) if data_dir else _active_data_dir()
         self.installed_version = installed_version or _installed_version()
         self.platform = platform or platform_key()
+        if not self.feed.has_target:
+            source_root = Path(__file__).resolve().parents[2]
+            if self.platform.startswith("linux-") and (source_root / "install_receipt.json").is_file():
+                self.feed = replace(self.feed, app_path=str(source_root))
+            elif self.platform.startswith("macos-"):
+                for ancestor in source_root.parents:
+                    if ancestor.suffix == ".app" and source_root.is_relative_to(ancestor / "Contents/Resources"):
+                        self.feed = replace(self.feed, app_path=str(ancestor),
+                                            helper_script=str(ancestor / "Contents/Resources/update/mac_update_helper.sh"))
+                        break
         self.coordinator = coordinator or WorkCoordinator()
         self.catalog = migration_catalog or MigrationCatalog()
         self._custom_fetch = fetch
@@ -130,7 +142,7 @@ class UpdateSubsystem:
         # Explicit, journaled sandbox relief ONLY: VOOL_UPDATE_SANDBOX_WAIVER=1 marks
         # a sandbox journey that cannot notarize (no Apple Developer ID on the rig).
         # Production default stays fail-closed — un-notarized bundles are refused.
-        if not notarization_waiver_reason and str(os.environ.get("VOOL_UPDATE_SANDBOX_WAIVER") or "").strip() in ("1", "true", "yes"):
+        if not notarization_waiver_reason and os.environ.get("VOOL_TEST_MODE") == "1" and str(os.environ.get("VOOL_UPDATE_SANDBOX_WAIVER") or "").strip() in ("1", "true", "yes"):
             notarization_waiver_reason = (
                 "sandbox journey (VOOL_UPDATE_SANDBOX_WAIVER): no Developer ID available; "
                 "the production default refuses un-notarized bundles"
@@ -139,6 +151,7 @@ class UpdateSubsystem:
         self.health_timeout = float(health_timeout)
         self._press_lock = threading.Lock()
         self._started = False
+        self._recovering = False
         self._paused_txid = ""
         self._install_thread: threading.Thread | None = None
 
@@ -147,6 +160,10 @@ class UpdateSubsystem:
 
         if str(self.feed.source) == "disabled-by-env":
             reason = UnavailableReason.DISABLED
+        elif self.platform.startswith("linux-") and not (
+            self.feed.has_target and (Path(self.feed.app_path) / "install_receipt.json").is_file()
+        ):
+            reason = UnavailableReason.RAW_CHECKOUT
         elif not trust.is_configured:
             reason = UnavailableReason.NO_TRUSTED_PUBLISHER
         elif not self.feed.has_feed:
@@ -171,6 +188,8 @@ class UpdateSubsystem:
                 fetch=self._custom_fetch,
                 clock=self._clock,
                 sleeper=sleeper,
+                check_allowed=lambda: automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir)
+                and not self._recovering and not self._press_lock.locked() and not self._worker_alive(),
             )
             self.controller = UpdateController(
                 offer_loader=lambda: self.service.current_offer() if self.service else None,
@@ -210,31 +229,71 @@ class UpdateSubsystem:
         if self._started:
             return self
         self._started = True
+        self._recover_bounded()
         if not self.configured:
             logger.info("update subsystem UNAVAILABLE: %s", self.unavailable_reason.value)
             return self
-        self._recover_bounded()
         assert self.service is not None
-        self.service.start()
+        if automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir):
+            self.service.start()
         return self
 
     def _recover_bounded(self) -> None:
+        if self._worker_alive():
+            return  # the detached transaction still owns recovery/finalization
         if not self.feed.has_target:
             return  # no configured app ⇒ nothing was ever swapped by this install
+        from core.updater.rollback import incomplete_rollbacks
+
+        if incomplete_rollbacks(self):
+            from core.updater.worker import start_worker
+
+            try:
+                start_worker(self, None, 'recovery-rollback-' + str(time.time_ns()), rollback_recovery=True)
+            except Exception as exc:
+                from core.updater.status import UpdateFault
+
+                self.status.publish(UpdatePhase.FAILED, fault=UpdateFault.ROLLBACK_FAILED,
+                                    detail=f'could not start rollback recovery: {exc}')
+            return
+        from core.updater.transaction import UpdateJournal
+
+        # Recovery that can stop this host must survive its exit, just like a
+        # normal update. Safe pre-swap cleanup may stay in the bounded thread.
+        for directory in self.paths.transactions.iterdir() if self.paths.transactions.is_dir() else ():
+            if not directory.is_dir():
+                continue
+            journal = UpdateJournal(directory)
+            if not journal.is_terminal() and any(journal.has(step) for step in (
+                Step.SWAPPED, Step.MIGRATED, Step.SWAP_PLANNED
+            )):
+                from core.updater.worker import start_worker
+
+                try:
+                    start_worker(self, None, "recovery-" + str(time.time_ns()), recovery=True)
+                except Exception as exc:
+                    from core.updater.status import UpdateFault
+
+                    self.status.publish(UpdatePhase.FAILED, fault=UpdateFault.ROLLBACK_FAILED,
+                                        detail=f"could not start recovery: {exc}")
+                return
         helper = self._make_helper()
         probe = self._make_probe()
+        self._recovering = True
+
+        def recover():
+            try:
+                return recover_interrupted_update(
+                    data_dir=self.data_dir, app_path=Path(self.feed.app_path),
+                    helper=helper, health_probe=probe, installed_version=self.installed_version,
+                    channel=self.feed.channel, platform=self.platform,
+                )
+            finally:
+                self._recovering = False
+
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="vool-update-recover")
         try:
-            future = executor.submit(
-                recover_interrupted_update,
-                data_dir=self.data_dir,
-                app_path=Path(self.feed.app_path),
-                helper=helper,
-                health_probe=probe,
-                installed_version=self.installed_version,
-                channel=self.feed.channel,
-                platform=self.platform,
-            )
+            future = executor.submit(recover)
             with contextlib.suppress(concurrent.futures.TimeoutError):
                 results = future.result(timeout=RECOVERY_BOUND_SECONDS)
                 for item in results or []:
@@ -247,7 +306,18 @@ class UpdateSubsystem:
 
     # -- assembly ------------------------------------------------------------- #
 
+    def _worker_alive(self) -> bool:
+        from core.updater.worker import worker_alive
+
+        return worker_alive(self.data_dir)
+
     def _make_helper(self) -> ExternalHelper:
+        if self.platform.startswith("linux-"):
+            from core.updater.linux import LinuxProcessHelper
+
+            override = str(os.environ.get("VOOL_UPDATE_TARGET_PIDFILE") or "")
+            return LinuxProcessHelper(app_path=Path(self.feed.app_path),
+                                      pid_file=Path(override) if override else self.data_dir / "vool_api.pid")
         if self.feed.helper_script and self.feed.has_target:
             return ExternalScriptHelper(
                 script=Path(self.feed.helper_script),
@@ -258,9 +328,13 @@ class UpdateSubsystem:
                 # stop the app the helper just relaunched (measured in final-p1).
                 target_pid=lambda: _pidfile_pid_for(Path(self.feed.app_path)),
                 result_path=self.paths.root / "helper-result.json",
-                relaunch_cmd=_relaunch_cmd_for(Path(self.feed.app_path)),
+                relaunch_cmd=_relaunch_cmd_for(Path(self.feed.app_path), runtime_home=self.data_dir.resolve().parent,
+                                              health_url=self.feed.health_url),
             )
-        return MacProcessHelper()
+        return MacProcessHelper(pid_file=self.data_dir / "vool_api.pid", app_path=Path(self.feed.app_path),
+                                relaunch_cmd=shlex.split(_relaunch_cmd_for(Path(self.feed.app_path),
+                                                        runtime_home=self.data_dir.resolve().parent,
+                                                        health_url=self.feed.health_url)))
 
     def _make_probe(self):
         probe = HttpHealthProbe(self.feed.health_url, poll_interval=0.5, request_timeout=3.0)
@@ -268,6 +342,9 @@ class UpdateSubsystem:
 
     def make_flow(self, *, stop_after: Step | None = None) -> UpdateFlow:
         downloader = StagedDownloader(fetch=self._custom_fetch) if self._custom_fetch else StagedDownloader()
+        installer = installer_for(self.platform)
+        if self.platform.startswith("linux-") and installer is not None:
+            installer.runtime_home = self.data_dir.resolve().parent
         return UpdateFlow(
             data_dir=self.data_dir,
             app_path=Path(self.feed.app_path or self.data_dir / "unconfigured-app"),
@@ -280,10 +357,11 @@ class UpdateSubsystem:
             migration_catalog=self.catalog,
             helper=self._make_helper(),
             health_probe=self._make_probe(),
-            installer=installer_for(self.platform),
+            installer=installer,
             status_store=self.status,
             high_water=self.high_water,
             notarization_waiver_reason=self.notarization_waiver_reason,
+            allow_publisher_verified_adhoc=self.feed.allow_publisher_verified_adhoc,
             health_timeout=self.health_timeout,
             stop_after=stop_after,
         )
@@ -293,6 +371,9 @@ class UpdateSubsystem:
     def status_payload(self) -> dict:
         """The one shape the API and the UI chip render."""
         status = self.status.load()
+        from core.updater.rollback import rollback_candidate
+
+        candidate = rollback_candidate(self)
         payload: dict = {
             "configured": self.configured,
             "unavailable_reason": self.unavailable_reason.value if self.unavailable_reason else "",
@@ -300,6 +381,9 @@ class UpdateSubsystem:
             "installed_version": self.installed_version,
             "channel": self.feed.channel,
             "has_target": self.feed.has_target,
+            "rollback_available": candidate is not None and not self._recovering and not self._worker_alive()
+                                  and (not status or status.fault_code != 'rollback_failed'),
+            "rollback_version": candidate['version'] if candidate else '',
             "phase": (status.phase.value if status else UpdatePhase.IDLE.value),
             "message": (status.message if status else ""),
             "target_version": (status.target_version if status else ""),
@@ -333,6 +417,13 @@ class UpdateSubsystem:
             payload["check_ok"] = False
             payload["detail"] = payload["unavailable_plain"]
             return payload
+        try:
+            enable_automatic_checks(feed=self.feed, data_dir=self.data_dir)
+        except OSError:
+            payload = self.status_payload()
+            payload["check_ok"] = False
+            payload["detail"] = "Your update-check choice could not be saved; no check was sent."
+            return payload
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="vool-update-check")
         try:
             future = executor.submit(self.service.check_once)
@@ -359,19 +450,29 @@ class UpdateSubsystem:
         finally:
             with contextlib.suppress(Exception):
                 executor.shutdown(wait=False)
+            if self._started and automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir):
+                with contextlib.suppress(Exception):
+                    # The user's check already ran; schedule the next periodic check.
+                    self.service.start(check_immediately=False)
 
     # -- the two presses ------------------------------------------------------ #
 
     def press_install(self, gesture: UserGesture, *, resolution: DestructiveWorkResolution | None = None) -> PressOutcome:
-        """Update button: download + verify, then park at READY_TO_RESTART."""
+        """One press: prepare here, continue detached through restart/health/rollback."""
         if not isinstance(gesture, UserGesture):
             raise TypeError("installing an update requires an explicit UserGesture (a user pressed Update)")
         if not self.configured or self.controller is None:
             return PressOutcome(False, detail=self.status_payload()["unavailable_plain"] or "updates are unavailable")
         if not self.feed.has_target:
             return PressOutcome(False, detail="no app path is configured for this install, so nothing can be updated")
+        prior_status = self.status.load()
+        if self._recovering or (prior_status and prior_status.fault_code == "rollback_failed"):
+            return PressOutcome(False, detail="the previous update needs recovery before another can be installed")
+        if self._worker_alive():
+            return PressOutcome(False, detail="an update is already in progress")
         if not self._press_lock.acquire(blocking=False):
             return PressOutcome(False, detail="an update is already in progress")
+        handed_off = False
         try:
             blocked = destructive_block(self.coordinator, resolution=resolution)
             if not blocked.ok:
@@ -379,26 +480,72 @@ class UpdateSubsystem:
             offer = self.service.current_offer() if self.service else None
             if offer is None:
                 return PressOutcome(False, detail="no update is ready to install")
-            tx_holder = {"txid": ""}
-
             def worker() -> None:
-                with contextlib.suppress(Exception):
-                    flow = self.make_flow(stop_after=Step.ARTIFACT_VERIFIED)
+                flow = self.make_flow(stop_after=Step.SNAPSHOT_COMPLETE)
+                try:
                     result = flow.run(offer.raw, offer.manifest, offer.decision, resolution=resolution)
-                    tx_holder["txid"] = result.txid
-                    if result.ok and result.terminal is Step.ARTIFACT_VERIFIED:
-                        self._paused_txid = result.txid
-                    elif not result.ok:
+                    if result.ok and result.terminal is Step.SNAPSHOT_COMPLETE:
+                        from core.updater.worker import start_worker
+
+                        process = start_worker(self, offer, result.txid)
+                        process.wait()  # monitoring only; the detached child owns completion
+                    else:
                         logger.info("install press failed: %s", result.detail)
+                except Exception as exc:
+                    logger.exception("could not hand off the prepared update")
+                    flow._abort(f"could not start the detached updater: {exc}")
+                finally:
+                    self.coordinator.resume_new_work()
+                    self._press_lock.release()
 
             self._install_thread = threading.Thread(target=worker, name="vool-update-install", daemon=True)
             self._install_thread.start()
+            handed_off = True
             deadline = self._clock() + 2.0
             while self._install_thread.is_alive() and self._clock() < deadline:
                 time.sleep(0.05)
             if self._install_thread.is_alive():
                 return PressOutcome(True, detail="download started", phase=UpdatePhase.DOWNLOADING.value)
-            return PressOutcome(bool(self._paused_txid), detail="download finished", txid=self._paused_txid)
+            return PressOutcome(True, detail="update started", phase=self.status_payload()["phase"])
+        finally:
+            if not handed_off:
+                self._press_lock.release()
+
+    def press_rollback(self, gesture: UserGesture) -> PressOutcome:
+        """Explicit previous-code rollback; never replace current history with old data."""
+        if not isinstance(gesture, UserGesture):
+            raise TypeError('rollback requires an explicit UserGesture')
+        if self._recovering or self._worker_alive() or not self._press_lock.acquire(blocking=False):
+            return PressOutcome(False, detail='an update or recovery is already in progress')
+        try:
+            from core.updater.rollback import rollback_candidate
+            from core.updater.work import prepare_to_pause
+            from core.updater.worker import start_worker
+
+            prior_status = self.status.load()
+            if prior_status and prior_status.fault_code == 'rollback_failed':
+                return PressOutcome(False, detail='incomplete recovery must be repaired before another rollback')
+            candidate = rollback_candidate(self)
+            if candidate is None:
+                return PressOutcome(False, detail='No compatible, verified previous version is retained. Your data was not changed.')
+            decision = prepare_to_pause(self.coordinator)
+            if not decision.ok:
+                return PressOutcome(False, detail=decision.plain_message)
+            txid = 'rollback-' + str(time.time_ns())
+            self.status.publish(UpdatePhase.INSTALLING)
+            start_worker(self, None, txid, rollback=candidate)
+
+            def monitor():
+                while self._worker_alive():
+                    time.sleep(.2)
+                self.coordinator.resume_new_work()
+
+            threading.Thread(target=monitor, daemon=True, name='vool-rollback-monitor').start()
+            return PressOutcome(True, detail='Returning to the previous version; current data is kept', txid=txid,
+                                phase=UpdatePhase.INSTALLING.value)
+        except Exception as exc:
+            self.coordinator.resume_new_work()
+            return PressOutcome(False, detail=str(exc))
         finally:
             self._press_lock.release()
 
@@ -442,22 +589,15 @@ class UpdateSubsystem:
             return False
         if target_version and offer.manifest.version != target_version:
             return False
-        if not self._press_lock.acquire(blocking=False):
-            return False
-
-        def worker() -> None:
-            try:
-                flow = self.make_flow()
-                flow.run(offer.raw, offer.manifest, offer.decision)
-            finally:
-                self._press_lock.release()
-
-        threading.Thread(target=worker, name="vool-update-chat", daemon=True).start()
-        return True
+        return self.press_install(UserGesture(pressed_at=self._clock(), origin="chat")).accepted
 
     # -- work registration (the chat dispatch registers turns) ----------------- #
 
     def register_turn(self, work_id: str, description: str, *, destructive: bool = False) -> WorkHandle:
+        if self._worker_alive():
+            from core.updater.work import UpdateInProgressError
+
+            raise UpdateInProgressError("VOOL is finishing its update; try again after it restarts")
         handle = WorkHandle(str(work_id), description, destructive=destructive)
         self.coordinator.register(handle)
         return handle
@@ -512,22 +652,36 @@ def _pidfile_pid_for(app_path: Path) -> int:
     (VOOL_UPDATE_TARGET_PIDFILE overrides for sandbox installs of a cloned app)."""
     import os
 
+    from core.updater.macos import _pid_belongs_to_app
+
     override = str(os.environ.get("VOOL_UPDATE_TARGET_PIDFILE") or "").strip()
-    if override:
-        with contextlib.suppress(Exception):
-            return int(Path(override).read_text(encoding="utf-8").strip() or "0")
+    paths = [Path(override)] if override else []
     with contextlib.suppress(Exception):
         from core.runtime_paths import active_data_dir
 
-        pidfile = active_data_dir() / "vool_api.pid"
-        if pidfile.exists():
-            return int(pidfile.read_text(encoding="utf-8").strip() or "0")
+        paths.append(active_data_dir() / "vool_api.pid")
+    for pidfile in paths:
+        try:
+            pid = int(pidfile.read_text(encoding="utf-8").strip() or "0")
+        except (OSError, ValueError):
+            continue
+        if _pid_belongs_to_app(pid, app_path):
+            return pid
     return 0
 
 
-def _relaunch_cmd_for(app_path: Path) -> str:
+def _relaunch_cmd_for(app_path: Path, *, runtime_home: Path | None = None, health_url: str = "") -> str:
     """How the external helper brings the app back up: the bundle's own launcher."""
-    return f"open -n {app_path}"
+    # Run the bundle's own executable. LaunchServices can queue `open` while the
+    # old native host is exiting, long past the transaction's health deadline.
+    # Direct exec preserves the native window and makes restart owned/bounded.
+    command = ["env"]
+    if runtime_home is not None:
+        command += [f"VOOL_HOME={runtime_home}"]
+    if health_url:
+        command += [f"VOOL_NATIVE_API_URL={health_url.removesuffix('/healthz')}"]
+    command.append(str(app_path / "Contents/MacOS/VOOL"))
+    return shlex.join(command)
 
 
 __all__ = [

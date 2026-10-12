@@ -5,9 +5,9 @@ Bundle verification (defense in depth beyond Ed25519):
   2. when a pinned `expected_authority` is configured, the signing certificate chain
      must show it (`codesign -dv`);
   3. `spctl --assess --type execute` (Gatekeeper) must accept the bundle when
-     notarization is required — the production default. The ONLY way around it is a
-     per-transaction explicit, journaled `notarization_waiver_reason` (dev sandboxes);
-     a dedicated test pins that the default refuses ad-hoc/un-notarized bundles.
+     notarization is required. The explicit publisher-verified ad-hoc production
+     policy preserves the running bundle's trust tier; certificate-signed running
+     bundles still require Gatekeeper acceptance. Test waivers are sandbox-only.
 
 Atomic swap = renames inside the app's parent directory (same volume ⇒ atomic):
   target → .<name>.prior-<txid>   (keep, for rollback and "run previous version")
@@ -55,6 +55,29 @@ class MacOSBundleInstaller:
         self.default_require_notarization = bool(default_require_notarization)
 
     # -- verification ------------------------------------------------------- #
+
+    def running_requires_notarization(self, app_path: Path) -> bool:
+        """Only a valid, explicitly ad-hoc running bundle may keep that trust tier.
+
+        Unknown, unsigned, damaged, certificate-signed and Developer ID bundles
+        all require Gatekeeper acceptance of the replacement (fail closed).
+        """
+        verification = self._run(["codesign", "--verify", "--deep", "--strict", str(app_path)])
+        info = self._run(["codesign", "-dv", "--verbose=4", str(app_path)])
+        detail = (info.stdout or "") + (info.stderr or "")
+        return not (verification.returncode == 0 and info.returncode == 0
+                    and "Signature=adhoc" in detail and "Authority=" not in detail)
+
+    def clear_verified_quarantine(self, bundle: Path) -> None:
+        """Called only after publisher/hash/artifact/codesign verification.
+
+        Python's HTTP download does not ordinarily set quarantine. A quarantined
+        ad-hoc payload still needs its verified extraction cleared before relaunch.
+        Touch only quarantine, never other xattrs or an unverified bundle.
+        """
+        result = self._run(["xattr", "-dr", "com.apple.quarantine", str(bundle)])
+        if result.returncode:
+            raise OSError(f"could not clear verified bundle quarantine: {result.stderr.strip()}")
 
     def verify_bundle(
         self, staged_bundle: Path, *, require_notarization: bool | None = None
@@ -194,6 +217,37 @@ def _pid_has_exited(pid: int) -> bool:
         return False
 
 
+def _pid_belongs_to_app(pid: int, app_path: Path) -> bool:
+    """Inspect this recorded PID only; a reused number is never ownership proof."""
+    if pid <= 1:
+        return False
+    root = Path(app_path).resolve()
+    process = subprocess.run(['ps', '-p', str(pid), '-o', 'args='], capture_output=True,
+                             text=True, timeout=5, check=False)
+    if process.returncode:
+        return False
+    command = process.stdout.strip()
+    native = root / 'Contents/MacOS/VOOL'
+    shell = root / 'Contents/Resources/launcher.sh'
+    if command.startswith(str(native)) or any(command.startswith(prefix + str(shell))
+                                              for prefix in ('bash ', '/bin/bash ')):
+        return True
+    api = '-m apps.vool_api_server' in command
+    window = str(root / 'Contents/Resources/app/installer/bundle/vool_window.py') in command
+    if not api and not window:
+        return False
+    embedded = root / ('Contents/Resources/python/bin' if root.suffix == '.app' else '.venv/bin')
+    if command.startswith(str(embedded) + '/'):
+        return True
+    expected_cwd = root / 'Contents/Resources/app' if root.suffix == '.app' else root
+    proc_cwd = Path(f'/proc/{pid}/cwd')
+    if proc_cwd.exists():
+        return proc_cwd.resolve() == expected_cwd
+    listing = subprocess.run(['lsof', '-a', '-p', str(pid), '-d', 'cwd', '-Fn'],
+                             capture_output=True, text=True, timeout=5, check=False)
+    return any(line == 'n' + str(expected_cwd) for line in listing.stdout.splitlines())
+
+
 class MacProcessHelper:
     """The production ExternalHelper for the macOS wrapper: stop the app via its
     pidfile (never killing an unrelated pid that reused the number), then relaunch
@@ -204,10 +258,12 @@ class MacProcessHelper:
         self,
         *,
         pid_file: Path | None = None,
+        app_path: Path | None = None,
         relaunch_cmd: list[str] | None = None,
         poll_interval: float = 0.2,
     ):
         self.pid_file = Path(pid_file) if pid_file else None
+        self.app_path = Path(app_path) if app_path else None
         self.relaunch_cmd = list(relaunch_cmd) if relaunch_cmd else []
         self.poll_interval = poll_interval
 
@@ -215,9 +271,10 @@ class MacProcessHelper:
         if self.pid_file is None or not self.pid_file.exists():
             return 0
         try:
-            return int(self.pid_file.read_text(encoding="utf-8").strip() or "0")
+            pid = int(self.pid_file.read_text(encoding="utf-8").strip() or "0")
         except (OSError, ValueError):
             return 0
+        return pid if self.app_path is None or _pid_belongs_to_app(pid, self.app_path) else 0
 
     def shutdown_app(self) -> None:
         import os

@@ -116,7 +116,7 @@ class SandboxServer:
                     self._send(200, blob)
                     return
                 if self.path.endswith("/healthz"):
-                    if outer.health_sick:
+                    if outer.health_sick and outer._marker() == "new":
                         self._send(503, b"unhealthy", {"Content-Type": "application/json"})
                         return
                     marker = "new" if outer._marker() == "new" else "old"

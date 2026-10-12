@@ -1167,8 +1167,9 @@ def egress_census() -> dict[str, Any]:
     residuals: list[str] = []
     updater_residual = _update_feed_configured()
     residuals.append("signed update checks may contact their configured feed")
-    if updater_residual:
-        doors.append({"door": "updater_feed", "closed": False, "proof": "an update feed is configured"})
+    doors.append({"door": "updater_feed", "closed": not updater_residual,
+                  "proof": "update checks are enabled by the user's check or setting" if updater_residual
+                  else "the update check gate requires this home's explicit check or an operator setting"})
     residuals.append("local model downloads may fetch from their configured source")
 
     complete = all(d["closed"] for d in doors) and not updater_residual
@@ -1180,7 +1181,7 @@ def egress_census() -> dict[str, Any]:
 
 
 def _update_feed_configured() -> bool:
-    """Honest updater residual: is a signed-update feed configured on this home?"""
+    """Honest updater residual: has this home or its operator enabled checks?"""
     try:
         from core.runtime_paths import config_path
 
@@ -1199,11 +1200,18 @@ def _update_feed_configured() -> bool:
         # fail-open detached updater into a production import closure. The updater lane's own
         # reachability contract (one install authority) catches exactly that, and it fails the
         # moment both lanes are in one tree.
-        from core.updater.feed import load_feed_config
+        from core.runtime_paths import active_data_dir
+        from core.updater.feed import automatic_checks_enabled
+        from core.updater.runtime import get_update_subsystem
 
-        return bool(load_feed_config().has_feed)
+        subsystem = get_update_subsystem()
+        if subsystem is not None and subsystem.data_dir.resolve() == active_data_dir().resolve():
+            # Configuration can change while the process still holds its boot feed.
+            # Prove the gate that actually serves this home, not a prospective restart.
+            return automatic_checks_enabled(feed=subsystem.feed, data_dir=subsystem.data_dir)
+        return automatic_checks_enabled()
     except Exception:
-        return False
+        return True  # an unreadable gate is not proof that the door is closed
 
 
 # --- facts (typed Operator Profile items, C2 fence) --------------------------------------------

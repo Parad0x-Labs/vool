@@ -44,7 +44,8 @@ class TestPlatformRegistry:
     def test_windows_installer_boundary_is_honest(self):
         """The contract boundary: no placeholder, no pretend — None means None."""
         assert installer_for("windows-x64") is None
-        assert installer_for("linux-x64") is None
+        assert installer_for("linux-x64") is not None
+        assert installer_for("linux-arm64") is None
 
 
 class TestCodeSignVerificationFake:

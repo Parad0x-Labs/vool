@@ -21,6 +21,8 @@ def native_world(tmp_path, monkeypatch):
     from core.runtime_flags import override
 
     _iso_home(tmp_path, monkeypatch)
+    # Admissions belong to this world, rather than the session's shared catalog.
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "home" / "plugin_lifecycle.json"))
     lib = tmp_path / "native-skills"
     lib.mkdir()
     monkeypatch.setenv("VOOL_NATIVE_SKILLS_DIR", str(lib))

@@ -39,6 +39,32 @@ ARCH_CENSUS_SCRIPT = REPO / "installer" / "bundle" / "macos_arch_census.py"
 BASE_PATH = "/usr/bin:/bin"
 
 
+def test_native_release_entry_resolves_moved_bundle_and_preserves_arguments(tmp_path):
+    import os
+
+    app = tmp_path / "Original App.app"
+    (app / "Contents/MacOS").mkdir(parents=True)
+    (app / "Contents/Resources").mkdir()
+    launcher = app / "Contents/Resources/launcher.sh"
+    launcher.write_text('#!/bin/bash\nprintf "%s\\n" "$0" "$1" "$VOOL_NATIVE_TEST_MARKER"\n')
+    binary = app / "Contents/MacOS/VOOL"
+    built = subprocess.run(["/usr/bin/clang", "-arch", os.uname().machine, "-Wall", "-Wextra", "-Werror",
+                            str(REPO / "installer/bundle/native_launcher.c"), "-o", str(binary)],
+                           capture_output=True, text=True)
+    assert built.returncode == 0, built.stderr
+    parent = tmp_path / "Moved Apps With Spaces"
+    parent.mkdir()
+    moved = parent / "VOOL Test.app"
+    app.rename(moved)
+    result = subprocess.run([str(moved / "Contents/MacOS/VOOL"), "argument with spaces"],
+                            env={**os.environ, "VOOL_NATIVE_TEST_MARKER": "retained environment"},
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    assert Path(lines[0]).resolve() == moved / "Contents/Resources/launcher.sh"
+    assert lines[1:] == ["argument with spaces", "retained environment"]
+
+
 # ------------------------------------------------------------------------------------------
 # Fixture machinery: a synthetic install root + synthetic interpreters
 # ------------------------------------------------------------------------------------------

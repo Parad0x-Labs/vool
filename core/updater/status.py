@@ -76,10 +76,14 @@ def plain_message(phase: UpdatePhase, **context) -> str:
             return f"Update installed — you're now on {version}."
         case UpdatePhase.ROLLED_BACK:
             previous = str(context.get("previous_version") or "the previous version")
-            return f"The update didn't finish, so {previous} was put back and restarted. Nothing was lost."
+            if context.get("manual"):
+                return f"Returned to {previous}. Your current chats, memory, keys and settings were kept."
+            return f"The update didn't finish, so {previous} was put back and restarted with the saved settings and data."
         case UpdatePhase.FAILED:
             detail = str(context.get("detail") or "something went wrong")
-            return f"The update couldn't be installed: {detail}. The app was left as it was."
+            if context.get("fault") is UpdateFault.ROLLBACK_FAILED:
+                return f"The update failed and recovery is incomplete: {detail}. Backups are retained."
+            return f"The update couldn't be installed: {detail}."
         case UpdatePhase.UNAVAILABLE:
             reason = str(context.get("reason") or "the update service isn't configured")
             return f"Updates are unavailable — {reason}."
@@ -142,6 +146,7 @@ class UpdateFault(Enum):
     MIGRATION_FAILED = "migration_failed"
     HEALTH_CHECK_FAILED = "health_check_failed"
     ROLLBACK_FAILED = "rollback_failed"
+    MANUAL_ROLLBACK = "manual_rollback"
     DESTRUCTIVE_WORK_ACTIVE = "destructive_work_active"
     STALE_UPDATE_CLEANED_UP = "stale_update_cleaned_up"
     UNEXPECTED = "unexpected_failure"
@@ -178,8 +183,11 @@ class UpdateFault(Enum):
             UpdateFault.ROLLBACK_FAILED: (
                 "The previous version could not be fully restored. Keep the update backup and contact support before restarting."
             ),
+            UpdateFault.MANUAL_ROLLBACK: (
+                "The previous version is running with your current data. Check for updates when you want to try again."
+            ),
             UpdateFault.DESTRUCTIVE_WORK_ACTIVE: (
-                "Finish or close the work listed above, then press Restart to finish the update."
+                "Finish or close the work listed above, then press Update."
             ),
             UpdateFault.STALE_UPDATE_CLEANED_UP: (
                 "No action is needed. Press Check for updates if you still want that update."

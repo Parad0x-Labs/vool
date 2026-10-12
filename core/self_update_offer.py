@@ -102,7 +102,7 @@ def maybe_handle_update_offer(
     sid = str(session_id or "").strip()
 
     if availability_loader is None:
-        from core.self_update_state import load_available as availability_loader
+        availability_loader = _signed_availability
     if check_state_loader is None:
         from core.self_update_state import load_check_state as check_state_loader
     if check_state_saver is None:
@@ -142,12 +142,20 @@ def maybe_handle_update_offer(
 
             strictly_newer = is_newer_version(target, str(installed_version_loader() or ""))
         except Exception:
-            strictly_newer = True  # fail open to the other gates below
+            strictly_newer = False
+    from core.updater.service import UpdateOffer
+
+    # Production consumes the verified typed offer directly. Historical embedders
+    # can still supply their sidecar availability, but never override the signed
+    # subsystem's install authority used by the default launcher.
+    integrity_ready = isinstance(av, UpdateOffer) and av.decision.should_install
+    if availability_loader is not _signed_availability:
+        integrity_ready = integrity_ready or bool(getattr(av, "sha256_url", ""))
     installable = bool(
         av
         and getattr(av, "available", False)
         and getattr(av, "asset_url", "")
-        and getattr(av, "sha256_url", "")
+        and integrity_ready
         and target != dismissed
         and strictly_newer
     )
@@ -183,6 +191,14 @@ def maybe_handle_update_offer(
                 intent="self_update_offer",
             )
     return None
+
+
+def _signed_availability():
+    from core.updater.runtime import get_update_subsystem
+
+    subsystem = get_update_subsystem()
+    service = subsystem.service if subsystem is not None else None
+    return service.current_offer() if service is not None else None
 
 
 def _dismiss(check_state_loader: Callable[[], Any], check_state_saver: Callable[[Any], None], target: str) -> None:
