@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from types import SimpleNamespace
 from unittest import mock
 
@@ -367,6 +368,26 @@ def test_openai_adapter_prewarm_keeps_legacy_generate_strategy() -> None:
     }
 
 
+def _host_memory(available_gb: float):
+    """Pin the machine state the resource governor reads, so the adapter's REAL model-load gate
+    runs against a known host instead of whatever this Mac or runner has free at that moment.
+
+    The native-Ollama payload tests below mock only the HTTP call; ``_gate_local_model_load``
+    still asked the live host, so they failed with ``model_load_gated_low_memory`` whenever
+    under ~17.5 GB was free for qwen2.5:14b (re-audit: ~5.7 GB free). The gate is not
+    bypassed: ``plan_model_load`` decides on this snapshot exactly as in production, and
+    ``test_native_ollama_load_is_still_gated_when_the_host_lacks_room`` keeps the refusal
+    path proven through the same adapter call.
+    """
+    stack = contextlib.ExitStack()
+    stack.enter_context(mock.patch(
+        "core.system_resources.snapshot",
+        return_value=mock.Mock(available_ram_gb=float(available_gb)),
+    ))
+    stack.enter_context(mock.patch("core.resource_governor.resident_models", return_value=[]))
+    return stack
+
+
 def test_openai_adapter_uses_native_ollama_chat_and_applies_compute_threads() -> None:
     adapter = OpenAICompatibleAdapter(
         SimpleNamespace(
@@ -403,7 +424,10 @@ def test_openai_adapter_uses_native_ollama_chat_and_applies_compute_threads() ->
             reason="test",
         )
     )
-    with mock.patch("adapters.openai_compatible_adapter.requests.post", return_value=response) as post_mock:
+    with (
+        _host_memory(64.0),
+        mock.patch("adapters.openai_compatible_adapter.requests.post", return_value=response) as post_mock,
+    ):
         result = adapter.run_text_task(request)
 
     assert result.output_text == "native ollama answer"
@@ -528,8 +552,41 @@ def test_openai_adapter_stream_text_task_handles_native_ollama_bytes() -> None:
         b'{"model":"qwen2.5:14b","message":{"role":"assistant","content":""},"done":true}',
     ]
 
-    with mock.patch("adapters.openai_compatible_adapter.requests.post", return_value=response):
+    with (
+        _host_memory(64.0),
+        mock.patch("adapters.openai_compatible_adapter.requests.post", return_value=response),
+    ):
         chunks = list(adapter.stream_text_task(request))
 
     assert [chunk.delta_text for chunk in chunks if chunk.delta_text] == ["stream", " model", " ok"]
     assert chunks[-1].done is True
+
+
+@pytest.mark.parametrize("path", ["run", "stream"])
+def test_native_ollama_load_is_still_gated_when_the_host_lacks_room(path: str) -> None:
+    adapter = OpenAICompatibleAdapter(
+        SimpleNamespace(
+            provider_id="ollama-local:qwen2.5:14b",
+            model_name="qwen2.5:14b",
+            metadata={"runtime_family": "ollama", "deployment_class": "local"},
+            runtime_config={"base_url": "http://127.0.0.1:11434/v1", "timeout_seconds": 5.0},
+        )
+    )
+    request = _to_model_request(
+        _normalize_request(
+            "Reply with exactly: gated",
+            task_class="chat_conversation",
+            task_kind="conversation",
+            output_mode="plain_text",
+        )
+    )
+    with (
+        _host_memory(4.0),
+        mock.patch("adapters.openai_compatible_adapter.requests.post") as post_mock,
+        pytest.raises(RuntimeError, match="model_load_gated_low_memory"),
+    ):
+        if path == "run":
+            adapter.run_text_task(request)
+        else:
+            list(adapter.stream_text_task(request))
+    post_mock.assert_not_called()
