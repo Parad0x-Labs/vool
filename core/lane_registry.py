@@ -356,6 +356,7 @@ ROUTE_FAMILIES: dict[str, str] = {
     "cloud_key_command": "secret_intake_turn",
     "image_key_command": "secret_intake_turn",
     "bare_secret_intercept": "secret_intake_turn",
+    "personal_secret_intake": "secret_intake_turn",
     "secret_intake_turn": "secret_intake_turn",
     "secret_intake_turn_degraded": "secret_intake_turn",
     "secret_intake_failed": "secret_intake_turn",

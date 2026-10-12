@@ -75,6 +75,11 @@ ROUTE_CLOUD_KEY = "cloud_key_command"
 ROUTE_IMAGE_KEY = "image_key_command"
 ROUTE_BARE_SECRET = "bare_secret_intercept"
 ROUTE_SECRET_BEARING = "secret_bearing"
+#: A card number, PIN or password typed in plain words: masked before any lane,
+#: model or memory writer sees it, and the user is told it was not saved.
+ROUTE_PERSONAL_SECRET = "personal_secret_intake"
+
+_PERSONAL_SECRET_NAMES = {"pin": "PIN", "card_number": "card number", "password": "password"}
 
 _TOKEN_RE = re.compile(r"\S+")
 
@@ -208,6 +213,35 @@ def _has_demand(remainder: str) -> bool:
         return True  # a mint failure must not finalize the turn as credential-only
 
 
+def personal_secret_notice(kinds: tuple[str, ...]) -> str:
+    """The one line that tells the user what was not saved. Names the kind, never the value."""
+    names = [_PERSONAL_SECRET_NAMES[kind] for kind in kinds if kind in _PERSONAL_SECRET_NAMES]
+    if not names:
+        return ""
+    named = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    return (
+        f"I didn't save your {named}. VOOL never keeps PINs, card numbers or passwords "
+        "in memory, so I won't be able to tell you later."
+    )
+
+
+def _personal_secret_intake(value: str, *, owner_local: bool) -> SecretIntake | None:
+    from core.secret_redaction import personal_secret_kinds
+
+    reply = personal_secret_notice(personal_secret_kinds(value))
+    if not reply:
+        return None
+    remainder = _sanitize(value, ())
+    return SecretIntake(
+        disposition=DISPOSITION_HANDLED if owner_local else DISPOSITION_REFUSED,
+        route=ROUTE_PERSONAL_SECRET,
+        reply=reply,
+        consumed_spans=(),
+        remainder=remainder,
+        remainder_has_demand=bool(remainder) and _has_demand(remainder),
+    )
+
+
 def consume_secret_intake(text: str, *, owner_local: bool) -> SecretIntake | None:
     """The one typed intake over a turn's raw text, or None when no secret route
     applies and the text carries no secret-shaped material at all."""
@@ -230,6 +264,10 @@ def consume_secret_intake(text: str, *, owner_local: bool) -> SecretIntake | Non
     span = bare_key_span(value)
     if span is not None:
         return _bare_key_intake(value, span, owner_local=owner_local)
+
+    personal = _personal_secret_intake(value, owner_local=owner_local)
+    if personal is not None:
+        return personal
 
     try:
         from core.secret_redaction import contains_secret
@@ -326,8 +364,10 @@ __all__ = [
     "ROUTE_BARE_SECRET",
     "ROUTE_CLOUD_KEY",
     "ROUTE_IMAGE_KEY",
+    "ROUTE_PERSONAL_SECRET",
     "ROUTE_SECRET_BEARING",
     "SAFE_FAILURE_REPLY",
     "SecretIntake",
     "consume_secret_intake",
+    "personal_secret_notice",
 ]
