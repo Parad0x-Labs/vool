@@ -8,8 +8,8 @@ of it: the codes, messages and actions below are exactly what the runtime emits.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `6fd480c906211dca4b6556cf3677e9d0b18f95e25cb0002ba092049cff3ad48d`
-- **Fault count:** 50
+- **Catalog digest:** `59c93f8b3d95a7674da724e2e87573853ca9aa642890152757abd06df9c2c1f0`
+- **Fault count:** 51
 
 A fault's `code` is stable and safe to match on; `user_message` is what a person sees;
 `operator_action` is what to do about it; `authority` names the module that owns the fault.
@@ -68,6 +68,7 @@ A fault's `code` is stable and safe to match on; `user_message` is what a person
 | `wallet_signing_unavailable` | medium | yes | retry_after_change | no | This wallet cannot sign from here: it is watch-only or its external signer is not connected. Nothing was sent; connect a signer, then try again. | Nothing was sent, signed or changed | Connect the external wallet, or create a VOOL Wallet after reading its warning. | `core.wallet.signers` |
 | `wallet_storage_class_refused` | medium | yes | retry_after_change | no | This installation keeps its device key only in memory, so a wallet created here could not be opened after a restart. Nothing was created. Switch key storage to a lasting mode, then try again. | Nothing was sent, signed or changed | Crypto Pilot wallets are refused while VOOL_KEY_STORAGE_MODE is ephemeral; use file or keyring storage. | `core.wallet.pilot_custody` |
 | `wallet_x402_cap_exceeded` | medium | no | never | yes | A paid resource asked for more than the automatic payment cap, so it was not paid. | Nothing was sent, signed or changed | Raise VOOL_WALLET_X402_CAP_MINOR deliberately, or pay the resource by an explicit proposal. | `core.wallet.x402` |
+| `wallet_x402_sdk_unavailable` | medium | yes | retry_after_change | no | This build cannot pay x402 offers on Base through the x402 Foundation SDK: the optional x402 extra is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again. | Nothing was sent, signed or changed | Install VOOL's optional x402 extra to pay x402 offers on Base from a Crypto Pilot wallet; the wallet keeps its own signer, spend caps and approval either way. | `core.wallet.x402_sdk` |
 | `x402_scheme_unavailable` | low | yes | retry_after_change | no | This payment offer needs a scheme this wallet cannot prove end to end, so nothing was signed. Try an offer whose scheme, token and facilitator are verified for this network. | Nothing was sent, signed or changed | Use an offer whose scheme, token and facilitator are verified for the network; partial signing support is never improvised. | `core.wallet.x402` |
 
 ## availability

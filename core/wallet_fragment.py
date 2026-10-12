@@ -757,7 +757,8 @@ function drawCrypto(st){
 }
 var CHANNEL_REASONS = {
   paykit_not_installed: 'the optional pay extra (Solana pay-kit) is not installed',
-  python_below_3_11: 'Solana pay-kit needs Python 3.11 or newer'
+  python_below_3_11: 'Solana pay-kit needs Python 3.11 or newer',
+  x402_sdk_not_installed: 'the optional x402 extra (x402 Foundation SDK) is not installed'
 };
 function channelControls(cp){
   // The owner's choice of how paid requests (x402, MPP) are paid, through the trusted Settings door. The wallet's own

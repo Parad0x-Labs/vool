@@ -140,9 +140,9 @@ def _devnet_assets() -> Mapping[str, AssetSpec]:
 #: The declared rows of this build. Nothing else exists and no env var adds one. The four test rows
 #: shipped before the Crypto Pilot keep their identities, names, schemes and assets; the pilot adds the
 #: five Mainnet rows and Robinhood Chain Testnet. Facts verified against official sources and live
-#: identity reads on 2026-09-14 (delivery/NETWORK-MATRIX.json). Mainnet rows declare no x402 scheme. The one
-#: Mainnet token is USDC on Solana, for the UsePod x402 payment lane and the Solana pay-kit lanes only (proposals
-#: refuse it for every other origin); the pilot's own transfers move native coins only.
+#: identity reads on 2026-09-14 (delivery/NETWORK-MATRIX.json). Mainnet rows declare no x402 scheme. The Mainnet
+#: tokens are USDC on Solana, for the UsePod x402 payment lane and the Solana pay-kit lanes only, and USDC on Base, for
+#: the x402 SDK lane only (proposals refuse them for every other origin); the pilot's own transfers move native coins only.
 _REGISTRY: dict[str, ChainIdentity] = {
     SOLANA_DEVNET: ChainIdentity(
         network=SOLANA_DEVNET, family=FAMILY_SVM, testnet=True,
@@ -241,7 +241,16 @@ _REGISTRY: dict[str, ChainIdentity] = {
         display_name="Base", legacy_names=(),
         rpc_origins=("https://mainnet.base.org",), schemes=(),
         explorer_tx_template="https://basescan.org/tx/{id}",
-        assets=MappingProxyType({"ETH": _native("eip155:8453", "ETH", 18)}),
+        assets=MappingProxyType({
+            "ETH": _native("eip155:8453", "ETH", 18),
+            # Circle's USDC on Base, an EIP-3009 FiatToken (EIP-712 domain "USD Coin", version "2"), for the x402 SDK
+            # lane only (proposals refuse it for every other origin); the x402 Foundation SDK's asset table agrees
+            "USDC": AssetSpec(
+                chain="eip155:8453", symbol="USDC",
+                address="0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", decimals=6,
+                eip712_name="USD Coin", eip712_version="2",
+            ),
+        }),
         environment=ENVIRONMENT_MAINNET, chain_key="base", explorer_label="Basescan",
         explorer_address_template="https://basescan.org/address/{address}", fee_model=FEE_OP_STACK, finality=FINALITY_SAFE_TAG,
     ),

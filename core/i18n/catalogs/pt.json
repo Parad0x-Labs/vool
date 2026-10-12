@@ -533,6 +533,8 @@
     "fault.wallet_paykit_unavailable.message": "Esta versão não consegue pagar ofertas x402 ou MPP na Solana: o extra opcional pay (Solana pay-kit, Python 3.11 ou mais recente) não está instalado nesta máquina. Nada foi assinado ou enviado. Toda outra função da carteira funciona sem ele; com ele instalado, tente de novo.",
     "fault.wallet_payment_channel_off.action": "Ligue um canal de pagamento nos ajustes de Cripto só se quiser que pagamentos passem por ele; o teto e a sua aprovação valem em todos os canais.",
     "fault.wallet_payment_channel_off.message": "Esse pagamento passa por um canal de pagamento desligado, então nada foi assinado ou enviado. Ligue o canal em Ajustes, Cripto, Canais de pagamento, e tente de novo.",
+    "fault.wallet_x402_sdk_unavailable.action": "Instale o extra opcional x402 do VOOL para pagar ofertas x402 na Base a partir de uma carteira Crypto Pilot; a carteira mantém em qualquer caso o próprio assinante, os tetos de gasto e a aprovação.",
+    "fault.wallet_x402_sdk_unavailable.message": "Esta versão não consegue pagar ofertas x402 na Base pelo x402 Foundation SDK: o extra opcional x402 não está instalado nesta máquina. Nada foi assinado ou enviado. Toda outra função da carteira funciona sem ele; com ele instalado, tente de novo.",
     "fault.wallet_disabled.action": "Ative a carteira explicitamente (VOOL_WALLET_ENABLED=1) só se pagamentos são desejados nesta instalação.",
     "fault.wallet_disabled.message": "A carteira está desligada, então nenhum pagamento foi proposto ou enviado. Ative-a primeiro e tente de novo.",
     "fault.wallet_duplicate_payment.action": "Confira o recibo da proposta existente; use uma chave de idempotência nova para um pagamento realmente novo.",
@@ -1790,7 +1792,7 @@
     "vns.sound.preview": "Ouvir som",
     "vns.sound.blocked": "A reprodução de som está indisponível. As notificações continuam no sino."
   },
-  "source_catalog_sha256": "b78365202a9af476f10da21eda241864ef3fb2d4e2fa6bec40e33a0ce36fef49",
+  "source_catalog_sha256": "0131e4be7df9797d48b11a1e6f5ea969a011ad322a6fed7b80f70b227185eb13",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1,7 +1,8 @@
 """Payment channels: the ways of paying a paid request that the owner lets this wallet use.
 
 A payment channel is one way a 402 is paid: who builds the payment and over which protocol. VOOL's own x402 client
-is one; Solana pay-kit's x402 and MPP builders are two more. The owner turns each one on or off in Settings (Crypto,
+is one; Solana pay-kit's x402 and MPP builders are two more; the x402 Foundation SDK, paying USDC on Base from a Crypto
+Pilot wallet, is another. The owner turns each one on or off in Settings (Crypto,
 Payment channels). Whatever the channel, the money authority is this wallet's and never the channel's: the cap, the
 owner's approval, the hold against the spend limits, the one signature and the receipt.
 
@@ -31,6 +32,7 @@ AUTHORITY = "core.wallet.channels"
 CHANNEL_X402 = "x402"
 CHANNEL_PAYKIT_X402 = "paykit_x402"
 CHANNEL_PAYKIT_MPP = "paykit_mpp"
+CHANNEL_X402_SDK = "x402_sdk"
 
 PROTOCOL_X402 = "x402"
 PROTOCOL_MPP = "mpp"
@@ -38,6 +40,7 @@ PROTOCOL_MPP = "mpp"
 REASON_AVAILABLE = "available"
 REASON_PAYKIT_NOT_INSTALLED = "paykit_not_installed"
 REASON_PYTHON_BELOW_3_11 = "python_below_3_11"
+REASON_X402_SDK_NOT_INSTALLED = "x402_sdk_not_installed"
 
 _ON = "on"
 _OFF = "off"
@@ -76,6 +79,12 @@ CHANNELS: tuple[PaymentChannel, ...] = (
         origins=(proposals.ORIGIN_MPP_PAYKIT,), default_on=True,
         description="MPP charges on Solana (WWW-Authenticate: Payment): pay-kit builds the charge, this wallet approves and signs it.",
         needs="pay extra",
+    ),
+    PaymentChannel(
+        channel_id=CHANNEL_X402_SDK, label="x402 on Base, through the x402 Foundation SDK", protocol=PROTOCOL_X402, built_by="x402 Foundation SDK",
+        origins=(proposals.ORIGIN_X402_SDK,), default_on=True,
+        description="USDC offers on Base, paid from a Crypto Pilot wallet: the SDK builds the EIP-3009 authorization, this wallet approves and signs it, and the site's facilitator settles it and pays the network fee.",
+        needs="x402 extra",
     ),
 )
 
@@ -157,8 +166,14 @@ def set_on(channel_id: str, enabled: bool, *, source_context: dict[str, Any] | N
 
 
 def _availability(channel: PaymentChannel) -> tuple[bool, str]:
-    """Whether this install can pay through the channel at all. Cheap and import-free: the pay-kit doors re-check
-    with the library itself, and refuse typed, naming the extra, when it does not load."""
+    """Whether this install can pay through the channel at all. Cheap and import-free: the pay-kit and SDK doors
+    re-check with the library itself, and refuse typed, naming the extra, when it does not load."""
+    if channel.needs == "x402 extra":
+        try:
+            found = importlib.util.find_spec("x402") is not None
+        except (ImportError, ValueError):
+            found = False
+        return (True, REASON_AVAILABLE) if found else (False, REASON_X402_SDK_NOT_INSTALLED)
     if channel.needs != "pay extra":
         return True, REASON_AVAILABLE
     if sys.version_info < (3, 11):
@@ -176,6 +191,11 @@ def _networks(channel: PaymentChannel) -> list[str]:
 
     if channel.channel_id == CHANNEL_X402:
         rows = [spec for spec in chains.all_networks() if chains.SCHEME_EXACT in spec.schemes]
+    elif channel.channel_id == CHANNEL_X402_SDK:
+        # EVM rows with a registered EIP-3009 token whose Crypto Pilot lane is ready (core.wallet.x402_sdk.lane_rows)
+        from core.wallet import x402_sdk
+
+        rows = x402_sdk.lane_rows()
     else:
         # the pay-kit lane pays on every Solana row whose transfer lane is ready: from a VOOL pocket wallet on a row no
         # Crypto Pilot lane owns, and from a Crypto Pilot wallet's sheet on a row whose Pilot lane is ready
@@ -208,6 +228,7 @@ __all__ = [
     "CHANNEL_PAYKIT_MPP",
     "CHANNEL_PAYKIT_X402",
     "CHANNEL_X402",
+    "CHANNEL_X402_SDK",
     "PaymentChannel",
     "for_origin",
     "get",

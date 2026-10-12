@@ -220,21 +220,24 @@ def _terms_from_requirement(requirement: dict[str, Any], *, wallet_network: str,
 
 def existing_outcome(digest: str, *, source_context: dict[str, Any] | None = None, timeout: float = 20.0) -> Any:
     """What a request already bound gets, before anything is sent: its parked proposal while one waits, a typed
-    refusal once it was paid (its payment is delivered once and never sent again), else None. A request VOOL's own
-    x402 lanes hold (one key per request) answers as those lanes answer it."""
+    refusal once it was paid (its payment is delivered once and never sent again), else None. The same for a request
+    the x402 SDK lane holds (its binding keeps the request too). A request VOOL's own x402 lanes hold (one key per
+    request) answers as those lanes answer it."""
     from core.wallet import x402
 
     binding = x402.binding_for_digest(digest)
     if not binding or not binding.get("proposal_id"):
         return None
-    if int(binding.get("version") or 1) not in x402.PAYKIT_BINDING_VERSIONS:
+    version = int(binding.get("version") or 1)
+    if version not in x402.ONE_SHOT_BINDING_VERSIONS:
         return x402._bound_outcome(binding, timeout=timeout, source_context=source_context)
     parked = proposals.get_proposal(binding["proposal_id"])
     if parked is not None and parked.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
         return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=402, proposal_id=parked.proposal_id, binding_id=binding["binding_id"])
     if parked is not None and parked.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
         # this exact request was paid: its payment was delivered once and is never sent again
-        raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": parked.proposal_id, "reason": "paykit_request_already_paid"}, source_context=source_context)
+        reason = "x402_sdk_request_already_paid" if version == x402.BINDING_VERSION_X402_SDK else "paykit_request_already_paid"
+        raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": parked.proposal_id, "reason": reason}, source_context=source_context)
     x402.end_abandoned_prepare(parked, source_context=source_context)
     if parked is not None:
         x402.refuse_while_dispatched(parked, authority=AUTHORITY, source_context=source_context)

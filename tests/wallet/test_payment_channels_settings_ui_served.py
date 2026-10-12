@@ -98,18 +98,19 @@ def test_the_owner_turns_a_payment_channel_off_and_on_from_settings_and_the_door
             _open_channels(page, base)
             stored = _channels(base)
             rows = page.locator("#vwCxChannels .vw-cx-channel")
-            assert rows.evaluate_all("els => els.map(e => e.getAttribute('data-channel'))") == ["x402", "paykit_x402", "paykit_mpp"]
+            assert rows.evaluate_all("els => els.map(e => e.getAttribute('data-channel'))") == ["x402", "paykit_x402", "paykit_mpp", "x402_sdk"]
             for channel_id, row in stored.items():
                 assert page.is_checked(f"#vwCh_{channel_id}") and row["on"] is True, row
                 text = page.locator(f'#vwCxChannels .vw-cx-channel[data-channel="{channel_id}"]').inner_text()
                 assert row["label"] in text and f"Built by {row['built_by']} · pays on {', '.join(row['network_names'])}" in text, text
                 # a channel this install cannot use says why, in words, instead of looking ready
                 assert ("not usable on this install: the optional pay extra (Solana pay-kit) is not installed" in text) == (row["reason"] == "paykit_not_installed"), (row, text)
+                assert ("not usable on this install: the optional x402 extra (x402 Foundation SDK) is not installed" in text) == (row["reason"] == "x402_sdk_not_installed"), (row, text)
             assert "Solana Devnet" in stored["x402"]["network_names"]
 
             # --- off from the page: stored by the door, kept across a reload
             _switch(page, "x402", False, X402_LABEL)
-            assert {key: row["on"] for key, row in _channels(base).items()} == {"x402": False, "paykit_x402": True, "paykit_mpp": True}
+            assert {key: row["on"] for key, row in _channels(base).items()} == {"x402": False, "paykit_x402": True, "paykit_mpp": True, "x402_sdk": True}
             _open_channels(page, base)
             assert not page.is_checked("#vwCh_x402") and page.is_checked("#vwCh_paykit_x402")
 

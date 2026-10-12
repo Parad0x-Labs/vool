@@ -23,7 +23,7 @@ _STATUS_FOR_CODE = {
     "wallet_approval_rejected": 403, "wallet_x402_cap_exceeded": 403, "wallet_card_data_refused": 400, "wallet_not_found": 404,
     "wallet_simulation_failed": 502, "wallet_broadcast_failed": 502, "wallet_acknowledgement_required": 400,
     "wallet_device_auth_unavailable": 403, "wallet_device_auth_denied": 403, "wallet_export_unavailable": 400, "wallet_export_pin_not_accepted": 400, "wallet_dependency_unavailable": 403,
-    "wallet_paykit_unavailable": 403, "wallet_payment_channel_off": 403,
+    "wallet_paykit_unavailable": 403, "wallet_payment_channel_off": 403, "wallet_x402_sdk_unavailable": 403,
     "wallet_password_invalid": 400,
     "wallet_chain_identity_mismatch": 403, "wallet_outbound_refused": 403, "evm_pocket_custody_unavailable": 403, "x402_scheme_unavailable": 403,
     "wallet_caller_refused": 403, "wallet_environment_inactive": 409,
@@ -382,9 +382,9 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                     pilot_approver = approval.PinApprover(str(body.get("pin") or ""))
                 result = engine.approve_pilot_transfer(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""), approver=pilot_approver)
                 # ``companion``: what happened to the collection of previously accrued DNA fees that rode this approval (None when none did);
-                # ``paykit``: for a pay-kit payment, whether its one paid request was answered and delivered (None for a transfer)
+                # ``paykit`` / ``x402_sdk``: for a pay-kit or x402 SDK payment, whether its one paid request was answered and delivered (None for a transfer)
                 return _ok({"transfer": result["transfer"], "duplicate": bool(result.get("duplicate")), "receipt": result["transfer"], "companion": result.get("companion"),
-                            "paykit": result.get("paykit")})
+                            "paykit": result.get("paykit"), "x402_sdk": result.get("x402_sdk")})
             _require_acknowledged(_proposal_meaning_for(proposal_id), body, source_context=source_context)
             if str(body.get("method") or "").strip().lower() == "external":
                 # The owner approves by signing in their own wallet: hand out the exact bytes, nothing more.

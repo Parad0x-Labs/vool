@@ -15,6 +15,12 @@ A pay-kit payment the resource's fee payer sponsored has the fee payer's signatu
 proves which transaction carries this wallet's own signature (``payer_signature``): until then the payer's latest
 transactions are read for it, and past the last valid height the same stop-waiting exit is offered. Its fee is the
 resource's, so this wallet is charged nothing for it.
+
+An x402 SDK payment is an EIP-3009 authorization the site's facilitator submits: its id is the facilitator's
+transaction, unknown until the chain proves it carries ``AuthorizationUsed(this wallet, this nonce)`` and the exact
+Transfer. Never proven, it fails (nothing moved, no fee) only once the token says the authorization is unused at a
+finalized block whose timestamp is past its window, when no block can use it any more. Such a row has no resend and
+no stop-waiting exit, and the facilitator pays its fee.
 """
 from __future__ import annotations
 
@@ -97,10 +103,12 @@ def control_baseline() -> dict[str, Any]:
 _A6_DONE_STATES = ("expired_pre_dispatch", "failed_safe_to_retry", "superseded")
 
 
-def resolve_a6(proposal_id: str, *, target: str, dispatch_cas_happened: bool, tx_id: str = "") -> tuple[bool, str]:
+def resolve_a6(proposal_id: str, *, target: str, dispatch_cas_happened: bool, tx_id: str = "", failed_evidence: str = "") -> tuple[bool, str]:
     """Resolve the payment effect for one transfer ending by its logical id, never by an instance id that may be
     missing. Returns (done, note). A pre-dispatch release is done when no instance exists or the instance is
-    cancelled, classified failed-safe or resolved; it is never done while the record says the effect applied."""
+    cancelled, classified failed-safe or resolved; it is never done while the record says the effect applied. A
+    failure names its evidence: the failed transaction, or ``failed_evidence`` when there is none (an authorization
+    whose window closed unused)."""
     from core.runtime_continuity import (
         cancel_effect_reservation,
         classify_effect_outcome,
@@ -142,10 +150,13 @@ def resolve_a6(proposal_id: str, *, target: str, dispatch_cas_happened: bool, tx
                 return True, "a6:applied"
             continue
         if target == transfers.STATE_FAILED_ON_CHAIN:
-            # the transaction executed and failed: the amount did not move, the fee did; a new proposal is safe
-            if state == "dispatched" and classify_effect_outcome(logical_effect_id=logical, effect_instance_id=instance, outcome="failed_safe_to_retry", reason="failed_on_chain", detail=str(tx_id or "")):
+            # the transaction executed and failed, or the authorization can never be used: the amount did not move; a new
+            # proposal is safe
+            if state == "dispatched" and classify_effect_outcome(logical_effect_id=logical, effect_instance_id=instance, outcome="failed_safe_to_retry", reason="failed_on_chain",
+                                                                 detail=failed_evidence or str(tx_id or "")):
                 return True, "a6:failed_on_chain"
-            answer = resolve_unresolved_effect(logical_effect_id=logical, resolution="CONFIRMED_FAILED_SAFE_TO_RETRY", source="provider", evidence=f"failed on chain: {tx_id}", resolved_by=AUTHORITY)
+            answer = resolve_unresolved_effect(logical_effect_id=logical, resolution="CONFIRMED_FAILED_SAFE_TO_RETRY", source="provider", evidence=failed_evidence or f"failed on chain: {tx_id}",
+                                               resolved_by=AUTHORITY)
             if str(answer.get("outcome") or "") in {"resolved", "already_resolved", "no_active_effect"}:
                 return True, "a6:failed_on_chain"
             continue
@@ -186,7 +197,7 @@ def apply_transition(proposal_id: str, new_state: str, expected_state: str, *, d
     except transfers.TransferTransitionError:
         return None
     if new_state in _SETTLING:
-        done, note = resolve_a6(proposal_id, target=new_state, dispatch_cas_happened=True, tx_id=tx_id)
+        done, note = resolve_a6(proposal_id, target=new_state, dispatch_cas_happened=True, tx_id=tx_id, failed_evidence=_failed_evidence(row))
         with connection() as conn:
             transfers.update_columns(conn, proposal_id, a6_outcome=note, a6_resolved_at=utcnow() if done else None)
         moved["a6_outcome"] = note
@@ -773,6 +784,121 @@ def _observe_evm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
     return transfers.get_transfer_by_id(proposal_id)
 
 
+_EXPIRED_UNUSED_NOTE = "the authorization's window closed unused at a finalized block; it can never be used"
+
+
+def _failed_evidence(row: dict[str, Any]) -> str:
+    """What proves a failure that has no failed transaction: an authorization row's expiry, unused, at finality."""
+    return _EXPIRED_UNUSED_NOTE if row.get("authorization_json") and not row.get("tx_id") else ""
+
+
+def _authorization(row: dict[str, Any]) -> dict[str, Any]:
+    try:
+        value = json.loads(str(row.get("authorization_json") or "{}"))
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _authorization_expiry(row: dict[str, Any], client: Any) -> tuple[str, dict[str, Any]]:
+    """Whether a signed EIP-3009 authorization can still be used, read at the FINALIZED block: ``expired_unused`` once
+    that block's timestamp is past ``validBefore`` and the token's own ``authorizationState`` says unused there (the
+    token refuses it at every later block, and an earlier use would be in a block at or below that one); ``used``,
+    ``open`` while the window may still be met, ``unreadable`` when the node or the row cannot say. Reads only."""
+    from core.wallet import x402_sdk
+
+    auth = _authorization(row)
+    token, nonce, valid_before = str(auth.get("token") or ""), str(auth.get("nonce") or ""), int(auth.get("valid_before") or 0)
+    if not token or not nonce or valid_before <= 0:
+        return "unreadable", {"why": "authorization_not_recorded"}
+    block = client._call("eth_getBlockByNumber", [chains.FINALITY_FINALIZED_TAG, False]) or {}
+    number, stamp = _hex_int(block.get("number")), _hex_int(block.get("timestamp"))
+    detail = {"finalized": number, "finalized_time": stamp, "valid_before": valid_before}
+    if number is None or stamp is None:
+        return "unreadable", detail
+    if stamp <= valid_before:
+        return "open", detail
+    used = x402_sdk.authorization_used(client, token=token, payer=str(row["from_address"]), nonce=nonce, block=hex(number))
+    if used is None:
+        return "unreadable", detail
+    return ("used" if used else "expired_unused"), detail
+
+
+def _observe_evm_authorization(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
+    """An x402 SDK payment, whose id the chain must prove: a receipt is this payment only when it succeeded and
+    carries, from the token, ``AuthorizationUsed(this wallet, this nonce)`` and ``Transfer(this wallet, payee, exact
+    amount)`` (:func:`core.wallet.x402_sdk.proves_authorization`). The transaction on the row is checked that way, and
+    otherwise the token's AuthorizationUsed logs since the claim are searched. Proven in a canonical block the display
+    tag reaches: confirmed, this wallet charged no fee. Never proven: failed, with nothing moved and no fee, only when
+    :func:`_authorization_expiry` says the window closed unused, which needs no log search (an unanswered search never
+    holds the row back). Nothing else moves the row."""
+    from core.wallet import redaction, x402_sdk
+
+    proposal_id, state = str(row["proposal_id"]), str(row["state"])
+    auth = _authorization(row)
+    proof = {"token": str(auth.get("token") or ""), "payer": str(row["from_address"]), "pay_to": str(row["to_address"]),
+             "amount_minor": int(row["amount_minor"]), "nonce": str(auth.get("nonce") or "")}
+    tx_id = str(row.get("tx_id") or "")
+    receipt = x402_sdk.authorization_settlement(client, tx_id, **proof)[1] if tx_id else None
+    search_failed = ""
+    if receipt is None and proof["nonce"]:
+        try:
+            logs = x402_sdk.authorization_logs(client, token=proof["token"], payer=proof["payer"], nonce=proof["nonce"], from_block=int(auth.get("from_block") or 0),
+                                               valid_before=int(auth.get("valid_before") or 0))
+        except Exception as exc:  # the search is unanswered: no use is found, and the expiry read below needs none of it
+            logs, search_failed = [], type(exc).__name__
+        for log in logs:
+            candidate = str(log.get("transactionHash") or "")
+            if log.get("removed") or not candidate or candidate == tx_id:
+                continue
+            found = x402_sdk.authorization_settlement(client, candidate, **proof)[1]
+            if found is not None:
+                receipt, tx_id = found, redaction.publish_identifier(candidate)
+                break
+    if receipt is None:
+        if state == transfers.STATE_PENDING:
+            # the receipt that proved it is gone (a reorg): back to unknown on the second such read in a row
+            evidence = appended_evidence(row, "status_null")
+            if _null_reads(row) + 1 >= 2:
+                return apply_transition(proposal_id, transfers.STATE_UNKNOWN, state, evidence_json=evidence, evidence_kind="no_answer")
+            with connection() as conn:
+                transfers.update_columns(conn, proposal_id, evidence_json=evidence)
+            return transfers.get_transfer_by_id(proposal_id)
+        verdict, detail = _authorization_expiry(row, client)
+        if verdict == "expired_unused" and state == transfers.STATE_UNKNOWN:
+            # it left, so it is never released as unsent: it failed, and the chain proves nothing moved
+            return apply_transition(proposal_id, transfers.STATE_FAILED_ON_CHAIN, state, detail={"why": "authorization_expired_unused"}, charged_fee_minor=0,
+                                    evidence_json=appended_evidence(row, "authorization_expired_unused", **detail))
+        with connection() as conn:
+            transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(row, f"authorization_{verdict}", **detail, **({"search_failed": search_failed} if search_failed else {})))
+        return transfers.get_transfer_by_id(proposal_id)
+    number = _hex_int(receipt.get("blockNumber"))
+    receipt_hash = str(receipt.get("blockHash") or "").lower()
+    if number is None or not receipt_hash:
+        with connection() as conn:
+            transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(row, "receipt_malformed"))
+        return transfers.get_transfer_by_id(proposal_id)
+    canonical = client._call("eth_getBlockByNumber", [hex(number), False]) or {}
+    if str(canonical.get("hash") or "").lower() != receipt_hash:
+        with connection() as conn:
+            transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(row, "receipt_not_canonical", block=number))
+        return transfers.get_transfer_by_id(proposal_id)
+    tags = _evm_tags(client, chains.resolve_network(row["network"]))
+    display_number, display_tag = tags.get("display"), str(tags.get("display_tag"))
+    columns: dict[str, Any] = {"tx_id": tx_id, "block_ref": number, "block_hash": receipt_hash, "offered_exit_json": "{}",
+                               "evidence_json": appended_evidence(row, "authorization_receipt", block=number, display_tag=display_tag, display_number=display_number)}
+    if display_number is not None and number <= display_number:
+        if state == transfers.STATE_CONFIRMED:
+            return row
+        # the facilitator submitted it and paid its gas: this wallet was charged no fee
+        return apply_transition(proposal_id, transfers.STATE_CONFIRMED, state, charged_fee_minor=0, finality_seen=display_tag, **columns)
+    if state == transfers.STATE_UNKNOWN:
+        return apply_transition(proposal_id, transfers.STATE_PENDING, state, **columns)
+    with connection() as conn:
+        transfers.update_columns(conn, proposal_id, **columns)
+    return transfers.get_transfer_by_id(proposal_id)
+
+
 def _epochs_changed(row: dict[str, Any]) -> bool:
     from core.wallet import controls
 
@@ -796,6 +922,14 @@ def recover_once(row: dict[str, Any], *, rpc: Any = None) -> dict[str, Any] | No
             return revoke_signed(proposal_id, reason="dispatch_deadline_passed")
         if _epochs_changed(row):
             return revoke_signed(proposal_id, reason="controls_changed")
+        return row
+    if state == transfers.STATE_SIGNED_REVOKED and row.get("authorization_json"):
+        # a signed EIP-3009 authorization that never left: released once its window closed unused at finality
+        with contextlib.suppress(Exception):
+            verdict, detail = _authorization_expiry(row, _evm_client(row, rpc))
+            if verdict == "expired_unused":
+                return apply_transition(proposal_id, transfers.STATE_RELEASED, state, detail={"why": "authorization_expired_never_sent"},
+                                        evidence_json=appended_evidence(row, "authorization_expired_unused", **detail))
         return row
     if state == transfers.STATE_SIGNED_REVOKED and str(row.get("family")) == chains.FAMILY_SVM:
         client = _svm_client(row, rpc)
@@ -842,7 +976,15 @@ def observe_once(proposal_id: str, *, rpc: Any = None) -> dict[str, Any] | None:
             with connection() as conn:
                 transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(row, "read_failed", error=type(exc).__name__))
             row = transfers.get_transfer_by_id(proposal_id) or row
-    if (observable or refining) and row.get("tx_id"):
+    if observable and row.get("authorization_json"):
+        # an x402 SDK payment: proven by its authorization's use, or released once its window closed unused
+        try:
+            row = _observe_evm_authorization(row, _evm_client(row, rpc)) or row
+        except Exception as exc:  # the node did not answer well: recorded, nothing moves
+            with connection() as conn:
+                transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(row, "read_failed", error=type(exc).__name__))
+            row = transfers.get_transfer_by_id(proposal_id) or row
+    elif (observable or refining) and row.get("tx_id"):
         try:
             if str(row.get("family")) == chains.FAMILY_SVM:
                 row = _observe_svm(row, _svm_client(row, rpc)) or row
@@ -853,7 +995,8 @@ def observe_once(proposal_id: str, *, rpc: Any = None) -> dict[str, Any] | None:
                 transfers.update_columns(conn, proposal_id, evidence_json=appended_evidence(row, "read_failed", error=type(exc).__name__))
             row = transfers.get_transfer_by_id(proposal_id) or row
     elif str(row["state"]) in transfers.TERMINAL_STATES and not row.get("a6_resolved_at"):
-        done, note = resolve_a6(proposal_id, target=str(row["state"]), dispatch_cas_happened=str(row["state"]) not in transfers.NEVER_SENT_STATES, tx_id=str(row.get("tx_id") or ""))
+        done, note = resolve_a6(proposal_id, target=str(row["state"]), dispatch_cas_happened=str(row["state"]) not in transfers.NEVER_SENT_STATES, tx_id=str(row.get("tx_id") or ""),
+                                failed_evidence=_failed_evidence(row))
         with connection() as conn:
             transfers.update_columns(conn, proposal_id, a6_outcome=note, a6_resolved_at=utcnow() if done else None)
     return transfers.view_of(transfers.get_transfer_by_id(proposal_id) or row)
@@ -965,6 +1108,9 @@ def owner_discard(proposal_id: str) -> dict[str, Any]:
     row = transfers.get_transfer_by_id(proposal_id)
     if row is None or str(row["state"]) != transfers.STATE_SIGNED_REVOKED or row.get("dispatch_claimed_at") is not None or int(row.get("attempts_sent") or 0) > 0:
         raise ExitUnavailableError("not_a_discardable_transfer")
+    if row.get("authorization_json"):
+        # a signed authorization stays usable until its window closes: the observer releases it then, not the owner now
+        raise ExitUnavailableError("authorization_released_after_its_window")
     token = _take_observe_lease(proposal_id)
     if token is None:
         raise ExitUnavailableError("row_busy")

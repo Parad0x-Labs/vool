@@ -533,6 +533,8 @@
     "fault.wallet_paykit_unavailable.message": "此构建无法支付 Solana 上的 x402 或 MPP 报价：这台机器上没有安装可选的 pay 扩展（Solana pay-kit，Python 3.11 或更高版本）。没有签名或发送任何内容。钱包的其他所有功能没有它也能工作；安装之后请重试。",
     "fault.wallet_payment_channel_off.action": "只有在希望通过某个支付通道付款时，才在加密设置中打开它；上限和你的批准在每个通道上都适用。",
     "fault.wallet_payment_channel_off.message": "这笔付款经过一个已关闭的支付通道，因此没有签名或发送任何内容。请在设置、加密、支付通道中打开该通道后重试。",
+    "fault.wallet_x402_sdk_unavailable.action": "安装 VOOL 的可选 x402 扩展，即可从 Crypto Pilot 钱包支付 Base 上的 x402 报价；无论如何，钱包都保留自己的签名者、支出上限和审批。",
+    "fault.wallet_x402_sdk_unavailable.message": "此构建无法通过 x402 Foundation SDK 支付 Base 上的 x402 报价：这台机器上没有安装可选的 x402 扩展。没有签名或发送任何内容。钱包的其他所有功能没有它也能工作；安装之后请重试。",
     "fault.wallet_disabled.action": "仅当此安装确实需要付款时，才显式启用钱包（VOOL_WALLET_ENABLED=1）。",
     "fault.wallet_disabled.message": "钱包处于关闭状态，因此没有提出或发送任何付款。请先启用它，然后重试。",
     "fault.wallet_duplicate_payment.action": "检查现有提案的收据；真正的新付款请使用新的幂等键。",
@@ -1790,7 +1792,7 @@
     "vns.sound.preview": "试听声音",
     "vns.sound.blocked": "无法播放声音。通知仍保留在铃铛菜单中。"
   },
-  "source_catalog_sha256": "b78365202a9af476f10da21eda241864ef3fb2d4e2fa6bec40e33a0ce36fef49",
+  "source_catalog_sha256": "0131e4be7df9797d48b11a1e6f5ea969a011ad322a6fed7b80f70b227185eb13",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

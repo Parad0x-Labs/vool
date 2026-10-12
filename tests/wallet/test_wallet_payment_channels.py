@@ -83,12 +83,14 @@ def test_every_channel_starts_on_and_the_owners_choice_is_kept_in_the_wallet_sto
     from core.wallet.store import connection
 
     rows = _channels_by_id()
-    assert list(rows) == ["x402", "paykit_x402", "paykit_mpp"]
+    assert list(rows) == ["x402", "paykit_x402", "paykit_mpp", "x402_sdk"]
     assert all(row["on"] and row["default_on"] for row in rows.values()), rows
     # what each channel can pay on today comes from the registry: VOOL's x402 on the rows that declare the exact scheme,
-    # pay-kit on every Solana row whose transfer lane is ready (Mainnet's through the Crypto Pilot sheet)
+    # pay-kit on every Solana row whose transfer lane is ready (Mainnet's through the Crypto Pilot sheet), the x402 SDK
+    # on every EVM row with a registered EIP-3009 token whose Crypto Pilot lane is ready (Base Sepolia and Base)
     assert rows["x402"]["networks"] == ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "eip155:84532", "eip155:11155111", "eip155:97"], rows["x402"]
     assert rows["paykit_x402"]["networks"] == rows["paykit_mpp"]["networks"] == ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"]
+    assert rows["x402_sdk"]["networks"] == ["eip155:84532", "eip155:8453"] and rows["x402_sdk"]["built_by"] == "x402 Foundation SDK", rows["x402_sdk"]
 
     off = channels.set_on("paykit_mpp", False)
     assert off["on"] is False and channels.is_on("paykit_mpp") is False and channels.is_on("paykit_x402") is True
@@ -349,9 +351,9 @@ def test_the_settings_door_sets_one_channel_and_is_a_trusted_owner_door(app, wal
 
     status, body = _post(app, "/api/wallet/channels", {"channel": "paykit_x402", "on": False})
     assert status == 200 and body["channel"]["channel_id"] == "paykit_x402" and body["channel"]["on"] is False, body
-    assert [(row["channel_id"], row["on"]) for row in body["payment_channels"]] == [("x402", True), ("paykit_x402", False), ("paykit_mpp", True)]
+    assert [(row["channel_id"], row["on"]) for row in body["payment_channels"]] == [("x402", True), ("paykit_x402", False), ("paykit_mpp", True), ("x402_sdk", True)]
     status, st = _get(app, "/api/wallet/status")
-    assert [(row["channel_id"], row["on"]) for row in st["status"]["crypto_pilot"]["payment_channels"]] == [("x402", True), ("paykit_x402", False), ("paykit_mpp", True)]
+    assert [(row["channel_id"], row["on"]) for row in st["status"]["crypto_pilot"]["payment_channels"]] == [("x402", True), ("paykit_x402", False), ("paykit_mpp", True), ("x402_sdk", True)]
 
     # only a boolean is a choice; an unknown channel is not one
     status, bad = _post(app, "/api/wallet/channels", {"channel": "x402", "on": "false"})
@@ -373,8 +375,9 @@ def test_the_settings_door_sets_one_channel_and_is_a_trusted_owner_door(app, wal
     assert channels.is_on("x402") is True
 
 
-def test_the_pay_kit_channels_say_whether_this_install_can_use_them(monkeypatch):
-    """The Settings rows say when the pay extra is missing, or Python is too old for it, without importing pay-kit."""
+def test_the_library_channels_say_whether_this_install_can_use_them(monkeypatch):
+    """The Settings rows say when the pay or x402 extra is missing, or Python is too old for pay-kit, without importing
+    either library."""
     import importlib.machinery
     import types
 
@@ -385,13 +388,14 @@ def test_the_pay_kit_channels_say_whether_this_install_can_use_them(monkeypatch)
 
     imported: list[str] = []
     monkeypatch.setattr(channels.importlib.util, "find_spec", lambda name, *a: imported.append(name) or None)
-    assert rows() == [("x402", True, "available", ""), ("paykit_x402", False, "paykit_not_installed", "pay extra"), ("paykit_mpp", False, "paykit_not_installed", "pay extra")]
-    assert set(imported) == {"solana_pay_kit"}
+    assert rows() == [("x402", True, "available", ""), ("paykit_x402", False, "paykit_not_installed", "pay extra"), ("paykit_mpp", False, "paykit_not_installed", "pay extra"),
+                      ("x402_sdk", False, "x402_sdk_not_installed", "x402 extra")]
+    assert set(imported) == {"solana_pay_kit", "x402"}
 
     monkeypatch.setattr(channels.importlib.util, "find_spec", lambda name, *a: importlib.machinery.ModuleSpec(name, None))
-    assert [row[1:3] for row in rows()] == [(True, "available")] * 3
+    assert [row[1:3] for row in rows()] == [(True, "available")] * 4
     monkeypatch.setattr(channels, "sys", types.SimpleNamespace(version_info=(3, 10, 14)))
-    assert [row[1:3] for row in rows()] == [(True, "available"), (False, "python_below_3_11"), (False, "python_below_3_11")]
+    assert [row[1:3] for row in rows()] == [(True, "available"), (False, "python_below_3_11"), (False, "python_below_3_11"), (True, "available")]
 
 
 def test_a_choice_that_cannot_be_read_is_said_as_unknown_and_keeps_the_pending_list(wallet_env, monkeypatch):

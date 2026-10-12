@@ -305,6 +305,12 @@
       "context": "Shown when the failure classified as 'wallet_x402_cap_exceeded' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
+      "key": "fault.wallet_x402_sdk_unavailable.message",
+      "english": "This build cannot pay x402 offers on Base through the x402 Foundation SDK: the optional x402 extra is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_x402_sdk_unavailable' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
       "key": "fault.x402_scheme_unavailable.message",
       "english": "This payment offer needs a scheme this wallet cannot prove end to end, so nothing was signed. Try an offer whose scheme, token and facilitator are verified for this network.",
       "parameters": [],
