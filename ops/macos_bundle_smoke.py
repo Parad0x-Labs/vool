@@ -212,6 +212,23 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
         run.record(f"bundled ollama pulled {model}", pulled.returncode == 0, f"exit {pulled.returncode}")
         registered = request(origin, "/api/models/local/register", {"model_name": model}, timeout=120)
         (scratch / "model-register.json").write_text(json.dumps(registered, indent=2) + "\n")
+        # A registered local model may not write final answers until it passes the sealed tool
+        # probe; Settings > Local models runs it with this request and this 150 s budget.
+        start = time.monotonic()
+        certified = request(
+            origin,
+            "/api/model-tool-certification/run",
+            {"provider_name": "ollama-local", "model_name": model, "timeout_seconds": 150},
+            timeout=400,
+        )
+        seconds = round(time.monotonic() - start, 1)
+        (scratch / "model-certification.json").write_text(json.dumps(certified, indent=2) + "\n")
+        stages = {name: (stage or {}).get("state") for name, stage in (certified.get("stages") or {}).items()}
+        run.record(
+            f"{model} certified as an author ({seconds}s)",
+            certified.get("state") == "verified",
+            {"state": certified.get("state"), "stages": stages},
+        )
 
         plain = run.chat(origin, "plain", "Calculate 23 * 19", model, chat_timeout)
         run.record("plain reply", "437" in plain, plain[:300])
