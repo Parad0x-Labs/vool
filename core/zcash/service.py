@@ -14,6 +14,7 @@ import contextlib
 import csv
 import hashlib
 import io
+import re
 from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
@@ -192,7 +193,16 @@ class ZcashLane:
         next refresh that has one. The fact key is stable, so a repeat overwrites rather than duplicates."""
         if not _session_id(source_context):
             return
+        from core.secret_redaction import register_public_identifier
+
         for receipt in self.store.unremembered(network=self.devtool.network):
+            # This paid outbox owns the confirmed transaction identifiers. Re-vouch
+            # them on readback: zero-free hex also has the shape of a base58 secret,
+            # and the public-identifier registry does not survive a process restart.
+            # Payer/label text is never vouched; exact-secret refusals still win.
+            for txid in receipt.get("txids") or ():
+                if isinstance(txid, str) and re.fullmatch(r"[0-9a-f]{64}", txid):
+                    register_public_identifier(txid)
             if remember_payment(receipt, source_context=source_context):
                 self.store.mark_remembered(receipt["invoice_id"])
 
