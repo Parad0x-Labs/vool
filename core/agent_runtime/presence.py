@@ -7,6 +7,7 @@ from typing import Any
 
 from core import policy_engine
 
+
 def sync_public_presence(
     agent: Any,
     *,
