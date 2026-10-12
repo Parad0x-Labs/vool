@@ -155,3 +155,11 @@ def test_asking_about_a_file_kind_still_orders_nothing(text):
     from core.tool_demand_signals import asks_for_a_file
 
     assert not asks_for_a_file(text)
+
+@pytest.mark.parametrize("text,expected", [
+    ("Give me an HTML page and CSS file as a ZIP archive", ("zip",)),
+    ("Give me an HTML page as a tar.gz archive", ("tar.gz",)),
+    ("Give me a PDF report and separately a ZIP archive", ("pdf", "zip")),
+])
+def test_outer_archive_is_not_a_choice_of_loose_member_formats(text, expected):
+    assert requested_formats(text) == expected

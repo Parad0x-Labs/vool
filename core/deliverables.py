@@ -1165,6 +1165,14 @@ def requested_formats(text: str) -> tuple[str, ...]:
     )
     if bundle_order and "zip" in formats:
         return ("zip",)
+    outer_archive = re.search(
+        r"\b(?:as|in|inside|into)\s+(?:(?:a|an|one|single|the)\s+)?\.?(zip|tar\.gz|tarball)\b",
+        raw, re.I,
+    )
+    if outer_archive:
+        archive_format = "zip" if outer_archive.group(1).lower() == "zip" else "tar.gz"
+        if archive_format in formats:
+            return (archive_format,)
     return formats
 
 
