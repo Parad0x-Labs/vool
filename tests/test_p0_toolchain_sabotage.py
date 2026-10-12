@@ -27,6 +27,8 @@ def world(tmp_path, monkeypatch):
     from core.runtime_flags import override
 
     monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "home" / "plugin_lifecycle.json"))
+    monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
     plugin_dir = make_plugin(tmp_path, skills={"widget-report": widget_skill()})
     monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path))
     write_mcp_config(tmp_path, monkeypatch, trust=read_only_pin("echo"))

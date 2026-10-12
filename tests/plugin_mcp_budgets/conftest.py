@@ -20,6 +20,7 @@ def _clean_toolchain_world(tmp_path, monkeypatch):
     empty_native = tmp_path / "no-native-skills"
     empty_native.mkdir()
     monkeypatch.setenv("VOOL_NATIVE_SKILLS_DIR", str(empty_native))
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin_lifecycle.json"))
     monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
     yield
     reset_mode_permission_state()

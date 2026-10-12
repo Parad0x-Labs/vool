@@ -52,6 +52,7 @@ def isolated_db_world(tmp_path, monkeypatch):
     home.mkdir(exist_ok=True)
     monkeypatch.delenv("VOOL_MCP_CONFIG", raising=False)
     monkeypatch.setenv("VOOL_HOME", str(home))
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(home / "data" / "plugin_lifecycle.json"))
     monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path))
     monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
     monkeypatch.delenv("VOOL_PLUGIN_CONFINEMENT", raising=False)

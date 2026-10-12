@@ -33,10 +33,12 @@ def _intents(specs) -> set[str]:
 
 
 @pytest.fixture(autouse=True)
-def _clean_world(monkeypatch):
+def _clean_world(tmp_path, monkeypatch):
     from core.runtime_flags import override
 
     monkeypatch.delenv("VOOL_MCP_CONFIG", raising=False)
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin_lifecycle.json"))
+    monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
     monkeypatch.setenv("VOOL_PLUGINS_DIR", "/nonexistent/toolchain-authority")
     reset_toolchain_state()
     with override("plugin_runtime_tools", True):

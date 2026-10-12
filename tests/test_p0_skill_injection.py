@@ -24,6 +24,12 @@ from tests._toolchain_fixtures import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolated_plugin_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin_lifecycle.json"))
+    monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
+
+
 @pytest.fixture()
 def skill_world(tmp_path, monkeypatch):
     from core.runtime_flags import override
