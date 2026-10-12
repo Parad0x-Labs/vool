@@ -5,6 +5,7 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
+from core import policy_engine
 
 def sync_public_presence(
     agent: Any,
@@ -101,6 +102,8 @@ def _run_public_presence_sync_now(
     get_agent_display_name_fn: Callable[[], str],
     audit_log_fn: Callable[..., Any],
 ) -> None:
+    if not policy_engine.automatic_outbound_enabled():
+        return
     # The presence handshake is the owning entry point of its own fetches: without a named
     # background scope the effect gateway denies them as outside any turn (R2b1) before the
     # pytest live-network fence ever sees them, so the sync could not even be blocked BY the
@@ -248,6 +251,8 @@ def maybe_run_idle_commons_once(
     time_fn: Callable[[], float],
     audit_log_fn: Callable[..., Any],
 ) -> None:
+    if not policy_engine.automatic_outbound_enabled():
+        return
     prefs = load_preferences_fn()
     if not bool(getattr(prefs, "social_commons", True)):
         return
@@ -365,6 +370,8 @@ def maybe_execute_queued_curiosity_once(
     when a gate held. Chat never waits on this: it runs on the idle thread and the user's
     activity is the cancellation signal.
     """
+    if not policy_engine.automatic_outbound_enabled():
+        return None
     try:
         if not bool(getattr(agent.curiosity.config, "enabled", True)):
             return None
@@ -511,6 +518,8 @@ def maybe_run_autonomous_hive_research_once(
     research_topic_fn: Callable[..., Any],
     audit_log_fn: Callable[..., Any],
 ) -> None:
+    if not policy_engine.automatic_outbound_enabled():
+        return
     prefs = load_preferences_fn()
     if not bool(getattr(prefs, "accept_hive_tasks", True)):
         return

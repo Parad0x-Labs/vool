@@ -457,6 +457,10 @@ def local_only_mode() -> bool:
 def allow_web_fallback() -> bool:
     return bool(get("system.allow_web_fallback", False))
 
+def automatic_outbound_enabled() -> bool:
+    """Whether background work may contact remote peers or services."""
+    return get("network.outbound_enabled", False) is True and not local_only_mode()
+
 def null_dial_enabled() -> bool:
     return bool(get("system.allow_null_dial", False))
 

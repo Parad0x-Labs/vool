@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+from unittest.mock import Mock
 
 import pytest
 import yaml
@@ -81,3 +82,56 @@ def test_changing_the_runtime_home_cannot_inherit_the_previous_profiles_consent(
     runtime_paths.configure_runtime_home(isolated_policy_home)
     assert policy_engine.allow_web_fallback() is True
     assert policy_engine.get("network.outbound_enabled") is True
+
+
+@pytest.mark.parametrize("mode,free", [("off", True), ("ask", False), ("auto", False)])
+def test_saved_cloud_opt_in_does_not_enable_background_peers(isolated_policy_home, mode, free):
+    from core.cloud_escalation_policy import CloudEscalationPolicy, save_policy
+    from core.cloud_transport import PolicyBoundCloudTransport
+
+    save_policy(CloudEscalationPolicy(mode=mode, free_cloud_enabled=free))
+    transport = PolicyBoundCloudTransport(allowed_hosts=("provider.invalid",))
+    assert transport._network_allowed() is True
+    assert policy_engine.automatic_outbound_enabled() is False
+    policy_engine.set_operator_policy_values({"system.local_only_mode": True})
+    assert transport._network_allowed() is False
+
+
+@pytest.mark.parametrize("web,outbound,local_only", [(False, False, False), (True, False, False), (True, True, True)])
+def test_background_owners_refuse_before_work_or_network(isolated_policy_home, web, outbound, local_only):
+    from core.agent_runtime import presence
+
+    policy_engine.set_operator_policy_values({
+        "system.allow_web_fallback": web,
+        "network.outbound_enabled": outbound,
+        "system.local_only_mode": local_only,
+    })
+    agent = Mock()
+    prefs = Mock(side_effect=AssertionError("preferences must not be consulted before consent"))
+    clock = Mock(side_effect=AssertionError("work must not start before consent"))
+    audit = Mock()
+    presence._run_public_presence_sync_now(
+        agent, status="idle", source_context={},
+        get_agent_display_name_fn=Mock(), audit_log_fn=audit,
+    )
+    presence.maybe_run_idle_commons_once(agent, load_preferences_fn=prefs, time_fn=clock, audit_log_fn=audit)
+    assert presence.maybe_execute_queued_curiosity_once(
+        agent, load_preferences_fn=prefs, time_fn=clock, audit_log_fn=audit,
+    ) is None
+    presence.maybe_run_autonomous_hive_research_once(
+        agent, load_preferences_fn=prefs, time_fn=clock,
+        pick_signal_fn=Mock(), research_topic_fn=Mock(), audit_log_fn=audit,
+    )
+    assert agent.mock_calls == []
+    prefs.assert_not_called()
+    clock.assert_not_called()
+    audit.assert_not_called()
+
+
+@pytest.mark.parametrize("value", ["false", "true", "0", 1, 0, None, [], {}])
+def test_malformed_automatic_outbound_consent_fails_closed(isolated_policy_home, value):
+    path = isolated_policy_home / "config" / "default_policy.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text(yaml.safe_dump({"network": {"outbound_enabled": value}}))
+    policy_engine.load(force_reload=True)
+    assert policy_engine.automatic_outbound_enabled() is False
