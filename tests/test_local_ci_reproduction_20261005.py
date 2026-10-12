@@ -117,6 +117,10 @@ def make_synthetic_repo(tmp_path: Path, files: dict[str, str], *,
         target = repo / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
+    # Ignore bytecode exactly as the real repo's .gitignore does: the runner's own collection
+    # imports the fixture tests, and on a host with no global ignore their __pycache__ would
+    # otherwise read as a dirty tree and refuse every pinned run.
+    (repo / ".gitignore").write_text("__pycache__/\n*.pyc\n", encoding="utf-8")
     _git(repo, "init", "-q")
     _git(repo, "config", "user.name", "sls_0x")
     _git(repo, "config", "user.email", "sls_0x@users.noreply.github.com")
