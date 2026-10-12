@@ -5,8 +5,7 @@ from threading import Barrier
 import pytest
 from starlette.testclient import TestClient
 
-from core.registry.codec import RegistryError
-from core.registry.codec import canonical
+from core.registry.codec import RegistryError, canonical
 from core.registry.trust import TrustedCatalog
 from registry_service.api import PREFIX, create_app
 from registry_service.auth import Auth, Provider

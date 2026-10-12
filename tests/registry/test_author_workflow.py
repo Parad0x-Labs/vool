@@ -1,7 +1,7 @@
 """Exercise the documented complete example and exclusive SDK output behavior."""
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 from starlette.testclient import TestClient
 

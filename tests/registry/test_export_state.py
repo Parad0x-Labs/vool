@@ -69,6 +69,6 @@ def test_export_rechecks_state_after_real_concurrent_mutation(tmp_path, change):
     store.pause_once = True
     with ThreadPoolExecutor(max_workers=1) as worker:
         mutation = worker.submit(mutate)
-        with pytest.raises(RegistryError, match="changed|export"):
+        with pytest.raises(RegistryError, match=r"changed|export"):
             store.export_submission(submission["id"], policy, root["signed"], now=NOW)
         mutation.result(timeout=5)
