@@ -187,7 +187,10 @@ def test_full_relation_forget_does_not_claim_a_different_relation_or_entity():
     assert _recall("What is the meaning of Maya's birthday in astrology?") is None
 
 
-@pytest.mark.parametrize("sibling", ["Also explain photosynthesis.", "Also convert 100 EUR to USD at 1.10."])
+@pytest.mark.parametrize("sibling", [
+    "Also explain photosynthesis.", "Also convert 100 EUR to USD at 1.10.",
+    "Also what is my answer style?", "Also what is my brother's name?",
+])
 def test_api_erased_memory_claim_preserves_every_sibling_demand(sibling):
     """Pin the real API handoff; stopping at the agent is instrumentation, not a model reply."""
     from core.agent_runtime.answer_coverage import FAMILY_MEMORY_RECALL, demand_units, turn_slices
@@ -227,6 +230,57 @@ def test_api_erased_memory_claim_preserves_every_sibling_demand(sibling):
     observation = next(item for item in observations if item["intent"] == f"turn.slice_answer.{FAMILY_MEMORY_RECALL}")
     assert observation["slice_text"] == question
     assert "no record" in observation["response_preview"].lower()
+
+
+@pytest.mark.parametrize(("fact", "subject", "question", "name"), [
+    ("Maya's birthday is March 14.", "Maya's birthday", "When is Maya's birthday?", "Nia"),
+    ("The sailboat locker code is QRS-6725.", "the sailboat locker code", "What is the sailboat locker code?", "Tomas"),
+])
+def test_erased_memory_and_intact_name_are_answered_by_their_own_authorities(fact, subject, question, name):
+    from tests.operator_profile_rig import set_owner_preferred_name
+
+    set_owner_preferred_name(name)
+    _remember_and_forget(fact, subject)
+    message = f"{question} What is my name?"
+    answer = _recall(message)
+    assert answer is not None
+    assert "no record" in answer["response"].lower()
+    assert name in answer["response"]
+    assert answer["_memory_recall_clauses"] == (question, "What is my name?")
+
+
+def test_api_erased_and_intact_answers_leave_generic_sibling_unanswered():
+    from core.agent_runtime.answer_coverage import demand_units, turn_slices
+    from core.web.api.runtime import run_agent
+    from tests.operator_profile_rig import set_owner_preferred_name
+
+    set_owner_preferred_name("Leena")
+    _remember_and_forget("The harbor access code is ZX-8291.", "the harbor access code")
+    message = "What is the harbor access code? What is my name? Also explain why tides rise."
+    captured = []
+
+    class AgentBoundaryReached(RuntimeError):
+        pass
+
+    class RecordAgentBoundary:
+        def run_once(self, user_text, *, session_id_override, source_context):
+            captured.append(source_context)
+            raise AgentBoundaryReached
+
+    with pytest.raises(AgentBoundaryReached):
+        run_agent(
+            RuntimeServices(agent=RecordAgentBoundary(), runtime_home=str(active_vool_home())),
+            message, session_id="erased-chat", source_context=_context(),
+            workspace_root_provider=lambda: str(active_vool_home() / "workspace"),
+        )
+    assert len(captured) == 1
+    answer = captured[0]["turn_answer_coverage"]["answers"][0]
+    owned_slices = [item.slice_id for item in turn_slices(message)][:2]
+    assert answer["consumed"] == owned_slices
+    assert answer["consumed_units"] == [unit.unit_id for unit in demand_units(message) if unit.slice_id in owned_slices]
+    assert len(answer["consumed_units"]) == 2
+    assert "no record" in answer["response"].lower()
+    assert "Leena" in answer["response"]
 
 
 def test_fresh_boot_auth_refuses_discovery_before_any_ssh_or_key_lookup(monkeypatch):

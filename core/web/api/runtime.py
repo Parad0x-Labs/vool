@@ -1837,10 +1837,10 @@ def _run_agent_locked(
             )
         memory_recall = _memory_recall_response(runtime, user_text=user_text, source_context=base_context)
         if memory_recall is not None:
-            # Completed erasure supplies scoped recall provenance that a
-            # stateless profile-field detector cannot infer. Keep that claim
-            # local to this turn; never expose revocation tokens in the result.
-            revoked_recall_clauses = tuple(memory_recall.pop("_revoked_recall_clauses", ()))
+            # Coverage belongs to the clauses this authority actually answered.
+            # A family detector cannot turn one erased-fact answer into an
+            # answer to another intact or unavailable private field.
+            answered_recall_clauses = tuple(memory_recall.pop("_memory_recall_clauses", ()))
             # Same answer-coverage contract as the identity lane above: a recall question alone is
             # this lane's whole turn; beside another family's clause it is one slice of the turn,
             # and returning here would end the turn with the sibling never asked. This was the one
@@ -1851,9 +1851,7 @@ def _run_agent_locked(
             memory_coverage = coverage_for(
                 user_text,
                 FAMILY_MEMORY_RECALL,
-                probe=lambda clause: _looks_like_private_memory_recall(
-                    clause, recent_user_texts=()
-                ) or clause in revoked_recall_clauses,
+                probe=lambda clause: clause in answered_recall_clauses,
             )
             requested_units = demand_units(user_text)
             consumed_units = tuple(
@@ -2229,6 +2227,40 @@ def _memory_recall_response(
     ).strip()
     if not chat_id:
         return None
+    from core.agent_runtime.answer_coverage import demand_units, turn_slices
+
+    requested_units = demand_units(user_text)
+    slices = turn_slices(user_text)
+    if len(requested_units) > 1:
+        # The same family can own several DIFFERENT facts. Resolve each
+        # complete demand against its own local authority before composing;
+        # unresolved siblings remain work for the agent. Ambiguous multi-ask
+        # slices abstain instead of claiming all their requested slots.
+        answers: list[tuple[str, dict[str, Any]]] = []
+        for item in slices:
+            if sum(unit.slice_id == item.slice_id for unit in requested_units) != 1:
+                continue
+            if item.text == user_text:
+                continue
+            answer = _memory_recall_response(runtime, user_text=item.text, source_context=context)
+            if answer is not None and item.text in answer.get("_memory_recall_clauses", ()):
+                answers.append((item.text, answer))
+        if not answers:
+            return None
+        responses = tuple(dict.fromkeys(str(answer["response"]) for _, answer in answers))
+        return {
+            "response": "\n\n".join(responses),
+            "confidence": min(float(answer.get("confidence", 0.95)) for _, answer in answers),
+            "source": "local_private_memory",
+            "route_reason": "scoped_private_memory_recall",
+            "model_calls": 0,
+            "web_calls": 0,
+            "_memory_recall_clauses": tuple(clause for clause, _ in answers),
+        }
+    answered_clauses = tuple(
+        item.text for item in slices
+        if any(unit.slice_id == item.slice_id for unit in requested_units)
+    )
     # A follow-up whose subject is a bare pronoun ("i saved it already in settigns?!?! u dont
     # see?!") only resolves against what the user asked a moment ago, so the prior turns are
     # fetched before classifying rather than after -- but only for the messages that need them,
@@ -2289,7 +2321,7 @@ def _memory_recall_response(
                             "route_reason": "completed_scoped_erasure",
                             "model_calls": 0,
                             "web_calls": 0,
-                            "_revoked_recall_clauses": revoked_clauses,
+                            "_memory_recall_clauses": revoked_clauses,
                         }
             if not private_recall:
                 return None
@@ -2330,6 +2362,7 @@ def _memory_recall_response(
             "identity_name": name,
             "identity_provenance": provenance,
             "identity_intent": identity.reason,
+            "_memory_recall_clauses": answered_clauses,
         }
     if not any(values.values()):
         return None
@@ -2340,6 +2373,7 @@ def _memory_recall_response(
         "response": response,
         "confidence": 0.95,
         "source": "local_private_memory",
+        "_memory_recall_clauses": answered_clauses,
     }
 
 
