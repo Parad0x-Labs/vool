@@ -5261,44 +5261,20 @@ class MemoryFirstRouter:
         # model, so an auto fallback gets no reservation no matter what the policy says — and no
         # reservation means resolved_allow_paid stays False and every paid manifest is excluded.
         pin_reservation_denial: dict[str, str] = {}
+        # A tool-selection round is the picked model choosing a tool, not the answer: it reserves
+        # under its own role so receipts, the call ledger and authorship never read it as the
+        # served answer.
+        paid_call_role = (
+            "tool_intent" if str(task_kind or "").strip().lower() == "tool_intent" else "answer_generation"
+        )
         authorized_paid_call = reserve_owner_pick_paid_call(
             manifest=requested_manifest if requested_paid_cloud else None,
             task=task,
             source_context=source_context,
             task_kind=task_kind,
-            call_role="answer_generation",
+            call_role=paid_call_role,
             denial=pin_reservation_denial,
         )
-        # AN INTERNAL ROUTING CALL IS NOT THE OWNER'S PICK EXECUTING (the reservation's own
-        # law: "The pick authorizes the answering lane, not the turn's internal
-        # classification calls"). Before this, a tool_intent step under an explicit paid pin
-        # took that by-design refusal into `_selected_model_blocked_decision` and the ledger
-        # narrated "Selected model 'X' could not run (internal_tool_intent_call)" -- a
-        # provider failure that never happened, over a model that answers the turn fine.
-        # For THIS internal call the pin simply does not apply: selection falls to the
-        # runtime's ordinary lane, the pin keeps answering the turn, and no substitution of
-        # the owner's pick occurred anywhere.
-        if (
-            authorized_paid_call is None
-            and requested_paid_cloud
-            and str(pin_reservation_denial.get("reason") or "") == "internal_tool_intent_call"
-            and str(task_kind or "").strip().lower() == "tool_intent"
-        ):
-            _emit_model_routing_event(
-                source_context,
-                "model_routing_started",
-                "Internal tool-selection step: routed on the runtime lane; the owner's model pick answers the turn.",
-                task_kind=task_kind,
-                output_mode=output_mode,
-                provider_role=provider_role,
-                lane="internal_routing",
-                lane_type="internal_routing",
-                phase="routing",
-                requested_model=str(requested_model_raw or ""),
-            )
-            requested_manifest = None
-            requested_paid_cloud = False
-            explicit_pin_selected = False
         # The free-cloud boost is the fallback for when no ranked candidate served, and it selects
         # a model of its own. The reservation authorizes the ONE model the owner picked, so it is
         # deliberately withheld here: the boost keeps routing free-only, exactly as before.
@@ -5314,7 +5290,7 @@ class MemoryFirstRouter:
                 "authorized_paid_call": authorized_paid_call,
                 # Server-authored only after a real reservation exists. This role joins the
                 # model.call_* pair to the reservation and terminal spend receipts.
-                "model_call_role": "answer_generation",
+                "model_call_role": paid_call_role,
             }
         # A9 P0 — mint the turn's ONE routing plan BEFORE ranking (and therefore before any
         # provider spend). One typed TurnRoutingPlan carries the requested/selected identity,
