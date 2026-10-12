@@ -1328,7 +1328,7 @@ def _create_or_edit(
                     "I couldn't work out a name or purpose for that skill. Tell me what it should do.",
                     reason="skill_needs_name",
                 )
-            draft, author = words, f"from your own words ({author})"
+            draft, author = words, f"from your own words: {author}"
         with _STATE_LOCK:
             _DRAFTS[digest_key] = {"draft": dict(draft), "author": author, "at": time.monotonic()}
 
@@ -1352,7 +1352,7 @@ def _create_or_edit(
     if status == "pending_approval":
         # The write waits for the operator; show them what they are approving.
         return plain(
-            f"I drafted the skill `{draft['name']}` for {_scope_label(scope)} (written by {author}).\n\n"
+            f"I drafted the skill `{draft['name']}` for {_scope_label(scope)} ({_written_by(author)}).\n\n"
             f"{_preview(draft)}\n\nApprove saving the draft and I'll keep it; it still won't be on "
             "until you say **turn it on**.",
             reason=f"skill_{action}",
@@ -1370,11 +1370,16 @@ def _create_or_edit(
         replaces = f" It will replace the active `{draft['name']}` for {_scope_label(scope)}; that version is kept in its history."
     verb = "Revised" if action == "edit" else "Drafted"
     body = (
-        f"{verb} the skill `{draft['name']}` for {_scope_label(scope)} (written by {author}).\n\n"
+        f"{verb} the skill `{draft['name']}` for {_scope_label(scope)} ({_written_by(author)}).\n\n"
         f"{_preview(draft)}\n\n"
         f"It is not on yet.{replaces} Say **turn it on** to start using it, or tell me what to change."
     )
     return plain(body, reason=f"skill_{action}", execution=result)
+
+
+def _written_by(author: str) -> str:
+    """Who wrote the draft: "written by <model>", or "written from your own words: <why>"."""
+    return f"written {author}" if author.startswith("from ") else f"written by {author}"
 
 
 def _active_exists(slug: str, scope: str, keys: dict[str, str] | None) -> bool:

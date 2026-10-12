@@ -471,7 +471,8 @@ def test_without_a_model_the_draft_is_the_operators_own_words_and_says_so() -> N
         source_context={"session_id": chat, "operating_mode": "manual", "internal_authority_token": token},
     )
     assert reply["reason"] == "skill_create", reply
-    assert "from your own words" in reply["response"]
+    assert "(written from your own words: " in reply["response"]
+    assert "written by from" not in reply["response"]  # the fallback author reads as a sentence
     staged = list(skill_tools._scoped_dirs("chat", scope_keys({"session_id": chat}))[0].glob("*/SKILL.md"))
     assert len(staged) == 1 and "turns pasted meeting notes into action items" in staged[0].read_text()
 
