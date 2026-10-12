@@ -502,7 +502,7 @@ _PENDING: dict[str, dict[str, Any]] = {}
 
 
 def _request_digest(text: str, scope: str) -> str:
-    return hashlib.sha256(f"{scope}\n{' '.join(str(text or '').split())}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{scope}\n{' '.join(str(text or '').split())}".encode()).hexdigest()
 
 
 def _remember_pending(chat: str, entry: dict[str, Any]) -> None:

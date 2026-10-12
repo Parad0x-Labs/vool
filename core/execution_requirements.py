@@ -791,17 +791,16 @@ def _compute_requirements(
     # The software-authoring register (see `answer_mode_for`): the request asks the runtime to
     # BUILD something, and no explicit evidence contract was stated. The live-data recognizers and
     # the freshness signals below would otherwise read the artifact's specification as a lookup.
-    from core.agent_runtime.grounded_mode import (
-        explicitly_promises_evidence,
-        is_software_authoring_request,
-        software_authoring_remainder,
-    )
-
     # A SKILL-authoring request ("create a skill for this project that writes release notes from a
     # list of merged changes ...") is authoring too: its clauses describe the skill, not a lookup.
     # Measured live 2026-10-05: read as current-information, its model-drafted skill was withheld
     # by the publication gate as unsupported by retrieval that never applied.
     from core.agent_runtime.fast_paths_skill import is_skill_authoring_request
+    from core.agent_runtime.grounded_mode import (
+        explicitly_promises_evidence,
+        is_software_authoring_request,
+        software_authoring_remainder,
+    )
 
     skill_authoring = is_skill_authoring_request(candidate_text)
     authoring_request = (

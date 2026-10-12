@@ -828,8 +828,8 @@ def install_plugin(name: str, *, expected_sha256: str = "", overwrite: bool = Fa
 
 __all__ = [
     "PLUGIN_FORMAT",
-    "PackageRefused",
     "SKILL_FORMAT",
+    "PackageRefused",
     "create_plugin",
     "export_plugin",
     "export_skill",

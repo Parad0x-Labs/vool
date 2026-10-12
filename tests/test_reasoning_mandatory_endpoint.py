@@ -185,7 +185,7 @@ def test_any_other_400_still_fails_closed_with_one_request(server) -> None:
 
     assert "max_tokens is too large" in str(caught.value)
     assert len(_Handler.seen) == 1
-    assert adapter_module._REASONING_MANDATORY_LEARNED == set()
+    assert set() == adapter_module._REASONING_MANDATORY_LEARNED
 
 
 # ── re-audit: only the endpoint's own refusal teaches, and only that endpoint ──
@@ -209,7 +209,7 @@ def test_a_400_that_only_mentions_mandatory_reasoning_is_that_other_error(server
 
     assert message[:20] in str(caught.value)
     assert len(_Handler.seen) == 1
-    assert adapter_module._REASONING_MANDATORY_LEARNED == set()
+    assert set() == adapter_module._REASONING_MANDATORY_LEARNED
 
 
 def test_a_refusal_learned_at_one_endpoint_does_not_change_another(server, monkeypatch) -> None:

@@ -24,7 +24,7 @@ from tests.test_prompt_assembly_profiles import _build_request
 def _clock_at(monkeypatch: pytest.MonkeyPatch, hour: int, minute: int) -> None:
     class _Clock(real_datetime):
         @classmethod
-        def now(cls, tz=None):  # noqa: ANN001 - mirrors datetime.now
+        def now(cls, tz=None):
             return real_datetime(2026, 10, 5, hour, minute, tzinfo=tz)
 
     monkeypatch.setattr(prompt_normalizer, "datetime", _Clock)
