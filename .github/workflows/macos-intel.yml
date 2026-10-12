@@ -37,6 +37,10 @@ env:
   OLLAMA_VERSION: 'v0.40.3'
   OLLAMA_TGZ_SHA256: 'a2d1d906a2c8febd9cb18f5c183854d0a6db5dc522940d68b0c0ed048e8dfdea'
   MACOSX_DEPLOYMENT_TARGET: '14.0'
+  # The bundle embeds python-build-standalone. Some runner images also carry a system or
+  # tool-cache CPython 3.11 (universal2, not relocatable), which `uv python find --system` can
+  # return first; managed-only keeps every interpreter here the standalone distribution.
+  UV_PYTHON_PREFERENCE: only-managed
 
 jobs:
   build:
