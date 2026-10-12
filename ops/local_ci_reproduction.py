@@ -22,7 +22,10 @@ step faithfully and records enough identity to pin every reproduction:
     never inferred from the child's exit code alone. It requires the watchdog
     result, the timing manifest and the JUnit file to be present, parseable,
     complete and in agreement with the child's exit (exitstatus, failed node
-    set, error count). Missing or malformed evidence is ``harvest-failed``,
+    set, error count), and the JUnit must account for every node the timing
+    manifest saw start, file by file, with the same outcomes and from the same
+    session (case coverage, carried in RESULT ``coverage`` so compare can check
+    it). Missing or malformed evidence is ``harvest-failed``,
     disagreeing evidence is ``harvest-inconsistent`` (both exit 92), missing
     totals are null (unknown), never zero. Every pytest exit has an explicit
     mapping; the runner exits 0 only for a complete clean run.
@@ -62,6 +65,7 @@ import sys
 import time
 import traceback
 import xml.etree.ElementTree as ElementTree
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -660,15 +664,29 @@ def parse_junit(path: Path, selection_files: list[str],
                                   if known.endswith(f"::{name}")]
                 if len(suffix_matches) == 1:
                     nodeid = suffix_matches[0]
-        entry = nodes.setdefault(nodeid, {"failure": 0, "error": 0, "skipped": 0,
-                                          "first_error": "", "first_error_lines": 0})
+        entry = nodes.setdefault(nodeid, {"failure": 0, "error": 0, "skipped": 0, "xfail": 0,
+                                          "setup_error": 0, "unclassified_error": 0,
+                                          "testcases": 0, "first_error": "",
+                                          "first_error_lines": 0})
+        entry["testcases"] += 1
         for child in marks:
             entry[child.tag] += 1
             counts[child.tag] += 1
+            message = child.get("message") or ""
+            if child.tag == "skipped" and child.get("type") == "pytest.xfail":
+                entry["xfail"] += 1
+            if child.tag == "error":
+                if message.startswith("failed on setup"):
+                    entry["setup_error"] += 1
+                elif not message.startswith("failed on teardown"):
+                    entry["unclassified_error"] += 1
             if child.tag in ("failure", "error") and not entry["first_error_lines"]:
                 entry["first_error"], entry["first_error_lines"] = _first_error_excerpt(child)
+    suite_timestamps = [suite.get("timestamp") for suite in root.iter("testsuite")]
     return {
         "nodes": nodes,
+        "files": junit_file_counts(nodes),
+        "suite_timestamps": suite_timestamps,
         "failure_nodes": {node for node, entry in nodes.items() if entry["failure"]},
         "failure_elements": counts["failure"],
         "error_elements": counts["error"],
@@ -680,6 +698,137 @@ def parse_junit(path: Path, selection_files: list[str],
     }
 
 
+#: The per-file case counts both instruments must agree on. ``pass`` is a call
+#: that ran and passed (timing: passed + xpassed); the rest are per REPORT.
+COVERAGE_KEYS = ("nodes", "pass", "failure", "error", "skip", "xfail")
+
+#: A JUnit suite and the timing manifest both stamp the start of the SAME
+#: pytest session; further apart than this, the JUnit is from another session.
+SESSION_TIE_SECONDS = 300.0
+
+
+def junit_file_counts(nodes: dict[str, dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """JUnit evidence per test file, counted the way the timing manifest counts.
+
+    ``nodes`` is DISTINCT node ids (a test failing in call and in teardown is
+    two testcase rows but one node); ``failure``/``error``/``skip``/``xfail``
+    are per element (per report); ``pass`` counts nodes whose call ran and
+    passed -- no failure, no skip/xfail, no setup error (a teardown error after
+    a passing call still counts the pass, as pytest's report does)."""
+
+    files: dict[str, dict[str, int]] = {}
+    for nodeid, entry in nodes.items():
+        counts = files.setdefault(nodeid.split("::", 1)[0], dict.fromkeys(COVERAGE_KEYS, 0))
+        counts["nodes"] += 1
+        counts["failure"] += entry["failure"]
+        counts["error"] += entry["error"]
+        counts["xfail"] += entry["xfail"]
+        counts["skip"] += entry["skipped"] - entry["xfail"]
+        if not (entry["failure"] or entry["skipped"] or entry["setup_error"]
+                or entry["unclassified_error"]):
+            counts["pass"] += 1
+    return files
+
+
+def _timing_file_counts(entry: dict[str, Any]) -> dict[str, int]:
+    return {
+        "nodes": entry.get("started_nodes", 0),
+        "pass": entry.get("passed", 0) + entry.get("xpassed", 0),
+        "failure": entry.get("failed", 0),
+        "error": entry.get("errors", 0),
+        "skip": entry.get("skipped", 0),
+        "xfail": entry.get("xfailed", 0),
+    }
+
+
+def _parse_suite_epoch(stamp: str | None) -> float | None:
+    if not stamp:
+        return None
+    try:
+        moment = datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    return moment.timestamp() if moment.tzinfo is not None else None
+
+
+def reconcile_coverage(junit: dict[str, Any], timing: dict[str, Any],
+                       selection_files: list[str]) -> dict[str, Any]:
+    """Case COVERAGE: does the JUnit account for every node the timing manifest
+    saw start, file by file, with the same outcomes, from the same session, for
+    files of this selection only? Returns the evidence plus every reason it does
+    not reconcile; ``reconciled`` is true only when there is none.
+
+    Checked per file (never a blind total): distinct nodes == started nodes,
+    started == collected (no maxfail is in the CI argv, so a session that ends
+    normally runs every collected node), and pass/failure/error/skip/xfail
+    equal per report. The JUnit suite timestamp must lie within
+    SESSION_TIE_SECONDS of the timing session start."""
+
+    selection = set(selection_files)
+    timing_files = timing["files"]
+    junit_files = junit["files"]
+    mismatched: list[dict[str, Any]] = []
+    outside: list[str] = []
+    totals = {"junit": dict.fromkeys(COVERAGE_KEYS, 0), "timing": dict.fromkeys(COVERAGE_KEYS, 0)}
+    collected_total = 0
+    for name in sorted(set(timing_files) | set(junit_files)):
+        timing_entry = timing_files.get(name, {})
+        expected = _timing_file_counts(timing_entry)
+        observed = junit_files.get(name, dict.fromkeys(COVERAGE_KEYS, 0))
+        collected = timing_entry.get("collected_nodes", 0)
+        collected_total += collected
+        for key in COVERAGE_KEYS:
+            totals["timing"][key] += expected[key]
+            totals["junit"][key] += observed[key]
+        differences = {key: {"timing": expected[key], "junit": observed[key]}
+                       for key in COVERAGE_KEYS if expected[key] != observed[key]}
+        if collected != expected["nodes"]:
+            differences["collected_vs_started"] = {"collected": collected,
+                                                   "started": expected["nodes"]}
+        if differences:
+            mismatched.append({"file": name, "differences": differences})
+        if (expected["nodes"] or observed["nodes"]) and name not in selection:
+            outside.append(name)
+    reasons: list[str] = []
+    if mismatched:
+        reasons.append(f"junit case coverage does not reconcile with the timing manifest in "
+                       f"{len(mismatched)} file(s), e.g. {json.dumps(mismatched[0], sort_keys=True)}")
+    if outside:
+        reasons.append(f"evidence names test file(s) outside the selection: {outside[:5]}")
+    session = timing["session"]
+    if session.get("collected_total") != collected_total:
+        reasons.append(f"timing session collected_total {session.get('collected_total')!r} != "
+                       f"sum of per-file collected nodes {collected_total}")
+    timing_start = session.get("started_at_epoch")
+    suite_epochs = [_parse_suite_epoch(stamp) for stamp in junit["suite_timestamps"]]
+    tie_seconds: float | None = None
+    if not suite_epochs or any(epoch is None for epoch in suite_epochs):
+        reasons.append(f"junit suite timestamp missing or unreadable "
+                       f"({junit['suite_timestamps']!r}): cannot tie it to this session")
+    elif not isinstance(timing_start, (int, float)) or isinstance(timing_start, bool):
+        reasons.append("timing session has no started_at_epoch: cannot tie the junit to it")
+    else:
+        tie_seconds = round(max(abs(epoch - timing_start) for epoch in suite_epochs), 3)
+        if tie_seconds > SESSION_TIE_SECONDS:
+            reasons.append(f"junit suite started {tie_seconds}s away from the timing session "
+                           "start: not the same session")
+    return {
+        "reconciled": not reasons,
+        "reasons": reasons,
+        "collected": collected_total,
+        "junit": totals["junit"],
+        "timing": totals["timing"],
+        "files_compared": len(set(timing_files) | set(junit_files)),
+        "mismatched_files": mismatched[:20],
+        "mismatched_file_count": len(mismatched),
+        "files_outside_selection": outside[:20],
+        "session_tie_seconds": tie_seconds,
+        "rule": "per file: distinct junit nodes == timing started == collected; pass "
+                "(passed+xpassed), failure, error, skip, xfail equal per report; junit "
+                f"suite within {SESSION_TIE_SECONDS:g}s of the timing session start",
+    }
+
+
 def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
             selection_files: list[str]) -> dict[str, Any]:
     """Turn one run directory's evidence into a verdict, failing CLOSED.
@@ -687,8 +836,10 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
     ``completed-*`` (and every verdict that names a pytest outcome) requires
     all three evidence files present, parseable and complete, with the
     watchdog's and the timing manifest's exitstatus equal to the child's exit,
-    the junit failed-node set equal to the timing manifest's, and the junit
-    error count equal to the timing error total. Missing or malformed evidence
+    the junit failed-node set equal to the timing manifest's, the junit
+    error count equal to the timing error total, and -- for a session that
+    ended normally (exit 0, 1, 5) -- reconciled case coverage
+    (``reconcile_coverage``). Missing or malformed evidence
     is ``harvest-failed``; disagreement is ``harvest-inconsistent``. Stall and
     interruption facts keep their own (never green) verdicts. Totals the
     evidence cannot give are None, never 0."""
@@ -724,6 +875,7 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
                     and timing is not None and timing["complete"] is True)
 
     inconsistencies: list[str] = []
+    coverage: dict[str, Any] | None = None
     if watchdog is not None:
         watchdog_exit = watchdog["exitstatus"]
         if watchdog_exit < 0:
@@ -761,6 +913,13 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
             if junit["failure_elements"] != totals["failed"]:
                 inconsistencies.append(f"junit failure elements ({junit['failure_elements']}) "
                                        f"!= timing failed ({totals['failed']})")
+            coverage = reconcile_coverage(junit, timing, selection_files)
+            # A session that ended normally (0, 1, 5) must be FULLY accounted
+            # for. An exit-2 session stopped early by design (collection error
+            # or interruption): its coverage is recorded, and its verdict is
+            # never completed anyway.
+            if child_exit in (0, 1, 5) and not coverage["reconciled"]:
+                inconsistencies.extend(coverage["reasons"])
 
     if runner_interrupted:
         verdict = "interrupted-by-wall-budget"
@@ -842,6 +1001,7 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
             "timing_errors": totals["errors"] if totals else None,
         },
         "collection_errors": junit["collection_errors"] if junit else None,
+        "coverage": coverage,
         "evidence": evidence,
         "evidence_problems": problems,
         "inconsistencies": inconsistencies,
@@ -863,6 +1023,7 @@ def _harvest_crash(child_exit: int, exc: BaseException) -> dict[str, Any]:
         "failed_nodes": None,
         "fail_counts": {"failed_nodes_recorded": None},
         "collection_errors": None,
+        "coverage": None,
         "evidence": None,
         "evidence_problems": [f"harvest crashed: {type(exc).__name__}: {exc}"],
         "harvest_traceback": traceback.format_exception(exc)[-6:],
@@ -1051,6 +1212,43 @@ def receipt_problems(receipt: Any, role: str) -> list[str]:
             problems.append(f"{role}: completed-clean with recorded failures")
         if verdict == "completed-with-failures" and not failed:
             problems.append(f"{role}: completed-with-failures with no failed node")
+    problems.extend(_coverage_problems(receipt.get("coverage"), totals if totals_ok else None,
+                                       role))
+    return problems
+
+
+def _coverage_problems(coverage: Any, totals: dict[str, Any] | None, role: str) -> list[str]:
+    """A completed label is not trusted on its own: the receipt must carry
+    reconciled case coverage whose numbers agree with themselves and with the
+    receipt's outcome totals."""
+
+    if not isinstance(coverage, dict):
+        return [f"{role}: no case-coverage evidence (a receipt from before coverage was "
+                "recorded, or an aborted harvest); re-harvest its run directory with the "
+                "harvest subcommand"]
+    problems: list[str] = []
+    if coverage.get("reconciled") is not True or coverage.get("reasons"):
+        problems.append(f"{role}: case coverage not reconciled: {coverage.get('reasons')!r}")
+    junit, timing = coverage.get("junit"), coverage.get("timing")
+    shaped = all(isinstance(side, dict) and all(_is_int(side.get(key)) for key in COVERAGE_KEYS)
+                 for side in (junit, timing))
+    if not shaped:
+        problems.append(f"{role}: case-coverage counts missing or malformed")
+        return problems
+    if junit != timing:
+        problems.append(f"{role}: junit case coverage {junit} != timing {timing}")
+    if coverage.get("collected") != timing["nodes"]:
+        problems.append(f"{role}: {coverage.get('collected')!r} node(s) collected but "
+                        f"{timing['nodes']} started")
+    if coverage.get("mismatched_file_count") or coverage.get("files_outside_selection"):
+        problems.append(f"{role}: per-file coverage mismatches recorded")
+    if totals is not None:
+        expected = {"pass": totals.get("passed", 0) + totals.get("xpassed", 0),
+                    "failure": totals["failed"], "error": totals["errors"],
+                    "skip": totals["skipped"], "xfail": totals.get("xfailed", 0)}
+        if any(timing[key] != value for key, value in expected.items()):
+            problems.append(f"{role}: case coverage {timing} disagrees with outcome totals "
+                            f"{totals}")
     return problems
 
 

@@ -24,10 +24,13 @@ runs -- nothing mocked):
     and evidence that is missing or malformed (watchdog, timing, JUnit) or
     disagreeing never yield a completed verdict or exit 0 -- a receipt is
     always written, verdict harvest-failed/-inconsistent, exit 92, unknown
-    totals null; nested classes and setup/teardown errors still harvest as a
-    consistent completed run;
-  * compare refuses empty, wrong-schema, refused, interrupted, aborted and
-    unreadable receipts with a non-zero exit and no node diff;
+    totals null; valid but incomplete or unrelated JUnit (empty, a case
+    missing, a file outside the selection, another session) is never
+    completed evidence; nested classes, setup/teardown errors, skips, xfails
+    and xpasses reconcile per file and two such red runs compare cleanly;
+  * compare refuses empty, wrong-schema, refused, interrupted, aborted,
+    unreadable and coverage-less or coverage-inconsistent receipts with a
+    non-zero exit and no node diff;
   * the default canonical path executes; a failed or timed-out canonical
     collection is refused before execution, bounded by --collect-timeout or
     --wall-budget, with the collection's process group stopped;
@@ -436,9 +439,52 @@ def test_fails_then_teardown_errors(broken_teardown):
     assert False, "call failure"
 
 
+def test_passes_then_teardown_errors(broken_teardown):
+    assert True
+
+
 def test_passes():
     assert True
+
+
+@pytest.mark.skip(reason="marker skip")
+def test_marker_skip():
+    pass
+
+
+def test_call_skip():
+    pytest.skip("call skip")
+
+
+@pytest.mark.xfail(reason="expected failure")
+def test_xfail():
+    assert False
+
+
+@pytest.mark.xfail(run=False, reason="not run")
+def test_xfail_not_run():
+    pass
+
+
+def test_imperative_xfail():
+    pytest.xfail("imperative")
+
+
+@pytest.mark.xfail(reason="unexpected pass")
+def test_xpass():
+    assert True
+
+
+@pytest.mark.xfail(reason="strict", strict=True)
+def test_xpass_strict():
+    assert True
+
+
+@pytest.mark.parametrize("value", [1, 2])
+def test_param(value):
+    assert value
 '''
+TWO_PASSING_TESTS = "def test_one():\n    assert True\n\n\ndef test_two():\n    assert True\n"
 
 # FAULT INJECTION wrappers: each runs the real instrument (or, for the
 # watchdog, the real wrapped command) and then removes or corrupts exactly one
@@ -469,6 +515,26 @@ elif mode == "timing-malformed":
     timing.write_text("{{", encoding="utf-8")
 elif mode == "timing-missing":
     timing.unlink()
+elif mode in ("junit-empty", "junit-partial", "junit-foreign", "junit-other-session"):
+    import datetime
+    import xml.etree.ElementTree as ET
+    junit.with_name("junit-original.xml").write_bytes(junit.read_bytes())
+    tree = ET.parse(junit)
+    for suite in tree.getroot().iter("testsuite"):
+        cases = suite.findall("testcase")
+        if mode == "junit-empty":
+            for case in cases:
+                suite.remove(case)
+            suite.set("tests", "0")
+        elif mode == "junit-partial":
+            suite.remove(cases[-1])
+            suite.set("tests", str(len(cases) - 1))
+        elif mode == "junit-foreign":
+            cases[-1].set("classname", "tests.test_elsewhere")
+        else:
+            stamp = datetime.datetime.fromisoformat(suite.get("timestamp"))
+            suite.set("timestamp", (stamp - datetime.timedelta(days=1)).isoformat())
+    tree.write(junit, encoding="utf-8", xml_declaration=True)
 elif mode == "timing-drops-failure":
     payload = json.loads(timing.read_text(encoding="utf-8"))
     payload["failed_nodes"] = []
@@ -539,21 +605,84 @@ def test_missing_malformed_or_disagreeing_evidence_fails_closed(
         assert result["timing_summary"]["outcome_totals"] is None
 
 
-def test_nested_classes_and_setup_teardown_errors_harvest_consistently(tmp_path):
+def test_mixed_outcomes_reconcile_and_valid_red_runs_compare(tmp_path):
+    # Nested classes with a shared test name, setup and teardown errors (one
+    # after a failing call: two JUnit rows for one node), skips, xfails, xpass
+    # and strict xpass: a consistent completed run with full case coverage.
     repo = make_synthetic_repo(tmp_path, {"tests/test_mixed.py": MIXED_OUTCOMES_TEST})
     selection = write_selection(tmp_path, "sel.txt", ["tests/test_mixed.py"])
-    exit_code, result, _ = run_runner(tmp_path, repo, "mixed", selection)
+    exit_code, result, _ = run_runner(tmp_path, repo, "mixed-a", selection)
     assert result["inconsistencies"] == [] and result["evidence_problems"] == []
     assert result["verdict"] == "completed-with-failures" and exit_code == 1
-    assert sorted(result["failed_nodes"]) == [
-        "tests/test_mixed.py::TestOuter::TestInner::test_same",
-        "tests/test_mixed.py::TestOuter::test_same",
-        "tests/test_mixed.py::test_fails_then_teardown_errors",
-        "tests/test_mixed.py::test_setup_error",
-    ]
-    assert result["failed_nodes"]["tests/test_mixed.py::test_setup_error"]["outcome"] == "error"
+    prefix = "tests/test_mixed.py::"
+    assert sorted(result["failed_nodes"]) == sorted(prefix + name for name in (
+        "TestOuter::TestInner::test_same", "TestOuter::test_same", "test_setup_error",
+        "test_fails_then_teardown_errors", "test_passes_then_teardown_errors",
+        "test_xpass_strict"))
+    assert result["failed_nodes"][prefix + "test_setup_error"]["outcome"] == "error"
+    assert result["failed_nodes"][prefix + "test_passes_then_teardown_errors"]["outcome"] == "error"
     totals = result["timing_summary"]["outcome_totals"]
-    assert (totals["failed"], totals["errors"], totals["passed"]) == (3, 2, 1)
+    assert totals == {"passed": 4, "xpassed": 1, "failed": 4, "errors": 3, "skipped": 2,
+                      "xfailed": 3}
+    coverage = result["coverage"]
+    assert coverage["reconciled"] is True and coverage["reasons"] == []
+    assert coverage["junit"] == coverage["timing"] == {
+        "nodes": 15, "pass": 5, "failure": 4, "error": 3, "skip": 2, "xfail": 3}
+    assert coverage["collected"] == 15
+
+    _, second, _ = run_runner(tmp_path, repo, "mixed-b", selection)
+    assert second["verdict"] == "completed-with-failures"
+    artifacts = tmp_path / "artifacts"
+    compare_exit, comparison = run_compare(tmp_path, artifacts / "mixed-a" / "RESULT.json",
+                                           artifacts / "mixed-b" / "RESULT.json", "mixed")
+    assert compare_exit == 0 and comparison["comparable"] is True
+    assert comparison["problems"] == []
+    assert len(comparison["failed_in_both"]) == 6
+    assert comparison["failed_only_in_baseline"] == comparison["failed_only_in_candidate"] == []
+
+
+@pytest.mark.parametrize(("mode", "reason"), [
+    ("junit-empty", "does not reconcile"),
+    ("junit-partial", "does not reconcile"),
+    ("junit-foreign", "outside the selection"),
+    ("junit-other-session", "not the same session"),
+])
+def test_incomplete_or_unrelated_junit_is_never_completed_evidence(tmp_path, mode, reason):
+    # FAULT INJECTION: the real tests run and pass; the JUnit is then replaced
+    # by VALID XML that is empty, missing one passing case, naming a file
+    # outside the selection, or stamped by another session.
+    repo = make_synthetic_repo(tmp_path, {"tests/test_two.py": TWO_PASSING_TESTS},
+                               fault_injection={"ops/pytest_timing.py":
+                                                _TIMING_WRAPPER.format(mode=mode)})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_two.py"])
+    exit_code, result, _ = run_runner(tmp_path, repo, mode, selection)
+    assert result["exit_code"] == 0 and result["timing_summary"]["outcome_totals"]["passed"] == 2
+    assert result["verdict"] == "harvest-inconsistent"
+    assert exit_code == 92 and result["runner_exit"] == 92
+    assert result["evidence"]["junit"]["status"] == "ok"  # parseable -- and still not enough
+    assert result["coverage"]["reconciled"] is False
+    assert any(reason in item for item in result["inconsistencies"]), result["inconsistencies"]
+
+
+def test_intact_junit_completes_and_partial_receipt_is_not_comparable(tmp_path):
+    (tmp_path / "intact").mkdir()
+    (tmp_path / "partial").mkdir()
+    intact_repo = make_synthetic_repo(tmp_path / "intact", {"tests/test_two.py": TWO_PASSING_TESTS})
+    partial_repo = make_synthetic_repo(
+        tmp_path / "partial", {"tests/test_two.py": TWO_PASSING_TESTS},
+        fault_injection={"ops/pytest_timing.py": _TIMING_WRAPPER.format(mode="junit-partial")})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_two.py"])
+    exit_code, intact, _ = run_runner(tmp_path, intact_repo, "intact", selection)
+    assert exit_code == 0 and intact["verdict"] == "completed-clean"
+    assert intact["coverage"]["reconciled"] is True
+    assert intact["coverage"]["junit"]["nodes"] == 2 and intact["coverage"]["junit"]["pass"] == 2
+    exit_code, _, _ = run_runner(tmp_path, partial_repo, "partial", selection)
+    assert exit_code == 92
+    artifacts = tmp_path / "artifacts"
+    compare_exit, comparison = run_compare(tmp_path, artifacts / "intact" / "RESULT.json",
+                                           artifacts / "partial" / "RESULT.json", "partial")
+    assert compare_exit == 1 and comparison["comparable"] is False
+    assert any("case coverage not reconciled" in problem for problem in comparison["problems"])
 
 
 def test_reused_label_is_refused_and_keeps_the_earlier_receipt(tmp_path):
@@ -603,6 +732,13 @@ def test_compare_refuses_invalid_receipts(tmp_path):
     wrong_schema.write_text(json.dumps({**payload, "schema": "something-else"}), encoding="utf-8")
     unreadable = tmp_path / "unreadable.json"
     unreadable.write_text("{not json", encoding="utf-8")
+    no_coverage = tmp_path / "no-coverage.json"
+    no_coverage.write_text(json.dumps({key: value for key, value in payload.items()
+                                       if key != "coverage"}), encoding="utf-8")
+    edited = json.loads(json.dumps(payload))
+    edited["coverage"]["junit"]["nodes"] -= 1  # a completed label over a short JUnit
+    edited_coverage = tmp_path / "edited-coverage.json"
+    edited_coverage.write_text(json.dumps(edited), encoding="utf-8")
 
     exit_code, comparison = run_compare(tmp_path, valid, valid, "valid")
     assert exit_code == 0 and comparison["comparable"] is True
@@ -614,7 +750,9 @@ def test_compare_refuses_invalid_receipts(tmp_path):
             ("aborted", artifacts / "aborted" / "RESULT.json", "verdict 'harvest-failed'"),
             ("interrupted", artifacts / "interrupted" / "RESULT.json",
              "verdict 'interrupted-by-wall-budget'"),
-            ("unreadable", unreadable, "receipt unreadable")):
+            ("unreadable", unreadable, "receipt unreadable"),
+            ("no-coverage", no_coverage, "no case-coverage evidence"),
+            ("edited-coverage", edited_coverage, "junit case coverage")):
         exit_code, comparison = run_compare(tmp_path, receipt, receipt, name)
         assert exit_code == 1, name
         assert comparison["comparable"] is False, name
