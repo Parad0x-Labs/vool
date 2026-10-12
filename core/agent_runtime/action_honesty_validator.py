@@ -147,7 +147,7 @@ _DELIVERABLE_CLAIM_RE = re.compile(
     rf"(?<!\bthe\s)(?<!\byour\s)(?<!\bmy\s)(?<!\bthis\s)(?<!\bthat\s)"
     rf"{_DELIVERABLE_VERB}(?:\s+(?!{_DELIVERABLE_SOURCE_WORD}\b)[\w'-]+){{0,6}}?\s+(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})"
     # "your Word document is ready", "the PDF has been generated"
-    rf"|(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})\s+(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?"
+    rf"|(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})\s+(?:is|are|was|were|has\s+(?:now\s+)?been|have\s+(?:now\s+)?been)\s+(?:(?:now|successfully)\s+)?"
     rf"(?:ready|created|generated|saved|exported|attached|available|done|complete|uploaded|made|prepared)"
     # "here is your PowerPoint file", "attached is the spreadsheet"
     rf"|(?:here(?:'s|\s+is|\s+are)|attached\s+(?:is|are))\s+(?:your|the)\s+(?:[\w-]+\s+){{0,2}}?{_DELIVERABLE_OBJECT}"
@@ -558,6 +558,34 @@ def _describes_a_stored_record(sentence: str, match: re.Match[str]) -> bool:
     )
 
 
+def _file_claim_text(text: str) -> str:
+    # Formatting around a filename cannot remove its evidence obligation. Keep the
+    # actual spelling (including spaces) for identity matching below.
+    return re.sub(
+        rf"(?:`|\*\*|__|[\"'])([^`*\"'\n]{{1,240}}\.{_DATA_FILE_EXTENSION})(?:`|\*\*|__|[\"'])",
+        r"\1", text, flags=re.I,
+    )
+
+
+_COMPLETED_FILE_COUNT_RE = re.compile(
+    rf"\b{_DELIVERABLE_VERB}\s+(?:(?:the|all)\s+)?"
+    r"(?:one|both|two|three|four|five|six|\d+)\s+files?\b", re.I,
+)
+
+
+def _deliverable_claim_fragments(text: str) -> list[str]:
+    fragments = []
+    for sentence in _split_sentences(_file_claim_text(text)):
+        match = _DELIVERABLE_CLAIM_RE.search(sentence) or _COMPLETED_FILE_COUNT_RE.search(sentence)
+        if match is None:
+            continue
+        if _DELIVERABLE_NOT_DONE_RE.search(sentence[:match.end()]) or _NOT_A_SELF_CLAIM_RE.search(sentence):
+            continue
+        # Bind every file in the completed clause, not only the first regex match.
+        fragments.append(sentence)
+    return fragments
+
+
 def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
     """What kind of finished work a reply claims: ``""``, ``"mutation"``, ``"build"`` or ``"persistence"``.
 
@@ -611,12 +639,7 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
         if modal_context and not self_report:
             continue
         return "mutation"
-    for sentence in _split_sentences(body):
-        match = _DELIVERABLE_CLAIM_RE.search(sentence)
-        if match is None:
-            continue
-        if _DELIVERABLE_NOT_DONE_RE.search(sentence[: match.end()]) or _NOT_A_SELF_CLAIM_RE.search(sentence):
-            continue  # an offer, a plan, a refusal or the user's own file -- not a file this turn made
+    if _deliverable_claim_fragments(body):
         return "deliverable"
     for sentence in _split_sentences(body):
         if not _BUILD_CLAIM_RE.search(sentence):
@@ -798,17 +821,43 @@ _OUTPUT_FILE_KEYS = frozenset({"filename", "file_name", "path", "file_path", "ou
 _FILE_COUNT_WORDS = {"one": 1, "both": 2, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
 
 
-def _output_file_names(*details: object) -> set[str]:
-    """Known output identities, deduplicated by basename; input/content objects are not outputs."""
+def _claimed_file_names(claims: list[str]) -> set[str]:
+    names: set[str] = set()
+    for text in claims:
+        text = _file_claim_text(text)
+        for match in _SPECIFIC_DELIVERABLE_NAME_RE.finditer(text):
+            name = match.group(0)
+            # A bounded preceding object span allows real filenames with spaces.
+            # Do not accept an arbitrary suffix of a different written basename.
+            prefix = text[max(0, match.start() - 240):match.start()]
+            boundaries = list(re.finditer(rf"\b{_DELIVERABLE_VERB}\s+|[,;:]\s*|\b(?:and|into|as|to)\s+", prefix, re.I))
+            if boundaries:
+                extra = prefix[boundaries[-1].end():]
+                extra = re.sub(r"^(?:the|a|an|your)\s+", "", extra, flags=re.I)
+                if re.fullmatch(r"[\w ~/.-]{0,120}", extra):
+                    name = extra + name
+            names.add(name.replace("\\", "/").rsplit("/", 1)[-1].casefold())
+    return names
+
+
+def _output_file_names(*details: object, identities_only: bool = False) -> set[str]:
+    """Known output identities, retaining directories so two real paths count as two files."""
     names: set[str] = set()
 
     def scan(value: object, depth: int = 0) -> None:
         if isinstance(value, dict):
+            if identities_only:
+                for key in ("path", "file_path", "output_path", "target", "filename", "file_name", "name"):
+                    inner = value.get(key)
+                    if isinstance(inner, str) and inner and (key != "name" or "." in inner):
+                        names.add(inner.replace("\\", "/").rstrip("/"))
+                        # Several aliases in one observation describe one output, not several.
+                        return
             for key, inner in value.items():
                 if isinstance(inner, str) and (
                     key in _OUTPUT_FILE_KEYS or (key == "name" and "." in inner)
                 ):
-                    name = inner.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+                    name = inner.replace("\\", "/").rstrip("/")
                     if name:
                         names.add(name)
                 elif depth < 3 and key not in {"arguments", "input", "content"}:
@@ -822,15 +871,24 @@ def _output_file_names(*details: object) -> set[str]:
     return names
 
 
-def _turn_file_output_names(*, session_id: str | None, source_context: dict[str, object] | None) -> set[str]:
+def _turn_file_output_names(*, session_id: str | None, source_context: dict[str, object] | None,
+                            identities_only: bool = False) -> set[str]:
     names: set[str] = set()
     for receipt in list((source_context or {}).get("tool_receipts") or []):
         if not isinstance(receipt, dict) or not _receipt_succeeded(receipt):
             continue
         tool = str(receipt.get("tool_name") or receipt.get("tool") or receipt.get("intent") or "")
         if _is_file_writer(tool):
-            names.update(_output_file_names(receipt.get("observation"), receipt.get("details")))
-            if "write_file" in tool:
+            if identities_only:
+                outputs = _output_file_names(receipt.get("observation"), identities_only=True)
+                if not outputs:
+                    outputs = _output_file_names(receipt.get("details"), identities_only=True)
+                if not outputs and "write_file" in tool:
+                    outputs = _output_file_names(receipt.get("arguments"), identities_only=True)
+                names.update(outputs)
+            else:
+                names.update(_output_file_names(receipt.get("observation"), receipt.get("details")))
+            if not identities_only and "write_file" in tool:
                 names.update(_output_file_names(receipt.get("arguments")))
     try:
         from core.execution_truth import KIND_TOOL, facts_for_turn, resolve_turn_key
@@ -839,7 +897,7 @@ def _turn_file_output_names(*, session_id: str | None, source_context: dict[str,
         for fact in facts_for_turn(turn_key, session_id=str(session_id or "").strip()):
             if fact.in_category(KIND_TOOL) and fact.ok and str(fact.status or "").lower() not in _FAILED_STATUSES:
                 if _is_file_writer(fact.name):
-                    names.update(_output_file_names(fact.detail))
+                    names.update(_output_file_names(fact.detail, identities_only=identities_only))
     except Exception:
         pass
     return names
@@ -848,7 +906,7 @@ def _turn_file_output_names(*, session_id: str | None, source_context: dict[str,
 def _promised_file_count(claims: list[str]) -> int | None:
     required = 0
     for text in claims:
-        match = _GENERIC_FILE_PROMISE_RE.search(text)
+        match = _GENERIC_FILE_PROMISE_RE.search(text) or _COMPLETED_FILE_COUNT_RE.search(text)
         if match is None:
             continue
         body = match.group(0)
@@ -890,13 +948,18 @@ def _turn_wrote_a_file(
         return False
     claims = list(claimed or [])
     families = _claimed_deliverable_families(claims)
-    expected_names = {name for text in claims for name in _SPECIFIC_DELIVERABLE_NAME_RE.findall(text)}
+    expected_names = _claimed_file_names(claims)
     minimum_count = _promised_file_count(claims)
     if minimum_count is None:
         return False
     if expected_names or minimum_count:
         written_names = _turn_file_output_names(session_id=session_id, source_context=source_context)
-        if not expected_names.issubset(written_names) or len(written_names) < minimum_count:
+        basenames = {name.rsplit("/", 1)[-1].casefold() for name in written_names}
+        if not expected_names.issubset(basenames):
+            return False
+        identities = _turn_file_output_names(session_id=session_id, source_context=source_context,
+                                             identities_only=True)
+        if len(identities) < minimum_count:
             return False
     made = set().union(*writes)
     return all(family & made for family in families)
@@ -916,7 +979,7 @@ def _strip_unbacked_file_promises(
     response = str(output.get("response") or "")
     if not response.strip() or not _DELIVERABLE_PROMISE_RE.search(response):
         return output
-    promised = [match.group(0) for match in _DELIVERABLE_PROMISE_RE.finditer(response)]
+    promised = [sentence for sentence in _split_sentences(_file_claim_text(response)) if _DELIVERABLE_PROMISE_RE.search(sentence)]
     if _turn_wrote_a_file(session_id=session_id, source_context=source_context, claimed=promised):
         return output
     kept_lines: list[str] = []
@@ -1680,7 +1743,7 @@ def enforce_final_action_honesty(
     if claim_kind == "deliverable":
         # A file said to exist needs a tool that WROTE one on this turn. Any other receipt (a web
         # lookup, a memory read) or a tool-flavoured mode is not evidence that a document exists.
-        claimed = [match.group(0) for match in _DELIVERABLE_CLAIM_RE.finditer(response)]
+        claimed = _deliverable_claim_fragments(response)
         if _turn_wrote_a_file(session_id=session_id, source_context=source_context, claimed=claimed):
             return output
     elif (
