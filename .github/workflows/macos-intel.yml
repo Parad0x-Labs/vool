@@ -159,19 +159,33 @@ jobs:
           uv venv --python cpython-3.11-macos-x86_64-none "$RUNNER_TEMP/sys-venv"
           python3 -c "from ops.bundle_dependency_provenance import lean_requirements; print('\n'.join(lean_requirements()))" > "$RUNNER_TEMP/lean.txt"
           uv pip install --python "$RUNNER_TEMP/sys-venv/bin/python" --no-build --find-links "$RUNNER_TEMP/wheelhouse" -r "$RUNNER_TEMP/lean.txt"
+      # The build script's footprint gate refuses any bundle byte that carries the builder's
+      # $HOME. On a hosted runner $HOME is /Users/runner, which is also the home of the GitHub
+      # runners that built many upstream PyPI wheels, so their own bytes trip the gate. The build
+      # therefore runs under a dedicated builder home that nothing upstream can contain, with the
+      # embedded CPython, uv's cache and the output all inside it, so the gate and its scrubs
+      # still cover everything this build stages. The checkout path is checked separately below.
       - name: Build the x86_64 app and DMG on Intel
         env:
           VOOL_BUNDLE_WHEELHOUSE: ${{ runner.temp }}/wheelhouse
           SYS_PY: ${{ runner.temp }}/sys-venv/bin/python
         run: |
           set -euo pipefail
+          export HOME="$RUNNER_TEMP/vool-builder-home"
+          export UV_PYTHON_INSTALL_DIR="$HOME/uv-python" UV_CACHE_DIR="$HOME/uv-cache"
+          mkdir -p "$HOME"
           bash installer/bundle/build_macos_app.sh --self-contained --arch x86_64 \
-            --out "$RUNNER_TEMP/macos-x86_64" --release-dir "$RUNNER_TEMP/assets"
+            --out "$HOME/macos-x86_64" --release-dir "$RUNNER_TEMP/assets"
+          hits="$(grep -r -a -l -F "$GITHUB_WORKSPACE" "$HOME/macos-x86_64/VOOL.app" || true)"
+          if [[ -n "$hits" ]]; then
+            printf '%s\n' "$hits" | head -5
+            echo "the bundle carries the build checkout path $GITHUB_WORKSPACE"; exit 1
+          fi
           cd "$RUNNER_TEMP/assets"
           for f in *.dmg; do shasum -a 256 "$f" > "$f.sha256"; done
           cat *.sha256
-          cp "$RUNNER_TEMP/macos-x86_64/ARCH_CENSUS.json" . || true
-          cp "$RUNNER_TEMP/macos-x86_64/VOOL.app/Contents/Resources/app/config/dependency-provenance.json" . || true
+          cp "$RUNNER_TEMP/vool-builder-home/macos-x86_64/ARCH_CENSUS.json" . || true
+          cp "$RUNNER_TEMP/vool-builder-home/macos-x86_64/VOOL.app/Contents/Resources/app/config/dependency-provenance.json" . || true
       - uses: actions/upload-artifact@v7
         with:
           name: macos-x86_64-package
