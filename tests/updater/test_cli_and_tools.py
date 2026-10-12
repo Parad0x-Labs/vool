@@ -46,6 +46,15 @@ def pinned_keys(tmp_path, monkeypatch):
     return private_hex, public_hex
 
 
+@pytest.fixture()
+def unconfigured_pin_map(tmp_path, monkeypatch):
+    pin = tmp_path / "trusted_publisher_keys.json"
+    pin.write_text("{}", encoding="utf-8")
+    monkeypatch.delenv("VOOL_UPDATE_PUBLISHER_KEYS", raising=False)
+    monkeypatch.setenv("VOOL_UPDATE_TRUSTED_KEYS_JSON", str(pin))
+    return pin
+
+
 class TestCLI:
     def test_status_empty(self, tmp_path):
         result = run_cli("status", "--data-dir", str(tmp_path))
@@ -68,11 +77,10 @@ class TestCLI:
         )
         assert result.returncode != 0  # nothing is offered with no pinned publisher
 
-    def test_check_without_manifest_url_reports_unavailable(self, tmp_path, monkeypatch):
-        """The shipped feed is empty; `check` must still RUN and say so honestly.
+    def test_check_without_manifest_url_reports_unavailable(self, tmp_path, monkeypatch, unconfigured_pin_map):
+        """An unconfigured updater must still RUN and say so honestly.
         A required --manifest-url argparse-rejected the command before the honest
         "Updates are unavailable" state could ever be printed."""
-        monkeypatch.delenv("VOOL_UPDATE_PUBLISHER_KEYS", raising=False)
         monkeypatch.delenv("VOOL_UPDATE_MANIFEST_URL", raising=False)
         result = run_cli("check", "--data-dir", str(tmp_path))
         assert result.returncode != 0  # unconfigured is a first-class failure, not success
