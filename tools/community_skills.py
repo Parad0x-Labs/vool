@@ -33,11 +33,9 @@ def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
 
 
 def preflight(raw: bytes, scratch: Path) -> dict:
-    from core.plugin_skills import load_skills
-    from core.plugin_tools import load_manifest
     from core.registry.intake import secret_findings
     from core.registry.rules import analyze
-    from core.skill_tools import validate_skill
+    from core.registry.validation import native_format_findings
 
     artifact = inspect(raw)
     findings = secret_findings(artifact["files"])
@@ -46,11 +44,7 @@ def preflight(raw: bytes, scratch: Path) -> dict:
     with execution_directory(scratch) as owned:
         root = owned / "package"
         materialize(raw, root)
-        loaded = load_manifest(root / ".codex-plugin" / "plugin.json")
-        for skill in load_skills(root):
-            result = validate_skill(skill.path, candidate_contracts=tuple(loaded.contracts))
-            findings.extend({"check": "native-format", "path": str(Path(skill.path).relative_to(root)), "reason": problem}
-                            for problem in result.get("problems", []))
+        findings.extend(native_format_findings(root, artifact))
     return {"status": "blocked" if findings else "preflight_passed", "artifact_sha256": artifact["sha256"],
             "native_digest": artifact["native_digest"], "findings": findings,
             "admitted": False, **boundaries,

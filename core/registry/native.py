@@ -150,8 +150,7 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             accepted: bool, enable: bool, now: int) -> dict:
     """Explicit owner consent. Public review cannot grant a runtime permission."""
     from core import plugin_catalog, plugin_lifecycle
-    from core.plugin_skills import load_skills
-    from core.skill_tools import validate_skill
+    from core.registry.validation import native_format_findings
 
     require(accepted is True and type(enable) is bool, "explicit local installation consent is required")
     entry = catalog.resolve(package_id, version, target=target, now=now)
@@ -175,12 +174,9 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
         materialize(raw, snapshot)
         # This parser validates declarations and creates no subprocess. Candidate
         # contracts inform validation only; they are never registered or granted.
-        from core.plugin_tools import load_manifest
-
-        loaded = load_manifest(snapshot / ".codex-plugin" / "plugin.json")
-        for skill in load_skills(snapshot, plugin_id=plugin_id):
-            result = validate_skill(skill.path, candidate_contracts=tuple(loaded.contracts))
-            require(result["status"] == "ok", "native skill validation failed: " + "; ".join(result.get("problems", [])))
+        findings = native_format_findings(snapshot, artifact)
+        require(not findings, "native skill validation failed: " + "; ".join(
+            item["path"] + ": " + item["reason"] for item in findings))
         for dependency, pin in entry["dependencies"].items():
             child = plugin_lifecycle.record_for(dependency)
             require(child and plugin_lifecycle.is_available(dependency) and child.approval_digest == pin,
