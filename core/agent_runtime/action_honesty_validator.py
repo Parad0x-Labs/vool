@@ -845,7 +845,7 @@ def _turn_file_output_names(*, session_id: str | None, source_context: dict[str,
     return names
 
 
-def _promised_file_count(claims: list[str]) -> int:
+def _promised_file_count(claims: list[str]) -> int | None:
     required = 0
     for text in claims:
         match = _GENERIC_FILE_PROMISE_RE.search(text)
@@ -858,7 +858,15 @@ def _promised_file_count(claims: list[str]) -> int:
         )
         if count:
             token = count.group(1).lower()
-            amount = int(token) if token.isdigit() else _FILE_COUNT_WORDS[token]
+            if token.isdigit():
+                token = token.lstrip("0") or "0"
+                # Such counts cannot be verified from bounded turn output metadata. Do not
+                # feed arbitrary model text into an unbounded integer conversion.
+                if len(token) > 18:
+                    return None
+                amount = int(token)
+            else:
+                amount = _FILE_COUNT_WORDS[token]
         else:
             amount = 2 if re.search(r"\bfiles\b", body, re.IGNORECASE) else 1
         required = max(required, amount)
@@ -884,6 +892,8 @@ def _turn_wrote_a_file(
     families = _claimed_deliverable_families(claims)
     expected_names = {name for text in claims for name in _SPECIFIC_DELIVERABLE_NAME_RE.findall(text)}
     minimum_count = _promised_file_count(claims)
+    if minimum_count is None:
+        return False
     if expected_names or minimum_count:
         written_names = _turn_file_output_names(session_id=session_id, source_context=source_context)
         if not expected_names.issubset(written_names) or len(written_names) < minimum_count:
