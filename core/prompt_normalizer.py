@@ -317,7 +317,8 @@ def normalize_prompt(
         from core.tool_offer_assembly import skill_guidance_for
 
         _matched_worker_skills = skill_guidance_for(
-            str(user_text or ""), task_class=str(task_class or "")
+            str(user_text or ""), task_class=str(task_class or ""),
+            source_context=source_context if isinstance(source_context, dict) else None,
         )
         if _matched_worker_skills.text.strip():
             _skill_guidance_block = (
@@ -719,7 +720,8 @@ def _build_conversational_request(
         from core.tool_offer_assembly import skill_guidance_for
 
         _matched_skills = skill_guidance_for(
-            str(user_text or ""), task_class=str(task_class or "")
+            str(user_text or ""), task_class=str(task_class or ""),
+            source_context=source_context if isinstance(source_context, dict) else None,
         )
         if _matched_skills.text.strip():
             system_segments.append(
