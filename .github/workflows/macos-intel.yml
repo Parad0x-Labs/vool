@@ -145,9 +145,11 @@ jobs:
           O="$RUNNER_TEMP/ollama"; mkdir -p "$O"; cd "$O"
           curl -fsSLO "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-darwin.tgz"
           curl -fsSL -o sha256sum.txt "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/sha256sum.txt"
-          grep ' \./ollama-darwin\.tgz$\| ollama-darwin\.tgz$' sha256sum.txt
+          echo "publisher sha256sum.txt:"; cat sha256sum.txt
+          shasum -a 256 ollama-darwin.tgz
           echo "${OLLAMA_TGZ_SHA256}  ollama-darwin.tgz" | shasum -a 256 -c -
-          grep -q "^${OLLAMA_TGZ_SHA256} " sha256sum.txt
+          # The pinned digest must also be the one the publisher lists for this exact file.
+          awk -v want="${OLLAMA_TGZ_SHA256}" '$1 == want && $2 ~ /(^|\/)ollama-darwin\.tgz$/ {found=1} END {exit !found}' sha256sum.txt
           mkdir bin && tar xzf ollama-darwin.tgz -C bin
           lipo -archs bin/ollama
           echo "$O/bin" >> "$GITHUB_PATH"
