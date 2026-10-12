@@ -217,6 +217,17 @@ def runtime_temp_dir() -> Path:
     return path
 
 
+def runtime_home_identity(env: Mapping[str, str] | None = None) -> str:
+    """Non-secret profile identity for local health and native ownership checks.
+
+    Hash the canonical selected root rather than exposing a personal filesystem
+    path in the unauthenticated health stamp. Identity is not authorization to
+    signal a process; native hosts may stop only children they actually created.
+    """
+    canonical = os.path.normcase(str(active_vool_home(env)))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def runtime_child_scratch_root(kind: str) -> Path:
     """Profile-scoped child scratch outside the sandbox's read-denied key home.
 

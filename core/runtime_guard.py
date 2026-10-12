@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from urllib.parse import urlparse
 
-from core.runtime_paths import PROJECT_ROOT, active_vool_home
+from core.runtime_paths import PROJECT_ROOT, active_vool_home, vool_env
 
 _PLACEHOLDER_TOKENS = ("placeholder", "change-me", "sample", "example", "replace-me", "todo")
 
@@ -27,9 +27,19 @@ def automatic_launch_network_allowed(capability: str) -> bool:
             return False
         network = saved.get("network")
         system = saved.get("system")
+        from core import policy_engine
+        from core.remote_fetch_policy import local_only_active
+
+        policy_engine.load(force_reload=True)
+        if local_only_active():
+            return False
         outbound = isinstance(network, dict) and network.get("outbound_enabled") is True
         web = isinstance(system, dict) and system.get("allow_web_fallback") is True
-        return outbound if capability == "outbound" else outbound or web
+        if capability == "web" and any(
+            policy_engine._env_is_truthy(vool_env(name)) for name in ("DISABLE_WEB", "NO_WEB")
+        ):
+            return False
+        return outbound if capability == "outbound" else web
     except (OSError, ValueError, TypeError, yaml.YAMLError):
         return False
 

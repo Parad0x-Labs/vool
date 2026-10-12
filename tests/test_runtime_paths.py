@@ -321,7 +321,7 @@ def test_mcp_config_cache_cannot_survive_a_profile_switch(tmp_path, monkeypatch)
     ("not: [valid", False, False),
     ("network:\n  outbound_enabled: false\nsystem:\n  allow_web_fallback: false\n", False, False),
     ("network:\n  outbound_enabled: false\nsystem:\n  allow_web_fallback: true\n", False, True),
-    ("network:\n  outbound_enabled: true\n", True, True),
+    ("network:\n  outbound_enabled: true\n", True, False),
     ("network:\n  outbound_enabled: 'true'\nsystem:\n  allow_web_fallback: 1\n", False, False),
 ])
 def test_automatic_source_sidecars_require_saved_consent(tmp_path, monkeypatch, saved, outbound, web) -> None:
@@ -350,3 +350,77 @@ def test_confined_child_scratch_is_profile_scoped_outside_its_key_home(tmp_path,
     assert runtime_child_scratch_root("mcp") != runtime_child_scratch_root("plugin")
     monkeypatch.setenv("VOOL_HOME", str(first))
     assert runtime_child_scratch_root("plugin") == first_scratch
+
+
+def test_runtime_health_stamp_identifies_profile_without_exposing_its_path(tmp_path, monkeypatch) -> None:
+    from core.runtime_paths import runtime_home_identity
+    from core.web.api.runtime import build_runtime_version_stamp
+
+    identities = []
+    for name in ("first", "second"):
+        home = tmp_path / name
+        monkeypatch.setenv("VOOL_HOME", str(home))
+        stamp = build_runtime_version_stamp(project_root=PROJECT_ROOT, runtime_model_tag="local", workstation_version="test")
+        assert stamp["runtime_home_id"] == runtime_home_identity()
+        assert str(home) not in json.dumps(stamp)
+        identities.append(stamp["runtime_home_id"])
+    assert identities[0] != identities[1]
+
+
+@pytest.mark.parametrize("saved, variable, outbound, web", [
+    ("system:\n  local_only_mode: true\n  allow_web_fallback: true\nnetwork:\n  outbound_enabled: true\n", None, False, False),
+    ("system:\n  local_only_mode: false\n  allow_web_fallback: false\nnetwork:\n  outbound_enabled: true\n", None, True, False),
+    ("system:\n  local_only_mode: false\n  allow_web_fallback: true\nnetwork:\n  outbound_enabled: false\n", "VOOL_DISABLE_WEB", False, False),
+    ("system:\n  local_only_mode: false\n  allow_web_fallback: true\nnetwork:\n  outbound_enabled: false\n", "VOOL_NO_WEB", False, False),
+    ("system:\n  local_only_mode: false\n  allow_web_fallback: true\nnetwork:\n  outbound_enabled: true\n", None, True, True),
+])
+def test_source_sidecar_consent_obeys_local_only_and_web_vetoes(tmp_path, monkeypatch, saved, variable, outbound, web) -> None:
+    from core.runtime_guard import automatic_launch_network_allowed
+
+    home = tmp_path / "profile"
+    path = home / "config" / "default_policy.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text(saved)
+    monkeypatch.setenv("VOOL_HOME", str(home))
+    for name in ("VOOL_DISABLE_WEB", "VOOL_NO_WEB", "NULLA_DISABLE_WEB", "NULLA_NO_WEB"):
+        monkeypatch.delenv(name, raising=False)
+    if variable is not None:
+        monkeypatch.setenv(variable, "1")
+    assert automatic_launch_network_allowed("outbound") is outbound
+    assert automatic_launch_network_allowed("web") is web
+
+
+@pytest.mark.parametrize("enabled, allow_network, expected_enabled, expected_network", [
+    (..., None, True, False),
+    (None, True, False, False),
+    (True, True, True, True),
+    (True, False, True, False),
+    (True, "false", True, False),
+    (True, "true", True, False),
+    (True, 1, True, False),
+    (False, True, False, False),
+    ("false", True, False, False),
+    ("true", True, False, False),
+    (1, True, False, False),
+])
+def test_saved_mcp_configuration_requires_boolean_authority(tmp_path, monkeypatch, enabled, allow_network,
+                                                          expected_enabled, expected_network) -> None:
+    from core.execution import mcp_bridge
+
+    home = tmp_path / "profile"
+    home.mkdir()
+    entry = {"name": "configured", "command": "local-command"}
+    if enabled is not ...:
+        entry["enabled"] = enabled
+    if allow_network is not None:
+        entry["allow_network"] = allow_network
+    (home / "mcp_servers.json").write_text(json.dumps({"servers": [entry]}))
+    monkeypatch.setenv("VOOL_HOME", str(home))
+    monkeypatch.setenv("VOOL_MCP_CONFIG", "")
+    try:
+        configs = mcp_bridge.load_mcp_server_configs()
+        assert bool(configs) is expected_enabled
+        if configs:
+            assert configs[0]["allow_network"] is expected_network
+    finally:
+        mcp_bridge.reset_mcp_state()

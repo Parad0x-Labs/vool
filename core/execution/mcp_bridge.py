@@ -127,7 +127,7 @@ def load_mcp_server_configs() -> list[dict[str, Any]]:
             raw = json.loads(path.read_text(encoding="utf-8"))
             entries = raw.get("servers") if isinstance(raw, dict) else raw
             for entry in entries or []:
-                if not isinstance(entry, dict) or entry.get("enabled") is False:
+                if not isinstance(entry, dict) or entry.get("enabled", True) is not True:
                     continue
                 name = str(entry.get("name") or "").strip()
                 command = str(entry.get("command") or "").strip()
@@ -145,7 +145,7 @@ def load_mcp_server_configs() -> list[dict[str, Any]]:
                         "timeout": float(entry.get("timeout") or 30.0),
                         "trust": pins,
                         "trust_rejected": rejected,
-                        "allow_network": bool(entry.get("allow_network", False)),
+                        "allow_network": entry.get("allow_network") is True,
                         "confinement": confinement if confinement in {"auto", "heuristic_only"} else "auto",
                         "env": {str(k): str(v) for k, v in env.items()},
                         "env_allowlist": [str(x) for x in (entry.get("env_allowlist") or [])],

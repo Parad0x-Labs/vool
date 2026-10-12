@@ -304,6 +304,8 @@ def _platform_release_tag() -> str:
 
 
 def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, workstation_version: str) -> dict[str, Any]:
+    from core.runtime_paths import runtime_home_identity
+
     release = dict(release_manifest_snapshot())
     build_source = build_source_metadata(project_root)
     git_state = git_checkout_state(project_root)
@@ -372,6 +374,7 @@ def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, w
         "build_id": build_id,
         "started_at": started_at,
         "pid": os.getpid(),
+        "runtime_home_id": runtime_home_identity(),
         "workstation_version": workstation_version,
         # The boot/pull target is a default input to Auto routing, not per-turn execution truth.
         # Keep `model_tag` as a compatibility alias while giving new consumers an honest label.
