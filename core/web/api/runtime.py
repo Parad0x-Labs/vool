@@ -2510,8 +2510,13 @@ def _format_private_memory_recall(values: dict[str, str], *, user_text: str = ""
         asked.append(f"Your preferred answer style is {values['answer_style']}.")
     if values.get("project_codename") and "codename" in text:
         asked.append(f"Your active project codename is {values['project_codename']}.")
-    if not broad_recall and len(asked) == 1:
-        return asked[0]
+    field_scoped = any(field in text for field in (
+        "my name", "who am i", "who is the user", "answer style", "response style", "preferred style", "codename",
+    ))
+    if not broad_recall and field_scoped:
+        # Another stored field cannot stand in for the field requested. An
+        # unavailable field leaves its demand unresolved for ordinary recall.
+        return " ".join(asked)
     # Broad or multi-field recall — summarise what is stored.
     parts: list[str] = []
     if values.get("name"):

@@ -195,7 +195,9 @@ def test_api_erased_memory_claim_preserves_every_sibling_demand(sibling):
     """Pin the real API handoff; stopping at the agent is instrumentation, not a model reply."""
     from core.agent_runtime.answer_coverage import FAMILY_MEMORY_RECALL, demand_units, turn_slices
     from core.web.api.runtime import run_agent
+    from tests.operator_profile_rig import set_owner_preferred_name
 
+    set_owner_preferred_name("Sora")
     _remember_and_forget("Maya's birthday is March 14.", "Maya's birthday")
     question = "When is Maya's birthday?"
     message = f"{question} {sibling}"
@@ -281,6 +283,16 @@ def test_api_erased_and_intact_answers_leave_generic_sibling_unanswered():
     assert len(answer["consumed_units"]) == 2
     assert "no record" in answer["response"].lower()
     assert "Leena" in answer["response"]
+
+
+@pytest.mark.parametrize("question", ["What is my answer style?", "What is my project codename?"])
+def test_known_name_does_not_answer_an_unavailable_private_field(question):
+    from tests.operator_profile_rig import set_owner_preferred_name
+
+    ensure_chat_namespace("erased-chat", grant_confirmed_profile=True)
+    set_owner_preferred_name("Ari")
+    assert "Ari" in _recall("What is my name?")["response"]
+    assert _recall(question) is None
 
 
 def test_fresh_boot_auth_refuses_discovery_before_any_ssh_or_key_lookup(monkeypatch):
