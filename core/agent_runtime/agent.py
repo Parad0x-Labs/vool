@@ -3309,6 +3309,9 @@ class VoolAgent(
         from core.agent_runtime.turn_planner_hook import build_planner_run_one
 
         child_source_context = dict(source_context or {})
+        # The remainder is the message with a credential CARVED OUT. A lane that persists the
+        # user's words verbatim (a rule) must know its text is not what the user typed.
+        child_source_context["_secret_intake_consumed"] = True
         try:
             from dataclasses import replace as _dc_replace
 

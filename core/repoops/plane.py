@@ -3293,6 +3293,9 @@ class RepoOpsRuntime:
         commit = str(arguments.get("commit") or "")
         onto = str(arguments.get("onto") or "")
         message = str(arguments.get("message") or "")
+        from core.user_rules import scope_keys_for
+
+        runner.rule_scope = scope_keys_for(source_context, chat_id="" if source_context else session.session_id)
         if operation == "branch":
             outcome = runner.create_branch(name, start_point=commit)
         elif operation == "commit":
@@ -3395,6 +3398,30 @@ class RepoOpsRuntime:
             "tests_green": bool(session.tests.get("success")),
         }
 
+    def _user_rules_refusal(self, session: RepoSession, plan: dict[str, Any], *, source_context: dict[str, Any] | None):
+        """A push whose commits, changes or ref carry a word the user's rules ban from git is refused
+        here, before consent is asked for or spent. Narrow-only: no match is not an approval."""
+        from core.user_rules import git_outbound_refusal, scope_keys_for
+
+        keys = scope_keys_for(source_context, chat_id="" if source_context else session.session_id)
+        refusal = git_outbound_refusal(
+            session.root,
+            "push",
+            names=(str(plan.get("ref") or ""),),
+            rev_range=(str(plan.get("from_remote_sha") or ""), str(plan.get("sha") or "")),
+            chat_id=keys["chat"],
+            project_id=keys["project"],
+        )
+        if refusal is None:
+            return None
+        return self._result(
+            session,
+            ok=False,
+            status="refused_by_user_rule",
+            text=refusal.reason,
+            user_rules=refusal.as_dict(),
+        )
+
     def push_request(self, arguments: dict[str, Any], *, source_context: dict[str, Any] | None):
         session, err = self._require(arguments.get("repo_session_id"))
         if err:
@@ -3407,6 +3434,9 @@ class RepoOpsRuntime:
         if not ref:
             return self._result(session, ok=False, status="invalid_arguments", text="The push plan needs a ref.")
         plan = self._plan(session, remote=remote, ref=ref, force=bool(arguments.get("force") or False))
+        ruled = self._user_rules_refusal(session, plan, source_context=source_context)
+        if ruled is not None:
+            return ruled
         plan_hash = _sha(_canonical(plan))
         with self._lock:
             session.push_plan = {**plan, "plan_hash": plan_hash, "built_at": _utcnow()}
@@ -3752,6 +3782,10 @@ class RepoOpsRuntime:
                 text=f"Force push is denied by default: {DEFAULT_DENIED['force_push']}.",
                 fault_id=fault,
             )
+
+        ruled = self._user_rules_refusal(session, current, source_context=source_context)
+        if ruled is not None:
+            return ruled
 
         simulate = arguments.get("simulate")
         if simulate is None:

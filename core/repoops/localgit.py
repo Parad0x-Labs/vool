@@ -145,6 +145,11 @@ class LocalGit:
         ).hexdigest()[:16]
 
         def dispatch() -> EffectOutcome:
+            from core.user_rules import git_outbound_refusal
+
+            ruled = git_outbound_refusal(self._ws.root, "commit", message=message, staged=True)
+            if ruled is not None:
+                return EffectOutcome(status="refused", reason=ruled.reason)
             proc = subprocess.run(
                 ["git", "-C", self._ws.root, "commit", "-m", message],
                 capture_output=True, text=True, timeout=60,

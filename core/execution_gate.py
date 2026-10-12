@@ -231,7 +231,7 @@ class ExecutionGate:
         return action_name in {"cleanup_temp_files", "move_path", "discord_post", "telegram_send"}
 
     @staticmethod
-    def evaluate_command(cmd: str) -> dict[str, str]:
+    def evaluate_command(cmd: str, *, cwd: str = "") -> dict[str, str]:
         # M5 SLICE 3 — every command outcome emits a typed EffectReceipt onto
         # the turn's one ledger: sandbox -> allowed; blocked/advice_only ->
         # denied; simulate_only -> simulated (a third, mechanically distinct
@@ -328,6 +328,25 @@ class ExecutionGate:
                 mode=mode,
             )
         base_cmd = ExecutionGate._base_command(argv)
+        if base_cmd == "git":
+            # The user's rules are a HARD block, reported before any approvable gate: a commit,
+            # tag or push carrying a word the user banned from git is refused outright, so nobody
+            # is asked to approve a command a rule forbids. Narrow-only: no match grants nothing.
+            from core.user_rules import sandbox_git_refusal
+
+            git_at = next((i for i, token in enumerate(argv) if str(token).strip().lower() == "git"), 0)
+            ruled = sandbox_git_refusal([str(t) for t in argv[git_at:]], cwd=cwd)
+            if ruled is not None:
+                return _receipted(
+                    DECISION_DENIED,
+                    {
+                        "decision": "blocked",
+                        "reason": ruled.reason,
+                        "base_command": base_cmd,
+                        "user_rule": "refused",
+                    },
+                    mode=mode,
+                )
         destructive = ExecutionGate._is_destructive_command(base_cmd, argv, lowered)
         read_only = ExecutionGate._is_read_only_command(base_cmd, argv)
         writes_workspace = not read_only

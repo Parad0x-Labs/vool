@@ -891,6 +891,44 @@ def _enforce_active_mission_forbidden_terms(
     return guarded
 
 
+def _enforce_user_rule_words(
+    output: dict[str, Any],
+    *,
+    session_id: str | None,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any]:
+    """Mask every word the user's rules ban from replies in this chat (core.user_rules).
+
+    The rules lane's own answer is exempt: it quotes the user's rules back to them.
+    """
+    response = str(output.get("response") or "")
+    if not response.strip() or not str(session_id or "").strip():
+        return output
+    try:
+        from core.user_rules import RULES_TURN_MARKER, mask_reply_terms, scope_keys_for
+
+        if isinstance(source_context, dict) and source_context.get(RULES_TURN_MARKER):
+            return output
+        keys = scope_keys_for(source_context) if isinstance(source_context, dict) and (
+            source_context.get("chat_id") or source_context.get("session_id")
+        ) else scope_keys_for(None, chat_id=str(session_id))
+        masked, hits = mask_reply_terms(response, chat_id=keys["chat"], project_id=keys["project"])
+    except Exception:
+        return output
+    if not hits:
+        return output
+    guarded = dict(output)
+    rule_nos = sorted({hit.rule.rule_no for hit in hits})
+    note = "rule " + ", ".join(str(n) for n in rule_nos) if len(rule_nos) == 1 else "rules " + ", ".join(str(n) for n in rule_nos)
+    guarded["response"] = f"{masked}\n\n(Your {note} blocked {len(hits)} word{'s' if len(hits) != 1 else ''} here.)"
+    guarded["user_rule_validator"] = {
+        "applied": True,
+        "rules": rule_nos,
+        "terms": sorted({hit.term for hit in hits}),
+    }
+    return guarded
+
+
 # Keys that mean "this JSON is a tool call, not an answer". Deliberately broad: the point is to
 # catch shapes we have NOT seen, since a shape we already parse never reaches here.
 _TOOL_CALL_KEYS = frozenset(
@@ -1193,6 +1231,7 @@ def enforce_final_action_honesty(
         output, session_id=session_id, source_context=source_context
     )
     output = _enforce_active_mission_forbidden_terms(output, session_id=session_id)
+    output = _enforce_user_rule_words(output, session_id=session_id, source_context=source_context)
     output = _suppress_leaked_tool_call(output)
     output = _enforce_inspection_claims(output, user_input=user_input, session_id=session_id)
     output = _apply_answer_binding(output, user_input=user_input, session_id=session_id)

@@ -69,6 +69,25 @@ class GitRunner:
     root: Path
     timeout: int = GIT_TIMEOUT_SECONDS
     log: list[dict[str, object]] = field(default_factory=list)
+    #: The chat/project whose user rules bind this runner's outbound operations
+    #: (``core.user_rules.scope_keys_for``). Empty keys still apply global and folder-project rules.
+    rule_scope: dict[str, str] = field(default_factory=dict)
+
+    def _rules_refusal(self, operation: str, **content: object) -> GitResult | None:
+        """Refuse an operation whose message, name or added content carries a word the user's
+        rules ban from git. Nothing in this module runs the operation after a refusal."""
+        from core.user_rules import git_outbound_refusal
+
+        refusal = git_outbound_refusal(
+            self.root,
+            operation,
+            chat_id=str(self.rule_scope.get("chat") or ""),
+            project_id=str(self.rule_scope.get("project") or ""),
+            **content,
+        )
+        if refusal is None:
+            return None
+        return GitResult(operation, False, "refused_by_user_rule", (), head=self.head(), detail=refusal.reason)
 
     def run(self, *argv: str) -> tuple[int, str, str]:
         command = ["git", "-C", str(self.root), *argv]
@@ -179,6 +198,9 @@ class GitRunner:
         clean = str(name or "").strip()
         if not clean:
             return GitResult("branch", False, "invalid_arguments", (), detail="a branch needs a name")
+        ruled = self._rules_refusal("branch", names=(clean,))
+        if ruled is not None:
+            return ruled
         argv = ("switch", "-c", clean) + ((str(start_point).strip(),) if str(start_point).strip() else ())
         code, out, err = self.run(*argv)
         return self._result("branch", argv, code, out, err)
@@ -190,10 +212,18 @@ class GitRunner:
         text = str(message or "").strip()
         if not text:
             return GitResult("commit", False, "invalid_arguments", (), detail="a commit needs a message")
+        ruled = self._rules_refusal("commit", message=text, names=(self.branch(),))
+        if ruled is not None:
+            return ruled
         stage = ("add", "--", *paths) if paths else ("add", "-A")
         code, out, err = self.run(*stage)
         if code != 0:
             return self._result("commit", stage, code, out, err)
+        # What is staged is exactly what the commit would carry; it is read only after staging.
+        ruled = self._rules_refusal("commit", staged=True)
+        if ruled is not None:
+            return GitResult("commit", False, "refused_by_user_rule", stage, head=self.head(),
+                             detail=ruled.detail + " The changes are staged, not committed.")
         argv = ("commit", "-m", text)
         code, out, err = self.run(*argv)
         if code != 0 and "nothing to commit" in f"{out}{err}".lower():
@@ -223,6 +253,9 @@ class GitRunner:
         clean = str(onto or "").strip()
         if not clean:
             return GitResult("merge", False, "invalid_arguments", (), detail="a merge needs something to merge")
+        ruled = self._rules_refusal("merge", message=str(message or ""), rev_range=("HEAD", clean))
+        if ruled is not None:
+            return ruled
         argv = ("merge", "--no-ff", "--no-edit") + (("-m", str(message).strip()) if str(message).strip() else ()) + (clean,)
         code, out, err = self.run(*argv)
         return self._result("merge", argv, code, out, err)
@@ -231,6 +264,9 @@ class GitRunner:
         clean = str(name or "").strip()
         if not clean:
             return GitResult("tag", False, "invalid_arguments", (), detail="a tag needs a name")
+        ruled = self._rules_refusal("tag", message=str(message or ""), names=(clean,))
+        if ruled is not None:
+            return ruled
         argv = ("tag", "-a", clean, "-m", str(message).strip() or clean) + (
             (str(commit).strip(),) if str(commit).strip() else ()
         )
