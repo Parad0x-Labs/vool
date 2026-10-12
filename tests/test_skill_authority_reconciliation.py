@@ -66,6 +66,8 @@ def skill_world(tmp_path, monkeypatch):
     from core.runtime_flags import override
 
     _iso_home(tmp_path, monkeypatch)
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "home" / "plugin_lifecycle.json"))
+    monkeypatch.setenv("VOOL_PLUGIN_SCRATCH_ROOT", str(tmp_path / "scratch"))
     lib = tmp_path / "native-skills"
     lib.mkdir()
     monkeypatch.setenv("VOOL_NATIVE_SKILLS_DIR", str(lib))

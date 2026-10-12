@@ -49,8 +49,8 @@ Workspace scopes and operating modes control what the agent can do. Choose how e
 Download the bootstrap script, then run it:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.0-beta
 ```
 
 ### Windows PowerShell
@@ -65,7 +65,7 @@ The installer prepares the Python environment, checks your hardware, sets up the
 | Platform | Getting started |
 | --- | --- |
 | **macOS / Apple Silicon** | Primary desktop development target; source installer and macOS CI coverage. |
-| **Linux** | Source installer; full Linux test shards run in CI. |
+| **Linux** | Linux test shards cover the source installer; Linux x86_64 has a beta-tag source installer, self-contained tarball build and Ubuntu 22.04/24.04 package acceptance in CI. See the install guide for artifact availability. |
 | **Windows** | Experimental desktop path; PowerShell installer and Windows gauntlet coverage. Use WSL2/Linux for jobs requiring a Linux kernel sandbox. |
 
 For model choices, system requirements, checksums, and troubleshooting, see the [install guide](docs/INSTALL.md) and [Windows capability matrix](docs/WINDOWS_CAPABILITY_MATRIX.md).
@@ -76,9 +76,9 @@ For model choices, system requirements, checksums, and troubleshooting, see the 
 The default profile is selected from your hardware. To choose explicitly:
 
 ```bash
-bash bootstrap_vool.sh --install-profile local-only
+bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-only
 # Or use the larger local model profile:
-bash bootstrap_vool.sh --install-profile local-max
+bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-max
 ```
 
 Windows accepts `-InstallProfile local-only` or `-InstallProfile local-max`.

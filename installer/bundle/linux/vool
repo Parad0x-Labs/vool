@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Resolve the ~/.local/bin symlink without requiring system Python.
+SELF="$(readlink -f -- "${BASH_SOURCE[0]}")"
+ROOT="$(dirname "${SELF}")"
+exec "${ROOT}/python/bin/python3" -B -E -s "${ROOT}/launch.py" "$@"
