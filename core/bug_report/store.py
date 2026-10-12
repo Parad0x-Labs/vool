@@ -52,11 +52,15 @@ class DraftStore:
     def delete(self, report_id: str) -> bool:
         """Remove one local draft (the user's own "delete" in My reports). Receipts stay:
         they record what left the machine, and that history is not the draft's to erase."""
-        path = self._path_for(report_id)
-        if not path.exists():
+        if not is_valid_report_id(report_id) or not self.drafts_dir.exists():
             return False
-        path.unlink()
-        return True
+        # The file to remove is picked from the drafts folder's own listing, never built from
+        # the caller's string, so no input can name a path outside it.
+        for path in self.drafts_dir.glob("br_*.json"):
+            if path.stem == report_id:
+                path.unlink()
+                return True
+        return False
 
     def ids(self) -> list[str]:
         if not self.drafts_dir.exists():

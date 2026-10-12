@@ -298,6 +298,20 @@ def test_my_reports_lists_how_each_report_left_and_delete_removes_the_local_draf
     assert all(r["report_id"] != report_id for r in _get("/api/bug-report/list")[1]["reports"])
 
 
+def test_delete_never_reaches_a_file_outside_the_drafts_folder(tmp_path):
+    from core.bug_report.store import DraftStore
+
+    store = DraftStore(tmp_path / "store")
+    (tmp_path / "store" / "drafts").mkdir(parents=True)
+    outside = tmp_path / "store" / "br_000000000000.json"
+    outside.write_text("{}", encoding="utf-8")
+    for bad in ("../br_000000000000", "br_000000000000/../../x", "", "BR_000000000000"):
+        assert store.delete(bad) is False
+    assert store.delete("br_000000000000") is False  # valid shape, but not in the drafts folder
+    assert outside.exists()
+    assert _post("/api/bug-report/delete", {"report_id": "../../etc/passwd"})[0] == 400
+
+
 def test_destination_says_whether_a_token_exists_without_naming_it(monkeypatch):
     assert _get("/api/bug-report/destination")[1]["token_available"] is False
     monkeypatch.setenv("VOOL_BUG_REPORT_GITHUB_TOKEN", "ghp_" + "x" * 36)
