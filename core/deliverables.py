@@ -1130,7 +1130,16 @@ def requested_formats(text: str) -> tuple[str, ...]:
     except Exception:
         return ()
     ordered = _PRESENT_FILE_RE.sub(" ", raw)
-    return tuple(fmt for fmt, pattern in _NAMED_FORMAT_PATTERNS if pattern.search(ordered))
+    formats = tuple(fmt for fmt, pattern in _NAMED_FORMAT_PATTERNS if pattern.search(ordered))
+    # In a bundle order the member formats describe contents, not alternative outputs.
+    # Otherwise a named HTML member can satisfy the guard and end the turn before the ZIP exists.
+    bundle_order = re.search(
+        r"\b(?:zip|compress)\s+(?:up\s+)?(?:them|it|these|those|both|all|the\s+files)\b",
+        raw, re.I,
+    )
+    if bundle_order and "zip" in formats:
+        return ("zip",)
+    return formats
 
 
 def refuse_unrequested_format(*, filename: str, fmt: str, wanted: tuple[str, ...] | list[str]) -> None:

@@ -188,7 +188,11 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             # Data formats that double as reply formats (json, yaml) stay out, as in the pattern above,
             # and "how to make a PDF ..." asks about the task instead of ordering it.
             r"|(?<!how to )\b(?:export|download|give\s+me|send\s+me|make\s+me|make|create|generate|produce|prepare)\s+an?\s+"
-            r"(?:csv|tsv|pdf|xlsx|docx|pptx|excel|zip)\b(?!\s+(?:format|formatting|response|answer|reply)\b)",
+            r"(?:csv|tsv|pdf|xlsx|docx|pptx|excel|zip)\b(?!\s+(?:format|formatting|response|answer|reply)\b)"
+            # These nouns name deliverable artifacts without needing an extra "file" noun.
+            r"|\b(?:i\s+(?:need|want|would\s+like)|(?:make|create|build|generate|prepare)(?:\s+me)?)\s+"
+            r"(?:an?\s+)?(?:(?!to\b|about\b|know\b|understand\b|learn\b|how\b)[\w-]+\s+){0,3}?"
+            r"(?:spreadsheet|workbook|presentation|slide\s*deck)\b",
             re.I,
         ),
     ),
@@ -792,6 +796,20 @@ def asks_for_a_file(text: str) -> bool:
     """
     raw = str(text or "")
     if "file.deliver" not in resolve_demand_signals(raw).explicit_intents:
+        return False
+    # The instruction/action distinction applies to imperative explanations too,
+    # and survives a polite "can you" wrapper. A separate execution clause stays an order.
+    from core.instructional_request import asks_how_to
+
+    instruction = re.sub(r"^\s*(?:can|could|would)\s+you\s+(?:please\s+)?", "", raw, flags=re.I)
+    explanatory = asks_how_to(instruction) or re.match(
+        r"^\s*(?:explain|describe|teach\s+me|tell\s+me|show\s+me)\s+how\b", instruction, re.I
+    )
+    separate_order = re.search(
+        r"(?:[.!?]\s+|\b(?:and|then)\s+)(?:please\s+)?"
+        r"(?:export|create|make|generate|produce|prepare|give\s+me|send\s+me)\b", raw, re.I
+    )
+    if explanatory and not separate_order:
         return False
     if not _QUESTION_HEAD_RE.match(raw):
         # An imperative ("write a script and zip it up", "export this to CSV") orders the file
