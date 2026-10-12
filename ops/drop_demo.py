@@ -13,9 +13,9 @@ import secrets
 from contextlib import ExitStack
 from pathlib import Path
 
-from core.drop_fit import WARNING, DropFitError, require_enabled
-from core.drop_fit.crypto import b64, unb64
-from core.drop_fit.service import MAX_FILE, DropHome, LocalRelay, _write, summary_block
+from core.drop import WARNING, DropError, require_enabled
+from core.drop.service import MAX_FILE, DropHome, LocalRelay, _write, summary_block
+from core.drop.session import b64, unb64
 
 
 def seed_real_derivatives(endpoint, sid, marker):
@@ -92,7 +92,7 @@ def prove_erasure(endpoint, sid, *, expiry):
 def refused(fn, *codes):
     try:
         fn()
-    except DropFitError as exc:
+    except DropError as exc:
         assert str(exc) in codes, "unexpected refusal code"
         return str(exc)
     raise AssertionError("request was not refused")
@@ -102,22 +102,21 @@ def event(step, **details):
     print(json.dumps({"step": step, "status": "PASS", **details}, sort_keys=True), flush=True)
 
 
-def demo(root, node):
+def demo(root):
     require_enabled()
     root = Path(root).absolute()
     if root.exists():
-        raise DropFitError("DEMO_HOME_ALREADY_EXISTS")
+        raise DropError("DEMO_HOME_ALREADY_EXISTS")
     root.mkdir(mode=0o700, parents=True)
     relay = root / "relay"
     LocalRelay(relay, create=True)
     print(WARNING, flush=True)
     with ExitStack() as stack:
-        a = stack.enter_context(DropHome(root / "a", relay, node))
-        b = stack.enter_context(DropHome(root / "b", relay, node, peer=a.fingerprint))
-        a.peer = b.fingerprint
+        a = stack.enter_context(DropHome(root / "a", relay))
+        b = stack.enter_context(DropHome(root / "b", relay))
 
         def connect():
-            link = a.invite()
+            link = a.invite(b.fingerprint)
             sid = b.join(link, a.fingerprint)
             assert a.poll() == ["received"]
             assert not (relay / "invites" / (link.rsplit("/", 1)[1] + ".invite")).exists()
@@ -134,7 +133,7 @@ def demo(root, node):
         a.send_packet(sid, note, selected)
         queued = b"".join(path.read_bytes() for path in a.relay.messages(b.fingerprint))
         assert note.encode() not in queued and selected.read_bytes()[:64] not in queued
-        b = stack.enter_context(DropHome(root / "b", relay, node, peer=a.fingerprint))
+        b = stack.enter_context(DropHome(root / "b", relay))
         received = b.poll()
         assert len(received) == 257 and b.show(sid)["note"] == note
         assert hashlib.sha256((b.root / sid / "selected.bin").read_bytes()).hexdigest() == digest
@@ -158,7 +157,7 @@ def demo(root, node):
         with a.scope():
             a._send(sid, json.loads(a._row(sid)["task"]))
         b.close()
-        b = stack.enter_context(DropHome(root / "b", relay, node, peer=a.fingerprint))
+        b = stack.enter_context(DropHome(root / "b", relay))
         b.poll()
         assert b.show(sid)["executions"] == 1
         refused(lambda: b.execute_approved(sid), "APPROVAL_REQUIRED_OR_ALREADY_CLAIMED")
@@ -185,14 +184,16 @@ def demo(root, node):
         path = a.relay.messages(b.fingerprint)[0]
         original = path.read_bytes()
         packet = json.loads(original)
-        encrypted = bytearray(unb64(packet["box"]["body"]))
+        encrypted = bytearray(unb64(packet["box"]["body"], 0, 65536))
         encrypted[0] ^= 1
         packet["box"]["body"] = b64(encrypted)
         _write(path, json.dumps(packet, sort_keys=True, separators=(",", ":")).encode())
-        tamper = refused(b.poll, "AUTH_FAILED")
-        assert b.show(bad)["note"] == ""
+        outcomes = b.poll()
+        assert outcomes[0] == "rejected" and "received" not in outcomes and b.show(bad)["note"] == ""
+        tamper = "rejected and consumed; the authentic chunk behind it was held, not dropped"
         _write(path, original)
         b.poll()
+        assert b.show(bad)["status"] == "ready"
 
         oversize = root / "oversize.bin"
         with oversize.open("wb") as out:
@@ -202,7 +203,7 @@ def demo(root, node):
         over = refused(lambda: a.send_packet(limit_sid, "too big", oversize), "INPUT_LIMIT")
         assert a.show(limit_sid)["manifest"] == ""
 
-        link = a.invite()
+        link = a.invite(b.fingerprint)
         deadline = json.loads((relay / "invites" / (link.rsplit("/", 1)[1] + ".invite")).read_bytes())["body"]["expires"]
         b.clock = lambda: deadline
         invite = refused(lambda: b.join(link, a.fingerprint), "EXPIRED")
@@ -215,13 +216,13 @@ def demo(root, node):
         before = {p.name: hashlib.sha256(p.read_bytes()).digest() for p in vault.iterdir() if p.is_file()}
         _write(key, bytes([original_key[0] ^ 1]) + original_key[1:])
         try:
-            wrong = refused(lambda: DropHome(root / "b", relay, node, peer=a.fingerprint), "CRYPTO_UNAVAILABLE")
+            wrong = refused(lambda: DropHome(root / "b", relay), "CORRUPT_STORE_OR_WRONG_KEY")
             assert before == {p.name: hashlib.sha256(p.read_bytes()).digest() for p in vault.iterdir() if p.is_file()}
         finally:
             _write(key, original_key)
-        b = stack.enter_context(DropHome(root / "b", relay, node, peer=a.fingerprint))
-        missing = refused(lambda: DropHome(root / "missing-home", root / "missing-relay", node), "MISSING_RELAY")
-        assert not (root / "missing-home" / "drop_fit" / "crypto").exists()
+        b = stack.enter_context(DropHome(root / "b", relay))
+        missing = refused(lambda: DropHome(root / "missing-home", root / "missing-relay"), "MISSING_RELAY")
+        assert not (root / "missing-home" / "drop" / "crypto").exists()
         event(8, tampered_ciphertext=tamper, wrong_key=wrong, oversize_file=over, expired_invite=invite,
               missing_relay=missing, wrong_key_storage="unchanged")
 
@@ -229,15 +230,12 @@ def demo(root, node):
 def main():
     parser = argparse.ArgumentParser(description=WARNING)
     parser.add_argument("--scratch", required=True, help="Fresh task-owned SSD directory")
-    parser.add_argument("--node", default=os.environ.get("VOOL_DROP_NODE"))
     args = parser.parse_args()
     try:
-        if not args.node:
-            raise DropFitError("NODE_REQUIRED")
-        demo(args.scratch, args.node)
+        demo(args.scratch)
         return 0
     except Exception as exc:
-        code = str(exc) if isinstance(exc, DropFitError) else type(exc).__name__
+        code = str(exc) if isinstance(exc, DropError) else type(exc).__name__
         print(json.dumps({"status": "FAIL", "reason": code}), flush=True)
         return 1
 
