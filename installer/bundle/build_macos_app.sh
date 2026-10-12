@@ -285,6 +285,44 @@ esac
 # Stage a relocatable runtime INSIDE the bundle: embedded CPython + lean deps + VOOL source +
 # the ollama binary. This is the macOS analogue of build_bundle.ps1's staging step, so the app
 # runs with no system Python, no repo checkout and no separately-installed Ollama.
+# Ollama runs models in a separate llama-server process that it looks for next to its own
+# binary, with the ggml/llama libraries and CPU backends beside it. Bundling the ollama binary
+# alone gives an app that can pull a model but never run one: every chat that needs the model
+# fails with "llama-server binary not found" (seen on a real Intel Mac with ollama v0.40.3).
+# This copies the runner, its libraries and their license files from the directory the ollama
+# binary came from. A Mach-O without the target slice is left out: a universal release ships
+# x86_64-only libraries an arm64 app cannot load, and the slice gate would refuse them. The MLX
+# engine directories are left out too (Apple Silicon on macOS 26 only); VOOL's local models
+# run through llama-server. Fails closed when the ollama binary needs a runner it cannot get.
+bundle_ollama_runtime() {
+  local src="$1" dst="$2" arch="$3" f name archs target
+  # An unmatched pattern stays literal and fails the -f / -L test, so no nullglob is needed.
+  for f in "${src}"/llama-server "${src}"/llama-quantize "${src}"/lib*.dylib "${src}"/lib*.so \
+    "${src}"/*_LICENSE "${src}"/*_NOTICE; do
+    [[ -f "${f}" && ! -L "${f}" ]] || continue
+    name="${f##*/}"
+    if archs="$(lipo -archs "${f}" 2>/dev/null)"; then
+      [[ " ${archs} " == *" ${arch} "* ]] || { say "        left out ${name} (slices: ${archs})"; continue; }
+    fi
+    cp -f "${f}" "${dst}/${name}" || die "could not bundle ollama's ${name}"
+  done
+  # Version links (libggml.0.dylib -> libggml.0.25.3.dylib) are recreated as the same relative
+  # links, only when their target was bundled, so no link points outside the bundle.
+  for f in "${src}"/llama-server "${src}"/llama-quantize "${src}"/lib*.dylib "${src}"/lib*.so \
+    "${src}"/*_LICENSE "${src}"/*_NOTICE; do
+    [[ -L "${f}" ]] || continue
+    name="${f##*/}"
+    target="$(readlink "${f}")"
+    [[ "${target}" != */* ]] || die "ollama's ${name} links outside its directory (${target})"
+    [[ -e "${dst}/${target}" || -L "${dst}/${target}" ]] || continue
+    ln -sfn "${target}" "${dst}/${name}" || die "could not bundle ollama's ${name}"
+  done
+  if grep -a -q -F "llama-server binary not found" "${dst}/ollama" && [[ ! -x "${dst}/llama-server" ]]; then
+    die "the bundled ollama runs models through llama-server, but no ${arch} llama-server was found next to it in ${src}"
+  fi
+  return 0
+}
+
 stage_self_contained() {
   local res="$1"
   command -v uv >/dev/null 2>&1 || die "--self-contained needs uv (astral.sh) to supply a relocatable CPython"
@@ -506,6 +544,7 @@ stage_self_contained() {
     if [[ -f "${resolved}" ]]; then
       cp -f "${resolved}" "${res}/ollama/ollama" && chmod +x "${res}/ollama/ollama"
       say "        bundled: ${resolved}"
+      bundle_ollama_runtime "$(dirname "${resolved}")" "${res}/ollama" "${TARGET_ARCH}"
     fi
   fi
   [[ -x "${res}/ollama/ollama" ]] || say "        WARNING: no ollama binary bundled; the app will use a system ollama if present"
