@@ -372,10 +372,9 @@ def looks_like_search(clause: str) -> bool:
     if _S_FIND.search(f) and _S_PAST.search(f):
         # "find the file we discussed" is a file ask; with a chat named it is ours again.
         return bool(_CHAT_NOUN.search(f)) or not _NOT_CHATS.search(f)
+    # "can you find the conversation about tax returns", "take me back to the chat ..."
     retrieval = _S_FIND.search(f)
-    if retrieval and re.search(rf"\b{_CHAT_N}s?\b", f[retrieval.start():]):
-        return True   # "can you find the conversation about tax returns", "take me back to the chat ..."
-    return False
+    return bool(retrieval and re.search(rf"\b{_CHAT_N}s?\b", f[retrieval.start():]))
 
 
 def search_query_from(clause: str) -> str:

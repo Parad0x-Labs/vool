@@ -231,8 +231,7 @@ _WORD_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)?", re.UNICODE)
 #: Function words plus the vocabulary people use to ASK for a search ("I was talking about",
 #: "can you find the chat where"). Those words describe the request, not the thing searched for,
 #: so they never become query terms. Topic words are never listed here.
-STOPWORDS = frozenset(
-    """
+_STOPWORD_TEXT = """
     a about above after again against all also am an and any are aren't as at be because been
     before being below between both but by can can't cannot could couldn't did didn't do does
     doesn't doing don't down during each few for from further had hadn't has hasn't have haven't
@@ -255,8 +254,8 @@ STOPWORDS = frozenset(
     ago last time once while pin pinned pinning did do done for me us know knew which where
     whatever wherever somehow wich whcih whihc pull dig track hunt bring take show open get old
     older helped word words phrase called named titled ask asked asking
-    """.split()
-)
+    """
+STOPWORDS = frozenset(_STOPWORD_TEXT.split())
 
 
 def _fold(text: str) -> str:
@@ -1070,9 +1069,9 @@ def _score_pinned_messages(
 
 
 __all__ = [
-    "ActionResult",
     "SCHEMA",
     "STOPWORDS",
+    "ActionResult",
     "SearchHit",
     "SearchResult",
     "chat_pins_path",
