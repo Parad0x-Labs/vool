@@ -1,4 +1,5 @@
 {
   "_comment": "PUBLIC Ed25519 publisher keys trusted to sign update manifests, by key_id. While this map is empty the signed-manifest updater (core/updater) is FAIL-CLOSED: it offers and installs nothing. Generate a pair with: python -m installer.gen_publisher_keypair --key-id <id> --out-dir <dir-outside-repo>, then pin the printed public hex here. The private half must never live in this repository.",
-  "_schema": "vool.update.trusted_publisher_keys.v1"
+  "_schema": "vool.update.trusted_publisher_keys.v1",
+  "vool-release-2026": "a659f0ae5f2df3294a7c614f6842c9bc577d6b20b7c3864a6de5bf130df4a514"
 }
