@@ -10,7 +10,7 @@ from core.deliverables import DeliverableRefused, build_file
 def test_explicit_source_format_matches_its_supported_extension(fmt):
     built = build_file("sample content", filename="sample." + fmt, fmt=fmt)
     assert built.fmt == "code" and built.filename.endswith("." + fmt)
-    assert built.data == b"sample content"
+    assert built.data == b"sample content\n"
 
 def test_html_css_archive_accepts_explicit_member_formats():
     built = build_file("", filename="page.zip", fmt="zip", files=[
