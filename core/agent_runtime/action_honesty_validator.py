@@ -38,6 +38,8 @@ _HONEST_DENIAL_RE = re.compile(
     # and `emit_turn_honesty_receipt` shares this predicate, so the denial would be RECORDED as a
     # claim. Caught by the family's own "a denial is not itself a claim" test.
     r"|did\s+not\s+write\s+anything\s+to\s+memory"
+    r"|did\s+not\s+create\s+or\s+save\s+a\s+file"
+    r"|nothing\s+was\s+generated\s+on\s+this\s+turn"
     r"|nothing\s+was\s+(?:stored|persisted|saved\s+to\s+memory)"
     r")\b",
     re.IGNORECASE,
@@ -91,6 +93,82 @@ _BUILD_CLAIM_NOT_SELF_RE = re.compile(
     r"(?:create|write|make|add|run|generate|save|scaffold)\b",
     re.IGNORECASE,
 )
+# A completion claim about a DELIVERABLE FILE -- a document, deck, spreadsheet or PDF said to be
+# made, saved, exported or attached. Measured live 2026-10-05 on main 9adff83: "give it to me as a
+# Word document" was answered "Created a five-item packing checklist ... and saved it as a Word
+# document." and "I want a PowerPoint file" with "Created a three-slide PowerPoint presentation
+# ..." on turns where no tool ran -- and VOOL has no docx/pptx/xlsx writer at all. The build
+# vocabulary above names files, scripts and tests, never a document, so both shipped. The object is
+# a FORMAT (Word, PowerPoint, PDF, .xlsx ...) or a file-only noun (presentation, spreadsheet, slide
+# deck, workbook); a bare "document" or "report" is left alone because an answer can BE one.
+_DELIVERABLE_FORMAT = (
+    r"(?:word|excel|power\s*point|keynote|google\s+(?:docs?|sheets?|slides?)|pdf|docx|xlsx|xls|pptx|"
+    r"odt|ods|odp|rtf|epub)"
+)
+_DELIVERABLE_NOUN = (
+    r"(?:documents?|docs?|files?|presentations?|decks?|slide\s*decks?|slides(?:hows?)?|spreadsheets?|"
+    r"workbooks?|sheets?|reports?|exports?|versions?|copy|copies)"
+)
+#: A deliverable named as the SOURCE or SUBJECT ("a summary of the PowerPoint", "the PDF content")
+#: is not a claim that one was produced.
+_DELIVERABLE_NOT_PRODUCT = r"(?!\s+(?:content|contents|text|outline|summary|structure|layout|draft|notes|format)\b)"
+_DELIVERABLE_OBJECT = (
+    rf"(?:{_DELIVERABLE_FORMAT}\s+{_DELIVERABLE_NOUN}\b"
+    # A bare format names the product only where the phrase ends ("saved it as a PDF.", "to Excel
+    # and ..."); "the Excel formula" and "a PDF reader" are about something else.
+    rf"|{_DELIVERABLE_FORMAT}\b(?=\s*(?:[.,;:!?)]|$)|\s+(?:and|so|which|that|for|with|in|to|now|here|"
+    rf"is|are|was|were|has|have)\b)"
+    rf"|(?:presentations?|(?:slide\s*)?decks?|spreadsheets?|workbooks?)\b)"
+    rf"{_DELIVERABLE_NOT_PRODUCT}"
+)
+_DELIVERABLE_VERB = (
+    r"(?:created|generated|made|built|prepared|produced|saved|exported|converted|attached|wrote|written|"
+    r"compiled|put\s+together|uploaded|rendered|packaged)"
+)
+#: Words between the verb and the object that make the object a source rather than the product.
+_DELIVERABLE_SOURCE_WORD = r"(?:of|from|about|on|with|by|based|describing|summari[sz]ing|explaining|using|for)"
+_DELIVERABLE_CLAIM_RE = re.compile(
+    rf"\b(?:"
+    # "saved it as a Word document", "exported the budget to Excel", "created a three-slide PowerPoint presentation"
+    rf"{_DELIVERABLE_VERB}(?:\s+(?!{_DELIVERABLE_SOURCE_WORD}\b)[\w'-]+){{0,6}}?\s+{_DELIVERABLE_OBJECT}"
+    # "your Word document is ready", "the PDF has been generated"
+    rf"|{_DELIVERABLE_OBJECT}\s+(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?"
+    rf"(?:ready|created|generated|saved|exported|attached|available|done|complete|uploaded|made|prepared)"
+    # "here is your PowerPoint file", "attached is the spreadsheet"
+    rf"|(?:here(?:'s|\s+is|\s+are)|attached\s+(?:is|are))\s+(?:your|the)\s+(?:[\w-]+\s+){{0,2}}?{_DELIVERABLE_OBJECT}"
+    rf")",
+    re.IGNORECASE,
+)
+#: An offer, a plan, a refusal or the user's own action -- not a report that a file now exists.
+_DELIVERABLE_NOT_DONE_RE = re.compile(
+    r"\b(?:i'?ll|i\s+will|i\s+can|i\s+could|i\s+would|i'?d|let\s+me|want\s+me\s+to|shall\s+i|should\s+i|"
+    r"if\s+you|you\s+can|you\s+could|you\s+(?:already\s+|just\s+)?(?:created|saved|exported|attached|uploaded|made)|"
+    r"can'?t|cannot|couldn'?t|unable|not\s+able|didn'?t|did\s+not|haven'?t|have\s+not|hasn'?t|has\s+not|"
+    r"isn'?t|is\s+not|wasn'?t|was\s+not|no\s+(?:file|document)|never)\b",
+    re.IGNORECASE,
+)
+
+#: A PROMISE that a file is about to be made ("I will now generate the PDF with this summary.",
+#: "I'll create this in an Excel file for you now."). Measured live the same day: the content came
+#: back in the chat with that promise appended, on a turn where no tool ran and none was queued, so
+#: the user waits for a file that never comes. An offer ("I can make it a PDF if you want") is honest
+#: and stays.
+_DELIVERABLE_PROMISE_RE = re.compile(
+    rf"\b(?:(?:i'?ll|i\s+will|let\s+me|i'?m\s+going\s+to|i\s+am\s+going\s+to)\s+(?:now\s+)?(?:go\s+ahead\s+and\s+)?"
+    rf"(?:create|generate|make|build|prepare|produce|save|export|convert|put\s+together|compile|render|attach|turn)"
+    rf"|(?:now\s+)?(?:creating|generating|exporting|saving|converting|preparing|rendering)\s+(?:the|your|a|an|this)\b)"
+    rf"[^.!?\n]*?\b{_DELIVERABLE_OBJECT}",
+    re.IGNORECASE,
+)
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?:])\s+")
+#: "If you want, I'll make it a PDF" waits for the user; it is an offer, not a promise of work underway.
+_CONDITIONAL_OFFER_RE = re.compile(
+    r"\b(?:if\s+you|if\s+that|would\s+you\s+like|do\s+you\s+want|want\s+me\s+to|shall\s+i|should\s+i|"
+    r"just\s+(?:say|tell|let)|once\s+you|when\s+you)\b",
+    re.IGNORECASE,
+)
+_UNBACKED_PROMISE_NOTE = "(I have not made that file: nothing was generated on this turn.)"
+
 #: What a persistence claim is ABOUT. Memory, preferences and standing rules are the things a user
 #: asks to be remembered, and none of them appear in the file/tool/funds vocabularies above.
 _PERSISTENCE_OBJECT = (
@@ -125,6 +203,11 @@ _HONEST_NO_PERSISTENCE_RESPONSE = (
     "I did not write anything to memory -- no preference, rule or setting was stored on this turn, "
     "and nothing here will carry into a later chat. I can still follow it for the rest of this "
     "conversation if you repeat it, but I am not going to say it was saved when it was not."
+)
+
+_HONEST_NO_DELIVERABLE_RESPONSE = (
+    "I did not create or save a file on this turn, so there is no document, spreadsheet, "
+    "presentation or PDF to open or download. Nothing was generated."
 )
 
 _HONEST_NO_BUILD_RESPONSE = (
@@ -505,6 +588,13 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
             continue
         return "mutation"
     for sentence in _split_sentences(body):
+        match = _DELIVERABLE_CLAIM_RE.search(sentence)
+        if match is None:
+            continue
+        if _DELIVERABLE_NOT_DONE_RE.search(sentence[: match.end()]) or _NOT_A_SELF_CLAIM_RE.search(sentence):
+            continue  # an offer, a plan, a refusal or the user's own file -- not a file this turn made
+        return "deliverable"
+    for sentence in _split_sentences(body):
         if not _BUILD_CLAIM_RE.search(sentence):
             continue
         if _BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence):
@@ -550,6 +640,65 @@ def _claims_false_payment(text: str) -> bool:
                 continue  # somebody else's behaviour or a possibility, not a report of this runtime's spend
             return True
     return False
+
+
+#: Tool-name markers of a tool that writes, renders or exports a file. Marker-matched like the
+#: spend markers below: a hit only ever SUPPRESSES the replacement, it never invents a claim.
+_FILE_WRITE_TOOL_MARKERS = (
+    "write", "save", "export", "generate", "render", "create", "convert", "attach", "document", "docx",
+    "pptx", "xlsx", "pdf", "file", "deliver",
+)
+
+
+def _turn_wrote_a_file(*, session_id: str | None, source_context: dict[str, object] | None) -> bool:
+    """Whether this turn's execution record shows a tool that writes or exports a file ran."""
+    for entry in _collect_executed_tools(session_id, source_context):
+        tool = str(entry.get("tool") or "").lower()
+        if any(marker in tool for marker in _FILE_WRITE_TOOL_MARKERS):
+            return True
+    return False
+
+
+def _strip_unbacked_file_promises(
+    output: dict[str, Any],
+    *,
+    session_id: str | None,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any]:
+    """Drop sentences promising a file that no tool is making, keep the rest, and say so once.
+
+    The answer's real content stays; only the promise of a document, deck, spreadsheet or PDF that
+    this turn did not write is removed. A file-writing tool on this turn makes the promise true.
+    """
+    response = str(output.get("response") or "")
+    if not response.strip() or not _DELIVERABLE_PROMISE_RE.search(response):
+        return output
+    if _turn_wrote_a_file(session_id=session_id, source_context=source_context):
+        return output
+    kept_lines: list[str] = []
+    removed: list[str] = []
+    for line in response.split("\n"):
+        sentences = _SENTENCE_SPLIT_RE.split(line)
+        survivors = []
+        for sentence in sentences:
+            if _DELIVERABLE_PROMISE_RE.search(sentence) and not _CONDITIONAL_OFFER_RE.search(sentence):
+                removed.append(sentence.strip())
+                continue
+            survivors.append(sentence)
+        if removed and line.strip() and not "".join(survivors).strip():
+            continue  # the whole line was the promise
+        kept_lines.append(" ".join(part for part in survivors if part) if len(survivors) != len(sentences) else line)
+    if not removed:
+        return output
+    body = "\n".join(kept_lines).strip()
+    guarded = dict(output)
+    guarded["response"] = f"{body}\n\n{_UNBACKED_PROMISE_NOTE}" if body else _HONEST_NO_DELIVERABLE_RESPONSE
+    guarded["action_honesty_validator"] = {
+        "applied": True,
+        "reason": "unbacked_file_promise_removed",
+        "removed": removed[:4],
+    }
+    return guarded
 
 
 def _turn_executed_a_spend(*, session_id: str | None, source_context: dict[str, object] | None) -> bool:
@@ -1277,21 +1426,28 @@ def enforce_final_action_honesty(
         output["route_reason"] = "fabricated_progress_blocked"
         return output
     if not claim_kind:
-        return output
+        return _strip_unbacked_file_promises(output, session_id=session_id, source_context=source_context)
     # NOT gated on this turn's prompt. Whether "the files were deleted" is TRUE depends on whether a
     # tool actually ran -- not on what the user happened to type. The old gate required an action
     # verb in the CURRENT prompt, so the guard switched itself off on every follow-up: the identical
     # fabricated claim was blocked right after "delete the temp files" and passed one turn later on
     # "ok and what now?". The remaining gates below are the ones that decide truthfulness:
     # an explicit denial, mode=tool_executed, or a real executed receipt in this session.
-    if str(output.get("mode") or output.get("mode_override") or "").strip().lower() == "tool_executed":
-        return output
-    if _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context):
+    if claim_kind == "deliverable":
+        # A file said to exist needs a tool that WROTE one on this turn. Any other receipt (a web
+        # lookup, a memory read) or a tool-flavoured mode is not evidence that a document exists.
+        if _turn_wrote_a_file(session_id=session_id, source_context=source_context):
+            return output
+    elif (
+        str(output.get("mode") or output.get("mode_override") or "").strip().lower() == "tool_executed"
+        or _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context)
+    ):
         return output
     if _location_answer_has_verified_past_receipt(output, session_id=session_id, source_context=source_context):
         return output
 
     output["response"] = {
+        "deliverable": _HONEST_NO_DELIVERABLE_RESPONSE,
         "build": _HONEST_NO_BUILD_RESPONSE,
         "persistence": _HONEST_NO_PERSISTENCE_RESPONSE,
     }.get(claim_kind, _HONEST_NO_EXECUTION_RESPONSE)
