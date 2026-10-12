@@ -660,6 +660,11 @@ _LITERAL_SPAN_RE = re.compile(
       # file. The document and media formats a user actually names are listed here for the same
       # reason the code formats already were.
       | \b[A-Za-z0-9_\-]+(?:\.[A-Za-z0-9_\-]+)*\.(?:null|sol|eth|io|com|org|net|xyz|dev|app|py|ps1|txt|json|jsonl|md|toml|cfg|ini|log|sh|bat|cmd|yaml|yml|js|ts|tsx|rs|go|html|css|pdf|csv|tsv|doc|docx|xls|xlsx|ppt|pptx|rtf|epub|png|jpg|jpeg|gif|webp|svg|heic|mp3|mp4|mov|wav|zip|sql|xml|srt)\b
+      # A BARE extension naming a file kind ("hand it to me as a .md file", "export to a .csv"). With
+      # no stem it missed the filename rule above, so "." and "md" became two tokens and the turn
+      # reached every router as "as a. md file" (measured live 2026-10-06): the file order was not
+      # recognized and the reply claimed a Markdown file that was never made.
+      | (?<![\w.])\.(?:tar\.gz|txt|json|md|yaml|yml|html|pdf|csv|tsv|docx|xlsx|pptx|zip|xml|py|js|ts|sh|sql|rtf|epub|rar|7z|tgz)\b(?!\.\w)
       | \b\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?\b   # ISO date [+ time]
       | \b\d{1,2}:\d{2}(?::\d{2})?\b                             # clock time    14:30
       | \b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b                         # grouped number  3,000 / 1,234.56
