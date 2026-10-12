@@ -147,7 +147,7 @@ _DELIVERABLE_CLAIM_RE = re.compile(
     rf"(?<!\bthe\s)(?<!\byour\s)(?<!\bmy\s)(?<!\bthis\s)(?<!\bthat\s)"
     rf"{_DELIVERABLE_VERB}(?:\s+(?!{_DELIVERABLE_SOURCE_WORD}\b)[\w'-]+){{0,6}}?\s+(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})"
     # "your Word document is ready", "the PDF has been generated"
-    rf"|{_DELIVERABLE_OBJECT}\s+(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?"
+    rf"|(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})\s+(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?"
     rf"(?:ready|created|generated|saved|exported|attached|available|done|complete|uploaded|made|prepared)"
     # "here is your PowerPoint file", "attached is the spreadsheet"
     rf"|(?:here(?:'s|\s+is|\s+are)|attached\s+(?:is|are))\s+(?:your|the)\s+(?:[\w-]+\s+){{0,2}}?{_DELIVERABLE_OBJECT}"
@@ -168,8 +168,17 @@ _DELIVERABLE_NOT_DONE_RE = re.compile(
 #: back in the chat with that promise appended, on a turn where no tool ran and none was queued, so
 #: the user waits for a file that never comes. An offer ("I can make it a PDF if you want") is honest
 #: and stays.
+_GENERIC_FILE_PROMISE_RE = re.compile(
+    r"\b(?:i['’]?ll|i\s+will|let\s+me|i['’]?m\s+going\s+to|i\s+am\s+going\s+to)"
+    r"\s+(?:now\s+)?(?:go\s+ahead\s+and\s+)?"
+    r"(?:create|generate|make|build|prepare|produce|save|export|convert|compile|render|attach)"
+    r"(?:\s+(?:the|a|an|one|both|all|each|two|three|four|five|six|those|these|your|new|other|\d+))*"
+    r"\s+files?\b",
+    re.IGNORECASE,
+)
 _DELIVERABLE_PROMISE_RE = re.compile(
-    rf"\b(?:(?:i'?ll|i\s+will|let\s+me|i'?m\s+going\s+to|i\s+am\s+going\s+to)\s+(?:now\s+)?(?:go\s+ahead\s+and\s+)?"
+    rf"(?:{_GENERIC_FILE_PROMISE_RE.pattern})|"
+    rf"\b(?:(?:i['’]?ll|i\s+will|let\s+me|i['’]?m\s+going\s+to|i\s+am\s+going\s+to)\s+(?:now\s+)?(?:go\s+ahead\s+and\s+)?"
     rf"(?:create|generate|make|build|prepare|produce|save|export|convert|put\s+together|compile|render|attach|turn)"
     rf"|(?:now\s+)?(?:creating|generating|exporting|saving|converting|preparing|rendering)\s+(?:the|your|a|an|this)\b)"
     rf"[^.!?\n]*?(?:\b{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})",
@@ -182,7 +191,7 @@ _CONDITIONAL_OFFER_RE = re.compile(
     r"just\s+(?:say|tell|let)|once\s+you|when\s+you)\b",
     re.IGNORECASE,
 )
-_UNBACKED_PROMISE_NOTE = "(I have not made that file: nothing was generated on this turn.)"
+_UNBACKED_PROMISE_NOTE = "(I cannot verify that file from this turn's execution record.)"
 
 #: What a persistence claim is ABOUT. Memory, preferences and standing rules are the things a user
 #: asks to be remembered, and none of them appear in the file/tool/funds vocabularies above.
@@ -221,8 +230,8 @@ _HONEST_NO_PERSISTENCE_RESPONSE = (
 )
 
 _HONEST_NO_DELIVERABLE_RESPONSE = (
-    "I did not create or save a file on this turn, so there is no document, spreadsheet, "
-    "presentation or PDF to open or download. Nothing was generated."
+    "I cannot verify that file from this turn's execution record. "
+    "I do not have matching evidence or a verified download to offer."
 )
 
 _HONEST_NO_BUILD_RESPONSE = (
@@ -781,6 +790,81 @@ def _turn_file_writes(*, session_id: str | None, source_context: dict[str, objec
     return writes
 
 
+_SPECIFIC_DELIVERABLE_NAME_RE = re.compile(
+    rf"(?<![\w.])\.?[\w-]+(?:\.[\w-]+)*\.{_DATA_FILE_EXTENSION}\b(?!\.\w)",
+    re.IGNORECASE,
+)
+_OUTPUT_FILE_KEYS = frozenset({"filename", "file_name", "path", "file_path", "output_path", "target"})
+_FILE_COUNT_WORDS = {"one": 1, "both": 2, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+
+
+def _output_file_names(*details: object) -> set[str]:
+    """Known output identities, deduplicated by basename; input/content objects are not outputs."""
+    names: set[str] = set()
+
+    def scan(value: object, depth: int = 0) -> None:
+        if isinstance(value, dict):
+            for key, inner in value.items():
+                if isinstance(inner, str) and (
+                    key in _OUTPUT_FILE_KEYS or (key == "name" and "." in inner)
+                ):
+                    name = inner.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+                    if name:
+                        names.add(name)
+                elif depth < 3 and key not in {"arguments", "input", "content"}:
+                    scan(inner, depth + 1)
+        elif isinstance(value, list) and depth < 3:
+            for item in value[:16]:
+                scan(item, depth + 1)
+
+    for detail in details:
+        scan(detail)
+    return names
+
+
+def _turn_file_output_names(*, session_id: str | None, source_context: dict[str, object] | None) -> set[str]:
+    names: set[str] = set()
+    for receipt in list((source_context or {}).get("tool_receipts") or []):
+        if not isinstance(receipt, dict) or not _receipt_succeeded(receipt):
+            continue
+        tool = str(receipt.get("tool_name") or receipt.get("tool") or receipt.get("intent") or "")
+        if _is_file_writer(tool):
+            names.update(_output_file_names(receipt.get("observation"), receipt.get("details")))
+            if "write_file" in tool:
+                names.update(_output_file_names(receipt.get("arguments")))
+    try:
+        from core.execution_truth import KIND_TOOL, facts_for_turn, resolve_turn_key
+
+        turn_key = resolve_turn_key(dict(source_context or {}), None)
+        for fact in facts_for_turn(turn_key, session_id=str(session_id or "").strip()):
+            if fact.in_category(KIND_TOOL) and fact.ok and str(fact.status or "").lower() not in _FAILED_STATUSES:
+                if _is_file_writer(fact.name):
+                    names.update(_output_file_names(fact.detail))
+    except Exception:
+        pass
+    return names
+
+
+def _promised_file_count(claims: list[str]) -> int:
+    required = 0
+    for text in claims:
+        match = _GENERIC_FILE_PROMISE_RE.search(text)
+        if match is None:
+            continue
+        body = match.group(0)
+        count = re.search(
+            r"\b(one|both|two|three|four|five|six|\d+)(?:\s+(?:new|other|your|these|those)){0,2}\s+files?\b",
+            body, re.IGNORECASE,
+        )
+        if count:
+            token = count.group(1).lower()
+            amount = int(token) if token.isdigit() else _FILE_COUNT_WORDS[token]
+        else:
+            amount = 2 if re.search(r"\bfiles\b", body, re.IGNORECASE) else 1
+        required = max(required, amount)
+    return required
+
+
 def _turn_wrote_a_file(
     *,
     session_id: str | None,
@@ -796,9 +880,14 @@ def _turn_wrote_a_file(
     writes = _turn_file_writes(session_id=session_id, source_context=source_context)
     if not writes:
         return False
-    families = _claimed_deliverable_families(list(claimed or []))
-    if not families:
-        return True
+    claims = list(claimed or [])
+    families = _claimed_deliverable_families(claims)
+    expected_names = {name for text in claims for name in _SPECIFIC_DELIVERABLE_NAME_RE.findall(text)}
+    minimum_count = _promised_file_count(claims)
+    if expected_names or minimum_count:
+        written_names = _turn_file_output_names(session_id=session_id, source_context=source_context)
+        if not expected_names.issubset(written_names) or len(written_names) < minimum_count:
+            return False
     made = set().union(*writes)
     return all(family & made for family in families)
 

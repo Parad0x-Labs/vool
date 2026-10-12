@@ -112,4 +112,4 @@ def test_a_failed_delivery_does_not_back_the_claim():
 def test_a_promise_of_a_named_text_file_with_no_writer_is_removed(reply):
     out = _guard(reply)
     assert "I'll create and export" not in out and "I'll save it as" not in out
-    assert "(I have not made that file" in out or out == _HONEST_NO_DELIVERABLE_RESPONSE
+    assert "cannot verify that file" in out or out == _HONEST_NO_DELIVERABLE_RESPONSE

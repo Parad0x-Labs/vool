@@ -156,7 +156,8 @@ def test_a_promised_file_that_nothing_is_making_is_dropped_and_the_content_kept(
     guarded = _guard(LIVE_PDF_PROMISE)
     assert "I will create a PDF" not in guarded and "I will now generate the PDF" not in guarded
     assert "Walking strengthens the heart." in guarded and "**The Benefits of Regular Walking**" in guarded
-    assert guarded.endswith("nothing was generated on this turn.)")
+    assert guarded.endswith("(I cannot verify that file from this turn's execution record.)")
+    assert "nothing was generated" not in guarded.lower()
     assert _guard(guarded) == guarded  # final on a second pass
 
 
