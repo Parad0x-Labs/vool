@@ -539,3 +539,80 @@ def test_the_reply_guard_is_idempotent_over_a_sealed_reply(home):
         twice = _enforce_user_rule_words(dict(once), session_id=chat, source_context={"chat_id": chat})
         assert once["response"] != text
         assert twice["response"] == once["response"], (chat, text)
+
+
+# ── T-0048 audit repairs: what a push sends, and every source of a message ──
+
+
+def _side_branch_with(repo: Path, branch: str, text: str) -> None:
+    _git(repo, "checkout", "-q", "-b", branch)
+    (repo / f"{branch}.txt").write_text(text, encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", f"{branch} change")
+    _git(repo, "checkout", "-q", "main")
+
+
+def test_a_push_is_checked_on_the_ref_it_sends_not_on_head(home, tmp_path):
+    # Audit P1: HEAD (main) is clean while the branch being pushed carries the banned word.
+    repo = _repo(tmp_path)
+    _side_branch_with(repo, "side", "the ffff plan\n")
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    for argv in (
+        ["git", "push", "origin", "side"],
+        ["git", "push", "origin", "side:refs/heads/release"],
+        ["git", "push", "origin", "+side:main"],
+        ["git", "push", "--all", "origin"],
+    ):
+        verdict = ur.sandbox_git_check(argv, cwd=str(repo))
+        assert verdict.refusal is not None and "ffff" in verdict.refusal.reason, argv
+    assert _gate("git push origin side", repo, "chat-a")["decision"] == "blocked"
+
+
+def test_a_push_of_a_clean_ref_passes_even_when_head_is_not(home, tmp_path):
+    repo = _repo(tmp_path)
+    _side_branch_with(repo, "clean", "nothing to see\n")
+    (repo / "README.md").write_text("ffff on main\n", encoding="utf-8")
+    _git(repo, "commit", "-q", "-am", "main change")
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    assert ur.sandbox_git_check(["git", "push", "origin", "clean"], cwd=str(repo)).refusal is None
+    assert ur.sandbox_git_check(["git", "push", "origin", "main"], cwd=str(repo)).refusal is not None
+
+
+def test_a_push_whose_source_cannot_be_read_is_refused(home, tmp_path):
+    repo = _repo(tmp_path)
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    for argv in (
+        ["git", "push", "origin", "no-such-branch"],
+        ["git", "push", "origin", "refs/heads/*:refs/heads/*"],
+    ):
+        verdict = ur.sandbox_git_check(argv, cwd=str(repo))
+        assert verdict.refusal is not None and verdict.refusal.incomplete, argv
+
+
+def test_a_message_read_from_a_file_or_an_old_commit_is_checked(home, tmp_path):
+    # Audit P2: -F/--file (and reused messages) were never read, so a banned message got through.
+    repo = _repo(tmp_path)
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    banned = tmp_path / "banned.txt"
+    banned.write_text("release ffff support\n", encoding="utf-8")
+    clean = tmp_path / "clean.txt"
+    clean.write_text("release support\n", encoding="utf-8")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "ship xxx")  # an old message to reuse
+    (repo / "msg.txt").write_text("ffff notes\n", encoding="utf-8")
+    for argv in (
+        ["git", "commit", "--allow-empty", "-F", str(banned)],
+        ["git", "commit", "--allow-empty", f"--file={banned}"],
+        ["git", "commit", "--allow-empty", "-F", "msg.txt"],  # relative to the working directory
+        ["git", "commit", "--allow-empty", "-C", "HEAD"],
+        ["git", "tag", "-a", "v1", "-F", str(banned)],
+    ):
+        verdict = ur.sandbox_git_check(argv, cwd=str(repo))
+        assert verdict.refusal is not None and not verdict.refusal.incomplete, argv
+    # git -C moves the directory a relative message file is read from, exactly as git does.
+    moved = ur.sandbox_git_check(["git", "-C", str(repo), "commit", "--allow-empty", "-F", "msg.txt"], cwd=str(tmp_path))
+    assert moved.refusal is not None and not moved.refusal.incomplete
+    assert ur.sandbox_git_check(["git", "commit", "--allow-empty", "-F", str(clean)], cwd=str(repo)).refusal is None
+    missing = ur.sandbox_git_check(["git", "commit", "--allow-empty", "-F", str(tmp_path / "gone.txt")], cwd=str(repo))
+    assert missing.refusal is not None and missing.refusal.incomplete
+    stdin = ur.sandbox_git_check(["git", "commit", "--allow-empty", "-F", "-"], cwd=str(repo))
+    assert stdin.refusal is not None and stdin.refusal.incomplete

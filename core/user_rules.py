@@ -1299,6 +1299,7 @@ def git_outbound_check(
     tracked_changes: bool = False,
     rev_range: tuple[str, str] | None = None,
     unpublished_head: str = "",
+    unpublished_revs: tuple[str, ...] = (),
     chat_id: str = "",
     project_id: str = "",
 ) -> GitRuleVerdict:
@@ -1331,12 +1332,13 @@ def git_outbound_check(
         if tracked_changes:
             hits += find_banned_terms(_added_lines(_git_text(root, "diff", "--no-color", "--no-ext-diff", "-U0")),
                                       written, target=TARGET_GIT, where="committed changes")
-        if rev_range is not None or unpublished_head:
+        if rev_range is not None or unpublished_head or unpublished_revs:
             if rev_range is not None:
                 base, head = (str(rev_range[0] or "").strip(), str(rev_range[1] or "").strip())
                 log_args = (f"{base}..{head}",) if base else (head, "--not", "--remotes")
             else:
-                log_args = (unpublished_head, "--not", "--remotes")
+                # Everything these sources would send that no remote has yet.
+                log_args = (*([unpublished_head] if unpublished_head else []), *unpublished_revs, "--not", "--remotes")
             messages = _git_text(root, "log", "--no-color", "--format=%B%x00", *log_args)
             hits += find_banned_terms(messages, written, target=TARGET_GIT, where="commit messages")
             patches = _git_text(root, "log", "--no-color", "--no-ext-diff", "--format=", "-p", "-U0", *log_args)
@@ -1412,31 +1414,185 @@ def _option_values(rest: list[str], short: str, long: str) -> list[str]:
     return values
 
 
+#: Options that take a separate value, per subcommand, so a value is never read as a ref or a name.
+_GIT_VALUE_OPTIONS = {
+    "commit": {"-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message", "-t",
+               "--template", "--author", "--date", "--fixup", "--squash", "--trailer", "--cleanup",
+               "--pathspec-from-file"},
+    "tag": {"-m", "--message", "-F", "--file", "-u", "--local-user", "--cleanup", "--sort", "--format",
+            "--contains", "--no-contains", "--points-at", "--merged", "--no-merged"},
+    "push": {"-o", "--push-option", "--repo", "--receive-pack", "--exec"},
+    "merge": {"-m", "--message", "-F", "--file", "-s", "--strategy", "-X", "--strategy-option", "--cleanup"},
+    "notes": {"-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message", "--ref"},
+}
+#: Largest message file read for a check; a larger one cannot be checked completely.
+MAX_MESSAGE_FILE_BYTES = 1024 * 1024
+
+
+class _Unreadable(RuntimeError):
+    """Part of what the command would send could not be read, so the check is incomplete."""
+
+
+def _positional(sub: str, rest: list[str]) -> list[str]:
+    takes_value = _GIT_VALUE_OPTIONS.get(sub, set())
+    out: list[str] = []
+    skip = False
+    for token in rest:
+        if skip:
+            skip = False
+            continue
+        if token == "--":
+            continue
+        if token.startswith("-"):
+            if token in takes_value:
+                skip = True
+            continue
+        out.append(token)
+    return out
+
+
+def _message_sources(sub: str, rest: list[str], root: Path | None) -> str:
+    """Every message this command would record: -m, -F/--file (a file, never stdin), a message
+    reused from another commit (-C/-c, --fixup/--squash), a template, and the HEAD message an
+    --amend keeps. Raises :class:`_Unreadable` when one of them cannot be read."""
+    parts = list(_option_values(rest, "-m", "--message"))
+    for path_text in _option_values(rest, "-F", "--file"):
+        if path_text == "-":
+            raise _Unreadable("the message comes from standard input")
+        parts.append(_read_message_file(path_text, root))
+    if sub == "commit":
+        for path_text in _option_values(rest, "-t", "--template"):
+            parts.append(_read_message_file(path_text, root))
+        reused = [*_option_values(rest, "-C", "--reuse-message"), *_option_values(rest, "-c", "--reedit-message")]
+        for spec in (*_option_values(rest, "", "--fixup"), *_option_values(rest, "", "--squash")):
+            reused.append(spec.split(":", 1)[1] if spec.startswith(("amend:", "reword:")) else spec)
+        if "--amend" in rest and not parts and not reused:
+            reused.append("HEAD")
+        for rev in reused:
+            if root is None:
+                raise _Unreadable("the reused message's repository is unknown")
+            try:
+                parts.append(_git_text(root, "log", "-1", "--no-color", "--format=%B", rev))
+            except _ScanIncomplete as exc:
+                raise _Unreadable(f"the reused message {rev!r} could not be read") from exc
+    return "\n".join(parts)
+
+
+def _read_message_file(path_text: str, root: Path | None) -> str:
+    path = Path(path_text).expanduser()
+    if not path.is_absolute():
+        if root is None:
+            raise _Unreadable(f"the message file {path_text!r} has no known directory")
+        path = root / path
+    try:
+        size = path.stat().st_size
+        if size > MAX_MESSAGE_FILE_BYTES:
+            raise _Unreadable(f"the message file {path_text!r} is too large to check")
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise _Unreadable(f"the message file {path_text!r} could not be read") from exc
+
+
+def _push_sources(rest: list[str], root: Path) -> tuple[list[str], list[str], list[str]]:
+    """What a ``git push`` would send: ``(commit sources, extra log revs, ref names)``.
+
+    Each refspec's SOURCE is resolved to the commit it names (never HEAD by default), so a clean
+    checkout cannot carry another branch's banned commit out. ``--all``/``--branches``,
+    ``--mirror`` and ``--tags`` send every matching local ref. With no refspec git follows
+    ``push.default``: ``matching`` sends every branch, anything else the current branch. A refspec
+    that cannot be resolved, or a wildcard, cannot be checked and raises :class:`_Unreadable`.
+    """
+    positional = _positional("push", rest)
+    refspecs = positional[1:]
+    sources: list[str] = []
+    revs: list[str] = []
+    names: list[str] = []
+    if "--mirror" in rest:
+        revs.append("--all")
+        names += _git_text(root, "for-each-ref", "--format=%(refname:short)").splitlines()
+    if {"--all", "--branches"} & set(rest):
+        revs.append("--branches")
+        names += _git_text(root, "for-each-ref", "--format=%(refname:short)", "refs/heads").splitlines()
+    if "--tags" in rest:
+        revs.append("--tags")
+        names += _git_text(root, "for-each-ref", "--format=%(refname:short)", "refs/tags").splitlines()
+    index = 0
+    while index < len(refspecs):
+        spec = refspecs[index].lstrip("+")
+        if spec == "tag" and index + 1 < len(refspecs):
+            spec = f"refs/tags/{refspecs[index + 1]}"
+            index += 1
+        index += 1
+        if "*" in spec:
+            raise _Unreadable(f"the wildcard refspec {spec!r} cannot be checked")
+        src, _, dst = spec.partition(":")
+        names += [part for part in (src, dst) if part]
+        if not src:
+            continue  # deleting a remote ref sends no content
+        try:
+            sources.append(_git_text(root, "rev-parse", "--verify", "--quiet", f"{src}^{{commit}}").strip())
+        except _ScanIncomplete as exc:
+            raise _Unreadable(f"the push source {src!r} could not be resolved") from exc
+    if not refspecs and not revs:
+        try:
+            mode = _git_text(root, "config", "--get", "push.default").strip().lower()
+        except _ScanIncomplete:
+            mode = ""  # unset: git's default sends the current branch
+        if mode == "matching":
+            revs.append("--branches")
+        else:
+            sources.append("HEAD")
+    return sources, revs, names
+
+
 def sandbox_git_check(argv: list[str], *, cwd: str = "") -> GitRuleVerdict:
     """The rules verdict for a git command run through the shell tool, read from its argv.
 
-    Covers the commit/tag/merge message, branch and tag names, push refspecs and, when the
-    working directory is known, what a commit or push would add. Used by the command gate before
-    any approval is asked, so nobody is asked to approve a command a rule will refuse.
+    Covers every message the command would record (-m, -F/--file, reused and amended messages),
+    branch and tag names, and push refs; and, when the repository is known, what a commit would
+    add and what each pushed ref would send. Used by the command gate before any approval is
+    asked, so nobody is asked to approve a command a rule will refuse. Anything that cannot be
+    read completely refuses while a ban is in force.
     """
     if not argv:
         return GitRuleVerdict()
     sub, rest, repo_opt = _git_subcommand(argv)
     if sub not in _GIT_OUTBOUND:
         return GitRuleVerdict()
-    root_text = repo_opt or cwd
-    root = Path(root_text) if root_text else None
+    root: Path | None = None
+    if repo_opt:
+        root = Path(repo_opt).expanduser()
+        if not root.is_absolute() and cwd:
+            root = Path(cwd) / root  # `git -C` is relative to where git starts
+    elif cwd:
+        root = Path(cwd)
     keys = _ledger_scope_keys()
     resolution = _git_resolution(root, keys["chat"], keys["project"])
     written = _git_rules(resolution.written)
     if not written:
         return GitRuleVerdict()
-    messages = _option_values(rest, "-m", "--message")
-    message = "\n".join(messages)
-    positional = [token for token in rest if not token.startswith("-")]
+    in_repo = root is not None and _is_inside_repo(root)
+
+    def _incomplete(reason: str) -> GitRuleVerdict:
+        binding = _git_rules(resolution.rules)
+        if not binding:
+            return GitRuleVerdict()  # every ban is lifted here
+        return GitRuleVerdict(refusal=RuleRefusal(
+            operation=sub,
+            reason=(f"Refused: your rules ban words from git, and I couldn't check this git {sub} completely "
+                    f"({reason}). Nothing was {'committed' if sub == 'commit' else 'run'}."),
+            incomplete=True,
+            rule_nos=tuple(rule.rule_no for rule in binding),
+        ))
+
+    try:
+        message = _message_sources(sub, rest, root if in_repo else (root or None))
+    except _Unreadable as exc:
+        return _incomplete(str(exc))
+    positional = _positional(sub, rest)
     names: list[str] = []
     if sub in {"tag", "branch", "switch", "checkout"}:
-        names = [token for token in positional if token not in set(messages)]
+        names = list(positional)
     hits: list[Violation] = []
     hits += find_banned_terms(message, written, target=TARGET_GIT, where="message")
     for name in names:
@@ -1445,14 +1601,19 @@ def sandbox_git_check(argv: list[str], *, cwd: str = "") -> GitRuleVerdict:
         for token in positional[1:]:
             hits += find_banned_terms(token.lstrip("+"), written, target=TARGET_GIT, where="push ref")
     verdict = _classify(sub, hits, resolution)
-    if verdict.refusal is not None or root is None or not _is_inside_repo(root):
+    if verdict.refusal is not None or not in_repo:
         return verdict
     content = GitRuleVerdict()
     if sub == "commit":
         content = git_outbound_check(root, "commit", staged=True, tracked_changes=_commit_all(rest),
                                      chat_id=keys["chat"], project_id=keys["project"])
     elif sub == "push":
-        content = git_outbound_check(root, "push", unpublished_head="HEAD", chat_id=keys["chat"], project_id=keys["project"])
+        try:
+            sources, revs, ref_names = _push_sources(rest, root)
+        except (_Unreadable, _ScanIncomplete) as exc:
+            return _incomplete(str(exc))
+        content = git_outbound_check(root, "push", names=ref_names, unpublished_revs=(*sources, *revs),
+                                     chat_id=keys["chat"], project_id=keys["project"])
     overrides = tuple(dict.fromkeys((*verdict.overrides, *content.overrides)))
     return GitRuleVerdict(refusal=content.refusal, overrides=overrides)
 
