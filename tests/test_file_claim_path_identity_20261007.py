@@ -105,3 +105,18 @@ def test_directory_words_cannot_be_treated_as_prose_boundaries(claim, same_path)
         source_context={"tool_receipts": [{"tool_name": "file.deliver", "status": "executed",
         "execution": {"executed": True, "ok": True}, "observation": {"path": written, "format": "md"}}]})
     assert (result["response"] == text) is same_path
+
+
+@pytest.mark.parametrize("sentence,kept", [
+    ("The report was saved at {root}/reports/a.md.", True),
+    ("I saved the report at reports/a.md.", True),
+    ("I saved the report at other/a.md.", False),
+])
+def test_a_location_introduced_by_a_preposition_is_the_claimed_path(sentence, kept, tmp_path):
+    # "saved at <path>": the preposition introduces the location; it is not part of the path, so
+    # a true claim about the written file is kept and a different directory is still refused.
+    text = sentence.format(root=tmp_path)
+    result = enforce_final_action_honesty({"response": text}, user_input="Save the file", session_id=uuid.uuid4().hex,
+        source_context={"workspace_root": str(tmp_path), "tool_receipts": [{"tool_name": "file.deliver", "status": "executed",
+        "execution": {"executed": True, "ok": True}, "observation": {"path": "reports/a.md", "format": "md"}}]})
+    assert (result["response"] == text) is kept

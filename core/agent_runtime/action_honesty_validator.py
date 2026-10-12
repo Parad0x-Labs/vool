@@ -897,6 +897,12 @@ def _claimed_file_names(claims: list[str]) -> set[str] | None:
                     if re.fullmatch(r"[\w ~/./\\-]+", prefix) and "/" in prefix and " " in prefix:
                         return None
                     name = path_prefix.group(0) + name
+            # "was created at /abs/dir/a.txt": the preposition that introduces a location is not part
+            # of the path it introduces.
+            name = name.strip()
+            located = re.search(r"\b(?:at|in|into|to|under|inside)\s+(?=\S*[/\\])(\S+)$", name, flags=re.I)
+            if " " in name and located:
+                name = located.group(1)
             names.add(name.replace("\\", "/").strip())
     return names
 
@@ -1375,10 +1381,20 @@ def _location_answer_has_verified_past_receipt(
         return False
     if "action_receipt_location" in route:
         return True
+    # A path the answer qualifies with a directory names that path, not any file of the same name:
+    # "I saved other/a.md" is not backed by a record that wrote reports/a.md.
+    qualified_claims = {
+        claim for claim in (_claimed_file_names(_deliverable_claim_fragments(response)) or set()) if "/" in claim
+    }
     for receipt in verified:
         written = str(dict(receipt.get("arguments") or {}).get("path") or "").strip()
         name = written.replace("\\", "/").rsplit("/", 1)[-1]
         if name and name in response:
+            same_name = {claim for claim in qualified_claims if claim.rsplit("/", 1)[-1] == name}
+            if same_name and not any(
+                _file_claim_matches_output(claim, {written}, source_context) for claim in same_name
+            ):
+                continue
             return True
     return False
 
