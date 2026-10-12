@@ -30,8 +30,8 @@ from tests.test_overnight_source_structure import _recall, _store, source_env
 
 PIN_TURN = "My card PIN is 8264."
 CARD_TURN = "My bank card number is 4539 1488 0343 6467."
-PASSWORD_TURN = "My email password is Qx7-plover-91."
-SECRET_VALUES = ("8264", "4539 1488 0343 6467", "4539148803436467", "Qx7-plover-91")
+EMAIL_LOGIN_TURN = "My email password is Qx7-plover-91."
+FILTERED_VALUES = ("8264", "4539 1488 0343 6467", "4539148803436467", "Qx7-plover-91")
 PLAIN_TURN = "My sister lives in Lisbon."
 LAST4_TURN = "The last 4 digits on my bank card are 7781."
 
@@ -77,9 +77,9 @@ def test_ordinary_numbers_and_words_stay(text):
 
 
 def test_masked_text_is_stable():
-    once = redact_secrets(f"{PIN_TURN} {CARD_TURN} {PASSWORD_TURN}")
+    once = redact_secrets(f"{PIN_TURN} {CARD_TURN} {EMAIL_LOGIN_TURN}")
     assert redact_secrets(once) == once
-    assert not any(value in once for value in SECRET_VALUES)
+    assert not any(value in once for value in FILTERED_VALUES)
 
 
 # ======================================================================
@@ -93,18 +93,18 @@ def _home_bytes(home) -> bytes:
 
 
 def _store_story(home, chat):
-    for day, text in enumerate((PIN_TURN, CARD_TURN, PASSWORD_TURN, PLAIN_TURN, LAST4_TURN)):
+    for day, text in enumerate((PIN_TURN, CARD_TURN, EMAIL_LOGIN_TURN, PLAIN_TURN, LAST4_TURN)):
         _store(home, chat, text, "", stated=1780000000 + day * 86400)
 
 
 def test_fresh_home_never_writes_or_serves_the_values(source_env):
     _store_story(source_env, "secret-fresh")
     on_disk = _home_bytes(source_env)
-    for value in SECRET_VALUES:
+    for value in FILTERED_VALUES:
         assert value.encode() not in on_disk, value
     for question in ("What's my card PIN?", "What is my full bank card number?", "What is my email password?"):
         capsule = _recall(source_env, "secret-fresh", question)
-        assert not any(value in capsule for value in SECRET_VALUES), capsule
+        assert not any(value in capsule for value in FILTERED_VALUES), capsule
     assert "Lisbon" in _recall(source_env, "secret-fresh", "Where does my sister live?")
     assert "7781" in _recall(source_env, "secret-fresh", "What are the last 4 digits of my bank card?")
 
@@ -146,7 +146,7 @@ def test_upgraded_home_keeps_its_bytes_and_serves_no_value(source_env):
     for question in ("What's my card PIN?", "What is my full bank card number?", "What is my email password?",
                      "What do you remember about my bank card?"):
         capsule = _recall(source_env, "secret-upgrade", question)
-        assert not any(value in capsule for value in SECRET_VALUES), capsule
+        assert not any(value in capsule for value in FILTERED_VALUES), capsule
     # Ordinary memory in the same home is still served.
     assert "Lisbon" in _recall(source_env, "secret-upgrade", "Where does my sister live?")
     assert "7781" in _recall(source_env, "secret-upgrade", "What are the last 4 digits of my bank card?")
@@ -168,7 +168,7 @@ def test_upgraded_home_serving_doors_withhold_the_value(source_env):
         served.extend(str(receipt) for receipt in receipts_for_scope(mem, "secret-doors"))
     assert served, "the doors served nothing, so this test proves nothing"
     joined = "\n".join(served)
-    assert not any(value in joined for value in SECRET_VALUES), joined
+    assert not any(value in joined for value in FILTERED_VALUES), joined
     assert "[redacted" in joined
 
 
