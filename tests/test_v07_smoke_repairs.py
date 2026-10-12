@@ -418,3 +418,101 @@ def test_local_only_vetoes_automatic_model_download_despite_saved_consent(monkey
     progress = start_ollama_model_pull("isolated-download-boundary:1b")
     assert progress.wait(timeout=0)
     assert progress.status == "skipped"
+
+
+@pytest.mark.parametrize("endpoint", [
+    "http://models.example:11434", "http://192.168.50.8:11434", "https://127.0.0.1.example:443",
+    "http://[::2]:11434", "http://[malformed",
+])
+def test_refused_remote_ollama_endpoint_is_never_queried_by_automatic_startup(endpoint, monkeypatch):
+    from types import SimpleNamespace
+
+    from core import policy_engine
+    from core.web.api import runtime
+
+    policy_engine.load(force_reload=True)
+    assert policy_engine.get("network.outbound_enabled") is False
+    monkeypatch.setenv("VOOL_RAW_OLLAMA_API_URL", endpoint)
+    monkeypatch.setenv("VOOL_SKIP_PROVIDER_PREWARM", "0")
+    calls = []
+
+    def inventory(*args, **kwargs):
+        calls.append("inventory")
+        return ()
+
+    def installed(*args, **kwargs):
+        calls.append("installed")
+        return False
+
+    def snapshot(*args, **kwargs):
+        calls.append("snapshot")
+        return SimpleNamespace(prewarm_results=(), capability_truth=())
+
+    monkeypatch.setattr(runtime, "ollama_model_installed", installed)
+    monkeypatch.setattr(runtime, "installed_ollama_model_inventory", inventory)
+    monkeypatch.setattr(runtime, "build_provider_registry_snapshot", snapshot)
+    progress = runtime.start_ollama_model_pull("isolated-download-boundary:1b")
+    assert progress.wait(timeout=0) and progress.status == "skipped"
+    assert runtime.candidate_aware_daily_runtime_model_tag("configured:1b", env={}) == "configured:1b"
+    runtime.log_prewarm_results(object(), model_tag="configured:1b")
+    assert runtime.startup_provider_capability_truth(object(), model_tag="configured:1b", env={}) == ()
+    assert calls == []
+
+
+@pytest.mark.parametrize("endpoint", ["http://127.0.0.1:11434", "http://localhost:11434", "http://[::1]:11434"])
+def test_automatic_local_inventory_remains_available_without_outbound_consent(endpoint):
+    from core import policy_engine
+    from core.web.api.runtime import _automatic_ollama_access_allowed, _automatic_provider_env
+
+    policy_engine.load(force_reload=True)
+    assert policy_engine.get("network.outbound_enabled") is False
+    env = {"VOOL_RAW_OLLAMA_API_URL": endpoint, "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "1"}
+    assert _automatic_ollama_access_allowed(env)
+    assert _automatic_provider_env(env) is env
+
+
+def test_saved_remote_startup_consent_is_preserved_and_local_only_still_vetoes():
+    from core import policy_engine
+    from core.web.api.runtime import _automatic_ollama_access_allowed, _automatic_provider_env
+
+    env = {"VOOL_RAW_OLLAMA_API_URL": "http://models.example:11434", "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "1"}
+    policy_engine.set_operator_policy_values({"network.outbound_enabled": True, "system.local_only_mode": False})
+    assert _automatic_ollama_access_allowed(env)
+    assert _automatic_provider_env(env) is env
+    policy_engine.set_operator_policy_values({"system.local_only_mode": True})
+    assert not _automatic_ollama_access_allowed(env)
+    assert _automatic_provider_env(env)["VOOL_REGISTER_INSTALLED_OLLAMA_MODELS"] == "0"
+
+
+def test_automatic_provider_registration_retains_metadata_without_remote_discovery(monkeypatch):
+    from core import policy_engine
+    from core.model_registry import ModelRegistry
+    from core.web.api.runtime import ensure_default_provider, ollama_model_installed
+
+    policy_engine.load(force_reload=True)
+    assert policy_engine.get("network.outbound_enabled") is False
+    env = {
+        "VOOL_RAW_OLLAMA_API_URL": "http://models.example:11434", "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "1",
+        "VOOL_ALLOW_OLLAMA_TAGS_FOR_DEFAULT": "1", "VOOL_LOCAL_MODELS_ENABLED": "1",
+    }
+    # The existing manifest factory resolves its endpoint from the process.
+    # Pin that genuine source as well as the curated startup input.
+    monkeypatch.setenv("VOOL_RAW_OLLAMA_API_URL", env["VOOL_RAW_OLLAMA_API_URL"])
+    calls = []
+
+    def inventory(**kwargs):
+        calls.append(kwargs)
+        return ("qwen3:8b",)
+
+    monkeypatch.setattr("core.runtime_provider_defaults.installed_ollama_model_names", inventory)
+    monkeypatch.setattr("core.web.api.runtime.installed_ollama_model_names", inventory)
+    registry = ModelRegistry()
+    ensure_default_provider(registry, "qwen3:8b", env=env, install_profile="local-only")
+    manifest = registry.get_manifest("ollama-local", "qwen3:8b")
+    assert manifest is not None
+    assert manifest.runtime_config["base_url"].startswith("http://models.example:11434")
+    assert calls == []
+    # Explicit inventory keeps its existing seam; the automatic gate does not
+    # impersonate the model's absence or replace its configured endpoint.
+    assert ollama_model_installed("qwen3:8b", env=env)
+    assert len(calls) == 1

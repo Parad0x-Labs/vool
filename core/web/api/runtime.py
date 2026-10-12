@@ -11,6 +11,7 @@ import re
 import secrets
 import subprocess
 import threading
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field, replace
@@ -429,6 +430,32 @@ def ollama_base_url(env: dict[str, str] | None = None) -> str:
     return _resolve(env)
 
 
+def _automatic_ollama_access_allowed(env: dict[str, str] | None = None) -> bool:
+    """Automatic startup may inspect localhost; remote HTTP needs saved consent."""
+    from core.runtime_guard import is_loopback_host
+
+    try:
+        parsed = urllib.parse.urlparse(ollama_base_url(env))
+        host = str(parsed.hostname or "")
+        if parsed.scheme not in {"http", "https"} or not host:
+            return False
+        # Validate without DNS or any connection, including malformed ports.
+        _ = parsed.port
+    except (TypeError, ValueError):
+        return False
+    if is_loopback_host(host):
+        return True
+    return not policy_engine.local_only_mode() and policy_engine.get("network.outbound_enabled", False) is True
+
+
+def _automatic_provider_env(env: dict[str, str]) -> dict[str, str]:
+    if _automatic_ollama_access_allowed(env):
+        return env
+    # Metadata registration remains available; automatic discovery must not
+    # cross the remote endpoint while registering or choosing default lanes.
+    return {**env, "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "0", "VOOL_ALLOW_OLLAMA_TAGS_FOR_DEFAULT": "0"}
+
+
 def candidate_aware_daily_runtime_model_tag(
     configured_model_tag: str,
     *,
@@ -455,6 +482,8 @@ def candidate_aware_daily_runtime_model_tag(
     # The canonical LocalModelPolicy: disabled means no Ollama inventory discovery even here —
     # this alignment exists to pick between LOCAL candidates, and there are none to pick.
     if not local_models_enabled(env=env):
+        return configured
+    if not _automatic_ollama_access_allowed(env):
         return configured
     try:
         installed = tuple(
@@ -565,7 +594,7 @@ def ensure_ollama_model(model_tag: str | None = None, *, progress: ModelPullProg
     logger.info("Ollama model '%s' pulled successfully.", active_model)
 
 
-def start_ollama_model_pull(model_tag: str | None = None) -> ModelPullProgress:
+def start_ollama_model_pull(model_tag: str | None = None, *, env: dict[str, str] | None = None) -> ModelPullProgress:
     """Run the first-run pull on a background thread and return its live progress immediately.
 
     A pull of a multi-GB model in front of the listener is what left the first-run window showing
@@ -577,15 +606,20 @@ def start_ollama_model_pull(model_tag: str | None = None) -> ModelPullProgress:
     """
     active_model = str(model_tag or "").strip() or default_runtime_model_tag()
     progress = ModelPullProgress(active_model)
-    if not local_models_enabled():
+    if not local_models_enabled(env=env):
         progress.update(status="skipped", detail="local models disabled by policy")
+        progress.finish()
+        return progress
+    if not _automatic_ollama_access_allowed(env):
+        progress.update(status="skipped", detail="automatic remote model preparation disabled by outbound policy")
         progress.finish()
         return progress
     # Startup is an automatic action. Local inventory is safe to inspect, but
     # a missing model does not grant permission to download it. Explicit model
     # installation still uses ensure_ollama_model at its owning action seam.
     if policy_engine.local_only_mode() or policy_engine.get("network.outbound_enabled", False) is not True:
-        if ollama_model_installed(active_model):
+        installed = ollama_model_installed(active_model) if env is None else ollama_model_installed(active_model, env=env)
+        if installed:
             progress.update(status="ready", percent=100, detail="already installed")
         else:
             progress.update(status="skipped", detail="automatic downloads disabled by outbound policy")
@@ -616,7 +650,7 @@ def ensure_default_provider(
     for provider_id in ensure_default_runtime_providers(
         registry,
         model_tag=model_tag,
-        env=env,
+        env=_automatic_provider_env(dict(os.environ) if env is None else env),
         install_profile=install_profile,
         runtime_home=runtime_home,
     ):
@@ -633,6 +667,10 @@ def log_prewarm_results(
     if str(os.environ.get("VOOL_SKIP_PROVIDER_PREWARM") or "").strip().lower() in {"1", "true", "yes", "on"}:
         logger.info("Provider prewarm skipped by VOOL_SKIP_PROVIDER_PREWARM.")
         return
+    provider_env = merge_provider_env(runtime_home)
+    if not _automatic_ollama_access_allowed(provider_env):
+        logger.info("Automatic remote provider prewarm disabled by outbound policy.")
+        return
     try:
         snapshot = build_provider_registry_snapshot(
             registry,
@@ -641,6 +679,7 @@ def log_prewarm_results(
             requested_profile=requested_profile,
             honor_install_profile=bool(requested_profile or runtime_home),
             run_prewarm=True,
+            env=provider_env,
         )
         raw_results = snapshot.prewarm_results
     except Exception as exc:
@@ -695,6 +734,9 @@ def startup_provider_capability_truth(
     model_pull_status: str = "",
     model_pull_detail: str = "",
 ) -> tuple[dict[str, Any], ...]:
+    if not _automatic_ollama_access_allowed(env):
+        logger.info("Automatic remote provider capability discovery disabled by outbound policy.")
+        return tuple()
     try:
         snapshot = build_provider_registry_snapshot(
             registry,
@@ -890,7 +932,7 @@ def bootstrap_runtime_services(
             )
             if _advisory:
                 logger.warning("GPU capability: %s", _advisory)
-    provider_env = merge_provider_env(runtime_home)
+    provider_env = _automatic_provider_env(merge_provider_env(runtime_home))
     requested_profile = active_install_profile_id(runtime_home=runtime_home, env=provider_env) if runtime_home else None
     profile_default_model = _profile_fast_default_model(
         requested_profile=requested_profile,
@@ -938,7 +980,7 @@ def bootstrap_runtime_services(
     # Background, never inline: a first-run pull downloads gigabytes, and bootstrap runs BEFORE the
     # API server binds its port. The window that opens on first run must reach a server that reports
     # this progress, not a refused connection.
-    model_pull = start_ollama_model_pull(runtime_model_tag)
+    model_pull = start_ollama_model_pull(runtime_model_tag, env=provider_env)
     logger.info(
         "Hardware: %s | GPU: %s | Primary local model: %s",
         probe.accelerator,
