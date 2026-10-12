@@ -738,6 +738,15 @@ def public_hive_auth_snapshot(auth_result: dict[str, Any] | None) -> dict[str, A
     return snapshot
 
 
+def _bootstrap_public_hive_auth(*, project_root: Path, target_path: Path) -> dict[str, Any]:
+    """Automatic auth discovery needs saved outbound consent before any SSH lookup."""
+    from core import policy_engine
+
+    if policy_engine.local_only_mode() or policy_engine.get("network.outbound_enabled", False) is not True:
+        return {"ok": False, "status": "disabled_by_policy"}
+    return ensure_public_hive_auth(project_root=project_root, target_path=target_path)
+
+
 def bootstrap_runtime_services(
     *, project_root: Path, workstation_version: str, run_prewarm: bool = True
 ) -> RuntimeServices:
@@ -810,7 +819,7 @@ def bootstrap_runtime_services(
         logger.info("Starter credits seeded for peer %s...", peer_id[:24])
 
     auth_target_path = active_config_home_dir() / "agent-bootstrap.json"
-    auth_result = ensure_public_hive_auth(
+    auth_result = _bootstrap_public_hive_auth(
         project_root=project_root,
         target_path=auth_target_path,
     )
@@ -820,7 +829,9 @@ def bootstrap_runtime_services(
         suggested_command = str(auth_result.get("suggested_command") or "").strip()
         suggested_remote_config_path = str(auth_result.get("suggested_remote_config_path") or "").strip()
         watch_host = str(auth_result.get("watch_host") or "").strip()
-        if auth_status in {"missing_remote_config_path", "missing_watch_host", "missing_ssh_key"}:
+        if auth_status == "disabled_by_policy":
+            logger.info("Public Hive automatic auth discovery is disabled by outbound policy.")
+        elif auth_status in {"missing_remote_config_path", "missing_watch_host", "missing_ssh_key"}:
             detail_parts = []
             if watch_host:
                 detail_parts.append(f"watch_host={watch_host}")

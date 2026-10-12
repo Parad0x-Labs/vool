@@ -1211,6 +1211,13 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         self.assertEqual(stamp["dirty"], False)
 
     def test_bootstrap_runtime_services_hydrates_public_hive_auth_into_active_runtime_home(self) -> None:
+        from core import policy_engine
+
+        original_get = policy_engine.get
+
+        def authorized_policy(path, default=None):
+            return True if path == "network.outbound_enabled" else original_get(path, default)
+
         runtime_home = Path("/tmp/vool-runtime-home")
         config_home = runtime_home / "config"
         auth_target = config_home / "agent-bootstrap.json"
@@ -1223,7 +1230,9 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
         model_registry.startup_warnings.return_value = []
         persona = mock.Mock(persona_id="default")
 
-        with mock.patch("core.web.api.runtime.bootstrap_runtime_mode", return_value=boot), mock.patch(
+        with mock.patch("core.policy_engine.get", side_effect=authorized_policy), mock.patch(
+            "core.policy_engine.local_only_mode", return_value=False,
+        ), mock.patch("core.web.api.runtime.bootstrap_runtime_mode", return_value=boot), mock.patch(
             "core.web.api.runtime.is_first_boot",
             return_value=False,
         ), mock.patch("core.web.api.runtime.get_local_peer_id", return_value="peer-123"), mock.patch(
@@ -2316,7 +2325,9 @@ class VoolAPIServerModelMetadataTests(unittest.TestCase):
                 seen["source_context"] = dict(source_context or {})
                 return {"response": "ok", "confidence": 1.0}
 
-        with mock.patch("apps.vool_api_server._agent", FakeAgent()), mock.patch(
+        with mock.patch.dict(os.environ, {"VOOL_WORKSPACE_ROOT": str(PROJECT_ROOT)}), mock.patch(
+            "apps.vool_api_server._agent", FakeAgent(),
+        ), mock.patch(
             "apps.vool_api_server.Path.cwd",
             side_effect=FileNotFoundError,
         ):

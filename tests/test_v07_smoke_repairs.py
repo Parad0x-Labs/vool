@@ -227,3 +227,68 @@ def test_api_erased_memory_claim_preserves_every_sibling_demand(sibling):
     observation = next(item for item in observations if item["intent"] == f"turn.slice_answer.{FAMILY_MEMORY_RECALL}")
     assert observation["slice_text"] == question
     assert "no record" in observation["response_preview"].lower()
+
+
+def test_fresh_boot_auth_refuses_discovery_before_any_ssh_or_key_lookup(monkeypatch):
+    from core import policy_engine
+    from core.web.api.runtime import _bootstrap_public_hive_auth
+
+    policy_engine.load(force_reload=True)
+    assert policy_engine.get("network.outbound_enabled") is False
+    calls = []
+
+    def unexpected_discovery(**kwargs):
+        calls.append(kwargs)
+        raise AssertionError("fresh boot must not discover SSH auth")
+
+    monkeypatch.setattr("core.web.api.runtime.ensure_public_hive_auth", unexpected_discovery)
+    target = active_vool_home() / "config" / "agent-bootstrap.json"
+    result = _bootstrap_public_hive_auth(project_root=Path.cwd(), target_path=target)
+    assert result == {"ok": False, "status": "disabled_by_policy"}
+    assert calls == []
+    assert not target.exists()
+
+
+def test_saved_outbound_consent_preserves_boot_auth_and_local_only_still_refuses(monkeypatch):
+    from core import policy_engine
+    from core.web.api.runtime import _bootstrap_public_hive_auth
+
+    policy_engine.set_operator_policy_values({"network.outbound_enabled": True, "system.local_only_mode": False})
+    calls = []
+
+    def authorized_discovery(**kwargs):
+        calls.append(kwargs)
+        return {"ok": True, "status": "existing_auth"}
+
+    monkeypatch.setattr("core.web.api.runtime.ensure_public_hive_auth", authorized_discovery)
+    target = active_vool_home() / "config" / "agent-bootstrap.json"
+    assert _bootstrap_public_hive_auth(project_root=Path.cwd(), target_path=target) == {
+        "ok": True, "status": "existing_auth",
+    }
+    assert calls == [{"project_root": Path.cwd(), "target_path": target}]
+    policy_engine.set_operator_policy_values({"system.local_only_mode": True})
+    assert _bootstrap_public_hive_auth(project_root=Path.cwd(), target_path=target) == {
+        "ok": False, "status": "disabled_by_policy",
+    }
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("consent", [None, 1, "true", "false", {}, []])
+def test_malformed_saved_outbound_values_cannot_start_auth_discovery(consent, monkeypatch):
+    import yaml
+
+    from core import policy_engine
+    from core.web.api.runtime import _bootstrap_public_hive_auth
+
+    policy_path = active_vool_home() / "config" / "default_policy.yaml"
+    policy_path.parent.mkdir(parents=True, exist_ok=True)
+    policy_path.write_text(yaml.safe_dump({"network": {"outbound_enabled": consent}}), encoding="utf-8")
+    policy_engine.load(force_reload=True)
+
+    def unexpected_discovery(**kwargs):
+        raise AssertionError("malformed saved consent must not discover SSH auth")
+
+    monkeypatch.setattr("core.web.api.runtime.ensure_public_hive_auth", unexpected_discovery)
+    assert _bootstrap_public_hive_auth(
+        project_root=Path.cwd(), target_path=active_vool_home() / "config" / "agent-bootstrap.json"
+    ) == {"ok": False, "status": "disabled_by_policy"}
