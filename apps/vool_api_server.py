@@ -707,7 +707,20 @@ def main() -> int:
             )
         )
         _start_parent_death_watch(server)
-        server.run()
+        # Uvicorn restores and re-raises SIGTERM after its ASGI shutdown. Keep a
+        # cooperative handler underneath it so that re-raise also returns through
+        # our finally block, which owns the pidfile and background services.
+        def request_shutdown(_signum: int, _frame: object) -> None:
+            server.should_exit = True
+
+        owns_signals = threading.current_thread() is threading.main_thread()
+        if owns_signals:
+            previous_sigterm = signal.signal(signal.SIGTERM, request_shutdown)
+        try:
+            server.run()
+        finally:
+            if owns_signals:
+                signal.signal(signal.SIGTERM, previous_sigterm)
     finally:
         _remove_pidfile()
         try:

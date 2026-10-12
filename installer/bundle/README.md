@@ -169,3 +169,33 @@ It refuses before the build starts when a credential is missing, and never uses
 `codesign --deep` to sign. Credentials, environment variables and the Linux/OpenPGP sealing step
 (`python -m installer.release_sign`) are in
 [Preparing 0.7: Signed releases](../../docs/releases/0.7-readiness.md#signed-releases).
+
+## Linux x86_64 self-contained tarball
+
+Run `bash installer/bundle/build_linux_bundle.sh --out dist` on Linux x86_64.
+Like macOS `SELF_CONTAINED`, it embeds python-build-standalone via uv. Linux uses
+CPython 3.12.13 and hashes exported from the checked-in lock for base, companion
+and EVM dependencies; no source builds or training stack. The archive is
+`vool-<version>-linux-x86_64.tar.gz`, with a `.sha256` sidecar.
+
+Extract the verified archive and run `bash install.sh`. No sudo, system Python
+or installation-time downloads: it installs versioned payloads under
+`~/.local/share/vool`, `~/.local/bin/vool`, and a `.desktop` entry. The desktop
+entry opens `/chat` in the local system browser. `vool --headless --port 11435`
+serves the API only. Models/Ollama remain a separate setup step. Closing the
+browser does not stop the server; stop the launcher process when finished.
+
+`bash ~/.local/share/vool/current/uninstall.sh` removes owned package files and
+preserves runtime profiles. Installation verifies payload checksums, refuses
+unrelated files and switches an active symlink only after staging succeeds.
+Previous installed versions remain available until uninstall.
+
+Updater hook: `vool_install_linux_bundle` in the package's `install.sh`.
+The updater verifies/extracts the tarball, then calls `bash install.sh`.
+No update policy, release manifest or feed format is defined here.
+
+`.github/workflows/release-linux.yml` builds on Ubuntu 22.04 and installs the
+same tarball into a fresh HOME on Ubuntu 22.04 and 24.04, removes the extracted
+source, checks exact-head health and a real chat answer, proves shutdown, then
+uninstalls while preserving profile data. Tag assets are attached only after
+both tests pass. AppImage and DEB are deferred to v0.7.1.
