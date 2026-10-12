@@ -853,7 +853,11 @@ def _verify(fmt: str, filename: str, data: bytes, content: str) -> str:
         data.decode("utf-8")
         return "utf-8 text"
     from core import artifact_readers
+    from core.artifact_readers import _sandbox
 
+    if fmt == "pdf" and not _sandbox.confinement_available():
+        _require_own_content(fmt, _read_own_pdf(data), content)
+        return _OWN_PDF_READER
     extension = ".gz" if fmt == "tar.gz" else os.path.splitext(filename)[1].lower()
     try:
         result = artifact_readers.read(data, name=filename, extension=extension, question=" ".join(_probe_terms(content)))
@@ -861,14 +865,36 @@ def _verify(fmt: str, filename: str, data: bytes, content: str) -> str:
         raise DeliverableRefused("verification_failed", f"The built {fmt} could not be read back ({exc.message}); it was not delivered.") from exc
     if fmt in ("zip", "tar.gz"):
         return result.extractor
-    rendered = result.rendered_text()
+    _require_own_content(fmt, result.rendered_text(), content)
+    return result.extractor
+
+
+_OWN_PDF_READER = "pypdf (this runtime's own render, read in-process)"
+
+
+def _read_own_pdf(data: bytes) -> str:
+    """Text of a PDF `build_file` rendered a moment ago, on a host that cannot confine a decoder.
+
+    The confined readers exist for documents that arrive from outside. These bytes are this
+    runtime's own reportlab render of the turn's text, so they are read back in-process; a PDF from
+    anywhere else on the same host still goes through `artifact_readers` and is refused unconfined."""
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise DeliverableRefused("verification_failed", "The built pdf could not be read back (no PDF reader in this runtime); it was not delivered.") from exc
+    try:
+        return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(data)).pages)
+    except Exception as exc:
+        raise DeliverableRefused("verification_failed", f"The built pdf could not be read back ({type(exc).__name__}); it was not delivered.") from exc
+
+
+def _require_own_content(fmt: str, rendered: str, content: str) -> None:
     missing = [term for term in _probe_terms(content) if term.lower() not in rendered.lower()]
     if missing:
         raise DeliverableRefused(
             "verification_failed",
             f"The built {fmt} did not contain its own content when read back (missing: {', '.join(missing)}); it was not delivered.",
         )
-    return result.extractor
 
 
 def _bundle_members(files: list[Any]) -> list[tuple[str, bytes]]:

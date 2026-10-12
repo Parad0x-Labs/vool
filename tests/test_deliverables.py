@@ -187,3 +187,31 @@ def test_the_delivery_tool_is_declared_governed_and_offered_for_file_requests():
         assert "file.deliver" in resolve_demand_signals(asked).explicit_intents, asked
     for not_asked in ("summarize the attached pdf", "what's in the pdf?", "respond in json"):
         assert "file.deliver" not in resolve_demand_signals(not_asked).explicit_intents, not_asked
+
+
+def test_without_confinement_only_the_runtimes_own_pdf_is_read_back_in_process(monkeypatch):
+    pytest.importorskip("pypdf", reason="the in-process reader of this runtime's own PDF")
+    from core import artifact_readers
+    from core.artifact_readers import _sandbox
+
+    monkeypatch.setattr(_sandbox, "confinement_available", lambda: False)
+    built = build_file(REPORT, filename="report.pdf")
+    assert built.verified_by == "pypdf (this runtime's own render, read in-process)"
+    # The same bytes arriving from outside are still refused: the unconfined path is the builder's alone.
+    with pytest.raises(artifact_readers.ReaderError) as caught:
+        artifact_readers.read(built.data, name="report.pdf", extension=".pdf")
+    assert caught.value.code == "confinement_unavailable"
+
+
+def test_without_confinement_a_pdf_missing_its_own_text_is_not_delivered(monkeypatch):
+    pytest.importorskip("pypdf", reason="the in-process reader of this runtime's own PDF")
+    from core.artifact_readers import _sandbox
+    from core.presentation import render_pdf
+
+    monkeypatch.setattr(_sandbox, "confinement_available", lambda: False)
+    blank = render_pdf.render_markdown_pdf("# Other\n\nNothing here.", title="Other")
+    monkeypatch.setattr(render_pdf, "render_markdown_pdf", lambda text, title="": blank)
+    with pytest.raises(DeliverableRefused) as caught:
+        build_file(REPORT, filename="report.pdf")
+    assert caught.value.code == "verification_failed"
+    assert "HAZEL-4411" in str(caught.value)
