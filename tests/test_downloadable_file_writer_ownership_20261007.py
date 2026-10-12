@@ -6,22 +6,22 @@ from core.deliverables import DOWNLOAD_ONLY_KEY, downloadable_request_without_wo
 from core.hive_activity_tracker import HiveActivityTracker, HiveActivityTrackerConfig
 
 
-@pytest.mark.parametrize("request", [
+@pytest.mark.parametrize("text", [
     "Write a tiny HTML page and matching CSS file, then zip them together. Do not run scripts.",
     "Write a script and zip it up for me.",
     "I need a spreadsheet of monthly subscriptions. Excel please.",
 ])
-def test_downloadable_request_has_its_own_writer(request):
-    assert downloadable_request_without_workspace_target(request)
+def test_downloadable_request_has_its_own_writer(text):
+    assert downloadable_request_without_workspace_target(text)
 
-@pytest.mark.parametrize("request", [
+@pytest.mark.parametrize("text", [
     "Explain how to make a PDF accessible.",
     "Write a note in my workspace, then zip it up.",
     "Write a note to my Downloads as a .txt file.",
     "Save a CSV to ./data/month.csv.",
 ])
-def test_advice_and_explicit_destinations_do_not_change_ownership(request):
-    assert not downloadable_request_without_workspace_target(request)
+def test_advice_and_explicit_destinations_do_not_change_ownership(text):
+    assert not downloadable_request_without_workspace_target(text)
 
 @pytest.mark.parametrize("intent", ["workspace.write_file", "machine.write_file"])
 def test_wrong_writer_is_refused_before_permission_or_dispatch(intent, monkeypatch):
