@@ -676,7 +676,7 @@ class VoolMemory:
                 """,
                 (normalized, self._agent_id),
             ).fetchone()
-        return _withheld_secret_node(_row_to_node(row)) if row and self._row_is_current(row) else None
+        return _redacted_node(_row_to_node(row)) if row and self._row_is_current(row) else None
 
     @fenced_writer
     def node_update_links(self, node_id: str, linked_ids: list[str]) -> None:
@@ -707,7 +707,7 @@ class VoolMemory:
         term in effective importance makes the latest value of a fact outrank
         the stale one. Returned nodes get an access bump (reinforcement).
         Backward-compatible signature; min_score still filters on cosine."""
-        return _withheld_secret_ranked(self._ranked_search(
+        return _redacted_ranked(self._ranked_search(
             query_embedding,
             None,
             top_k=top_k,
@@ -740,7 +740,7 @@ class VoolMemory:
         degrades to strong lexical retrieval instead of noise or emptiness.
         Legacy callers that omit the stamp ('') keep their previous
         compare-with-legacy-rows behavior."""
-        return _withheld_secret_ranked(self._ranked_search(
+        return _redacted_ranked(self._ranked_search(
             query_embedding,
             query_text,
             top_k=top_k,
@@ -792,7 +792,7 @@ class VoolMemory:
                     """,
                     (self._agent_id, max(1, int(limit))),
                 ).fetchall()
-        return [_withheld_secret_node(_row_to_node(row)) for row in rows if self._row_is_current(row)]
+        return [_redacted_node(_row_to_node(row)) for row in rows if self._row_is_current(row)]
 
     def _ranked_search(
         self,
@@ -1701,7 +1701,7 @@ class VoolMemory:
                 """,
                 (self._agent_id, max(1, int(limit))),
             ).fetchall()
-        return [_withheld_secret_node(_row_to_node(row)) for row in rows if self._row_is_current(row)]
+        return [_redacted_node(_row_to_node(row)) for row in rows if self._row_is_current(row)]
 
     def node_count(self) -> int:
         with self._lock:
@@ -1836,7 +1836,7 @@ class VoolMemory:
                     "reason": "body_sha256_mismatch",
                 })
             return replace(occurrence, body="") if diagnostic else None
-        return _withheld_secret_occurrence(occurrence)
+        return _redacted_occurrence(occurrence)
 
     def occurrence_search(
         self,
@@ -3099,12 +3099,12 @@ def _row_to_node(row: sqlite3.Row) -> MemoryNode:
     )
 
 
-def _withheld_secret_ranked(ranked: list[tuple[MemoryNode, float]]) -> list[tuple[MemoryNode, float]]:
-    return [(_withheld_secret_node(node), score) for node, score in ranked]
+def _redacted_ranked(ranked: list[tuple[MemoryNode, float]]) -> list[tuple[MemoryNode, float]]:
+    return [(_redacted_node(node), score) for node, score in ranked]
 
 
-def _withheld_secret_node(node: MemoryNode) -> MemoryNode:
-    """The node door's twin of ``_withheld_secret_occurrence``: content served masked, row untouched."""
+def _redacted_node(node: MemoryNode) -> MemoryNode:
+    """The node door's twin of ``_redacted_occurrence``: content served masked, row untouched."""
     from core.secret_redaction import contains_secret, redact_secrets
 
     if not node.content or not contains_secret(node.content):
@@ -3112,7 +3112,7 @@ def _withheld_secret_node(node: MemoryNode) -> MemoryNode:
     return replace(node, content=redact_secrets(node.content))
 
 
-def _withheld_secret_occurrence(occurrence: SourceOccurrence) -> SourceOccurrence:
+def _redacted_occurrence(occurrence: SourceOccurrence) -> SourceOccurrence:
     """Serve a stored body with any card number, PIN, password or key masked.
 
     Bodies are redacted at write time, but a profile written before the v0.7.1 secret rules

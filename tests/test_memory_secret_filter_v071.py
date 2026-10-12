@@ -25,7 +25,7 @@ from unittest import mock
 
 import pytest
 
-from core.secret_redaction import contains_secret, personal_secret_kinds, redact_secrets
+from core.secret_redaction import contains_secret, redact_secrets, redactable_personal_kinds
 from tests.test_overnight_source_structure import _recall, _store, source_env
 
 PIN_TURN = "My card PIN is 8264."
@@ -52,7 +52,7 @@ LAST4_TURN = "The last 4 digits on my bank card are 7781."
 def test_named_personal_secrets_are_masked(text, masked, kinds):
     assert redact_secrets(text) == masked
     assert contains_secret(text)
-    assert personal_secret_kinds(text) == kinds
+    assert redactable_personal_kinds(text) == kinds
 
 
 @pytest.mark.parametrize("text", [
@@ -73,7 +73,7 @@ def test_named_personal_secrets_are_masked(text, masked, kinds):
 def test_ordinary_numbers_and_words_stay(text):
     assert redact_secrets(text) == text
     assert not contains_secret(text)
-    assert personal_secret_kinds(text) == ()
+    assert redactable_personal_kinds(text) == ()
 
 
 def test_masked_text_is_stable():
@@ -114,7 +114,7 @@ def _pre_v071_writer():
     """The write path exactly as v0.7.0 shipped it: every redaction rule except the new
     plain-word card, PIN and password rules, which did not exist yet."""
     with mock.patch("core.secret_redaction._redact_personal_secrets", side_effect=lambda value: value), \
-         mock.patch("core.secret_redaction._personal_secret_spans", return_value=[]):
+         mock.patch("core.secret_redaction._redactable_personal_spans", return_value=[]):
         yield
 
 

@@ -189,20 +189,20 @@ _PIN_LABEL = (
     r"(?:pin(?:\s+(?:code|number|no\.?))?|passcode|cvv2?|cvc2?|csc|security\s+code)"
 )
 #: Word secrets: any value token, minus ordinary words that describe the secret instead of being it.
-_PASSWORD_LABEL = r"(?:password|passwd|pwd|passphrase|passcode|login\s+code)"
+_WORD_VALUE_LABEL = r"(?:password|passwd|pwd|passphrase|passcode|login\s+code)"
 #: "password for my email is ...": up to four short words between the label and its verb.
 _LABEL_OBJECT = r"(?:\s+(?:for|to|of|on|at)(?:\s+[\w'@.-]{1,40}){1,4}?)?"
-_SECRET_VERB = r"(?:\s*[:=#]\s*|\s+(?:is|was|are|were)\s*:?\s*|\s+-\s+)"
+_LABEL_VERB = r"(?:\s*[:=#]\s*|\s+(?:is|was|are|were)\s*:?\s*|\s+-\s+)"
 _PIN_VALUE_RE = re.compile(
-    r"(?i)(?<![A-Za-z0-9])(" + _PIN_LABEL + r")" + _LABEL_OBJECT + _SECRET_VERB
+    r"(?i)(?<![A-Za-z0-9])(" + _PIN_LABEL + r")" + _LABEL_OBJECT + _LABEL_VERB
     + r"[\"'“‘]?(\d(?:[ -]?\d){2,11})(?![\d])"
 )
-_PASSWORD_VALUE_RE = re.compile(
-    r"(?i)(?<![A-Za-z0-9])(" + _PASSWORD_LABEL + r")s?" + _LABEL_OBJECT + _SECRET_VERB
+_LABELLED_WORD_VALUE_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9])(" + _WORD_VALUE_LABEL + r")s?" + _LABEL_OBJECT + _LABEL_VERB
     + r"[\"'“‘]?([^\s\"'“”‘’]{3,128})"
 )
 #: Words that follow "password is" without being a password ("is required", "is the same as ...").
-_PASSWORD_NON_VALUES = frozenset(
+_WORD_VALUE_NON_VALUES = frozenset(
     {
         "the", "a", "an", "my", "your", "his", "her", "our", "their", "its", "this", "that", "not",
         "no", "now", "still", "also", "just", "too", "very", "so", "same", "different", "required",
@@ -225,7 +225,7 @@ _CARD_CONTEXT_RE = re.compile(
     r"|diners|jcb|unionpay|credit|debit|pan|cc)\b"
 )
 _CARD_CONTEXT_WINDOW = 60
-_SECRET_CLAUSE_BOUNDARY_RE = re.compile(r"[.;!?\n]\s")
+_LABEL_CLAUSE_BOUNDARY_RE = re.compile(r"[.;!?\n]\s")
 _MASKED_VALUE_PREFIX = "[redacted"
 
 
@@ -246,7 +246,7 @@ def luhn_valid(digits: str) -> bool:
 
 def _clause_before(text: str, start: int) -> str:
     prefix = text[max(0, start - _CARD_CONTEXT_WINDOW):start]
-    parts = _SECRET_CLAUSE_BOUNDARY_RE.split(prefix)
+    parts = _LABEL_CLAUSE_BOUNDARY_RE.split(prefix)
     return parts[-1] if parts else prefix
 
 
@@ -262,22 +262,22 @@ def _card_number_spans(value: str):
             yield match.start(), match.end()
 
 
-def _password_value_spans(value: str):
-    for match in _PASSWORD_VALUE_RE.finditer(value):
+def _labelled_word_spans(value: str):
+    for match in _LABELLED_WORD_VALUE_RE.finditer(value):
         token = match.group(2)
         if token.startswith(_MASKED_VALUE_PREFIX):
             continue
         clean = token.rstrip(".,;)")
-        if len(clean) < 3 or clean.lower() in _PASSWORD_NON_VALUES:
+        if len(clean) < 3 or clean.lower() in _WORD_VALUE_NON_VALUES:
             continue
         yield match.start(2), match.start(2) + len(clean)
 
 
-def _personal_secret_spans(value: str) -> list[tuple[int, int, str]]:
+def _redactable_personal_spans(value: str) -> list[tuple[int, int, str]]:
     spans: list[tuple[int, int, str]] = []
     spans.extend((start, end, "[redacted-card-number]") for start, end in _card_number_spans(value))
     spans.extend((match.start(2), match.end(2), "[redacted]") for match in _PIN_VALUE_RE.finditer(value))
-    spans.extend((start, end, "[redacted]") for start, end in _password_value_spans(value))
+    spans.extend((start, end, "[redacted]") for start, end in _labelled_word_spans(value))
     spans.sort()
     merged: list[tuple[int, int, str]] = []
     for start, end, mask in spans:
@@ -290,7 +290,7 @@ def _personal_secret_spans(value: str) -> list[tuple[int, int, str]]:
 
 
 def _redact_personal_secrets(value: str) -> str:
-    spans = _personal_secret_spans(value)
+    spans = _redactable_personal_spans(value)
     if not spans:
         return value
     pieces: list[str] = []
@@ -303,7 +303,7 @@ def _redact_personal_secrets(value: str) -> str:
     return "".join(pieces)
 
 
-def personal_secret_kinds(text: str) -> tuple[str, ...]:
+def redactable_personal_kinds(text: str) -> tuple[str, ...]:
     """Which plain-word personal secrets ``text`` carries: ``card_number``, ``pin``, ``password``.
 
     Used to tell the user what was not saved; never returns the values themselves."""
@@ -315,7 +315,7 @@ def personal_secret_kinds(text: str) -> tuple[str, ...]:
         kinds.append("card_number")
     if _PIN_VALUE_RE.search(value) is not None:
         kinds.append("pin")
-    if next(_password_value_spans(value), None) is not None:
+    if next(_labelled_word_spans(value), None) is not None:
         kinds.append("password")
     return tuple(kinds)
 
@@ -665,7 +665,7 @@ def contains_secret(text: str) -> bool:
             if pattern in (_B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE) and _is_public_identifier(match.group(0)):
                 continue
             return True
-    if _personal_secret_spans(value):
+    if _redactable_personal_spans(value):
         return True
     for match in _LABELED_RE.finditer(value):
         if not _label_declared_public(match.group(1), value, match.start()):
@@ -676,7 +676,7 @@ def contains_secret(text: str) -> bool:
     return False
 
 
-def withhold_secrets(value):
+def redacted_copy(value):
     """A copy of a served value (text, or lists and dicts of it) with every secret masked.
 
     For read doors over rows written before a redaction rule existed: the stored bytes are
@@ -685,11 +685,11 @@ def withhold_secrets(value):
     if isinstance(value, str):
         return redact_secrets(value) if contains_secret(value) else value
     if isinstance(value, dict):
-        return {key: withhold_secrets(item) for key, item in value.items()}
+        return {key: redacted_copy(item) for key, item in value.items()}
     if isinstance(value, list):
-        return [withhold_secrets(item) for item in value]
+        return [redacted_copy(item) for item in value]
     if isinstance(value, tuple):
-        return tuple(withhold_secrets(item) for item in value)
+        return tuple(redacted_copy(item) for item in value)
     return value
 
 
@@ -698,10 +698,10 @@ __all__ = [
     "contains_secret",
     "luhn_valid",
     "mnemonic_redaction_available",
-    "personal_secret_kinds",
     "redact_secrets",
     "redact_url_path_tokens",
+    "redactable_personal_kinds",
+    "redacted_copy",
     "register_exact_secret",
     "register_public_identifier",
-    "withhold_secrets",
 ]
