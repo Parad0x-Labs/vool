@@ -455,7 +455,7 @@ def local_only_mode() -> bool:
     return bool(get("system.local_only_mode", False))
 
 def allow_web_fallback() -> bool:
-    return bool(get("system.allow_web_fallback", False))
+    return get("system.allow_web_fallback", False) is True
 
 def automatic_outbound_enabled() -> bool:
     """Whether background work may contact remote peers or services."""

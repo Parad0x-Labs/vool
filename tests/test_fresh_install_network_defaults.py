@@ -135,3 +135,12 @@ def test_malformed_automatic_outbound_consent_fails_closed(isolated_policy_home,
     path.write_text(yaml.safe_dump({"network": {"outbound_enabled": value}}))
     policy_engine.load(force_reload=True)
     assert policy_engine.automatic_outbound_enabled() is False
+
+
+@pytest.mark.parametrize("value", ["false", "true", "0", 1, 0, None, [], {}])
+def test_malformed_web_consent_fails_closed(isolated_policy_home, value):
+    path = isolated_policy_home / "config" / "default_policy.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text(yaml.safe_dump({"system": {"allow_web_fallback": value}}))
+    policy_engine.load(force_reload=True)
+    assert policy_engine.allow_web_fallback() is False
