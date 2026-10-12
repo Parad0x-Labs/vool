@@ -162,7 +162,7 @@ def _read_index_rows() -> Any:
         except urllib.error.HTTPError as exc:
             if plan == "keyless" or exc.code not in coingecko_auth.REFUSED_KEY_STATUSES:
                 return None
-            coingecko_auth.note_refused(plan)
+            coingecko_auth.note_refused(plan, next(iter(auth.values()), ""))
         except Exception:
             return None
     return None

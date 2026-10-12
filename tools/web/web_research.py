@@ -1888,7 +1888,7 @@ def _coingecko_get_json(path: str, *, timeout: float, limit: int) -> Any:
         except urllib.error.HTTPError as exc:
             if plan == "keyless" or exc.code not in coingecko_auth.REFUSED_KEY_STATUSES:
                 raise
-            coingecko_auth.note_refused(plan)
+            coingecko_auth.note_refused(plan, next(iter(auth.values()), ""))
             logging.getLogger(__name__).warning(
                 "CoinGecko refused the stored %s key (HTTP %s); asking with the next key, or none", plan, exc.code)
     raise RuntimeError("CoinGecko request could not be built")

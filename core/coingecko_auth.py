@@ -111,16 +111,13 @@ def request_for(path_and_query: str) -> tuple[str, dict[str, str], str]:
     return f"{plan.base_url}{path_and_query}", {plan.key_header: key}, plan.provider_id
 
 
-def note_refused(plan_id: str) -> None:
-    """Remember that CoinGecko refused the CURRENT stored key of ``plan_id`` (a request answered
-    401/403, or 400 for a key on the wrong root). Requests go keyless until that key changes."""
-    plan = PLANS.get(plan_id)
-    if plan is None:
-        return
-    key = _stored(plan)
-    if key:
+def note_refused(plan_id: str, sent_key: str) -> None:
+    """Remember that CoinGecko refused ``sent_key`` -- the key that request actually carried, not
+    whatever the store holds by the time the answer arrives (a key saved meanwhile was never tried and
+    must not inherit the refusal). Requests skip that exact key until it changes."""
+    if plan_id in PLANS and str(sent_key or "").strip():
         with _refused_lock:
-            _refused[plan_id] = _digest(key)
+            _refused[plan_id] = _digest(str(sent_key).strip())
 
 
 def refused_plans() -> tuple[str, ...]:

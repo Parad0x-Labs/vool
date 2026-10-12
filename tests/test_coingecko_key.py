@@ -92,7 +92,7 @@ def test_a_replaced_key_is_tried_again(store):
     from core import coingecko_auth
 
     store["market.data.coingecko"] = DEMO
-    coingecko_auth.note_refused("coingecko")
+    coingecko_auth.note_refused("coingecko", DEMO)
     assert coingecko_auth.request_for("/ping")[2] == "keyless"
     store["market.data.coingecko"] = DEMO + "x"
     assert coingecko_auth.request_for("/ping")[2] == "coingecko"
@@ -121,3 +121,35 @@ def test_credentials_door_removes_but_never_writes_a_market_key(monkeypatch):
     assert refused.status == 400
     removed = ra.set_credentials_authority({"name": "market.data.coingecko", "delete": True}, {}, runtime)
     assert removed.status == 200 and deleted == ["market.data.coingecko"]
+
+
+@pytest.mark.parametrize("lane", ["price", "index"])
+def test_a_refusal_of_the_old_key_never_blocks_the_key_saved_meanwhile(store, monkeypatch, lane):
+    """Key A is sent; while CoinGecko answers, the operator saves key B; A comes back 401. Only A
+    may be remembered as refused: the next request carries B (audit T-0047 P2)."""
+    import urllib.request
+
+    import tools.web.web_research as wr
+    from core import coingecko_auth
+    from tools.web import coin_index
+
+    store["market.data.coingecko_pro"] = PRO
+    replacement = PRO + "B"
+    sent: list[str] = []
+
+    def refuse_after_rotation(req, *args, **kwargs):
+        sent.append(req.unredirected_hdrs.get("X-cg-pro-api-key", ""))
+        if len(sent) == 1:
+            store["market.data.coingecko_pro"] = replacement  # saved while the request is in flight
+            raise urllib.error.HTTPError(req.full_url, 401, "refused", {}, io.BytesIO(b"{}"))
+        return io.BytesIO(json.dumps({"bitcoin": {"usd": 1}} if lane == "price" else []).encode())
+
+    if lane == "price":
+        monkeypatch.setattr(wr, "_open_remote", refuse_after_rotation)
+        wr._coingecko_get_json("/simple/price?ids=bitcoin", timeout=3, limit=1000)
+    else:
+        monkeypatch.setattr(urllib.request, "urlopen", refuse_after_rotation)
+        coin_index._read_index_rows()
+    assert sent[0] == PRO and sent[1] == replacement, sent
+    assert coingecko_auth.request_for("/ping")[1] == {"x-cg-pro-api-key": replacement}
+    assert coingecko_auth.refused_plans() == ()
