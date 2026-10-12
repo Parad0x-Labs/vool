@@ -21,7 +21,7 @@ import time
 from typing import Any
 
 from core.agent_runtime import presence
-from tests.first_run_pact_rig import pact_rig  # noqa: F401  (fixture)
+from tests.first_run_pact_rig import pact_rig
 
 _SYNC_EVENTS = ("public_hive_presence_sync_failed", "public_hive_presence_sync_error")
 
