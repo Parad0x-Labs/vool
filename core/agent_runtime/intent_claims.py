@@ -294,7 +294,7 @@ _MUTATING_NEGATED_VERBS = frozenset({"write", "create", "edit", "change", "delet
 _SCOPED_NEGATION_OBJECT_RE = re.compile(
     r"^\s+(?:the\s+|a\s+|an\s+|any\s+|its\s+|these\s+|those\s+|my\s+|our\s+)*"
     r"(?:tests?|test\s+(?:suite|file|files|module|modules)|suite|unit\s+tests?|"
-    r"it|them|code|script|app|file|command|commands|benchmarks?|linters?|lint)"
+    r"it|them|code|scripts?|apps?|files?|command|commands|benchmarks?|linters?|lint)"
     r"(?![\w-])",
     re.IGNORECASE,
 )
