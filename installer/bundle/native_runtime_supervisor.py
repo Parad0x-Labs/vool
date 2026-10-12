@@ -51,8 +51,10 @@ class NativeRuntimeSupervisor:
         require_owned: bool = True,
         startup_timeout: float = 90.0,
         poll_interval: float = 0.25,
+        unhealthy_grace: float = 30.0,
         popen: Callable[..., Any] = subprocess.Popen,
         sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self.project_root = Path(project_root).expanduser().resolve()
         self.command = [str(part) for part in command]
@@ -62,8 +64,11 @@ class NativeRuntimeSupervisor:
         self.require_owned = bool(require_owned)
         self.startup_timeout = float(startup_timeout)
         self.poll_interval = float(poll_interval)
+        self.unhealthy_grace = max(0.0, float(unhealthy_grace))
         self._popen = popen
         self._sleep = sleep
+        self._monotonic = monotonic
+        self._unhealthy_since: float | None = None
         self.process: Any | None = None
         self.log_handle: Any | None = None
         self.attached_existing = False
@@ -98,6 +103,7 @@ class NativeRuntimeSupervisor:
             if port:
                 command = [*command, "--port", str(port)]
         timeout = float(os.environ.get("VOOL_NATIVE_STARTUP_TIMEOUT") or 300)
+        grace = float(os.environ.get("VOOL_NATIVE_UNHEALTHY_GRACE") or 30)
         require_owned = str(os.environ.get("VOOL_NATIVE_REQUIRE_OWNED_RUNTIME") or "1").strip().lower() not in {
             "0", "false", "no", "off",
         }
@@ -108,6 +114,7 @@ class NativeRuntimeSupervisor:
             health_url=f"{origin}/healthz",
             require_owned=require_owned,
             startup_timeout=timeout,
+            unhealthy_grace=grace,
         )
 
     @property
@@ -244,12 +251,26 @@ class NativeRuntimeSupervisor:
         raise NativeRuntimeError(f"runtime readiness timed out after {self.startup_timeout:.1f}s")
 
     def assert_alive(self) -> None:
-        """Raise when an owned child has died or the serving identity changed."""
+        """Raise when an owned child has died, the serving identity changed, or health stays gone.
+
+        A dead owned child or a different identity is fatal at once. A health probe that fails while
+        the owned child is still running is not, on its own: a runtime busy with first-run work (a
+        background model pull on a slower Intel Mac measured a 2.3 s /healthz against the 1.5 s
+        probe) answered late once and the whole app closed under the user. Such failures are
+        tolerated for ``unhealthy_grace`` seconds of consecutive failure, then fatal. Without an
+        owned child to vouch for the runtime, an unreachable endpoint is fatal at once.
+        """
         if self.process is not None and self.process.poll() is not None:
             raise NativeRuntimeError(f"owned runtime child exited (returncode={self.process.returncode})")
         payload = self._health()
         if payload is None:
-            raise NativeRuntimeError("runtime health endpoint is unavailable")
+            now = self._monotonic()
+            if self._unhealthy_since is None:
+                self._unhealthy_since = now
+            if self.process is None or now - self._unhealthy_since >= self.unhealthy_grace:
+                raise NativeRuntimeError("runtime health endpoint is unavailable")
+            return
+        self._unhealthy_since = None
         if not self._identity_matches(payload):
             raise NativeRuntimeError("runtime identity changed while the native app was open")
 
