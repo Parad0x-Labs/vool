@@ -589,6 +589,44 @@ def test_a_push_whose_source_cannot_be_read_is_refused(home, tmp_path):
         assert verdict.refusal is not None and verdict.refusal.incomplete, argv
 
 
+def test_a_push_naming_its_remote_with_repo_checks_every_refspec(home, tmp_path):
+    # Re-audit P1: with --repo the remote is already named, so the first positional is a refspec.
+    repo = _repo(tmp_path)
+    _side_branch_with(repo, "side", "the ffff plan\n")
+    _side_branch_with(repo, "clean", "nothing to see\n")
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    for argv in (
+        ["git", "push", "--repo", "origin", "side"],
+        ["git", "push", "--repo=origin", "side"],
+        ["git", "push", "--repo", "origin", "clean", "side:refs/heads/release"],
+    ):
+        verdict = ur.sandbox_git_check(argv, cwd=str(repo))
+        assert verdict.refusal is not None and "ffff" in verdict.refusal.reason, argv
+    assert ur.sandbox_git_check(["git", "push", "--repo", "origin", "clean"], cwd=str(repo)).refusal is None
+    # a banned word in a ref name after --repo is a push ref too
+    named = ur.sandbox_git_check(["git", "push", "--repo", "origin", "clean:refs/heads/xxx"], cwd=str(repo))
+    assert named.refusal is not None
+
+
+def test_a_matching_or_configured_push_checks_every_branch_it_could_send(home, tmp_path):
+    # Re-audit P1: ":" is the matching refspec, not a deletion; a configured remote push refspec
+    # decides what a bare push sends. Both are checked over every local branch.
+    repo = _repo(tmp_path)
+    _side_branch_with(repo, "side", "the ffff plan\n")
+    _say(GLOBAL_GIT_RULE, "chat-a")
+    for argv in (["git", "push", "origin", ":"], ["git", "push", "origin", "+:"],
+                 ["git", "push", "--repo", "origin", ":"]):
+        verdict = ur.sandbox_git_check(argv, cwd=str(repo))
+        assert verdict.refusal is not None and "ffff" in verdict.refusal.reason, argv
+    # deleting a remote ref still sends no content
+    assert ur.sandbox_git_check(["git", "push", "origin", ":old-branch"], cwd=str(repo)).refusal is None
+    # with no refspec and no push config, only the clean current branch is sent
+    assert ur.sandbox_git_check(["git", "push", "origin"], cwd=str(repo)).refusal is None
+    _git(repo, "config", "remote.origin.push", "refs/heads/side:refs/heads/side")
+    configured = ur.sandbox_git_check(["git", "push", "origin"], cwd=str(repo))
+    assert configured.refusal is not None and "ffff" in configured.refusal.reason
+
+
 def test_a_message_read_from_a_file_or_an_old_commit_is_checked(home, tmp_path):
     # Audit P2: -F/--file (and reused messages) were never read, so a banned message got through.
     repo = _repo(tmp_path)

@@ -1493,17 +1493,27 @@ def _read_message_file(path_text: str, root: Path | None) -> str:
         raise _Unreadable(f"the message file {path_text!r} could not be read") from exc
 
 
+def _push_refspecs(rest: list[str]) -> list[str]:
+    """The refspecs of a ``git push``. The first positional names the remote unless ``--repo``
+    already did, in which case every positional is a refspec."""
+    positional = _positional("push", rest)
+    if any(token == "--repo" or token.startswith("--repo=") for token in rest):
+        return positional
+    return positional[1:]
+
+
 def _push_sources(rest: list[str], root: Path) -> tuple[list[str], list[str], list[str]]:
     """What a ``git push`` would send: ``(commit sources, extra log revs, ref names)``.
 
     Each refspec's SOURCE is resolved to the commit it names (never HEAD by default), so a clean
     checkout cannot carry another branch's banned commit out. ``--all``/``--branches``,
-    ``--mirror`` and ``--tags`` send every matching local ref. With no refspec git follows
-    ``push.default``: ``matching`` sends every branch, anything else the current branch. A refspec
-    that cannot be resolved, or a wildcard, cannot be checked and raises :class:`_Unreadable`.
+    ``--mirror`` and ``--tags`` send every matching local ref, and so does the matching refspec
+    ``:``. With no refspec git first follows any configured ``remote.<name>.push`` refspecs, which
+    are checked as every branch and tag; otherwise ``push.default``: ``matching`` sends every
+    branch, anything else the current branch. A refspec that cannot be resolved, or a wildcard,
+    cannot be checked and raises :class:`_Unreadable`.
     """
-    positional = _positional("push", rest)
-    refspecs = positional[1:]
+    refspecs = _push_refspecs(rest)
     sources: list[str] = []
     revs: list[str] = []
     names: list[str] = []
@@ -1526,6 +1536,11 @@ def _push_sources(rest: list[str], root: Path) -> tuple[list[str], list[str], li
         if "*" in spec:
             raise _Unreadable(f"the wildcard refspec {spec!r} cannot be checked")
         src, _, dst = spec.partition(":")
+        if not src and not dst:
+            # ":" is the matching refspec: every branch that also exists on the remote is sent
+            revs.append("--branches")
+            names += _git_text(root, "for-each-ref", "--format=%(refname:short)", "refs/heads").splitlines()
+            continue
         names += [part for part in (src, dst) if part]
         if not src:
             continue  # deleting a remote ref sends no content
@@ -1534,6 +1549,15 @@ def _push_sources(rest: list[str], root: Path) -> tuple[list[str], list[str], li
         except _ScanIncomplete as exc:
             raise _Unreadable(f"the push source {src!r} could not be resolved") from exc
     if not refspecs and not revs:
+        try:
+            configured = _git_text(root, "config", "--get-regexp", r"^remote\..*\.push$").strip()
+        except _ScanIncomplete:
+            configured = ""  # none configured
+        if configured:
+            # a configured push refspec decides what is sent; check every branch and tag it could name
+            revs += ["--branches", "--tags"]
+            names += _git_text(root, "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/tags").splitlines()
+            return sources, revs, names
         try:
             mode = _git_text(root, "config", "--get", "push.default").strip().lower()
         except _ScanIncomplete:
@@ -1598,7 +1622,7 @@ def sandbox_git_check(argv: list[str], *, cwd: str = "") -> GitRuleVerdict:
     for name in names:
         hits += find_banned_terms(name, written, target=TARGET_GIT, where="branch or tag name")
     if sub == "push":
-        for token in positional[1:]:
+        for token in _push_refspecs(rest):
             hits += find_banned_terms(token.lstrip("+"), written, target=TARGET_GIT, where="push ref")
     verdict = _classify(sub, hits, resolution)
     if verdict.refusal is not None or not in_repo:
