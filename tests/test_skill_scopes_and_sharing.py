@@ -294,6 +294,39 @@ def test_import_refuses_what_is_not_a_plain_instruction_package(members, symlink
     assert not staged.exists() or not any(staged.iterdir())
 
 
+@pytest.mark.parametrize(
+    ("member", "recorded"),
+    [
+        ("tool/skill.json", []),
+        ("tool/skill.json", 42),
+        ("tool/skill.json", "not-an-object"),
+        ("tool/skill.json", None),
+        ("tool/skill.json", {"files": ["SKILL.md"]}),
+        ("tool/skill.json", {"files": {"SKILL.md": 7}}),
+        ("tool/skill.json", {"slug": ["a", "b"]}),
+        ("pack/plugin.export.json", []),
+        ("pack/plugin.export.json", {"skills": "a"}),
+        ("pack/.codex-plugin/plugin.json", []),
+    ],
+)
+def test_a_manifest_of_the_wrong_shape_is_refused_not_a_crash(member, recorded) -> None:
+    # Re-audit P2: valid JSON that is not an object (or whose digest map is not a map) crashed import.
+    import hashlib
+
+    # one chat per case: the module shares a home, and an accepted import stages into its chat
+    keys = _bind("chat-shape-" + hashlib.sha256(json.dumps([member, recorded]).encode()).hexdigest()[:12])
+    if member.startswith("pack/"):
+        members = {"pack/.codex-plugin/plugin.json": json.dumps({"name": "pack"}).encode(),
+                   "pack/skills/a/SKILL.md": SKILL_TEXT.encode()}
+    else:
+        members = {"tool/SKILL.md": SKILL_TEXT.encode()}
+    members[member] = json.dumps(recorded).encode()
+    result = skill_package.import_package(_zip(members), scope="chat", keys=keys)
+    assert result["status"] == "refused" and result["code"] == "invalid_manifest", result
+    staged = skill_tools._scoped_dirs("chat", keys)[0]
+    assert not staged.exists() or not any(staged.iterdir())
+
+
 def test_import_accepts_a_bare_skill_folder_zip_from_another_tool() -> None:
     keys = _bind("chat-bare")
     raw = _zip({"meeting-actions/SKILL.md": SKILL_TEXT.encode(), "meeting-actions/LICENSE.txt": b"MIT"})

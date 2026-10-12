@@ -402,6 +402,28 @@ def _refuse_runnable_manifest(manifest: Any, label: str) -> None:
         )
 
 
+def _recorded_manifest(raw: bytes, label: str, *, digests: str, strings: tuple[str, ...] = ()) -> dict[str, Any]:
+    """A recorded export manifest as a JSON object, or a refusal naming what is wrong with it.
+
+    Valid JSON of the wrong shape (a list, a number, a string, a digest map that is not a map of
+    strings) is refused exactly like invalid JSON: it is not a manifest this reader can check."""
+    try:
+        recorded = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise PackageRefused("invalid_manifest", f"{label} is not valid JSON") from exc
+    if not isinstance(recorded, dict):
+        raise PackageRefused("invalid_manifest", f"{label} is not a JSON object")
+    mapping = recorded.get(digests)
+    if mapping is not None and not (
+        isinstance(mapping, dict) and all(isinstance(key, str) and isinstance(value, str) for key, value in mapping.items())
+    ):
+        raise PackageRefused("invalid_manifest", f"{label}: {digests!r} is not a map of names to digests")
+    for key in strings:
+        if recorded.get(key) is not None and not isinstance(recorded.get(key), str):
+            raise PackageRefused("invalid_manifest", f"{label}: {key!r} is not text")
+    return recorded
+
+
 def _decode_skill(data: bytes, label: str) -> str:
     try:
         text = data.decode("utf-8")
@@ -448,13 +470,11 @@ def read_package(raw: bytes) -> dict[str, Any]:
     data = inner["SKILL.md"]
     _decode_skill(data, "SKILL.md")
     digest = _sha256(data)
-    recorded = {}
+    recorded: dict[str, Any] = {}
     if SKILL_MANIFEST in inner:
-        try:
-            recorded = json.loads(inner[SKILL_MANIFEST].decode("utf-8"))
-        except (UnicodeDecodeError, ValueError) as exc:
-            raise PackageRefused("invalid_manifest", "skill.json is not valid JSON") from exc
-        expected = str(dict(recorded.get("files") or {}).get("SKILL.md") or "")
+        recorded = _recorded_manifest(inner[SKILL_MANIFEST], "skill.json", digests="files",
+                                      strings=("slug", "name", "format"))
+        expected = str((recorded.get("files") or {}).get("SKILL.md") or "")
         if expected and expected != digest:
             raise PackageRefused(
                 "digest_mismatch",
@@ -505,10 +525,7 @@ def _read_plugin(top: str, inner: dict[str, bytes]) -> dict[str, Any]:
     if not skills:
         raise PackageRefused("invalid_package", f"{name or 'this plugin'} holds no skills/<name>/SKILL.md")
     if PLUGIN_EXPORT_MANIFEST in inner:
-        try:
-            recorded = json.loads(inner[PLUGIN_EXPORT_MANIFEST].decode("utf-8"))
-        except (UnicodeDecodeError, ValueError) as exc:
-            raise PackageRefused("invalid_manifest", "plugin.export.json is not valid JSON") from exc
+        recorded = _recorded_manifest(inner[PLUGIN_EXPORT_MANIFEST], "plugin.export.json", digests="skills")
         expected = dict(recorded.get("skills") or {})
         for skill in skills:
             if expected.get(skill["slug"]) and expected[skill["slug"]] != skill["sha256"]:
