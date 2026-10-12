@@ -173,7 +173,7 @@ def resolve_format(filename: str, fmt: Any = "") -> tuple[str, str, str]:
         # "haiku.rar" built as text was delivered as autumn_haiku.rar.txt (measured live,
         # 2026-10-06): a name that claims a format this runtime refuses is the same refusal.
         raise DeliverableRefused("format_unsupported", _REFUSED_FORMATS[extension.lstrip(".")])
-    if requested in ("code", "") and extension in CODE_EXTENSIONS:
+    if extension in CODE_EXTENSIONS and requested in ("code", "", extension.lstrip(".")):
         return "code", filename, CODE_EXTENSIONS[extension]
     if requested not in FORMATS:
         raise DeliverableRefused(
