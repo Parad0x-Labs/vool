@@ -25,8 +25,9 @@ runs -- nothing mocked):
     disagreeing never yield a completed verdict or exit 0 -- a receipt is
     always written, verdict harvest-failed/-inconsistent, exit 92, unknown
     totals null; valid but incomplete or unrelated JUnit (empty, a case
-    missing, a file outside the selection, another session) is never
-    completed evidence; nested classes, setup/teardown errors, skips, xfails
+    missing, a file outside the selection, another session, renamed nodes,
+    swapped node outcomes) is never completed evidence, and a missing or
+    malformed node ledger fails closed; nested classes, setup/teardown errors, skips, xfails
     and xpasses reconcile per file and two such red runs compare cleanly;
   * compare refuses empty, wrong-schema, refused, interrupted, aborted,
     unreadable and coverage-less or coverage-inconsistent receipts with a
@@ -485,6 +486,11 @@ def test_param(value):
     assert value
 '''
 TWO_PASSING_TESTS = "def test_one():\n    assert True\n\n\ndef test_two():\n    assert True\n"
+SKIP_THEN_XFAIL_TESTS = (
+    "import pytest\n\n\n"
+    "@pytest.mark.skip(reason='skipped')\ndef test_skipped():\n    pass\n\n\n"
+    "@pytest.mark.xfail(reason='expected')\ndef test_xfailed():\n    assert False\n"
+)
 
 # FAULT INJECTION wrappers: each runs the real instrument (or, for the
 # watchdog, the real wrapped command) and then removes or corrupts exactly one
@@ -515,6 +521,23 @@ elif mode == "timing-malformed":
     timing.write_text("{{", encoding="utf-8")
 elif mode == "timing-missing":
     timing.unlink()
+elif mode == "ledger-missing":
+    timing.with_name("nodes.json").unlink()
+elif mode == "ledger-malformed":
+    timing.with_name("nodes.json").write_text("{{", encoding="utf-8")
+elif mode in ("junit-renamed", "junit-swap-names"):
+    import xml.etree.ElementTree as ET
+    junit.with_name("junit-original.xml").write_bytes(junit.read_bytes())
+    tree = ET.parse(junit)
+    cases = list(tree.getroot().iter("testcase"))
+    if mode == "junit-renamed":
+        for number, case in enumerate(cases):
+            case.set("name", "test_never_executed_" + str(number))
+    else:
+        first, second = cases[0].get("name"), cases[1].get("name")
+        cases[0].set("name", second)
+        cases[1].set("name", first)
+    tree.write(junit, encoding="utf-8", xml_declaration=True)
 elif mode in ("junit-empty", "junit-partial", "junit-foreign", "junit-other-session"):
     import datetime
     import xml.etree.ElementTree as ET
@@ -586,6 +609,8 @@ def test_session_abort_after_failure_is_not_completed_and_not_comparable(tmp_pat
     ("ops/pytest_timing.py", "timing-missing", "harvest-failed", "timing", "missing"),
     ("ops/pytest_timing.py", "timing-malformed", "harvest-failed", "timing", "malformed"),
     ("ops/pytest_timing.py", "timing-drops-failure", "harvest-inconsistent", "timing", "ok"),
+    ("ops/pytest_timing.py", "ledger-missing", "harvest-failed", "ledger", "missing"),
+    ("ops/pytest_timing.py", "ledger-malformed", "harvest-failed", "ledger", "malformed"),
 ])
 def test_missing_malformed_or_disagreeing_evidence_fails_closed(
         tmp_path, instrument, mode, verdict, evidence, status):
@@ -629,6 +654,9 @@ def test_mixed_outcomes_reconcile_and_valid_red_runs_compare(tmp_path):
     assert coverage["junit"] == coverage["timing"] == {
         "nodes": 15, "pass": 5, "failure": 4, "error": 3, "skip": 2, "xfail": 3}
     assert coverage["collected"] == 15
+    identity = coverage["identity"]
+    assert identity["verified"] is True and identity["reasons"] == []
+    assert identity["started"] == identity["collected"] == identity["junit_nodes"] == 15
 
     _, second, _ = run_runner(tmp_path, repo, "mixed-b", selection)
     assert second["verdict"] == "completed-with-failures"
@@ -664,6 +692,27 @@ def test_incomplete_or_unrelated_junit_is_never_completed_evidence(tmp_path, mod
     assert any(reason in item for item in result["inconsistencies"]), result["inconsistencies"]
 
 
+@pytest.mark.parametrize(("mode", "body", "reason"), [
+    ("junit-renamed", TWO_PASSING_TESTS, "never started"),
+    ("junit-swap-names", SKIP_THEN_XFAIL_TESTS, "different outcome"),
+], ids=["renamed-nodes", "swapped-outcomes"])
+def test_junit_node_identity_is_matched_not_counted(tmp_path, mode, body, reason):
+    # FAULT INJECTION: real pytest runs the nodes; the JUnit keeps every count,
+    # outcome and the session timestamp but names never-executed nodes, or
+    # swaps the names of a skipped and an xfailed node. Counts reconcile;
+    # identity must not.
+    repo = make_synthetic_repo(tmp_path, {"tests/test_pair.py": body},
+                               fault_injection={"ops/pytest_timing.py":
+                                                _TIMING_WRAPPER.format(mode=mode)})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_pair.py"])
+    exit_code, result, _ = run_runner(tmp_path, repo, mode, selection)
+    assert result["verdict"] == "harvest-inconsistent"
+    assert exit_code == 92 and result["exit_code"] == 0
+    assert result["coverage"]["reconciled"] is False
+    assert result["coverage"]["identity"]["verified"] is False
+    assert any(reason in item for item in result["inconsistencies"]), result["inconsistencies"]
+
+
 def test_intact_junit_completes_and_partial_receipt_is_not_comparable(tmp_path):
     (tmp_path / "intact").mkdir()
     (tmp_path / "partial").mkdir()
@@ -676,6 +725,7 @@ def test_intact_junit_completes_and_partial_receipt_is_not_comparable(tmp_path):
     assert exit_code == 0 and intact["verdict"] == "completed-clean"
     assert intact["coverage"]["reconciled"] is True
     assert intact["coverage"]["junit"]["nodes"] == 2 and intact["coverage"]["junit"]["pass"] == 2
+    assert intact["coverage"]["identity"]["verified"] is True
     exit_code, _, _ = run_runner(tmp_path, partial_repo, "partial", selection)
     assert exit_code == 92
     artifacts = tmp_path / "artifacts"
@@ -739,6 +789,10 @@ def test_compare_refuses_invalid_receipts(tmp_path):
     edited["coverage"]["junit"]["nodes"] -= 1  # a completed label over a short JUnit
     edited_coverage = tmp_path / "edited-coverage.json"
     edited_coverage.write_text(json.dumps(edited), encoding="utf-8")
+    unidentified = json.loads(json.dumps(payload))
+    del unidentified["coverage"]["identity"]
+    no_identity = tmp_path / "no-identity.json"
+    no_identity.write_text(json.dumps(unidentified), encoding="utf-8")
 
     exit_code, comparison = run_compare(tmp_path, valid, valid, "valid")
     assert exit_code == 0 and comparison["comparable"] is True
@@ -752,7 +806,8 @@ def test_compare_refuses_invalid_receipts(tmp_path):
              "verdict 'interrupted-by-wall-budget'"),
             ("unreadable", unreadable, "receipt unreadable"),
             ("no-coverage", no_coverage, "no case-coverage evidence"),
-            ("edited-coverage", edited_coverage, "junit case coverage")):
+            ("edited-coverage", edited_coverage, "junit case coverage"),
+            ("no-identity", no_identity, "no verified node-identity evidence")):
         exit_code, comparison = run_compare(tmp_path, receipt, receipt, name)
         assert exit_code == 1, name
         assert comparison["comparable"] is False, name

@@ -25,7 +25,10 @@ step faithfully and records enough identity to pin every reproduction:
     set, error count), and the JUnit must account for every node the timing
     manifest saw start, file by file, with the same outcomes and from the same
     session (case coverage, carried in RESULT ``coverage`` so compare can check
-    it). Missing or malformed evidence is ``harvest-failed``,
+    it), node by node: the runner's own node ledger (a passive ``-p`` evidence
+    sink) names every collected and started node and its per-phase outcomes,
+    and the JUnit node set and outcomes must equal it -- equal counts with
+    different nodes never pass. Missing or malformed evidence is ``harvest-failed``,
     disagreeing evidence is ``harvest-inconsistent`` (both exit 92), missing
     totals are null (unknown), never zero. Every pytest exit has an explicit
     mapping; the runner exits 0 only for a complete clean run.
@@ -516,7 +519,7 @@ class EvidenceError(Exception):
 
 _OUTCOME_KEYS = ("passed", "failed", "skipped", "xfailed", "xpassed", "errors")
 _EVIDENCE_FILES = (Path("RESULT.json"), Path("timing.json"), Path("junit.xml"),
-                   Path("watchdog") / "result.json")
+                   Path("nodes.json"), Path("watchdog") / "result.json")
 
 
 def _is_int(value: Any) -> bool:
@@ -611,8 +614,7 @@ def _junit_nodeid(classname: str, name: str,
     return f"{classname.replace('.', '/')}.py::{name}", False
 
 
-def parse_junit(path: Path, selection_files: list[str],
-                timing_failed_ids: set[str]) -> dict[str, Any]:
+def parse_junit(path: Path, selection_files: list[str]) -> dict[str, Any]:
     """Per-node outcome + first error text from the run's junit sink. The junit
     file is an EVIDENCE SINK added to the CI argv (recorded as a delta); it
     selects nothing, orders nothing and never decides a verdict on its own --
@@ -657,13 +659,9 @@ def parse_junit(path: Path, selection_files: list[str],
         counts["testcases"] += 1
         nodeid, anchored = _junit_nodeid(classname, name, module_to_file)
         if not anchored:
+            # Never guessed onto a real node: an unanchored case keeps its plain
+            # reconstruction and fails identity matching if it names nothing real.
             unanchored.append(nodeid)
-            if (nodeid not in timing_failed_ids
-                    and any(child.tag == "failure" for child in marks)):
-                suffix_matches = [known for known in timing_failed_ids
-                                  if known.endswith(f"::{name}")]
-                if len(suffix_matches) == 1:
-                    nodeid = suffix_matches[0]
         entry = nodes.setdefault(nodeid, {"failure": 0, "error": 0, "skipped": 0, "xfail": 0,
                                           "setup_error": 0, "unclassified_error": 0,
                                           "testcases": 0, "first_error": "",
@@ -751,8 +749,175 @@ def _parse_suite_epoch(stamp: str | None) -> float | None:
     return moment.timestamp() if moment.tzinfo is not None else None
 
 
+#: Node identity evidence. The timing manifest counts passing nodes but does not
+#: name them, so the runner adds its own passive evidence sink to the session
+#: (``-p``, recorded as an argv delta): collected and started node ids and every
+#: report's (phase, outcome, xfail) per node. It selects, skips and reorders
+#: nothing, and it comes from the runner, so it works on any target head.
+NODE_LEDGER_SCHEMA = "vool.local-ci-node-ledger.v1"
+NODE_LEDGER_FILE = "nodes.json"
+NODE_LEDGER_MODULE = "vool_local_ci_node_ledger"
+NODE_LEDGER_ENV = "VOOL_LOCAL_CI_NODE_LEDGER"
+NODE_LEDGER_SOURCE = '''"""Evidence sink written by ops/local_ci_reproduction.py for ONE pytest session:
+collected and started node ids and every report's (phase, outcome, xfail) per
+node. Selects, skips and reorders nothing."""
+
+import json
+import os
+
+_PATH = os.environ.get("VOOL_LOCAL_CI_NODE_LEDGER")
+_STATE = {"schema": "vool.local-ci-node-ledger.v1", "complete": False, "exitstatus": None,
+          "collected": [], "started": [], "reports": {}}
+
+
+def _write():
+    if not _PATH:
+        return
+    temporary = _PATH + ".partial"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        json.dump(_STATE, handle)
+    os.replace(temporary, _PATH)
+
+
+def pytest_collection_finish(session):
+    _STATE["collected"] = [item.nodeid for item in session.items]
+    _write()
+
+
+def pytest_runtest_logstart(nodeid, location):
+    _STATE["started"].append(nodeid)
+
+
+def pytest_runtest_logreport(report):
+    _STATE["reports"].setdefault(report.nodeid, []).append(
+        [report.when, report.outcome, hasattr(report, "wasxfail")])
+
+
+def pytest_sessionfinish(session, exitstatus):
+    _STATE["complete"] = True
+    _STATE["exitstatus"] = int(exitstatus)
+    _write()
+'''
+
+_SIGNATURE_KEYS = ("pass", "failure", "error", "skip", "xfail")
+
+
+def load_node_ledger(path: Path) -> dict[str, Any]:
+    """The node ledger, schema- and type-checked."""
+
+    data = _load_json_object(path, "node ledger")
+    if data.get("schema") != NODE_LEDGER_SCHEMA:
+        raise EvidenceError(f"node ledger malformed: schema {data.get('schema')!r} != "
+                            f"{NODE_LEDGER_SCHEMA}")
+    if not isinstance(data.get("complete"), bool):
+        raise EvidenceError(f"node ledger malformed: complete={data.get('complete')!r}")
+    if data["complete"] and not _is_int(data.get("exitstatus")):
+        raise EvidenceError(f"node ledger malformed: exitstatus={data.get('exitstatus')!r}")
+    for key in ("collected", "started"):
+        value = data.get(key)
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise EvidenceError(f"node ledger malformed: {key} is not a list of node ids")
+    reports = data.get("reports")
+    if not isinstance(reports, dict) or not all(
+            isinstance(node, str) and isinstance(entries, list) and all(
+                isinstance(entry, list) and len(entry) == 3
+                and entry[0] in ("setup", "call", "teardown")
+                and entry[1] in ("passed", "failed", "skipped")
+                and isinstance(entry[2], bool) for entry in entries)
+            for node, entries in reports.items()):
+        raise EvidenceError("node ledger malformed: reports is not {nodeid: "
+                            "[[phase, outcome, xfail], ...]}")
+    return data
+
+
+def _ledger_signature(entries: list[list[Any]]) -> dict[str, int]:
+    """What one node's reports must look like in JUnit: a call failure is a
+    ``<failure>``, each setup/teardown failure an ``<error>``, a skipped report
+    a ``<skipped>`` (``pytest.xfail`` when it is an xfail), a passing call a pass."""
+
+    signature = dict.fromkeys(_SIGNATURE_KEYS, 0)
+    for phase, outcome, xfail in entries:
+        if outcome == "failed":
+            signature["failure" if phase == "call" else "error"] += 1
+        elif outcome == "skipped":
+            signature["xfail" if xfail else "skip"] += 1
+        elif phase == "call":
+            signature["pass"] += 1
+    return signature
+
+
+def _junit_signature(entry: dict[str, Any]) -> dict[str, int]:
+    passed = not (entry["failure"] or entry["skipped"] or entry["setup_error"]
+                  or entry["unclassified_error"])
+    return {"pass": int(passed), "failure": entry["failure"], "error": entry["error"],
+            "skip": entry["skipped"] - entry["xfail"], "xfail": entry["xfail"]}
+
+
+def reconcile_identity(junit: dict[str, Any], ledger: dict[str, Any] | None,
+                       timing: dict[str, Any]) -> dict[str, Any]:
+    """Node IDENTITY: every node the session started must appear in the JUnit
+    under its own node id (classname + name, anchored to the selection) with
+    the same per-phase outcome signature, and the JUnit may name nothing else.
+    Equal counts with different nodes never reconcile. Without a complete
+    ledger there is no identity evidence, and that is itself a reason."""
+
+    reasons: list[str] = []
+    if ledger is None:
+        return {"verified": False, "reasons": ["node ledger missing or malformed: node "
+                                               "identity cannot be verified"]}
+    if not ledger["complete"]:
+        reasons.append("node ledger incomplete: the session did not reach sessionfinish")
+    started, collected = ledger["started"], ledger["collected"]
+    started_set, collected_set = set(started), set(collected)
+    duplicates = sorted({node for node in started if started.count(node) > 1})
+    junit_nodes = junit["nodes"]
+    junit_set = set(junit_nodes)
+    missing = sorted(started_set - junit_set)
+    unexpected = sorted(junit_set - started_set)
+    not_started = sorted(collected_set - started_set)
+    not_collected = sorted(started_set - collected_set)
+    mismatched = []
+    for node in sorted(started_set & junit_set):
+        expected = _ledger_signature(ledger["reports"].get(node, []))
+        observed = _junit_signature(junit_nodes[node])
+        if expected != observed:
+            mismatched.append({"nodeid": node, "ledger": expected, "junit": observed})
+    if missing:
+        reasons.append(f"{len(missing)} started node(s) have no junit case, e.g. {missing[:3]}")
+    if unexpected:
+        reasons.append(f"{len(unexpected)} junit case(s) name a node that never started, "
+                       f"e.g. {unexpected[:3]}")
+    if mismatched:
+        reasons.append(f"{len(mismatched)} node(s) carry a different outcome in junit than in "
+                       f"the session's reports, e.g. {json.dumps(mismatched[0], sort_keys=True)}")
+    if not_started or not_collected:
+        reasons.append(f"ledger collected and started node sets differ: not started "
+                       f"{not_started[:3]}, not collected {not_collected[:3]}")
+    if duplicates:
+        reasons.append(f"node(s) started more than once: {duplicates[:3]}")
+    if len(started) != sum(entry.get("started_nodes", 0) for entry in timing["files"].values()):
+        reasons.append(f"ledger started {len(started)} node(s) but the timing manifest counted "
+                       f"{sum(entry.get('started_nodes', 0) for entry in timing['files'].values())}")
+    node_blob = ("\n".join(sorted(started_set)) + "\n").encode("utf-8")
+    return {
+        "verified": not reasons,
+        "reasons": reasons,
+        "collected": len(collected),
+        "started": len(started),
+        "junit_nodes": len(junit_set),
+        "missing_in_junit": missing[:20],
+        "unexpected_in_junit": unexpected[:20],
+        "outcome_mismatches": mismatched[:20],
+        "missing_count": len(missing),
+        "unexpected_count": len(unexpected),
+        "mismatch_count": len(mismatched),
+        "started_nodes_sha256": _sha256_bytes(node_blob),
+    }
+
+
 def reconcile_coverage(junit: dict[str, Any], timing: dict[str, Any],
-                       selection_files: list[str]) -> dict[str, Any]:
+                       selection_files: list[str],
+                       ledger: dict[str, Any] | None) -> dict[str, Any]:
     """Case COVERAGE: does the JUnit account for every node the timing manifest
     saw start, file by file, with the same outcomes, from the same session, for
     files of this selection only? Returns the evidence plus every reason it does
@@ -812,8 +977,11 @@ def reconcile_coverage(junit: dict[str, Any], timing: dict[str, Any],
         if tie_seconds > SESSION_TIE_SECONDS:
             reasons.append(f"junit suite started {tie_seconds}s away from the timing session "
                            "start: not the same session")
+    identity = reconcile_identity(junit, ledger, timing)
+    reasons.extend(identity["reasons"])
     return {
         "reconciled": not reasons,
+        "identity": identity,
         "reasons": reasons,
         "collected": collected_total,
         "junit": totals["junit"],
@@ -825,7 +993,9 @@ def reconcile_coverage(junit: dict[str, Any], timing: dict[str, Any],
         "session_tie_seconds": tie_seconds,
         "rule": "per file: distinct junit nodes == timing started == collected; pass "
                 "(passed+xpassed), failure, error, skip, xfail equal per report; junit "
-                f"suite within {SESSION_TIE_SECONDS:g}s of the timing session start",
+                f"suite within {SESSION_TIE_SECONDS:g}s of the timing session start; per "
+                "node: the junit node set == the ledger's started set == its collected set, "
+                "with the same per-phase outcome signature",
     }
 
 
@@ -846,7 +1016,8 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
 
     paths = {"watchdog": run_dir / "watchdog" / "result.json",
              "timing": run_dir / "timing.json",
-             "junit": run_dir / "junit.xml"}
+             "junit": run_dir / "junit.xml",
+             "ledger": run_dir / NODE_LEDGER_FILE}
     problems: list[str] = []
     evidence: dict[str, Any] = {}
 
@@ -869,10 +1040,11 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
     timing_failed: dict[str, Any] = (
         {entry["nodeid"]: entry for entry in timing["failed_nodes"]} if timing else {})
     totals = timing.pop("_outcome_totals") if timing else None
-    junit = attempt("junit", lambda path: parse_junit(path, selection_files,
-                                                      set(timing_failed)))
+    junit = attempt("junit", lambda path: parse_junit(path, selection_files))
+    ledger = attempt("ledger", load_node_ledger)
     complete = bool(watchdog is not None and watchdog["complete"] is True
-                    and timing is not None and timing["complete"] is True)
+                    and timing is not None and timing["complete"] is True
+                    and ledger is not None and ledger["complete"] is True)
 
     inconsistencies: list[str] = []
     coverage: dict[str, Any] | None = None
@@ -885,6 +1057,9 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
                                    f"child exit {child_exit}")
         if not watchdog["complete"] and not (watchdog["timed_out"] or watchdog["interrupted"]):
             inconsistencies.append("watchdog says incomplete without a stall or interruption")
+    if ledger is not None and ledger["complete"] and ledger["exitstatus"] != child_exit:
+        inconsistencies.append(f"node ledger exitstatus {ledger['exitstatus']} != child exit "
+                               f"{child_exit}")
     if timing is not None and timing["complete"]:
         if timing["exitstatus"] != child_exit:
             inconsistencies.append(f"timing manifest exitstatus {timing['exitstatus']} != "
@@ -913,7 +1088,7 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
             if junit["failure_elements"] != totals["failed"]:
                 inconsistencies.append(f"junit failure elements ({junit['failure_elements']}) "
                                        f"!= timing failed ({totals['failed']})")
-            coverage = reconcile_coverage(junit, timing, selection_files)
+            coverage = reconcile_coverage(junit, timing, selection_files, ledger)
             # A session that ended normally (0, 1, 5) must be FULLY accounted
             # for. An exit-2 session stopped early by design (collection error
             # or interruption): its coverage is recorded, and its verdict is
@@ -941,6 +1116,9 @@ def harvest(*, child_exit: int, runner_interrupted: bool, run_dir: Path,
         if timing is not None and not timing["complete"]:
             problems.append("session did not reach its end: timing manifest complete=false "
                             f"with child exit {child_exit} (session aborted mid-run)")
+        elif ledger is not None and not ledger["complete"]:
+            problems.append("session did not reach its end: node ledger complete=false "
+                            f"with child exit {child_exit}")
         else:
             problems.append("watchdog result complete=false")
         verdict = "harvest-failed"
@@ -1048,6 +1226,11 @@ def execute_run(repo: Path, run_dir: Path, profile_root: Path, python: str,
     basetemp = profile_root / f"basetemp-{stamp}-{os.getpid()}"
     home.mkdir(parents=True, exist_ok=True)
     basetemp.mkdir(parents=True, exist_ok=True)
+    plugin_dir = run_dir / "_ledger_plugin"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    plugin_path = plugin_dir / f"{NODE_LEDGER_MODULE}.py"
+    plugin_path.write_text(NODE_LEDGER_SOURCE, encoding="utf-8")
+    ledger_path = run_dir / NODE_LEDGER_FILE
 
     command = [python, str(Path("ops") / "pytest_watchdog.py"),
                "--phase-timeout", str(phase_timeout),
@@ -1057,11 +1240,14 @@ def execute_run(repo: Path, run_dir: Path, profile_root: Path, python: str,
     command += ["--", python, str(Path("ops") / "pytest_timing.py"),
                 "--output", str(timing_path), "--",
                 "-q", "--tb=short", "-p", "no:cacheprovider",
+                "-p", NODE_LEDGER_MODULE,
                 "--junitxml", str(junit_path), "--basetemp", str(basetemp),
                 *selection["files"]]
 
     env = _clean_pytest_env(dict(os.environ))
     env["VOOL_HOME"] = str(home)
+    env[NODE_LEDGER_ENV] = str(ledger_path)
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(plugin_dir), env.get("PYTHONPATH")]))
     started = time.monotonic()
     with (run_dir / "run-stdout.txt").open("wb") as out_handle, \
             (run_dir / "run-stderr.txt").open("wb") as err_handle:
@@ -1102,6 +1288,9 @@ def execute_run(repo: Path, run_dir: Path, profile_root: Path, python: str,
         "argv_deltas_vs_ci": [
             f"--junitxml {junit_path} (evidence sink: per-node outcomes + first error text)",
             f"--basetemp {basetemp} (scratch isolation; CI relies on the runner's tmp)",
+            f"-p {NODE_LEDGER_MODULE} (evidence sink: collected/started node ids and per-phase "
+            f"outcomes to {NODE_LEDGER_FILE}; selects nothing; module sha256 "
+            f"{sha256_file(plugin_path)})",
             "xvfb-run wrapper absent on this platform (recorded in facilities)",
         ],
         "environment_note": extra_note,
@@ -1224,8 +1413,7 @@ def _coverage_problems(coverage: Any, totals: dict[str, Any] | None, role: str) 
 
     if not isinstance(coverage, dict):
         return [f"{role}: no case-coverage evidence (a receipt from before coverage was "
-                "recorded, or an aborted harvest); re-harvest its run directory with the "
-                "harvest subcommand"]
+                "recorded, or an aborted harvest); it cannot be compared"]
     problems: list[str] = []
     if coverage.get("reconciled") is not True or coverage.get("reasons"):
         problems.append(f"{role}: case coverage not reconciled: {coverage.get('reasons')!r}")
@@ -1242,6 +1430,16 @@ def _coverage_problems(coverage: Any, totals: dict[str, Any] | None, role: str) 
                         f"{timing['nodes']} started")
     if coverage.get("mismatched_file_count") or coverage.get("files_outside_selection"):
         problems.append(f"{role}: per-file coverage mismatches recorded")
+    identity = coverage.get("identity")
+    if not isinstance(identity, dict) or identity.get("verified") is not True:
+        problems.append(f"{role}: no verified node-identity evidence (a receipt from before "
+                        "the node ledger existed cannot be re-harvested into one; re-run it)")
+    elif (identity.get("reasons") or identity.get("missing_count") or identity.get("unexpected_count")
+          or identity.get("mismatch_count")
+          or not (identity.get("started") == identity.get("collected")
+                  == identity.get("junit_nodes") == timing["nodes"])):
+        problems.append(f"{role}: node-identity evidence does not agree with itself or with "
+                        f"the case coverage: {identity!r}")
     if totals is not None:
         expected = {"pass": totals.get("passed", 0) + totals.get("xpassed", 0),
                     "failure": totals["failed"], "error": totals["errors"],
