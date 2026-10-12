@@ -613,8 +613,38 @@ def run_bounded_builder_loop(
         )
         if str(getattr(execution, "mode", "") or "").strip() != "tool_executed":
             failed_execution = execution
+            # A real nonzero command is a failed observation the existing planner
+            # may diagnose. It is never an approval or a success. Preserve it as
+            # unresolved until the same command and cwd actually pass a retry.
+            code = execution_details.get("returncode")
+            if (
+                execution_mode == "tool_failed"
+                and intent == "sandbox.run_command"
+                and str(getattr(execution, "status", "")) == "command_failed"
+                and type(code) is int and code != 0
+            ):
+                continuation = plan_tool_workflow_fn(
+                    user_text=effective_input, task_class=task_class,
+                    executed_steps=executed_steps, source_context=loop_source_context,
+                )
+                if (getattr(continuation, "handled", False)
+                    and getattr(continuation, "next_payload", None)
+                    and not getattr(continuation, "stop_after", False)):
+                    continue
             stop_reason = f"{getattr(execution, 'mode', '') or 'tool_failed'!s}:{getattr(execution, 'status', '') or 'failed'!s}"
             break
+        if failed_execution is not None and intent == "sandbox.run_command" and getattr(execution, "ok", False):
+            failed_details = dict(getattr(failed_execution, "details", {}) or {})
+            if (
+                str(getattr(failed_execution, "tool_name", "")) == intent
+                and bool(failed_details.get("command"))
+                and "cwd" in failed_details
+                and type(execution_details.get("returncode")) is int
+                and execution_details["returncode"] == 0
+                and execution_details.get("command") == failed_details.get("command")
+                and execution_details.get("cwd") == failed_details.get("cwd")
+            ):
+                failed_execution = None
 
     if not stop_reason and len(executed_steps) >= max_steps:
         stop_reason = "step_budget_exhausted"
@@ -848,7 +878,7 @@ def maybe_run_builder_controller(
         result["workflow_summary"] = workflow_summary
         result["details"] = {"builder_controller": builder_details}
         return result
-    if mode == "workflow" and executed_steps and failed_execution is None:
+    if mode == "workflow" and executed_steps:
         response_text = agent._append_builder_artifact_citations(
             agent._render_tool_loop_response(
                 final_message=degraded,
@@ -862,13 +892,13 @@ def maybe_run_builder_controller(
             session_id=session_id,
             user_input=effective_input,
             response=response_text,
-            confidence=0.9,
+            confidence=0.9 if failed_execution is None else 0.58,
             source_context=loop_source_context,
             reason="builder_controller_workflow_response",
-            success=True,
+            success=failed_execution is None,
             details={"builder_controller": builder_details},
-            mode_override="tool_executed",
-            task_outcome="success",
+            mode_override="tool_executed" if failed_execution is None else "tool_failed",
+            task_outcome="success" if failed_execution is None else "failed",
             workflow_summary=workflow_summary,
         )
         result["details"] = {"builder_controller": builder_details}
