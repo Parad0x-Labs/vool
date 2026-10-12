@@ -16,7 +16,7 @@ _DEFAULT_POLICY = {
     "system": {
         "advice_only_default": True,
         "local_only_mode": False,
-        "allow_web_fallback": True,
+        "allow_web_fallback": False,
         "allow_null_dial": False,
         "allow_swarm_queries": True,
         "max_datagram_bytes": 32768,
@@ -116,7 +116,7 @@ _DEFAULT_POLICY = {
     },
     "network": {
         "inbound_enabled": True,
-        "outbound_enabled": True,
+        "outbound_enabled": False,
         "max_peers": 64,
         "max_requests_per_minute_per_peer": 30,
         "max_failed_messages_before_quarantine": 3,
@@ -368,8 +368,8 @@ def _env_is_truthy(value: str | None) -> bool:
 def _apply_env_overrides(config: dict[str, Any], env: dict[str, str] | None = None) -> dict[str, Any]:
     """Apply explicit, documented environment overrides on top of file/default policy.
 
-    Web access is on by default (see config/default_policy.yaml) so live-data
-    questions get a real DuckDuckGo-backed answer out of the box. Setting
+    New installations start with web access off. A saved home policy retains
+    the operator's choices across upgrades. Setting
     `VOOL_ENABLE_WEB=1` (or its alias `VOOL_ALLOW_WEB=1`) force-enables it
     regardless of the config file. Setting `VOOL_DISABLE_WEB=1` (or its alias
     `VOOL_NO_WEB=1`) force-disables it regardless of the config file or the
