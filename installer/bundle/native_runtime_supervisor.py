@@ -22,6 +22,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from core.runtime_paths import active_vool_home
+
 
 class NativeRuntimeError(RuntimeError):
     """The exact native runtime could not be established safely."""
@@ -197,7 +199,7 @@ class NativeRuntimeSupervisor:
         if self.command[0] == "bash" and len(self.command) > 1 and not Path(self.command[1]).is_file():
             raise NativeRuntimeError(f"runtime starter is missing: {self.command[1]}")
 
-        log_dir = Path(self.env.get("VOOL_HOME") or self.project_root / "dist" / "vool-home") / "logs"
+        log_dir = active_vool_home(self.env) / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         self.log_handle = (log_dir / "native-runtime-child.log").open("ab")
         deadline = time.monotonic() + self.startup_timeout

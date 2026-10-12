@@ -8,6 +8,32 @@ from core.runtime_paths import PROJECT_ROOT, active_vool_home
 _PLACEHOLDER_TOKENS = ("placeholder", "change-me", "sample", "example", "replace-me", "todo")
 
 
+def automatic_launch_network_allowed(capability: str) -> bool:
+    """Consent for source-launcher sidecars before the API has booted.
+
+    Only a readable saved profile policy grants automatic outbound work. Bundled
+    defaults and a malformed/missing file cannot be mistaken for user consent.
+    """
+    if capability not in {"outbound", "web"}:
+        return False
+    try:
+        import yaml
+    except ImportError:
+        return False
+    try:
+        path = active_vool_home() / "config" / "default_policy.yaml"
+        saved = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(saved, dict):
+            return False
+        network = saved.get("network")
+        system = saved.get("system")
+        outbound = isinstance(network, dict) and network.get("outbound_enabled") is True
+        web = isinstance(system, dict) and system.get("allow_web_fallback") is True
+        return outbound if capability == "outbound" else outbound or web
+    except (OSError, ValueError, TypeError, yaml.YAMLError):
+        return False
+
+
 def is_loopback_host(host: str) -> bool:
     normalized = (host or "").strip().lower()
     return normalized in {"127.0.0.1", "localhost", "::1"}

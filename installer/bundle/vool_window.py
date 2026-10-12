@@ -70,13 +70,9 @@ _POSIX_LOCK_STATE_DIRS = ("VOOL", "NULLA")  # state-dir names, canonical first
 
 def _state_dir() -> str:
     """Per-OS writable state dir for the window's log + lock."""
-    if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA", _HERE)
-    elif sys.platform == "darwin":
-        base = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
-    else:
-        base = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
-    path = os.path.join(base, "VOOL")
+    from core.runtime_paths import native_state_dir
+
+    path = str(native_state_dir())
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -89,9 +85,9 @@ def _log(message: str) -> None:
 
 def _posix_lock_base() -> str:
     """The base directory both generations' window locks live under (POSIX)."""
-    if sys.platform == "darwin":
-        return os.path.join(os.path.expanduser("~"), "Library", "Application Support")
-    return os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
+    from core.runtime_paths import native_lock_base
+
+    return str(native_lock_base())
 
 
 def _single_instance() -> bool:
@@ -104,22 +100,30 @@ def _single_instance() -> bool:
     that fight over the one canonical runtime port (see _WIN_MUTEX_NAMES above). The legacy
     lock is CREATED even on machines that never had the old app: without holding it, an old
     NULLA.app launched after the upgrade would open beside this window.
-    Both fail OPEN on unexpected errors -- only a genuinely held lock reports False.
+    An unavailable lock fails closed: an unproved singleton cannot own the runtime.
     """
     if sys.platform == "win32":
         try:
+            from core.runtime_paths import active_vool_home, runtime_home_is_isolated
+
+            suffix = ""
+            if runtime_home_is_isolated():
+                import hashlib
+
+                suffix = "_" + hashlib.sha256(str(active_vool_home()).encode("utf-8")).hexdigest()[:24]
             kernel32 = ctypes.windll.kernel32
             for name in _WIN_MUTEX_NAMES:
-                kernel32.CreateMutexW(None, False, name)
+                if not kernel32.CreateMutexW(None, False, name + suffix):
+                    return False
                 if kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
                     return False
             return True
         except Exception:
-            return True
+            return False
     try:
         import fcntl
     except Exception:
-        return True  # cannot lock -> do not block the window
+        return False
     acquired: list[int] = []
     for state_name in _POSIX_LOCK_STATE_DIRS:
         lock_dir = os.path.join(_posix_lock_base(), state_name)
@@ -130,7 +134,10 @@ def _single_instance() -> bool:
             # whole window session.
             fd = os.open(os.path.join(lock_dir, "window.lock"), os.O_CREAT | os.O_RDWR, 0o644)
         except Exception:
-            continue  # this one lock is unavailable -> fail open on it (documented philosophy)
+            for held in acquired:
+                with contextlib.suppress(OSError):
+                    os.close(held)
+            return False
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
@@ -243,7 +250,9 @@ def _disposable_profile_flags() -> list[str]:
         # Safe Storage" against the real Keychain on macOS and prompts the operator.
         return []
     try:
-        profile = tempfile.mkdtemp(prefix="vool-window-profile-")
+        from core.runtime_paths import runtime_temp_dir
+
+        profile = tempfile.mkdtemp(prefix="vool-window-profile-", dir=runtime_temp_dir())
     except OSError as exc:
         _log(f"fallback REFUSED: no disposable browser profile could be created: {exc!r}")
         return []

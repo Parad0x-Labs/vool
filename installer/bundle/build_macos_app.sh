@@ -730,7 +730,13 @@ if [[ "${SELF_CONTAINED}" -eq 1 ]]; then
 #!/usr/bin/env bash
 set -uo pipefail
 RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
-SUPPORT="${HOME}/Library/Application Support/VOOL"
+PY="${RES}/python/bin/python3"
+export PYTHONPATH="${RES}/app"
+# Resolve the profile before the first writable effect. This stdlib-only authority
+# is shared by the native window, plugin catalog and API child.
+export VOOL_HOME="$("${PY}" -c 'from core.runtime_paths import native_runtime_home; print(native_runtime_home())')"
+SUPPORT="$("${PY}" -c 'from core.runtime_paths import native_state_dir; print(native_state_dir())')"
+[[ -n "${VOOL_HOME}" && -n "${SUPPORT}" ]] || exit 1
 mkdir -p "${SUPPORT}"
 exec >>"${SUPPORT}/app.log" 2>&1
 echo "--- VOOL.app (self-contained) launch $(date) ---"
@@ -770,8 +776,6 @@ min_version=$((10#${min_major} * 1000000 + 10#${min_minor:-0} * 1000 + 10#${min_
 [[ "${host_version}" -ge "${min_version}" ]] || \
   launch_refusal "This VOOL build requires macOS ${MIN_MACOS} or newer; this Mac runs ${HOST_MACOS}."
 
-PY="${RES}/python/bin/python3"
-export PYTHONPATH="${RES}/app"
 # Respect a caller-provided VOOL_HOME. The runtime's own contract (core/runtime_paths.py)
 # honours the env var; overwriting it here silently defeated every isolated home a launcher
 # or validation rig set, routing the daemon's data to the installed home instead (measured
@@ -785,27 +789,21 @@ export PYTHONPATH="${RES}/app"
 # deterministically (same rule as core.runtime_paths.user_runtime_default and the
 # .vool_local/.nulla_local reuse) and the decision names both directories in the log, so
 # the conflict is visible instead of silent. See docs/VOOL_IDENTITY_COMPATIBILITY_MAP.md.
-if [[ -z "${VOOL_HOME:-}" ]]; then
-  CANONICAL_RUNTIME="${SUPPORT}/runtime"
-  LEGACY_RUNTIME="${HOME}/Library/Application Support/NULLA/runtime"
-  if [[ -d "${CANONICAL_RUNTIME}" ]]; then
-    export VOOL_HOME="${CANONICAL_RUNTIME}"
-    if [[ -d "${LEGACY_RUNTIME}" ]]; then
-      echo "NOTE: profiles exist at both ${CANONICAL_RUNTIME} (used) and ${LEGACY_RUNTIME} (not used)."
-    fi
-  elif [[ -d "${LEGACY_RUNTIME}" ]]; then
-    export VOOL_HOME="${LEGACY_RUNTIME}"
-    echo "reusing the pre-rename runtime home: ${LEGACY_RUNTIME}"
-  else
-    export VOOL_HOME="${CANONICAL_RUNTIME}"
-  fi
+CANONICAL_RUNTIME="${HOME}/Library/Application Support/VOOL/runtime"
+LEGACY_RUNTIME="${HOME}/Library/Application Support/NULLA/runtime"
+if [[ "${VOOL_HOME}" == "${CANONICAL_RUNTIME}" && -d "${LEGACY_RUNTIME}" ]]; then
+  echo "NOTE: profiles exist at both ${CANONICAL_RUNTIME} (used) and ${LEGACY_RUNTIME} (not used)."
+elif [[ "${VOOL_HOME}" == "${LEGACY_RUNTIME}" ]]; then
+  echo "reusing the pre-rename runtime home: ${LEGACY_RUNTIME}"
 fi
 # Reuse an existing Ollama model store when the machine already has one, so a first launch does
 # not re-download several GB; otherwise keep the models inside the app's own support dir.
-if [[ -d "${HOME}/.ollama/models" ]]; then
+if [[ -n "${OLLAMA_MODELS:-}" ]]; then
+  export OLLAMA_MODELS
+elif [[ -d "${HOME}/.ollama/models" ]]; then
   export OLLAMA_MODELS="${HOME}/.ollama/models"
 else
-  export OLLAMA_MODELS="${SUPPORT}/models"
+  export OLLAMA_MODELS="${VOOL_HOME}/models"
 fi
 mkdir -p "${VOOL_HOME}" "${OLLAMA_MODELS}"
 
@@ -866,11 +864,6 @@ if [[ -n "\${SELF_ROOT}" && -f "\${SELF_ROOT}/installer/bundle/vool_window.py" ]
 else
   PROJECT_ROOT="${PROJECT_ROOT_TEMPLATE}"
 fi
-LOG_DIR="\${HOME}/Library/Application Support/VOOL"
-mkdir -p "\${LOG_DIR}"
-exec >>"\${LOG_DIR}/app.log" 2>&1
-echo "--- VOOL.app launch \$(date) ---"
-
 # Resolve a python by CAPABILITY, not version: the native window needs pywebview. A candidate
 # qualifies only when it can 'import webview' — preferring 3.12 over a webview-capable 3.9 sent
 # launches into the browser fallback on machines that already had a working interpreter installed.
@@ -896,6 +889,14 @@ if [[ -z "\${PY}" ]]; then
     exit 1
   fi
 fi
+
+# Resolve writable native state with the same authority as the self-contained host.
+export PYTHONPATH="\${PROJECT_ROOT}\${PYTHONPATH:+:\${PYTHONPATH}}"
+LOG_DIR="\$("\${PY}" -c 'from core.runtime_paths import native_state_dir; print(native_state_dir())')"
+[[ -n "\${LOG_DIR}" ]] || exit 1
+mkdir -p "\${LOG_DIR}"
+exec >>"\${LOG_DIR}/app.log" 2>&1
+echo "--- VOOL.app launch \$(date) ---"
 
 # The long-lived native host owns runtime startup and teardown. Export the live checkout identity;
 # the host refuses to create a window unless /healthz stamps this exact commit.

@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime_paths import user_runtime_default
+from core.runtime_paths import active_vool_home
 
 STORE_FILENAME = "config/x_voice_profiles.json"
 
@@ -62,9 +62,7 @@ class VoiceSample:
 
 
 def _store_path(home: Path | None = None) -> Path:
-    base = Path(home) if home is not None else Path(
-        os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME") or user_runtime_default()
-    )
+    base = Path(home) if home is not None else active_vool_home()
     return base / STORE_FILENAME
 
 

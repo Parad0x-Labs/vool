@@ -3,13 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-RUNTIME_HOME="${VOOL_HOME:-$HOME/.vool_runtime}"
+RUNTIME_HOME="${VOOL_HOME:-${NULLA_HOME:-$HOME/.vool_runtime}}"
 INSTALL_ROOT="${VOOL_INSTALL_ROOT:-$HOME/vool-local}"
 OPENCLAW_HOME="${OPENCLAW_HOME:-$HOME/.openclaw-default}"
 OPENCLAW_AGENT_DIR="${VOOL_OPENCLAW_AGENT_DIR:-$HOME/.openclaw/agents/main/agent/vool}"
 LAUNCH_AGENT_PATH="${VOOL_LAUNCH_AGENT_PATH:-$HOME/Library/LaunchAgents/ai.vool.runtime.plist}"
 OLLAMA_MODELS_DIR="${OLLAMA_MODELS:-$HOME/.ollama/models}"
-VOOL_LLAMACPP_MODELS_DIR="${VOOL_LLAMACPP_MODELS_DIR:-$HOME/.vool_runtime/models/llamacpp}"
+VOOL_LLAMACPP_MODELS_DIR="${VOOL_LLAMACPP_MODELS_DIR:-${RUNTIME_HOME}/models/llamacpp}"
 AUTO_YES=0
 
 
