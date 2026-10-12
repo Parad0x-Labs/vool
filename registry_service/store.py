@@ -269,7 +269,18 @@ class Store:
             prepublication(inspect(row["artifact"]), policy, evidence, now=now)
         else:
             admit(inspect(row["artifact"]), policy, evidence, now=now)
-        return row["artifact"], review
+        # Verification runs outside the write lock. Re-read current consent,
+        # ownership and exact bytes under one transaction before handing out
+        # the snapshot. This cannot revoke a file already handed to a publisher.
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            current = db.execute("""SELECT submissions.* FROM submissions
+                JOIN accounts ON accounts.id=submissions.account
+                WHERE submissions.id=? AND state='ready_for_github' AND consent=1""", (identifier,)).fetchone()
+            require(current and all(current[field] == row[field] for field in
+                    ("account", "package_id", "version", "sha256", "artifact", "review")),
+                    "submission changed during export; recheck review and consent")
+            return current["artifact"], review
 
     def publish(self, catalog, package_id: str, version: str, target: dict, raw: bytes, *, now: int) -> None:
         """Called only after TrustedCatalog verifies the signed GitHub catalog snapshot."""
