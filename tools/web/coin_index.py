@@ -59,7 +59,12 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from core.remote_fetch_policy import remote_fetch_forbidden
+from core.remote_fetch_policy import (
+    RemoteFetchRefusedError,
+    effective_web_available,
+    open_remote,
+    remote_fetch_forbidden,
+)
 from core.runtime_paths import active_vool_home
 
 # Rank ceiling. See the module docstring for the measurements behind this number -- it is the
@@ -144,13 +149,25 @@ def _write_disk_cache(symbols: dict[str, str]) -> None:
 
 
 def _fetch_index() -> dict[str, str]:
-    """symbol -> coin id for the top `_MAX_RANK` coins. {} on any failure."""
-    if remote_fetch_forbidden():
+    """Resolve the remote index under existing consent and the owning effect ledger.
+
+    Transport/data failures return {}; the door's typed permission refusal is
+    retained so the cache can distinguish refusal from a failed network attempt.
+    This resolver never creates a turn or background scope to authorize itself.
+    """
+    if remote_fetch_forbidden() or not effective_web_available():
         return {}
     request = urllib.request.Request(_INDEX_URL, headers={"User-Agent": "VOOL-PRICE/1.0"})
     try:
-        with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_S) as response:
+        with open_remote(
+            request,
+            timeout=_FETCH_TIMEOUT_S,
+            provider_id="coingecko",
+            keyed_or_keyless="keyless",
+        ) as response:
             rows = json.loads(response.read(4_000_000).decode("utf-8", errors="ignore"))
+    except RemoteFetchRefusedError:
+        raise
     except Exception:
         return {}
     if not isinstance(rows, list):
@@ -189,7 +206,15 @@ def _index() -> dict[str, str]:
             _memory_index = cached
             _memory_stamp = time.time()
             return _memory_index
-        fetched = _fetch_index()
+        # Cached identities are local reads even when web is off. A cold index
+        # may refresh only after consent; a refusal is not an API outage and must
+        # not suppress a newly permitted turn for the negative-cache TTL.
+        if remote_fetch_forbidden() or not effective_web_available():
+            return {}
+        try:
+            fetched = _fetch_index()
+        except RemoteFetchRefusedError:
+            return {}
         if fetched:
             _write_disk_cache(fetched)
             _memory_index = fetched
