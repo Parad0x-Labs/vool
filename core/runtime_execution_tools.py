@@ -2837,6 +2837,14 @@ def _file_deliver(arguments: dict[str, Any], *, source_context: dict[str, Any] |
     if files is not None and not isinstance(files, list):
         files = None
     try:
+        # The turn's own named format(s) (`deliverables.requested_formats`, stamped on the tool
+        # loop's context): a call building another format is refused BEFORE anything is stored,
+        # so the correction round delivers what was asked instead of a file nobody asked for.
+        deliverables.refuse_unrequested_format(
+            filename=str(args.get("filename") or args.get("name") or ""),
+            fmt=str(args.get("format") or ""),
+            wanted=tuple(context.get(deliverables.REQUESTED_FORMATS_KEY) or ()),
+        )
         record = deliverables.create_deliverable(
             session_id=session_id,
             filename=str(args.get("filename") or args.get("name") or ""),

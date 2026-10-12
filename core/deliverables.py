@@ -169,6 +169,10 @@ def resolve_format(filename: str, fmt: Any = "") -> tuple[str, str, str]:
             requested = extension.lstrip(".")
     if requested in _REFUSED_FORMATS:
         raise DeliverableRefused("format_unsupported", _REFUSED_FORMATS[requested])
+    if extension.lstrip(".") in _REFUSED_FORMATS:
+        # "haiku.rar" built as text was delivered as autumn_haiku.rar.txt (measured live,
+        # 2026-10-06): a name that claims a format this runtime refuses is the same refusal.
+        raise DeliverableRefused("format_unsupported", _REFUSED_FORMATS[extension.lstrip(".")])
     if requested in ("code", "") and extension in CODE_EXTENSIONS:
         return "code", filename, CODE_EXTENSIONS[extension]
     if requested not in FORMATS:
@@ -255,9 +259,7 @@ def markdown_blocks(text: str) -> list[dict[str, Any]]:
                 blocks.append({"type": "numbered", "level": len(numbered.group(1).expandtabs(2)) // 2, "number": numbered.group(2), "text": numbered.group(3)})
             index += 1
             continue
-        if not line.strip():
-            flush()
-        elif re.match(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$", line):
+        if not line.strip() or re.match(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$", line):
             flush()
         else:
             paragraph.append(line)
@@ -746,10 +748,13 @@ def build_pptx(markdown: str, *, title: str) -> bytes:
             f'<Relationship Id="rId1" Type="{_REL_T}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'
             f'<Relationship Id="rId2" Type="{_REL_T}/theme" Target="../theme/theme1.xml"/></Relationships>',
         )
+        # Built outside the f-string: a backslash inside an f-string expression is a SyntaxError
+        # before Python 3.12, and this package supports 3.10+ (pyproject requires-python).
+        blank_layout_tree = _sp_tree("").replace("<p:cSld>", '<p:cSld name="Blank">')
         package.writestr(
             "ppt/slideLayouts/slideLayout1.xml",
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            f'<p:sldLayout {_P_NS} type="blank" preserve="1">{_sp_tree("").replace("<p:cSld>", "<p:cSld name=\"Blank\">")}'
+            f'<p:sldLayout {_P_NS} type="blank" preserve="1">{blank_layout_tree}'
             '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>',
         )
         package.writestr(
@@ -1073,6 +1078,87 @@ def read_deliverable(*, deliverable_id: str, session_id: str) -> tuple[dict[str,
     return record, data
 
 
+#: Source-context key the tool loop stamps with `requested_formats(<this turn's text>)`.
+REQUESTED_FORMATS_KEY = "delivery_formats_requested"
+
+#: The formats a request NAMES for its file, as typed words -> format. Only phrasings that order a
+#: file kind count: "a 500-word essay" names no Word document, "as a Word document" does.
+_NAMED_FORMAT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("docx", re.compile(r"\bword\s+(?:doc|docs|document|documents|file|files)\b|\bas\s+(?:a\s+)?word\b|\.?\bdocx?\b", re.I)),
+    ("xlsx", re.compile(r"\bexcel\b|\.?\bxlsx?\b|\bspreadsheet\b|\bworkbook\b", re.I)),
+    ("pptx", re.compile(r"\bpowerpoint\b|\.?\bpptx?\b|\bslide\s*deck\b|\bslides\b|\bpresentation\b", re.I)),
+    ("pdf", re.compile(r"\.?\bpdf\b", re.I)),
+    ("csv", re.compile(r"\.?\bcsv\b", re.I)),
+    ("tsv", re.compile(r"\.?\btsv\b", re.I)),
+    ("json", re.compile(r"\.?\bjson\b", re.I)),
+    ("yaml", re.compile(r"\.?\bya?ml\b", re.I)),
+    ("xml", re.compile(r"\.?\bxml\b", re.I)),
+    ("html", re.compile(r"\.?\bhtml?\b", re.I)),
+    ("md", re.compile(r"\bmarkdown\b|\.md\b|\bmd\s+file\b", re.I)),
+    ("txt", re.compile(r"\.txt\b|\btext\s+file\b|\btxt\b", re.I)),
+    ("zip", re.compile(r"\bzip(?:ped|ping)?\b|\.zip\b|\bcompress(?:ed)?\b", re.I)),
+    ("tar.gz", re.compile(r"\btar(?:ball|\.gz)?\b|\.tgz\b", re.I)),
+    # Named but never built (`_REFUSED_FORMATS`): counted so the order is refused, not rebuilt as text.
+    ("rar", re.compile(r"\.?\brar\b", re.I)),
+    ("7z", re.compile(r"\.?\b7z\b", re.I)),
+)
+#: Words naming a file that is already there ("the attached pdf"), not the one being ordered.
+_PRESENT_FILE_RE = re.compile(
+    r"\b(?:the|this|that|these|those|my|your|our|attached|uploaded)\s+(?:\w+\s+){0,2}?"
+    r"(?:pdf|docx?|word\s+(?:doc|document|file)|excel|xlsx?|spreadsheet|workbook|csv|tsv|json|ya?ml|xml|html?|zip|archive|"
+    r"powerpoint|pptx?|deck|presentation|file|document)\b",
+    re.I,
+)
+
+
+def requested_formats(text: str) -> tuple[str, ...]:
+    """The formats this turn ORDERS its file in, or () when it orders no file or names no format.
+
+    A model asked for "a short one-page PDF" delivered Benefits_of_Regular_Walking.md, and one asked
+    to "zip them up" delivered two loose files (measured live, pinned gpt-4.1-mini, 2026-10-06). The
+    tool description already asked for the named format; a description is advice. This is the
+    request's own word, read once, so `file.deliver` can refuse a format nobody asked for and the
+    model's correction round can deliver the one they did. Formats of files already present ("the
+    attached pdf") are not ordered and are not counted.
+    """
+    raw = str(text or "")
+    try:
+        from core.tool_demand_signals import asks_for_a_file
+
+        if not asks_for_a_file(raw):
+            return ()
+    except Exception:
+        return ()
+    ordered = _PRESENT_FILE_RE.sub(" ", raw)
+    return tuple(fmt for fmt, pattern in _NAMED_FORMAT_PATTERNS if pattern.search(ordered))
+
+
+def refuse_unrequested_format(*, filename: str, fmt: str, wanted: tuple[str, ...] | list[str]) -> None:
+    """Raise `format_not_requested` when the turn named its format(s) and this call builds another."""
+    ordered = tuple(str(item) for item in (wanted or ()))
+    named = tuple(item for item in ordered if item in FORMATS)
+    if not named:
+        refused = [item for item in ordered if item in _REFUSED_FORMATS]
+        if refused:
+            raise DeliverableRefused("format_unsupported", _REFUSED_FORMATS[refused[0]])
+        return
+    try:
+        resolved, _name, _media = resolve_format(safe_filename(filename) if filename else "", fmt)
+    except DeliverableRefused:
+        return  # the build refuses it with its own, more specific reason
+    if resolved in named:
+        return
+    shown = ", ".join("." + FORMATS[item][0].lstrip(".") for item in named)
+    hint = " Several files to zip: ONE call with filename *.zip and `files`." if any(
+        item in ("zip", "tar.gz") for item in named
+    ) else ""
+    raise DeliverableRefused(
+        "format_not_requested",
+        f"the request asked for {shown}, and this call builds .{resolved if resolved != 'code' else (filename.rsplit('.', 1)[-1] if '.' in filename else 'file')}. "
+        f"Deliver it as {shown}.{hint}",
+    )
+
+
 def supported_formats_summary() -> str:
     return "docx, xlsx, pptx, pdf, md, txt, csv, tsv, json, yaml, xml, html, zip, tar.gz, and source files such as .py or .js"
 
@@ -1083,6 +1169,7 @@ __all__ = [
     "MAX_BUNDLE_FILES",
     "MAX_OUTPUT_BYTES",
     "MAX_SOURCE_CHARS",
+    "REQUESTED_FORMATS_KEY",
     "RETENTION_SECONDS",
     "Built",
     "DeliverableRefused",
@@ -1091,6 +1178,8 @@ __all__ = [
     "download_url",
     "markdown_blocks",
     "read_deliverable",
+    "refuse_unrequested_format",
+    "requested_formats",
     "resolve_format",
     "safe_filename",
     "supported_formats_summary",

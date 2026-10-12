@@ -179,7 +179,16 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             r"|\b(?:export|download|give\s+me|send\s+me|make|create|generate|produce|build|prepare|convert|turn|save)\b[^.?!]{0,80}?"
             r"(?:\.(?:docx|xlsx|pptx|pdf|csv|tsv|json|zip|rar|7z)\b|\b(?:word\s+(?:doc|document|file)|excel\s+(?:file|sheet|workbook|spreadsheet)|powerpoint|slide\s*deck|downloadable\s+\w+)\b)"
             r"|\b(?:zip|compress)\s+(?:\w+\s+){0,2}?(?:up\s+)?(?:these|those|them|it|the\s+files|all\s+of\s+(?:it|them))\b"
-            r"|\b(?:zip|compress)\s+(?:them|it|these|those)\s+up\b",
+            r"|\b(?:zip|compress)\s+(?:them|it|these|those)\s+up\b"
+            # "...plus a usage note, and zip both files", "zip all of the files": the zip ordered by
+            # quantity rather than a pronoun (measured live 2026-10-06: answered as chat prose).
+            r"|\b(?:zip|compress)\s+(?:up\s+)?(?:both|all)\b(?:\s+(?:of\s+)?(?:the\s+)?(?:files?|them|together))?"
+            # "Export a CSV of the five largest states", "make me a PDF of...": a verb ordering a NEW
+            # file of a named type with no "file" noun (measured live: answered as chat prose).
+            # Data formats that double as reply formats (json, yaml) stay out, as in the pattern above,
+            # and "how to make a PDF ..." asks about the task instead of ordering it.
+            r"|(?<!how to )\b(?:export|download|give\s+me|send\s+me|make\s+me|make|create|generate|produce|prepare)\s+an?\s+"
+            r"(?:csv|tsv|pdf|xlsx|docx|pptx|excel|zip)\b(?!\s+(?:format|formatting|response|answer|reply)\b)",
             re.I,
         ),
     ),
