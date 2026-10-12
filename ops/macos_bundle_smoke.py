@@ -263,9 +263,17 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
         for source in sorted(support.rglob("*.log")) if support.exists() else []:
             target = logs / str(source.relative_to(support)).replace("/", "__")
             shutil.copy2(source, target)
-            tail = source.read_text(errors="replace").splitlines()[-60:]
+            lines = source.read_text(errors="replace").splitlines()
+            # The API log is mostly per-request access lines; the decisions live between them.
+            if source.name == "vool_api.log":
+                lines = [line for line in lines if '"http_request' not in line or "/api/chat" in line]
+            tail = lines[-200:]
             print(f"----- {source.relative_to(support)} (last {len(tail)} lines) -----", flush=True)
             print("\n".join(tail), flush=True)
+        # The failed chat's own reply carries the lane, provenance and refusal reasons.
+        for reply in sorted(scratch.glob("chat-*.json")):
+            print(f"----- {reply.name} (first 6000 chars) -----", flush=True)
+            print(reply.read_text(errors="replace")[:6000], flush=True)
     try:
         request(origin, "/healthz", timeout=5)
     except (OSError, ValueError, urllib.error.URLError):
