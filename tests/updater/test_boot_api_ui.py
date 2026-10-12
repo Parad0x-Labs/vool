@@ -45,6 +45,15 @@ def _reset_subsystem():
     reset_update_subsystem_for_tests()
 
 
+@pytest.fixture()
+def unconfigured_pin_map(tmp_path, monkeypatch):
+    pin = tmp_path / "trusted_publisher_keys.json"
+    pin.write_text("{}", encoding="utf-8")
+    monkeypatch.delenv("VOOL_UPDATE_PUBLISHER_KEYS", raising=False)
+    monkeypatch.setenv("VOOL_UPDATE_TRUSTED_KEYS_JSON", str(pin))
+    return pin
+
+
 class TestHonestDisable:
     def test_no_trusted_key_means_unavailable_not_silent(self, tmp_path, monkeypatch):
         monkeypatch.delenv("VOOL_UPDATE_PUBLISHER_KEYS", raising=False)
@@ -192,7 +201,7 @@ class TestApiSurface:
         response = self._post("/api/update/check", client_host="10.9.8.7")
         assert response.status == 403
 
-    def test_status_reports_unavailable_without_key(self, tmp_path):
+    def test_status_reports_unavailable_without_key(self, tmp_path, unconfigured_pin_map):
         boot_update_subsystem(data_dir=tmp_path)
         response = self._get("/api/update/status")
         payload = json.loads(response.body.decode())
