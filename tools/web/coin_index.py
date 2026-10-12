@@ -65,8 +65,8 @@ from core.runtime_paths import active_vool_home
 # Rank ceiling. See the module docstring for the measurements behind this number -- it is the
 # collision boundary of the real index, not a round number picked for looks.
 _MAX_RANK = 250
-_INDEX_URL = (
-    "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd"
+_INDEX_PATH = (
+    "/coins/markets?vs_currency=usd"
     f"&order=market_cap_desc&per_page={_MAX_RANK}&page=1&sparkline=false"
 )
 # The index moves slowly (a coin's rank, not its price), so a long TTL is correct: this cache must
@@ -143,15 +143,37 @@ def _write_disk_cache(symbols: dict[str, str]) -> None:
         return
 
 
+def _read_index_rows() -> Any:
+    """The markets page, with the operator's CoinGecko key when one is stored (``core.coingecko_auth``:
+    its plan's host, the key unredirected in its plan's header). A refused key is remembered and the
+    page is asked again with the next stored key, then without one. None on any other failure."""
+    import urllib.error
+
+    from core import coingecko_auth
+
+    for _attempt in range(len(coingecko_auth.PLANS) + 1):
+        url, auth, plan = coingecko_auth.request_for(_INDEX_PATH)
+        request = urllib.request.Request(url, headers={"User-Agent": "VOOL-PRICE/1.0"})
+        for name, value in auth.items():
+            request.add_unredirected_header(name, value)
+        try:
+            with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_S) as response:
+                return json.loads(response.read(4_000_000).decode("utf-8", errors="ignore"))
+        except urllib.error.HTTPError as exc:
+            if plan == "keyless" or exc.code not in coingecko_auth.REFUSED_KEY_STATUSES:
+                return None
+            coingecko_auth.note_refused(plan)
+        except Exception:
+            return None
+    return None
+
+
 def _fetch_index() -> dict[str, str]:
     """symbol -> coin id for the top `_MAX_RANK` coins. {} on any failure."""
     if remote_fetch_forbidden():
         return {}
-    request = urllib.request.Request(_INDEX_URL, headers={"User-Agent": "VOOL-PRICE/1.0"})
-    try:
-        with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_S) as response:
-            rows = json.loads(response.read(4_000_000).decode("utf-8", errors="ignore"))
-    except Exception:
+    rows = _read_index_rows()
+    if rows is None:
         return {}
     if not isinstance(rows, list):
         return {}

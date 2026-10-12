@@ -2071,6 +2071,7 @@ const KEY_FAMILIES = [
   { id: 'llm.cloud.', title: 'Model providers', blurb: 'Used only when a turn actually runs on that provider.' },
   { id: 'search.web.', title: 'Web search', blurb: 'Used for live lookups. Built-in keyless search remains available.' },
   { id: 'security.', title: 'Security scans', blurb: 'Optional add-on checks. Scans use your provider allowance.' },
+  { id: 'market.data.', title: 'Market data', blurb: 'Raises crypto price limits. Verified when saved; if the provider later refuses it, VOOL answers prices without it.' },
 ];
 
 /* The same store also holds keys the RUNTIME minted for itself. blackbox.cas.keys is the
@@ -2166,7 +2167,10 @@ function widgetKeys(stack) {
             renderPane();
           } catch (e) { rm.disabled = false; st.textContent = tfmt('keys.not_removed', 'Not removed — {error}', { error: e.message }); }
         });
-        rowEl.appendChild(testBtn); rowEl.appendChild(rm); rowEl.appendChild(st);
+        /* A market-data key was verified when it was saved; its use is the check after that (a refusal
+           drops back to keyless prices), so the row offers Remove only. */
+        if (fam !== 'market.data.') rowEl.appendChild(testBtn);
+        rowEl.appendChild(rm); rowEl.appendChild(st);
         list.appendChild(rowEl);
       });
     });
@@ -2199,6 +2203,7 @@ function widgetKeys(stack) {
     if (g.children.length) prov.appendChild(g);
   };
   addGroup('security', 'keys.group_security', 'Security scans', KEY_PROVIDER_GUIDE.find(g => g.id === 'security').providers);
+  addGroup('market', 'keys.group_market', 'Market data', (KEY_PROVIDER_GUIDE.find(g => g.id === 'market') || { providers: [] }).providers);
   getJSON('/api/cloud/providers')
     .then(d => {
       (d.providers || d.items || []).forEach(pr => { if (pr && pr.id) { PROVIDER_META[pr.id] = pr; if (pr.label) PROVIDER_LABELS[pr.id] = pr.label; } });
@@ -2348,7 +2353,7 @@ function widgetKeys(stack) {
       if (!classified.ok) throw new Error(failText(classified));
       const candidates = classified.j.candidates || [];
       const picked = prov.value.trim();
-      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
+      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : selectedGroup() === 'market' ? 'market.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
         const choices = names.length ? ' ' + tfmt('keys.could_be', 'It could be {names}.', { names: names.join(', ') }) : '';
@@ -2356,7 +2361,7 @@ function widgetKeys(stack) {
         prov.focus();
         return;
       }
-      if (!picked) { prov.value = providerId.replace(/^search\./, ''); syncBaseUrl(); syncOrigin(); }
+      if (!picked) { prov.value = providerId.replace(/^(search|market)\./, ''); syncBaseUrl(); syncOrigin(); }
       const label = selectedLabel() || (candidates[0] && candidates[0].label) || providerId;
       const verifyBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
@@ -2384,7 +2389,7 @@ function widgetKeys(stack) {
       if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
       key.value = '';                     /* the secret leaves the field the moment it is stored */
       origin.value = '';
-      const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : T('keys.use_model', ' It is now the active model provider.');
+      const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : done.j.kind === 'market_data' ? T('keys.use_market', ' VOOL uses it for crypto prices from now on.') : T('keys.use_model', ' It is now the active model provider.');
       const credit = verified.j.account_state === 'exhausted' ? T('keys.credit_exhausted', ' Its credit limit is used up, so requests will fail until credit is added.') : '';
       /* A path-token binding names what the runtime now holds, never the secret: the origin the token
          is sent to and the one-way fingerprint its receipts carry. */
@@ -2413,7 +2418,7 @@ function widgetKeys(stack) {
       if (!classified.ok) throw new Error(failText(classified));
       const candidates = classified.j.candidates || [];
       const picked = prov.value.trim();
-      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
+      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : selectedGroup() === 'market' ? 'market.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
         setSt('failed', (classified.j.reason || T('keys.cannot_tell', 'VOOL cannot tell which service this key is for.'))
@@ -2422,7 +2427,7 @@ function widgetKeys(stack) {
         prov.focus();
         return;
       }
-      if (!picked) { prov.value = providerId.replace(/^search\./, ''); syncBaseUrl(); syncOrigin(); }
+      if (!picked) { prov.value = providerId.replace(/^(search|market)\./, ''); syncBaseUrl(); syncOrigin(); }
       const laterBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
         if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first_short', 'Not stored — enter the base URL of the endpoint first. Nothing was sent anywhere.')); baseUrl.focus(); return; }

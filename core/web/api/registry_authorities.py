@@ -337,6 +337,24 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
             ),
             runtime,
         )
+    # Market-data keys (CoinGecko, core/coingecko_auth.py) are REMOVED here, like every listed key;
+    # they are only ever stored through the verified intake flow (/api/intake/*), so a value for one
+    # of their slots is refused rather than written unverified.
+    from core.coingecko_auth import all_slots as _market_slots
+    from core.coingecko_auth import plan_for_slot as _market_plan_for_slot
+
+    _market_name = str(body.get("name") or "").strip()
+    if _market_name in _market_slots():
+        if body.get("delete") is not True:
+            return apply_runtime_headers(json_response(400, {
+                "error": "market-data keys are saved through Settings → API Keys, which verifies them first"}), runtime)
+        from core.credential_store import delete_credential as _mdelete
+
+        _plan = _market_plan_for_slot(_market_name)
+        removed = _mdelete(_market_name)
+        return apply_runtime_headers(json_response(200, {
+            "name": _market_name, "provider": _plan.provider_id if _plan else "", "connected": False, "removed": removed,
+        }), runtime)
     # Web-search keys (Brave/Tavily/…) share this endpoint and its guard suite, but nothing
     # else: they must not touch the cloud escalation policy or activate an LLM lane, so they
     # are handled here and return before any of that. The cloud path below is left byte for

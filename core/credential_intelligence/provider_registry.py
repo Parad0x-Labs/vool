@@ -27,7 +27,8 @@ VERIFY_SEARCH_QUERY = "example"
 class ProviderDescriptor:
     provider_id: str
     label: str
-    #: "llm_cloud" | "search_web" — selects the availability lane a verified binding activates.
+    #: "llm_cloud" | "search_web" | "security_scan" | "market_data" — selects the availability lane a
+    #: verified binding activates.
     kind: str
     credential_slot: str
     #: The pinned, absolute verification URL. The ONLY endpoint a key may be verified against.
@@ -272,6 +273,23 @@ def default_registry() -> ProviderRegistry:
         capability_family="addon_security", paid=True,
         response_path=("engine",), response_kind="object", response_validator=valid_version_report,
     )
+
+    # CoinGecko market data (core.coingecko_auth): each plan verifies on its own root's /ping with the
+    # key in that plan's documented header; a good key answers {"gecko_says": ...}, a bad one 401.
+    from core.coingecko_auth import KEY_PREFIX
+    from core.coingecko_auth import PLANS as COINGECKO_PLANS
+
+    for plan in COINGECKO_PLANS.values():
+        descriptors[f"market.{plan.provider_id}"] = ProviderDescriptor(
+            provider_id=f"market.{plan.provider_id}", label=plan.label, kind="market_data",
+            credential_slot=plan.credential_slot, verify_endpoint=plan.base_url + "/ping",
+            auth_style="header", auth_name=plan.key_header, key_prefixes=(KEY_PREFIX,),
+            capability_family="market_data", paid=plan.provider_id != "coingecko",
+            response_path=("gecko_says",), response_kind="value",
+            # 400 on /ping (no parameters) is CoinGecko's answer to a key of the other plan
+            # (error 10010, "change your root URL"): a refusal of THIS key for THIS plan.
+            invalid_statuses=(400, 401),
+        )
     return ProviderRegistry(descriptors)
 
 

@@ -17,17 +17,20 @@ def test_guide_projects_supported_catalogues_and_pins_official_links():
     from core.provider_key_guide import provider_key_guide
     from core.search_providers import SEARCH_PROVIDERS
     groups = provider_key_guide()
-    assert [g['id'] for g in groups] == ['models', 'search', 'security']
+    assert [g['id'] for g in groups] == ['models', 'search', 'security', 'market']
     assert {r['provider'] for r in groups[0]['providers']} == set(PROVIDERS)
     assert {r['provider'] for r in groups[1]['providers']} == set(SEARCH_PROVIDERS)
     registry = default_registry()
     for group in groups:
         for row in group['providers']:
-            pid = 'search.' + row['provider'] if group['id'] == 'search' else row['provider']
+            prefix = {'search': 'search.', 'market': 'market.'}.get(group['id'], '')
+            pid = prefix + row['provider']
             assert registry.get(pid).credential_slot == row['slot']
             assert len(row['description']) < 100
             assert not row['url'] or row['url'].startswith('https://')
-    assert groups[-1]['providers'][0]['url'] == 'https://eyebrow.cc/dashboard'
+    assert groups[2]['providers'][0]['url'] == 'https://eyebrow.cc/dashboard'
+    from core.coingecko_auth import PLANS
+    assert {r['provider'] for r in groups[3]['providers']} == set(PLANS)
     assert registry.get('eyebrow').verify_endpoint == 'https://api.eyebrow.cc/v1/version'
     from core.vool_settings_page import render_vool_settings_html
     html = render_vool_settings_html()
