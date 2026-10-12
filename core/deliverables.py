@@ -1001,7 +1001,7 @@ def _store_path(deliverable_id: str, suffix: str) -> Path:
         raise ValueError("not a deliverable id")
     root = os.path.abspath(store_dir())
     candidate = os.path.normpath(os.path.join(root, deliverable_id + suffix))
-    if os.path.dirname(candidate) != root:
+    if not candidate.startswith(root + os.sep) or os.path.dirname(candidate) != root:
         raise ValueError("outside the deliverable store")
     return Path(candidate)
 
