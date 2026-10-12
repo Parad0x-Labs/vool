@@ -707,11 +707,11 @@ def _safe_has(has_key, slot: str) -> bool:
 
 __all__ = [
     "AUTH_BEARER",
+    "AUTH_URL_PATH_TOKEN",
     "CUSTOM_AUTH_BEARER",
     "CUSTOM_AUTH_HEADER_PREFIX",
     "CUSTOM_AUTH_NONE",
     "CUSTOM_NO_KEY_VALUE",
-    "AUTH_URL_PATH_TOKEN",
     "PROVIDERS",
     "USEPOD_ORIGIN_SLOT",
     "Confidence",

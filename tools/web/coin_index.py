@@ -55,6 +55,7 @@ import os
 import re
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -147,8 +148,6 @@ def _read_index_rows() -> Any:
     """The markets page, with the operator's CoinGecko key when one is stored (``core.coingecko_auth``:
     its plan's host, the key unredirected in its plan's header). A refused key is remembered and the
     page is asked again with the next stored key, then without one. None on any other failure."""
-    import urllib.error
-
     from core import coingecko_auth
 
     for _attempt in range(len(coingecko_auth.PLANS) + 1):
