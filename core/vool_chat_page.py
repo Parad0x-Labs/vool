@@ -7232,6 +7232,21 @@ async function runTurn(text, queueItemId, opts) {
         return;
       }
     }
+    // Any other refusal (an archived chat's 409, an outage) is the turn's answer: the server's own
+    // reason, never an empty stream read as "(no response)" and marked Completed.
+    if (!res.ok) {
+      let refusal = null;
+      try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
+      const reason = (refusal && (refusal.detail || refusal.error)) ? String(refusal.detail || refusal.error) : '';
+      run.text = reason
+        ? pageT('run.refused_reason', 'VOOL did not run this turn: {reason}').replace('{reason}', reason)
+        : pageT('run.refused_status', 'VOOL did not run this turn (HTTP {status}).').replace('{status}', String(res.status));
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      if (run.textEl) run.textEl.textContent = run.text;
+      finishRun(run, 'failed', run.text);
+      releaseComposer(run);
+      return;
+    }
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
