@@ -36,7 +36,7 @@ from tests.reader_fixtures import (
 def test_capability_report_names_every_format_and_why_a_blocked_one_is_blocked():
     report = readers.capability_report()
     formats = {row["format"]: row for row in report["formats"]}
-    assert set(formats) == {"pdf", "docx", "doc", "xlsx", "xls", "pptx", "odt", "epub", "rtf", "zip", "rar", "audio", "video"}
+    assert set(formats) == {"pdf", "docx", "doc", "xlsx", "xls", "pptx", "odt", "epub", "rtf", "zip", "rar", "7z", "tar", "audio", "video"}
     for row in report["formats"]:
         assert row["available"] or row["blocked_reason"], f"{row['format']} is unavailable with no reason given"
         assert row["available"] is False or not row["blocked_reason"]
@@ -62,6 +62,10 @@ def test_an_unreadable_format_raises_unavailable_not_an_empty_result(monkeypatch
         readers.read(rar_archive({"a.txt": b"x\n"}), name="b.rar", extension=".rar")
     assert caught.value.code == "rar_decoder_unavailable"
     assert caught.value.remediation, "a blocked format must tell the operator what would unblock it"
+    # 7z rides the same confined decoder, so it is blocked by the same absence -- and TAR, read
+    # in process by the standard library, is not.
+    assert "7z" in report["blocked_formats"]
+    assert "tar" not in report["blocked_formats"]
 
 
 # --- typed, actionable failures --------------------------------------------------------------
@@ -78,6 +82,16 @@ def test_password_protected_pdf_is_named_as_such_not_read_as_empty():
     assert caught.value.code == "password_protected"
     assert "password" in caught.value.message.lower()
     assert caught.value.remediation
+
+
+def test_a_truncated_pdf_is_a_typed_refusal_not_a_decoder_crash():
+    """Measured on 9adff83: a PDF cut to a third of its bytes came back HTTP 500 ``decoder_failed``
+    with the native framework's own log line as the user's message."""
+    data = native_text_pdf()
+    with pytest.raises(ReaderRefused) as caught:
+        readers.read(data[: len(data) // 3], name="cut.pdf", extension=".pdf")
+    assert caught.value.code == "pdf_unreadable"
+    assert "CoreGraphics" not in caught.value.message and "CG_PDF_VERBOSE" not in caught.value.message
 
 
 def test_corrupt_docx_is_refused_with_a_reason():

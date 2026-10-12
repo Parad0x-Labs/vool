@@ -158,6 +158,31 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             r"\b(?:run|running|format|formatting)\b[^.?!]{0,30}?\b(?:formatter|prettier|black|ruff format)\b", re.I
         ),
     ),
+    # -- a file handed to the user ---------------------------------------------
+    # The answer wanted AS a file in a named format ("as a Word document", "export to CSV",
+    # "give me a .xlsx", "zip these"). Seats the delivery tool beside the workspace writer below;
+    # the tool descriptions tell the model which one a request means.
+    (
+        "file.deliver",
+        "file",
+        re.compile(
+            # "as a Word document", "to Excel", "in a short one-page PDF", "as a .rar file". The
+            # words between the preposition and the format may not be a determiner of material
+            # already present ("in the attached pdf" asks about a file, it does not order one).
+            r"\b(?:as|in|into|to)\s+(?:an?\.?\s+)?(?:(?!the\b|this\b|that\b|these\b|those\b|attached\b|uploaded\b|my\b|your\b|our\b)[\w-]+\s+){0,3}?"
+            r"\.?\s?(?:word|docx|excel|xlsx|powerpoint|pptx|pdf|csv|tsv|zip|rar|7z|tar(?:\.gz|ball)?|spreadsheet|workbook|slide\s*deck)\b"
+            # "a CSV file", "a JSON file", "a PowerPoint file", "a Word document": a NEW file of a
+            # named type. Data formats need the noun, so "answer in JSON" stays a reply format.
+            r"|\ban?\s+(?:(?!attached\b|uploaded\b)[\w-]+\s+){0,2}?\.?(?:word|docx|excel|xlsx|powerpoint|pptx|pdf|csv|tsv|json|yaml|xml|html|markdown|md|txt|text|zip|rar|7z)\s+"
+            r"(?:file|document|doc|spreadsheet|workbook|deck|archive)\b"
+            # "export ... .docx", "make me a slide deck", "give me a downloadable copy".
+            r"|\b(?:export|download|give\s+me|send\s+me|make|create|generate|produce|build|prepare|convert|turn|save)\b[^.?!]{0,80}?"
+            r"(?:\.(?:docx|xlsx|pptx|pdf|csv|tsv|json|zip|rar|7z)\b|\b(?:word\s+(?:doc|document|file)|excel\s+(?:file|sheet|workbook|spreadsheet)|powerpoint|slide\s*deck|downloadable\s+\w+)\b)"
+            r"|\b(?:zip|compress)\s+(?:\w+\s+){0,2}?(?:up\s+)?(?:these|those|them|it|the\s+files|all\s+of\s+(?:it|them))\b"
+            r"|\b(?:zip|compress)\s+(?:them|it|these|those)\s+up\b",
+            re.I,
+        ),
+    ),
     # -- workspace mutation --------------------------------------------------
     (
         "workspace.write_file",
@@ -738,6 +763,36 @@ def outgoing_message_intents(text: str) -> tuple[str, ...]:
             continue
         return OUTGOING_MESSAGE_INTENTS
     return ()
+
+
+_QUESTION_HEAD_RE = re.compile(r"^\s*(?:what|which|why|how|is|are|was|were|does|do|did|should|when|where|who)\b", re.I)
+_REQUEST_RE = re.compile(
+    r"\b(?:give\s+me|send\s+me|get\s+me|make\s+me|export|download|create|generate|produce|build|prepare|convert|"
+    r"turn|save|put|write|draft|zip|compress|i\s+(?:need|want|would\s+like)|can\s+you|could\s+you|would\s+you|please)\b",
+    re.I,
+)
+
+
+def asks_for_a_file(text: str) -> bool:
+    """Is this turn ordering a FILE (the `file.deliver` demand), not asking ABOUT a format?
+
+    The demand pattern above seats the tool; this is the stricter reading the routing gates use
+    to send a turn into the tool loop. A question about formats ("is a PDF better than a Word
+    document?", "how do I export to Excel from Sheets?") names formats without ordering anything,
+    and must stay an ordinary answer.
+    """
+    raw = str(text or "")
+    if "file.deliver" not in resolve_demand_signals(raw).explicit_intents:
+        return False
+    if not _QUESTION_HEAD_RE.match(raw):
+        # An imperative ("write a script and zip it up", "export this to CSV") orders the file
+        # even when it also asks for authored text: the file is the deliverable.
+        return True
+    from core.instructional_request import asks_for_instructions_not_execution
+
+    if asks_for_instructions_not_execution(raw):
+        return False
+    return bool(_REQUEST_RE.search(raw))
 
 
 def resolve_demand_signals(text: str) -> DemandSignals:

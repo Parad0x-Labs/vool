@@ -2826,6 +2826,61 @@ def _demo_plan(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
     )
 
 
+def _file_deliver(arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
+    """Build, verify and store one downloadable file for this chat (core.deliverables)."""
+    from core import deliverables
+
+    args = arguments or {}
+    context = source_context or {}
+    session_id = str(context.get("runtime_session_id") or context.get("session_id") or "").strip()
+    files = args.get("files")
+    if files is not None and not isinstance(files, list):
+        files = None
+    try:
+        record = deliverables.create_deliverable(
+            session_id=session_id,
+            filename=str(args.get("filename") or args.get("name") or ""),
+            content=str(args.get("content") or ""),
+            fmt=str(args.get("format") or ""),
+            title=str(args.get("title") or ""),
+            files=files,
+        )
+    except deliverables.DeliverableRefused as refusal:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status=refusal.code,
+            response_text=f"The file was not created: {refusal.message}",
+            details={
+                "error": refusal.code,
+                "observation": _tool_observation(intent="file.deliver", tool_surface="file", ok=False, status=refusal.code),
+            },
+        )
+    size = int(record["size_bytes"])
+    shown = f"{size / 1024:.1f} KB" if size >= 1024 else f"{size} bytes"
+    lines = [f"Here is **{record['filename']}** ({shown}): [Download {record['filename']}]({record['url']})"]
+    lines.extend(str(note) for note in record.get("notes") or [])
+    return RuntimeExecutionResult(
+        handled=True,
+        ok=True,
+        status="executed",
+        response_text="\n\n".join(lines),
+        details={
+            "deliverable": {key: record[key] for key in ("id", "filename", "format", "media_type", "size_bytes", "sha256", "url")},
+            "observation": _tool_observation(
+                intent="file.deliver",
+                tool_surface="file",
+                ok=True,
+                status="executed",
+                filename=record["filename"],
+                format=record["format"],
+                size_bytes=size,
+                sha256=record["sha256"],
+            ),
+        },
+    )
+
+
 def _set_save(arguments: dict[str, Any]) -> RuntimeExecutionResult:
     from core.creative_set import Character, CreativeSet, save_set, set_from_description
 
@@ -3322,6 +3377,8 @@ def _dispatch_runtime_tool(
             from core.media_studio_chat_tools import media_export
 
             return _covered(lambda: media_export(arguments))
+        if intent == "file.deliver":
+            return _file_deliver(arguments, source_context=source_context)
         if intent == "x.trending":
             return _x_trending(arguments)
         if intent == "demo.plan":

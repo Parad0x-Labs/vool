@@ -1416,6 +1416,13 @@ def dispatch_get(
 
         return handle_chat_export_get(query=query, runtime=runtime, client_host=client_host)
 
+    if normalized_path == "/api/chat/deliverable":
+        # A file the assistant built in this chat (core.deliverables), downloaded by its owner.
+        # Guards, lookup and headers live in core.web.api.deliverables_api.
+        from core.web.api.deliverables_api import handle_deliverable_get
+
+        return handle_deliverable_get(query=query, runtime=runtime, client_host=client_host)
+
     if normalized_path == "/api/context/pages":
         # C09/C13 turn-context inspect (additive delegation): scoped, provenance-
         # carrying inspection of the context pages real turns admit; bytes are

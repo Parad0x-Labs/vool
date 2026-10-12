@@ -792,6 +792,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/chat/deliverable": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/deliverable",
+      "note": "chat read feed (download a file the assistant built)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/chat/dictation": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/chat/dictation",
@@ -2951,7 +2958,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 287,
+    "EXTERNAL_TRANSPORT_ONLY": 288,
     "GENERATED_ADAPTER": 125,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

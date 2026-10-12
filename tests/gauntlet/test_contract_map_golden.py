@@ -49,6 +49,10 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'contacts.search': ('read_only', 'none'),
     'contacts.update': ('creative_state', 'runtime_policy'),
     'demo.plan': ('read_only', 'none'),
+    # file.deliver (file-format lane, 2026-10-05): builds a document/sheet/deck/archive from
+    # text into the runtime's OWN data directory and hands it over as a download -- in-app
+    # state behind runtime_policy with a create_files action, the same tier as contacts.save.
+    'file.deliver': ('creative_state', 'runtime_policy'),
     'email.read': ('read_only', 'none'),
     # Email P0 workflow (mission 01-email, reviewed 2026-09-13): open/search/reconcile
     # read an account (same tier as email.read); draft save/get/approve are the durable
@@ -330,7 +334,8 @@ def test_contract_map_and_list_agree():
     # 146 -> 159: the operator calendar/notes vertical declared 2026-09-15 (ten reads, two
     # writes, and the two invitation-sending calendar mutations at network_publish) plus the
     # code.task/contacts/profile/repo/skill contracts that landed unpinned with their lanes.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 170
+    # 170 -> 171: file.deliver (downloadable files built from text), pinned above.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 171
 
 
 def test_only_expected_tools_hold_explicit_opt_in():
