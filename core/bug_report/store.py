@@ -49,6 +49,15 @@ class DraftStore:
             raise DraftNotFoundError(f"draft file for {report_id!r} is corrupt: {exc}") from exc
         return BugReportDraft.from_dict(data)
 
+    def delete(self, report_id: str) -> bool:
+        """Remove one local draft (the user's own "delete" in My reports). Receipts stay:
+        they record what left the machine, and that history is not the draft's to erase."""
+        path = self._path_for(report_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def ids(self) -> list[str]:
         if not self.drafts_dir.exists():
             return []

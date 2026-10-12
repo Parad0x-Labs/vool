@@ -2701,12 +2701,30 @@ def dispatch_get(
         except ValueError as _dest_exc:
             configured = BUILTIN_DESTINATION
             configured_error = str(_dest_exc)
+        # Whether a GitHub credential is present: a yes/no only, never which one or its value.
+        # It decides whether the dialog offers "send with my GitHub token" beside the
+        # browser hand-off that needs no token at all.
+        try:
+            from core.bug_report.github_adapter import default_credential_lookup as _br_cred
+
+            token_available = _br_cred()[0] is not None
+        except Exception:
+            token_available = False
         return apply_runtime_headers(json_response(200, {
             "ok": True,
             "destination": configured,
             "builtin": BUILTIN_DESTINATION,
             "configuration_error": configured_error,
+            "token_available": bool(token_available),
         }), runtime)
+
+    if normalized_path == "/api/bug-report/list":
+        # My reports: local drafts and how each one left (metadata only, never content).
+        from core.bug_report import get_service as _br_service
+
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        return apply_runtime_headers(json_response(200, {"ok": True, "reports": _br_service().list_reports()}), runtime)
 
     if normalized_path == "/api/bug-report/receipts":
         # What left the machine, as durable metadata rows (never report content).
@@ -5651,6 +5669,67 @@ def _dispatch_post_inner(
                     "draft": draft.to_dict(),
                 }), runtime)
 
+            if normalized_path == "/api/bug-report/answer-draft":
+                # A wrong-answer report on ONE served answer. The page sends only the turn's
+                # ids, the reason, the user's own words and the selected text; the answer and
+                # (opt-in) question are read server-side from the persisted transcript.
+                unknown_br = set(body.keys()) - {
+                    "session_id", "request_id", "reason", "excerpt", "what_was_wrong", "should_have_said",
+                    "include_question", "include_receipt", "title", "destination_repo",
+                }
+                if unknown_br:
+                    return apply_runtime_headers(
+                        json_response(400, {"error": f"unknown fields: {sorted(unknown_br)}"}), runtime
+                    )
+                for flag_name in ("include_question", "include_receipt"):
+                    if flag_name in body and not isinstance(body[flag_name], bool):
+                        raise ValueError(f"{flag_name} must be true or false")
+                answer_draft = _br_service().create_answer_draft(
+                    session_id=str(body.get("session_id", "")),
+                    request_id=str(body.get("request_id", "")),
+                    reason=str(body.get("reason", "")),
+                    excerpt=str(body.get("excerpt", "")),
+                    what_was_wrong=str(body.get("what_was_wrong", "")),
+                    should_have_said=str(body.get("should_have_said", "")),
+                    include_question=body.get("include_question") is True,
+                    include_receipt=body.get("include_receipt", True) is not False,
+                    title=str(body.get("title", "")),
+                    destination_repo=str(body.get("destination_repo", "")),
+                )
+                return apply_runtime_headers(json_response(200, {
+                    "ok": True,
+                    "report_id": answer_draft.report_id,
+                    "fingerprint": answer_draft.fingerprint,
+                    "draft": answer_draft.to_dict(),
+                }), runtime)
+
+            if normalized_path == "/api/bug-report/handoff":
+                unknown_br = set(body.keys()) - {"report_id", "method", "remove_fields", "remove_attachments"}
+                if unknown_br:
+                    return apply_runtime_headers(
+                        json_response(400, {"error": f"unknown fields: {sorted(unknown_br)}"}), runtime
+                    )
+                report_id = _br_report_id()
+                handed = _br_service().handoff(
+                    report_id,
+                    method=str(body.get("method", "")),
+                    remove_fields=_br_string_list(body.get("remove_fields"), "remove_fields"),
+                    remove_attachments=_br_string_list(body.get("remove_attachments"), "remove_attachments"),
+                )
+                return apply_runtime_headers(json_response(200, {"ok": True, **handed}), runtime)
+
+            if normalized_path == "/api/bug-report/delete":
+                unknown_br = set(body.keys()) - {"report_id"}
+                if unknown_br:
+                    return apply_runtime_headers(
+                        json_response(400, {"error": f"unknown fields: {sorted(unknown_br)}"}), runtime
+                    )
+                report_id = _br_report_id()
+                removed = _br_service().delete_draft(report_id)
+                return apply_runtime_headers(json_response(200 if removed else 404, {
+                    "ok": removed, "report_id": report_id,
+                }), runtime)
+
             if normalized_path == "/api/bug-report/update":
                 # Edit draft fields after creation. The service CLEARS the consent
                 # manifest: an approval binds the exact bytes of a payload that an
@@ -5807,11 +5886,15 @@ def _dispatch_post_inner(
         except ValueError as _br_exc:
             return apply_runtime_headers(json_response(400, {"error": str(_br_exc)}), runtime)
         except Exception as _br_exc:
-            from core.bug_report.schema import ApprovalMismatchError, DraftNotFoundError
+            from core.bug_report.answer import AnswerNotFoundError
+            from core.bug_report.schema import ApprovalMismatchError, ApprovalRequiredError, DraftNotFoundError
 
             if isinstance(_br_exc, (DraftNotFoundError,)):
                 return apply_runtime_headers(json_response(404, {"error": str(_br_exc)}), runtime)
-            if isinstance(_br_exc, (ApprovalMismatchError,)):
+            if isinstance(_br_exc, AnswerNotFoundError):
+                # Plain words: the person reads this in the dialog.
+                return apply_runtime_headers(json_response(404, {"error": str(_br_exc)}), runtime)
+            if isinstance(_br_exc, (ApprovalMismatchError, ApprovalRequiredError)):
                 return apply_runtime_headers(json_response(409, {"error": str(_br_exc)}), runtime)
             return apply_runtime_headers(json_response(400, {"error": f"{type(_br_exc).__name__}: {_br_exc}"}), runtime)
 
