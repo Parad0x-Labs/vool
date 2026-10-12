@@ -81,10 +81,11 @@ def format_due_time(due_at_utc: str, tz_name: str = "", due_wall: str = "") -> s
 
 
 def has_passed(resolution: WhenResolution) -> bool:
-    """True when a resolved instant is not after the instant it was read at.
+    """True when a resolved instant is before the instant it was read at.
 
-    Only a caller that needs a FUTURE instant (a reminder) asks this; a calendar search or
-    move may legitimately name a past time, so the parser itself never refuses one.
+    "In 0 minutes" resolves to the read instant itself: that is due now, not passed. Only a
+    caller that needs a FUTURE instant (a reminder) asks this; a calendar search or move may
+    legitimately name a past time, so the parser itself never refuses one.
     """
     if not resolution.ok:
         return False
@@ -93,7 +94,7 @@ def has_passed(resolution: WhenResolution) -> bool:
         read_at = datetime.fromisoformat(str(resolution.details.get("read_at_utc") or ""))
     except ValueError:
         return False
-    return due <= read_at
+    return due < read_at
 
 
 def parse_when_expression(
