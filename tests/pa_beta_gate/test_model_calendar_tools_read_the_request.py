@@ -15,7 +15,7 @@ import uuid
 import pytest
 
 from ._pc_calendar_rig import Clock
-from .test_pc_agenda import T0, _run, home, servers  # noqa: F401  (fixtures)
+from .test_pc_agenda import T0, _run, home, servers
 
 pytestmark = [pytest.mark.pa_beta]
 
