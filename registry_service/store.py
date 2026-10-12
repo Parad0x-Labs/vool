@@ -26,6 +26,7 @@ class Store:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, namespace TEXT UNIQUE,
                     profile BLOB NOT NULL, created INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS namespace_reservations (namespace TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS identities (provider TEXT, subject TEXT,
                     account TEXT REFERENCES accounts(id) ON DELETE CASCADE, PRIMARY KEY(provider,subject));
                 CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, account TEXT REFERENCES accounts(id)
@@ -47,6 +48,23 @@ class Store:
             columns = {row[1] for row in db.execute("PRAGMA table_info(public_versions)")}
             if "inspection" not in columns:
                 db.execute("ALTER TABLE public_versions ADD COLUMN inspection BLOB")
+            # A public name survives private account deletion without retaining
+            # provider/account identifiers. Legacy state must be unambiguous.
+            db.execute("BEGIN IMMEDIATE")
+            namespaces = {row[0] for row in db.execute("SELECT namespace FROM accounts WHERE namespace IS NOT NULL")}
+            for row in db.execute("SELECT package_id,version,entry FROM public_versions"):
+                entry = decode(row["entry"])
+                info = entry.get("metadata") if isinstance(entry, dict) else None
+                require(isinstance(info, dict) and info.get("id") == row["package_id"] and
+                        info.get("version") == row["version"] and isinstance(row["package_id"], str) and
+                        len(row["package_id"].split("/")) == 2 and
+                        all(IDENTITY.fullmatch(part) for part in row["package_id"].split("/")),
+                        "published namespace migration requires valid matching metadata")
+                namespaces.add(row["package_id"].split("/")[0])
+            for namespace in namespaces:
+                require(isinstance(namespace, str) and bool(IDENTITY.fullmatch(namespace)),
+                        "namespace migration requires valid names")
+                db.execute("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", (namespace,))
         path.chmod(0o600)
 
     @contextlib.contextmanager
@@ -80,6 +98,8 @@ class Store:
 
     def profile(self, account: str, value: dict | None = None) -> dict:
         with self.connection() as db:
+            if value is not None:
+                db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT * FROM accounts WHERE id=?", (account,)).fetchone()
             require(row, "account not found")
             if value is not None:
@@ -101,9 +121,11 @@ class Store:
                         require(url.scheme == "https" and url.hostname and not url.username and not url.password,
                                 "public links must be HTTPS and contain no credentials")
                 try:
+                    if row["namespace"] is None:
+                        db.execute("INSERT INTO namespace_reservations VALUES (?)", (namespace,))
                     db.execute("UPDATE accounts SET namespace=?, profile=? WHERE id=?", (namespace, canonical(value), account))
                 except sqlite3.IntegrityError:
-                    raise RegistryError("namespace already belongs to another account") from None
+                    raise RegistryError("namespace already reserved; transfer requires maintainer review") from None
                 row = db.execute("SELECT * FROM accounts WHERE id=?", (account,)).fetchone()
             return {"id": account, "namespace": row["namespace"], **decode(row["profile"])}
 
@@ -266,6 +288,7 @@ class Store:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT sha256 FROM public_versions WHERE package_id=? AND version=?", (package_id, version)).fetchone()
             require(not previous or previous[0] == artifact["sha256"], "published versions are immutable")
+            db.execute("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", (package_id.split("/")[0],))
             db.execute("INSERT OR IGNORE INTO public_versions (package_id,version,sha256,entry,artifact,published,inspection) VALUES (?,?,?,?,?,?,?)", (package_id, version,
                 artifact["sha256"], canonical(entry), raw, now, canonical(inspection)))
             db.execute("UPDATE public_versions SET inspection=? WHERE package_id=? AND version=?", (canonical(inspection), package_id, version))
