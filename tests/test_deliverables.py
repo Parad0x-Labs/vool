@@ -180,6 +180,9 @@ def test_the_delivery_tool_is_declared_governed_and_offered_for_file_requests():
 
     contract = runtime_tool_contract_map()["file.deliver"]
     assert contract.permission_actions == ("create_files",) and contract.renders_final_answer
+    # A delivered file ends the turn; no other builtin tool claims that.
+    assert contract.completes_turn
+    assert [c.intent for c in runtime_tool_contract_map().values() if c.completes_turn] == ["file.deliver"]
     for asked in ("Give me that as a Word document", "export the table to csv", "zip these files", "put it in a pdf"):
         assert "file.deliver" in resolve_demand_signals(asked).explicit_intents, asked
     for not_asked in ("summarize the attached pdf", "what's in the pdf?", "respond in json"):

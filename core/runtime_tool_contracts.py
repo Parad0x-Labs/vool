@@ -76,6 +76,12 @@ class RuntimeToolContract:
     # owner-local surface that owns them -- but never a model-facing one, and the offer
     # census counts them under that owner path instead of demanding a model seat.
     model_visible: bool = True
+    # A successful call of this tool IS the whole answer to the turn (a file handed over with its
+    # download link). The tool loop stops asking the model for further rounds after it, and the
+    # published answer is the tool's own text. Without this a model under tool_choice="required"
+    # must call SOMETHING every round: measured live 2026-10-06 it rebuilt the same file up to five
+    # times, then closed with respond.direct prose that dropped the download link.
+    completes_turn: bool = False
 
     @property
     def read_only(self) -> bool:
@@ -1885,7 +1891,9 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 "file (.py, .js, ...), or a .zip / .tar.gz of several files. Use it when the user asks for something AS a "
                 "file, to export or download it, or names a file format for the answer. Write `content` as markdown for "
                 "docx/pdf/pptx/md (each top heading becomes a slide in pptx), as CSV or markdown tables for xlsx/csv (one "
-                "sheet per table), or as the exact text for code and data files. For zip/tar.gz pass `files` instead. The "
+                "sheet per table), or as the exact text for code and data files. Use the format the user named (asked for a "
+                "PDF -> filename.pdf). Several files, or anything the user asks to zip: ONE call with filename *.zip and "
+                "`files`, never one call per file. The "
                 "file is checked and the reply gives the user a download link. Not for editing project files: that is "
                 "workspace.write_file."
             ),
@@ -1912,6 +1920,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             error_contract="returns_structured_error_result",
             permission_actions=("create_files",),
             renders_final_answer=True,
+            completes_turn=True,
             json_schema={
                 "type": "object",
                 "properties": {

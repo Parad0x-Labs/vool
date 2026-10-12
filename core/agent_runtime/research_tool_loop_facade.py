@@ -243,6 +243,16 @@ def _batch_member_is_read_only(intent: str, arguments: dict[str, Any] | None = N
 _NON_EXECUTING_INTENTS = {"respond.direct", "none", "no_tool"}
 
 
+def _completes_turn(intent: str) -> bool:
+    """Whether a successful call of this tool is the whole answer (contract `completes_turn`)."""
+    try:
+        from core.runtime_tool_contracts import runtime_tool_contract_map
+
+        return bool(getattr(runtime_tool_contract_map().get(str(intent or "")), "completes_turn", False))
+    except Exception:
+        return False
+
+
 def _code_task_report_completed_the_turn(executed_steps: list[dict[str, Any]]) -> bool:
     """Whether this turn's last real step published a completed code task report and no coding task the
     turn worked on is unfinished (the completion law in `enforce_code_task_completion`)."""
@@ -1901,7 +1911,13 @@ class ResearchToolLoopFacadeMixin:
                 # still decides and still spends the grant. A member the grant does not name gets
                 # False here and the walk defers from that point, exactly as it does today for every
                 # write -- so the failure direction is "ask again", never "run unasked".
-                if not _batch_member_is_read_only(member_intent, member_payload["arguments"]) and not request_batch_grant_covers(
+                # A `completes_turn` member (file.deliver: it writes only the runtime's own private
+                # store) runs inline too, still through the permission gate in `_execute_tool_intent`.
+                # Deferring it made the model re-request the whole batch every round: measured live
+                # 2026-10-06, "a script and a README" rebuilt the script six times and never the README.
+                if not _batch_member_is_read_only(member_intent, member_payload["arguments"]) and not _completes_turn(
+                    member_intent
+                ) and not request_batch_grant_covers(
                     intent=member_intent,
                     arguments=member_payload["arguments"],
                     task_id=task.task_id,
@@ -1972,6 +1988,9 @@ class ResearchToolLoopFacadeMixin:
                             )
                         ),
                         "tool_call_id": str((member_execution.details or {}).get("tool_call_id") or ""),
+                        # The member's own text, kept like the head step's: a `completes_turn`
+                        # tool publishes every successful call's text, not only the head's.
+                        "response_text": redact_tool_argument_data(str(member_execution.response_text or "")),
                         "decision_source": "model_tool_intent_batch_member",
                         "round_index": current_round,
                     }
@@ -2082,6 +2101,17 @@ class ResearchToolLoopFacadeMixin:
                         else "running"
                     ),
                 )
+            # A tool whose successful call IS the answer (`completes_turn`, e.g. file.deliver) ends
+            # the loop here: the model is not asked for another round it would have to fill with a
+            # tool call, and the synthesis below publishes the tool's own text.
+            if (
+                execution.mode == "tool_executed"
+                and execution.ok
+                and not (executed_steps and executed_steps[-1].get("deferred_calls"))
+                and _completes_turn(str(execution.tool_name or tool_name))
+            ):
+                loop_stop_reason = "tool_completed_turn"
+                break
             # A refused step is not a terminal turn: the correction path or grounded synthesis
             # below still owns it. Finalization records failure when the turn actually ends.
             # Marking it failed here seals the checkpoint and discards a later approval pause,
@@ -2504,6 +2534,17 @@ class ResearchToolLoopFacadeMixin:
             # This contract publishes its complete, already-redacted runtime result.
             # A one-line activity summary is not the requested report or PR body.
             final_message = str(executed_steps[-1].get("response_text") or "").strip()
+            if _completes_turn(str(executed_steps[-1].get("tool_name") or "")):
+                # Several files in one turn (a batch of file.deliver calls) are ALL the answer:
+                # each successful call's own text, in order, never only the last one's link.
+                delivered = [
+                    str(step.get("response_text") or "").strip()
+                    for step in executed_steps
+                    if step.get("ok") and str(step.get("tool_name") or "") == str(executed_steps[-1].get("tool_name") or "")
+                ]
+                delivered = [text for index, text in enumerate(delivered) if text and text not in delivered[:index]]
+                if delivered:
+                    final_message = "\n\n".join(delivered)
             if not final_message:
                 final_message = self._tool_loop_final_message(None, executed_steps)
         elif reject_reason:
