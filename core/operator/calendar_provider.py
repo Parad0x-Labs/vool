@@ -2908,14 +2908,28 @@ def _unknown_cancel_approval(session_id: str, action_id: str | None) -> Operator
 
 
 
+def missing_write_calendar_result(action: str) -> OperatorActionResult:
+    """Calendars are connected and read, but none is chosen to take new events: say that, not "no provider"."""
+    return OperatorActionResult(
+        ok=False,
+        status="unavailable",
+        response_text=(
+            f"I can't {action} yet: your connected calendars can be read, but none is chosen for new events. "
+            "In Settings, under Calendars, pick \"Use for new events\" on the calendar you want, then ask again. "
+            "Nothing was created or changed."
+        ),
+        details={"reason": "missing_default_write_calendar"},
+    )
+
+
 def missing_configuration_result(action: str) -> OperatorActionResult:
     return OperatorActionResult(
         ok=False,
         status="unavailable",
         response_text=(
             f"I can't {action} because no calendar provider is configured on this runtime. "
-            "Set VOOL_CALENDAR_PROVIDER, VOOL_CALENDAR_URL (and optionally VOOL_CALENDAR_ID / "
-            "VOOL_CALENDAR_AUTH_BINDING) to connect a calendar. Without a provider I can still "
+            "Add a calendar account in Settings, under Calendars (a headless install can set "
+            "VOOL_CALENDAR_PROVIDER and VOOL_CALENDAR_URL instead). Without a provider I can still "
             "write a clearly-labelled local .ics draft — it would not be an event on any calendar."
         ),
         details={"reason": "missing_calendar_configuration"},
