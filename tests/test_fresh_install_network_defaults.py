@@ -14,6 +14,7 @@ def isolated_policy_home(tmp_path, monkeypatch):
     home = tmp_path / "runtime"
     old_override = runtime_paths._VOOL_HOME_OVERRIDE
     old_policy = copy.deepcopy(policy_engine._POLICY_CACHE)
+    old_binding = policy_engine._POLICY_CACHE_BINDING
     monkeypatch.setenv("VOOL_HOME", str(home))
     for name in ("VOOL_ENABLE_WEB", "VOOL_ALLOW_WEB", "VOOL_DISABLE_WEB", "VOOL_NO_WEB"):
         monkeypatch.delenv(name, raising=False)
@@ -24,6 +25,7 @@ def isolated_policy_home(tmp_path, monkeypatch):
     finally:
         runtime_paths.configure_runtime_home(old_override)
         policy_engine._POLICY_CACHE = old_policy
+        policy_engine._POLICY_CACHE_BINDING = old_binding
 
 
 def test_fresh_profile_has_no_automatic_public_network_consent(isolated_policy_home):
@@ -64,3 +66,18 @@ def test_fresh_cloud_transport_refuses_before_resolving_any_endpoint(isolated_po
     transport = PolicyBoundCloudTransport(allowed_hosts=("provider.invalid",))
     with pytest.raises(CloudTransportError, match="cloud_network_disabled_by_policy"):
         transport.request_json(method="POST", url="https://provider.invalid/inference")
+
+
+def test_changing_the_runtime_home_cannot_inherit_the_previous_profiles_consent(isolated_policy_home):
+    policy_engine.set_operator_policy_values({
+        "system.allow_web_fallback": True,
+        "network.outbound_enabled": True,
+    })
+    assert policy_engine.allow_web_fallback() is True
+    assert policy_engine.get("network.outbound_enabled") is True
+    runtime_paths.configure_runtime_home(isolated_policy_home.parent / "fresh-profile")
+    assert policy_engine.allow_web_fallback() is False
+    assert policy_engine.get("network.outbound_enabled") is False
+    runtime_paths.configure_runtime_home(isolated_policy_home)
+    assert policy_engine.allow_web_fallback() is True
+    assert policy_engine.get("network.outbound_enabled") is True

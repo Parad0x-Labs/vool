@@ -10,7 +10,7 @@ import yaml
 
 from core.cross_process_lock import LockUnavailable, PublicationLock
 from core.privacy_guard import shard_privacy_risks, share_scope_is_public
-from core.runtime_paths import config_path
+from core.runtime_paths import config_path, runtime_home_generation
 
 _DEFAULT_POLICY = {
     "system": {
@@ -342,6 +342,7 @@ _DEFAULT_POLICY = {
 }
 
 _POLICY_CACHE: dict[str, Any] | None = None
+_POLICY_CACHE_BINDING: tuple[dict[str, Any], int] | None = None
 _POLICY_LOCK = RLock()
 # Import-time resolution kept for back-compat readers; load() resolves the path
 # DYNAMICALLY every call — a process (or test) may reconfigure VOOL_HOME after import.
@@ -408,11 +409,20 @@ def _apply_env_overrides(config: dict[str, Any], env: dict[str, str] | None = No
     return config
 
 def load(force_reload: bool = False) -> dict[str, Any]:
-    global _POLICY_CACHE
+    global _POLICY_CACHE, _POLICY_CACHE_BINDING
 
     with _POLICY_LOCK:
+        generation = runtime_home_generation()
         if _POLICY_CACHE is not None and not force_reload:
-            return _POLICY_CACHE
+            # A cache loaded by this owner belongs to one runtime home. A home
+            # switch must not inherit another profile's network permissions.
+            # An explicitly replaced in-process cache has no owner binding.
+            if (
+                _POLICY_CACHE_BINDING is None
+                or _POLICY_CACHE_BINDING[0] is not _POLICY_CACHE
+                or _POLICY_CACHE_BINDING[1] == generation
+            ):
+                return _POLICY_CACHE
 
         config = dict(_DEFAULT_POLICY)
 
@@ -427,6 +437,7 @@ def load(force_reload: bool = False) -> dict[str, Any]:
         config = _apply_env_overrides(config)
 
         _POLICY_CACHE = config
+        _POLICY_CACHE_BINDING = (config, generation)
         return _POLICY_CACHE
 
 def get(path: str, default: Any = None) -> Any:
