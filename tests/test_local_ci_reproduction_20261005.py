@@ -16,9 +16,32 @@ runs -- nothing mocked):
   * source that changed after the pin is refused (changed-source detection);
   * macOS routing and its drift are recorded, and the tool's pinned routing
     set cannot drift from .github/workflows/ci.yml;
-  * two different selections are never conflated and never compared;
+  * two different selections are never conflated and never compared (on two
+    EXECUTED receipts, so the refusal is for the mismatch alone);
   * the baseline/candidate comparison reports failed nodes and first errors
-    without exonerating anything.
+    without exonerating anything;
+  * fail-closed harvest: a session that hard-exits mid-run (status 0 or 1)
+    and evidence that is missing or malformed (watchdog, timing, JUnit) or
+    disagreeing never yield a completed verdict or exit 0 -- a receipt is
+    always written, verdict harvest-failed/-inconsistent, exit 92, unknown
+    totals null; nested classes and setup/teardown errors still harvest as a
+    consistent completed run;
+  * compare refuses empty, wrong-schema, refused, interrupted, aborted and
+    unreadable receipts with a non-zero exit and no node diff;
+  * the default canonical path executes; a failed or timed-out canonical
+    collection is refused before execution, bounded by --collect-timeout or
+    --wall-budget, with the collection's process group stopped;
+  * an empty selection is refused before execution; a zero-test selection is
+    no-tests-collected, exit 5; pytest exit 2 without collection errors is a
+    session interruption and exit 3 an internal error, never completed;
+  * a reused label is refused, so an aborted run can never harvest an
+    earlier run's evidence;
+  * first errors are compared raw AND normalised (paths, timestamps, ids),
+    with excerpt truncation flagged.
+
+Fault-injection controls replace ONE instrument in the synthetic repository
+with a wrapper that runs the real instrument and then removes or corrupts its
+evidence file; that is the fault under test, and it is labelled where used.
 
 These are exposed development controls: they prove the runner's behavior on
 fixtures built for the purpose, and are never a score on any unseen set.
@@ -27,9 +50,11 @@ fixtures built for the purpose, and are never a score on any unseen set.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -63,8 +88,13 @@ def _git(repo: Path, *args: str) -> None:
                    timeout=60)
 
 
-def make_synthetic_repo(tmp_path: Path, files: dict[str, str]) -> Path:
-    """A real git repo carrying the repo's own CI instruments plus fixture tests."""
+def make_synthetic_repo(tmp_path: Path, files: dict[str, str], *,
+                        fault_injection: dict[str, str] | None = None) -> Path:
+    """A real git repo carrying the repo's own CI instruments plus fixture tests.
+
+    ``fault_injection`` replaces one instrument with a wrapper (FAULT INJECTION,
+    labelled at each use); a replaced ``ops/pytest_timing.py`` keeps the real
+    instrument beside it as ``ops/_real_pytest_timing.py`` for the wrapper."""
 
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -74,6 +104,11 @@ def make_synthetic_repo(tmp_path: Path, files: dict[str, str]) -> Path:
         source = _REPO_ROOT / relative
         assert source.is_file(), f"instrument missing from repo: {relative}"
         (repo / relative).write_bytes(source.read_bytes())
+    for relative, content in (fault_injection or {}).items():
+        if relative == "ops/pytest_timing.py":
+            (repo / "ops" / "_real_pytest_timing.py").write_bytes(
+                (_REPO_ROOT / relative).read_bytes())
+        (repo / relative).write_text(content, encoding="utf-8")
     for relative, content in files.items():
         target = repo / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -93,9 +128,13 @@ def _git_status_dirty(repo: Path) -> bool:
     return bool(result.stdout.strip())
 
 
-def run_runner(tmp_path: Path, repo: Path, label: str, selection: Path, *extra: str,
-               timeout: float = 300.0) -> tuple[int, dict, Path]:
-    """Invoke the runner as a real subprocess; return (exit, RESULT.json, run dir)."""
+def run_runner(tmp_path: Path, repo: Path, label: str, selection: Path | None,
+               *extra: str, timeout: float = 300.0) -> tuple[int, dict, Path]:
+    """Invoke the runner as a real subprocess; return (exit, RESULT.json, run dir).
+
+    ``selection=None`` runs the canonical (collected) selection. Every receipt
+    must record the runner's own exit, and the process must have exited with
+    exactly that code -- for executed and refused runs alike."""
 
     artifacts = tmp_path / "artifacts"
     profiles = tmp_path / "profiles"
@@ -103,7 +142,7 @@ def run_runner(tmp_path: Path, repo: Path, label: str, selection: Path, *extra: 
                "--repo", str(repo), "--artifacts", str(artifacts),
                "--profiles", str(profiles),
                "run", "--label", label,
-               "--selection-explicit", str(selection),
+               *(["--selection-explicit", str(selection)] if selection is not None else []),
                "--selection-label", f"synthetic-{label}",
                *extra]
     process = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
@@ -113,10 +152,23 @@ def run_runner(tmp_path: Path, repo: Path, label: str, selection: Path, *extra: 
         f"runner left no RESULT.json (exit {process.returncode}); "
         f"stderr:\n{process.stderr}")
     result = json.loads(result_path.read_text(encoding="utf-8"))
-    assert process.returncode == result.get("exit_code") or result["verdict"] == "refused", (
-        f"runner exit {process.returncode} disagrees with RESULT exit_code "
-        f"{result.get('exit_code')}")
+    assert process.returncode == result.get("runner_exit"), (
+        f"runner exit {process.returncode} disagrees with RESULT runner_exit "
+        f"{result.get('runner_exit')}")
     return process.returncode, result, run_dir
+
+
+def run_compare(tmp_path: Path, baseline: Path, candidate: Path,
+                name: str) -> tuple[int, dict]:
+    output = tmp_path / "compare" / f"{name}.json"
+    process = subprocess.run(
+        [sys.executable, str(_RUNNER), "--artifacts", str(tmp_path / "artifacts"),
+         "--profiles", str(tmp_path / "profiles"), "compare",
+         "--baseline", str(baseline), "--candidate", str(candidate),
+         "--output", str(output)],
+        capture_output=True, text=True, timeout=60)
+    assert output.is_file(), f"compare left no output; stderr:\n{process.stderr}"
+    return process.returncode, json.loads(output.read_text(encoding="utf-8"))
 
 
 def write_selection(tmp_path: Path, name: str, files: list[str]) -> Path:
@@ -305,25 +357,28 @@ def test_compare_reports_failed_nodes_and_first_errors(tmp_path):
 
 
 def test_compare_refuses_different_selections(tmp_path):
+    # Both receipts EXECUTED and complete (clean committed repo), so the only
+    # thing standing between them is the selection: the refusal must be the
+    # mismatch alone, not a never-executed receipt.
     repo = make_synthetic_repo(tmp_path, {
         "tests/test_flag.py": FLAG_TEST,
         "tests/test_alpha.py": PASSING_TEST,
+        "flag.txt": "fail",
     })
-    (repo / "flag.txt").write_text("fail", encoding="utf-8")
     first = write_selection(tmp_path, "one.txt", ["tests/test_flag.py"])
     second = write_selection(tmp_path, "two.txt", ["tests/test_alpha.py"])
-    run_runner(tmp_path, repo, "mix-base", first)
-    run_runner(tmp_path, repo, "mix-cand", second)
+    _, base, _ = run_runner(tmp_path, repo, "mix-base", first)
+    _, cand, _ = run_runner(tmp_path, repo, "mix-cand", second)
+    assert base["executed"] is True and base["verdict"] == "completed-with-failures"
+    assert cand["executed"] is True and cand["verdict"] == "completed-clean"
     artifacts = tmp_path / "artifacts"
-    process = subprocess.run(
-        [sys.executable, str(_RUNNER), "compare",
-         "--baseline", str(artifacts / "mix-base" / "RESULT.json"),
-         "--candidate", str(artifacts / "mix-cand" / "RESULT.json"),
-         "--output", str(artifacts / "mix-compare.json")],
-        capture_output=True, text=True, timeout=60)
-    assert process.returncode == 1
-    comparison = json.loads((artifacts / "mix-compare.json").read_text(encoding="utf-8"))
-    assert any("selection mismatch" in problem for problem in comparison["problems"])
+    exit_code, comparison = run_compare(tmp_path, artifacts / "mix-base" / "RESULT.json",
+                                        artifacts / "mix-cand" / "RESULT.json", "mix")
+    assert exit_code == 1
+    assert comparison["comparable"] is False
+    assert len(comparison["problems"]) == 1
+    assert comparison["problems"][0].startswith("selection mismatch")
+    assert comparison["failed_only_in_baseline"] == [] and comparison["failed_in_both"] == []
 
 
 def test_junit_first_error_has_real_text(tmp_path):
@@ -333,3 +388,352 @@ def test_junit_first_error_has_real_text(tmp_path):
     entry = result["failed_nodes"]["tests/test_alpha.py::test_broken"]
     assert "AssertionError" in entry["first_error"] or "assert" in entry["first_error"]
     assert entry["timing"]["nodeid"] == "tests/test_alpha.py::test_broken"
+
+
+# --------------------------------------------------------------------------- #
+# Controls: fail-closed harvest (a completed verdict is earned from evidence)
+# --------------------------------------------------------------------------- #
+
+HARD_EXIT_0_TEST = (
+    "import os\n\n\n"
+    "def test_one():\n    assert True\n\n\n"
+    "def test_two():\n    os._exit(0)\n\n\n"
+    "def test_three():\n    assert False, 'never reached'\n"
+)
+FAIL_THEN_HARD_EXIT_1_TEST = (
+    "import os\n\n\n"
+    "def test_one():\n    assert 1 == 2, 'deliberate failure'\n\n\n"
+    "def test_two():\n    os._exit(1)\n"
+)
+MIXED_OUTCOMES_TEST = '''import pytest
+
+
+class TestOuter:
+    class TestInner:
+        def test_same(self):
+            assert False, "inner failure"
+
+    def test_same(self):
+        assert False, "outer failure"
+
+
+@pytest.fixture
+def broken_setup():
+    raise RuntimeError("setup failure")
+
+
+def test_setup_error(broken_setup):
+    pass
+
+
+@pytest.fixture
+def broken_teardown():
+    yield
+    raise RuntimeError("teardown failure")
+
+
+def test_fails_then_teardown_errors(broken_teardown):
+    assert False, "call failure"
+
+
+def test_passes():
+    assert True
+'''
+
+# FAULT INJECTION wrappers: each runs the real instrument (or, for the
+# watchdog, the real wrapped command) and then removes or corrupts exactly one
+# evidence file.
+_WATCHDOG_WRAPPER = '''import json, subprocess, sys
+from pathlib import Path
+argv = sys.argv[1:]
+out = Path(argv[argv.index("--output") + 1]); out.mkdir(parents=True, exist_ok=True)
+code = subprocess.run(argv[argv.index("--") + 1:]).returncode
+if {mode!r} == "malformed":
+    (out / "result.json").write_text("{{not json", encoding="utf-8")
+sys.exit(code)
+'''
+_TIMING_WRAPPER = '''import json, subprocess, sys
+from pathlib import Path
+argv = sys.argv[1:]
+real = Path(__file__).with_name("_real_pytest_timing.py")
+code = subprocess.run([sys.executable, str(real), *argv]).returncode
+rest = argv[argv.index("--") + 1:]
+timing = Path(argv[argv.index("--output") + 1])
+junit = Path(rest[rest.index("--junitxml") + 1])
+mode = {mode!r}
+if mode == "junit-malformed":
+    junit.write_text("<?xml version='1.0'?><testsuites><testsuite name='x'", encoding="utf-8")
+elif mode == "junit-missing":
+    junit.unlink()
+elif mode == "timing-malformed":
+    timing.write_text("{{", encoding="utf-8")
+elif mode == "timing-missing":
+    timing.unlink()
+elif mode == "timing-drops-failure":
+    payload = json.loads(timing.read_text(encoding="utf-8"))
+    payload["failed_nodes"] = []
+    timing.write_text(json.dumps(payload), encoding="utf-8")
+sys.exit(code)
+'''
+
+
+def test_session_hard_exit_0_is_never_completed(tmp_path):
+    repo = make_synthetic_repo(tmp_path, {"tests/test_exit.py": HARD_EXIT_0_TEST})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_exit.py"])
+    exit_code, result, _ = run_runner(tmp_path, repo, "hard-exit-0", selection)
+    assert result["exit_code"] == 0  # the child really exited 0 ...
+    assert result["verdict"] == "harvest-failed"  # ... and that earns nothing
+    assert exit_code == 92 and result["runner_exit"] == 92
+    assert result["complete"] is False
+    assert result["timing_summary"]["outcome_totals"] is None
+    assert result["failed_nodes"] is None
+    assert result["evidence"]["timing"]["status"] == "missing"
+    assert result["evidence"]["junit"]["status"] == "missing"
+
+
+def test_session_abort_after_failure_is_not_completed_and_not_comparable(tmp_path):
+    repo = make_synthetic_repo(tmp_path, {
+        "tests/test_x.py": FAILING_TEST.replace("test_broken", "test_one")})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_x.py"])
+    _, base, _ = run_runner(tmp_path, repo, "abort-base", selection)
+    assert base["verdict"] == "completed-with-failures"
+    (repo / "tests" / "test_x.py").write_text(FAIL_THEN_HARD_EXIT_1_TEST, encoding="utf-8")
+    exit_code, cand, _ = run_runner(tmp_path, repo, "abort-cand", selection, "--allow-dirty")
+    assert cand["exit_code"] == 1
+    assert cand["verdict"] == "harvest-failed" and exit_code == 92
+    assert cand["failed_nodes"] is None  # unknown, not "no failures"
+    artifacts = tmp_path / "artifacts"
+    compare_exit, comparison = run_compare(
+        tmp_path, artifacts / "abort-base" / "RESULT.json",
+        artifacts / "abort-cand" / "RESULT.json", "abort")
+    assert compare_exit == 1 and comparison["comparable"] is False
+    assert comparison["failed_only_in_baseline"] == []  # never reads as a fix
+    assert any(problem.startswith("candidate: verdict 'harvest-failed'")
+               for problem in comparison["problems"])
+
+
+@pytest.mark.parametrize(("instrument", "mode", "verdict", "evidence", "status"), [
+    ("ops/pytest_watchdog.py", "missing", "harvest-failed", "watchdog", "missing"),
+    ("ops/pytest_watchdog.py", "malformed", "harvest-failed", "watchdog", "malformed"),
+    ("ops/pytest_timing.py", "junit-missing", "harvest-failed", "junit", "missing"),
+    ("ops/pytest_timing.py", "junit-malformed", "harvest-failed", "junit", "malformed"),
+    ("ops/pytest_timing.py", "timing-missing", "harvest-failed", "timing", "missing"),
+    ("ops/pytest_timing.py", "timing-malformed", "harvest-failed", "timing", "malformed"),
+    ("ops/pytest_timing.py", "timing-drops-failure", "harvest-inconsistent", "timing", "ok"),
+])
+def test_missing_malformed_or_disagreeing_evidence_fails_closed(
+        tmp_path, instrument, mode, verdict, evidence, status):
+    # FAULT INJECTION: one evidence file is removed, corrupted or contradicted.
+    wrapper = (_WATCHDOG_WRAPPER if instrument.endswith("watchdog.py")
+               else _TIMING_WRAPPER).format(mode=mode)
+    test_body = FAILING_TEST if mode == "timing-drops-failure" else PASSING_TEST
+    repo = make_synthetic_repo(tmp_path, {"tests/test_alpha.py": test_body},
+                               fault_injection={instrument: wrapper})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_alpha.py"])
+    exit_code, result, _ = run_runner(tmp_path, repo, f"fault-{mode}", selection)
+    assert result["verdict"] == verdict
+    assert exit_code == 92 and result["runner_exit"] == 92
+    assert result["evidence"][evidence]["status"] == status
+    assert result["evidence_problems"] or result["inconsistencies"]
+    if verdict == "harvest-failed" and evidence == "timing":
+        assert result["timing_summary"]["outcome_totals"] is None
+
+
+def test_nested_classes_and_setup_teardown_errors_harvest_consistently(tmp_path):
+    repo = make_synthetic_repo(tmp_path, {"tests/test_mixed.py": MIXED_OUTCOMES_TEST})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_mixed.py"])
+    exit_code, result, _ = run_runner(tmp_path, repo, "mixed", selection)
+    assert result["inconsistencies"] == [] and result["evidence_problems"] == []
+    assert result["verdict"] == "completed-with-failures" and exit_code == 1
+    assert sorted(result["failed_nodes"]) == [
+        "tests/test_mixed.py::TestOuter::TestInner::test_same",
+        "tests/test_mixed.py::TestOuter::test_same",
+        "tests/test_mixed.py::test_fails_then_teardown_errors",
+        "tests/test_mixed.py::test_setup_error",
+    ]
+    assert result["failed_nodes"]["tests/test_mixed.py::test_setup_error"]["outcome"] == "error"
+    totals = result["timing_summary"]["outcome_totals"]
+    assert (totals["failed"], totals["errors"], totals["passed"]) == (3, 2, 1)
+
+
+def test_reused_label_is_refused_and_keeps_the_earlier_receipt(tmp_path):
+    repo = make_synthetic_repo(tmp_path, {"tests/test_alpha.py": PASSING_TEST})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_alpha.py"])
+    _, first, run_dir = run_runner(tmp_path, repo, "reuse", selection)
+    assert first["verdict"] == "completed-clean"
+    before = (run_dir / "RESULT.json").read_bytes()
+    process = subprocess.run(
+        [sys.executable, str(_RUNNER), "--repo", str(repo),
+         "--artifacts", str(tmp_path / "artifacts"), "--profiles", str(tmp_path / "profiles"),
+         "run", "--label", "reuse", "--selection-explicit", str(selection)],
+        capture_output=True, text=True, timeout=120)
+    assert process.returncode == 90
+    assert (run_dir / "RESULT.json").read_bytes() == before
+    refusals = sorted(run_dir.glob("REFUSED-*.json"))
+    assert len(refusals) == 1
+    refused = json.loads(refusals[0].read_text(encoding="utf-8"))
+    assert refused["verdict"] == "refused" and refused["executed"] is False
+
+
+# --------------------------------------------------------------------------- #
+# Controls: compare accepts only executed, complete, consistent receipts
+# --------------------------------------------------------------------------- #
+
+def test_compare_refuses_invalid_receipts(tmp_path):
+    repo = make_synthetic_repo(tmp_path, {
+        "tests/test_alpha.py": PASSING_TEST,
+        "tests/test_exit.py": HARD_EXIT_0_TEST,
+        "tests/test_sleep.py": SLEEPING_TEST,
+    })
+    artifacts = tmp_path / "artifacts"
+    valid_sel = write_selection(tmp_path, "valid.txt", ["tests/test_alpha.py"])
+    run_runner(tmp_path, repo, "valid", valid_sel)
+    run_runner(tmp_path, repo, "refused",
+               write_selection(tmp_path, "gone.txt", ["tests/test_gone.py"]))
+    run_runner(tmp_path, repo, "aborted",
+               write_selection(tmp_path, "exit.txt", ["tests/test_exit.py"]))
+    run_runner(tmp_path, repo, "interrupted",
+               write_selection(tmp_path, "sleep.txt", ["tests/test_sleep.py"]),
+               "--wall-budget", "4", timeout=120)
+    valid = artifacts / "valid" / "RESULT.json"
+    payload = json.loads(valid.read_text(encoding="utf-8"))
+    empty = tmp_path / "empty.json"
+    empty.write_text("{}\n", encoding="utf-8")
+    wrong_schema = tmp_path / "wrong-schema.json"
+    wrong_schema.write_text(json.dumps({**payload, "schema": "something-else"}), encoding="utf-8")
+    unreadable = tmp_path / "unreadable.json"
+    unreadable.write_text("{not json", encoding="utf-8")
+
+    exit_code, comparison = run_compare(tmp_path, valid, valid, "valid")
+    assert exit_code == 0 and comparison["comparable"] is True
+    assert comparison["problems"] == []
+    for name, receipt, expected in (
+            ("empty", empty, "empty or non-object receipt"),
+            ("wrong-schema", wrong_schema, "schema"),
+            ("refused", artifacts / "refused" / "RESULT.json", "never executed"),
+            ("aborted", artifacts / "aborted" / "RESULT.json", "verdict 'harvest-failed'"),
+            ("interrupted", artifacts / "interrupted" / "RESULT.json",
+             "verdict 'interrupted-by-wall-budget'"),
+            ("unreadable", unreadable, "receipt unreadable")):
+        exit_code, comparison = run_compare(tmp_path, receipt, receipt, name)
+        assert exit_code == 1, name
+        assert comparison["comparable"] is False, name
+        assert any(expected in problem for problem in comparison["problems"]), (
+            name, comparison["problems"])
+        assert comparison["failed_in_both"] == [], name
+
+
+def test_compare_normalises_first_errors_and_flags_truncation(tmp_path):
+    dynamic = '''import datetime
+import uuid
+from pathlib import Path
+
+
+def test_dynamic(tmp_path):
+    raise AssertionError(
+        f"at {datetime.datetime.now(datetime.timezone.utc).isoformat()} "
+        f"id {uuid.uuid4().hex} in {tmp_path}")
+
+
+def test_changes():
+    flag = Path(__file__).resolve().parents[1] / "flag.txt"
+    assert False, "flag says " + flag.read_text(encoding="utf-8").strip()
+
+
+def test_long():
+    assert False, "\\n".join(f"line {number}" for number in range(30))
+'''
+    repo = make_synthetic_repo(tmp_path, {"tests/test_dyn.py": dynamic, "flag.txt": "a"})
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_dyn.py"])
+    run_runner(tmp_path, repo, "dyn-base", selection)
+    (repo / "flag.txt").write_text("b", encoding="utf-8")
+    run_runner(tmp_path, repo, "dyn-cand", selection, "--allow-dirty")
+    artifacts = tmp_path / "artifacts"
+    exit_code, comparison = run_compare(tmp_path, artifacts / "dyn-base" / "RESULT.json",
+                                        artifacts / "dyn-cand" / "RESULT.json", "dyn")
+    assert exit_code == 0
+    by_node = {entry["nodeid"].split("::")[-1]: entry for entry in comparison["failed_in_both"]}
+    assert by_node["test_dynamic"]["first_error_equal_raw"] is False
+    assert by_node["test_dynamic"]["first_error_equal_normalised"] is True
+    assert by_node["test_changes"]["first_error_equal_normalised"] is False
+    assert by_node["test_long"]["excerpt_truncated"] is True
+    assert comparison["first_error_summary"]["raw_differ"] == 2
+    assert comparison["first_error_summary"]["normalised_differ"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# Controls: canonical path, collection failure policy, bounds, exits
+# --------------------------------------------------------------------------- #
+
+def test_canonical_default_path_executes(tmp_path):
+    repo = make_synthetic_repo(tmp_path, {"tests/test_alpha.py": PASSING_TEST})
+    exit_code, result, _ = run_runner(tmp_path, repo, "canonical", None)
+    assert exit_code == 0 and result["verdict"] == "completed-clean"
+    assert result["selection"]["source"] == "canonical-shard"
+    assert result["selection"]["files"] == ["tests/test_alpha.py"]
+    assert result["collection"]["collection_command_exit"] == 0
+    assert "manifest" not in result
+
+
+def test_canonical_collection_failure_is_refused_before_execution(tmp_path):
+    repo = make_synthetic_repo(tmp_path, {
+        "tests/test_alpha.py": PASSING_TEST,
+        "tests/test_broken.py": BROKEN_IMPORT_TEST,
+    })
+    exit_code, result, run_dir = run_runner(
+        tmp_path, repo, "partial", None, "--shard", "0", "--shards", "1")
+    assert exit_code == 90 and result["verdict"] == "refused"
+    assert result["executed"] is False
+    assert result["collection"]["collection_command_exit"] == 2
+    assert any("canonical collection exited 2" in refusal for refusal in result["refusals"])
+    assert not (run_dir / "run-stdout.txt").exists()
+
+
+@pytest.mark.parametrize("bound", [("--collect-timeout", "4"), ("--wall-budget", "4")])
+def test_hung_canonical_collection_is_bounded(tmp_path, bound):
+    repo = make_synthetic_repo(tmp_path, {
+        "conftest.py": "import time\ntime.sleep(120)\n",
+        "tests/test_alpha.py": PASSING_TEST,
+    })
+    started = time.monotonic()
+    exit_code, result, run_dir = run_runner(
+        tmp_path, repo, "slow", None, "--shard", "0", "--shards", "1", *bound, timeout=120)
+    assert time.monotonic() - started < 30
+    assert exit_code == 90 and result["verdict"] == "refused"
+    assert result["executed"] is False
+    assert result["collection"]["collection_timed_out"] is True
+    assert result["collection"]["collection_command_exit"] is None
+    with pytest.raises(ProcessLookupError):
+        os.kill(result["collection"]["collection_pid"], 0)  # existence probe only
+    assert not (run_dir / "run-stdout.txt").exists()
+
+
+def test_empty_selection_is_refused_before_execution(tmp_path):
+    repo = make_synthetic_repo(tmp_path, {
+        "tests/test_alpha.py": PASSING_TEST,
+        "tests/test_unselected.py": FAILING_TEST,
+    })
+    exit_code, result, run_dir = run_runner(
+        tmp_path, repo, "empty", write_selection(tmp_path, "empty.txt", []))
+    assert exit_code == 90 and result["verdict"] == "refused"
+    assert result["executed"] is False
+    assert any("empty selection" in refusal for refusal in result["refusals"])
+    assert not (run_dir / "run-stdout.txt").exists()
+
+
+@pytest.mark.parametrize(("files", "verdict", "runner_exit"), [
+    ({"tests/test_none.py": "VALUE = 1\n"}, "no-tests-collected", 5),
+    ({"tests/test_none.py": "def test_ok():\n    pass\n\n\n"
+                            "def test_interrupt():\n    raise KeyboardInterrupt\n"},
+     "session-interrupted", 2),
+    ({"tests/test_none.py": PASSING_TEST,
+      "conftest.py": "def pytest_collection_modifyitems(items):\n"
+                     "    raise RuntimeError('deliberate internal error')\n"},
+     "internal-error", 3),
+])
+def test_non_completed_pytest_exits_map_explicitly(tmp_path, files, verdict, runner_exit):
+    repo = make_synthetic_repo(tmp_path, files)
+    selection = write_selection(tmp_path, "sel.txt", ["tests/test_none.py"])
+    exit_code, result, _ = run_runner(tmp_path, repo, verdict, selection)
+    assert result["verdict"] == verdict
+    assert exit_code == runner_exit and result["exit_code"] == runner_exit
