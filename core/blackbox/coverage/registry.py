@@ -86,6 +86,12 @@ def _builtin_capabilities() -> list[MutationCapability]:
         {"tool": "machine.ensure_directory", **machine_declared},
         {"tool": "machine.move_path", **machine_declared},
         {"tool": "skill.create", **machine_declared},
+        # Skill sharing (core/skill_package.py): export writes one new zip, import and pack stage
+        # drafts -- the same local, declared-path writes skill.create makes; nothing they write is
+        # loaded until skill.install.
+        {"tool": "skill.export", **machine_declared},
+        {"tool": "skill.import", **machine_declared},
+        {"tool": "skill.pack", **machine_declared},
         {"tool": "operator.move_path", **machine_declared},
         {"tool": "operator.save_note", **workspace_file},
         {"tool": "media.open", **local_post},

@@ -2200,8 +2200,16 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 "allowed_tools": "list[string] optional",
                 "triggers": "list[string] optional",
                 "overwrite": "boolean optional",
+                "scope": "chat|project|global optional (default global; chat and project mean THIS chat and its project)",
             },
-            output_schema={"status": "string", "path": "string", "slug": "string", "staged": "boolean"},
+            output_schema={
+                "status": "string",
+                "path": "string",
+                "slug": "string",
+                "scope": "string",
+                "sha256": "string",
+                "staged": "boolean",
+            },
             side_effect_class="workspace_write",
             # It writes a file, so it is gated like every other write. The gauntlet refuses an
             # ungated mutating tool and it is right to: "it is only a draft" is exactly the
@@ -2285,11 +2293,15 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 "path": "string",
                 "plugin_id": "string optional",
                 "overwrite": "boolean optional",
+                "scope": "chat|project|global optional (default global)",
+                "sha256": "string optional (the reviewed draft's digest; nothing installs if the draft changed)",
+                "kind": "skill|plugin optional (plugin activates a staged plugin pack)",
             },
             output_schema={
-                "status": "ok|refused|exists|error",
+                "status": "ok|refused|exists|error|scope_unavailable",
                 "path": "string",
                 "plugin_id": "string",
+                "scope": "string",
                 "active": "boolean",
                 "problems": "list[string]",
             },
@@ -2332,6 +2344,116 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             artifact_emission="installed_skill",
             error_contract="returns_structured_error_result",
             permission_actions=("create_files", "change_settings"),
+        ),
+        # Sharing a skill: one zip out, the same zip in (core/skill_package.py). Import and pack only
+        # STAGE; activation stays the gated skill.install. Remove moves a skill out of the loader's
+        # tree (kept on disk with its versions), which is an activation-class change like install.
+        RuntimeToolContract(
+            intent="skill.export",
+            description=(
+                "Package a skill you made (or a plugin you made, kind=plugin) as one zip that "
+                "anyone can import into their VOOL. First-party and local-only skills are refused."
+            ),
+            tool_surface="skill",
+            capability_id="skill.author",
+            capability_claim="export a skill as a shareable zip",
+            supported=write_enabled,
+            unsupported_reason="Skill export is disabled on this runtime.",
+            input_schema={
+                "name": "string (the skill or plugin name)",
+                "kind": "skill|plugin optional (default skill)",
+                "scope": "chat|project|global optional (which copy, when names repeat)",
+            },
+            output_schema={"status": "string", "path": "string", "bytes": "number", "sha256": "string"},
+            side_effect_class="workspace_write",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="skill_package",
+            error_contract="returns_structured_error_result",
+            permission_actions=("read_files", "create_files"),
+        ),
+        RuntimeToolContract(
+            intent="skill.import",
+            description=(
+                "Read a skill or plugin zip (a chat attachment or a local path), check it, and stage "
+                "it for this chat, this project or all of VOOL. Instruction-only: zips carrying "
+                "scripts, binaries or tool declarations are refused. Nothing becomes active."
+            ),
+            tool_surface="skill",
+            capability_id="skill.author",
+            capability_claim="import a shared skill as a draft",
+            supported=write_enabled,
+            unsupported_reason="Skill import is disabled on this runtime.",
+            input_schema={
+                "attachment_id": "string optional (a zip attached in this chat)",
+                "path": "string optional (a local zip file)",
+                "scope": "chat|project|global optional (default global)",
+            },
+            output_schema={
+                "status": "ok|invalid|refused|not_found|scope_unavailable",
+                "kind": "skill|plugin",
+                "name": "string",
+                "path": "string",
+                "sha256": "string",
+                "problems": "list[string]",
+            },
+            side_effect_class="workspace_write",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="skill_draft",
+            error_contract="returns_structured_error_result",
+            permission_actions=("read_files", "create_files"),
+        ),
+        RuntimeToolContract(
+            intent="skill.remove",
+            description=(
+                "Turn off a skill you made by moving it out of the active tree of its scope. "
+                "Nothing is deleted; its files and versions are kept."
+            ),
+            tool_surface="skill",
+            capability_id="skill.install",
+            capability_claim="turn off a skill so future turns stop loading it",
+            supported=write_enabled,
+            unsupported_reason="Skill removal is disabled on this runtime.",
+            input_schema={
+                "name": "string",
+                "scope": "chat|project|global optional (default: the narrowest match)",
+            },
+            output_schema={"status": "ok|not_found|refused|error", "name": "string", "scope": "string"},
+            side_effect_class="runtime_capability_change",
+            approval_requirement="explicit_user_opt_in",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="none",
+            error_contract="returns_structured_error_result",
+            permission_actions=("modify_files", "change_settings"),
+        ),
+        RuntimeToolContract(
+            intent="skill.pack",
+            description=(
+                "Bundle skills you made into a named plugin pack (instruction-only), staged for "
+                "review; activate it with skill.install kind=plugin, share it with skill.export."
+            ),
+            tool_surface="skill",
+            capability_id="skill.author",
+            capability_claim="bundle skills into a plugin",
+            supported=write_enabled,
+            unsupported_reason="Plugin packing is disabled on this runtime.",
+            input_schema={
+                "name": "string (the plugin name)",
+                "description": "string",
+                "skills": "list[string] (names of skills you made)",
+            },
+            output_schema={"status": "string", "name": "string", "skills": "list[string]", "sha256": "string"},
+            side_effect_class="workspace_write",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="skill_draft",
+            error_contract="returns_structured_error_result",
+            permission_actions=("create_files",),
         ),
         RuntimeToolContract(
             intent="skill.inspect",

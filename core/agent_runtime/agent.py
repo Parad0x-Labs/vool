@@ -2903,6 +2903,18 @@ class VoolAgent(
                 return None
         except Exception:
             pass
+        # And for a SKILL-authoring request: its clauses are the skill's spec. Measured live
+        # 2026-10-05: "create a skill for this project that writes release notes ..., grouped under
+        # Added, Changed and Fixed, one line per change" was carved into units, the skill lane
+        # answered one, its approval card never reached the page, and the next "turn it on" was
+        # answered by a model that claimed the skill was on when nothing had been saved.
+        try:
+            from core.agent_runtime.fast_paths_skill import is_skill_authoring_request
+
+            if is_skill_authoring_request(str(raw_input or effective_input)):
+                return None
+        except Exception:
+            pass
         # --------------------------------------------------------------------
         # PHASE 1 — PRE-DISPATCH ELIGIBILITY. Nothing here may leave side
         # effects: no unit has been handed to a lane, so declining is free.
