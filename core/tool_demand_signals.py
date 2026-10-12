@@ -196,7 +196,12 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             # These nouns name deliverable artifacts without needing an extra "file" noun.
             r"|\b(?:i\s+(?:need|want|would\s+like)|(?:make|create|build|generate|prepare)(?:\s+me)?)\s+"
             r"(?:an?\s+)?(?:(?!to\b|about\b|know\b|understand\b|learn\b|how\b)[\w-]+\s+){0,3}?"
-            r"(?:spreadsheet|workbook|presentation|slide\s*deck)\b",
+            r"(?:spreadsheet|workbook|presentation|slide\s*deck)\b"
+            # "I need a spreadsheet of my monthly subscriptions ... Excel please": a spreadsheet or
+            # workbook is a file by its nature, so a turn that wants one orders a file (measured live
+            # 2026-10-06: answered with a fabricated "working on it" and no file).
+            r"|\b(?:i\s+(?:need|want|would\s+like)|give\s+me|send\s+me|make\s+me|make|create|build|put\s+together|set\s+up)"
+            r"\s+(?:me\s+)?an?\s+(?:(?:excel|google|simple|small|quick|new|monthly|weekly|basic)\s+){0,2}(?:spreadsheet|workbook)s?\b",
             re.I,
         ),
     ),
