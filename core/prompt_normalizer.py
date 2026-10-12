@@ -1309,6 +1309,24 @@ def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now:
             "workspace-relative paths with workspace tools; do not search the whole machine for "
             "the words `this`, `current`, or a misspelling of them."
         )
+    if context.get("delivery_without_workspace_target") is True:
+        # This turn's tool loop derives ownership and formats from the fresh request, before
+        # the first provider call. State the contract there too, rather than spending the
+        # argument-correction budget teaching the model which writer owns a download.
+        from core.deliverables import FORMATS
+
+        named = [name for name in context.get("delivery_formats_requested", ()) if name in FORMATS]
+        facts.append(
+            "This turn requests downloadable artifacts without a workspace destination. "
+            "Author their content directly in file.deliver; do not use workspace.write_file or "
+            "machine.write_file to stage them. Delivery does not require executing their content. "
+            + ("The requested output format is " + ", ".join(named) + ". " if named else "")
+            + ("For an archive, make ONE file.deliver call with the archive filename, format, and "
+               "files containing every requested member's filename, content and format. Do not "
+               "deliver the members separately or first write them into the workspace. "
+               if any(name in {"zip", "tar.gz"} for name in named) else "")
+            + "Permission and format checks still apply; never claim a file exists before delivery succeeds."
+        )
     if bool(context.get("workspace_audit_evidence_collected")):
         facts.append(
             "A read-only local audit tool already gathered same-turn workspace evidence. That tool "
