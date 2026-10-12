@@ -4,7 +4,7 @@ The registry reuses VOOL's native package identity, lifecycle, tool contracts, s
 
 The existing `core/addon_directory.json` remains the catalog authority. Its existing entries, source pins, licence checksums, `discovery_only` and `import_ready` flags are unchanged. A protected catalog change adds a `registry` field containing the signed reviewed projection. The server reads that file and caches immutable GitHub artifacts. Its database owns accounts, private quarantine, stars and request counters; it cannot admit a package by changing a database flag.
 
-Hermes, OpenClaw, Superpowers, Vercel and the existing built-in sources continue to supply discovery. Import compatibility is not registry approval. Existing installations are not silently migrated, renamed or reapproved.
+Existing built-in and upstream discovery sources continue to supply discovery. Import compatibility is not registry approval. Existing installations are not silently migrated, renamed or reapproved.
 
 ## Author workflow
 
