@@ -1080,6 +1080,22 @@ def read_deliverable(*, deliverable_id: str, session_id: str) -> tuple[dict[str,
 
 #: Source-context key the tool loop stamps with `requested_formats(<this turn's text>)`.
 REQUESTED_FORMATS_KEY = "delivery_formats_requested"
+DOWNLOAD_ONLY_KEY = "delivery_without_workspace_target"
+
+
+def downloadable_request_without_workspace_target(text: str) -> bool:
+    """A downloadable artifact is not permission to write an incidental workspace file."""
+    from core.execution.constants import explicit_path_in
+    from core.tool_demand_signals import asks_for_a_file
+
+    if not asks_for_a_file(text) or not requested_formats(text) or explicit_path_in(text):
+        return False
+    return re.search(
+        r"\b(?:in|into|to|on)\s+(?:(?:my|the|this|our)\s+)?"
+        r"(?:workspace|project|repo|repository|folder|directory|desktop|downloads?|documents?)\b",
+        text,
+        re.I,
+    ) is None
 
 #: The formats a request NAMES for its file, as typed words -> format. Only phrasings that order a
 #: file kind count: "a 500-word essay" names no Word document, "as a Word document" does.

@@ -1134,6 +1134,30 @@ def _execute_tool_intent_impl(
             },
         )
 
+    # A request for a downloadable artifact names no workspace destination. Reject the
+    # wrong writer before dispatch, so a model can use the delivery tool without writing
+    # incidental files or misclassifying a protected-source refusal as an unknown effect.
+    from core.deliverables import DOWNLOAD_ONLY_KEY
+
+    if intent in {"workspace.write_file", "machine.write_file"} and bool(
+        (source_context or {}).get(DOWNLOAD_ONLY_KEY)
+    ):
+        response = (
+            "This turn requested a downloadable file, not a workspace write. Nothing was written. "
+            "Use file.deliver with the requested format; for an archive, include the authored "
+            "members in its files argument."
+        )
+        return ToolIntentExecution(
+            handled=True,
+            ok=False,
+            status="delivery_tool_required",
+            mode="refused",
+            tool_name=intent,
+            response_text=response,
+            user_safe_response_text=response,
+            details={"executed": False, "controller_enforced": True},
+        )
+
     # One controller-owned permission seam for every model-selected tool.  This runs before
     # dispatch to web, workspace, sandbox, Hive, operator, payment, or MCP implementations, so a
     # downstream path cannot accidentally bypass Plan/Review/Manual restrictions.

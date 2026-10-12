@@ -928,6 +928,7 @@ class ResearchToolLoopFacadeMixin:
             # use. Measured live without this seat: the refusal ended the turn, so "a PDF" or "zip
             # them up" got no file at all instead of the corrected one.
             "format_not_requested",
+            "delivery_tool_required",
         }
     )
     _MAX_ARGUMENT_CORRECTIONS = 2
@@ -1162,13 +1163,19 @@ class ResearchToolLoopFacadeMixin:
             loop_source_context.pop(TURN_SCOPE_KEY, None)
         # THIS request's named file format(s), read from its own words (a resumed checkpoint's
         # stored context must not carry an earlier request's formats into this one).
-        from core.deliverables import REQUESTED_FORMATS_KEY, requested_formats
+        from core.deliverables import (
+            DOWNLOAD_ONLY_KEY,
+            REQUESTED_FORMATS_KEY,
+            downloadable_request_without_workspace_target,
+            requested_formats,
+        )
 
         named_formats = requested_formats(effective_input)
         if named_formats:
             loop_source_context[REQUESTED_FORMATS_KEY] = list(named_formats)
         else:
             loop_source_context.pop(REQUESTED_FORMATS_KEY, None)
+        loop_source_context[DOWNLOAD_ONLY_KEY] = downloadable_request_without_workspace_target(effective_input)
         executed_steps: list[dict[str, Any]] = []
         last_tool_decision = None
         seen_tool_payloads: set[str] = set()
