@@ -284,7 +284,13 @@ def test_ollama_prompt_budget_fails_closed_before_network_when_protected_prompt_
         max_output_tokens=64,
     )
 
-    with mock.patch("adapters.openai_compatible_adapter.requests.post") as post_mock:
+    # The host-RAM load gate runs before the budget check and refuses on a machine with little free
+    # memory (model_load_gated_low_memory), which made this test pass or fail by host. It is stubbed
+    # so the prompt budget is what this test measures; the gate has its own tests in
+    # tests/test_resource_governor_phase3.py.
+    with mock.patch.object(OpenAICompatibleAdapter, "_gate_local_model_load", return_value=None), mock.patch(
+        "adapters.openai_compatible_adapter.requests.post"
+    ) as post_mock:
         with pytest.raises(PromptBudgetExceededError, match="prompt_budget_exceeded"):
             adapter.run_text_task(request)
 
