@@ -1,5 +1,6 @@
 import pytest
-from core.deliverables import requested_formats, refuse_unrequested_format, DeliverableRefused
+
+from core.deliverables import DeliverableRefused, refuse_unrequested_format, requested_formats
 from core.tool_demand_signals import asks_for_a_file
 
 
