@@ -17,3 +17,6 @@ def test_explanation_plus_separate_order_is_still_an_order():
  assert asks_for_a_file("Explain how to make a PDF accessible, then create a PDF checklist for me.")
 def test_explicit_multiple_outputs_stay_multiple():
  assert requested_formats("Give me a PDF report and a CSV file of the data.")==("pdf","csv")
+
+def test_parallel_how_to_clauses_remain_instructions():
+ assert not asks_for_a_file("Can you explain how to export a CSV and create an Excel workbook?")

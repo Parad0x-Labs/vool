@@ -806,7 +806,7 @@ def asks_for_a_file(text: str) -> bool:
         r"^\s*(?:explain|describe|teach\s+me|tell\s+me|show\s+me)\s+how\b", instruction, re.I
     )
     separate_order = re.search(
-        r"(?:[.!?]\s+|\b(?:and|then)\s+)(?:please\s+)?"
+        r"(?:[.!?]\s+|[,;]\s*(?:then|also)\s+)(?:please\s+)?"
         r"(?:export|create|make|generate|produce|prepare|give\s+me|send\s+me)\b", raw, re.I
     )
     if explanatory and not separate_order:
