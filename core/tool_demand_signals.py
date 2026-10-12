@@ -190,6 +190,9 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             r"|(?<!how to )\b(?:export|download|give\s+me|send\s+me|make\s+me|make|create|generate|produce|prepare)\s+an?\s+"
             r"(?:(?:sample|short|simple|brief|one-page)\s+){0,2}"
             r"(?:csv|tsv|pdf|xlsx|docx|pptx|excel|zip)\b(?!\s+(?:format|formatting|response|answer|reply)\b)"
+            # A direct desire for a concrete artifact is also an order, not prose formatting.
+            r"|\bi\s+(?:need|want|would\s+like)\s+an?\s+(?:short\s+|sample\s+)?(?:pdf|csv|tsv|zip|docx|xlsx|pptx)\b(?!\s+(?:format|formatting|response|answer|reply|syntax|explanation)\b)"
+            r"|\b(?:zip|compress)\s+the\s+(?:csv|pdf|docx|xlsx|files?)\b"
             # These nouns name deliverable artifacts without needing an extra "file" noun.
             r"|\b(?:i\s+(?:need|want|would\s+like)|(?:make|create|build|generate|prepare)(?:\s+me)?)\s+"
             r"(?:an?\s+)?(?:(?!to\b|about\b|know\b|understand\b|learn\b|how\b)[\w-]+\s+){0,3}?"
@@ -787,6 +790,48 @@ _REQUEST_RE = re.compile(
 )
 
 
+def _separate_file_execution_clause(text: str) -> bool:
+    raw = str(text or "")
+    from core.instructional_request import asks_how_to
+
+    # Read distinct action clauses before applying the instructional veto. A
+    # question mark does not turn "make me one" into a tutorial, and the artifact
+    # referred to by "one" may be named only in the preceding explanation.
+    parts = re.split(r"([.!?;]\s+|,\s*(?:and\s+)?|\band\s+)", raw, flags=re.I)
+    instruction = re.sub(r"^\s*(?:can|could|would)\s+you\s+(?:please\s+)?", "", raw, flags=re.I)
+    explanatory = asks_how_to(instruction) or re.match(
+        r"^\s*(?:(?:explain|describe|tell\s+me|show\s+me)\s+how|teach\s+me\s+(?:how|to))\b", instruction, re.I
+    )
+    format_context = bool(re.search(r"\b(?:pdfs?|csv|tsv|docx|xlsx|pptx|word\s+documents?|excel|zip|tarball|powerpoint|spreadsheet|workbook|presentation|markdown|json|ya?ml|files?|downloadable)\b", raw, re.I))
+    if not format_context:
+        return False
+    for separator, clause in zip(parts[1::2], parts[2::2]):
+        action = re.sub(r"^\s*(?:then\s+|also\s+)?(?:please\s+)?", "", clause, flags=re.I)
+        if asks_how_to(action):
+            continue
+        if format_context and re.match(r"(?:make|create|generate|produce)\s+(?:me\s+(?:(?:a|an)\s+)?(?:sample\s+)?one|one)\b", action, re.I):
+            # Bare 'make one' needs an execution connector; 'make me one' is
+            # unambiguously addressed to this assistant.
+            if re.search(r"\bme\b", action, re.I) or re.search(r"\b(?:then|also)\b", clause, re.I):
+                return True
+        if re.match(r"(?:export|create|make|generate|produce)\s+one\s+of\s+(?:these|those|the|my|your)\b", action, re.I):
+            return True
+        # An explanation can list parallel steps: 'how to export a CSV and
+        # create a workbook'. A bare conjunction does not turn the second step
+        # into an order. Preserve an independent sentence or an explicit
+        # execution connector/address before seating its artifact demand.
+        if explanatory and not (
+            separator.lstrip().startswith((".", "!", "?", ";"))
+            or re.match(r"\s*(?:then|also)\b", clause, re.I)
+            or re.search(r"\b(?:for\s+me|(?:make|create|give|send)\s+me)\b", action, re.I)
+        ):
+            continue
+        if re.match(r"(?:export|create|make|generate|produce|prepare|give\s+me|send\s+me|zip|compress)\b", action, re.I):
+            if "file.deliver" in resolve_demand_signals(action).explicit_intents:
+                return True
+    return False
+
+
 def asks_for_a_file(text: str) -> bool:
     """Is this turn ordering a FILE (the `file.deliver` demand), not asking ABOUT a format?
 
@@ -796,30 +841,19 @@ def asks_for_a_file(text: str) -> bool:
     and must stay an ordinary answer.
     """
     raw = str(text or "")
-    if "file.deliver" not in resolve_demand_signals(raw).explicit_intents:
-        return False
-    # The instruction/action distinction applies to imperative explanations too,
-    # and survives a polite "can you" wrapper. A separate execution clause stays an order.
     from core.instructional_request import asks_how_to
 
+    if _separate_file_execution_clause(raw):
+        return True
+    if "file.deliver" not in resolve_demand_signals(raw).explicit_intents:
+        return False
     instruction = re.sub(r"^\s*(?:can|could|would)\s+you\s+(?:please\s+)?", "", raw, flags=re.I)
     explanatory = asks_how_to(instruction) or re.match(
         r"^\s*(?:(?:explain|describe|tell\s+me|show\s+me)\s+how|teach\s+me\s+(?:how|to))\b", instruction, re.I
     )
     if explanatory:
-        if raw.rstrip().endswith("?") and not re.search(r"\b(?:then|also|for\s+me)\b", raw, re.I):
-            # A how-to question can name parallel steps without asking us to perform them.
-            return False
-        clauses = re.split(r"[.!?;]\s+|,\s*(?:and\s+)?|\band\s+(?:then\s+|also\s+)?", raw, flags=re.I)
-        for clause in clauses[1:]:
-            if not re.match(r"\s*(?:then\s+|also\s+)?(?:please\s+)?(?:export|create|make|generate|produce|prepare|give\s+me|send\s+me)\b", clause, re.I):
-                continue
-            if "file.deliver" in resolve_demand_signals(clause).explicit_intents:
-                return True
-            # 'make one' refers to the format being explained, not an unrelated checklist.
-            if re.match(r"\s*(?:then\s+|also\s+)?(?:export|create|make|generate|produce)\s+one\b", clause, re.I):
-                return True
         return False
+
     if not _QUESTION_HEAD_RE.match(raw):
         # An imperative ("write a script and zip it up", "export this to CSV") orders the file
         # even when it also asks for authored text: the file is the deliverable.
@@ -868,6 +902,11 @@ def resolve_demand_signals(text: str) -> DemandSignals:
                 ("workspace.write", "workspace.replace", "workspace.apply", "workspace.rollback")
             ):
                 write_demand = True
+
+    # Share the reader with front-door ownership: an anaphoric artifact order
+    # must seat file.deliver too, not only classify as a file after seating.
+    if _separate_file_execution_clause(cleaned):
+        _note("file.deliver", "file")
 
     # A save/store request whose object is a saved contact ("save Alex Chen as a contact",
     # "store Zoë Ng in my address book") is a Contacts demand even though the word-form rules above

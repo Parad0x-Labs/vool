@@ -1101,7 +1101,7 @@ def downloadable_request_without_workspace_target(text: str) -> bool:
     if not asks_for_a_file(text) or not requested_formats(text) or explicit_path_in(text):
         return False
     return re.search(
-        r"\b(?:in|into|to|on)\s+(?:(?:my|the|this|our|current)\s+)?"
+        r"\b(?:in|into|inside|within|under|to|on)\s+(?!each\b|every\b|any\b)(?:(?:my|the|this|our|current)\s+)?"
         r"(?:workspace|project|repo|repository|desktop|downloads?|documents?|"
         r"(?:[\w'-]+\s+){0,4}?(?:folder|directory))\b",
         text,
@@ -1114,7 +1114,7 @@ _NAMED_FORMAT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("docx", re.compile(r"\bword\s+(?:doc|docs|document|documents|file|files)\b|\bas\s+(?:a\s+)?word\b|\.?\bdocx?\b", re.I)),
     ("xlsx", re.compile(r"\bexcel\b|\.?\bxlsx?\b|\bspreadsheet\b|\bworkbook\b", re.I)),
     ("pptx", re.compile(r"\bpowerpoint\b|\.?\bpptx?\b|\bslide\s*deck\b|\bslides\b|\bpresentation\b", re.I)),
-    ("pdf", re.compile(r"\.?\bpdf\b", re.I)),
+    ("pdf", re.compile(r"\.?\bpdfs?\b", re.I)),
     ("csv", re.compile(r"\.?\bcsv\b", re.I)),
     ("tsv", re.compile(r"\.?\btsv\b", re.I)),
     ("json", re.compile(r"\.?\bjson\b", re.I)),
@@ -1131,7 +1131,7 @@ _NAMED_FORMAT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 #: Words naming a file that is already there ("the attached pdf"), not the one being ordered.
 _PRESENT_FILE_RE = re.compile(
-    r"\b(?:the|this|that|these|those|my|your|our|attached|uploaded)\s+(?:\w+\s+){0,2}?"
+    r"\b(?:the|this|that|these|those|my|your|our|attached|uploaded)\s+(?:(?!to\b|as\b|in\b|and\b)\w+\s+){0,2}?"
     r"(?:pdf|docx?|word\s+(?:doc|document|file)|excel|xlsx?|spreadsheet|workbook|csv|tsv|json|ya?ml|xml|html?|zip|archive|"
     r"powerpoint|pptx?|deck|presentation|file|document)\b",
     re.I,
@@ -1161,7 +1161,7 @@ def requested_formats(text: str) -> tuple[str, ...]:
     # In a bundle order the member formats describe contents, not alternative outputs.
     # Otherwise a named HTML member can satisfy the guard and end the turn before the ZIP exists.
     bundle_order = re.search(
-        r"\b(?:zip|compress)\s+(?:up\s+)?(?:them|it|these|those|both|all|the\s+files)\b",
+        r"\b(?:zip|compress)\s+(?:up\s+)?(?:them|it|these|those|both|all|the\s+(?:files|csv|pdf|docx|xlsx))\b",
         raw, re.I,
     )
     outer_archive = re.search(

@@ -1143,6 +1143,7 @@ def _execute_tool_intent_impl(
         intent.startswith("workspace.") and is_mutating_tool_intent(intent)
     ) or intent in {
         "machine.write_file", "machine.ensure_directory", "machine.move_path", "machine.download_file",
+        "sandbox.run_command", "operator.move_path",
     }
     if filesystem_mutation and bool(
         (source_context or {}).get(DOWNLOAD_ONLY_KEY)

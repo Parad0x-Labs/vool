@@ -516,6 +516,7 @@ def run_bounded_builder_loop(
     pending_payloads = [dict(item) for item in list(initial_payloads or []) if isinstance(item, dict)]
     stop_reason = ""
     failed_execution = None
+    unresolved_commands: dict[tuple[str, str], Any] = {}
     max_steps = 6
 
     while len(executed_steps) < max_steps:
@@ -622,7 +623,12 @@ def run_bounded_builder_loop(
                 and intent == "sandbox.run_command"
                 and str(getattr(execution, "status", "")) == "command_failed"
                 and type(code) is int and code != 0
+                and isinstance(execution_details.get("command"), str) and execution_details["command"].strip()
+                and isinstance(execution_details.get("cwd"), str)
             ):
+                # Track each observed command failure independently. Passing a later
+                # command must not erase another required check's unresolved failure.
+                unresolved_commands[(execution_details["command"], execution_details["cwd"])] = execution
                 continuation = plan_tool_workflow_fn(
                     user_text=effective_input, task_class=task_class,
                     executed_steps=executed_steps, source_context=loop_source_context,
@@ -633,18 +639,16 @@ def run_bounded_builder_loop(
                     continue
             stop_reason = f"{getattr(execution, 'mode', '') or 'tool_failed'!s}:{getattr(execution, 'status', '') or 'failed'!s}"
             break
-        if failed_execution is not None and intent == "sandbox.run_command" and getattr(execution, "ok", False):
-            failed_details = dict(getattr(failed_execution, "details", {}) or {})
+        if intent == "sandbox.run_command" and getattr(execution, "ok", False):
             if (
-                str(getattr(failed_execution, "tool_name", "")) == intent
-                and bool(failed_details.get("command"))
-                and "cwd" in failed_details
+                isinstance(execution_details.get("command"), str) and execution_details["command"].strip()
+                and isinstance(execution_details.get("cwd"), str)
                 and type(execution_details.get("returncode")) is int
                 and execution_details["returncode"] == 0
-                and execution_details.get("command") == failed_details.get("command")
-                and execution_details.get("cwd") == failed_details.get("cwd")
             ):
-                failed_execution = None
+                identity = (str(execution_details["command"]), str(execution_details["cwd"]))
+                unresolved_commands.pop(identity, None)
+                failed_execution = next(iter(unresolved_commands.values()), None)
 
     if not stop_reason and len(executed_steps) >= max_steps:
         stop_reason = "step_budget_exhausted"
