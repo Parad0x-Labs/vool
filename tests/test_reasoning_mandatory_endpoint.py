@@ -43,6 +43,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     seen: list[dict] = []
     refuse_disabled = True
     other_400 = False
+    other_message = "max_tokens is too large"
 
     def log_message(self, fmt, *args):
         pass
@@ -52,7 +53,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         cls.seen.append(body)
         if cls.other_400:
-            status, reply = 400, {"error": {"message": "max_tokens is too large", "code": 400}}
+            status, reply = 400, {"error": {"message": cls.other_message, "code": 400}}
         elif cls.refuse_disabled and dict(body.get("reasoning") or {}).get("enabled") is False:
             status, reply = 400, _MANDATORY_BODY
         else:
@@ -70,6 +71,7 @@ def server(monkeypatch):
     _Handler.seen = []
     _Handler.refuse_disabled = True
     _Handler.other_400 = False
+    _Handler.other_message = "max_tokens is too large"
     monkeypatch.setattr(adapter_module, "_REASONING_MANDATORY_LEARNED", set())
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -184,3 +186,50 @@ def test_any_other_400_still_fails_closed_with_one_request(server) -> None:
     assert "max_tokens is too large" in str(caught.value)
     assert len(_Handler.seen) == 1
     assert adapter_module._REASONING_MANDATORY_LEARNED == set()
+
+
+# ── re-audit: only the endpoint's own refusal teaches, and only that endpoint ──
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "max_tokens invalid; documentation says reasoning is mandatory for another endpoint",
+        "Invalid value for max_tokens. Note: reasoning is mandatory on some models.",
+        "temperature must be <= 2 (see docs: Reasoning is mandatory for this endpoint on o-series)",
+    ],
+)
+def test_a_400_that_only_mentions_mandatory_reasoning_is_that_other_error(server, monkeypatch, message) -> None:
+    monkeypatch.setattr("core.openrouter_catalog.cached_catalog_row", lambda _model: None)
+    _Handler.other_400 = True
+    _Handler.other_message = message
+
+    with pytest.raises(Exception) as caught:
+        _adapter(server).run_text_task(_disabled_request())
+
+    assert message[:20] in str(caught.value)
+    assert len(_Handler.seen) == 1
+    assert adapter_module._REASONING_MANDATORY_LEARNED == set()
+
+
+def test_a_refusal_learned_at_one_endpoint_does_not_change_another(server, monkeypatch) -> None:
+    monkeypatch.setattr("core.openrouter_catalog.cached_catalog_row", lambda _model: None)
+    refusing = _adapter(server, model="same-model")
+    assert refusing.run_text_task(_disabled_request()).output_text == "ok"
+    assert [body.get("reasoning") for body in _Handler.seen] == [{"enabled": False}, {"effort": "low"}]
+
+    # The same model name at another provider and endpoint never refused anything: it keeps the
+    # disabled reasoning and the plain answer budget it asked for.
+    other = OpenAICompatibleAdapter(
+        SimpleNamespace(
+            provider_name="other-cloud", provider_id="other-cloud:same-model", model_name="same-model",
+            metadata={"runtime_family": "openai-compatible", "supported_parameters": ["reasoning"]},
+            runtime_config={"base_url": "http://127.0.0.1:9", "api_path": "/v1/chat/completions"},
+        )
+    )
+    payload = other._build_openai_payload(_disabled_request(), force_json=False, stream=False)
+    assert payload["reasoning"] == {"enabled": False}
+    assert payload["max_tokens"] == 400
+    # ...while the endpoint that refused keeps what it learned
+    again = refusing._build_openai_payload(_disabled_request(), force_json=False, stream=False)
+    assert again["reasoning"] == {"effort": "low"}
