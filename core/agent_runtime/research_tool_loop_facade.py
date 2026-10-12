@@ -929,6 +929,7 @@ class ResearchToolLoopFacadeMixin:
             # them up" got no file at all instead of the corrected one.
             "format_not_requested",
             "delivery_tool_required",
+            "member_format_mismatch",
         }
     )
     _MAX_ARGUMENT_CORRECTIONS = 2

@@ -436,20 +436,28 @@ def _scope_download_specs(specs: list[dict[str, Any]], user_text: str) -> list[d
         if "format" not in required:
             required.append("format")
         archive = len(wanted) == 1 and wanted[0] in {"zip", "tar.gz"}
-        if archive and "files" not in required:
-            required.append("files")
+        if archive:
+            if "files" not in required:
+                required.append("files")
+            member_schema = schema["properties"].get("files", {}).get("items", {})
+            member_properties = member_schema.get("properties", {})
+            member_properties.pop("format", None)
+            member_properties["filename"] = {
+                "type": "string", "description": "Output filename INCLUDING its required extension; it determines the member format."
+            }
+            member_schema["additionalProperties"] = False
         schema["required"] = required
         instruction = "This request requires " + ", ".join(wanted) + " output. "
         if archive:
             instruction += (
                 "ONE archive call with an archive filename and files containing ALL authored "
-                "members (filename, content, format); do not deliver loose member files. "
+                "members (filename with its output extension, content); do not deliver loose member files. "
             )
         spec["description"] = instruction + str(spec.get("description") or "")
         spec["arguments"] = dict(spec.get("arguments") or {})
         spec["arguments"]["format"] = "string required (" + "|".join(wanted) + ")"
         if archive:
-            spec["arguments"]["files"] = "list[object] required (every archive member: filename, content, format)"
+            spec["arguments"]["files"] = "list[object] required (every archive member: filename including extension, content; format comes from filename)"
         result.append(spec)
     return result
 

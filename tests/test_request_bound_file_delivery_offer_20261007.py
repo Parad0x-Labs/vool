@@ -36,3 +36,10 @@ def test_narrowing_never_mutates_registry_or_seats_an_unavailable_tool():
     assert specs == before
     assert scoped[1] == specs[1]
     assert _scope_download_specs(specs[1:], "Give me a ZIP file") == specs[1:]
+
+def test_native_archive_members_have_one_format_authority():
+    offer = assemble_tool_offer(user_text="Give me an HTML page and CSS file as a zip archive", source_context={})
+    tool = next(t for t in build_cloud_tool_definitions(offer.specs) if t.intent == "file.deliver")
+    members = tool.parameters["properties"]["files"]["items"]
+    assert "format" not in members["properties"]
+    assert members["additionalProperties"] is False

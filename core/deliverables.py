@@ -886,7 +886,17 @@ def _bundle_members(files: list[Any]) -> list[tuple[str, bytes]]:
         if not parts or ".." in parts or raw_path.startswith("/") or re.match(r"^[A-Za-z]:", raw_path):
             raise DeliverableRefused("unsafe_member_name", f"Bundle member name '{raw_path}' must be a relative path inside the bundle.")
         member_dir = "/".join(safe_filename(part) for part in parts[:-1])
-        built = build_file(str(entry.get("content") or ""), filename=parts[-1], fmt=str(entry.get("format") or ""), title=parts[-1], verify=True)
+        member_name = safe_filename(parts[-1])
+        member_extension = _extension_of(member_name)
+        _, resolved_name, _ = resolve_format(member_name, entry.get("format"))
+        known_extension = member_extension in CODE_EXTENSIONS or member_extension.lstrip(".") in (*FORMATS, *_ALIASES)
+        if known_extension and resolved_name != member_name:
+            raise DeliverableRefused(
+                "member_format_mismatch",
+                f"Archive member {member_name} conflicts with its format metadata. "
+                "Keep its requested output extension and omit format so the filename determines its bytes."
+            )
+        built = build_file(str(entry.get("content") or ""), filename=member_name, fmt=str(entry.get("format") or ""), title=parts[-1], verify=True)
         path = (member_dir + "/" if member_dir else "") + built.filename
         stem, suffix, counter = path, "", 2
         if "." in built.filename:
