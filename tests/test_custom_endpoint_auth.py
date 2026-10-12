@@ -199,3 +199,61 @@ def test_model_id_rule_accepts_provider_paths_and_refuses_traversal(model_id, ac
     from core.cloud_model_control import CLOUD_MODEL_ID_RE
 
     assert bool(CLOUD_MODEL_ID_RE.match(model_id)) is accepted
+
+
+def test_a_placement_changed_after_verification_is_probed_again_before_storing(home, monkeypatch):
+    """Verify with Bearer, then preview the SAME endpoint with a header placement, then complete: the
+    Bearer outcome must not be reused for the header placement (audit T-0045 P1)."""
+    from core.command_registry.groups import first_run as fr
+    from core.credential_intelligence.binding import load_index
+
+    monkeypatch.setattr("core.web.api.registry_authorities.bind_saved_cloud_key", lambda _pid: None)
+
+    class In:
+        pass
+
+    with FakeProviderServer(responses=lambda r: (200, MODELS) if r["auth_present"] else (401, {})) as server:
+        _fr, sid, verified = _intake("custom", f"{server.url}/v1", "bearer")
+        assert verified.data["outcome"] == "verified"
+        before = len(server.requests)
+        preview = In(); preview.session_id, preview.provider_id, preview.base_url, preview.auth = (
+            sid, "custom", f"{server.url}/v1", "header:x-api-key")
+        fr._intake_preview(preview, None)
+        stored = _complete(fr, sid, "store")
+        assert len(server.requests) > before, "the header placement was stored without being probed"
+    assert getattr(stored, "detail", {}).get("error") == "not_verified"
+    row = load_index().get("custom") if load_index() else None
+    assert not (isinstance(row, dict) and row.get("status") == "verified")
+
+
+@pytest.mark.parametrize("placement", ["header:x-api-key", "none"])
+def test_save_for_later_keeps_the_placement_through_retry(home, monkeypatch, placement):
+    """Preview with a placement, save for later, retry: the retry verifies with THAT placement and
+    promotes, and the promoted binding keeps it (audit T-0045 P2)."""
+    from core.cloud_providers import committed_custom_auth
+    from core.command_registry.groups import first_run as fr
+
+    monkeypatch.setattr("core.web.api.registry_authorities.bind_saved_cloud_key", lambda _pid: None)
+
+    class In:
+        pass
+
+    def answer(record):
+        if placement == "none":
+            return 200, MODELS
+        return (200, MODELS) if "x-api-key" in record["header_names"] else (401, {})
+
+    with FakeProviderServer(responses=answer) as server:
+        sid = fr._intake_begin(None, None).data["session_id"]
+        classify = In(); classify.session_id, classify.value = sid, "no-key" if placement == "none" else KEY
+        fr._intake_classify(classify, None)
+        preview = In(); preview.session_id, preview.provider_id, preview.base_url, preview.auth = (
+            sid, "custom", f"{server.url}/v1", placement)
+        fr._intake_preview(preview, None)
+        saved = _complete(fr, sid, "later")
+        assert saved.data["quarantined"] is True
+        retry = In(); retry.provider_id = "custom"
+        result = fr._intake_quarantine_retry(retry, None)
+        assert result.data["promoted"] is True, result.data
+        assert not any(r["auth_present"] for r in server.requests), "a Bearer header was sent"
+        assert committed_custom_auth(f"{server.url}/v1") == placement

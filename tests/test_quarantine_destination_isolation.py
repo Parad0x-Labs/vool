@@ -267,6 +267,7 @@ def test_reconcile_adopts_a_late_quarantine_write_as_quarantined(pact_rig, monke
             "digest": _hl.sha256(LATER_KEY.encode()).hexdigest(),
             "phase": "write_pending", "kind": "quarantine", "ts": row["created_at"],
             "endpoint": f"{target.url}/v1", "generation": row["quarantine_generation"],
+            "auth": row["quarantine_auth"],
         })
         journal_path.write_text(_json.dumps(journal))
 
@@ -275,7 +276,9 @@ def test_reconcile_adopts_a_late_quarantine_write_as_quarantined(pact_rig, monke
         restored = _json.loads(rows_path.read_text())["custom"]
         assert restored["status"] == "unverified_quarantined"
         assert restored["quarantine_endpoint"] == f"{target.url}/v1"
-        assert restored["quarantine_generation"] == quarantine_generation_for(LATER_KEY, f"{target.url}/v1")
+        # The custom key's placement (Bearer here) is part of what was saved and of its identity.
+        assert restored["quarantine_auth"] == "bearer"
+        assert restored["quarantine_generation"] == quarantine_generation_for(LATER_KEY, f"{target.url}/v1", "bearer")
         from core import credential_store
 
         assert credential_store.get_credential("llm.cloud.custom") is None, "recovery promoted a quarantined key into a real slot"

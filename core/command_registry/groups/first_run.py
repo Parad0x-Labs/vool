@@ -407,13 +407,28 @@ class _IntakeSession:
     base_url: str = ""
     outcome: Any = None
     endpoint: str = ""
-    #: The key placement the verification ran with (custom endpoint only); an outcome obtained with
-    #: another placement is never reused.
+    #: The key placement chosen for this session (custom endpoint only).
     auth: str = ""
+    #: What ``outcome`` was obtained FOR: provider, endpoint, key placement and the secret's digest
+    #: (``_verification_identity``). An outcome is reused only for exactly that identity; any change
+    #: -- another placement on the same endpoint included -- is verified again before storing.
+    verified_identity: str = ""
 
 
 _INTAKE_SESSIONS: dict[str, _IntakeSession] = {}
 _INTAKE_LOCK = None  # created lazily to avoid import-time locks in spawned processes
+
+
+def _verification_identity(descriptor, value: str) -> str:
+    """The immutable facts one verification answered for: which provider, at which endpoint, with
+    the key placed where, and which secret (by digest only)."""
+    import hashlib
+
+    return "\0".join((
+        str(descriptor.provider_id), str(descriptor.verify_endpoint or ""),
+        str(descriptor.auth_style or ""), str(descriptor.auth_name or ""),
+        hashlib.sha256(str(value or "").encode("utf-8")).hexdigest(),
+    ))
 
 
 def _intake_lock():
@@ -561,6 +576,7 @@ def _intake_classify(inp, ctx):
             session.value = value
             session.outcome = None  # a new paste invalidates any earlier verification
             session.endpoint = ""
+            session.verified_identity = ""
     suggestion = shortlist.suggestion
     payload = {
         "family": key_format.family,
@@ -598,10 +614,20 @@ def _intake_preview(inp, ctx):
         return fault
     with _intake_lock():
         if session is not None:
+            if descriptor.user_endpoint and descriptor.custom_auth == "none":
+                # An open endpoint takes no key: a pasted value is dropped here too, never stored.
+                from core.cloud_providers import CUSTOM_NO_KEY_VALUE
+
+                session.value = CUSTOM_NO_KEY_VALUE
             session.provider_id = descriptor.provider_id
             session.auth = descriptor.custom_auth if descriptor.user_endpoint else ""
             if str(descriptor.auth_style or "") != "url_path_token":
                 session.base_url = base_url
+            if session.verified_identity != _verification_identity(descriptor, session.value):
+                # The selection moved away from what was verified: that outcome answers nothing now.
+                session.outcome = None
+                session.endpoint = ""
+                session.verified_identity = ""
     endpoint = descriptor.verify_endpoint
     origin = f"{urlparse(endpoint).scheme}://{urlparse(endpoint).netloc}" if endpoint else ""
     return HandlerOk(
@@ -653,6 +679,7 @@ def _intake_verify(inp, ctx):
         session.outcome = outcome
         session.endpoint = descriptor.verify_endpoint
         session.auth = descriptor.custom_auth if descriptor.user_endpoint else ""
+        session.verified_identity = _verification_identity(descriptor, session.value)
     data = {key: value for key, value in outcome.to_dict().items() if key != "status"}
     return HandlerOk(
         data={"outcome": str(outcome.status), **data, "label": descriptor.label, "kind": descriptor.kind,
@@ -698,7 +725,7 @@ def _intake_complete_asserted(session: _IntakeSession, descriptor):
     if (
         outcome is None
         or outcome.provider_id != descriptor.provider_id
-        or session.endpoint != descriptor.verify_endpoint
+        or session.verified_identity != _verification_identity(descriptor, session.value)
         or not _can_assert(descriptor, outcome)
     ):
         session.value = ""
@@ -820,7 +847,11 @@ def _intake_complete(inp, ctx):
             summary="stored sealed and QUARANTINED — nothing uses this key until a verification promotes it",
         )
     outcome = session.outcome
-    if outcome is None or outcome.provider_id != descriptor.provider_id or session.endpoint != descriptor.verify_endpoint:
+    if (
+        outcome is None
+        or outcome.provider_id != descriptor.provider_id
+        or session.verified_identity != _verification_identity(descriptor, session.value)
+    ):
         outcome = verify_provider_credential(session.value, descriptor)
     if str(outcome.status) != "verified":
         return HandlerFault(
@@ -935,7 +966,9 @@ def _intake_quarantine_retry(inp, ctx):
     if descriptor.user_endpoint:
         if not snapshot.endpoint:
             return _intake_fault("base_url_required", "the quarantined key has no stored endpoint; delete it and re-save with the base URL", 400)
-        descriptor = descriptor.with_base_url(snapshot.endpoint)
+        # Verified where it was saved AND with the key placement it was saved with: never the live
+        # pair's placement. A row from before placements existed was saved as Bearer.
+        descriptor = descriptor.with_base_url(snapshot.endpoint).with_custom_auth(snapshot.auth or "bearer")
     elif descriptor.endpoint_slot:
         # A key saved for later keeps the origin it was split to; it is verified THERE, never at an
         # origin a later save chose.
