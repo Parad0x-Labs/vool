@@ -105,6 +105,13 @@ _DELIVERABLE_FORMAT = (
     r"(?:word|excel|power\s*point|keynote|google\s+(?:docs?|sheets?|slides?)|pdf|docx|xlsx|xls|pptx|"
     r"odt|ods|odp|rtf|epub)"
 )
+#: Text, data and archive files (measured live 2026-10-06, formats stack: "Created a comprehensive
+#: moving-house checklist and saved it as a Markdown (.md) file for you." on a turn where no tool ran).
+#: These name ordinary words too ("in plain text", "the JSON response"), so they count only as a
+#: FILE: with a file noun, as a bare extension (".md"), or as a filename ("notes.md").
+_DATA_FILE_FORMAT = r"(?:markdown|md|text|txt|plain[\s-]+text|csv|tsv|json|ya?ml|xml|html?|zip|tar(?:\.gz|ball)?|tgz)"
+_DATA_FILE_EXTENSION = r"(?:md|markdown|txt|csv|tsv|json|ya?ml|xml|html?|zip|tar\.gz|tgz)"
+_DATA_FILE_NOUN = r"(?:files?|documents?|docs?|archives?|exports?|versions?|copy|copies|bundles?)"
 _DELIVERABLE_NOUN = (
     r"(?:documents?|docs?|files?|presentations?|decks?|slide\s*decks?|slides(?:hows?)?|spreadsheets?|"
     r"workbooks?|sheets?|reports?|exports?|versions?|copy|copies)"
@@ -118,19 +125,27 @@ _DELIVERABLE_OBJECT = (
     # and ..."); "the Excel formula" and "a PDF reader" are about something else.
     rf"|{_DELIVERABLE_FORMAT}\b(?=\s*(?:[.,;:!?)]|$)|\s+(?:and|so|which|that|for|with|in|to|now|here|"
     rf"is|are|was|were|has|have)\b)"
-    rf"|(?:presentations?|(?:slide\s*)?decks?|spreadsheets?|workbooks?)\b)"
+    rf"|(?:presentations?|(?:slide\s*)?decks?|spreadsheets?|workbooks?)\b"
+    # "a Markdown (.md) file", "a CSV file", "a .txt file", "a .zip", "backup.zip"
+    rf"|{_DATA_FILE_FORMAT}(?:\s*\(\.?{_DATA_FILE_EXTENSION}\))?\s+{_DATA_FILE_NOUN}\b|tarballs?\b)"
     rf"{_DELIVERABLE_NOT_PRODUCT}"
 )
+#: The object as a bare extension (".md") or a filename ("backup.zip"). Only after a production verb:
+#: "Here's your config.yaml:" introduces content shown in the reply, not a file said to exist.
+_DELIVERABLE_NAMED_FILE = rf"(?:(?<![\w.])\.{_DATA_FILE_EXTENSION}\b(?!\.\w)|\b[\w-]+\.{_DATA_FILE_EXTENSION}\b(?!\.\w))"
 _DELIVERABLE_VERB = (
     r"(?:created|generated|made|built|prepared|produced|saved|exported|converted|attached|wrote|written|"
-    r"compiled|put\s+together|uploaded|rendered|packaged)"
+    r"compiled|put\s+together|uploaded|rendered|packaged|zipped|compressed|archived|bundled)"
 )
 #: Words between the verb and the object that make the object a source rather than the product.
 _DELIVERABLE_SOURCE_WORD = r"(?:of|from|about|on|with|by|based|describing|summari[sz]ing|explaining|using|for)"
 _DELIVERABLE_CLAIM_RE = re.compile(
     rf"\b(?:"
     # "saved it as a Word document", "exported the budget to Excel", "created a three-slide PowerPoint presentation"
-    rf"{_DELIVERABLE_VERB}(?:\s+(?!{_DELIVERABLE_SOURCE_WORD}\b)[\w'-]+){{0,6}}?\s+{_DELIVERABLE_OBJECT}"
+    # Not the adjective ("the attached notes.txt", "your exported data"): that names a file someone
+    # else provided or the reply is talking about, not one this turn produced.
+    rf"(?<!\bthe\s)(?<!\byour\s)(?<!\bmy\s)(?<!\bthis\s)(?<!\bthat\s)"
+    rf"{_DELIVERABLE_VERB}(?:\s+(?!{_DELIVERABLE_SOURCE_WORD}\b)[\w'-]+){{0,6}}?\s+(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})"
     # "your Word document is ready", "the PDF has been generated"
     rf"|{_DELIVERABLE_OBJECT}\s+(?:is|are|was|were|has\s+been|have\s+been)\s+(?:now\s+)?"
     rf"(?:ready|created|generated|saved|exported|attached|available|done|complete|uploaded|made|prepared)"
@@ -157,7 +172,7 @@ _DELIVERABLE_PROMISE_RE = re.compile(
     rf"\b(?:(?:i'?ll|i\s+will|let\s+me|i'?m\s+going\s+to|i\s+am\s+going\s+to)\s+(?:now\s+)?(?:go\s+ahead\s+and\s+)?"
     rf"(?:create|generate|make|build|prepare|produce|save|export|convert|put\s+together|compile|render|attach|turn)"
     rf"|(?:now\s+)?(?:creating|generating|exporting|saving|converting|preparing|rendering)\s+(?:the|your|a|an|this)\b)"
-    rf"[^.!?\n]*?\b{_DELIVERABLE_OBJECT}",
+    rf"[^.!?\n]*?(?:\b{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})",
     re.IGNORECASE,
 )
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?:])\s+")
@@ -672,6 +687,16 @@ _DELIVERABLE_FAMILIES = (
     (re.compile(r"\bodp\b", re.IGNORECASE), frozenset({"odp"})),
     (re.compile(r"\brtf\b", re.IGNORECASE), frozenset({"rtf"})),
     (re.compile(r"\bepub\b", re.IGNORECASE), frozenset({"epub"})),
+    (re.compile(r"\bmarkdown\b|(?<![\w])\.?md\b", re.IGNORECASE), frozenset({"md", "markdown"})),
+    (re.compile(r"\b(?:text|txt|plain[\s-]+text)\s+(?:files?|documents?)\b|\.txt\b", re.IGNORECASE), frozenset({"txt"})),
+    (re.compile(r"\bcsv\b", re.IGNORECASE), frozenset({"csv"})),
+    (re.compile(r"\btsv\b", re.IGNORECASE), frozenset({"tsv"})),
+    (re.compile(r"\bjson\b", re.IGNORECASE), frozenset({"json"})),
+    (re.compile(r"\bya?ml\b", re.IGNORECASE), frozenset({"yaml", "yml"})),
+    (re.compile(r"\bxml\b", re.IGNORECASE), frozenset({"xml"})),
+    (re.compile(r"\bhtml?\b", re.IGNORECASE), frozenset({"html", "htm"})),
+    (re.compile(r"\bzip(?:ped)?\b", re.IGNORECASE), frozenset({"zip"})),
+    (re.compile(r"\btar(?:\.gz|ball)?\b|\btgz\b", re.IGNORECASE), frozenset({"gz", "tgz", "tar"})),
 )
 _TOOL_SEGMENT_RE = re.compile(r"[a-z0-9]+")
 _IDENTITY_KEYS = ("format", "filename", "file_name", "path", "file_path", "output_path", "target", "name", "media_type")
