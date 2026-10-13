@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "已取消。未保存任何内容。",
     "xsetup.title": "X(原 Twitter)",
     "xsetup.entry_note": "X 使用多个密钥。引导设置会说明在哪里粘贴什么,并通过一次读取来检查。",
-    "xsetup.open": "连接 X"
+    "xsetup.open": "连接 X",
+    "addons.registry_tab": "技能宝典",
+    "addons.registry_title": "来自创作者的技能和插件",
+    "addons.registry_intro": "由创作者制作。VOOL 不编写也不担保社区技能，自动检查也可能有遗漏。下载软件包进行检查，然后决定是否安装和启用。",
+    "addons.native_authority": "技能只提供指导。VOOL 的原生规则、所有者设置、支出限额、货币处理、权限和批准要求始终优先。",
+    "addons.registry_evidence": "确切文件、权限和来源",
+    "addons.registry_install_only": "安装但不启用",
+    "addons.registry_enable": "安装并启用",
+    "addons.registry_refresh": "浏览技能宝典",
+    "addons.registry_network": "此按钮会请求公开注册表。不会发送账户、聊天、本地文件或提供商密钥。",
+    "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
+    "addons.registry_inspect": "下载以检查"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

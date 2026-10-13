@@ -1,0 +1,62 @@
+# Candidate-editable workflow: advisory only; never the required admission authority.
+# Production requires an authenticated external/protected check and independent signers.
+name: Registry advisory preflight
+on:
+  pull_request:
+    paths:
+      - 'packages/**'
+      - 'policy/**'
+      - 'reviews/**'
+      - '.github/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: registry-advisory-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  advisory-preflight:
+    name: Advisory package evidence check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      VOOL_HOME: ${{ runner.temp }}/vool-registry-profile
+      VOOL_RELEASE_SHA: ${{ vars.VOOL_RELEASE_SHA }}
+      UV_VERSION: ${{ vars.UV_VERSION }}
+      CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Require an immutable released runtime pin
+        run: |
+          python3 -c 'import os,re; assert re.fullmatch("[a-f0-9]{40}",os.environ["VOOL_RELEASE_SHA"]), "Published VOOL release pin missing"; assert re.fullmatch("[0-9]+[.][0-9]+[.][0-9]+",os.environ["UV_VERSION"]), "Pinned uv version missing"'
+      - name: Trusted VOOL tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: Parad0x-Labs/vool
+          ref: ${{ vars.VOOL_RELEASE_SHA }}
+          path: vool
+          persist-credentials: false
+      - name: Protected policy and review inputs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted
+          persist-credentials: false
+      - name: Candidate data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.13'
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: ${{ vars.UV_VERSION }}
+      - name: Install only the trusted release dependencies
+        working-directory: vool
+        run: uv sync --frozen --group ci
+      - name: Advisory validation of signed evidence
+        working-directory: vool
+        run: |
+          uv run --frozen --group ci python -m tools.registry_ci --packages ../candidate/packages --reviews ../trusted/reviews --policy ../trusted/policy/policy.json --root ../trusted/policy/root.json --publication-commit "$CANDIDATE_SHA" --scratch "$RUNNER_TEMP/registry-scratch"

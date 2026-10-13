@@ -376,6 +376,14 @@ def render_mission_answer(
 
 def capture_active_mission_slots(session_id: str, user_text: str, *, turn_id: str | None = None) -> int:
     """Convenience: extract from user_text and upsert. Called from the input path."""
+    # A rules command ("add to chat rules: never fff and ggg") belongs to the rules owner
+    # (core.user_rules), which saves, scopes and removes it. Capturing it here as well left a
+    # second, unremovable copy -- a truncated "never fff and" directive, or a forbidden term saved
+    # even when the rules owner refused the rule -- that "remove rule N" could never lift.
+    from core.user_rules import parse_rule_command
+
+    if parse_rule_command(user_text) is not None:
+        return 0
     slots = extract_active_mission_slots(user_text)
     if not slots:
         return 0

@@ -387,9 +387,67 @@ def test_ordinary_conversation_is_untouched():
     "from core.agent_runtime.evidence_claim_binder import _denial_subjects; "
     "_denial_subjects('I did not open ' + 'a/' * 30000 + 'z', TurnEvidence())",
 ])
-def test_claimed_target_extraction_is_bounded(script):
-    subprocess.run([sys.executable, "-c", script], check=True, timeout=3,
-                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+def test_claimed_target_extraction_is_bounded(script, tmp_path):
+    _run_bounded_claim_worker(script, tmp_path)
+
+
+def _run_bounded_claim_worker(script, tmp_path):
+    """Cold package import has its own bound; the actual parser retains its three seconds."""
+    import json
+
+    setup, call = script.rsplit(";", 1)
+    record = tmp_path / "claim-worker.json"
+    worker = "\n".join([
+        "import json, os, threading, time",
+        "from pathlib import Path",
+        f"record = Path({str(record)!r})",
+        "record.write_text(json.dumps({'pid': os.getpid(), 'phase': 'startup'}))",
+        "startup = time.monotonic()",
+        f"exec({setup!r})",
+        "import_seconds = time.monotonic() - startup",
+        "assert import_seconds < 30, import_seconds",
+        "record.write_text(json.dumps({'pid': os.getpid(), 'phase': 'execution', 'imports': import_seconds}))",
+        "deadline = threading.Timer(3, lambda: os._exit(124))",
+        "deadline.daemon = True",
+        "deadline.start()",
+        "started = time.monotonic()",
+        f"exec({call.strip()!r})",
+        "seconds = time.monotonic() - started",
+        "deadline.cancel()",
+        "deadline.join()",
+        "assert seconds < 3, seconds",
+        "result = {'pid': os.getpid(), 'phase': 'finished', 'imports': import_seconds, 'execution': seconds}",
+        "record.write_text(json.dumps(result))",
+        "print(json.dumps(result))",
+    ])
+    result = subprocess.run(
+        [sys.executable, "-c", worker], check=True, timeout=35,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}, capture_output=True, text=True,
+    )
+    evidence = json.loads(result.stdout)
+    assert evidence["execution"] < 3
+    assert evidence["imports"] < 30
+    return evidence
+
+
+def test_the_claim_execution_deadline_stops_a_real_nonreturning_worker(tmp_path):
+    import json
+
+    with pytest.raises(subprocess.CalledProcessError) as error:
+        _run_bounded_claim_worker("pass; while True: pass", tmp_path)
+    assert error.value.returncode == 124
+    assert json.loads((tmp_path / "claim-worker.json").read_text())["phase"] == "execution"
+
+
+@pytest.mark.parametrize("tail", ["a" * 50000, "a/" * 30000 + "z"], ids=["long-word", "long-path"])
+def test_new_file_claim_shapes_remain_bounded(tail, tmp_path):
+    setup = "from core.agent_runtime.action_honesty_validator import enforce_final_action_honesty"
+    call = (
+        "enforce_final_action_honesty({'response': " + repr(tail) + "}, user_input='Give me a file', "
+        "session_id='bounded-file-output', source_context={})"
+    )
+    _run_bounded_claim_worker(setup + ";" + call, tmp_path)
+
 
 
 @pytest.mark.parametrize("text,expected", [
@@ -457,3 +515,10 @@ def test_exemption_clauses_still_split_at_their_own_boundaries():
     assert _split_clauses("hello  ,  world") == ["hello  ", "world"]
     assert _split_clauses("x,\ty") == ["x", "y"]
     assert _split_clauses("funds   sent") == ["funds   sent"]
+
+
+@pytest.mark.parametrize("text", ["Created /tmp/project/fizz.py.", "Created folder/fizz.py."])
+def test_path_token_boundary_still_detects_real_build_claims(text):
+    from core.agent_runtime.action_honesty_validator import completion_claim_kind
+
+    assert completion_claim_kind(text) == "build"

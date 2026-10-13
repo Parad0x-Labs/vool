@@ -65,6 +65,11 @@ RESERVED_TRUST_KEYS = (
     # Joined into model.call_* evidence by the provider boundary.  A caller must not be able to
     # label an ordinary answer as a bounded conductor generation.
     "model_call_role",
+    # core.user_rules: the rules lane marks the turn it answered (the reply guard leaves that
+    # answer unmasked), and the secret intake marks a remainder it carved a credential out of.
+    # A caller-written marker would let a client switch the reply guard off.
+    "_user_rules_command",
+    "_secret_intake_consumed",
     "access_policy",
     "context_access_policy",
     "_context_access_policy",

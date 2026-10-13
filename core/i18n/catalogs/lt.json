@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "Atšaukta. Niekas neišsaugota.",
     "xsetup.title": "X (buvęs Twitter)",
     "xsetup.entry_note": "X naudoja kelis raktus. Vedlys parodo, ką kur įklijuoti, ir patikrina juos vienu skaitymu.",
-    "xsetup.open": "Prijungti X"
+    "xsetup.open": "Prijungti X",
+    "addons.registry_tab": "Įgūdžių kodeksas",
+    "addons.registry_title": "Kūrėjų įgūdžiai ir papildiniai",
+    "addons.registry_intro": "Sukurta jų kūrėjų. VOOL nerašo bendruomenės įgūdžių ir už juos neatsako, o automatinės patikros gali ką nors praleisti. Atsisiųskite paketą peržiūrai, tada nuspręskite, ar jį įdiegti ir įjungti.",
+    "addons.native_authority": "Įgūdžiai pateikia nurodymus. VOOL vietinės taisyklės, savininko nustatymai, išlaidų ribos, valiutų tvarkymas, leidimai ir patvirtinimai visada turi pirmenybę.",
+    "addons.registry_evidence": "Tikslūs failai, leidimai ir šaltinis",
+    "addons.registry_install_only": "Įdiegti neįjungiant",
+    "addons.registry_enable": "Įdiegti ir įjungti",
+    "addons.registry_refresh": "Naršyti įgūdžių kodeksą",
+    "addons.registry_network": "Šis mygtukas užklausia viešą registrą. Paskyros, pokalbiai, vietiniai failai ir tiekėjų raktai nesiunčiami.",
+    "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
+    "addons.registry_inspect": "Atsisiųsti peržiūrai"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

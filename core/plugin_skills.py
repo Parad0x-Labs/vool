@@ -177,13 +177,18 @@ def rank_skills(skills: tuple[Skill, ...], user_text: str, *, limit: int = 2) ->
     wanted = _tokens(user_text)
     if not wanted:
         return ()
+    # "use the release-notes skill" names the skill outright. That is the strongest statement of
+    # intent there is, and it must not lose to a skill whose description merely shares more words.
+    spoken = " " + " ".join(re.split(r"[^a-z0-9]+", str(user_text or "").lower())) + " "
     scored: list[tuple[int, int, Skill]] = []
     for index, skill in enumerate(skills):
         # An explicit trigger is a stronger statement of intent than a word in prose, so it counts
         # double; without that, a long description outranks a precise trigger list on volume alone.
         explicit = len(wanted & _tokens(" ".join(skill.triggers))) * 2
         described = len(wanted & _tokens(skill.description))
-        score = explicit + described
+        name_words = " ".join(re.split(r"[^a-z0-9]+", str(skill.name or "").lower())).strip()
+        named = 10 if len(name_words) > 2 and f" {name_words} " in spoken else 0
+        score = explicit + described + named
         if score:
             scored.append((-score, index, skill))
     scored.sort()

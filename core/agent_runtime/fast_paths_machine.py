@@ -660,6 +660,7 @@ def _machine_tool_fast_path_result(
         message=step_summary,
         tool_name=intent,
         summary=step_summary,
+        observation=observation,
     )
     approval_request = dict(details.get("approval_request") or {})
     if approval_request:

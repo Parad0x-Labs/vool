@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "בוטל. דבר לא נשמר.",
     "xsetup.title": "X (לשעבר Twitter)",
     "xsetup.entry_note": "X משתמש בכמה מפתחות. ההגדרה המודרכת מסבירה מה להדביק איפה ובודקת אותם בקריאה אחת.",
-    "xsetup.open": "חיבור X"
+    "xsetup.open": "חיבור X",
+    "addons.registry_tab": "קודקס המיומנויות",
+    "addons.registry_title": "מיומנויות ותוספים מהיוצרים שלהם",
+    "addons.registry_intro": "נוצרו על ידי היוצרים שלהן. VOOL לא כותבת מיומנויות של הקהילה ולא ערבה להן, ובדיקות אוטומטיות עלולות לפספס דברים. הורידו את החבילה לבדיקה ואז החליטו אם להתקין ולהפעיל אותה.",
+    "addons.native_authority": "מיומנויות מספקות הוראות. הכללים המקוריים של VOOL, הגדרות הבעלים, מגבלות הוצאה, טיפול במטבעות, הרשאות ודרישות אישור תמיד קודמים להן.",
+    "addons.registry_evidence": "הקבצים המדויקים, ההרשאות והמקור",
+    "addons.registry_install_only": "התקנה ללא הפעלה",
+    "addons.registry_enable": "התקנה והפעלה",
+    "addons.registry_refresh": "עיון בקודקס המיומנויות",
+    "addons.registry_network": "כפתור זה מבקש את המאגר הציבורי. חשבונות, שיחות, קבצים מקומיים או מפתחות ספקים אינם נשלחים.",
+    "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
+    "addons.registry_inspect": "הורדה לבדיקה"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -160,6 +160,8 @@ RUNTIME_TABLES = (
     "calendar_selections",
     "calendar_event_projections",
     "native_notification_requests",
+    # One test's Operator Profile (its timezone, name, rules) must not answer the next test.
+    "operator_profile_items", "operator_profile_history", "operator_profile_state",
     "runtime_checkpoints",
     "runtime_session_events",
     "runtime_sessions",

@@ -108,6 +108,8 @@ _EXTERNAL: dict[str, str] = {
     "cli-script:vool-meet": "meet satellite entry point",
     "cli-script:vool-watch": "watch satellite entry point",
     "cli-script:vool-benchmark": "developer benchmark tool",
+    "cli-script:vool-community": "registry author SDK (local lint/pack/check; no remote writes)",
+    "cli-script:vool-registry": "registry service operator entry point",
     "cli-vool:up": "OS launcher (starts services)",
     # -- wallet / commercial lane (P1 goal exclusion) -------------------------
     "cli-vool:wallet-init": "wallet lane (goal exclusion: wallet)",
