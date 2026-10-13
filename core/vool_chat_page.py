@@ -118,13 +118,6 @@ img.chat-img:hover { border-color:var(--accent); }
 .chat-provenance { margin:10px 0 0; opacity:0.72; font-size:0.92em; max-width:100%; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap; }
 .chat-provenance code { border:0; background:none; padding:0; }
-/* Plain words first; the exact machine line stays one click away under "details" (and on the
-   title), so nobody mistakes a built-in reply for a model answer and nobody has to read a log. */
-.chat-provenance .prov-more { border:0; background:none; padding:0 0 0 6px; color:var(--muted); font:inherit;
-  text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
-.chat-provenance .prov-raw[hidden] { display:none; }
-.chat-provenance.prov-open { white-space:normal; }
-.chat-provenance.prov-open .prov-raw { display:block; margin-top:4px; }
 /* The Proof Chip: one served turn's evidence, projected read-only by the server and rendered
    beside the answer. Collapsed it is one quiet line (actions · sources · cost · STATE); opened it
    shows the expanded account. The state word is the SERVER's verdict, rendered verbatim — this
@@ -4113,20 +4106,6 @@ function agentEvidenceText(rows, nowMs) {
   }
   return out.join('\n').trim();
 }
-// The provenance "details" toggle, for both render paths. Guarded so the renderer helpers
-// around it still load where there is no document (they are also run on their own).
-if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', (ev) => {
-  const btn = ev.target && ev.target.closest ? ev.target.closest('.chat-provenance .prov-more') : null;
-  if (!btn) return;
-  const block = btn.closest('.chat-provenance');
-  const raw = block && block.querySelector('.prov-raw');
-  if (!raw) return;
-  const open = raw.hidden;
-  raw.hidden = !open;
-  block.classList.toggle('prov-open', open);
-  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  btn.textContent = open ? 'hide details' : 'details';
-});
 
 function esc(t) { const d = document.createElement('div'); d.textContent = (t == null ? '' : String(t)); return d.innerHTML; }
 function safeUrl(u) {
@@ -4191,53 +4170,6 @@ function renderInline(html) {
 // code are stateful and regex-only versions break on the first ragged case. Escaping still happens
 // exactly once, up front, so page content can never inject markup, and only http/https URLs ever
 // become anchors.
-// The provenance line (`core/response_provenance.py`) in plain words. The machine line is the
-// record and is never changed or dropped -- it stays in the bubble behind "details" -- but the
-// first thing a person reads is what happened, not lane ids, route names and a build number.
-function provenancePlain(rawLine) {
-  const segs = String(rawLine || '').replace(/^`|`$/g, '').split(' | ').map((s) => s.trim()).filter(Boolean);
-  if (!segs.length) return '';
-  const lane = segs[0];
-  const find = (re) => segs.find((s) => re.test(s)) || '';
-  const out = [];
-  const tokens = find(/^[\d,]+ tok$/);
-  const cost = find(/^\$\d/);
-  if (lane === 'local' || lane === 'cloud') {
-    out.push(lane === 'local' ? 'Answered on this device' : 'Answered by a cloud model');
-    if (segs[1] && segs[1] !== 'model id unrecorded') out.push(segs[1]);
-    if (tokens) out.push(tokens.replace(/ tok$/, ' tokens'));
-    if (cost) out.push(cost);
-  } else if (lane === 'tool') {
-    out.push(/fast_path|smalltalk/.test(segs[1] || '') ? 'Quick built-in reply' : 'Done by a built-in tool');
-    out.push('not written by an AI model');
-  } else if (find(/^not sent$/)) {
-    out.push('Not sent');
-  } else if (find(/^no usable answer$/)) {
-    out.push('The model did not give an answer');
-  } else if (find(/^no model$/)) {
-    out.push('No AI model used');
-  } else {
-    out.push('Answered by a model');
-    if (tokens) out.push(tokens.replace(/ tok$/, ' tokens'));
-  }
-  const files = find(/^\d+ files?$/);
-  if (files) out.push(files + ' changed');
-  if (find(/routing calls?$/)) out.push('a model helped choose the tool');
-  if (find(/model attempts? failed$/)) out.push('a model try failed');
-  if (find(/^local only/)) out.push('cloud blocked');
-  return out.join(' · ');
-}
-
-// One provenance block for the markdown path: plain words, a "details" toggle, and the exact
-// machine line (already escaped + inline-rendered by the caller) hidden until asked for.
-function provenanceBlockHtml(rawLine, renderedLine) {
-  const bare = String(rawLine || '').replace(/^`|`$/g, '');
-  return '<p class="chat-provenance" title="' + esc(bare) + '"><span class="prov-plain">' + esc(provenancePlain(bare))
-    + '</span><button type="button" class="prov-more" aria-expanded="false">details</button>'
-    + '<span class="prov-raw" hidden>' + renderedLine + '</span></p>';
-}
-
-
 function renderRichText(el, text) {
   const raw = text == null ? '' : String(text);
   el.dataset.raw = raw;
@@ -4376,7 +4308,7 @@ function renderRichText(el, text) {
     // paragraph above. Checked BEFORE the table branch on purpose -- it is pipe-separated and sits
     // directly under an action table, which is the one place a row-consuming loop could eat it.
     if (/^\s*`(?:local|cloud|tool|runtime) \| [^`]*`\s*$/.test(line)) {
-      out.push(provenanceBlockHtml(rawLines[i].trim(), renderInline(line.trim())));
+      out.push('<p class="chat-provenance">' + renderInline(line.trim()) + '</p>');
       i += 1;
       continue;
     }
@@ -4459,15 +4391,9 @@ function renderAssistantContent(el, text, displayMetadata) {
   const footer = String((normalized.display_metadata && normalized.display_metadata.provenance_footer) || '').trim();
   if (!footer) { if (vp && vp.review_flagged) { el.dataset.raw = normalized.content; } return; }
   const p = document.createElement('p'); p.className = 'chat-provenance';
-  const rawLine = footer.replace(/^`|`$/g, '');
-  p.title = rawLine;
-  const plain = document.createElement('span'); plain.className = 'prov-plain';
-  plain.textContent = provenancePlain(rawLine);
-  const more = document.createElement('button'); more.type = 'button'; more.className = 'prov-more';
-  more.setAttribute('aria-expanded', 'false'); more.textContent = 'details';
-  const code = document.createElement('code'); code.className = 'prov-raw'; code.hidden = true;
-  code.textContent = rawLine;
-  p.appendChild(plain); p.appendChild(more); p.appendChild(code); el.appendChild(p);
+  const code = document.createElement('code');
+  code.textContent = footer.replace(/^`|`$/g, '');
+  p.appendChild(code); el.appendChild(p);
   // renderRichText deliberately set this to canonical content. Keep copy/pin/history behavior on
   // that authority even though the metadata is now visible in the same bubble.
   el.dataset.raw = normalized.content;
