@@ -375,6 +375,12 @@ header a:hover { text-decoration:underline; }
   header #modelBtn .model-lane.auto + #modelLbl { flex-shrink:0; }
 }
 #menu { display:none; background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; cursor:pointer; }
+/* Zero-height anchor between the conversation and the composer: the button floats over the
+   bottom of #log without taking layout space from either. */
+#jumpLatestWrap { position:relative; height:0; z-index:5; }
+#jumpLatest { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:5px 14px; font:inherit; font-size:12.5px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.28); }
+#jumpLatest:hover, #jumpLatest:focus-visible { border-color:var(--accent); }
+#jumpLatest[hidden] { display:none; }
 #log { flex:1; overflow-y:auto; padding:28px max(20px,calc((100% - 760px)/2)); display:flex; flex-direction:column; gap:14px; user-select:text; -webkit-user-select:text; cursor:text; background:var(--chat); }
 .msg { position:relative; max-width:min(760px,92%); padding:10px 34px 10px 14px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; user-select:text; -webkit-user-select:text; }
 .msg.user { align-self:flex-end; background:var(--user); border:1px solid var(--border); }
@@ -414,6 +420,9 @@ header a:hover { text-decoration:underline; }
 .empty { color:var(--ink); align-self:center; margin-top:12vh; text-align:center; max-width:560px; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
 .empty-sub { color:var(--ink); font-size:16px; margin-bottom:18px; }
+.empty-starts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 auto 18px; }
+.empty-start { background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; }
+.empty-start:hover, .empty-start:focus-visible { border-color:var(--accent); }
 .empty-hint { font-family:Georgia,'Times New Roman',serif; font-style:italic; font-size:14px; line-height:1.5; color:var(--ink); max-width:440px; margin:2px auto 0; }
 /* A size container: the control row's breakpoint has to key off the room the FOOTER actually has,
    not off the window. The sidebar and the Activity panel can take 900px of a 1280px window, so a
@@ -1142,6 +1151,7 @@ body:not(.panel-open) #xpanel { display:none; }
   <button type="button" id="searchClose" class="search-btn" title="Close search (Esc)" aria-label="Close search" data-i18n-title="header.search_close_title" data-i18n-aria-label="header.search_close_aria">&times;</button>
 </div>
 <div id="log" role="log" aria-live="polite" aria-label="Conversation" data-i18n-aria-label="chat.log_aria"></div>
+<div id="jumpLatestWrap"><button type="button" id="jumpLatest" hidden title="Jump to the latest message" aria-label="Jump to the latest message" data-i18n="chat.jump_latest" data-i18n-title="chat.jump_latest_title" data-i18n-aria-label="chat.jump_latest_title">&darr; Latest</button></div>
 <footer>
   <div id="setupLine" class="setup-line" role="status" hidden>
     <span class="setup-line-text" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; four quick steps.</span>
@@ -1504,6 +1514,43 @@ body:not(.panel-open) #xpanel { display:none; }
   });
 })();
 const logEl = document.getElementById('log');
+// The browser tab tells someone working in another tab that VOOL is done or waiting on them, and
+// goes back to plain "VOOL" the moment they look. Only a real terminal state marks it.
+const TAB_TITLE = document.title || 'VOOL';
+function markTabTitle(kind) {
+  if (!document.hidden) return;
+  const word = kind === 'completed' ? pageT('chat.tab_answer_ready', 'Answer ready')
+    : kind === 'awaiting_approval' ? pageT('chat.tab_needs_you', 'Needs your OK')
+    : kind === 'failed' ? pageT('chat.tab_failed', 'Something went wrong') : '';
+  if (word) document.title = '\u25CF ' + word + ' \u00B7 ' + TAB_TITLE;
+}
+// Shortcut key caps say what to press on THIS machine: the handlers all accept Cmd or Ctrl, so a
+// Mac shows the command sign and Linux/Windows show "Ctrl+". Unknown platforms keep the sign.
+const VOOL_IS_MAC = (() => {
+  try {
+    const p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '';
+    return !p || /mac|iphone|ipad|ipod/i.test(p);
+  } catch (e) { return true; }
+})();
+function voolKeyLabel(text) { return VOOL_IS_MAC ? String(text) : String(text).replace(/\u2318\s?/g, 'Ctrl+'); }
+function voolKeyLabelsIn(root) {
+  if (VOOL_IS_MAC || !root) return;
+  root.querySelectorAll('kbd').forEach((k) => { if (k.textContent.indexOf('\u2318') !== -1) k.textContent = voolKeyLabel(k.textContent); });
+}
+// The conversation follows new text only while the reader is already at the bottom. Scrolling up
+// to read an earlier answer pins the view where the reader left it; the "Latest" button (shown
+// while they are scrolled away from the bottom) brings them back. Their own send always follows.
+const LOG_FOLLOW_SLACK = 80;
+let logFollowing = true;
+const jumpLatestEl = document.getElementById('jumpLatest');
+function logAtBottom() { return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight <= LOG_FOLLOW_SLACK; }
+function syncJumpLatest() { if (jumpLatestEl) jumpLatestEl.hidden = logFollowing || logAtBottom(); }
+function followLog(force) {
+  if (force || logFollowing) { logEl.scrollTop = logEl.scrollHeight; logFollowing = true; }
+  syncJumpLatest();
+}
+logEl.addEventListener('scroll', () => { logFollowing = logAtBottom(); syncJumpLatest(); }, { passive: true });
+if (jumpLatestEl) jumpLatestEl.addEventListener('click', () => followLog(true));
 const inputEl = document.getElementById('input');
 const sendEl = document.getElementById('send');
 // Catalog lookup for the composer's own words: the deterministic i18n bundle resolves the
@@ -2387,9 +2434,17 @@ function showEmpty() {
     ['first_run.fact_20', 'Bigger is not always better — a small local model answers everyday questions instantly.'],
   ];
   const fact = facts[Math.floor(Math.random() * facts.length)];
+  // Three first steps a new person can take with one tap. Each only fills the message box -- it
+  // never sends -- so the model, mode and every approval stay exactly what the person chose.
+  const starts = [
+    ['first_run.start_what_can_you_do', 'What can you do?'],
+    ['first_run.start_plan_my_day', 'Help me plan my day'],
+    ['first_run.start_explain', 'Explain something to me simply'],
+  ];
   logEl.innerHTML = '<div class="empty">'
     + '<div class="empty-greet">' + esc(greet) + '</div>'
     + '<div class="empty-sub">' + esc(line) + '</div>'
+    + '<div class="empty-starts">' + starts.map((st) => { const t = emptyT(st[0], st[1]); return '<button type="button" class="empty-start" data-start="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>'
     + '<div class="empty-hint">“' + esc(emptyT(fact[0], fact[1])) + '”</div>'
     + '</div>';
 }
@@ -2480,7 +2535,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   el.appendChild(actions);
   if (role === 'assistant' && requestId) mountAnswerExport(el, displayedChat, requestId);
   logEl.appendChild(el);
-  logEl.scrollTop = logEl.scrollHeight;
+  followLog(role === 'user');   // the reader's own message always brings them down; replies follow only if they were there
   return el;
 }
 
@@ -2544,7 +2599,7 @@ async function unpinFromPanel(pinId) {
 }
 
 function copyText(text, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = (typeof pageT === 'function') ? pageT('msg.copied', 'Copied') : 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, btn, done));
   } else {
@@ -2570,7 +2625,7 @@ function fallbackCopy(text, btn, done) {
 // hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
 function copiedFail(btn) {
   if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
-  btn.textContent = 'Copy failed';
+  btn.textContent = (typeof pageT === 'function') ? pageT('msg.copy_failed', 'Copy failed') : 'Copy failed';
   setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
 }
 
@@ -2597,7 +2652,7 @@ function richHtmlFor(raw) {
 }
 
 function copyRichMessage(raw, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = (typeof pageT === 'function') ? pageT('msg.copied', 'Copied') : 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
   let html = '';
   try { html = richHtmlFor(raw); } catch (e) { html = ''; }
   if (!html || typeof window.ClipboardItem !== 'function' || !(navigator.clipboard && navigator.clipboard.write)) { copyText(raw, btn); return; }
@@ -3405,7 +3460,7 @@ function renderChat(chatId) {
   // A turn still in flight has no history entry yet: give it a live bubble seeded from run.text.
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
   repaintCouncilCards(chatId, councilRows);
-  logEl.scrollTop = logEl.scrollHeight;
+  followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
 }
@@ -3787,6 +3842,9 @@ function renderInline(html) {
 // code are stateful and regex-only versions break on the first ragged case. Escaping still happens
 // exactly once, up front, so page content can never inject markup, and only http/https URLs ever
 // become anchors.
+// The code-block Copy label in the UI language. The renderer is also lifted out and run on its
+// own (rich copy, sanitised exports), where the page's catalog lookup may not exist: English then.
+function codeCopyLabel(key, fallback) { return (typeof pageT === 'function') ? pageT(key, fallback) : fallback; }
 function renderRichText(el, text) {
   const raw = text == null ? '' : String(text);
   el.dataset.raw = raw;
@@ -3901,7 +3959,7 @@ function renderRichText(el, text) {
       const rawBody = rawLines.slice(bodyStart, i).join('\n');
       i += 1;
       const lang = fence[2] ? ' class="lang-' + esc(fence[2].toLowerCase()) + '"' : '';
-      out.push('<div class="chat-code-wrap" data-raw-code="' + encodeURIComponent(rawBody) + '"><button type="button" class="code-copy" title="Copy this code block exactly">Copy</button><pre class="chat-code"><code' + lang + '>' + body.join('\n') + '</code></pre></div>');
+      out.push('<div class="chat-code-wrap" data-raw-code="' + encodeURIComponent(rawBody) + '"><button type="button" class="code-copy" title="' + esc(codeCopyLabel('msg.code_copy_title', 'Copy this code block exactly')) + '">' + esc(codeCopyLabel('msg.copy', 'Copy')) + '</button><pre class="chat-code"><code' + lang + '>' + body.join('\n') + '</code></pre></div>');
       continue;
     }
 
@@ -4269,6 +4327,14 @@ function openImageMenu(img, x, y) {
 }
 if (logEl) {
   logEl.addEventListener('click', (e) => {
+    const start = e.target.closest && e.target.closest('.empty-start');
+    if (start) {
+      inputEl.value = start.dataset.start || start.textContent;
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.focus();
+      inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+      return;
+    }
     const img = e.target.closest && e.target.closest('img.chat-img');
     if (img && img.dataset.local) { e.preventDefault(); openImageNative(img.dataset.local); }
     // Code-block Copy is delegated here once, so message re-renders can never drop it. The
@@ -4551,7 +4617,7 @@ function buildCard(run, host) {
   run.card = card; run.refs = refs;
   if (run.permission || run.pricePaused) card.classList.add('tc-hold');   // re-built mid-approval: the mark holds, it is not working
   if (run.ended) refs.stop.style.display = 'none';   // a re-hung terminal card has nothing to stop
-  logEl.scrollTop = logEl.scrollHeight;
+  if (typeof followLog === 'function') followLog();
   renderCard(run);
   return refs;
 }
@@ -4805,6 +4871,7 @@ function finishRun(run, kind, summaryText, tsIso) {
   paintFinishedCard(run);
   if (isDisplayed(run.chatId)) renderPanel();
   setTimeout(loadActivityHistory, 250);
+  if (typeof markTabTitle === 'function') markTabTitle(kind);
   // Named fragment call site: lifecycle notifications. The fragment decides visibility (it only
   // surfaces completions the operator was NOT looking at); this site only reports the truth.
   if (window.VoolNotify && window.VoolNotify.runFinished) {
@@ -6415,9 +6482,13 @@ function emptyScopeText(kind) {
   if (panelScope === 'all') return 'No ' + kind + ' recorded anywhere in VOOL yet.';
   return 'No ' + kind + ' for ' + scopeWhere() + ' yet.';
 }
-function chatTitleFor(sid) {
+// `untitled` lets a caller name a chat that has no title yet in words ("New chat") instead of the
+// id tail, which only means something next to other ids (the Activity groups keep the tail).
+function chatTitleFor(sid, untitled) {
   const chat = _lastSessions.find((s) => s.session_id === sid) || {};
-  return chat.title || String(sid || '').slice(-8) || 'Chat';
+  if (chat.title) return chat.title;
+  if (untitled != null) return untitled;
+  return String(sid || '').slice(-8) || 'Chat';
 }
 function scopeKey() { return panelScope + '|' + displayedChat + '|' + (view.projectId || ''); }
 // Durable per-chat ledgers for a wider scope. Chat scope needs none of this: the open chat's own
@@ -7347,7 +7418,7 @@ async function runTurn(text, queueItemId, opts) {
             run.assistantMsgEl.classList.remove('pending');
             renderAssistantContent(run.textEl, assistant, run.displayMetadata);
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
-            logEl.scrollTop = logEl.scrollHeight;
+            followLog();
           });
           continue;
         }
@@ -7365,7 +7436,7 @@ async function runTurn(text, queueItemId, opts) {
             run.assistantMsgEl.classList.remove('pending');
             run.textEl.textContent = assistant;
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
-            logEl.scrollTop = logEl.scrollHeight;
+            followLog();
           });
         }
       }
@@ -9812,7 +9883,7 @@ async function brCopyReport(btn) {
       remove_fields: brFlow.removedFields, remove_attachments: brFlow.removedAttachments,
     });
     await brWriteClipboard(data.clipboard_text || '');
-    if (btn) { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
+    if (btn) { btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
     toast('Report copied. Paste it wherever you want to send it.');
   } catch (e) {
     toast('Copy failed (' + e.message + '). Use "Save a local copy" instead.');
@@ -10491,7 +10562,7 @@ async function renderKeys() {
       note.innerHTML = '';
       const t = document.createElement('span'); t.textContent = text; note.appendChild(t);
       const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'set-btn key-copy'; cp.textContent = 'Copy';
-      cp.addEventListener('click', () => { try { navigator.clipboard.writeText(k.label + ': ' + text); cp.textContent = 'Copied'; setTimeout(() => { cp.textContent = 'Copy'; }, 1500); } catch (e) {} });
+      cp.addEventListener('click', () => { try { navigator.clipboard.writeText(k.label + ': ' + text); cp.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { cp.textContent = 'Copy'; }, 1500); } catch (e) {} });
       note.appendChild(cp);
     });
     row.appendChild(dot); row.appendChild(lbl); row.appendChild(test); row.appendChild(diag);
@@ -11860,11 +11931,40 @@ if (xpScopeEl) {
 const xpCopyEl = document.getElementById('xpCopy');
 if (xpCopyEl) xpCopyEl.addEventListener('click', () => copyPanelEvidence(xpCopyEl, panelTab || 'Activity'));
 inputEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  // Enter that confirms an input-method candidate (Japanese, Chinese, Korean...) is part of
+  // typing, not a send.
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return; }
+  // Up in an EMPTY box brings back your last message to fix and resend; it never sends by itself
+  // and never replaces anything you have typed or attached.
+  if (e.key === 'ArrowUp' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && !inputEl.value) {
+    if (attachBucket(displayedChat).length) return;
+    const mine = logEl.querySelectorAll('.msg.user');
+    const last = mine.length ? msgTextEl(mine[mine.length - 1]) : null;
+    // Attachment markers stay with the message that carried them: only the typed words come back.
+    const text = last ? textWithoutMarkers(last.dataset.raw != null ? last.dataset.raw : last.textContent) : '';
+    if (!text) return;
+    e.preventDefault();
+    inputEl.value = text;
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    inputEl.setSelectionRange(text.length, text.length);
+  }
 });
 
 const modelConnectEl = document.getElementById('modelConnect');
 if (modelConnectEl) modelConnectEl.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('modelPop').classList.remove('open'); document.getElementById('modelBtn').setAttribute('aria-expanded', 'false'); document.getElementById('settingsBtn').click(); });
+// A phone has no Shift key to hint at: narrow screens get the short placeholder, so the box says
+// what it is for instead of a cut-off keyboard tip.
+(() => {
+  if (!window.matchMedia) return;
+  const narrow = window.matchMedia('(max-width: 600px)');
+  const full = inputEl.getAttribute('placeholder') || '';
+  const apply = () => { inputEl.placeholder = narrow.matches ? pageT('composer.placeholder_short', 'Message VOOL') : pageT('composer.placeholder', full); };
+  apply();
+  // The i18n DOM pass fills data-i18n-placeholder on DOMContentLoaded; re-apply after it.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  if (narrow.addEventListener) narrow.addEventListener('change', apply);
+})();
 initComposerControls();
 buildTabs();
 loadSessions();
@@ -11989,6 +12089,7 @@ setInterval(refreshSidebarActivity, 5000);        // the only tick that touches 
 document.addEventListener('visibilitychange', () => {
   // Regaining focus on the chat already on screen is the same acknowledgment as opening it.
   if (!document.hidden && displayedChat) markChatSeen(displayedChat);
+  if (!document.hidden) document.title = TAB_TITLE;
   maybeRepaintSidebarLifecycle();
 });
 

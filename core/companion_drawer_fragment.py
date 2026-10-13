@@ -156,6 +156,7 @@ function mountNewChatKbd(){
   if (!btn || btn.querySelector('kbd')) return;
   var chip = document.createElement('kbd');
   chip.textContent = '\\u2318N';
+  if (typeof voolKeyLabel === 'function') chip.textContent = voolKeyLabel(chip.textContent);
   btn.appendChild(chip);
 }
 

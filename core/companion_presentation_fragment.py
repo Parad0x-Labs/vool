@@ -659,15 +659,17 @@ function vnClampBubble() {
   vnBubble.style.setProperty("--vn-bubble-dx", dx + "px");
 }
 /* The BOUND chat's title. The chat page already owns chat titles, so reuse that owner instead
-   of duplicating the lookup; if it is not reachable from here, fall back to the session tail
-   the page itself uses. Never another chat's title -- always the id this pet is bound to. */
+   of duplicating the lookup. A chat with no title yet reads "New chat" in the UI language, never
+   a raw id tail a person cannot place. Never another chat's title -- always the id this pet is
+   bound to. */
 function vnBoundChatTitle(chatId) {
   const id = String(chatId || "");
   if (!id) return "";
+  const untitled = vnLabel("companion.untitled_chat", "New chat");
   if (typeof chatTitleFor === "function") {
-    try { const t = chatTitleFor(id); if (t) return String(t); } catch (e) { /* fall through */ }
+    try { const t = chatTitleFor(id, untitled); if (t) return String(t); } catch (e) { /* fall through */ }
   }
-  return id.slice(-8);
+  return untitled;
 }
 /* Two grounded lines. `activity` is only ever a reducer-resolved phrase or typed state name. */
 function vnSetBubble(title, activity, visible) {

@@ -149,7 +149,7 @@ function renderList(){
         if (action.command) return registryRow(action.command, index);
         return '<div class="vp-item' + (index === selected ? ' vp-sel' : '') + '" role="option"' +
           ' aria-selected="' + (index === selected) + '" data-vp="' + esc(action.id) + '">' +
-          esc(action.label) + (action.kbd ? '<span class="vp-kbd">' + esc(action.kbd) + '</span>' : '') +
+          esc(action.label) + (action.kbd ? '<span class="vp-kbd">' + esc(typeof voolKeyLabel === 'function' ? voolKeyLabel(action.kbd) : action.kbd) + '</span>' : '') +
           '</div>';
       }).join('')
     : '<div class="vp-empty">No matching command</div>';
@@ -301,6 +301,8 @@ function vpMountHint(){
     + ' \u00b7 <kbd>⌘F</kbd> ' + vpHintT('palette.hint_search_chats', 'search chats')
     + ' \u00b7 <kbd>⌘,</kbd> ' + vpHintT('palette.hint_settings', 'settings')
     + ' \u00b7 <kbd>Esc</kbd> ' + vpHintT('palette.hint_esc_stop', 'stop');
+  // The page relabels the command sign as Ctrl+ off a Mac (every shortcut accepts either key).
+  if (typeof voolKeyLabelsIn === 'function') voolKeyLabelsIn(hint);
   host.appendChild(hint);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', vpMountHint);
