@@ -71,7 +71,7 @@ def research_contracts(*, x_connected: bool = False) -> list[Any]:
                 "post for it. Each part says plainly when it could not be read."
             ),
             tool_surface=SURFACE,
-            capability_id=INTENT,
+            capability_id="web.token_research",
             capability_claim="research a token's public on-chain facts, creator, links and early X posts",
             supported=True,
             unsupported_reason="",
@@ -99,7 +99,7 @@ def research_contracts(*, x_connected: bool = False) -> list[Any]:
                 "launch program's). Read-only, nothing is bought or traded. Follow up with token.research on any of them."
             ),
             tool_surface=SURFACE,
-            capability_id=LAUNCHES_INTENT,
+            capability_id="web.token_launches",
             capability_claim="list the newest Solana tokens through the user's Helius key",
             supported=True,
             unsupported_reason="",

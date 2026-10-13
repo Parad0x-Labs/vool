@@ -1,5 +1,5 @@
 {
-  "intent_count": 136,
+  "intent_count": 138,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -108,6 +108,8 @@
     "skill.remove",
     "skill.rollback",
     "skill.validate",
+    "token.launches",
+    "token.research",
     "web.chain_lookup",
     "web.fetch",
     "web.research",
@@ -138,7 +140,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 136,
+  "native_definition_count": 138,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -10444,6 +10446,231 @@
             "manual": "allow",
             "plan": "allow",
             "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.launches": {
+      "arguments": [
+        "authority",
+        "creator",
+        "limit"
+      ],
+      "description": "List the newest tokens created on Solana, newest first, with the user's own Helius key: address, name, symbol and authority. Optionally only tokens with a given creator or authority address (for example one launch program's). Read-only, nothing is bought or traded. Follow up with token.research on any of them.",
+      "native_name": "token__launches",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "authority": {
+            "description": "str (optional): only tokens with this authority address",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creator": {
+            "description": "str (optional): only tokens listing this creator address",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "int (optional, 1-50): how many, default 20",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "limit",
+          "authority",
+          "creator"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.research": {
+      "arguments": [
+        "chain",
+        "creator",
+        "parts",
+        "token"
+      ],
+      "description": "Research a token from public data with the user's own keys, in one call: its facts (name, symbol, supply), its largest holders and how concentrated they are, who created it and whether anyone can still mint or freeze it, what else that creator launched, the website and social links its metadata lists, and (when X is connected) who posted about it first. Solana, Ethereum, Base and BNB Smart Chain. Read-only. Use it for 'research this token', 'who deployed this', 'what else did the dev launch'. Give a contract address; a $TICKER or name alone only searches X for the addresses people post for it. Each part says plainly when it could not be read.",
+      "native_name": "token__research",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chain": {
+            "description": "str (optional): solana | ethereum | base | bnb (needed for a 0x address)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creator": {
+            "description": "str (optional): a creator address, to list only what it launched",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parts": {
+            "description": "list[str] (optional): any of facts, holders, creator, creator_tokens, links, x; default all",
+            "items": {},
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "token": {
+            "description": "str: token mint or contract address, or a $TICKER / name (X search only)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "chain",
+          "parts",
+          "creator"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
           }
         }
       },
