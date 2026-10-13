@@ -720,7 +720,11 @@ def _clean_fact_value(value: str, *, title_case: bool = False) -> str:
 
 
 def _redact_sensitive_text(text: str) -> str:
-    clean = str(text or "")
+    # The persistence authority first: it masks the PINs, card numbers and passwords this lane's
+    # own patterns do not know, so the extraction model never reads a value the user typed.
+    from core.secret_redaction import redact_secrets
+
+    clean = redact_secrets(str(text or ""))
     for pattern in _SECRET_PATTERNS:
         clean = pattern.sub("[REDACTED]", clean)
     return clean

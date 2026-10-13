@@ -7396,6 +7396,13 @@ def _dispatch_post_inner(
             session_id=session_id,
             user_text=user_text,
         )
+        # The browser re-sends every earlier message as typed. A PIN, card number or password in
+        # one is masked here, after the chat id is derived, so no later lane, prompt or record of
+        # this turn carries it; the current message still reaches secret intake as typed.
+        from core.secret_redaction import redacted_copy
+
+        client_history = redacted_copy(client_history)
+        history = redacted_copy(history)
         # The client sends a per-turn id it also uses to cancel; stamp it so stream_agent_with_events
         # registers a cancel Event under (session_id, turn_id) for this turn.
         inbound_source_context["price_wait_queue_id"] = str(body.get("queue_item_id") or "").strip()[:200] if owner_local else ""

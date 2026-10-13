@@ -333,6 +333,13 @@ def note_governance_event(
 # ── Admission ────────────────────────────────────────────────────────────────
 
 
+def _secrets_withheld(text: str) -> str:
+    """``text`` with every secret the persistence authority knows masked; unchanged otherwise."""
+    from core.secret_redaction import contains_secret, redact_secrets
+
+    return redact_secrets(text) if text and contains_secret(text) else text
+
+
 def resolve_principal(source_context: dict[str, Any] | None) -> str:
     """Principal for a request: the trusted owner, else the channel identity.
 
@@ -375,7 +382,9 @@ def admit_turn_context(
         raise ValueError(f"unknown origin: {origin!r}")
     if not str(scope.principal or "").strip() or not str(scope.session_id or "").strip():
         raise ValueError("admission requires a principal and a session scope")
-    text = str(content or "")
+    # A typed PIN, card number or password never enters a page a later turn serves to a model.
+    text = _secrets_withheld(str(content or ""))
+    title = _secrets_withheld(str(title or ""))
     if not text.strip():
         raise ValueError("refusing to admit empty context")
 
@@ -766,13 +775,16 @@ def compile_turn_context(
                 _exclusion(record, f"a8_availability_{str(verdict).lower()}")
             )
             continue
+        # A page admitted before secrets were masked at write keeps its bytes; it is served masked.
+        content = _secrets_withheld(content)
+        title = _secrets_withheld(str(record["title"] or ""))
         pinned = (
             _active_pin_count(str(record["page_hash"])) > 0
             and str(record["session_id"]) == str(session_id)
         )
         score = relevance_score(
             query_text,
-            title=str(record["title"] or ""),
+            title=title,
             content=content,
             source_kind=str(record["source_kind"] or ""),
         )
@@ -787,7 +799,7 @@ def compile_turn_context(
                 ContextSelection(
                     admission_id=str(record["admission_id"]),
                     page_hash=str(record["page_hash"]),
-                    title=str(record["title"] or ""),
+                    title=title,
                     origin=str(record["origin"] or "inferred"),
                     source_kind=str(record["source_kind"] or ""),
                     pinned=pinned,
@@ -887,7 +899,7 @@ def _exclusion(record: dict[str, Any], reason: str) -> dict[str, Any]:
     return {
         "admission_id": str(record["admission_id"]),
         "page_hash": str(record["page_hash"]),
-        "title": str(record["title"] or ""),
+        "title": _secrets_withheld(str(record["title"] or "")),
         "reason": reason,
     }
 
@@ -991,10 +1003,10 @@ def recall_page(principal: str, admission_id: str) -> dict[str, Any]:
     return {
         "admission_id": admission_id,
         "page_hash": str(record["page_hash"]),
-        "content": content,
+        "content": _secrets_withheld(content),
         "origin": str(record["origin"]),
         "source_kind": str(record["source_kind"]),
-        "title": str(record["title"] or ""),
+        "title": _secrets_withheld(str(record["title"] or "")),
         "status": status,
         "bytes": int(record["bytes"] or 0),
         "created_at": str(record["created_at"]),
@@ -1301,7 +1313,7 @@ def inspect_admissions(
             "generation": int(record["generation"] or 0),
             "origin": str(record["origin"]),
             "source_kind": str(record["source_kind"]),
-            "title": str(record["title"] or ""),
+            "title": _secrets_withheld(str(record["title"] or "")),
             "status": str(record["status"]),
             "bytes": int(record["bytes"] or 0),
             "created_at": str(record["created_at"]),
@@ -1309,7 +1321,9 @@ def inspect_admissions(
         }
         if include_content:
             try:
-                entry["content"] = page_in(str(record["page_hash"]), chat_id=str(record["session_id"]))
+                entry["content"] = _secrets_withheld(
+                    page_in(str(record["page_hash"]), chat_id=str(record["session_id"]))
+                )
             except PageNotFoundError:
                 entry["content"] = None
                 entry["content_state"] = "erased_or_volatile"
