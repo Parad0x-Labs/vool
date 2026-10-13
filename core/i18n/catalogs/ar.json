@@ -720,6 +720,7 @@
     "msg.edit_title": "أعد هذه الرسالة إلى المربع لتعديلها وإرسالها مرة أخرى",
     "msg.retry": "حاول مرة أخرى",
     "msg.retry_box_busy": "مربع الرسائل يحتوي على شيء بالفعل. أرسله أو امسحه أولًا.",
+    "msg.retry_files_again": "عادت كلماتك إلى المربع. أرفق الملفات مرة أخرى، ثم أرسل.",
     "msg.retry_nothing": "تلك الرسالة كانت مرفقات فقط. أرفقها مرة أخرى لتسأل من جديد.",
     "msg.retry_title": "اطرح السؤال نفسه مرة أخرى كرسالة جديدة",
     "notif.action_failed": "لم ينجح ذلك (",
@@ -1858,7 +1859,7 @@
     "xsetup.entry_note": "يستخدم X عدة مفاتيح. يوضح الإعداد الموجَّه ما تلصقه وأين، ويتحقق منها بقراءة واحدة.",
     "xsetup.open": "ربط X"
   },
-  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
+  "source_catalog_sha256": "cceca037f89a043781127a0d2b67616d5affbd7d98016f4fb5b99a8d4705f983",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

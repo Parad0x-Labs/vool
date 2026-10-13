@@ -720,6 +720,7 @@
     "msg.edit_title": "このメッセージを入力欄に戻して、直してから送り直す",
     "msg.retry": "もう一度",
     "msg.retry_box_busy": "入力欄にすでに内容があります。先に送信するか消してください。",
+    "msg.retry_files_again": "入力欄に文章を戻しました。ファイルをもう一度添付してから送信してください。",
     "msg.retry_nothing": "そのメッセージは添付ファイルだけでした。もう一度聞くには添付し直してください。",
     "msg.retry_title": "同じ質問を新しいメッセージとしてもう一度送る",
     "notif.action_failed": "うまくいきませんでした（",
@@ -1858,7 +1859,7 @@
     "xsetup.entry_note": "X は複数のキーを使います。ガイド付き設定が何をどこに貼るかを示し、1 回の読み取りで確認します。",
     "xsetup.open": "X を接続"
   },
-  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
+  "source_catalog_sha256": "cceca037f89a043781127a0d2b67616d5affbd7d98016f4fb5b99a8d4705f983",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -907,6 +907,7 @@
     "msg.edit_title": "Put this message back in the box to change it and send it again",
     "msg.retry": "Try again",
     "msg.retry_box_busy": "Your message box already has something in it. Send or clear it first.",
+    "msg.retry_files_again": "Your words are back in the box. Attach the files again, then send.",
     "msg.retry_nothing": "That message had only attachments. Attach them again to ask again.",
     "msg.retry_title": "Ask the same question again as a new message",
     "notif.action_failed": "That did not work (",

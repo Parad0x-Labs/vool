@@ -720,6 +720,7 @@
     "msg.edit_title": "Remettre ce message dans la zone de saisie pour le modifier et le renvoyer",
     "msg.retry": "Réessayer",
     "msg.retry_box_busy": "Ta zone de saisie contient déjà quelque chose. Envoie-le ou efface-le d’abord.",
+    "msg.retry_files_again": "Vos mots sont de retour dans la zone de saisie. Joignez à nouveau les fichiers, puis envoyez.",
     "msg.retry_nothing": "Ce message ne contenait que des pièces jointes. Joins-les à nouveau pour reposer la question.",
     "msg.retry_title": "Reposer la même question dans un nouveau message",
     "notif.action_failed": "Cela n'a pas fonctionné (",
@@ -1858,7 +1859,7 @@
     "xsetup.entry_note": "X utilise plusieurs clés. La configuration guidée indique quoi coller où et les vérifie par une lecture.",
     "xsetup.open": "Connecter X"
   },
-  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
+  "source_catalog_sha256": "cceca037f89a043781127a0d2b67616d5affbd7d98016f4fb5b99a8d4705f983",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

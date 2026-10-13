@@ -720,6 +720,7 @@
     "msg.edit_title": "Devolver este mensaje al cuadro para cambiarlo y enviarlo de nuevo",
     "msg.retry": "Reintentar",
     "msg.retry_box_busy": "Tu cuadro de mensaje ya tiene algo. Envíalo o bórralo primero.",
+    "msg.retry_files_again": "Tus palabras están de nuevo en el cuadro. Adjunta los archivos otra vez y luego envía.",
     "msg.retry_nothing": "Ese mensaje solo tenía archivos adjuntos. Adjúntalos otra vez para volver a preguntar.",
     "msg.retry_title": "Hacer la misma pregunta otra vez como mensaje nuevo",
     "notif.action_failed": "Eso no funcionó (",
@@ -1858,7 +1859,7 @@
     "xsetup.entry_note": "X usa varias claves. La configuración guiada indica qué pegar en cada sitio y las comprueba con una lectura.",
     "xsetup.open": "Conectar X"
   },
-  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
+  "source_catalog_sha256": "cceca037f89a043781127a0d2b67616d5affbd7d98016f4fb5b99a8d4705f983",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

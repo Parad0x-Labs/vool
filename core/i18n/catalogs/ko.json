@@ -720,6 +720,7 @@
     "msg.edit_title": "이 메시지를 입력창으로 되돌려 고친 뒤 다시 보내기",
     "msg.retry": "다시 시도",
     "msg.retry_box_busy": "메시지 입력창에 이미 내용이 있어요. 먼저 보내거나 지워 주세요.",
+    "msg.retry_files_again": "입력란에 문장을 되돌려 놓았습니다. 파일을 다시 첨부한 다음 보내세요.",
     "msg.retry_nothing": "그 메시지에는 첨부 파일만 있었어요. 다시 물어보려면 다시 첨부해 주세요.",
     "msg.retry_title": "같은 질문을 새 메시지로 다시 보내기",
     "notif.action_failed": "작동하지 않았습니다 (",
@@ -1858,7 +1859,7 @@
     "xsetup.entry_note": "X는 여러 키를 사용합니다. 안내 설정이 무엇을 어디에 붙여 넣을지 알려 주고 한 번의 읽기로 확인합니다.",
     "xsetup.open": "X 연결"
   },
-  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
+  "source_catalog_sha256": "cceca037f89a043781127a0d2b67616d5affbd7d98016f4fb5b99a8d4705f983",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

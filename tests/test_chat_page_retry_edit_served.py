@@ -5,6 +5,7 @@
 - Edit on your own message puts its words back in the box and sends nothing until you do.
 - Neither ever overwrites what is already in the box: a busy box refuses and is left untouched.
 - A question made only of attachments has no words to resend, and says so instead of sending.
+- A question that carried files is never resent without them: its words wait in the box.
 """
 from __future__ import annotations
 
@@ -95,6 +96,22 @@ def test_try_again_and_edit_go_through_the_ordinary_send(tmp_path):
                 }""")
                 assert note["box"] == "" and "only attachments" in note["shown"]
                 assert len(sends) == 2
+
+                # A question that carried a file: Try again puts the words back but never sends
+                # them without the file, and says so.
+                withfile = page.evaluate("""() => {
+                    const q = addMsg('user', 'What is in this plan? [document: plan.pdf #la-abc123]');
+                    const reply = addMsg('assistant', 'It is a plan.');
+                    let shown = '';
+                    const original = toast; toast = (m) => { shown = m; };
+                    try { resendFromBubble(reply, true); } finally { toast = original; }
+                    return {shown, box: inputEl.value};
+                }""")
+                assert withfile["box"] == "What is in this plan?", withfile
+                assert "Attach the files again" in withfile["shown"]
+                page.wait_for_timeout(400)
+                assert len(sends) == 2
+                page.locator("#input").fill("")
                 assert not errors, errors
             finally:
                 browser.close()

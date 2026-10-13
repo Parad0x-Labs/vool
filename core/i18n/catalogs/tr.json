@@ -720,6 +720,7 @@
     "msg.edit_title": "Bu mesajı değiştirip yeniden göndermek için kutuya geri koy",
     "msg.retry": "Tekrar dene",
     "msg.retry_box_busy": "Mesaj kutunda zaten bir şey var. Önce gönder ya da temizle.",
+    "msg.retry_files_again": "Sözleriniz kutuya geri geldi. Dosyaları yeniden ekleyin, sonra gönderin.",
     "msg.retry_nothing": "O mesajda yalnızca ekler vardı. Tekrar sormak için onları yeniden ekle.",
     "msg.retry_title": "Aynı soruyu yeni bir mesaj olarak tekrar sor",
     "notif.action_failed": "Bu işe yaramadı (",
@@ -1858,7 +1859,7 @@
     "xsetup.entry_note": "X birkaç anahtar kullanır. Rehberli kurulum neyin nereye yapıştırılacağını söyler ve bunları tek bir okumayla kontrol eder.",
     "xsetup.open": "X’i bağla"
   },
-  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
+  "source_catalog_sha256": "cceca037f89a043781127a0d2b67616d5affbd7d98016f4fb5b99a8d4705f983",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -720,6 +720,7 @@
     "msg.edit_title": "Diese Nachricht zurück ins Eingabefeld holen, um sie zu ändern und erneut zu senden",
     "msg.retry": "Nochmal",
     "msg.retry_box_busy": "In deinem Eingabefeld steht schon etwas. Sende oder leere es zuerst.",
+    "msg.retry_files_again": "Deine Worte stehen wieder im Feld. Hänge die Dateien erneut an und sende dann.",
     "msg.retry_nothing": "Diese Nachricht bestand nur aus Anhängen. Hänge sie erneut an, um noch einmal zu fragen.",
     "msg.retry_title": "Dieselbe Frage noch einmal als neue Nachricht stellen",
     "notif.action_failed": "Das hat nicht geklappt (",
@@ -1858,7 +1859,7 @@
     "xsetup.entry_note": "X nutzt mehrere Schlüssel. Die geführte Einrichtung zeigt, was wohin gehört, und prüft sie mit einem Lesezugriff.",
     "xsetup.open": "X verbinden"
   },
-  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
+  "source_catalog_sha256": "cceca037f89a043781127a0d2b67616d5affbd7d98016f4fb5b99a8d4705f983",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

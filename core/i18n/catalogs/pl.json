@@ -720,6 +720,7 @@
     "msg.edit_title": "Wstaw tę wiadomość z powrotem do pola, aby ją zmienić i wysłać ponownie",
     "msg.retry": "Spróbuj ponownie",
     "msg.retry_box_busy": "W polu wiadomości coś już jest. Najpierw to wyślij albo wyczyść.",
+    "msg.retry_files_again": "Twoje słowa wróciły do pola. Dołącz pliki ponownie, a potem wyślij.",
     "msg.retry_nothing": "Ta wiadomość zawierała tylko załączniki. Dołącz je ponownie, aby zapytać jeszcze raz.",
     "msg.retry_title": "Zadaj to samo pytanie jeszcze raz jako nową wiadomość",
     "notif.action_failed": "To nie zadziałało (",
@@ -1858,7 +1859,7 @@
     "xsetup.entry_note": "X używa kilku kluczy. Konfiguracja z przewodnikiem mówi, co gdzie wkleić, i sprawdza je jednym odczytem.",
     "xsetup.open": "Połącz X"
   },
-  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
+  "source_catalog_sha256": "cceca037f89a043781127a0d2b67616d5affbd7d98016f4fb5b99a8d4705f983",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
