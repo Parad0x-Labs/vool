@@ -27,6 +27,7 @@ set "RECEIPT_TAG=%RANDOM%_%RANDOM%"
 set "RECEIPT_HOME_FILE=%TEMP%\vool_receipt_home_%RECEIPT_TAG%.txt"
 set "RECEIPT_PROFILE_FILE=%TEMP%\vool_receipt_profile_%RECEIPT_TAG%.txt"
 set "RECEIPT_MODEL_FILE=%TEMP%\vool_receipt_model_%RECEIPT_TAG%.txt"
+if "%VOOL_HOME%"=="" if not "%NULLA_HOME%"=="" set "VOOL_HOME=%NULLA_HOME%"
 if "%VOOL_HOME%"=="" (
   "%PYTHON_EXE%" -c "import json, os; from pathlib import Path; p=Path(os.environ.get('VOOL_PROJECT_ROOT',''))/'install_receipt.json'; data=json.loads(p.read_text(encoding='utf-8')) if p.is_file() else {}; print(data.get('runtime_home',''))" 1>"%RECEIPT_HOME_FILE%" 2>nul
   set "RECEIPT_HOME="
@@ -34,6 +35,9 @@ if "%VOOL_HOME%"=="" (
   if not "!RECEIPT_HOME!"=="" set "VOOL_HOME=!RECEIPT_HOME!"
 )
 if "%VOOL_HOME%"=="" for %%I in ("%SCRIPT_ROOT%\..\.vool_runtime") do set "VOOL_HOME=%%~fI"
+set "VOOL_LOG_DIR=%VOOL_HOME%\logs"
+if not exist "%VOOL_LOG_DIR%" mkdir "%VOOL_LOG_DIR%"
+if not exist "%VOOL_LOG_DIR%" exit /b 1
 set "RECEIPT_INSTALL_PROFILE="
 "%PYTHON_EXE%" -c "import json, os; from pathlib import Path; p=Path(os.environ.get('VOOL_PROJECT_ROOT',''))/'install_receipt.json'; data=json.loads(p.read_text(encoding='utf-8')) if p.is_file() else {}; print((data.get('install_profile') or {}).get('profile_id',''))" 1>"%RECEIPT_PROFILE_FILE%" 2>nul
 for /f "tokens=*" %%A in ('type "%RECEIPT_PROFILE_FILE%" 2^>nul') do set "RECEIPT_INSTALL_PROFILE=%%A"
@@ -57,10 +61,16 @@ set "WEB_SEARCH_PROVIDER_ORDER=searxng,ddg_instant,duckduckgo_html"
 if "%VOOL_PUBLIC_HIVE_WATCH_HOST%"=="" set "VOOL_PUBLIC_HIVE_WATCH_HOST="
 if "%SEARXNG_URL%"=="" set "SEARXNG_URL=http://127.0.0.1:8080"
 
-"%PYTHON_EXE%" -m ops.ensure_public_hive_auth --project-root "%SCRIPT_ROOT%" --watch-host "%VOOL_PUBLIC_HIVE_WATCH_HOST%" >"%TEMP%\vool_public_hive_auth.log" 2>&1
-if errorlevel 1 type "%TEMP%\vool_public_hive_auth.log"
-where docker >nul 2>&1
-if %errorlevel% equ 0 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_ROOT%\scripts\xsearch_up.ps1" >nul 2>&1
+"%PYTHON_EXE%" -c "import sys; from core.runtime_guard import automatic_launch_network_allowed; sys.exit(0 if automatic_launch_network_allowed('outbound') else 1)"
+if not errorlevel 1 (
+  "%PYTHON_EXE%" -m ops.ensure_public_hive_auth --project-root "%SCRIPT_ROOT%" --watch-host "%VOOL_PUBLIC_HIVE_WATCH_HOST%" >"%VOOL_LOG_DIR%\vool_public_hive_auth.log" 2>&1
+  if errorlevel 1 type "%VOOL_LOG_DIR%\vool_public_hive_auth.log"
+)
+"%PYTHON_EXE%" -c "import sys; from core.runtime_guard import automatic_launch_network_allowed; sys.exit(0 if automatic_launch_network_allowed('web') else 1)"
+if not errorlevel 1 (
+  where docker >nul 2>&1
+  if not errorlevel 1 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_ROOT%\scripts\xsearch_up.ps1" >"%VOOL_LOG_DIR%\xsearch.log" 2>&1
+)
 
 echo Starting VOOL (API + mesh daemon)...
 echo VOOL API serves http://127.0.0.1:11435
@@ -72,7 +82,7 @@ REM output in a log file so nothing is lost. Fall back to python.exe only if pyt
 if not exist "%PYTHONW_EXE%" set "PYTHONW_EXE=%PYTHON_EXE%"
 REM Single-instance + stale recovery. See docs/audits/vool_api_stale_startup_diagnostic_20260711.md:
 REM a stale apps.vool_api_server process that is alive-but-not-listening keeps
-REM %TEMP%\vool_api_server.log (and the runtime SQLite DB) locked, so this fresh start's redirect
+REM %VOOL_LOG_DIR%\vool_api_server.log (and the runtime SQLite DB) locked, so this fresh start's redirect
 REM fails with "The process cannot access the file because it is being used by another process" and
 REM the launcher retries forever. If the API is already healthy, don't start a duplicate; otherwise
 REM terminate any stale server process (it is not serving, since 11435 is unhealthy) to free the locks.
@@ -84,5 +94,5 @@ if not errorlevel 1 (
 )
 powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'pythonw.exe' -or $_.Name -eq 'python.exe') -and ($_.CommandLine -like '*apps.vool_api_server*' -or $_.CommandLine -like '*vool_api_server.py*') } | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {} }" >nul 2>&1
 powershell -NoProfile -Command "Start-Sleep -Milliseconds 800" >nul 2>&1
-"%PYTHONW_EXE%" -m apps.vool_api_server >> "%TEMP%\vool_api_server.log" 2>&1
+"%PYTHONW_EXE%" -m apps.vool_api_server >> "%VOOL_LOG_DIR%\vool_api_server.log" 2>&1
 endlocal

@@ -27,7 +27,8 @@ VERIFY_SEARCH_QUERY = "example"
 class ProviderDescriptor:
     provider_id: str
     label: str
-    #: "llm_cloud" | "search_web" — selects the availability lane a verified binding activates.
+    #: "llm_cloud" | "search_web" | "security_scan" | "chain_data" — selects the availability lane a
+    #: verified binding activates.
     kind: str
     credential_slot: str
     #: The pinned, absolute verification URL. The ONLY endpoint a key may be verified against.
@@ -35,8 +36,10 @@ class ProviderDescriptor:
     verify_method: str = "GET"
     #: Where the key rides the verification request, as the provider documents it: "bearer"
     #: (``Authorization: Bearer …``), "header" (``auth_name: key``, e.g. Brave's
-    #: ``X-Subscription-Token``) or "body" (JSON field ``auth_name`` of a POST). The verifier refuses
-    #: anything else — a query-string placement would put the key in the URL.
+    #: ``X-Subscription-Token``), "body" (JSON field ``auth_name`` of a POST) or "query_token" (query
+    #: parameter ``auth_name``, for a fixed-origin provider that documents no other placement: Helius,
+    #: Etherscan). A query token is handled like a URL-path token: registered as an exact secret before
+    #: the request is built, never redirected, never proxied. The verifier refuses anything else.
     auth_style: str = "bearer"
     auth_name: str = ""
     #: Extra query params merged into the verification URL (e.g. a minimal search query).
@@ -60,6 +63,10 @@ class ProviderDescriptor:
     response_kind: str = ""
     #: Optional existing provider-contract validator, applied in addition to the path shape.
     response_validator: Callable[[object], bool] | None = None
+    #: Optional reader of a 2xx JSON body that names a key verdict the HTTP status does not (Etherscan
+    #: answers a rejected key with HTTP 200 and ``{"status": "0", "result": "Invalid API Key"}``).
+    #: Returns one of the verifier's status words, or "" when the body names none.
+    body_verdict: Callable[[object], str] | None = None
     #: Error codes in the provider's JSON error body that name a rejected credential. Any other
     #: code stays an unidentified provider error — never "invalid".
     invalid_error_codes: tuple[str, ...] = ()
@@ -243,12 +250,41 @@ def default_registry() -> ProviderRegistry:
         capability_family="addon_security", paid=True,
         response_path=("engine",), response_kind="object", response_validator=valid_version_report,
     )
+    descriptors.update(chain_data_descriptors())
     return ProviderRegistry(descriptors)
+
+
+def chain_data_descriptors() -> dict[str, ProviderDescriptor]:
+    """Blockchain-data providers (``core.chain_providers``), verified with one cheap read each."""
+    from core.chain_providers import CHAIN_PROVIDERS
+
+    out: dict[str, ProviderDescriptor] = {}
+    for cfg in CHAIN_PROVIDERS.values():
+        out[cfg.registry_id] = ProviderDescriptor(
+            provider_id=cfg.registry_id,
+            label=cfg.label,
+            kind="chain_data",
+            credential_slot=cfg.credential_slot,
+            verify_endpoint=cfg.verify_url,
+            verify_method=cfg.verify_method,
+            auth_style=cfg.auth_style,
+            auth_name=cfg.auth_name,
+            verify_query=dict(cfg.verify_query),
+            verify_body=dict(cfg.verify_body),
+            capability_family="chain_data",
+            paid=False,
+            response_path=tuple(cfg.verify_response_path),
+            response_kind="object",
+            body_verdict=cfg.body_verdict,
+            account_paths=(),
+        )
+    return out
 
 
 __all__ = [
     "VERIFY_SEARCH_QUERY",
     "ProviderDescriptor",
     "ProviderRegistry",
+    "chain_data_descriptors",
     "default_registry",
 ]

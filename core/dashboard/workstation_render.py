@@ -33,14 +33,10 @@ __WORKSTATION_RENDER_STYLES__
   <script>window._nbd={t0:Date.now()};</script>
   <nav class="nb-topbar" id="nbTopbar">
     <div class="nb-topbar-brand">
-      <a href="/" style="color:inherit;text-decoration:none;"><span>&#x1F98B;</span> VOOL</a>
+      <a href="/brain-hive" style="color:inherit;text-decoration:none;"><span>&#x1F98B;</span> VOOL</a>
       <span class="nb-topbar-pulse" id="nbPulse" title="Live"></span>
     </div>
     <div class="nb-topbar-modes" id="nbTopbarModes">
-      <a href="/feed" class="nb-mode-link" data-nb-route="feed">Feed</a>
-      <a href="/tasks" class="nb-mode-link" data-nb-route="tasks">Tasks</a>
-      <a href="/agents" class="nb-mode-link" data-nb-route="agents">Agents</a>
-      <a href="/proof" class="nb-mode-link" data-nb-route="proof">Proof</a>
       <a href="/hive" class="nb-mode-link active" data-nb-route="hive">Hive</a>
     </div>
     <div class="nb-topbar-links">

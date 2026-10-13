@@ -29,6 +29,12 @@ _FRAME_RE = re.compile(r'File "([^"]+)", line (\d+), in (\S+)')
 _EXC_LINE_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_.]*(?:Error|Exception|Exit|Interrupt|Warning|Interrupted))\b[:\s]?(.*)$")
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
+# Model ids are wider than lane/tool ids: the local models people actually run are tagged
+# ``qwen3:8b`` or ``llama3.1:8b-instruct-q4_K_M``, and cloud ids carry an org prefix
+# (``org/model``) or ``@`` / ``+`` revisions. The model is the field an investigation needs
+# most, so the shape is allowed -- but never whitespace, a path (leading slash, ``..``,
+# ``//``, a home segment) or anything the redaction layer would rewrite.
+_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$")
 
 MAX_ERROR_MESSAGE_CHARS = 1000
 
@@ -48,11 +54,30 @@ def sanitize_identifier(value: str, *, field: str) -> str:
     if not value:
         return ""
     candidate = str(value)
+    if field.startswith("model"):
+        return sanitize_model_identifier(candidate)
     return candidate if _ID_RE.match(candidate) else ""
+
+
+def _is_model_identifier(candidate: str) -> bool:
+    if not _MODEL_ID_RE.match(candidate) or ".." in candidate or "//" in candidate:
+        return False
+    sanitized, summary = redact_text(candidate)
+    return sanitized == candidate and not summary.total_replacements
+
+
+def sanitize_model_identifier(value: str) -> str:
+    """Return the model id when it is a safe model shape, else empty string."""
+    candidate = str(value or "").strip()
+    return candidate if candidate and _is_model_identifier(candidate) else ""
 
 
 def require_identifier(value: str, *, field: str) -> str:
     candidate = str(value or "")
+    if field.startswith("model"):
+        if not _is_model_identifier(candidate):
+            raise ValueError(f"unsafe {field} identifier refused: {candidate!r}")
+        return candidate
     if not _ID_RE.match(candidate):
         raise ValueError(f"unsafe {field} identifier refused: {candidate!r}")
     return candidate
@@ -129,5 +154,6 @@ __all__ = [
     "require_identifier",
     "sanitize_identifier",
     "sanitize_log_line",
+    "sanitize_model_identifier",
     "sanitize_prose",
 ]

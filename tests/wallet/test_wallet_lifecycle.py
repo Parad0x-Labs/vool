@@ -4,6 +4,7 @@ cards, and every refusal filed as a typed fault + security event + redacted rece
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 
@@ -438,3 +439,62 @@ def test_a_broadcast_signature_survives_free_text_redaction_while_unregistered_k
     assert unregistered not in redacted and "[redacted-key]" in redacted
     assert contains_secret(f"tx {signature}") is False
     assert contains_secret(f"key {unregistered}") is True
+
+
+def test_status_preserves_a_public_address_collision_and_removes_nested_material(wallet_env, monkeypatch):
+    from core.wallet import custody, lifecycle, mnemonic, proposals, status
+    from tests.wallet._rig import phrase_leaked
+
+    # This valid synthetic BIP39 input produces a public address containing "pin".
+    # It reproduces the lexical test's false positive without changing any identifier.
+    phrase = mnemonic.entropy_to_mnemonic(hashlib.sha256(b"wallet-status-synthetic-entropy:1970").digest()[:16])
+    assert mnemonic.validate_mnemonic(phrase)
+    monkeypatch.setattr(mnemonic, "generate_mnemonic", lambda **kwargs: phrase)
+    created = custody.create_pocket_wallet(
+        acknowledged_warning=True, confirmation_phrase=custody.POCKET_CONFIRMATION_PHRASE,
+        pin=PIN, label=f"credential={PIN}",
+    )
+    profile = created.profile
+    assert "pin" in profile.public_key.lower()
+    assert created.recovery_phrase == phrase
+    key_material = str(mnemonic.keypair_for_mnemonic(phrase))
+    proposal = proposals.propose_transaction(
+        wallet_id=profile.wallet_id, destination=DESTINATION, amount_minor=1, asset="SOL", origin="model",
+        memo=f"backup: {phrase}; key: {key_material}",
+    )
+    lifecycle.default_lifecycle().prepare(proposal.proposal_id)
+
+    real_pilot_status = status.crypto_pilot_status
+    credential_material = {
+        "credential": PIN, "SEED_HEX": mnemonic.mnemonic_to_seed(phrase).hex(),
+        "nested": [{"owner_pin": PIN, "recovery_phrase": phrase, "private_key": key_material,
+                    "note": f"credential={PIN}; backup: {phrase}; key: {key_material}"}],
+        "public_key": profile.public_key, "approval_method": "pin", "policy_label": "owner approval required",
+    }
+    raw = json.dumps(credential_material)
+    assert PIN in raw and key_material in raw and phrase_leaked(phrase, raw) is not None
+
+    def pilot_status_with_nested_material():
+        payload = real_pilot_status()
+        payload["diagnostics"] = credential_material
+        return payload
+
+    # Exercise the real status aggregation's redaction boundary, including nested upstream data.
+    monkeypatch.setattr(status, "crypto_pilot_status", pilot_status_with_nested_material)
+    surface = status.wallet_status()
+    encoded = json.dumps(surface)
+    assert PIN not in encoded and key_material not in encoded and mnemonic.mnemonic_to_seed(phrase).hex() not in encoded
+    assert phrase_leaked(phrase, encoded) is None
+    assert surface["public_key"] == profile.public_key
+    account = next(row for row in surface["accounts"] if row["wallet_id"] == profile.wallet_id)
+    assert account["public_key"] == profile.public_key and account["approval_method"] == "pin"
+    pilot_accounts = [account for row in surface["crypto_pilot"]["networks"] for account in row["accounts"]]
+    assert any(account["address"] == profile.public_key and account["approval_method"] == "pin" for account in pilot_accounts)
+    diagnostics = surface["crypto_pilot"]["diagnostics"]
+    assert set(diagnostics) == {"nested", "public_key", "approval_method", "policy_label"}
+    assert set(diagnostics["nested"][0]) == {"note"}
+    assert "[redacted" in diagnostics["nested"][0]["note"]
+    assert diagnostics["public_key"] == profile.public_key and diagnostics["approval_method"] == "pin"
+    assert diagnostics["policy_label"] == "owner approval required"
+    assert surface["pending_approvals"] == 1 and surface["pending"][0]["proposal_id"] == proposal.proposal_id
+    assert wallet_env["rpc"].send_count() == 0

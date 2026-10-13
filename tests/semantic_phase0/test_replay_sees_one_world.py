@@ -165,8 +165,11 @@ def test_sabotage_resampling_one_side_reintroduces_the_two_world_failure() -> No
     pinned = machine_diagnostics.disk_usage
 
     def _live(*args, **kwargs):
-        usage = shutil.disk_usage("/")
-        return [{"mount": "/", "free_gb": round(usage.free / (1024**3), 1)}]
+        # The temporary directory can be on a separate filesystem. Observe the
+        # same filesystem _space_held writes, or real churn cannot move this value.
+        observed_path = tempfile.gettempdir()
+        usage = shutil.disk_usage(observed_path)
+        return [{"mount": observed_path, "free_gb": round(usage.free / (1024**3), 1)}]
 
     machine_diagnostics.disk_usage = _live
     try:

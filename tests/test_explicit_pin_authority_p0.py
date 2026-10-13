@@ -537,14 +537,11 @@ def test_cx2_terminal_does_not_erase_a_dispatched_attempt_record(anthropic_lane)
     assert pcr._ATTEMPTS.get(mcid, {}).get("unpriced_attempts", 0) >= 1, "terminal must not erase the attempt accounting"
 
 
-# CX-3. A gate rejection where the model NEVER ran must not be shown as "did not return a usable
-# response" (which implies it ran). The internal-call policy rejection is the reported case.
-def test_cx3_internal_call_rejection_message_does_not_imply_the_model_ran(anthropic_lane) -> None:
-    """Repaired law (2026-09-18): an internal tool-selection call under an explicit paid pin is
-    not the selected model failing. The pick never applied to the turn's internal classification
-    calls, so the decision must not blame it, and the honest degraded surface must not imply the
-    selected model was asked and could not run. In this sealed environment no ordinary-lane
-    provider serves the internal step either, so the truthful source is no_provider_available."""
+# CX-3. Under an explicit paid pin the tool-selection step is the pinned model's own call (owner
+# decision 2026-10-05; before it, the step was refused as `internal_tool_intent_call` and the turn
+# had no tools). So the pick is really attempted, and when it fails the surface names that real
+# failure -- never a policy refusal that no longer exists.
+def test_cx3_a_pinned_tool_selection_step_runs_the_pick_and_reports_its_real_failure(anthropic_lane) -> None:
     from core.agent_runtime import memory_runtime
 
     _set_policy(mode="off", daily_cap=25)
@@ -553,12 +550,11 @@ def test_cx3_internal_call_rejection_message_does_not_imply_the_model_ran(anthro
         allow_paid_fallback=False,
         task_kind="tool_intent",
     )
-    assert decision.source != "selected_model_blocked", decision.source
     assert decision.details.get("block_reason") != "internal_tool_intent_call", decision.details
-    assert decision.details.get("model_was_attempted") is not True, decision.details
+    # This sealed environment holds a dummy key, so the provider refuses the real request.
+    assert anthropic_lane.provider_id in list(decision.details.get("attempted") or []), decision.details
+    assert decision.details.get("model_was_attempted") is True, decision.details
     fake_agent = SimpleNamespace(_live_info_mode=lambda *a, **k: "")
     text = memory_runtime.chat_surface_honest_degraded_response(fake_agent, decision, user_input="do a thing")
-    assert "did not return a usable response" not in text, text
-    # The pick is not named as having been asked and failed -- it never was, for this step.
-    assert f"{anthropic_lane.provider_id} could not run" not in text, text
-    assert "could not run" not in text, text
+    assert "internal step" not in text, text
+    assert "not spent on this turn" not in text, text

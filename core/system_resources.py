@@ -26,6 +26,8 @@ import time
 import urllib.request
 from dataclasses import asdict, dataclass
 
+from core.provider_http import is_loopback_url, urlopen
+
 _GIB = 1024.0 ** 3
 _CACHE_TTL = 3.0
 _RESERVE_FRACTION = float(os.environ.get("VOOL_RAM_RESERVE_FRACTION", "0.20") or 0.20)
@@ -45,7 +47,6 @@ def _reserve_fraction() -> float:
         return _RESERVE_FRACTION
 from core.ollama_endpoint import ollama_api_url as _ollama_api_url
 
-_OLLAMA_PS_URL = os.environ.get("VOOL_OLLAMA_PS_URL") or _ollama_api_url("/api/ps")
 _COMFYUI_PORT = os.environ.get("VOOL_COMFYUI_PORT", "8188")
 
 _lock = threading.Lock()
@@ -194,17 +195,22 @@ def _swap_used_bytes() -> float:
 
 # ------------------------------------------------------------------ VOOL's own footprint
 
-def _ollama_loaded_bytes() -> float:
+def _ollama_loaded_bytes(*, base_url: str | None = None) -> float:
     """Bytes Ollama is holding in memory now (sum of loaded models), via /api/ps. 0 if none/unreachable."""
     # The canonical LocalModelPolicy: disabled means no Ollama health probe either; report
     # no local footprint (0.0), the same truth as an unreachable daemon.
     from core.local_model_policy import local_models_enabled
 
+    target = (str(base_url).rstrip("/") + "/api/ps") if base_url is not None else (
+        os.environ.get("VOOL_OLLAMA_PS_URL") or _ollama_api_url("/api/ps")
+    )
+    if not is_loopback_url(target):
+        return 0.0
     if not local_models_enabled():
         return 0.0
     try:
-        req = urllib.request.Request(_OLLAMA_PS_URL, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
+        req = urllib.request.Request(target, headers={"Accept": "application/json"})
+        with urlopen(req, timeout=1.5) as resp:
             data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
     # Resource sensing is advisory. A local daemon, test guard, or platform-specific
     # transport can fail in ways other than a normal socket/JSON error; none of those
@@ -225,7 +231,7 @@ def _comfyui_running() -> bool:
 
 # ------------------------------------------------------------------ snapshot
 
-def _build_snapshot() -> ResourceSnapshot:
+def _build_snapshot(*, base_url: str | None = None) -> ResourceSnapshot:
     system = platform.system()
     if system == "Darwin":
         total = _macos_total_ram_bytes()
@@ -259,15 +265,19 @@ def _build_snapshot() -> ResourceSnapshot:
         cpu_count=cpu_count,
         load_per_core=(load_1m / cpu_count) if cpu_count else load_1m,
         swap_used_gb=_swap_used_bytes() / _GIB,
-        ollama_loaded_gb=_ollama_loaded_bytes() / _GIB,
+        ollama_loaded_gb=(_ollama_loaded_bytes() if base_url is None else _ollama_loaded_bytes(base_url=base_url)) / _GIB,
         comfyui_running=_comfyui_running(),
         reserve_gb=reserve / _GIB,
         usable_gb=usable / _GIB,
     )
 
 
-def snapshot(*, force: bool = False) -> ResourceSnapshot:
+def snapshot(*, force: bool = False, base_url: str | None = None) -> ResourceSnapshot:
     """A live resource snapshot, cached for ~3s so it is free to read per-turn. ``force`` re-samples now."""
+    # A selected model endpoint is a separate observation, not a replacement
+    # for the cached default-daemon snapshot. Resource arithmetic is identical.
+    if base_url is not None:
+        return _build_snapshot(base_url=base_url)
     global _cache
     now = time.monotonic()
     with _lock:

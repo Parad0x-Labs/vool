@@ -190,6 +190,19 @@ _NOTE_DELETE_ACTION_RE = _head_words_re("delete", "remove")
 _PROPOSE_ACTION_RE = _head_words_re("propose", "book", "schedule", "create")
 
 
+def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
+    """ "Remind me what I told you about my landlord" asks what was said, not for a reminder.
+
+    Measured 2026-10-06 on 9adff83 with pack 2 applied: it was parsed as a reminder to schedule and
+    answered "I could not read a date or time in that." A recollection that names a time is still a
+    reminder ("remind me tomorrow at 9 what I said about the rent").
+    """
+    from core.execution.constants import conversation_recall_remainder
+    from core.operator.when import time_expression_spans
+
+    return conversation_recall_remainder(words) is not None and not time_expression_spans(words)
+
+
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     text = str(user_text or "").strip()
     if not text:
@@ -211,7 +224,7 @@ def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
     # "remind me to clean temp files tomorrow" is a reminder, not a cleanup; and before
     # _SCHEDULE_HINTS so "reschedule a meeting" is a MOVE, not a new draft ("schedule a
     # meeting" is a substring of "reschedule a meeting" and would otherwise win).
-    if _REMINDER_HINT_RE.search(words):
+    if _REMINDER_HINT_RE.search(words) and not _asks_to_recall_not_to_be_reminded(words):
         return OperatorActionIntent(kind="schedule_reminder", raw_text=text)
     reminder_id_match = re.search(
         r"\breminder\s+(?:id\s+)?([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}|[0-9a-f]{8})\b",

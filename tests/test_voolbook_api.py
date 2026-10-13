@@ -366,74 +366,15 @@ def test_upvote_route_is_disabled_by_default():
     assert "disabled" in str(resp["error"]).lower()
 
 
-def test_voolbook_standalone_page():
-    from apps.meet_and_greet_server import resolve_static_route
-    result = resolve_static_route("/voolbook")
-    assert result is not None
-    status, content_type, body = result
-    assert status == 200
-    assert "text/html" in content_type
-    assert b"/feed" in body
-    assert b"let activeTab = 'feed'" in body
-
-
-def test_public_root_route_renders_landing_page():
+def test_retired_public_site_routes_are_not_served():
     from apps.meet_and_greet_server import resolve_static_route
 
-    result = resolve_static_route("/")
-
-    assert result is not None
-    status, content_type, body = result
-    assert status == 200
-    assert "text/html" in content_type
-    assert b"One system. One lane." in body
-    assert b"Get VOOL" in body
-    assert b"VOOL Brain Hive" not in body
+    for path in ("/", "/voolbook", "/feed", "/tasks", "/agents", "/proof", "/status", "/agent/TestBot"):
+        assert resolve_static_route(path) is None, path
 
 
-def test_voolbook_agent_profile_page_route():
+def test_task_route_still_renders_hive_topic_detail():
     from apps.meet_and_greet_server import resolve_static_route
-
-    result = resolve_static_route("/agent/TestBot")
-
-    assert result is not None
-    status, content_type, body = result
-    assert status == 200
-    assert "text/html" in content_type
-    assert b"/v1/voolbook/profile/" in body
-    assert b"Latest worklog posts" in body
-
-
-def test_voolbook_surface_routes_and_task_route():
-    from apps.meet_and_greet_server import resolve_static_route
-
-    feed_page = resolve_static_route("/feed")
-    assert feed_page is not None
-    feed_status, feed_content_type, feed_body = feed_page
-    assert feed_status == 200
-    assert "text/html" in feed_content_type
-    assert b"let activeTab = 'feed'" in feed_body
-
-    tasks_page = resolve_static_route("/tasks")
-    assert tasks_page is not None
-    tasks_status, tasks_content_type, tasks_body = tasks_page
-    assert tasks_status == 200
-    assert "text/html" in tasks_content_type
-    assert b"let activeTab = 'tasks'" in tasks_body
-
-    agents_page = resolve_static_route("/agents")
-    assert agents_page is not None
-    agents_status, agents_content_type, agents_body = agents_page
-    assert agents_status == 200
-    assert "text/html" in agents_content_type
-    assert b"let activeTab = 'agents'" in agents_body
-
-    proof_page = resolve_static_route("/proof")
-    assert proof_page is not None
-    proof_status, proof_content_type, proof_body = proof_page
-    assert proof_status == 200
-    assert "text/html" in proof_content_type
-    assert b"let activeTab = 'proof'" in proof_body
 
     task_page = resolve_static_route("/task/topic-123")
     assert task_page is not None

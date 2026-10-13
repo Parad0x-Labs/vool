@@ -462,7 +462,7 @@ def _asks_about_the_obligation(
         all(part.casefold() in lowered for part in slot.split()) for slot in known
     ):
         return False
-    return not _slot_filler_for(operation, _residue_span(content, residue))
+    return not _slot_fillers_for(operation, _residue_span(content, residue))
 
 
 def prior_live_data_request(
@@ -650,8 +650,8 @@ def _residue_span(text: Any, residue: list[str]) -> str:
     return " ".join(kept).strip()
 
 
-def _slot_filler_for(operation: str, candidate: str, *, original_text: str = "") -> str:
-    """`candidate` as a SUBJECT for this obligation, or "".
+def _slot_fillers_for(operation: str, candidate: str, *, original_text: str = "") -> list[str]:
+    """`candidate` as authorized subjects for this obligation, or an empty list.
 
     Two bounds added 2026-09-06 from the conversation-truth audit, both class-level:
 
@@ -693,11 +693,11 @@ def _slot_filler_for(operation: str, candidate: str, *, original_text: str = "")
 
     probe = str(candidate or "").strip()
     if not probe or len(probe.split()) > _SLOT_FILLER_MAX_TOKENS:
-        return ""
+        return []
     if _NON_SUBJECT_GRAMMAR_RE.search(probe):
         # Interrogative or comparative structure survived the strip: the turn is asking ABOUT the
         # subjects, not naming a new one.
-        return ""
+        return []
     try:
         if operation == "market_quote":
             from core.agent_runtime.fast_live_info_price import price_assets_named
@@ -708,7 +708,7 @@ def _slot_filler_for(operation: str, candidate: str, *, original_text: str = "")
             # its own domain, but a caller that holds one may state it.
             aliases = [str(a).strip() for a in (price_assets_named(probe, domain_already_authorized=True) or ()) if str(a).strip()]
             if not aliases:
-                return ""
+                return []
             from core.followup_subject_continuity import strip_correction_language
             alias_tokens = {tok for alias in aliases for tok in _TOKEN_RE.findall(alias.casefold())}
             subject_span = strip_correction_language(probe)
@@ -717,19 +717,19 @@ def _slot_filler_for(operation: str, candidate: str, *, original_text: str = "")
                 # ("gold mined", "much gold", "poem gold"); correction and coordinator words are
                 # stripped through the follow-up module's own vocabulary first, so "solana instead"
                 # and "or ethereum?" still read as the bare subject they are.
-                return ""
+                return []
             if original_text:
                 authorized = {
                     str(a).strip().casefold()
                     for a in (price_assets_named(original_text, domain_already_authorized=True) or ())
                 }
                 aliases = [alias for alias in aliases if alias.casefold() in authorized]
-            return aliases[0] if aliases else ""
+            return aliases
         if operation == "weather_lookup":
             from tools.web.web_research import _is_plausible_weather_location
 
             if not all(word[:1].isupper() for word in probe.split() if word):
-                return ""
+                return []
             if _TITLE_CASED_PHRASE_MARKERS & {
                 token for token in _TOKEN_RE.findall(str(original_text or ""))
             }:
@@ -739,11 +739,11 @@ def _slot_filler_for(operation: str, candidate: str, *, original_text: str = "")
                 # phone auto-capitalisation produced. Natural typing lowercases these ("what
                 # about Tallinn?"), so the marker is checked as typed. A withheld rebind costs
                 # one deterministic turn; a wrong one invents a place the user never named.
-                return ""
-            return probe if _is_plausible_weather_location(probe) else ""
+                return []
+            return [probe] if _is_plausible_weather_location(probe) else []
     except Exception:
-        return ""
-    return ""
+        return []
+    return []
 
 
 def _recovered_slot(
@@ -1098,11 +1098,16 @@ def continuation_inheritance(
     if not operation or not slots:
         return "", ""
 
-    # REBIND before AGGREGATE: a turn that names a subject is asking about THAT subject, even when
-    # it also carries set grammar ("which is warmer, Riga or Vilnius?").
-    filler = _slot_filler_for(operation, _residue_span(text, residue), original_text=str(text or ""))
-    if filler:
-        return _rebound_request(request_text, old_slots=slots, new_slots=[filler]), INHERIT_REBIND
+    if _names_domain_the_obligation_does_not_hold(text, obligation=obligation, prior=prior):
+        # An explicit request in another domain owns its subjects; it cannot turn a price
+        # question into a weather lookup merely because the asset names are capitalized.
+        return "", ""
+
+    # Rebind every authorized subject together. Choosing just the first alias silently
+    # changes a multi-asset request into a one-asset request before the planner sees it.
+    fillers = _slot_fillers_for(operation, _residue_span(text, residue), original_text=str(text or ""))
+    if fillers:
+        return _rebound_request(request_text, old_slots=slots, new_slots=fillers), INHERIT_REBIND
 
     if (
         _SET_REFERENCE_RE.search(str(text or ""))

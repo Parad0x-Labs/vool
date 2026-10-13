@@ -490,21 +490,26 @@ def test_match_states(tmp_path) -> None:
                       waiting.invoice_id: "unconfirmed", unpaid.invoice_id: "unpaid", near.invoice_id: "unpaid"}
 
 
+_FRESHNESS_REFERENCE_NOW = 1_760_000_000.0
+
+
 @pytest.mark.parametrize(
     ("state", "reason"),
     [({}, "never_synced"),
-     ({"last_sync_at": time.time() - 10, "tip": 5, "attempt_seq": 2, "ok_seq": 1, "last_error": "devtool_failed"}, "sync_failed"),
+     ({"last_sync_at": _FRESHNESS_REFERENCE_NOW - 10, "tip": 5, "attempt_seq": 2, "ok_seq": 1, "last_error": "devtool_failed"}, "sync_failed"),
      # the clock stepped back between the good sync and the failed attempt: the sequence still shows the failure
-     ({"last_sync_at": time.time() - 10, "tip": 5, "last_attempt_at": time.time() - 20, "attempt_seq": 2, "ok_seq": 1,
+     ({"last_sync_at": _FRESHNESS_REFERENCE_NOW - 10, "tip": 5, "last_attempt_at": _FRESHNESS_REFERENCE_NOW - 20, "attempt_seq": 2, "ok_seq": 1,
        "last_error": "devtool_failed"}, "sync_failed"),
-     ({"last_sync_at": time.time() - 10, "tip": 5, "attempt_seq": 2, "ok_seq": 1, "last_error": "in_progress"}, "sync_failed"),
-     ({"last_sync_at": time.time() + 3600, "tip": 5, "attempt_seq": 1, "ok_seq": 1, "last_error": ""}, "clock_moved"),
-     ({"last_sync_at": time.time() - 3600, "tip": 5, "attempt_seq": 1, "ok_seq": 1, "last_error": ""}, "stale_sync")],
+     ({"last_sync_at": _FRESHNESS_REFERENCE_NOW - 10, "tip": 5, "attempt_seq": 2, "ok_seq": 1, "last_error": "in_progress"}, "sync_failed"),
+     ({"last_sync_at": _FRESHNESS_REFERENCE_NOW + 3600, "tip": 5, "attempt_seq": 1, "ok_seq": 1, "last_error": ""}, "clock_moved"),
+     ({"last_sync_at": _FRESHNESS_REFERENCE_NOW - 3600, "tip": 5, "attempt_seq": 1, "ok_seq": 1, "last_error": ""}, "stale_sync")],
 )
 def test_without_a_fresh_sync_nothing_is_paid_or_unpaid(tmp_path, state, reason) -> None:
     store = InvoiceStore(tmp_path / "inv.sqlite")
     invoice = _invoice(store, 100)
-    fresh = matcher.freshness(state, stale_after=900)
+    # Collection can precede this case by over an hour in the full shard.
+    # Date the state and its evaluation from one clock so "future" stays future.
+    fresh = matcher.freshness(state, stale_after=900, now=_FRESHNESS_REFERENCE_NOW)
     assert (fresh.fresh, fresh.reason) == (False, reason)
     [status] = matcher.match_invoices(store.all(network="test"), [_note(invoice.memo, 100, 1)], fresh, required=3)
     assert (status.state, status.reason) == ("unknown", reason)

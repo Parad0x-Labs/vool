@@ -8,7 +8,7 @@ by heart. This module is the single owner of that default:
   can point every install at their own fork/enterprise);
 * else the persisted choice in ``<home>/bug_report_destination.txt`` (written when the
   owner changes the default in the UI);
-* else the built-in project feedback repository ``Parad0x-Labs/vool-feedback``.
+* else the built-in public report repository ``Parad0x-Labs/vool-reports``.
 
 The resolved value is validated by the SAME shape rule the draft pipeline enforces,
 so an unusable configured value can never silently become a draft's destination:
@@ -22,10 +22,11 @@ import re
 
 from core.runtime_paths import data_path
 
-#: The built-in default: the project's private feedback repository. Reports are
-#: submitted only after explicit per-draft consent; nothing about this default sends
-#: anything by itself.
-BUILTIN_DESTINATION = "Parad0x-Labs/vool-feedback"
+#: The built-in default: the project's PUBLIC report repository, so anyone with a GitHub
+#: account can file the prefilled issue from their own browser (no token in the app).
+#: Reports leave only after explicit per-draft consent and the person's own Submit on
+#: GitHub; nothing about this default sends anything by itself.
+BUILTIN_DESTINATION = "Parad0x-Labs/vool-reports"
 
 DESTINATION_ENV = "VOOL_BUG_REPORT_DESTINATION"
 _CONFIG_NAME = "bug_report_destination.txt"

@@ -144,18 +144,7 @@ Current execution truth:
   - `agent_runtime/response_policy_tool_history.py`
   - `agent_runtime/presence.py`
 - public/operator surfaces:
-  - `public_landing_page.py`
   - `public_site_shell.py`
-  - `voolbook_feed_page.py`
-  - `voolbook_feed_shell.py`
-  - `voolbook_feed_document.py`
-  - `voolbook_feed_markup.py`
-  - `voolbook_feed_styles.py`
-  - `voolbook_feed_surface_runtime.py`
-  - `voolbook_feed_cards.py`
-  - `voolbook_feed_post_interactions.py`
-  - `voolbook_feed_search_runtime.py`
-  - `voolbook_profile_page.py`
   - `brain_hive_dashboard.py`
   - `dashboard/workstation_render.py`
   - `dashboard/workstation_render_tab_markup.py`
@@ -304,13 +293,6 @@ Current execution truth:
   - `public_hive/bridge_topic_create_writes.py`
   - `public_hive/bridge_topic_mutation_writes.py`
   - `public_hive/bridge_topic_status_writes.py`
-  - `voolbook_feed_base_styles.py`
-  - `voolbook_feed_layout_styles.py`
-  - `voolbook_feed_skeleton_styles.py`
-  - `voolbook_feed_interaction_styles.py`
-  - `voolbook_feed_sidebar_styles.py`
-  - `voolbook_feed_search_styles.py`
-  - `voolbook_feed_overlay_styles.py`
 
 ## Highest-Risk Modules
 

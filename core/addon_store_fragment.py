@@ -41,7 +41,7 @@ def render_addon_store_fragment() -> str:
 .addon-review{padding:20px;border:1px solid var(--border);border-radius:6px;margin:20px 0}.addon-review h3{margin:0 0 10px}.addon-review p{line-height:1.6;font-size:13px}.addon-review.blocked{border-color:#88544b;background:rgba(172,65,45,.055)}
 .addon-localcheck{padding:18px 20px;border:1px dashed var(--border,#38414b);border-radius:6px;margin:20px 0}.addon-localcheck>h3{margin:0 0 10px;font-size:14px}.addon-localcheck p{line-height:1.6;font-size:13px}.addon-localcheck .addon-findings strong{display:block;margin-bottom:5px}.addon-localcheck details{margin:10px 0 0;color:var(--muted);font-size:12px;line-height:1.7}.addon-localcheck summary{cursor:pointer}
 .addon-detail .addon-risk-explanation{margin:14px 0 0;padding:12px 14px;border:1px solid var(--border);border-radius:4px}.addon-risk-explanation summary{color:var(--ink);font-weight:600}.addon-risk-explanation .addon-meta{font-size:11px}.addon-risk-explanation p:last-child{margin-bottom:0}
-.addon-brand.anthropic{--addon-brand:#e5ad93}.addon-brand.hermes{--addon-brand:#e4bd69}.addon-brand.openclaw{--addon-brand:#f19088}.addon-brand.superpowers{--addon-brand:#c4a4f4}.addon-brand.vercel{--addon-brand:var(--ink)}.addon-brand{color:var(--addon-brand,var(--ink));color:color-mix(in srgb,var(--addon-brand,var(--ink)) 80%,var(--ink))}
+.addon-brand.anthropic{--addon-brand:#e5ad93}.addon-brand.superpowers{--addon-brand:#c4a4f4}.addon-brand.vercel{--addon-brand:var(--ink)}.addon-brand{color:var(--addon-brand,var(--ink));color:color-mix(in srgb,var(--addon-brand,var(--ink)) 80%,var(--ink))}
 .addon-findings{list-style:none;padding:0;margin:18px 0}.addon-findings li{padding:14px 0;border-top:1px solid var(--border);font-size:13px;overflow-wrap:anywhere}.addon-findings strong{display:block;margin-bottom:5px}.addon-findings small{display:block;margin-top:8px;color:var(--muted)}
 .addon-pending{border:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;border-radius:4px;font-size:13px}.addon-pending small{display:block;color:var(--muted);margin-top:5px}
 #pluginsBody button:disabled{opacity:.45;cursor:default}#pluginsBody button:focus-visible,#addonNav button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
@@ -70,7 +70,7 @@ async function load(){
 }
 function link(label,url){const a=node('a',label);a.href=url;a.target='_blank';a.rel='noopener noreferrer';return a;}
 function icon(e){return node('span',e.category==='Design'?'Aa':e.category==='Security'?'◇':'</>', 'addon-icon '+(e.category==='Design'?'design':e.category==='Security'?'security':''));}
-function brand(label,tag,source){const n=node(tag||'span',label,'addon-brand');const id=String(source||label||'').toLowerCase();if(['anthropic','hermes','openclaw','superpowers','vercel'].includes(id))n.classList.add(id);return n;}
+function brand(label,tag,source){const n=node(tag||'span',label,'addon-brand');const id=String(source||label||'').toLowerCase();if(['anthropic','superpowers','vercel'].includes(id))n.classList.add(id);return n;}
 function hero(host,title,subtitle,kicker){const h=node('header',undefined,'addon-hero');if(kicker)h.append(node('span',kicker,'addon-eyebrow'));h.append(node('h2',title),node('p',subtitle));host.append(h);}
 function nav(){
  const search=document.getElementById('pluginsSearch');if(!search)return;

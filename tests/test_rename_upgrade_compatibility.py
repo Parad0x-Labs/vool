@@ -124,7 +124,8 @@ def _run_launcher(launcher: str, home: Path, res: Path, env: dict[str, str] | No
         [str(launcher_path)], env=full_env, capture_output=True, text=True, timeout=60
     )
     assert done.returncode == 0, f"launcher failed: {done.stdout}\n{done.stderr}"
-    log = home / "Library/Application Support/VOOL/app.log"
+    selected = (env or {}).get("VOOL_HOME")
+    log = (Path(selected) / "logs/app.log") if selected else home / "Library/Application Support/VOOL/app.log"
     return (log.read_text() if log.exists() else "") + "\n[stdout] " + done.stdout
 
 

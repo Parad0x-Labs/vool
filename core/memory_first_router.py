@@ -874,7 +874,8 @@ def _model_call_identity(source_context: dict[str, Any] | None, *, task: Any, mo
 def _interpreted_user_text(interpretation: Any, task: Any) -> str:
     """Return the user-authored turn without replaying generated reference prose."""
     return str(
-        getattr(interpretation, "normalized_text", "")
+        getattr(interpretation, "user_demand_text", "")
+        or getattr(interpretation, "normalized_text", "")
         or getattr(interpretation, "raw_text", "")
         or getattr(interpretation, "reconstructed_text", "")
         or getattr(task, "task_summary", "")
@@ -1889,6 +1890,15 @@ class MemoryFirstRouter:
         source_context: dict[str, Any] | None,
         tool_offer: Any | None = None,
     ) -> ModelRequest:
+        composed_input = str(getattr(interpretation, "raw_text", "") or "").strip()
+        demand_text = str(getattr(interpretation, "user_demand_text", "") or "").strip()
+        if demand_text and composed_input != demand_text:
+            from copy import copy
+
+            interpretation = copy(interpretation)
+            interpretation.raw_text = demand_text
+            interpretation.normalized_text = demand_text
+            interpretation.reconstructed_text = demand_text
         internal_request = normalize_prompt(
             task=task,
             classification=classification,
@@ -2200,7 +2210,25 @@ class MemoryFirstRouter:
         # identifiers, URLs and quoted text own this turn, not a normalized paraphrase of them.
         # History/context keep their bounded representations; only the final user message is
         # restored, mirroring the structured-batch restoration below and at :1344.
-        raw_current_turn = str(getattr(interpretation, "raw_text", "") or "").strip()
+        raw_current_turn = str(
+            getattr(interpretation, "user_demand_text", "")
+            or getattr(interpretation, "raw_text", "") or ""
+        ).strip()
+        evidence_prefix = raw_current_turn
+        if not composed_input.startswith(evidence_prefix + "\n\n"):
+            evidence_prefix = " ".join(raw_current_turn.split())
+        if raw_current_turn and composed_input.startswith(evidence_prefix + "\n\n"):
+            # Runtime observations are evidence, with their own bounded message.
+            # They never become bytes authored by the user at the provider door.
+            observations = composed_input[len(evidence_prefix):].strip()
+            last_user = max((
+                index for index, message in enumerate(provider_messages)
+                if str(message.get("role") or "").casefold() == "user"
+            ), default=len(provider_messages))
+            provider_messages.insert(last_user, {
+                "role": "system",
+                "content": f"<retrieved_context>\n{observations}\n</retrieved_context>",
+            })
         if raw_current_turn:
             for index in range(len(provider_messages) - 1, -1, -1):
                 if str(provider_messages[index].get("role") or "").casefold() == "user":
@@ -4337,6 +4365,11 @@ class MemoryFirstRouter:
             # with only the reason string — can still name the actual axes instead of pointing
             # generically at Settings. Redaction-safe by construction (ids and prices only).
             failure_evidence = getattr(exc, "provider_evidence", None)
+            if isinstance(source_context, dict):
+                source_context["_last_provider_failure"] = {
+                    "error_class": generic_error_class.value if generic_error_class else "",
+                    "empty_reply_class": _empty_reply_class(exc),
+                }
             if isinstance(failure_evidence, dict) and isinstance(source_context, dict):
                 usepod_body = failure_evidence.get("usepod")
                 route_evidence = (
@@ -5261,44 +5294,20 @@ class MemoryFirstRouter:
         # model, so an auto fallback gets no reservation no matter what the policy says — and no
         # reservation means resolved_allow_paid stays False and every paid manifest is excluded.
         pin_reservation_denial: dict[str, str] = {}
+        # A tool-selection round is the picked model choosing a tool, not the answer: it reserves
+        # under its own role so receipts, the call ledger and authorship never read it as the
+        # served answer.
+        paid_call_role = (
+            "tool_intent" if str(task_kind or "").strip().lower() == "tool_intent" else "answer_generation"
+        )
         authorized_paid_call = reserve_owner_pick_paid_call(
             manifest=requested_manifest if requested_paid_cloud else None,
             task=task,
             source_context=source_context,
             task_kind=task_kind,
-            call_role="answer_generation",
+            call_role=paid_call_role,
             denial=pin_reservation_denial,
         )
-        # AN INTERNAL ROUTING CALL IS NOT THE OWNER'S PICK EXECUTING (the reservation's own
-        # law: "The pick authorizes the answering lane, not the turn's internal
-        # classification calls"). Before this, a tool_intent step under an explicit paid pin
-        # took that by-design refusal into `_selected_model_blocked_decision` and the ledger
-        # narrated "Selected model 'X' could not run (internal_tool_intent_call)" -- a
-        # provider failure that never happened, over a model that answers the turn fine.
-        # For THIS internal call the pin simply does not apply: selection falls to the
-        # runtime's ordinary lane, the pin keeps answering the turn, and no substitution of
-        # the owner's pick occurred anywhere.
-        if (
-            authorized_paid_call is None
-            and requested_paid_cloud
-            and str(pin_reservation_denial.get("reason") or "") == "internal_tool_intent_call"
-            and str(task_kind or "").strip().lower() == "tool_intent"
-        ):
-            _emit_model_routing_event(
-                source_context,
-                "model_routing_started",
-                "Internal tool-selection step: routed on the runtime lane; the owner's model pick answers the turn.",
-                task_kind=task_kind,
-                output_mode=output_mode,
-                provider_role=provider_role,
-                lane="internal_routing",
-                lane_type="internal_routing",
-                phase="routing",
-                requested_model=str(requested_model_raw or ""),
-            )
-            requested_manifest = None
-            requested_paid_cloud = False
-            explicit_pin_selected = False
         # The free-cloud boost is the fallback for when no ranked candidate served, and it selects
         # a model of its own. The reservation authorizes the ONE model the owner picked, so it is
         # deliberately withheld here: the boost keeps routing free-only, exactly as before.
@@ -5314,7 +5323,7 @@ class MemoryFirstRouter:
                 "authorized_paid_call": authorized_paid_call,
                 # Server-authored only after a real reservation exists. This role joins the
                 # model.call_* pair to the reservation and terminal spend receipts.
-                "model_call_role": "answer_generation",
+                "model_call_role": paid_call_role,
             }
         # A9 P0 — mint the turn's ONE routing plan BEFORE ranking (and therefore before any
         # provider spend). One typed TurnRoutingPlan carries the requested/selected identity,
@@ -6156,6 +6165,8 @@ class MemoryFirstRouter:
                         update={"runtime_config": {**(manifest.runtime_config or {}), "timeout_seconds": capped_timeout}}
                     )
             _attempt_started = time.monotonic()
+            if isinstance(source_context, dict):
+                source_context.pop("_last_provider_failure", None)
             adapter, response, error = self._invoke_manifest(
                 manifest=invoke_manifest,
                 request=request,
@@ -6178,6 +6189,8 @@ class MemoryFirstRouter:
                     (invoke_manifest.runtime_config or {}).get("timeout_seconds") or 0.0
                 ),
             )
+            if isinstance(source_context, dict) and attempt_timings:
+                attempt_timings[-1].update(source_context.get("_last_provider_failure") or {})
             if error or adapter is None or response is None:
                 attempted.append(manifest.provider_id)
                 attempted_error_reasons.append(str(error or "no_response"))
@@ -6824,6 +6837,7 @@ class MemoryFirstRouter:
                 "block_reason": reason,
                 "block_route_evidence": pin_route_evidence,
                 "model_was_attempted": bool(dispatched),
+                "provider_failure": dict((source_context or {}).get("_last_provider_failure") or {}),
                 "requested_model": requested_model,
                 "provider_role": provider_role,
                 "ranked_candidates": [],

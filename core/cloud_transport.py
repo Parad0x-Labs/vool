@@ -20,6 +20,19 @@ _MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 class CloudTransportError(RuntimeError):
     pass
 
+def _operator_cloud_network_allowed() -> bool:
+    if policy_engine.automatic_outbound_enabled():
+        return True
+    try:
+        from core.cloud_escalation_policy import MODE_ASK, MODE_AUTO, load_policy
+
+        consent = load_policy()
+        # Cloud routing consent is independent of automatic peer/background work.
+        # Privacy, recipient fanout and spend remain enforced by the broker.
+        return consent.free_cloud_enabled or consent.mode in {MODE_ASK, MODE_AUTO}
+    except Exception:
+        return False
+
 
 def _address_is_internal(value: str) -> bool:
     try:
@@ -86,7 +99,7 @@ class PolicyBoundCloudTransport:
         self._resolver = resolver or socket.getaddrinfo
         self._peer_ip_getter = peer_ip_getter or _response_peer_ip
         self._network_allowed = network_allowed or (
-            lambda: bool(policy_engine.get("network.outbound_enabled", False))
+            lambda: _operator_cloud_network_allowed()
             and not policy_engine.local_only_mode()
             # The per-turn Local Only lane, on top of the machine-wide setting. This transport has
             # no request context to consult, so it reads the ambient scope; the turn-scoped block
