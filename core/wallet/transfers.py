@@ -59,6 +59,7 @@ def open_pilot_proposals(wallet_id: str, network: str) -> int:
 _CHAIN_HINTS: dict[str, str] = {
     "solana": "solana", "sol": "solana", "base": "base", "ethereum": "ethereum", "eth": "ethereum", "mainnet": "ethereum",
     "bnb": "bnb", "bsc": "bnb", "binance": "bnb", "robinhood": "robinhood", "robinhood chain": "robinhood",
+    "arbitrum": "arbitrum", "arb": "arbitrum", "arbitrum one": "arbitrum",
 }
 
 

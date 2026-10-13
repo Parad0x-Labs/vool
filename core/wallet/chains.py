@@ -49,10 +49,11 @@ FINALITY_SVM_CONFIRMED = "confirmed"  # Solana commitment; finalized is tracked 
 FINALITY_FINALIZED_TAG = "finalized"  # EVM block tag
 FINALITY_SAFE_TAG = "safe"  # EVM block tag on rollups (L1 batch inclusion)
 
-#: Card order and names of the Crypto Pilot's five chains.
-CHAIN_KEY_ORDER: tuple[str, ...] = ("solana", "robinhood", "base", "ethereum", "bnb")
+#: Card order and names; rows added after the pilot follow the original five chains.
+CHAIN_KEY_ORDER: tuple[str, ...] = ("solana", "robinhood", "base", "ethereum", "bnb", "arbitrum")
 CHAIN_KEY_LABELS: Mapping[str, str] = MappingProxyType({
     "solana": "Solana", "robinhood": "Robinhood Chain", "base": "Base", "ethereum": "Ethereum", "bnb": "BNB Smart Chain",
+    "arbitrum": "Arbitrum One",
 })
 
 #: The policy version participates in the chain-identity cache key: bumping it invalidates
@@ -143,6 +144,8 @@ def _devnet_assets() -> Mapping[str, AssetSpec]:
 #: identity reads on 2026-09-14 (delivery/NETWORK-MATRIX.json). Mainnet rows declare no x402 scheme. The Mainnet
 #: tokens are USDC on Solana, for the UsePod x402 payment lane and the Solana pay-kit lanes only, and USDC on Base, for
 #: the x402 SDK lane only (proposals refuse them for every other origin); the pilot's own transfers move native coins only.
+#: Arbitrum rows added after the pilot were verified on 2026-10-13 against docs.arbitrum.io/chain-info and live RPC
+#: reads; native ETH only.
 _REGISTRY: dict[str, ChainIdentity] = {
     SOLANA_DEVNET: ChainIdentity(
         network=SOLANA_DEVNET, family=FAMILY_SVM, testnet=True,
@@ -212,6 +215,15 @@ _REGISTRY: dict[str, ChainIdentity] = {
         environment=ENVIRONMENT_TESTNET, chain_key="robinhood", explorer_label="Robinhood Explorer",
         explorer_address_template="https://explorer.testnet.chain.robinhood.com/address/{address}", fee_model=FEE_ARBITRUM_NITRO, finality=FINALITY_SAFE_TAG,
     ),
+    "eip155:421614": ChainIdentity(
+        network="eip155:421614", family=FAMILY_EVM, testnet=True, chain_id="421614", genesis_hash="",
+        display_name="Arbitrum Sepolia", legacy_names=(),
+        rpc_origins=("https://sepolia-rollup.arbitrum.io/rpc",), schemes=(),
+        explorer_tx_template="https://sepolia.arbiscan.io/tx/{id}",
+        assets=MappingProxyType({"ETH": _native("eip155:421614", "ETH", 18)}),
+        environment=ENVIRONMENT_TESTNET, chain_key="arbitrum", explorer_label="Arbiscan",
+        explorer_address_template="https://sepolia.arbiscan.io/address/{address}", fee_model=FEE_ARBITRUM_NITRO, finality=FINALITY_SAFE_TAG,
+    ),
     SOLANA_MAINNET: ChainIdentity(
         network=SOLANA_MAINNET, family=FAMILY_SVM, testnet=False,
         chain_id="5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", genesis_hash="5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
@@ -272,6 +284,15 @@ _REGISTRY: dict[str, ChainIdentity] = {
         assets=MappingProxyType({"BNB": _native("eip155:56", "BNB", 18)}),
         environment=ENVIRONMENT_MAINNET, chain_key="bnb", explorer_label="BscScan",
         explorer_address_template="https://bscscan.com/address/{address}", fee_model=FEE_BSC, finality=FINALITY_FINALIZED_TAG,
+    ),
+    "eip155:42161": ChainIdentity(
+        network="eip155:42161", family=FAMILY_EVM, testnet=False, chain_id="42161", genesis_hash="",
+        display_name="Arbitrum One", legacy_names=(),
+        rpc_origins=("https://arb1.arbitrum.io/rpc",), schemes=(),
+        explorer_tx_template="https://arbiscan.io/tx/{id}",
+        assets=MappingProxyType({"ETH": _native("eip155:42161", "ETH", 18)}),
+        environment=ENVIRONMENT_MAINNET, chain_key="arbitrum", explorer_label="Arbiscan",
+        explorer_address_template="https://arbiscan.io/address/{address}", fee_model=FEE_ARBITRUM_NITRO, finality=FINALITY_SAFE_TAG,
     ),
 }
 

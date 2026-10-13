@@ -187,7 +187,7 @@ def test_fresh_profile_settings_onboarding_solana_then_evm_with_every_control(se
         cp = status_on["crypto_pilot"]
         shown = [c.get_attribute("data-chain") for c in page.locator('.vw-cx-row[data-active="true"]').all()]
         assert shown == [r["chain_key"] for r in sorted((r for r in cp["networks"] if r["active"]), key=lambda r: cp["chain_order"].index(r["chain_key"]))]
-        assert shown == cp["chain_order"] == ["solana", "robinhood", "base", "ethereum", "bnb"]
+        assert shown == cp["chain_order"] == ["solana", "robinhood", "base", "ethereum", "bnb", "arbitrum"]
         robinhood = next(r for r in cp["networks"] if r["active"] and r["chain_key"] == "robinhood")
         assert "Robinhood Chain is a public network, not the Robinhood brokerage" in _card(page, robinhood["network"]).text_content()
         assert "native coin" in page.locator("#vwCxAssets").text_content() and "USDC" in page.locator("#vwCxAssets").text_content()
