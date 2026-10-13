@@ -171,14 +171,37 @@ def test_rejected_key_can_never_be_stored_as_asserted(home):
 
 
 def test_custom_key_header_does_not_follow_a_cross_origin_redirect():
+    """A custom endpoint's key header (``x-api-key``) never rides a redirect to another origin.
+
+    A loopback provider follows no redirect at all, so end to end the key reaches only the origin
+    it was addressed to. A cloud endpoint's redirect is followed, and the hop requests builds for it
+    goes through this session's ``rebuild_auth``: the key header is dropped for another origin and
+    kept for the same one."""
+    import requests
+
     from core import provider_http
 
     with FakeProviderServer(responses=[(200, MODELS)]) as target:
         with FakeProviderServer(responses=[(307, b"", {"Location": f"{target.url}/v1/models"})]) as origin:
-            response = provider_http.get(f"{origin.url}/v1/models", headers={"x-api-key": KEY}, timeout=10)
-            assert response.status_code == 200
+            with pytest.raises(requests.exceptions.TooManyRedirects):
+                provider_http.get(f"{origin.url}/v1/models", headers={"x-api-key": KEY}, timeout=10)
         assert "x-api-key" in origin.requests[0]["header_names"]
-        assert "x-api-key" not in target.requests[0]["header_names"]
+        assert target.requests == []
+
+    def hop(to: str) -> requests.PreparedRequest:
+        first = requests.Request("GET", "https://models.example.test/v1/models",
+                                 headers={"x-api-key": KEY, "Accept": "application/json"}).prepare()
+        answer = requests.Response()
+        answer.status_code, answer.request = 307, first
+        nxt = requests.Request("GET", to, headers={"x-api-key": KEY, "Accept": "application/json"}).prepare()
+        with provider_http._KeySafeSession() as session:
+            session.trust_env = False
+            session.rebuild_auth(nxt, answer)
+        return nxt
+
+    elsewhere = hop("https://elsewhere.example.test/v1/models")
+    assert "x-api-key" not in elsewhere.headers and elsewhere.headers["Accept"] == "application/json"
+    assert hop("https://models.example.test/v2/models").headers["x-api-key"] == KEY
 
 
 @pytest.mark.parametrize(
