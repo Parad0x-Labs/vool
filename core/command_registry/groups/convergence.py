@@ -676,6 +676,7 @@ def _handle_mode_set(inp, ctx):
 def register(reg) -> None:
     reg.add_group(GroupSpec(group_id="settings", description="operator settings: preferences and credential slots"))
     reg.add_group(GroupSpec(group_id="search", description="search provider configuration and probes"))
+    reg.add_group(GroupSpec(group_id="chain", description="chain-data provider key probes"))
     reg.add_group(GroupSpec(group_id="memory", description="persistent memory records"))
     reg.add_group(GroupSpec(group_id="status", description="the one health+defaults read"))
     reg.add_group(GroupSpec(group_id="capabilities", description="model-facing capability truth (the capability graph is the model authority; this is its operator read)"))

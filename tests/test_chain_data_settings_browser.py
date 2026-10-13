@@ -8,7 +8,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from tests._credential_intelligence_support import FakeProviderServer, isolated_home, vault_home  # noqa: F401
+from tests._credential_intelligence_support import FakeProviderServer, isolated_home, vault_home
 
 ALCHEMY_KEY = "alch_fixture_key_0123456789abcd"
 
