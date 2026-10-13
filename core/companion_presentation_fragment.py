@@ -1353,7 +1353,10 @@ function vnBindDrag(el) {
       if (!vnDrag.moved && Math.sqrt(dx * dx + dy * dy) < 6) return;  // click-vs-drag threshold
       vnDrag.moved = true;
       el.classList.add("dragging");
-      const c = vnClampFree(vnDrag.ox + dx, vnDrag.oy + dy);
+      // The UNCLAMPED target is kept for the desktop hand-off: the clamp below holds the
+      // sprite 24px inside the glass, so the drawn position can never reach the edge.
+      vnDrag.rawX = vnDrag.ox + dx; vnDrag.rawY = vnDrag.oy + dy;
+      const c = vnClampFree(vnDrag.rawX, vnDrag.rawY);
       el.style.left = c[0] + "px"; el.style.top = c[1] + "px";
       el.classList.toggle("over-critical", vnCoversCritical(c[0], c[1]));
     };
@@ -1369,6 +1372,7 @@ function vnBindDrag(el) {
       detach();
       if (!vnDrag) return;
       const wasMoved = vnDrag && vnDrag.moved;
+      const drag = vnDrag;
       vnDrag = null;
       el.classList.remove("dragging");
       el.classList.remove("over-critical");
@@ -1390,9 +1394,13 @@ function vnBindDrag(el) {
       const finalPos = vnResolveDrop(nx, ny);
       // Released hard against a window edge with the native bridge present: hand the
       // sprite to its desktop window instead of pinning it to the inside of the glass.
+      // Judged on where the operator RELEASED it (unclamped), never on finalPos: the clamp
+      // keeps finalPos VN_EDGE_INSET inside every edge, so the hand-off could never fire.
       const vwNow = window.innerWidth || 1200, vhNow = window.innerHeight || 800;
-      const atEdge = finalPos[0] <= 2 || finalPos[1] <= 2
-        || finalPos[0] + VN_SIZE >= vwNow - 2 || finalPos[1] + VN_SIZE >= vhNow - 2;
+      const relX = ev && Number.isFinite(ev.clientX) ? drag.ox + ev.clientX - drag.x : drag.rawX;
+      const relY = ev && Number.isFinite(ev.clientY) ? drag.oy + ev.clientY - drag.y : drag.rawY;
+      const atEdge = Number.isFinite(relX) && Number.isFinite(relY)
+        && (relX <= 2 || relY <= 2 || relX + VN_SIZE >= vwNow - 2 || relY + VN_SIZE >= vhNow - 2);
       if (atEdge && vnNativeCompanionApi()) { vnDetachDesktop(false); return; }
       vnPos.mode = "free"; vnPos.x = finalPos[0]; vnPos.y = finalPos[1];
       vnPersistPos();
