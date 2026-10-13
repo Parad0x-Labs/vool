@@ -1846,6 +1846,7 @@ class ResearchToolLoopFacadeMixin:
                 mode=execution.mode,
                 ok=bool(execution.ok),
                 summary=step_summary,
+                observation=head_step["observation"],
                 tool_call_id=str((execution.details or {}).get("tool_call_id") or ""),
                 tool_args=summarize_tool_arguments(tool_payload.get("arguments")),
                 arguments=redact_tool_argument_data(tool_payload.get("arguments")),
@@ -1944,6 +1945,7 @@ class ResearchToolLoopFacadeMixin:
                     status=str(member_execution.status or ("executed" if member_ran else "failed")),
                     mode=member_execution.mode,
                     ok=bool(member_execution.ok),
+                    observation=redact_tool_argument_data(dict((member_execution.details or {}).get("observation") or {})),
                     tool_args=summarize_tool_arguments(member_payload.get("arguments")),
                     arguments=redact_tool_argument_data(member_payload.get("arguments")),
                 )

@@ -1,5 +1,5 @@
 {
-  "intent_count": 132,
+  "intent_count": 136,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -99,9 +99,13 @@
     "set.save",
     "set.use",
     "skill.create",
+    "skill.export",
+    "skill.import",
     "skill.inspect",
     "skill.install",
     "skill.list",
+    "skill.pack",
+    "skill.remove",
     "skill.rollback",
     "skill.validate",
     "web.chain_lookup",
@@ -134,7 +138,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 132,
+  "native_definition_count": 136,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -9426,6 +9430,7 @@
         "description",
         "name",
         "overwrite",
+        "scope",
         "triggers"
       ],
       "description": "Write a new skill (name, description, instructions) to the staging area. Loads nothing and changes no behaviour; validate and install it to make it active.",
@@ -9462,6 +9467,13 @@
               "null"
             ]
           },
+          "scope": {
+            "description": "chat|project|global optional (default global; chat and project mean THIS chat and its project)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "triggers": {
             "description": "list[string] optional",
             "items": {
@@ -9479,7 +9491,8 @@
           "body",
           "allowed_tools",
           "triggers",
-          "overwrite"
+          "overwrite",
+          "scope"
         ],
         "type": "object"
       },
@@ -9535,6 +9548,221 @@
         "side_effecting_command": {
           "actions": [
             "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "skill.export": {
+      "arguments": [
+        "kind",
+        "name",
+        "scope"
+      ],
+      "description": "Package a skill you made (or a plugin you made, kind=plugin) as one zip that anyone can import into their VOOL. First-party and local-only skills are refused.",
+      "native_name": "skill__export",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "description": "skill|plugin optional (default skill)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "string (the skill or plugin name)",
+            "type": "string"
+          },
+          "scope": {
+            "description": "chat|project|global optional (which copy, when names repeat)",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "skill.import": {
+      "arguments": [
+        "attachment_id",
+        "path",
+        "scope"
+      ],
+      "description": "Read a skill or plugin zip (a chat attachment or a local path), check it, and stage it for this chat, this project or all of VOOL. Instruction-only: zips carrying scripts, binaries or tool declarations are refused. Nothing becomes active.",
+      "native_name": "skill__import",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "attachment_id": {
+            "description": "string optional (a zip attached in this chat)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "description": "string optional (a local zip file)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "description": "chat|project|global optional (default global)",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "attachment_id",
+          "path",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "create_files",
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "create_files",
+            "read_files"
           ],
           "effects": {
             "auto": "allow",
@@ -9632,15 +9860,25 @@
     },
     "skill.install": {
       "arguments": [
+        "kind",
         "overwrite",
         "path",
-        "plugin_id"
+        "plugin_id",
+        "scope",
+        "sha256"
       ],
       "description": "Activate a validated skill by moving it into the plugins tree the loader scans. Re-validates first: installing a skill that can never rank tells the operator a capability exists that will never fire.",
       "native_name": "skill__install",
       "native_parameters": {
         "additionalProperties": false,
         "properties": {
+          "kind": {
+            "description": "skill|plugin optional (plugin activates a staged plugin pack)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "overwrite": {
             "description": "boolean optional",
             "type": [
@@ -9658,12 +9896,29 @@
               "string",
               "null"
             ]
+          },
+          "scope": {
+            "description": "chat|project|global optional (default global)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sha256": {
+            "description": "string optional (the reviewed draft's digest; nothing installs if the draft changed)",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
           "path",
           "plugin_id",
-          "overwrite"
+          "overwrite",
+          "scope",
+          "sha256",
+          "kind"
         ],
         "type": "object"
       },
@@ -9821,6 +10076,201 @@
         }
       },
       "read_only": true
+    },
+    "skill.pack": {
+      "arguments": [
+        "description",
+        "name",
+        "skills"
+      ],
+      "description": "Bundle skills you made into a named plugin pack (instruction-only), staged for review; activate it with skill.install kind=plugin, share it with skill.export.",
+      "native_name": "skill__pack",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "description": "string",
+            "type": "string"
+          },
+          "name": {
+            "description": "string (the plugin name)",
+            "type": "string"
+          },
+          "skills": {
+            "description": "list[string] (names of skills you made)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "skills"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "skill.remove": {
+      "arguments": [
+        "name",
+        "scope"
+      ],
+      "description": "Turn off a skill you made by moving it out of the active tree of its scope. Nothing is deleted; its files and versions are kept.",
+      "native_name": "skill__remove",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "string",
+            "type": "string"
+          },
+          "scope": {
+            "description": "chat|project|global optional (default: the narrowest match)",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "scope"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "change_settings",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "change_settings",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "change_settings",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "change_settings",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "change_settings",
+            "modify_files"
+          ],
+          "effects": {
+            "auto": "require_approval",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
     },
     "skill.rollback": {
       "arguments": [

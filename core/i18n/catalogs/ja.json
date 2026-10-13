@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "キャンセルしました。何も保存されていません。",
     "xsetup.title": "X(旧 Twitter)",
     "xsetup.entry_note": "X は複数のキーを使います。ガイド付き設定が何をどこに貼るかを示し、1 回の読み取りで確認します。",
-    "xsetup.open": "X を接続"
+    "xsetup.open": "X を接続",
+    "addons.registry_tab": "スキルコーデックス",
+    "addons.registry_title": "作成者によるスキルとプラグイン",
+    "addons.registry_intro": "作成者が作ったものです。VOOL はコミュニティのスキルを作成も保証もしておらず、自動チェックで見落とされることもあります。パッケージをダウンロードして確認し、その後でインストールと有効化を選んでください。",
+    "addons.native_authority": "スキルは手順を提供します。VOOL の標準ルール、所有者の設定、支出上限、通貨の処理、権限、承認要件が常に優先されます。",
+    "addons.registry_evidence": "正確なファイル、権限、出所",
+    "addons.registry_install_only": "有効化せずにインストール",
+    "addons.registry_enable": "インストールして有効化",
+    "addons.registry_refresh": "スキルコーデックスを見る",
+    "addons.registry_network": "このボタンは公開レジストリに問い合わせます。アカウント、チャット、ローカルファイル、プロバイダーのキーは送信されません。",
+    "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
+    "addons.registry_inspect": "確認用にダウンロード"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
