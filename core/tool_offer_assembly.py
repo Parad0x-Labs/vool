@@ -501,6 +501,62 @@ def _narrow(specs: list[dict[str, Any]], *, allowed: tuple[str, ...], keep: set[
     return narrowed
 
 
+def _scope_download_specs(specs: list[dict[str, Any]], user_text: str) -> list[dict[str, Any]]:
+    """Narrow a download's schema to its own requested output, without changing authority.
+
+    Both catalog and native definitions consume these copies. The registry remains generic,
+    explicit workspace requests retain it, and the executor still validates every call.
+    """
+    from copy import deepcopy
+
+    from core.deliverables import FORMATS, downloadable_request_without_workspace_target, requested_formats
+
+    if not downloadable_request_without_workspace_target(user_text):
+        return specs
+    wanted = [name for name in requested_formats(user_text) if name in FORMATS]
+    if not wanted:
+        return specs  # unsupported kinds keep their honest refusal path
+    result = []
+    for original in specs:
+        if original.get("intent") != "file.deliver":
+            result.append(original)
+            continue
+        spec = deepcopy(original)
+        schema = spec.get("json_schema")
+        if not isinstance(schema, dict) or not isinstance(schema.get("properties"), dict):
+            result.append(spec)
+            continue
+        schema["properties"]["format"] = {"type": "string", "enum": wanted}
+        required = list(schema.get("required") or [])
+        if "format" not in required:
+            required.append("format")
+        archive = len(wanted) == 1 and wanted[0] in {"zip", "tar.gz"}
+        if archive:
+            if "files" not in required:
+                required.append("files")
+            member_schema = schema["properties"].get("files", {}).get("items", {})
+            member_properties = member_schema.get("properties", {})
+            member_properties.pop("format", None)
+            member_properties["filename"] = {
+                "type": "string", "description": "Output filename INCLUDING its required extension; it determines the member format."
+            }
+            member_schema["additionalProperties"] = False
+        schema["required"] = required
+        instruction = "This request requires " + ", ".join(wanted) + " output. "
+        if archive:
+            instruction += (
+                "ONE archive call with an archive filename and files containing ALL authored "
+                "members (filename with its output extension, content); do not deliver loose member files. "
+            )
+        spec["description"] = instruction + str(spec.get("description") or "")
+        spec["arguments"] = dict(spec.get("arguments") or {})
+        spec["arguments"]["format"] = "string required (" + "|".join(wanted) + ")"
+        if archive:
+            spec["arguments"]["files"] = "list[object] required (every archive member: filename including extension, content; format comes from filename)"
+        result.append(spec)
+    return result
+
+
 def assemble_tool_offer(
     *,
     user_text: str = "",
@@ -571,6 +627,7 @@ def assemble_tool_offer(
             max_candidates=int(max_candidates or _DEFAULT_MAX_CANDIDATES),
         )
     )
+    specs = _scope_download_specs(specs, str(user_text or ""))
     if task_seats and "code.task.open" not in task_seats:
         # Continue the journal's active task instead of offering a second opening
         # merely because the original repair words still demand code.task.open.

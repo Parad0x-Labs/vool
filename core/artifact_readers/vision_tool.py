@@ -270,7 +270,20 @@ def _run(args: list[str], *, scratch: Path, fmt: str, timeout: int = SUBPROCESS_
                 remediation="Remove the password, or attach an unprotected copy.",
                 fmt=fmt,
             )
-        raise ReaderFailed(f"The {fmt} decoder failed: {detail}", code="decoder_failed", fmt=fmt)
+        if detail.splitlines()[-1].strip() == "unreadable-pdf":
+            # Also a fact about the FILE: PDFKit opened nothing because the bytes are not a
+            # readable PDF (truncated, damaged). Measured on 9adff83 a truncated upload came back
+            # HTTP 500 with CoreGraphics' own log line as the user's message. The fallback decoder
+            # already calls this `pdf_unreadable`; the native path now says the same thing.
+            raise ReaderRefused(
+                "The PDF is damaged or truncated; its contents were not read.",
+                code="pdf_unreadable",
+                remediation="Re-export or re-download the PDF and attach it again.",
+                fmt=fmt,
+            )
+        # The decoder's last line is its own verdict; earlier lines are framework log noise.
+        verdict = detail.splitlines()[-1].strip()
+        raise ReaderFailed(f"The {fmt} decoder failed: {verdict}", code="decoder_failed", fmt=fmt)
     try:
         payload = json.loads(result.stdout.decode("utf-8", "replace") or "{}")
     except ValueError as exc:

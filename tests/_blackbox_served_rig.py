@@ -164,10 +164,12 @@ class ScriptedProvider:
 class ServedDaemon:
     """``apps.vool_api_server`` in its own process, its own VOOL_HOME and its own port."""
 
-    def __init__(self, home: Path, *, env_extra: dict[str, str] | None = None) -> None:
+    def __init__(self, home: Path, *, env_extra: dict[str, str] | None = None,
+                 fixture_available_gb: float | None = None) -> None:
         self.home = home
         self.port = free_port()
         self.env_extra = dict(env_extra or {})
+        self.fixture_available_gb = fixture_available_gb
         self.process: subprocess.Popen | None = None
         self.log_path = home / "daemon.log"
 
@@ -217,8 +219,12 @@ class ServedDaemon:
     def start(self, *, timeout: float = 240.0) -> ServedDaemon:
         self.home.mkdir(parents=True, exist_ok=True)
         handle = self.log_path.open("wb")
+        command = [sys.executable, "-m", "apps.vool_api_server"]
+        if self.fixture_available_gb is not None:
+            command = [sys.executable, "-m", "tests.served_provider_fixture_20261007",
+                       "--available-gb", str(self.fixture_available_gb)]
         self.process = subprocess.Popen(
-            [sys.executable, "-m", "apps.vool_api_server", "--port", str(self.port), "--bind", "127.0.0.1"],
+            [*command, "--port", str(self.port), "--bind", "127.0.0.1"],
             cwd=str(REPO_ROOT), env=self.env(), stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
         )
         deadline = time.monotonic() + timeout

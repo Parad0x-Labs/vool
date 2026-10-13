@@ -81,13 +81,13 @@ def test_capability_report_blocks_every_external_format_without_confinement(monk
     # than collapsing: every ZIP/TEXT-borne format is still readable with the standard library
     # alone, wherever the bytes are parsed in this process instead of by a spawned decoder.
     # (XLS is in-process too, but only where the optional pinned xlrd package is importable.)
-    in_process = {"docx", "xlsx", "pptx", "odt", "epub", "rtf", "zip"}
+    in_process = {"docx", "xlsx", "pptx", "odt", "epub", "rtf", "zip", "tar"}
     from core.artifact_readers import documents as reader_documents
 
     if reader_documents.xlrd_available():
         in_process.add("xls")
     assert {row["format"] for row in report["formats"] if row["available"]} == in_process
-    for extension in (".pdf", ".doc", ".rar", ".mp4"):
+    for extension in (".pdf", ".doc", ".rar", ".7z", ".mp4"):
         assert extension not in report["available_extensions"]
 
 

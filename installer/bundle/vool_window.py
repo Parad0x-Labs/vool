@@ -840,6 +840,64 @@ class _WindowApi:
         except Exception as exc:
             return {"ok": False, "error": type(exc).__name__}
 
+    def save_deliverable(self, session_id: str, deliverable_id: str) -> dict:
+        """Save a file the assistant built in this chat (``/api/chat/deliverable``) to a place the
+        user picks. The page names only the chat and the file id; the server supplies the bytes,
+        the filename and the type, and nothing existing on disk is overwritten."""
+        import re
+        from email.message import Message
+        from urllib.parse import urlencode
+
+        if self._window is None or self._webview is None:
+            return {"ok": False, "error": "no_window"}
+        if not isinstance(session_id, str) or not 0 < len(session_id) <= 512:
+            return {"ok": False, "error": "invalid_deliverable_identity"}
+        if not isinstance(deliverable_id, str) or not re.fullmatch(r"dlv_[0-9a-f]{32}", deliverable_id):
+            return {"ok": False, "error": "invalid_deliverable_identity"}
+        limit = 20 * 1024 * 1024
+
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs):
+                return None
+        try:
+            url = _API_ORIGIN + "/api/chat/deliverable?" + urlencode({"id": deliverable_id, "session": session_id})
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+            with opener.open(url, timeout=30) as response:
+                body = response.read(limit + 1)
+                disposition = Message()
+                disposition["content-disposition"] = response.headers.get("Content-Disposition", "")
+                filename = disposition.get_filename() or "vool-file"
+            if len(body) > limit:
+                return {"ok": False, "error": "deliverable_too_large", "message": "The file exceeds the native save size limit; nothing was saved."}
+            filename = Path(str(filename).replace("\\", "/")).name.lstrip(".") or "vool-file"
+            extension = filename.rsplit(".", 1)[-1] if "." in filename else ""
+            file_types = (f"{extension.upper()} files (*.{extension})",) if extension.isalnum() else ()
+            result = self._window.create_file_dialog(self._webview.SAVE_DIALOG, save_filename=filename, file_types=file_types)
+            if not result:
+                return {"ok": False, "cancelled": True}
+            destination = Path(result[0] if isinstance(result, (list, tuple)) else result)
+            with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=".vool-file-", delete=False) as handle:
+                temporary = Path(handle.name)
+                try:
+                    handle.write(body)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                    os.link(temporary, destination)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            return {"ok": True}
+        except urllib.error.HTTPError as exc:
+            try:
+                refusal = json.loads(exc.read(4096))
+                message = str(refusal.get("message") or "The file is not available")
+            except (ValueError, AttributeError):
+                message = "The file is not available"
+            return {"ok": False, "error": "deliverable_unavailable", "message": message}
+        except FileExistsError:
+            return {"ok": False, "error": "destination_exists", "message": "Choose a new filename; the existing file was not changed."}
+        except Exception as exc:
+            return {"ok": False, "error": type(exc).__name__}
+
     @staticmethod
     def _companion_payload(payload: object) -> dict[str, str]:
         """Allowlist the presentation-only values that may cross into the desktop window."""
