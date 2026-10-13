@@ -184,8 +184,8 @@ def _settings_groups() -> list[dict]:
                     id="profanity_level",
                     label="Profanity ceiling",
                     help=(
-                        "How coarse VOOL is allowed to be when the register calls for it. Injected "
-                        "into every turn's context alongside the boundaries setting."
+                        "How coarse VOOL may be when the tone calls for it. It works together with "
+                        "your boundaries setting."
                     ),
                     kind="range",
                     min=0,
@@ -202,11 +202,9 @@ def _settings_groups() -> list[dict]:
                     id="character_mode",
                     label="Character",
                     help=(
-                        "A persona VOOL stays in until you clear it. Empty means VOOL as itself. "
-                        "This is a strong instruction: while it is set, VOOL is told to keep that "
-                        "character's voice and not to break character. Saying \"act like a pirate\" "
-                        "in chat sets this, and nothing you can say in chat sets it back — emptying "
-                        "this field is the way out."
+                        "A character VOOL plays until you clear it. Leave it empty for VOOL as "
+                        "itself. Saying \"act like a pirate\" in chat sets it, and only emptying "
+                        "this box turns it off."
                     ),
                     kind="text",
                     placeholder="empty — VOOL as itself",
@@ -221,12 +219,10 @@ def _settings_groups() -> list[dict]:
                     id="style_notes",
                     label="Style notes",
                     help=(
-                        "Anything else about how you want VOOL to write — \"be concise\", \"no "
-                        "bullet lists\", \"always show units\". Passed to the model as written. "
-                        "Saying this in chat no longer lands here: a free-form style request becomes "
-                        "a Memory item you can see and forget. This field stays because the runtime "
-                        "still reads it, so anything set before that change is still in effect, and "
-                        "this is the only place left to read it or clear it."
+                        "Anything else about how VOOL should write, like \"be concise\" or \"no "
+                        "bullet lists\". Style requests you make in chat go to Memory, where you can "
+                        "see and remove them. Anything written in this box still applies, and this is "
+                        "where you change or clear it."
                     ),
                     kind="text",
                     placeholder="e.g. be concise; no bullet lists",
@@ -868,7 +864,7 @@ def _settings_groups() -> list[dict]:
             "id": "advanced",
             "icon": "⌥",
             "title": "Advanced",
-            "blurb": "The runtime's own surfaces, served by this same daemon.",
+            "blurb": "Extra pages for checking what VOOL is doing.",
             "rows": [
                 _row(
                     id="advanced_surfaces",
@@ -1036,6 +1032,7 @@ h1 { margin:0 0 4px; font-size:26px; font-weight:700; letter-spacing:-.2px; }
 .row-main { flex:1 1 auto; min-width:0; }
 .row-label { font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .row-help { color:var(--muted); font-size:12.5px; line-height:1.5; margin-top:4px; }
+.pane-meta { margin:4px 0 0; font-size:12px; color:var(--muted); }
 .row-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:7px; font-size:11.5px; color:var(--muted); }
 .row-meta .m { display:inline-flex; align-items:center; gap:4px; }
 .row-ctl { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:0; padding-top:1px; }
@@ -1125,6 +1122,7 @@ label.inline { cursor:pointer; }
   <div id="paneInner">
     <h1 id="paneTitle">Settings</h1>
     <p class="pane-blurb" id="paneBlurb"></p>
+    <p class="pane-meta" id="paneMeta" hidden></p>
     <div id="paneBody"></div>
   </div>
 </main>
@@ -1348,15 +1346,32 @@ function renderNav() {
   }
 }
 
+function scopeText(scope) {
+  return scope === 'global' ? T('settings.scope.global', 'Applies everywhere')
+    : (scope === 'chat' ? T('settings.scope.chat', 'This chat only') : T('settings.scope.session', 'This session only'));
+}
+// When and how far a change reaches. Most pages share one answer for every row, so it is said
+// once under the page title (state.paneMeta) and a row repeats only what differs from it.
 function metaLine(row) {
   const wrap = el('div', 'row-meta');
-  if (row.scope) {
-    const s = el('span', 'm');
-    s.textContent = row.scope === 'global' ? 'Applies everywhere' : (row.scope === 'chat' ? 'This chat only' : 'This session only');
-    wrap.appendChild(s);
-  }
-  if (row.effect) wrap.appendChild(el('span', 'm', row.effect));
+  const common = state.paneMeta || {};
+  if (row.scope && row.scope !== common.scope) wrap.appendChild(el('span', 'm', scopeText(row.scope)));
+  if (row.effect && row.effect !== common.effect) wrap.appendChild(el('span', 'm', row.effect));
   return wrap;
+}
+function commonPaneMeta(rows) {
+  const counts = {};
+  let best = null;
+  rows.forEach(r => {
+    if (r.kind === 'note' || r.kind === 'custom' || !r.scope || !r.effect) return;
+    const k = r.scope + '\u0000' + r.effect;
+    counts[k] = (counts[k] || 0) + 1;
+    if (!best || counts[k] > counts[best]) best = k;
+  });
+  // A single row gains nothing from being summarised at the top.
+  if (!best || counts[best] < 2) return null;
+  const parts = best.split('\u0000');
+  return { scope: parts[0], effect: parts[1] };
 }
 
 function control(row) {
@@ -1431,7 +1446,7 @@ function renderRow(row) {
   }
   main.appendChild(lab);
   if (row.help) main.appendChild(el('div', row.kind === 'note' ? 'row-help note-body' : 'row-help', state.focusPart === 'spend' && row.id === 'usepod' ? 'Review a spending limit for your next UsePod request. Your message stays in the chat until you send it.' : row.help));
-  if (row.kind !== 'note' && row.kind !== 'custom') main.appendChild(metaLine(row));
+  if (row.kind !== 'note' && row.kind !== 'custom') { const meta = metaLine(row); if (meta.childNodes.length) main.appendChild(meta); }
   node.appendChild(main);
   if (row.kind === 'custom') {
     const host = el('div', 'row-ctl');
@@ -1448,6 +1463,12 @@ function renderPane() {
   if (!g) return;
   $('#paneTitle').textContent = g.title;
   $('#paneBlurb').textContent = g.blurb || '';
+  state.paneMeta = state.onlyRow ? null : commonPaneMeta(g.rows);
+  const metaEl = $('#paneMeta');
+  if (metaEl) {
+    metaEl.textContent = state.paneMeta ? scopeText(state.paneMeta.scope) + ' \u00b7 ' + state.paneMeta.effect : '';
+    metaEl.hidden = !state.paneMeta;
+  }
   const body = $('#paneBody');
   body.textContent = '';
   const card = el('div', 'card');
@@ -4747,7 +4768,9 @@ def _locale_coverage_note(tag: str) -> str:
     # legitimate byte-identical translation and still counts toward completeness.
     translated = len(catalog.locale_keys & set(catalog.keys))
     if tag == "en":
-        return catalog.format("settings.language_coverage_en", total=total)
+        # The source language has nothing missing to report; a string count tells a person
+        # nothing they can act on, so the line stays empty in English.
+        return ""
     fallback = total - translated
     if fallback == 0:
         return catalog.format("settings.language_coverage_complete", translated=translated, total=total)
