@@ -28,8 +28,8 @@ from core.media_analysis_pipeline import MediaAnalysisPipeline
 from core.media_ingestion import _normalize_item
 from core.model_failover import select_with_failover
 from core.model_health import reset_provider_health
-from core.model_registry import ModelRegistry
 from core.model_output_contracts import json_schema_for_mode
+from core.model_registry import ModelRegistry
 from core.model_selection_policy import ModelSelectionRequest, explain_provider_exclusions
 from core.orchestration.task_envelope import TaskEnvelopeV1
 from core.provider_routing import rank_provider_candidates, resolve_provider_routing_plan_for_envelope

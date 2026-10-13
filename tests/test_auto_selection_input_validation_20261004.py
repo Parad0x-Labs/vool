@@ -28,6 +28,7 @@ import pytest
 
 from adapters.base_adapter import ModelRequest
 from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
+from core import provider_routing
 from core.cloud_tool_call_contract import build_cloud_tool_definitions
 from core.execution_requirements import RequiredToolsNotOfferedError
 from core.model_failover import select_with_failover
@@ -36,7 +37,6 @@ from core.model_output_contracts import json_schema_for_mode
 from core.model_registry import ModelRegistry
 from core.model_selection_policy import ModelSelectionRequest, explain_provider_exclusions
 from core.orchestration.task_envelope import TaskEnvelopeV1
-from core import provider_routing
 from core.provider_routing import rank_provider_candidates, resolve_provider_routing_plan_for_envelope
 from storage.db import get_connection
 from storage.model_provider_manifest import ModelProviderManifest

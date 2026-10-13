@@ -15,6 +15,8 @@ further selection tuning. They pin the eligibility-first law and the value-decis
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from core.cloud_provider_contract import CloudModelMetadata, CloudTaskRequirements, PricingState, PrivacyClass
 from core.cloud_routing import CloudRouteMode, select_cloud_route
 from core.model_health import record_provider_failure, reset_provider_health
@@ -24,12 +26,10 @@ from core.model_selection_policy import (
     explain_provider_exclusions,
     rank_providers,
 )
-from core.provider_routing import resolve_provider_routing_plan_for_envelope
 from core.orchestration.task_envelope import TaskEnvelopeV1
+from core.provider_routing import resolve_provider_routing_plan_for_envelope
 from storage.db import get_connection
 from storage.model_provider_manifest import ModelProviderManifest
-
-from datetime import datetime, timezone
 
 
 def _clear_manifests() -> None:

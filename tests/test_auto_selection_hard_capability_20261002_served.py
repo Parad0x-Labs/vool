@@ -24,10 +24,9 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import pytest
-
-from urllib.request import Request, urlopen
 
 from tests._blackbox_served_rig import REPO_ROOT, ScriptedProvider, ServedDaemon, _chat_with_operator, run_in_home
 from tests._reader_served_rig import _probe_reply

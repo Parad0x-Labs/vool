@@ -18,7 +18,6 @@ from core.model_selection_policy import (
 )
 from storage.model_provider_manifest import ModelProviderManifest
 
-
 _CAPS = ["summarize", "format", "structured_json", "code_complex"]
 # A tool-selection step requires a lane that declares tool selection (structured_json AND
 # tool_intent are its hard contract); VOOL's general local lane and the OpenRouter chat lanes do.
