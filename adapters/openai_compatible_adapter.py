@@ -1004,6 +1004,19 @@ class OpenAICompatibleAdapter(ModelAdapter):
             logger.debug("Failed to record local inference benchmark", exc_info=True)
 
     def _build_openai_payload(self, request: ModelRequest, *, force_json: bool, stream: bool) -> dict[str, Any]:
+        # A model that runs paid tools of its own on every call (web search, code execution) on an
+        # endpoint that reports no price for them would spend outside the caps: refused before
+        # anything is sent, whichever lane reached here.
+        from core.model_pricing import (
+            UNPRICED_BUILTIN_TOOLS_REFUSAL,
+            provider_slot_for_manifest,
+            unpriced_builtin_tools,
+        )
+
+        if unpriced_builtin_tools(
+            provider_slot_for_manifest(self.manifest), str(getattr(self.manifest, "model_name", "") or "")
+        ):
+            raise RuntimeError(UNPRICED_BUILTIN_TOOLS_REFUSAL)
         generation_profile = dict(request.metadata.get("generation_profile") or {})
         context_window = self._ollama_context_window(request) if self._runtime_family() == "ollama" else 0
         max_output_tokens = (
