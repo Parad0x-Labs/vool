@@ -295,7 +295,10 @@ _MEMORY_EXTRACTION_SYSTEM = "You are a local memory extraction agent."
 
 
 def _is_memory_extraction(call: dict[str, Any]) -> bool:
-    return str(call.get("system") or "").startswith(_MEMORY_EXTRACTION_SYSTEM)
+    return any(
+        str(call.get(field) or "").lstrip().startswith(_MEMORY_EXTRACTION_SYSTEM)
+        for field in ("system", "prompt", "full_prompt")
+    )
 
 
 def _generated_by(provider: ScriptedProvider) -> set[str]:
