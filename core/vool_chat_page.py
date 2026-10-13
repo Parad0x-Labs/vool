@@ -629,9 +629,9 @@ footer.att-drop { outline:2px dashed var(--accent); outline-offset:-6px; }
 .own-tools-banner .ot-mark { flex:0 0 auto; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; border:1px dashed var(--border); border-radius:50%; }
 .own-tools-banner .ot-mark svg { width:10px; height:10px; }
 .own-tools-banner .ot-text { overflow:hidden; text-overflow:ellipsis; max-width:130px; }
-.own-tools-banner button { flex:0 0 auto; height:22px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0 6px; font-size:11px; cursor:pointer; }
+.own-tools-banner button { flex:0 0 auto; width:24px; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0; cursor:pointer; }
 .own-tools-banner button:hover { color:var(--ink); border-color:var(--accent); }
-@container composer (max-width:470px) { .own-tools-banner .ot-text { display:none; } }
+@container composer (max-width:470px) { .own-tools-banner .ot-text { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } }
 .bypass-banner button { flex:0 0 auto; width:24px; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0; cursor:pointer; }
 .bypass-banner button:hover { color:var(--ink); border-color:var(--accent); }
 /* The popover grows UPWARD from a control sitting at the bottom of the window, so a long list ran
@@ -1184,7 +1184,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" class="ctrl-btn mode-info" id="modeInfo" aria-haspopup="dialog" aria-expanded="false" aria-controls="modeHelpPop" aria-label="Explain the selected mode" data-i18n-aria-label="mode.info_aria">i</button>
       <div class="popover mode-help" id="modeHelpPop" role="dialog" aria-label="Selected mode permissions" data-i18n-aria-label="mode.help_aria"><b id="modeHelpTitle">Manual</b><span id="modeHelpText"></span></div>
     </div>
-    <div id="ownToolsBanner" class="own-tools-banner" role="status" hidden title="The model's own tools are on. A cloud model you pick gets no VOOL tools; where its provider offers its own web search, it searches at the provider. Local models and Auto keep VOOL's tools." data-i18n-title="own_tools.banner_title"><span class="ot-mark" aria-hidden="true"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6.6 1.4a2.4 2.4 0 0 0-2.9 3.1L1.4 6.8a.9.9 0 0 0 1.3 1.3L5 5.8a2.4 2.4 0 0 0 3.1-2.9L6.8 4.2 5.8 3.2z"/></svg></span><span class="ot-text" data-i18n="own_tools.banner">Model's own tools</span><button type="button" id="ownToolsEnd" data-i18n="own_tools.end" title="Switch back to VOOL's tools" data-i18n-title="own_tools.end_title">Use VOOL's tools</button></div>
+    <div id="ownToolsBanner" class="own-tools-banner" hidden title="The model's own tools are on: cloud models you choose don't get VOOL's tools, and some search the web themselves. Auto and local models keep VOOL's tools." data-i18n-title="own_tools.banner_title"><span class="ot-mark" aria-hidden="true"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6.6 1.4a2.4 2.4 0 0 0-2.9 3.1L1.4 6.8a.9.9 0 0 0 1.3 1.3L5 5.8a2.4 2.4 0 0 0 3.1-2.9L6.8 4.2 5.8 3.2z"/></svg></span><span class="ot-text" data-i18n="own_tools.banner">Model's own tools</span><button type="button" id="ownToolsEnd" aria-label="Turn off the model's own tools" title="Turn off the model's own tools" data-i18n-aria-label="own_tools.end_title" data-i18n-title="own_tools.end_title">&times;</button></div>
     <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText" data-i18n="bypass.banner.active">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions" data-i18n-aria-label="bypass.revoke_aria" data-i18n-title="bypass.revoke_aria">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
       <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
@@ -7443,13 +7443,20 @@ async function refreshOwnToolsBanner() {
   } catch (e) { /* unknown: leave the marker as it was */ }
 }
 async function endOwnTools() {
+  // One toast, decided by the save itself: the follow-up read only redraws the marker.
   const banner = document.getElementById('ownToolsBanner');
+  let saved = false;
   try {
     const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model_own_tools: false }) });
-    if (!r.ok) throw new Error('not saved');
-  } catch (e) { toast(pageT('own_tools.end_failed', "Couldn't switch back to VOOL's tools. Nothing changed.")); }
+    saved = r.ok;
+  } catch (e) { saved = false; }
+  if (saved) {
+    if (banner) banner.hidden = true;
+    toast(pageT('own_tools.ended', "Using VOOL's tools again."));
+  } else {
+    toast(pageT('own_tools.end_failed', "Couldn't switch back to VOOL's tools. Nothing changed."));
+  }
   await refreshOwnToolsBanner();
-  if (banner && banner.hidden) toast(pageT('own_tools.ended', "Using VOOL's tools again."));
 }
 
 let spendingPreflightPending = false;
@@ -10281,6 +10288,7 @@ function closeSettingsFrame() {
   if (!settingsFrameOverlay || settingsFrameOverlay.hidden) return;
   settingsFrameOverlay.hidden = true;
   const composer = document.getElementById('input'); if (composer) { try { composer.focus(); } catch (e) {} }
+  refreshOwnToolsBanner();  // the switch may have changed inside the framed Settings page
 }
 // The framed Settings page asks its host to close it: its own "Back" can neither close a frame nor
 // be allowed to navigate the chat away. Same origin only.

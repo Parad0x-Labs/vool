@@ -207,7 +207,8 @@ def load_preferences() -> UserPreferences:
             wallet_enabled=bool(raw.get("wallet_enabled", False)),
             wallet_enabled_generation=max(0, int(raw.get("wallet_enabled_generation", 0) or 0)),
             zcash_invoices_enabled=bool(raw.get("zcash_invoices_enabled", False)),
-            model_own_tools=bool(raw.get("model_own_tools", False)),
+            # Only a stored JSON true turns it on: a string, a number or a damaged file reads OFF.
+            model_own_tools=raw.get("model_own_tools") is True,
             ram_reserve_pct=min(80, max(10, int(raw.get("ram_reserve_pct", 20)))),
             daily_token_budget=max(0, int(raw.get("daily_token_budget", 0))),
             timezone=_validate_timezone(str(raw.get("timezone", "") or "")),
@@ -238,7 +239,7 @@ def save_preferences(prefs: UserPreferences) -> Path:
     payload["wallet_enabled"] = bool(payload.get("wallet_enabled", False))
     payload["wallet_enabled_generation"] = max(0, int(payload.get("wallet_enabled_generation", 0) or 0))
     payload["zcash_invoices_enabled"] = bool(payload.get("zcash_invoices_enabled", False))
-    payload["model_own_tools"] = bool(payload.get("model_own_tools", False))
+    payload["model_own_tools"] = payload.get("model_own_tools") is True
     payload["ram_reserve_pct"] = min(80, max(10, int(payload.get("ram_reserve_pct", 20))))
     payload["daily_token_budget"] = max(0, int(payload.get("daily_token_budget", 0)))
     payload["timezone"] = _validate_timezone(str(payload.get("timezone", "") or ""))

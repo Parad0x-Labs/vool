@@ -709,7 +709,17 @@ def handle_turn_frontdoor(
             or raw_user_input
         )
 
-    handled, response = maybe_handle_preference_command_fn(effective_input)
+    # "Use the model's own tools" changes where the owner's questions go and what they spend: only
+    # the owner, writing from their own machine, may switch it (status stays open to everyone).
+    from core.model_own_tools import REPLY_NOT_OWNER, parse_tools_command
+    from core.request_trust import request_is_owner_local, turn_is_owner_authored
+
+    if parse_tools_command(effective_input) in {"on", "off"} and not (
+        request_is_owner_local(source_context) and turn_is_owner_authored(source_context)
+    ):
+        handled, response = True, REPLY_NOT_OWNER
+    else:
+        handled, response = maybe_handle_preference_command_fn(effective_input)
     if handled:
         agent._sync_public_presence(
             status=agent._idle_public_presence_status(),

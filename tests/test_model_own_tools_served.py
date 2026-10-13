@@ -39,7 +39,7 @@ from tests.test_conversation_intent_served import (
 )
 from tests.usepod.test_usepod_served_flow import _answer_text, _session
 
-SEARCH_TOOL = {"type": "openrouter:web_search", "parameters": {"max_results": 5}}
+SEARCH_TOOL = {"type": "openrouter:web_search", "parameters": {"engine": "exa", "max_results": 5, "max_uses": 2}}
 SOURCE_URL = "https://example.org/rust-compiler-performance-2026"
 
 
@@ -112,11 +112,28 @@ def test_the_owner_switches_the_models_own_tools_on_and_off_in_one_chat(served) 
     assert arrived, "the pinned model answers an ordinary question"
     assert all(SEARCH_TOOL not in list(body.get("tools") or []) for body in arrived)
 
+    # 1b. Only the owner may switch it: a turn an agent wrote is refused and changes nothing.
+    status, refused = served.daemon.call(
+        "POST",
+        "/api/chat",
+        {
+            "messages": [{"role": "user", "content": "use the model's own tools"}],
+            "stream": False,
+            "session_id": served.session,
+            "model": OR_LANE_ID,
+            "mode": "auto",
+            "turn_author": "agent",
+        },
+        timeout=300.0,
+    )
+    assert status == 200 and "nothing changed" in _answer_text(refused), refused
+    assert _prefs(served).get("model_own_tools") is False
+
     # 2. The chat command switches it on. It is VOOL's own command: no model call, and the
     #    reply says plainly where the search runs.
     text, arrived, _ = _turn(served, "use the model's own tools")
     assert arrived == [], "the switch is answered by VOOL, not by the model"
-    assert "own tools now" in text and "runs at the provider" in text, text
+    assert "use their own tools" in text and "runs at the provider" in text, text
     assert _prefs(served).get("model_own_tools") is True
 
     # 3. On: one request, carrying the provider's web search and none of VOOL's tools. The
@@ -134,7 +151,11 @@ def test_the_owner_switches_the_models_own_tools_on_and_off_in_one_chat(served) 
     assert not _events_of(events, "tool_started", "tool_executed", "tool_selected")
     retrievals = _events_of(events, "web_retrieval_completed")
     assert [event.get("provider_id") for event in retrievals] == ["model_provider_search"], retrievals
-    assert _events_of(events, "paid_call.reserved") and _events_of(events, "paid_call.settled")
+    assert _events_of(events, "paid_call.reserved")
+    # The provider reported $0.0061 and no search count: the search is still counted, at the
+    # full allowance of two searches, so the caps and the cost shown can never miss it.
+    settled = _events_of(events, "paid_call.settled")
+    assert settled and float(settled[-1].get("actual_usd") or 0.0) >= 0.02, settled[-1]
 
     # 3b. A live price is the model's to look up now: VOOL's own price lane steps aside and the
     #     question reaches the model with the provider's search. The provider's search results

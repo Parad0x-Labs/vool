@@ -479,14 +479,13 @@ def _settings_groups() -> list[dict]:
                     id="model_own_tools",
                     label="Use the model's own tools",
                     help=(
-                        "Off by default. When on, a cloud model you pick gets none of VOOL's tools. "
-                        "If its provider offers its own web search, the model searches with that "
-                        "instead; that search runs at the provider, not on this computer, and is "
-                        "billed to your key within your spending limits. Other cloud models answer "
-                        "with no tools at all. Local models and Auto keep VOOL's tools. Your wallet "
-                        "and payments always go through VOOL's own approval, and your rules still "
-                        "apply to everything VOOL handles. In chat, say \"use the model's own "
-                        "tools\" or \"use VOOL's tools\"."
+                        "Off by default. When on, a cloud model you choose answers without VOOL's tools or "
+                        "web research. A few paid models can search the web themselves: when a question needs "
+                        "current information, that search runs at the model's provider, so your question goes "
+                        "to them, and the fee counts against your spending limit. When the model can't "
+                        "search, VOOL still answers quick facts like prices and weather. Payments always need "
+                        "your approval. Auto and local models keep VOOL's tools. In chat, say \"use the "
+                        "model's own tools\" or \"use VOOL's tools\"."
                     ),
                     kind="toggle",
                     read={"url": PREFS, "field": "model_own_tools"},

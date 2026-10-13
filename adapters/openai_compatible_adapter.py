@@ -29,9 +29,12 @@ from core.local_model_admission import local_model_slot
 from core.memory_prompt_builder import apply_memory_prefix_to_messages, build_memory_prefix_for_request
 from core.model_output_guard import scrub_foreign_markers, strip_reasoning_block
 from core.model_own_tools import (
+    UNPRICED_BUILTIN_TOOLS_REFUSAL,
     citation_sources,
     granted_provider_tools,
     provider_search_metadata,
+    searched_call_cost_estimate,
+    unpriced_builtin_tools,
     with_sources,
 )
 from core.normalized_provider_result import (
@@ -640,6 +643,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     granted_provider_tools(getattr(request, "metadata", None)),
                     _openai_message_sources(data),
                 ),
+                **self._provider_search_cost(request, usage),
             },
             usage=usage,
             provider_id=self.manifest.provider_id,
@@ -907,7 +911,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
                                    **provider_search_metadata(
                                        granted_provider_tools(getattr(request, "metadata", None)),
                                        stream_sources,
-                                   )},
+                                   ),
+                                   **self._provider_search_cost(request, stream_usage)},
                 provider_attested_model=attested_model,
                 finish_reason=finish_reason,
             )
@@ -1038,6 +1043,15 @@ class OpenAICompatibleAdapter(ModelAdapter):
             logger.debug("Failed to record local inference benchmark", exc_info=True)
 
     def _build_openai_payload(self, request: ModelRequest, *, force_json: bool, stream: bool) -> dict[str, Any]:
+        # A model that runs paid tools of its own on every call (web search, code execution) on an
+        # endpoint that reports no price for them would spend outside the caps: refused before
+        # anything is sent, whichever lane or switch reached here.
+        from core.model_pricing import provider_slot_for_manifest
+
+        if unpriced_builtin_tools(
+            provider_slot_for_manifest(self.manifest), str(getattr(self.manifest, "model_name", "") or "")
+        ):
+            raise RuntimeError(UNPRICED_BUILTIN_TOOLS_REFUSAL)
         generation_profile = dict(request.metadata.get("generation_profile") or {})
         context_window = self._ollama_context_window(request) if self._runtime_family() == "ollama" else 0
         max_output_tokens = (
@@ -1604,6 +1618,20 @@ class OpenAICompatibleAdapter(ModelAdapter):
 
             headers = apply_openrouter_attribution_headers(headers)
         return headers
+
+    def _provider_search_cost(self, request: ModelRequest, usage: Any) -> dict[str, Any]:
+        """The cost of a call that carried the provider's search, search fee included, for the
+        caps and the cost shown (see `core.model_own_tools.searched_call_cost_estimate`)."""
+        if not usage or not granted_provider_tools(getattr(request, "metadata", None)):
+            return {}
+        from core.model_pricing import provider_slot_for_manifest
+
+        estimate = searched_call_cost_estimate(
+            provider_id=provider_slot_for_manifest(self.manifest),
+            model_id=str(getattr(self.manifest, "model_name", "") or ""),
+            usage=usage,
+        )
+        return {"cost_estimate": estimate} if estimate else {}
 
     def _is_openrouter_lane(self) -> bool:
         provider_name = str(getattr(self.manifest, "provider_name", "") or "").strip().lower()

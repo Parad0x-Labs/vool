@@ -401,27 +401,35 @@ class ResearchToolLoopFacadeMixin:
     def _open_provider_search_receipt(self, source_context: dict[str, Any] | None, authority_text: str) -> bool:
         """"Use the model's own tools": open the receipt for the provider's search BEFORE synthesis.
 
-        The provider searches inside the answering call, so its receipt must be opened through
-        the canonical door here, before the synthesis freeze, exactly like VOOL's own schedulers;
+        The provider searches inside the answering call, so its receipt is opened through the
+        canonical door here, before the synthesis freeze, exactly like VOOL's own schedulers;
         `core.model_own_tools.record_provider_search` closes it with the sources the provider
-        returned. Only a turn whose canonical record already needs current information opens a
-        receipt: the switch alone never widens a turn to current. Returns False when the door
-        refuses; the caller then sends the call without the provider's search.
+        returned. The search is sent only where VOOL itself would search: a turn whose canonical
+        record needs current information, that the owner did not close to tools ("without using
+        any tools") or to the network (a remote-fetch veto), and that the door admits. The switch
+        alone never widens a turn to current. Returns False otherwise; the caller then sends the
+        call without the provider's search, so every provider search has a receipt.
         """
+        from core.agent_runtime.intent_claims import ActionPolicy, action_policy_from_context
         from core.execution_requirements import current_requirement_record, requirements_for
         from core.model_own_tools import PROVIDER_SEARCH_RECEIPT_KEY, turn_has_provider_search
+        from core.remote_fetch_policy import remote_fetch_allowed_by_context
         from core.retrieval_authority_gate import authorize_retrieval
         from core.retrieval_provenance import MODEL_PROVIDER_SEARCH
 
         if not isinstance(source_context, dict) or not turn_has_provider_search(source_context):
-            return True
+            return False
         source_context.pop(PROVIDER_SEARCH_RECEIPT_KEY, None)
+        if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
+            return False
+        if explicit_remote_fetch_disabled(source_context) or not remote_fetch_allowed_by_context(source_context):
+            return False
         # The turn's canonical decision (minted here if no stage has read it yet, exactly as the
         # freeze below would mint it): the provider search is judged by the same record.
         requirements_for(authority_text, source_context=source_context)
         record = current_requirement_record(source_context)
         if record is None or not bool(getattr(record.requirements, "current_information_required", False)):
-            return True
+            return False
         if not authorize_retrieval(
             source_context,
             authority_text,

@@ -52,6 +52,12 @@ RESERVED_TRUST_KEYS = (
     "cloud_escalation_approved",
     "autopilot_allow_heavy_model",
     "authorized_paid_call",
+    # "Use the model's own tools" turn stamps (core.model_own_tools.STAMP_KEYS): server-written
+    # at run_once; a caller copy would claim a provider search the owner's switch never granted.
+    "model_own_tools_turn",
+    "model_own_tools_search",
+    "model_own_tools_search_receipt",
+    "model_own_tools_search_admission",
     # The operator's Authorize Push is SERVER-stamped by the owner-local operator surface.
     # A request body carrying it would let a model author its own consent to move a remote ref.
     "repo_push_authorization",
