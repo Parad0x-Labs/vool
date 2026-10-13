@@ -161,7 +161,7 @@ package-draft/
   skills/meeting-brief/SKILL.md
 ```
 
-Keep the SDK output, scratch, metadata input and `.git` checkout outside this directory. Packaging includes every file, empty directory and executable bit. `.git`, credential filenames, `.env*`, symlinks, path ambiguity and case collisions are refused. Do not silently drop a file to make packaging pass; stage a complete, explicitly chosen distribution and review its inventory. Extra source references or assets must be deliberately copied into the distribution and licensed.
+Keep the SDK output, scratch, metadata input and `.git` checkout outside this directory; `lint` and `pack` refuse a scratch or output path inside the package. Packaging includes every file, empty directory and executable bit. `.git`, credential filenames, `.env*`, symlinks, path ambiguity and case collisions are refused. Do not silently drop a file to make packaging pass; stage a complete, explicitly chosen distribution and review its inventory. Extra source references or assets must be deliberately copied into the distribution and licensed.
 
 For private upload, the website sends the artifact's **unaltered bytes** to `POST /registry/api/submissions` with `Content-Type: application/vnd.vool.registry+json`, same-origin session and `X-Vool-CSRF`. Do not parse and pretty-print the artifact: canonical transport bytes determine its checksum.
 

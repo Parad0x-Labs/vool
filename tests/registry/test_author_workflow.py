@@ -28,6 +28,26 @@ def test_pack_existing_output_emits_only_refusal_and_preserves_bytes(tmp_path, c
     assert output.read_bytes() == original
 
 
+def test_scratch_or_output_inside_package_is_refused_without_changing_package(tmp_path, capsys):
+    _, source, info = artifact_fixture(tmp_path)
+    (source / "registry.json").write_bytes(canonical(info))
+    before = sorted(path.relative_to(source).as_posix() for path in source.rglob("*"))
+    outside = tmp_path / "scratch"
+    attempts = [["lint", str(source), "--scratch", str(source / "scratch")],
+                ["pack", str(source), "--scratch", str(source / "scratch"), "--output", str(tmp_path / "a.json")],
+                ["pack", str(source), "--scratch", str(outside), "--output", str(source / "out.json")]]
+    for argv in attempts:
+        assert main(argv) == 1
+        lines = capsys.readouterr().out.splitlines()
+        assert len(lines) == 1
+        assert json.loads(lines[0]) == {"reason": "scratch and output must be outside the package directory",
+                                        "status": "refused"}
+        assert sorted(path.relative_to(source).as_posix() for path in source.rglob("*")) == before
+    assert not (tmp_path / "a.json").exists()
+    assert main(["pack", str(source), "--scratch", str(outside), "--output", str(tmp_path / "ok.json")]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "preflight_passed"
+
+
 def test_documented_example_init_edit_lint_pack_check_and_update(tmp_path, capsys):
     example = Path(__file__).resolve().parents[2] / "docs/registry/examples/meeting-brief"
     source_repo = tmp_path / "source-repo"

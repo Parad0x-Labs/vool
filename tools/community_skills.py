@@ -7,7 +7,7 @@ import re
 import urllib.parse
 from pathlib import Path
 
-from core.plugin_package import execution_directory
+from core.plugin_package import PackageError, execution_directory
 from core.registry.artifact import inspect, materialize, metadata, native_identity, pack
 from core.registry.codec import RegistryError, canonical, decode, require
 
@@ -29,6 +29,15 @@ def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
                                   "\n---\n\nUse only information the user provides. Ask before taking an external action.\n", encoding="utf-8")
     (destination / "LICENSE").write_bytes(license_bytes)
     (destination / "registry.json").write_bytes(canonical(info))
+
+
+def separate(source: Path, *paths: Path) -> None:
+    """Refuse scratch/output inside the package before anything is created there."""
+    root = source.resolve()
+    for path in paths:
+        location = path.resolve()
+        require(not location.is_relative_to(root),
+                "scratch and output must be outside the package directory")
 
 
 def preflight(raw: bytes, scratch: Path) -> dict:
@@ -87,6 +96,7 @@ def main(argv=None) -> int:
         if args.command == "check":
             raw = args.artifact.read_bytes()
         else:
+            separate(args.source, args.scratch, *([args.output] if args.command == "pack" else []))
             info = decode((args.source / "registry.json").read_bytes(), 32768)
             raw = pack(args.source, info, args.scratch)
         report = preflight(raw, args.scratch)
@@ -103,7 +113,7 @@ def main(argv=None) -> int:
                           output_file=str(args.output.resolve()))
         print(canonical(report).decode())
         return 0
-    except (RegistryError, OSError, ValueError) as exc:
+    except (RegistryError, PackageError, OSError, ValueError) as exc:
         print(canonical({"status": "refused", "reason": str(exc)}).decode())
         return 1
 
