@@ -136,19 +136,19 @@ def test_bp02_assistant_answer_extends_user_turn(fresh_profile):
     chat = "bp-wifi"
     _finalize(
         fresh_profile, chat,
-        "What's the wifi password at the workshop?",
-        "The workshop wifi password is driftwood-harbor-42.",
+        "What's the wifi network name at the workshop?",
+        "The workshop wifi network is driftwood-harbor-42.",
     )
-    ctx = _capsule(fresh_profile, chat, "wifi password workshop")
+    ctx = _capsule(fresh_profile, chat, "wifi network workshop")
     assert "driftwood-harbor-42" in ctx, {"capsule": ctx, "nodes": _node_rows(fresh_profile, chat)}
 
 
 # ---- admission gates (lead repro1 R2/R3 seams) ------------------------------
 
 def test_bp03_short_fact_below_length_gate(fresh_profile):
-    chat = "bp-pin"
-    status = _store(fresh_profile, chat, "My PIN is 4920.")
-    ctx = _capsule(fresh_profile, chat, "What is my PIN?")
+    chat = "bp-locker"
+    status = _store(fresh_profile, chat, "My locker number is 4920.")
+    ctx = _capsule(fresh_profile, chat, "What is my locker number?")
     assert "4920" in ctx, {"store_status": status, "capsule": ctx,
                            "nodes": _node_rows(fresh_profile, chat)}
 

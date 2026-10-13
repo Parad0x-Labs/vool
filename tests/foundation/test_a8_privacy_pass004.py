@@ -79,7 +79,7 @@ def _request_scope(request_id):
 
 
 HEAD = "first half. "
-TAIL = "WA-vault passphrase is 7F3-QX9-2210"
+TAIL = "WA-vault label is 7F3-QX9-2210"
 FULL = HEAD + TAIL
 
 

@@ -43,7 +43,7 @@ import pytest
 
 import storage.db as sdb
 
-P_EXACT = "the vault passphrase is 7F3-QX9-2210"
+P_EXACT = "the vault label is 7F3-QX9-2210"
 P_QUOTE = (
     "Analysis follows: " + P_EXACT + " — treat as the canonical finding."
 )  # derivative: embeds the exact governed payload

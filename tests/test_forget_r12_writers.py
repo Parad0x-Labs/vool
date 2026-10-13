@@ -16,7 +16,7 @@ from tests.test_question_date_time_leg_20261002 import _hash_backend, _ingest, _
 pytestmark = pytest.mark.usefixtures('_hash_backend')
 
 SECRET = 'HARBOR29'
-BODY = 'The gate passphrase is HARBOR29.'
+BODY = 'The gate code is HARBOR29.'
 
 
 def _child(home, code, *args):
