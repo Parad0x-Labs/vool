@@ -55,6 +55,8 @@ const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefi
 let tab='discover',data=null,category='',ecosystem='',limit=24,remote=null,sort='name',availability='ready',selected=null,review=null,busy=false,error='',generation=0,localCheck=null;
 let registryData=null,registryReview=null;
 const key=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s_-]+/g,'');
+const slugKey=s=>String(s||'').replace(/-/g,'_');
+const catLabel=e=>tr('registry_category_'+slugKey(e.category),e.category)+' · '+tr('registry_subcategory_'+slugKey(e.subcategory),e.subcategory);
 function button(text,fn,cls){const b=node('button',text,cls||'');b.type='button';b.disabled=busy;b.addEventListener('click',fn);return b;}
 async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error)throw new Error((j.message||tr('request_failed','The request could not finish.'))+' ['+(j.error||r.status)+']');return j;}
 async function read(){const r=await fetch('/api/addons');if(!r.ok)throw new Error(tr('catalog_failed','Could not read the add-on catalogue.'));return r.json();}
@@ -152,10 +154,10 @@ function renderRegistry(host,query){
  host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
  host.append(node('p',tr('registry_network','This button requests the public registry. No account, chats, local files or provider keys are sent.'),'addon-meta'));
  if(!registryData)return;
- const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory].join(' ')).includes(key(query)));
+ const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory,catLabel(e)].join(' ')).includes(key(query)));
  if(!rows.length)host.append(node('p',tr('registry_empty','No listed versions match this exact VOOL build and search.')));
  const grid=node('div',undefined,'addon-grid');host.append(grid);
- rows.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.title||e.id),node('p',e.summary),node('small',(e.title?e.id+' · ':'')+e.category+' · '+e.subcategory+' · '+e.version+' · '+e.license),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
+ rows.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.title||e.id),node('p',e.summary),node('small',(e.title?e.id+' · ':'')+catLabel(e)+' · '+e.version+' · '+e.license),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
 }
 function renderLibrary(host,query){
  // Keep storage recovery, first-party identity and lifecycle controls at their existing owners.
