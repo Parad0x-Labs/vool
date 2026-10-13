@@ -50,21 +50,25 @@ GENERAL_CAPS = ["summarize", "classify", "format", "extract", "structured_json",
 PROBE = "hard-capability-probe"
 
 # Result-carry cases. Each command's real output holds a marker that appears nowhere in the
-# operator's request or the command's arguments: echo joins its arguments with ONE space, and
-# printf assembles its format, so the marker can reach a later provider payload or the shipped
-# answer only by the command having run and its sealed result having been carried forward. Both
-# use the model-routed "run the command" wording (a file read is served by a deterministic fast
-# path with no model, so it cannot exercise selection).
+# operator's request or the command's arguments (the data lives only in a workspace file), so the
+# marker can reach a later provider payload or the shipped answer only by the command having run
+# and its sealed result having been carried forward. Two different sandbox-whitelisted commands
+# over two different files, both in the model-routed "run the command" wording: a bare file read
+# is served by a deterministic fast path with no model, so it cannot exercise selection.
 CARRY_CASES = {
-    "echo": {
-        "command": "echo ledger    4817-teal",
-        "marker": "ledger 4817-teal",
-        "answer": "The command printed",
+    "head": {
+        "command": "head -n 1 ledger/carry-note.txt",
+        "file": "ledger/carry-note.txt",
+        "content": "ledger-total-4817-teal\nsecond line stays unread\n",
+        "marker": "ledger-total-4817-teal",
+        "answer": "The first line is",
     },
-    "printf": {
-        "command": "printf %s-%s-%s invoice 7c2e quartz",
+    "grep": {
+        "command": "grep -h quartz inbox/notes.txt",
+        "file": "inbox/notes.txt",
+        "content": "amber line\ninvoice-7c2e-quartz paid\nslate line\n",
         "marker": "invoice-7c2e-quartz",
-        "answer": "The command output is",
+        "answer": "The matching line names",
     },
 }
 
@@ -165,6 +169,10 @@ def served(tmp_path_factory):
     # refuses a command whose preimage it cannot scan.
     workspace = home.parent / "workspace"
     workspace.mkdir()
+    for case in CARRY_CASES.values():
+        target = workspace / case["file"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(case["content"], encoding="utf-8")
     local = ScriptedProvider({}, default="Plain scripted answer.", reply_fn=_reply)
     cloud = ScriptedProvider({}, default="cloud reply")
     daemon = ServedDaemon(
@@ -394,7 +402,7 @@ def test_served_tool_result_is_carried_forward_and_grounds_the_answer(served, ca
 def test_served_incapable_routes_never_run_the_command_or_see_its_result(served) -> None:
     """Zero forbidden execution: with only a tool-incapable model, in Auto and pinned, the
     command never runs, its output never reaches any provider, and no answer claims it."""
-    case = CARRY_CASES["echo"]
+    case = CARRY_CASES["head"]
     _seed(served, [(REASONING, REASONING_CAPS)])
     results = {}
     for session, model in (("hc-carry-none-auto", "vool"), ("hc-carry-none-pin", REASONING)):
