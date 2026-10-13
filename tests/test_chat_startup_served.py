@@ -70,7 +70,9 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
         monkeypatch.setattr(rig.sys, "executable", str(app.parent / "python/bin/python3"))
     with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback",
+                                             # The answer-details line is opt-in; it proves the fast path ran.
+                                             "VOOL_SHOW_USAGE_FOOTER": "1"})
         try:
             daemon.start(timeout=60)
             _seed_history(daemon.home)
