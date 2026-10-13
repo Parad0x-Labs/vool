@@ -55,6 +55,9 @@ _PALETTE_CSS = """
   background:var(--field,#1d2129);color:var(--ink,#e8eaf0);font:inherit;font-size:13px;cursor:pointer}
 #vpResult{padding:10px 18px 14px;border-top:1px solid var(--border,#262b35);font-size:12px;max-height:22vh;overflow-y:auto}
 #vpResult .vp-ok{color:#7ee2a8}#vpResult .vp-fault{color:#e06c75}
+/* Light theme (core/ui_palette.py): the status tints take the light palette's own colours. */
+:root[data-theme="light"] .vp-badge.vp-mut{color:var(--warn)}:root[data-theme="light"] .vp-badge.vp-desc{color:var(--bad)}:root[data-theme="light"] #vpResult .vp-ok{color:var(--success)}:root[data-theme="light"] #vpResult .vp-fault{color:var(--bad)}
+@media (prefers-color-scheme: light){:root[data-theme="system"] .vp-badge.vp-mut{color:var(--warn)}:root[data-theme="system"] .vp-badge.vp-desc{color:var(--bad)}:root[data-theme="system"] #vpResult .vp-ok{color:var(--success)}:root[data-theme="system"] #vpResult .vp-fault{color:var(--bad)}}
 #vpResult .vp-receipts{margin-top:6px;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--muted,#9aa1af)}
 #vpResult .vp-next{margin-top:6px}
 #vpResult .vp-next button{font:inherit;font-size:11px;background:none;border:1px solid var(--border,#262b35);

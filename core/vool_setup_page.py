@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 
 from core.setup_progress import STEPS
-from core.ui_palette import DARK_PALETTE_CSS
+from core.ui_palette import DARK_PALETTE_CSS, LIGHT_ONLY_PALETTE_CSS, appearance_html_attrs
 
 COPY = {
     "title": "Set up VOOL",
@@ -708,7 +708,7 @@ def _localized_captions(ui_locale: str) -> dict:
     return {step_id: catalog.text(f"setup.caption.{step_id}") for step_id in CAPTIONS}
 
 
-def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> str:
+def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     """The guided setup page: the step model from core.setup_progress, rendered by one script.
 
     ``ui_locale`` resolves exactly like /chat and /settings (``?ui_locale=`` > the
@@ -723,7 +723,9 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> 
 
     tag = catalog_for(ui_locale).locale
     direction = (get_locale(tag) or get_locale("en")).direction
-    page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
+    # The shared light palette serves "Match system"; the explicit light rule below it in the page
+    # (the host's ?theme=light choice) keeps its own tokens.
+    page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_ONLY_PALETTE_CSS)
     return (
         page.replace("__SETUP_STEPS__", json.dumps(setup_steps_model(ui_locale), separators=(",", ":"), ensure_ascii=False))
         .replace("__SETUP_COPY__", json.dumps(_localized_copy(ui_locale), separators=(",", ":"), ensure_ascii=False))
@@ -732,5 +734,5 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> 
         # The bootstrap defines VOOLT before the page's own script runs (setup has no
         # document-order law; a plain head-adjacent injection is the documented form).
         .replace("<script>\nconst STEPS", render_i18n_bootstrap(tag) + "\n<script>\nconst STEPS", 1)
-        .replace('<html lang="en">', f'<html lang="{tag}" dir="{direction}">')
+        .replace('<html lang="en">', f'<html lang="{tag}" dir="{direction}"{appearance_html_attrs(appearance)}>')
     )

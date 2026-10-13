@@ -11,7 +11,7 @@ message has a Copy button.
 """
 from __future__ import annotations
 
-from core.ui_palette import DARK_PALETTE_CSS
+from core.ui_palette import APPEARANCE_JS, DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
 
 _VOOL_CHAT_HTML = r"""<!doctype html>
 <html lang="en">
@@ -375,6 +375,8 @@ header a:hover { text-decoration:underline; }
   header #modelBtn .model-lane.auto + #modelLbl { flex-shrink:0; }
 }
 #menu { display:none; background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; cursor:pointer; }
+/* Settings > Appearance > Text size scales the conversation itself (1 by default). */
+#log { font-size:calc(14px * var(--vool-text-scale, 1)); }
 #log { flex:1; overflow-y:auto; padding:28px max(20px,calc((100% - 760px)/2)); display:flex; flex-direction:column; gap:14px; user-select:text; -webkit-user-select:text; cursor:text; background:var(--chat); }
 .msg { position:relative; max-width:min(760px,92%); padding:10px 34px 10px 14px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; user-select:text; -webkit-user-select:text; }
 .msg.user { align-self:flex-end; background:var(--user); border:1px solid var(--border); }
@@ -1478,6 +1480,7 @@ body:not(.panel-open) #xpanel { display:none; }
   </div>
 </div>
 <script>
+/*__VOOL_APPEARANCE_JS__*/
 // The sidebar's native disclosure groups existing actions without changing their handlers.
 (function wireHomeMenu() {
   const menu = document.getElementById('homeMenu');
@@ -12109,7 +12112,9 @@ async function setupLineLoad() {
 </script>
 </body>
 </html>
-""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
+""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS).replace(
+    "/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1
+)
 
 
 def _page_fragments() -> tuple[str, ...]:
@@ -12158,7 +12163,7 @@ def _page_fragments() -> tuple[str, ...]:
 
 
 
-def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en") -> str:
+def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     # The page embeds the approved artwork so branding works offline in the native shell.
     from base64 import b64encode
     from pathlib import Path
@@ -12194,7 +12199,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en") -> s
     return (
         page.replace(
             '<html lang="en">',
-            f'<html lang="{tag}" dir="{spec.direction if spec else "ltr"}">',
+            f'<html lang="{tag}" dir="{spec.direction if spec else "ltr"}"{appearance_html_attrs(appearance)}>',
         )
         .replace(
             "<script>\n",

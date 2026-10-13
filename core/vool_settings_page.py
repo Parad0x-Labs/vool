@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import json
 
-from core.ui_palette import DARK_PALETTE_CSS
+from core.ui_palette import APPEARANCE_JS, DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
 
 # --------------------------------------------------------------------------------------
 # Effect vocabulary. Every bound row states when its change takes hold and how far it reaches,
@@ -847,8 +847,19 @@ def _settings_groups() -> list[dict]:
             "id": "companion",
             "icon": "◐",
             "title": "Appearance",
-            "blurb": "The pixel pet, on the desktop or docked in the app.",
+            "blurb": "How VOOL looks, and the pixel pet.",
             "rows": [
+                _row(
+                    id="appearance_theme",
+                    label="Theme and text size",
+                    help=(
+                        "How VOOL looks on this computer. Dark is the default; Light and Match "
+                        "system use the same calm colours. Text size changes the conversation text."
+                    ),
+                    kind="custom",
+                    widget="appearance",
+                    keywords=["appearance", "theme", "dark", "light", "system", "mode", "colour", "color", "text", "size", "font", "bigger", "larger", "readability"],
+                ),
                 _row(
                     id="companion_pet_panel",
                     label="Desktop pet",
@@ -1489,6 +1500,7 @@ async function go(groupId, rowId) {
 
 # Widgets, keyboard handling and boot. Split out so each raw string stays reviewable.
 _SETTINGS_JS2 = r"""<script>
+/*__VOOL_APPEARANCE_JS__*/
 /* ------------------------------------------------------------------ widgets
    A widget renders a row that is not a single value. Each one is responsible for its OWN read,
    performed when its group is first opened, so nothing here runs while Settings is showing
@@ -1528,6 +1540,7 @@ function renderWidget(row, host) {
   if (w === 'notifications') return widgetSurface(stack, 'VoolNotificationSettings', T('settings.pane.notifications_missing', 'The notifications panel did not load.'));
   if (w === 'scam_school') return widgetScamSchool(stack);
   if (w === 'setup_progress') return widgetSetupProgress(stack);
+  if (w === 'appearance') return widgetAppearance(stack);
   if (w === 'companion_pet') return widgetCompanionPet(stack);
   if (w === 'advanced_links') return widgetAdvancedLinks(stack);
   if (w === 'extras_memory') return widgetExtras(stack, 'memory');
@@ -1887,6 +1900,44 @@ function widgetCrypto(stack) {
    The pet's window is deliberately non-activating, so it can never take the keyboard; that makes
    Settings -- not the pet -- the accessible home for Return, Hide and Reset. These call the SAME
    native bridge the pet's buttons call, so there is no second control path and no second store. */
+// Theme and conversation text size. Presentation only: the choice is kept on this computer
+// (window.VoolAppearance, core/ui_palette.py) and shows at once in every open VOOL window.
+function widgetAppearance(stack) {
+  const api = window.VoolAppearance;
+  if (!api) { stack.appendChild(el('div', 'empty', T('settings.appearance.unavailable', 'Appearance controls did not load. Reload Settings and try again.'))); return; }
+  const now = api.get();
+  const said = el('span', 'subtle', '');
+  said.setAttribute('role', 'status');
+  function picker(label, name, options, value, key) {
+    const wrap = el('label', 'inline');
+    wrap.appendChild(el('span', null, label));
+    const s = el('select', 'inp');
+    s.name = name;
+    s.setAttribute('aria-label', label);
+    options.forEach(o => { const op = el('option', null, o[1]); op.value = String(o[0]); s.appendChild(op); });
+    s.value = String(value);
+    s.addEventListener('change', () => {
+      const next = {}; next[key] = key === 'text' ? Number(s.value) : s.value;
+      said.textContent = api.set(next)
+        ? T('settings.appearance.saved', 'Saved on this computer.')
+        : T('settings.appearance.unsaved', 'Could not be saved, so it applies to this window only.');
+    });
+    wrap.appendChild(s);
+    return wrap;
+  }
+  stack.appendChild(picker(T('settings.appearance.theme_label', 'Theme'), 'appearanceTheme', [
+    ['dark', T('settings.appearance.theme_dark', 'Dark')],
+    ['light', T('settings.appearance.theme_light', 'Light')],
+    ['system', T('settings.appearance.theme_system', 'Match system')],
+  ], now.theme, 'theme'));
+  stack.appendChild(picker(T('settings.appearance.text_label', 'Text size'), 'appearanceText', [
+    [100, T('settings.appearance.text_100', 'Normal')],
+    [112, T('settings.appearance.text_112', 'Large')],
+    [125, T('settings.appearance.text_125', 'Larger')],
+  ], now.text, 'text'));
+  stack.appendChild(said);
+}
+
 function widgetCompanionPet(stack) {
   const api = (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
   const appearance = el('button', 'btn', 'Customise pet');
@@ -4814,7 +4865,7 @@ def _localized_settings_groups(ui_locale: str) -> list[dict]:
     return localized
 
 
-def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") -> str:
+def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     """The Settings page: one declarative model, rendered by one script, bound to the authorities
     that already own each value."""
     model = json.dumps(_localized_settings_groups(ui_locale), separators=(",", ":"), ensure_ascii=False)
@@ -4828,7 +4879,9 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
-    page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS).replace(
+    page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace(
+        "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS
+    ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
         + "\n" + render_notification_settings_fragment() + "\n</body>", 1
     )
@@ -4844,7 +4897,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
             bootstrap + "\n<script>\nconst MODEL",
             1,
         )
-        .replace('<html lang="en">', f'<html lang="{tag}" dir="{direction}">')
+        .replace('<html lang="en">', f'<html lang="{tag}" dir="{direction}"{appearance_html_attrs(appearance)}>')
         .replace('<div id="backRow">', _LOCALE_BLOCK + '<div id="backRow">', 1)
         .replace('<p class="loc-note" id="uiLocaleCoverage"></p>',
                  f'<p class="loc-note" id="uiLocaleCoverage">{_locale_coverage_note(tag)}</p>', 1)
