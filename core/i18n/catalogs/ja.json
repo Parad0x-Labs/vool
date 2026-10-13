@@ -1866,9 +1866,10 @@
     "private.end": "記録を再開",
     "private.end_title": "次のメッセージからこのチャットを再び保存します",
     "private.msg_title": "プライベート：このメッセージは保存されていません",
-    "private.wait": "現在の回答が終わるまで待ってから、もう一度お試しください。"
+    "private.wait": "現在の回答が終わるまで待ってから、もう一度お試しください。",
+    "settings.local_models.apple_silicon_notice": "この Mac には Apple チップが搭載されていますが、Intel 版の VOOL がインストールされています。この状態ではローカルモデルの動作が非常に遅く、チェックに合格しないことがあります。代わりに Apple シリコン版の VOOL をダウンロードしてインストールしてください。"
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

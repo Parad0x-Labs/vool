@@ -1866,9 +1866,10 @@
     "private.end": "Réactiver l'enregistrement",
     "private.end_title": "Enregistrer à nouveau cette discussion à partir du prochain message",
     "private.msg_title": "Privé : ce message n'a pas été enregistré",
-    "private.wait": "Attendez la fin de la réponse en cours, puis réessayez."
+    "private.wait": "Attendez la fin de la réponse en cours, puis réessayez.",
+    "settings.local_models.apple_silicon_notice": "Ce Mac a une puce Apple, mais c’est la version Intel de VOOL qui est installée. Les modèles locaux tournent alors très lentement et risquent d’échouer à leur vérification. Téléchargez et installez plutôt la version Apple Silicon de VOOL."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

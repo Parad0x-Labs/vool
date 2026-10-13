@@ -1866,9 +1866,10 @@
     "private.end": "Volver a activar el registro",
     "private.end_title": "Guardar este chat de nuevo desde el próximo mensaje",
     "private.msg_title": "Privado: este mensaje no se guardó",
-    "private.wait": "Espera a que termine la respuesta actual y vuelve a intentarlo."
+    "private.wait": "Espera a que termine la respuesta actual y vuelve a intentarlo.",
+    "settings.local_models.apple_silicon_notice": "Este Mac tiene un chip de Apple, pero está instalada la versión para Intel de VOOL. Así, los modelos locales funcionan muy despacio y puede que no superen su comprobación. Descarga e instala en su lugar la versión de VOOL para Apple Silicon."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

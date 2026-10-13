@@ -1866,9 +1866,10 @@
     "private.end": "أعد تشغيل التسجيل",
     "private.end_title": "احفظ هذه المحادثة مجددًا بدءًا من الرسالة التالية",
     "private.msg_title": "خاصة: لم يتم حفظ هذه الرسالة",
-    "private.wait": "انتظر حتى ينتهي الرد الحالي، ثم حاول مرة أخرى."
+    "private.wait": "انتظر حتى ينتهي الرد الحالي، ثم حاول مرة أخرى.",
+    "settings.local_models.apple_silicon_notice": "يحتوي جهاز Mac هذا على شريحة Apple، لكن نسخة Intel من VOOL هي المثبتة. تعمل النماذج المحلية بهذه الطريقة ببطء شديد وقد لا تجتاز فحصها. نزّل نسخة Apple Silicon من VOOL وثبّتها بدلًا منها."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1866,9 +1866,10 @@
     "private.end": "הפעל שוב את ההקלטה",
     "private.end_title": "שמור שוב את הצ'אט הזה החל מההודעה הבאה",
     "private.msg_title": "פרטי: ההודעה הזו לא נשמרה",
-    "private.wait": "המתן לסיום התשובה הנוכחית ונסה שוב."
+    "private.wait": "המתן לסיום התשובה הנוכחית ונסה שוב.",
+    "settings.local_models.apple_silicon_notice": "ל-Mac הזה יש שבב של Apple, אבל מותקנת גרסת Intel של VOOL. כך מודלים מקומיים פועלים לאט מאוד ועלולים לא לעבור את הבדיקה שלהם. הורידו והתקינו במקומה את גרסת Apple Silicon של VOOL."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

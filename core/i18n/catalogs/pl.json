@@ -1866,9 +1866,10 @@
     "private.end": "Włącz ponownie zapisywanie",
     "private.end_title": "Zapisuj ten czat ponownie od następnej wiadomości",
     "private.msg_title": "Prywatne: ta wiadomość nie została zapisana",
-    "private.wait": "Poczekaj, aż bieżąca odpowiedź się zakończy, i spróbuj ponownie."
+    "private.wait": "Poczekaj, aż bieżąca odpowiedź się zakończy, i spróbuj ponownie.",
+    "settings.local_models.apple_silicon_notice": "Ten Mac ma układ Apple, ale zainstalowana jest wersja VOOL dla procesorów Intel. W ten sposób modele lokalne działają bardzo wolno i mogą nie przejść kontroli. Zamiast niej pobierz i zainstaluj wersję VOOL dla Apple Silicon."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

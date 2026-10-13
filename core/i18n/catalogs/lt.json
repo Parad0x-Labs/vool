@@ -1866,9 +1866,10 @@
     "private.end": "Vėl įjungti įrašymą",
     "private.end_title": "Vėl saugoti šį pokalbį nuo kitos žinutės",
     "private.msg_title": "Privatu: ši žinutė nebuvo išsaugota",
-    "private.wait": "Palaukite, kol baigsis dabartinis atsakymas, ir bandykite dar kartą."
+    "private.wait": "Palaukite, kol baigsis dabartinis atsakymas, ir bandykite dar kartą.",
+    "settings.local_models.apple_silicon_notice": "Šiame „Mac“ yra „Apple“ lustas, bet įdiegta „Intel“ VOOL versija. Taip vietiniai modeliai veikia labai lėtai ir gali neišlaikyti patikros. Vietoj jos atsisiųskite ir įdiekite „Apple Silicon“ VOOL versiją."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

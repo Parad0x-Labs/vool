@@ -1866,7 +1866,8 @@
     "private.end": "Turn recording back on",
     "private.end_title": "Save this chat again from the next message",
     "private.msg_title": "Private: this message was not saved",
-    "private.wait": "Wait for the current answer to finish, then try again."
+    "private.wait": "Wait for the current answer to finish, then try again.",
+    "settings.local_models.apple_silicon_notice": "This Mac has an Apple chip, but the Intel version of VOOL is installed. Local models run very slowly this way and may not pass their check. Download and install the Apple Silicon version of VOOL instead."
   },
   "html_keys": [
     "bypass.modal_limits",

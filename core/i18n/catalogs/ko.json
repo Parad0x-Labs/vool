@@ -1866,9 +1866,10 @@
     "private.end": "기록 다시 켜기",
     "private.end_title": "다음 메시지부터 이 채팅을 다시 저장합니다",
     "private.msg_title": "비공개: 이 메시지는 저장되지 않았습니다",
-    "private.wait": "현재 답변이 끝날 때까지 기다린 후 다시 시도하세요."
+    "private.wait": "현재 답변이 끝날 때까지 기다린 후 다시 시도하세요.",
+    "settings.local_models.apple_silicon_notice": "이 Mac에는 Apple 칩이 있지만 Intel용 VOOL이 설치되어 있습니다. 이 상태에서는 로컬 모델이 매우 느리게 실행되며 검사를 통과하지 못할 수 있습니다. 대신 Apple 실리콘용 VOOL을 다운로드하여 설치하세요."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

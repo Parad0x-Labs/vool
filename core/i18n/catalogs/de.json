@@ -1866,9 +1866,10 @@
     "private.end": "Aufzeichnung wieder einschalten",
     "private.end_title": "Diesen Chat ab der nächsten Nachricht wieder speichern",
     "private.msg_title": "Privat: Diese Nachricht wurde nicht gespeichert",
-    "private.wait": "Warte, bis die aktuelle Antwort fertig ist, und versuche es dann erneut."
+    "private.wait": "Warte, bis die aktuelle Antwort fertig ist, und versuche es dann erneut.",
+    "settings.local_models.apple_silicon_notice": "Dieser Mac hat einen Apple-Chip, aber die Intel-Version von VOOL ist installiert. Lokale Modelle laufen so sehr langsam und bestehen ihre Prüfung womöglich nicht. Laden Sie stattdessen die Apple-Silicon-Version von VOOL herunter und installieren Sie sie."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

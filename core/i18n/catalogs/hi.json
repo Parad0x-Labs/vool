@@ -1866,9 +1866,10 @@
     "private.end": "रिकॉर्डिंग फिर से चालू करें",
     "private.end_title": "अगले संदेश से इस चैट को फिर से सहेजें",
     "private.msg_title": "निजी: यह संदेश सहेजा नहीं गया",
-    "private.wait": "मौजूदा जवाब पूरा होने तक रुकें, फिर दोबारा कोशिश करें।"
+    "private.wait": "मौजूदा जवाब पूरा होने तक रुकें, फिर दोबारा कोशिश करें।",
+    "settings.local_models.apple_silicon_notice": "इस Mac में Apple चिप है, लेकिन VOOL का Intel संस्करण इंस्टॉल है। इस तरह स्थानीय मॉडल बहुत धीमे चलते हैं और अपनी जाँच में पास नहीं भी हो सकते। इसके बजाय VOOL का Apple Silicon संस्करण डाउनलोड करके इंस्टॉल करें।"
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
