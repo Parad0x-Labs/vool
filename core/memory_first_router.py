@@ -2900,6 +2900,7 @@ class MemoryFirstRouter:
                 method_name: str,
                 task_request: ModelRequest,
             ) -> ModelResponse:
+                nonlocal call_request
                 from core.output_budget_policy import manifest_declares_reasoning
 
                 attempt = 1
@@ -2907,6 +2908,53 @@ class MemoryFirstRouter:
                     try:
                         return _call_adapter_task(method_name, task_request)
                     except Exception as exc:
+                        if isinstance(exc, MalformedToolArgumentsError):
+                            from core.provider_call_deadline import deadline_expired
+                            from core.tool_schema_recovery import (
+                                admit_paid_tool_correction,
+                                corrected_tool_request,
+                            )
+
+                            # Selection has not crossed the executor. Re-generate rather
+                            # than rename/drop arguments or turn a schema error into an
+                            # answer-only call. One shared retry budget; never replay work.
+                            can_correct = (
+                                output_mode == "tool_intent" and bool(task_request.tools)
+                                and attempt == 1 and task_request.allow_provider_retry
+                                and not _model_request_cancelled(task_request)
+                                and not deadline_expired(task_request)
+                            )
+                            if can_correct:
+                                corrected = corrected_tool_request(task_request)
+                                free = (
+                                    provider_cost_class(manifest) == "free_local"
+                                    or is_verified_free_cloud_manifest(manifest)
+                                )
+                                can_correct = free or admit_paid_tool_correction(
+                                    manifest=manifest, authorization=paid_authorization,
+                                    original=task_request, corrected=corrected,
+                                    prompt_tokens=_int_attr(task, "prompt_tokens"),
+                                )
+                            if not can_correct:
+                                # The final refusal carries the LAST validation result.
+                                call_request.metadata["tool_call_resolution"] = dict(
+                                    task_request.metadata.get("tool_call_resolution") or {}
+                                )
+                                raise
+                            _emit_model_routing_event(
+                                source_context, "model.call_retrying",
+                                "Tool arguments failed schema validation; asking the same "
+                                "model to correct the selection once before execution.",
+                                **identity, provider_id=manifest.provider_id,
+                                model_id=manifest.model_name,
+                                error_class=ProviderErrorClass.MALFORMED_TOOL_CALL.value,
+                                retry_index=attempt,
+                                retry_policy="same_model_tool_schema_correction",
+                            )
+                            attempt += 1
+                            task_request = corrected
+                            call_request = corrected
+                            continue
                         error_class = classify_error_class(exc)
                         exhausted = (
                             error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE
@@ -4278,7 +4326,10 @@ class MemoryFirstRouter:
             if paid_authorization is not None:
                 release_owner_pick_paid_call(
                     paid_authorization,
-                    reason=error_kind,
+                    # The provider replied: a refused call can still be billed.
+                    # In particular, denying the corrective dispatch must not
+                    # release the first attempt as if nothing had been sent.
+                    reason="call_failed",
                     source_context=source_context,
                     call_role=str((source_context or {}).get("model_call_role") or ""),
                 )

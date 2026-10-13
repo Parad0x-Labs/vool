@@ -28,7 +28,7 @@ class UnknownToolNameError(ToolCallParseError):
 
 
 class MalformedToolArgumentsError(ToolCallParseError):
-    """A tool call's arguments were not valid JSON, or did not parse to an object."""
+    """Arguments were invalid JSON, not an object, or violated the offered schema."""
 
 
 class DuplicateToolCallError(ToolCallParseError):
@@ -327,7 +327,7 @@ def _validate_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -> No
     properties = dict(schema.get("properties") or {})
     unknown = sorted(set(arguments) - set(properties))
     if unknown and schema.get("additionalProperties") is False:
-        raise ValueError(f"native tool arguments contain unknown keys: {','.join(unknown)}")
+        raise MalformedToolArgumentsError(f"native tool arguments contain unknown keys: {','.join(unknown)}")
     for key in list(schema.get("required") or []):
         if key in arguments:
             continue
@@ -342,7 +342,7 @@ def _validate_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -> No
         # argument across the WHOLE tool catalog, not just one field.
         if "null" in allowed_argument_types(properties.get(key)):
             continue
-        raise ValueError(f"native tool arguments are missing required key: {key}")
+        raise MalformedToolArgumentsError(f"native tool arguments are missing required key: {key}")
     for key, value in arguments.items():
         property_schema = properties.get(key)
         if not isinstance(property_schema, dict):
@@ -352,7 +352,7 @@ def _validate_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -> No
             continue
         actual_type = _json_type(value)
         if actual_type not in allowed_types and not (actual_type == "integer" and "number" in allowed_types):
-            raise ValueError(f"native tool argument {key} has type {actual_type}, expected {sorted(allowed_types)}")
+            raise MalformedToolArgumentsError(f"native tool argument {key} has type {actual_type}, expected {sorted(allowed_types)}")
 
 
 def _json_type(value: Any) -> str:

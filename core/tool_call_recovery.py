@@ -592,9 +592,12 @@ def _validate_candidates(
     ]
     try:
         calls = parse_native_tool_calls(raw_calls, definitions=definitions)
-    except ToolCallParseError:
+    except (DuplicateToolCallError, UnknownToolNameError):
         raise
     except ValueError as exc:
+        # Schema failures are now typed MalformedToolArgumentsError (a ValueError).
+        # Keep the existing lossless scalar repair and typed refusal contract;
+        # do not let the new type bypass recovery or invent missing arguments.
         if not coerce and _any_scalar_coercible(deduped):
             raise _RecoverableDefectError("schema_scalar_coercion") from exc
         raise _RejectionError("schema_validation_failed", str(exc)) from exc
