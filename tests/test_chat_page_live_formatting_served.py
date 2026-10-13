@@ -88,8 +88,20 @@ def test_streaming_answer_is_formatted_and_settles_on_the_commit(tmp_path):
                     streamingPreviewText('see [the doc](http://x'),
                     streamingPreviewText('done **bold** and'),
                     streamingPreviewText('```py\\nx = [1,'),
+                    // Literals never freeze the line: inline code, a power, a lone backtick.
+                    streamingPreviewText('Use `a**b` for powers and more'),
+                    streamingPreviewText('In Python 2**10 equals 1024'),
+                    streamingPreviewText('A tick ` then ' + 'long text '.repeat(10)),
+                    // A header row waits for its separator; a half image link hides its "!".
+                    streamingPreviewText('Intro\\n| a | b |\\n|--'),
+                    streamingPreviewText('see ![alt](http://x/y.p'),
+                    // Inside an open code block even a half "|" line is literal.
+                    streamingPreviewText('```\\n| not a row'),
                 ]""")
-                assert preview == ["| a | b |\n|---|---|\n", "Some ", "see ", "done **bold** and", "```py\nx = [1,"], preview
+                long_tick = "A tick ` then " + "long text " * 10
+                assert preview == ["| a | b |\n|---|---|\n", "Some ", "see ", "done **bold** and", "```py\nx = [1,",
+                                   "Use `a**b` for powers and more", "In Python 2**10 equals 1024", long_tick,
+                                   "Intro\n", "see ", "```\n| not a row"], preview
                 page.evaluate(PACED_FETCH, {"frames": frames, "commit": commit})
 
                 page.locator("#input").fill("Tell me about lanterns.")

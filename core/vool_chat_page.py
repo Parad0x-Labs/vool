@@ -4467,19 +4467,37 @@ function streamPaintDelay(run) { return Math.max(STREAM_PAINT_MS, Math.round(Str
 // What a partial answer shows: the text so far, minus a trailing piece that is not finished yet --
 // a half-received table row, or an opened **, ` or [link]( that has not closed -- so raw markup
 // never flashes up for a moment. The final render always paints the complete text.
+// Hold back only a SHORT unfinished tail: an unusual literal (2**10, a lone backtick) then shows raw
+// for a moment instead of freezing the rest of its line until the answer ends.
+const STREAM_HOLD_MAX = 80;
 function streamingPreviewText(text) {
-  let t = String(text || '');
-  const nl = t.lastIndexOf('\n');
-  const tail = t.slice(nl + 1);
-  if (/^\s*\|/.test(tail) && !/\|\s*$/.test(tail)) t = t.slice(0, nl + 1);
-  const lastLine = t.slice(t.lastIndexOf('\n') + 1);
-  if (/^\s*(```|~~~)/.test(lastLine)) return t;   // inside or opening a code fence: leave as is
+  const t = String(text || '');
   const fences = (t.match(/^\s*(```|~~~)/gm) || []).length;
   if (fences % 2) return t;                          // an open code block: its contents are literal
-  const cut = (re) => { const m = lastLine.match(re); if (m) t = t.slice(0, t.length - m[0].length); };
-  if (((lastLine.match(/\*\*/g) || []).length) % 2) cut(/\*\*(?!.*\*\*)[^]*$/);
-  else if (((lastLine.replace(/``+/g, '').match(/`/g) || []).length) % 2) cut(/`(?!.*`)[^]*$/);
-  else cut(/\[[^\]\n]*(\]\([^)\n]*)?$/);
+  const nl = t.lastIndexOf('\n');
+  const lastLine = t.slice(nl + 1);
+  const isRow = (line) => /^\s*\|.*\|\s*$/.test(line);
+  // A table's header row waits for its separator line, so it never flashes as a raw "| a | b |".
+  if (/^\s*\|?[\s:|-]*$/.test(lastLine) && nl >= 0) {
+    const nl2 = t.lastIndexOf('\n', nl - 1);       // two lines back, without splitting the answer
+    const header = t.slice(nl2 + 1, nl);
+    const above = nl2 >= 0 ? t.slice(t.lastIndexOf('\n', nl2 - 1) + 1, nl2) : '';
+    if (isRow(header) && !isRow(above)) return t.slice(0, nl2 + 1);
+  }
+  if (/^\s*\|/.test(lastLine) && !/\|\s*$/.test(lastLine)) return t.slice(0, nl + 1);  // half a row
+  // Finished inline code is literal: blank it out (same length) before looking for open markers.
+  const masked = lastLine.replace(/(`+)[^`]*?\1/g, (m) => ' '.repeat(m.length));
+  const holdFrom = (at) => (at >= 0 && lastLine.length - at <= STREAM_HOLD_MAX) ? t.slice(0, nl + 1 + at) : t;
+  const tick = masked.indexOf('`');
+  if (tick >= 0) return holdFrom(tick);              // an inline code span still open
+  const stars = [...masked.matchAll(/\*\*/g)].map((m) => m.index);
+  if (stars.length % 2) {
+    const at = stars[stars.length - 1];
+    // Only a real bold opener (start of a word, text after it) waits; "2**10" stays as written.
+    if (!/[\p{L}\p{N}]/u.test(masked.charAt(at - 1) || ' ') && /\S/.test(masked.charAt(at + 2) || '')) return holdFrom(at);
+  }
+  const link = masked.match(/!?\[[^\]]*(\]\([^)]*)?$/);
+  if (link) return holdFrom(link.index);
   return t;
 }
 function paintStreamingText(run) {
