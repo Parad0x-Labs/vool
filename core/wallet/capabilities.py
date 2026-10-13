@@ -38,6 +38,7 @@ PILOT_TRANSFER_READY_ROWS: frozenset[str] = frozenset({
     "eip155:11155111", "eip155:1",  # Ethereum Sepolia, Ethereum
     "eip155:97", "eip155:56",  # BNB Smart Chain testnet, BNB Smart Chain
     "eip155:46630", "eip155:4663",  # Robinhood Chain testnet, Robinhood Chain
+    "eip155:421614", "eip155:42161",  # Arbitrum Sepolia, Arbitrum One
 })
 
 
@@ -52,9 +53,9 @@ MODE_LABELS = {
 
 
 def is_pilot_row(spec: chains.ChainIdentity) -> bool:
-    """A row whose transfers belong only to the Crypto Pilot lane: every Mainnet row, and Robinhood Chain in
-    both environments (no earlier lane ever served it)."""
-    return spec.is_mainnet or spec.chain_key == "robinhood"
+    """A row whose transfers belong only to the Crypto Pilot lane: every Mainnet row, and Robinhood Chain
+    and Arbitrum in both environments (no earlier lane ever served them)."""
+    return spec.is_mainnet or spec.chain_key in {"robinhood", "arbitrum"}
 
 
 def transfer_lane_ready(spec: chains.ChainIdentity) -> bool:
