@@ -11,6 +11,7 @@ message has a Copy button.
 """
 from __future__ import annotations
 
+from core.ui_icons import ICON_CSS
 from core.ui_palette import DARK_PALETTE_CSS
 
 _VOOL_CHAT_HTML = r"""<!doctype html>
@@ -1080,13 +1081,13 @@ body:not(.panel-open) #xpanel { display:none; }
   <div id="sessions"></div>
   <div class="side-foot">
     <details id="homeMenu" class="home-menu">
-      <summary id="homeToggle" aria-controls="homeOptions" title="Home — tools and settings" data-i18n-title="sidebar.home_title"><span aria-hidden="true">&#8962;</span> <span data-i18n="sidebar.home">Home</span> <span class="home-caret" aria-hidden="true">&#8963;</span></summary>
+      <summary id="homeToggle" aria-controls="homeOptions" title="Home — tools and settings" data-i18n-title="sidebar.home_title"><span class="vi" data-ico="home" aria-hidden="true"></span><span data-i18n="sidebar.home">Home</span> <span class="home-caret" aria-hidden="true">&#8963;</span></summary>
       <div id="homeOptions" class="home-options" role="group" aria-label="Home" data-i18n-aria-label="sidebar.home">
-        <button id="pluginsBtn" type="button" class="side-foot-btn" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
-        <button id="filesBtn" type="button" class="side-foot-btn" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">&#128193; Files</button>
-        <button id="contactsBtn" type="button" class="side-foot-btn" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">&#128100; Contacts</button>
-        <button id="settingsBtn" type="button" class="side-foot-btn" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">&#9881; Settings</button>
-        <div class="home-support"><button id="reportBtn" type="button" class="side-foot-btn" title="Report a problem &mdash; builds a sanitized local draft you approve byte-for-byte" data-i18n="sidebar.report" data-i18n-title="sidebar.report_title">Report a problem</button></div>
+        <button id="pluginsBtn" type="button" class="side-foot-btn vi" data-ico="addons" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
+        <button id="filesBtn" type="button" class="side-foot-btn vi" data-ico="files" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">Files</button>
+        <button id="contactsBtn" type="button" class="side-foot-btn vi" data-ico="contacts" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">Contacts</button>
+        <button id="settingsBtn" type="button" class="side-foot-btn vi" data-ico="settings" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">Settings</button>
+        <div class="home-support"><button id="reportBtn" type="button" class="side-foot-btn vi" data-ico="report" title="Report a problem &mdash; builds a sanitized local draft you approve byte-for-byte" data-i18n="sidebar.report" data-i18n-title="sidebar.report_title">Report a problem</button></div>
       </div>
     </details>
   </div>
@@ -1120,7 +1121,7 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
   </div>
   <span class="spacer"></span>
-  <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i">&#128204;</span><span class="pin-n"></span></button>
+  <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i vi" data-ico="pin" aria-hidden="true"></span><span class="pin-n"></span></button>
   <button id="searchBtn" type="button" aria-pressed="false" title="Search this chat (Cmd/Ctrl+F)" aria-label="Search this chat" data-i18n="header.search" data-i18n-title="header.search_title" data-i18n-aria-label="header.search_aria">Search</button>
   <button id="exportBtn" type="button" title="Export this whole chat as TXT or Markdown — every message, not just what is on screen" aria-label="Export this chat" data-i18n="header.export" data-i18n-title="header.export_title" data-i18n-aria-label="header.export_aria">Export</button>
   <button id="panelBtn" type="button" aria-pressed="false" title="Show what VOOL did this turn — tools, files, tests, receipts" data-i18n="header.activity" data-i18n-title="header.activity_title">Activity</button>
@@ -1160,7 +1161,7 @@ body:not(.panel-open) #xpanel { display:none; }
   </div>
   <div id="queue" aria-label="Queued messages" data-i18n-aria-label="chat.queue_aria"></div>
   <div id="permBar" class="perm-bar" role="alertdialog" aria-label="Permission needed" data-i18n-aria-label="permissions.bar_aria" hidden>
-    <span class="perm-ico">&#128272;</span>
+    <span class="perm-ico vi" data-ico="lock" aria-hidden="true"></span>
     <span class="perm-copy"><span class="perm-msg" id="permMsg" data-i18n="permissions.bar_message">Permission needed</span><span class="perm-meta" id="permMeta"></span><span class="perm-detail" id="permDetail" hidden></span></span>
     <span class="perm-actions">
       <button type="button" id="permOnce" class="perm-btn" data-i18n="permissions.allow_once">Allow once</button>
@@ -1188,7 +1189,7 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
     <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText" data-i18n="bypass.banner.active">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions" data-i18n-aria-label="bypass.revoke_aria" data-i18n-title="bypass.revoke_aria">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
-      <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
+      <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico vi" data-ico="attach" aria-hidden="true"></span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
       <input type="file" id="attachInput" multiple hidden tabindex="-1" aria-hidden="true">
     </div>
     <div id="ctxBar" class="ctx-bar" aria-label="Current project and chat" data-i18n-aria-label="chat.ctx_aria"></div>
@@ -1303,7 +1304,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="pinOverlay" class="modal-overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
     <div class="modal-head">
-      <span id="pinTitle">&#128204; Pinned in this chat</span>
+      <span id="pinTitle">Pinned in this chat</span>
       <button type="button" id="pinClose" class="modal-x" title="Close" aria-label="Close pinned">&times;</button>
     </div>
     <div class="modal-body" id="pinBody"></div>
@@ -1346,7 +1347,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="bugReportOverlay" class="modal-overlay" hidden>
   <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="bugReportTitle">
     <div class="modal-head">
-      <span id="bugReportTitle">&#128172; Report a problem</span>
+      <span id="bugReportTitle">Report a problem</span>
       <button type="button" id="bugReportClose" class="modal-x" title="Close" aria-label="Close bug report">&times;</button>
     </div>
     <div class="modal-body" id="bugReportBody"></div>
@@ -2877,25 +2878,25 @@ function makeSessionItem(s, archived, nested) {
   const actions = document.createElement('div');
   actions.className = 's-actions';
   const semo = document.createElement('button');
-  semo.type = 'button'; semo.className = 's-act'; semo.textContent = '🎨'; semo.title = 'Set chat emoji or colour';
+  semo.type = 'button'; semo.className = 's-act vi'; semo.dataset.ico = 'palette'; semo.title = 'Set chat emoji or colour';
   semo.addEventListener('click', (e) => { e.stopPropagation(); openSessionEmojiPicker(s.session_id, semo); });
   actions.appendChild(semo);
   if (!archived) {
     const move = document.createElement('button');
-    move.type = 'button'; move.className = 's-act'; move.textContent = '\u{1F4C1}'; move.title = 'Move to project';
+    move.type = 'button'; move.className = 's-act vi'; move.dataset.ico = 'move'; move.title = 'Move to project';
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
     actions.appendChild(move);
   }
   const ren = document.createElement('button');
-  ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = 'Rename';
+  ren.type = 'button'; ren.className = 's-act vi'; ren.dataset.ico = 'rename'; ren.title = 'Rename';
   ren.addEventListener('click', (e) => { e.stopPropagation(); startRename(item, title, s.session_id); });
   const arch = document.createElement('button');
-  arch.type = 'button'; arch.className = 's-act';
-  arch.textContent = archived ? '↩' : '\u{1F5C4}';
+  arch.type = 'button'; arch.className = 's-act vi';
+  arch.dataset.ico = archived ? 'restore' : 'archive';
   arch.title = archived ? 'Unarchive' : 'Archive';
   arch.addEventListener('click', (e) => { e.stopPropagation(); archiveSession(s.session_id, !archived); });
   const del = document.createElement('button');
-  del.type = 'button'; del.className = 's-act'; del.textContent = '\u{1F5D1}'; del.title = 'Delete chat (removes it and its memory)';
+  del.type = 'button'; del.className = 's-act vi'; del.dataset.ico = 'trash'; del.title = 'Delete chat (removes it and its memory)';
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
@@ -2930,15 +2931,15 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
   nameEl.title = proj.root ? ((proj.exists === false ? 'Folder not found: ' : '') + proj.root) : name;
   const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = count ? String(count) : '';
   const pact = document.createElement('div'); pact.className = 'proj-actions';
-  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act'; prev.textContent = '\u{1F4C2}'; prev.title = 'Reveal folder in Finder';
+  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act vi'; prev.dataset.ico = 'folder-open'; prev.title = 'Reveal folder in Finder';
   prev.addEventListener('click', (e) => { e.stopPropagation(); revealProject(pid); });
-  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act'; pren.textContent = '✎'; pren.title = 'Rename project';
+  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act vi'; pren.dataset.ico = 'rename'; pren.title = 'Rename project';
   pren.addEventListener('click', (e) => { e.stopPropagation(); startProjectRename(head, nameEl, pid); });
-  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act'; pdel.textContent = '\u{1F5D1}'; pdel.title = 'Delete project (forget its memory; chats move to General)';
+  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act vi'; pdel.dataset.ico = 'trash'; pdel.title = 'Delete project (forget its memory; chats move to General)';
   pdel.addEventListener('click', (e) => { e.stopPropagation(); deleteProject(pid); });
   const pnew = document.createElement('button'); pnew.type = 'button'; pnew.className = 's-act'; pnew.textContent = '+'; pnew.title = 'New chat in this project';
   pnew.addEventListener('click', (e) => { e.stopPropagation(); newChatInProject(pid); });
-  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act'; pemo.textContent = '🎨'; pemo.title = 'Set project emoji or colour';
+  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act vi'; pemo.dataset.ico = 'palette'; pemo.title = 'Set project emoji or colour';
   pemo.addEventListener('click', (e) => { e.stopPropagation(); openEmojiPicker(pid, pemo); });
   pact.appendChild(pemo); pact.appendChild(pnew); pact.appendChild(prev); pact.appendChild(pren); pact.appendChild(pdel);
   head.appendChild(caret); head.appendChild(emo); head.appendChild(nameEl); head.appendChild(cnt);
@@ -4094,8 +4095,8 @@ function mountAnswerReport(host, chatId, requestId) {
   report.title = 'Report a wrong answer or a problem with this answer';
   report.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const down = document.createElement('button');
-  down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down';
-  down.textContent = '\u{1F44E}';
+  down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down vi';
+  down.dataset.ico = 'thumbs-down';
   down.title = 'Bad answer \u2014 report it'; down.setAttribute('aria-label', down.title);
   down.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const pin = actions.querySelector('.msg-pin');
@@ -12210,7 +12211,7 @@ async function setupLineLoad() {
 </script>
 </body>
 </html>
-""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
+""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + ICON_CSS)
 
 
 def _page_fragments() -> tuple[str, ...]:
