@@ -424,8 +424,9 @@ header a:hover { text-decoration:underline; }
 .empty-starts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 auto 18px; }
 .empty-start { background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; }
 .empty-start:hover, .empty-start:focus-visible { border-color:var(--accent); }
-/* The starters are meant to be tapped: they sit above the resting pet (whose layer is z-index 30). */
-.empty-start { position:relative; z-index:31; }
+/* On a phone the starters stack on the left, clear of the pet's resting spot on the right, and stay
+   under menus and panels (no z-index of their own). */
+@media (max-width:600px) { .empty-starts { flex-direction:column; align-items:flex-start; } }
 /* While the box holds a draft the starters step back, so it is clear they would not replace it. */
 #log.has-draft .empty-starts { visibility:hidden; }
 /* Shortcut labels read left to right in every language ("Ctrl+/" never turns into "/+Ctrl"). */
@@ -7801,6 +7802,7 @@ function renderAttachStrip() {
   attachChipsEl.innerHTML = '';
   items.forEach((item) => attachChipsEl.appendChild(buildAttachChip(item, { draft: true })));
   attachStripEl.hidden = !items.length;
+  if (typeof syncDraftMark === 'function') syncDraftMark();
 }
 function buildMsgAttachments(list) {
   const wrap = document.createElement('div'); wrap.className = 'msg-att';
@@ -11940,7 +11942,8 @@ if (xpScopeEl) {
 const xpCopyEl = document.getElementById('xpCopy');
 if (xpCopyEl) xpCopyEl.addEventListener('click', () => copyPanelEvidence(xpCopyEl, panelTab || 'Activity'));
 // Starters step back while the box holds a draft (they only ever fill an empty box).
-inputEl.addEventListener('input', () => { logEl.classList.toggle('has-draft', !!inputEl.value.trim()); });
+function syncDraftMark() { if (logEl && inputEl) logEl.classList.toggle('has-draft', !!inputEl.value.trim() || attachBucket(displayedChat).length > 0); }
+inputEl.addEventListener('input', syncDraftMark);
 inputEl.addEventListener('keydown', (e) => {
   // Enter that confirms an input-method candidate (Japanese, Chinese, Korean...) is part of
   // typing, not a send.
