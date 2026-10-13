@@ -20,6 +20,7 @@ _GROUP_MODULES = (
     "core.command_registry.groups.update_group",
     "core.command_registry.groups.faults_group",
     "core.command_registry.groups.tasks",
+    "core.command_registry.groups.goals",
     "core.command_registry.groups.convergence",
     "core.command_registry.groups.contacts_group",
     "core.command_registry.groups.ops_surfaces",

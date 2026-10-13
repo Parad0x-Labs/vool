@@ -757,6 +757,28 @@ def _inbound_source_context(body: dict[str, Any]) -> dict[str, Any]:
     return dict(payload) if isinstance(payload, dict) else {}
 
 
+def _commit_goal_reply(session_id: str, user_text: str, meta: dict[str, Any]) -> None:
+    """Persist the /goal control exchange in the chat transcript.
+
+    The control reply is a local answer (no model call, no A7 seal), so it commits itself
+    through the same dialogue store every turn uses, labeled `goal_control`. The goal RECORD
+    stays the authoritative state; this row only keeps the conversation coherent on reload.
+    """
+    try:
+        from core.persistent_memory import append_conversation_event
+
+        append_conversation_event(
+            session_id=session_id,
+            user_input=str(user_text),
+            assistant_output=str(meta.get("reply") or ""),
+            source_context={"surface": "goal", "response_class": "goal_control"},
+            response_class="goal_control",
+            persist_now=True,
+        )
+    except Exception:
+        pass  # best-effort transcript row; the durable goal record is authoritative
+
+
 def _runtime_model_catalog(
     *,
     capability_snapshot: dict[str, Any],
@@ -2616,6 +2638,20 @@ def dispatch_get(
                     "execution_truth": execution_truth,
                 },
             ),
+            runtime,
+        )
+
+    if normalized_path == "/api/goal/state":
+        # The goal card's bounded hydration snapshot: the canonical durable goal record for
+        # this chat, or {"goal": null}. Read-only; an orphaned mid-dispatch goal reads
+        # honestly as interrupted (never resurrected as running by hydration).
+        goal_session = str((query.get("session") or [""])[0] or "").strip()
+        if not goal_session:
+            return apply_runtime_headers(json_response(400, {"error": "missing session"}), runtime)
+        from core.web.api.goal_api import goal_state_payload
+
+        return apply_runtime_headers(
+            json_response(200, goal_state_payload(goal_session)),
             runtime,
         )
 
@@ -6154,6 +6190,41 @@ def _dispatch_post_inner(
         state = request_cancel(cancel_session, cancel_turn)
         return apply_runtime_headers(json_response(200, {"ok": True, "state": state}), runtime)
 
+    if normalized_path in {"/api/goal/pause", "/api/goal/resume", "/api/goal/stop", "/api/goal/retry"}:
+        # Explicit goal lifecycle controls from the goal card (owner-local, loopback), under
+        # the same guards as /api/chat/cancel. The control reaches the in-flight step turn
+        # through the existing live-turn cancel owner; no new authority is minted here.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.web.api.runtime import host_header_allowed
+
+        def _ph_goal(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        _goal_ct = _ph_goal("content-type").lower()
+        if _goal_ct and "json" not in _goal_ct:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        _goal_origin = _ph_goal("origin").strip()
+        if _goal_origin and not host_header_allowed(_goal_origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        _allowed_fields = {"session_id", "goal_id"}
+        if normalized_path == "/api/goal/retry":
+            _allowed_fields.add("approval_token")
+        _unknown = set(body.keys()) - _allowed_fields
+        if _unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(_unknown)}"}), runtime)
+        _goal_session = str(body.get("session_id") or "").strip()
+        if not _goal_session:
+            return apply_runtime_headers(json_response(400, {"error": "missing session_id"}), runtime)
+        from core.web.api.goal_api import goal_control
+
+        _action = normalized_path.rsplit("/", 1)[-1]
+        _status, _payload = goal_control(_action, body, _goal_session)
+        return apply_runtime_headers(json_response(_status, _payload), runtime)
+
     if normalized_path == "/api/chat/pin":
         # Pin or unpin one message to a chat (owner-local snapshot). Loopback + the same POST guards.
         # Enforced, not assumed: pin/unpin into any session must not be
@@ -7467,6 +7538,34 @@ def _dispatch_post_inner(
             except Exception:
                 pass
             return apply_runtime_headers(json_response(200, payload), runtime)
+
+        # ---- Explicit /goal ingress ------------------------------------------------
+        # A message that IS a goal command is answered here, before the model turn: the goal
+        # controller owns goal creation, planning dispatch and controls, all under THIS
+        # request's fully-derived context (same session, workspace, mode authority — the
+        # context the ladder above built, never a second ingress derivation). Owner-local
+        # only: a remote peer's "/goal ..." text is an ordinary message and reaches the model
+        # as such.
+        if owner_local:
+            from core.goal_workflow import parse_goal_command
+
+            _goal_parsed = parse_goal_command(user_text)
+            if _goal_parsed is not None:
+                from core.web.api.goal_api import serve_goal_ingress
+
+                _status, _goal_iter, _goal_meta = serve_goal_ingress(
+                    runtime,
+                    parsed=_goal_parsed,
+                    user_text=user_text,
+                    session_id=session_id,
+                    source_context=source_context,
+                    model=model,
+                )
+                _commit_goal_reply(session_id, user_text, _goal_meta)
+                return apply_runtime_headers(
+                    stream_response(_status, _goal_iter, content_type="application/x-ndjson"),
+                    runtime,
+                )
 
         if stream:
             # F-01 (independent-proof repair): the A0/A2 ContextVar binding set

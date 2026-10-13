@@ -1383,6 +1383,15 @@ class VoolAgent(
         mark_stale_runtime_checkpoints_interrupted()
         mark_stale_runtime_attempts_abandoned()
         recover_stale_queue_items()
+        # Explicit /goal workflow: goals recorded mid-dispatch whose worker died with the
+        # previous process read honestly as interrupted (never silently resurrected as
+        # running). Only an explicit resume re-enters execution.
+        try:
+            from core.goal_workflow import reconcile_on_startup as _reconcile_goals
+
+            _reconcile_goals()
+        except Exception:
+            logging.getLogger(__name__).exception("goal startup reconciliation failed")
         # R-7 (A-6/K-10): startup DELIVERY_RETRY sweep — committed bytes whose
         # handoff ended ATTEMPTED_UNKNOWN are queued for byte-for-byte resend.
         # Pure derivation over durable facts; zero model/tool work; no truth

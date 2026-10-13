@@ -135,7 +135,7 @@ def _runtime_default_db_path() -> str:
 # The migration authority asserts the two agree when it imports (VOOL_E_STORE_VERSION_OWNERSHIP);
 # a gated migration pass without a ledger entry, or a bump on one side only, refuses to load.
 STORE_APPLICATION_ID = 0x4E5A4131  # 'NZA1'
-STORE_USER_VERSION = 8
+STORE_USER_VERSION = 9
 
 
 class StoreVersionError(RuntimeError):

@@ -4794,6 +4794,11 @@ function applyTaskEvent(run, ev) {
   // Placed before the switch because the terminal cases below return early. The typeof
   // guard keeps function-slicing harnesses (no DOM globals) running unchanged.
   if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev);
+  // The goal card consumes the same durable event (also before the ended-gate: a goal event
+  // that arrives after the carrying turn finished is still live goal truth).
+  if (ev.type === 'goal.updated' && typeof window !== 'undefined' && window.VoolGoalCard) {
+    window.VoolGoalCard.consume(ev.goal || null, ev.summary);
+  }
   run.events.push(ev);
   if (ev.stage) { run.stage = ev.stage; run.evented = true; }
   if (ev.summary) { run.action = ev.summary; run.evented = true; }
@@ -11835,6 +11840,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.contacts_fragment import render_contacts_fragment
     from core.council_chat_card_fragment import render_council_card_fragment
     from core.council_fragment import render_council_fragment
+    from core.goal_progress_fragment import render_goal_progress_fragment
     from core.model_radar_fragment import render_model_radar_fragment
     from core.notification_fragment import render_notification_fragment
     from core.price_safety_fragment import render_price_safety_fragment
@@ -11850,6 +11856,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_composer_extras_fragment(),
         render_price_safety_fragment(),
         render_notification_fragment(),
+        render_goal_progress_fragment(),
         render_model_radar_fragment(),
         render_settings_extras_fragment(),
         render_companion_drawer_fragment(),

@@ -397,6 +397,11 @@ _DIRECT_MAP: dict[str, tuple[str, str | None, str | None]] = {
     # resolved in build_task_event below; the map alone cannot express it.
     "agent_node_started": ("agent_node_started", None, "running"),
     "agent_node_completed": ("agent_node_completed", None, None),
+    # Explicit /goal workflow lifecycle (core/goal_workflow.py): the compact goal card and the
+    # Activity lens read the SAME durable goal events. The event carries the goal's public
+    # projection under `goal` (passed through below); the controller owns every counter —
+    # nothing here derives progress.
+    "goal_updated": ("goal.updated", None, None),
 }
 
 _REVIEW_EXECUTION_STATE_BY_EVENT: dict[str, str] = {
@@ -524,6 +529,8 @@ def build_task_event(event: dict[str, Any]) -> dict[str, Any] | None:
     seq = _to_int(event.get("seq"))
     if seq is not None:
         out["seq"] = seq
+    if typed == "goal.updated" and isinstance(event.get("goal"), dict):
+        out["goal"] = event["goal"]
     if typed in {"mode.changed", "task.restored"}:
         active_mode = str(event.get("active_mode") or event.get("operating_mode") or "").strip()
         if active_mode:
