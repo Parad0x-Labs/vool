@@ -75,6 +75,18 @@ def page(browser):
     page = browser.new_page()
     page.on("pageerror", lambda e: None)
     page.route("**/*", _route)
+    # Registry rows are behind the palette's own "Show developer commands" row; the proofs below
+    # drive the registry, so they start with it on. The default view is proven separately.
+    page.add_init_script("localStorage.setItem('vool.palette.developer_commands','1')")
+    yield page
+    page.close()
+
+
+@pytest.fixture
+def default_page(browser):
+    page = browser.new_page()
+    page.on("pageerror", lambda e: None)
+    page.route("**/*", _route)
     yield page
     page.close()
 
@@ -215,3 +227,29 @@ def test_palette_reduced_motion(page):
     assert reduced is True
     assert "prefers-reduced-motion" in HTML
     _shot(page, "07-reduced-motion")
+
+
+def test_registry_commands_are_hidden_by_default_and_one_row_away(default_page):
+    """A normal Ctrl+K lists the page's own actions, not the operator registry; the registry is
+    still reachable from the palette itself, unchanged, and the choice is remembered."""
+    page = default_page
+    page.goto("http://vool.test/chat")
+    page.wait_for_timeout(250)
+    page.keyboard.press("Meta+k")
+    page.wait_for_timeout(300)
+    assert page.locator("#vpOverlay").is_visible()
+    listing = page.locator("#vpList").inner_text()
+    assert "New chat" in listing
+    assert "blackbox.status" not in listing
+    page.fill("#vpInput", "blackbox status")
+    page.wait_for_timeout(120)
+    assert "blackbox.status" not in page.locator("#vpList").inner_text()
+
+    page.fill("#vpInput", "developer")
+    page.wait_for_timeout(120)
+    page.locator("#vpList .vp-item", has_text="Show developer commands").click()
+    page.wait_for_timeout(200)
+    page.fill("#vpInput", "blackbox status")
+    page.wait_for_timeout(120)
+    assert "blackbox.status" in page.locator("#vpList").inner_text()
+    assert page.evaluate("localStorage.getItem('vool.palette.developer_commands')") == "1"

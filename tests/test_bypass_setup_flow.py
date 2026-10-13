@@ -255,8 +255,13 @@ def test_timed_general_chat_custom_duration_and_expiry_remain_real(served, monke
 
 
 def test_protected_folder_does_not_offer_persistent_bypass(tmp_path):
-    from pathlib import Path
-    bind("protected-chat", Path.home())
+    # The whole home folder can no longer be bound as a project at all (see the test below), so the
+    # protected folder here is VOOL's own profile folder: it can be a project, but never hosts a
+    # standing grant, because the grant's own authority files live inside it.
+    from core.runtime_paths import active_data_dir
+    profile = active_data_dir()
+    profile.mkdir(parents=True, exist_ok=True)
+    bind("protected-chat", profile)
     status, options = mode({"op":"bypass_options", "session_id":"protected-chat"})
     assert status == 200
     assert options["until_off_available"] is False
@@ -264,6 +269,15 @@ def test_protected_folder_does_not_offer_persistent_bypass(tmp_path):
     status, refusal = mode({"op":"request_bypass_confirmation", "session_id":"protected-chat",
                            "scope":"session", "until_off":True})
     assert status == 409 and refusal["error"] == options["message"]
+
+
+def test_the_whole_home_folder_cannot_be_bound_as_a_project(tmp_path):
+    from pathlib import Path
+
+    from core.project_store import create_project
+    ok, message = create_project("home", str(Path.home()))
+    assert ok is False
+    assert "whole home folder" in message
 
 
 def test_new_folder_link_uses_existing_picker_flow_and_still_needs_confirmation(served, tmp_path):
