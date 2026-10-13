@@ -38,5 +38,6 @@ sentence.
 ## Beta channel
 
 The current release line is a **beta** (see [Release status](../trust/release-status.md)).
-Beta updates are unsigned on macOS — the OS will ask you to confirm on first launch of each
-new version.
+Updates are signed by the pinned publisher key and checked before they install. The macOS
+app itself is ad-hoc signed and not notarized, so macOS may ask you to confirm the first
+launch of a new version.

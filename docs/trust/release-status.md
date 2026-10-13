@@ -55,6 +55,7 @@ release.
 | X | Drafting posts in chat, plus a guided setup that checks your keys read-only. No posting from VOOL in this release. |
 | Dictation | Temporarily unavailable in this beta build; it returns in an update. |
 | Cloud "burst" ask mode | The per-call prompt is not wired yet in this build. |
+| Desktop pet | Dragging the pet out of the VOOL window does not move it to the desktop. Use right-click > **Move to desktop**, or the button in Settings. A fix is planned for 0.7.1. |
 | Skill Codex | The tab is on the Add-ons page. Browsing is not open yet in this release, and the tab says so. |
 
 Developer ID signing and notarization for macOS, and signed checksums for Linux, are the

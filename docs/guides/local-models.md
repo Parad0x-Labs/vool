@@ -6,7 +6,9 @@ description: How to run AI models locally on your own computer with VOOL — ins
 
 ## Install a runtime
 
-VOOL talks to a local model server. Install one, start it, and pull a model.
+VOOL talks to a local model server. The macOS app includes its own local-model runner, so
+on a Mac you can skip this step. On Linux and source installs, install a server such as
+Ollama, start it, and pull a model.
 
 ```bash
 ollama serve

@@ -21,7 +21,7 @@ curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/voo
 bash bootstrap_vool.sh --ref v0.7.0-beta
 ```
 
-To install a specific release instead of the latest trunk on `main`, pin its tag both in the script URL and in `--ref`. `--ref` takes a branch name or a release tag (`v0.7.0-beta`), not a commit hash:
+To pin another release, change the tag in both the script URL and `--ref`. `--ref` takes a branch name or a release tag (`v0.7.0-beta`), not a commit hash:
 
 ```bash
 tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.0-beta --install-profile ollama-max && rm -f "$tmp"
@@ -139,7 +139,7 @@ The desktop opens the local chat in your browser; closing the browser does not
 stop the runtime. Headless mode ends with Ctrl-C. Runtime profiles survive uninstall.
 The runtime and lean dependencies are included; Ollama/models and optional
 training/native GTK capabilities are separate. Supported package test targets:
-Ubuntu 22.04 and 24.04 on x86_64. AppImage and DEB follow in v0.7.1.
+Ubuntu 22.04 and 24.04 on x86_64. The tarball is the only Linux package in 0.7.0.
 
 ## What The Source Installer Does
 
@@ -162,8 +162,6 @@ If you already have a verified archive digest, pass it to the bootstrap script w
 - VOOL API health: `http://127.0.0.1:11435/healthz`
 - VOOL trace rail: `http://127.0.0.1:11435/trace`
 - `.null` (web0) browser: `http://127.0.0.1:11435/web0`
-- Public Hive / dashboard surface: `/hive` on the configured meet/watch server
-- Public feed surface: `/feed` on the configured meet/watch server
 
 ## Manual Developer Setup
 
@@ -210,14 +208,16 @@ mlx_lm.server --model mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit --port 809
 
 VOOL will detect `MLX_BASE_URL` at boot and route eligible requests through the MLX lane automatically.
 
-## Optional Public Hive Write Auth
+## Optional Public Hive Write Auth (research only)
 
-Public Hive reads can exist without write auth, but signed write hydration is a separate step.
+Public Hive is retained experimental research and is not part of the 0.7.0 release. This
+section applies only to research deployments that run their own watch server. Public Hive
+reads can exist without write auth, but signed write hydration is a separate step.
 
 If your runtime reports that Public Hive writes are not hydrated yet, run:
 
 ```bash
-python -m ops.ensure_public_hive_auth --watch-host hive.parad0xlabs.com --remote-config-path /etc/vool-hive-mind/watch-config.json
+python -m ops.ensure_public_hive_auth --watch-host <your-watch-host> --remote-config-path /etc/vool-hive-mind/watch-config.json
 ```
 
 What this does:
@@ -239,7 +239,7 @@ After install, the expected local VOOL API port is `11435`.
 The convenience launchers (on macOS every `*.sh` launcher also gets a double-clickable `*.command` twin, and the installer drops branded **VOOL** (opens the chat page) and **Stop VOOL** app icons on the Desktop):
 
 - Chat with VOOL (the primary surface, VOOL's own chat page at `/chat`) — macOS / Linux: `Open_Chat.sh` · Windows: `Open_Chat.bat`
-- Start the VOOL API + mesh daemon — macOS / Linux: `Start_VOOL.sh` · Windows: `Start_VOOL.bat`
+- Start the VOOL API — macOS / Linux: `Start_VOOL.sh` · Windows: `Start_VOOL.bat`
 - Open the `.null` (web0) browser — macOS / Linux: `Open_Web0.sh` · Windows: `Open_Web0.bat`
 - Terminal chat — macOS / Linux: `Talk_To_VOOL.sh` · Windows: `Talk_To_VOOL.bat`
 - Stop every VOOL process + disable auto-restart — macOS / Linux: `Stop_VOOL.sh` · Windows: `Stop_VOOL.bat`
@@ -294,11 +294,7 @@ VOOL_ENABLE_NULL_DIAL=1 .venv/bin/python -m apps.vool_cli dial web0.null "summar
 
 To make it persistent, export the flag or set `system.allow_null_dial: true` in `config/default_policy.yaml`.
 
-Payment is a second, independent opt-in. If the endpoint answers with HTTP 402 (payment required), VOOL pays only when you pass `--allow-spend`, and always within a cap (`--max-spend <usdc>`, clamped to a 1.0 USDC ceiling). Without `--allow-spend` you get a no-spend preview of what the endpoint is asking for.
-
-```bash
-VOOL_ENABLE_NULL_DIAL=1 .venv/bin/python -m apps.vool_cli dial web0.null "embed this" --allow-spend --max-spend 0.05
-```
+The dial never pays. If the endpoint answers with HTTP 402 (payment required), you get a no-spend preview of what it is asking for; the old `--allow-spend` pay step is retired and refuses. Payments go only through VOOL's wallet, as a proposal you approve, and in 0.7.0 x402 runs on test networks only.
 
 In chat, use `/dial <name>.null "<task>"`. While dial is off, the CLI prints how to enable it and makes zero network calls. The SSRF guard rejects any endpoint that resolves to a private, loopback, link-local, or otherwise internal address.
 
@@ -306,12 +302,9 @@ In chat, use `/dial <name>.null "<task>"`. While dial is off, the CLI prints how
 
 - VOOL is beta. Read [STATUS.md](STATUS.md) before assuming a surface is production-ready.
 - `main` is the current beta trunk; do not keep reading the repo as if the real runtime lives on an unmerged side branch.
-- The strongest current lane is the local-first runtime plus the Hive and public-web surfaces.
+- The supported lane is the local-first runtime. Hive, mesh and peer networking are retained experimental research and are off in releases.
 - The strongest default install lane is still accurate auto selection from current hardware and configured providers.
-- A configured Kimi lane is now a real first-class supported profile through the shared OpenAI-compatible runtime bootstrap, but it is still optional rather than the default local-first path.
-- Tether and QVAC are still not first-class supported stacks yet.
 - Safe machine reads are intentionally narrow: Desktop, Downloads, and Documents are supported; arbitrary filesystem reads outside the active workspace are not.
-- Broader WAN hardening and some payment/economy claims are still partial or simulated.
 
 ## Troubleshooting
 

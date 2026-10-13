@@ -10,6 +10,10 @@ tree does not make it part of the default product.
 
 Historical matrix last dated 2026-07-20; subsequent notes are retained below.
 
+**Current release: v0.7.0-beta.** App downloads for Apple Silicon Macs, Intel Macs and Linux
+x86_64; Windows is experimental from source. What 0.7.0 does and does not include is on the
+[release status](trust/release-status.md) page, which wins over any dated note here.
+
 ## 2026-07-20 Cross-lane: the paid lane now executes and its caps bind
 
 **Supersedes the "do not announce paid providers" note below.** That note was correct when written
@@ -737,6 +741,10 @@ Current test gate on this checkpoint:
 
 ## Quick Matrix
 
+Dated 2026-07-20. Rows about peers, meet nodes, LAN discovery, P2P, Brain Hive and the WAN
+are research features: they are off in releases (see
+[Release semantics](#release-semantics-what-is-shipped-research-planned) below).
+
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Local agent loop** | **Works** | Input → classify → route → execute → respond. Fully functional. |
@@ -777,8 +785,8 @@ Current test gate on this checkpoint:
 | **Mobile UI** | **Not yet** | Mobile companion view exists as data layer, no frontend. |
 | **Trustless payments** | **Not yet** | Requires replay protection, reconciliation, idempotent settlement. |
 | **Internet-scale data plane** | **Not yet** | Blocked on relay/TURN-grade routing proof. |
-| **Plugin marketplace** | **Not yet** | Skill packs work locally. No discovery or distribution layer. |
-| **Desktop GUI** | **Not yet** | CLI + web dashboard only. No native desktop app. |
+| **Plugin marketplace** | **Partial** | Since 0.7.0 the Add-ons page lists reviewed catalogue add-ons with local security checks. Skill Codex browsing is not open yet. |
+| **Desktop GUI** | **Works** | Since 0.7.0: macOS app (Apple Silicon and Intel) and a Linux desktop entry that opens the local chat. |
 
 ## What "Works" Means
 
@@ -793,8 +801,7 @@ Credits in this repo are local proof-of-work / proof-of-participation accounting
 ## Deployment Reality
 
 - **Single machine:** Fully functional. Install, run, use immediately.
-- **LAN cluster:** Operational. Agents discover each other, share tasks, replicate knowledge.
-- **WAN / internet:** Meet seed nodes are live on 3 continents. Basic connectivity works. Full internet-scale routing and trust model are not yet hardened.
+- **LAN cluster / WAN:** Research only, off in releases. See Release semantics below.
 - **Production multi-tenant:** Not ready. This is still an alpha for developers and early adopters.
 
 ## Test Baseline
@@ -854,8 +861,8 @@ Post-alpha expansion order:
 
 **SHIPPED / PRODUCTION** — the local-first agent runtime: local model lane,
 memory, tool loop with typed permissions and approval gates, workspace
-confinement, receipts, BYOK/UsePod provider lanes, the served chat UI and the
-macOS app. Browser tool with Chromium's sandbox ON. Permission modes whose
+confinement, receipts, BYOK/UsePod provider lanes, the served chat UI, the
+macOS app (Apple Silicon and Intel) and the Linux x86_64 tarball. Browser tool with Chromium's sandbox ON. Permission modes whose
 labels match their enforced semantics.
 
 **EXPERIMENTAL / RESEARCH** — agent-to-agent networking: the mesh daemon and
@@ -866,6 +873,6 @@ only under an explicit research invocation (`VOOL_RESEARCH_NETWORKING=1`, see
 `research/README.md` and `core/runtime_mode.py`). Security assumptions, APIs
 and architecture may change or be discarded.
 
-**PLANNED** — notarized macOS builds, Windows/Linux release artifacts, the
-completed internal-identity migration. Described in the relevant docs; nothing
+**PLANNED** — notarized macOS builds, a Windows download, the completed
+internal-identity migration. Described in the relevant docs; nothing
 here claims shipped status for them.
