@@ -135,7 +135,7 @@ def test_footer_hint_names_the_platform_modifier(browser, platform_name: str, lo
         assert caps == expected_caps
 
         words = [catalog.text(message) for _, message in HINT_KEYS] + [catalog.text("palette.hint_esc_stop")]
-        assert hint.text_content() == " · ".join(f"{cap} {word}" for cap, word in zip(expected_caps, words))
+        assert hint.text_content() == " · ".join(f"{cap} {word}" for cap, word in zip(expected_caps, words, strict=True))
         if apple and locale == "en":
             assert hint.inner_html() == MACOS_EN_HINT_HTML
         if not apple:
