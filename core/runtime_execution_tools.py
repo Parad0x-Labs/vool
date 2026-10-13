@@ -3272,17 +3272,19 @@ def _dispatch_runtime_tool(
         if intent == "pdf.ocr":
             return _pdf_ocr(arguments)
         if intent == "skill.list":
-            return _skill_list(arguments)
+            return _skill_list(arguments, source_context)
         if intent == "skill.create":
-            return _covered(lambda: _skill_create(arguments))
+            return _covered(lambda: _skill_create(arguments, source_context))
         if intent == "skill.validate":
-            return _skill_validate(arguments)
+            return _skill_validate(arguments, source_context)
         if intent == "skill.install":
-            return _skill_install(arguments)
+            return _skill_install(arguments, source_context)
         if intent == "skill.rollback":
-            return _skill_rollback(arguments)
+            return _skill_rollback(arguments, source_context)
         if intent == "skill.inspect":
             return _skill_inspect(arguments)
+        if intent in {"skill.export", "skill.import", "skill.remove", "skill.pack"}:
+            return _covered(lambda: _skill_share_tool(intent, arguments, source_context))
         if intent in {"contacts.search", "contacts.resolve", "contacts.save", "contacts.update", "contacts.delete"}:
             return _contacts_tool(intent, arguments, source_context)
         if intent in {"profile.remember", "profile.forget", "profile.list"}:
@@ -7503,12 +7505,32 @@ def _skill_result(intent: str, result: dict[str, Any], *, response: str) -> Runt
     )
 
 
-def _skill_list(arguments: dict[str, Any]) -> RuntimeExecutionResult:
+def _skill_scope_keys(source_context: dict[str, Any] | None) -> dict[str, str] | None:
+    """This turn's chat and project keys, from the server-owned turn context only.
+
+    Never from tool arguments: a model naming a chat id must not reach that chat's skills.
+    """
+    if not isinstance(source_context, dict):
+        return None
+    try:
+        from core.skill_scopes import scope_keys
+
+        return scope_keys(source_context)
+    except Exception:
+        return None
+
+
+def _skill_scope_arg(arguments: dict[str, Any]) -> str:
+    # Validated where it is used (skill_tools refuses an unknown scope with the reason).
+    return str(arguments.get("scope") or "global").strip().lower()
+
+
+def _skill_list(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
     from core.skill_tools import list_skills
 
-    result = list_skills(str(arguments.get("workspace") or ""))
+    result = list_skills(str(arguments.get("workspace") or ""), keys=_skill_scope_keys(source_context))
 
-    def _section(title: str, rows: list[dict[str, Any]]) -> str:
+    def _section(title: str, rows: list[dict[str, Any]], *, show_path: bool = True) -> str:
         if not rows:
             return ""
         lines = [f"**{title}** ({len(rows)})"]
@@ -7516,14 +7538,21 @@ def _skill_list(arguments: dict[str, Any]) -> RuntimeExecutionResult:
             name = str(row.get("name") or "?")
             desc = str(row.get("description") or "").strip()
             path = str(row.get("path") or "")
+            scope = str(row.get("scope") or "")
             summary = f" — {desc}" if desc else ""
-            lines.append(f"- `{name}`{summary}\n  `{path}`")
+            where = f" ({scope})" if scope and scope != "global" else ""
+            if show_path and path and scope in ("", "global"):
+                lines.append(f"- `{name}`{where}{summary}\n  `{path}`")
+            else:
+                lines.append(f"- `{name}`{where}{summary}")
         return "\n".join(lines)
 
     sections = [
+        _section("For this chat", list(result.get("chat_skills") or []), show_path=False),
+        _section("For this project", list(result.get("project_skills") or []), show_path=False),
         _section("In the workspace", list(result.get("workspace_skills") or [])),
         _section("Staged (drafted, not active)", list(result.get("staged_skills") or [])),
-        _section("Installed (active)", list(result.get("installed_skills") or [])),
+        _section("Installed for all of VOOL (active)", list(result.get("installed_skills") or [])),
     ]
     body = "\n\n".join(section for section in sections if section)
     total = int(result.get("total") or 0)
@@ -7536,9 +7565,11 @@ def _skill_list(arguments: dict[str, Any]) -> RuntimeExecutionResult:
     return _skill_result("skill.list", result, response=body or f"{total} skill(s).")
 
 
-def _skill_create(arguments: dict[str, Any]) -> RuntimeExecutionResult:
+def _skill_create(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
+    from core.skill_scopes import SCOPE_LABELS
     from core.skill_tools import create_skill
 
+    scope = _skill_scope_arg(arguments)
     result = create_skill(
         name=str(arguments.get("name") or ""),
         description=str(arguments.get("description") or ""),
@@ -7546,21 +7577,28 @@ def _skill_create(arguments: dict[str, Any]) -> RuntimeExecutionResult:
         allowed_tools=tuple(arguments.get("allowed_tools") or ()),
         triggers=tuple(arguments.get("triggers") or ()),
         overwrite=bool(arguments.get("overwrite", False)),
+        scope=scope,
+        keys=_skill_scope_keys(source_context),
+    )
+    where = (
+        f"`{result.get('path')}`"
+        if scope == "global"
+        else f"the drafts for {SCOPE_LABELS.get(scope, scope)}"
     )
     return _skill_result(
         "skill.create",
         result,
         response=(
-            f"Drafted the skill at `{result.get('path')}`. It is not active yet - "
+            f"Drafted the skill in {where}. It is not active yet - "
             "validate it, then install it."
         ),
     )
 
 
-def _skill_validate(arguments: dict[str, Any]) -> RuntimeExecutionResult:
+def _skill_validate(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
     from core.skill_tools import validate_skill
 
-    result = validate_skill(str(arguments.get("path") or ""))
+    result = validate_skill(str(arguments.get("path") or ""), keys=_skill_scope_keys(source_context))
     return _skill_result(
         "skill.validate",
         result,
@@ -7571,29 +7609,173 @@ def _skill_validate(arguments: dict[str, Any]) -> RuntimeExecutionResult:
     )
 
 
-def _skill_install(arguments: dict[str, Any]) -> RuntimeExecutionResult:
+def _skill_install(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
+    from core.skill_scopes import SCOPE_LABELS
     from core.skill_tools import install_skill
 
+    if str(arguments.get("kind") or "").strip().lower() == "plugin":
+        from core.skill_package import install_plugin
+
+        result = install_plugin(
+            str(arguments.get("path") or arguments.get("name") or ""),
+            expected_sha256=str(arguments.get("sha256") or ""),
+            overwrite=bool(arguments.get("overwrite", False)),
+        )
+        return _skill_result(
+            "skill.install",
+            result,
+            response=(
+                f"Plugin `{result.get('name')}` is active for all of VOOL with "
+                f"{len(result.get('skills') or [])} skill(s): "
+                + ", ".join(f"`{name}`" for name in result.get("skills") or [])
+                + ". They load from the next turn."
+            ),
+        )
+    scope = _skill_scope_arg(arguments)
     result = install_skill(
         str(arguments.get("path") or ""),
         plugin_id=str(arguments.get("plugin_id") or "local-skills"),
         overwrite=bool(arguments.get("overwrite", False)),
+        scope=scope,
+        keys=_skill_scope_keys(source_context),
+        expected_sha256=str(arguments.get("sha256") or ""),
     )
     version = result.get("version")
     version_text = f" as version {version}" if isinstance(version, int) else ""
+    where = f"at `{result.get('path')}`" if scope == "global" else f"for {SCOPE_LABELS.get(scope, scope)}"
     return _skill_result(
         "skill.install",
         result,
         response=(
-            f"Installed `{result.get('name')}` at `{result.get('path')}`{version_text}. "
+            f"Installed `{result.get('name')}` {where}{version_text}. "
             "It is active from the next turn."
         ),
     )
 
 
-def _skill_rollback(arguments: dict[str, Any]) -> RuntimeExecutionResult:
+def _skill_share_tool(intent: str, arguments: dict[str, Any], source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
+    """Export, import, remove and pack: the sharing half of the skill lifecycle."""
+    from core.skill_scopes import SCOPE_LABELS
+
+    keys = _skill_scope_keys(source_context)
+    if intent == "skill.export":
+        from core import skill_package
+
+        name = str(arguments.get("name") or "")
+        if str(arguments.get("kind") or "").strip().lower() == "plugin":
+            result = skill_package.export_plugin(name)
+        else:
+            result = skill_package.export_skill(name, keys=keys, scope=str(arguments.get("scope") or ""))
+        return _skill_result(
+            intent,
+            result,
+            response=(
+                f"Exported `{result.get('name')}` to `{result.get('path')}` "
+                f"({result.get('bytes')} bytes). Anyone can import that zip into their VOOL."
+            ),
+        )
+    if intent == "skill.import":
+        from core import skill_package
+
+        raw, label, problem = _skill_package_bytes(arguments, source_context)
+        if raw is None:
+            return _skill_result(intent, {"status": "not_found", "reason": problem}, response="")
+        result = skill_package.import_package(
+            raw, scope=_skill_scope_arg(arguments), keys=keys, source_name=label
+        )
+        if result.get("kind") == "plugin":
+            response = (
+                f"Imported plugin `{result.get('name')}` with {len(result.get('skills') or [])} skill(s); "
+                "it is staged, not active yet."
+            )
+        else:
+            response = (
+                f"Imported `{result.get('name')}` into the drafts for "
+                f"{SCOPE_LABELS.get(str(result.get('scope') or 'global'), 'all of VOOL')}; it is not active yet."
+            )
+        return _skill_result(intent, result, response=response)
+    if intent == "skill.remove":
+        from core.skill_tools import remove_skill
+
+        result = remove_skill(str(arguments.get("name") or ""), scope=str(arguments.get("scope") or ""), keys=keys)
+        return _skill_result(
+            intent,
+            result,
+            response=(
+                f"Turned off `{result.get('name')}` for {SCOPE_LABELS.get(str(result.get('scope') or ''), 'its scope')}. "
+                "Its files and versions were kept."
+            ),
+        )
+    from core import skill_package
+
+    result = skill_package.create_plugin(
+        str(arguments.get("name") or ""),
+        description=str(arguments.get("description") or ""),
+        skill_names=list(arguments.get("skills") or []),
+        keys=keys,
+    )
+    return _skill_result(
+        intent,
+        result,
+        response=(
+            f"Packed plugin `{result.get('name')}` with "
+            + ", ".join(f"`{name}`" for name in result.get("skills") or [])
+            + ". It is staged, not active yet."
+        ),
+    )
+
+
+def _skill_package_bytes(
+    arguments: dict[str, Any], source_context: dict[str, Any] | None
+) -> tuple[bytes | None, str, str]:
+    """The package to import: a chat attachment this chat owns, or a local file path.
+
+    An attachment id is resolved against the TURN's own session, so another chat's upload cannot be
+    named. A path is read as a regular file only, bounded by the package size limit.
+    """
+    from core.skill_package import MAX_PACKAGE_BYTES
+
+    attachment_id = str(arguments.get("attachment_id") or "").strip()
+    if attachment_id:
+        context = dict(source_context or {})
+        session = str(context.get("runtime_session_id") or context.get("session_id") or "").strip()
+        if not session:
+            return None, "", "this turn has no chat to read an attachment from"
+        try:
+            from core.chat_attachments import read_staged_bytes
+
+            found = read_staged_bytes(session_id=session, attachment_id=attachment_id)
+        except Exception:
+            found = None  # unknown or malformed id: only a held copy of THIS chat can answer
+        if found is None:
+            # The attachment's own bytes end with its turn; an import approved on a later turn
+            # reads the copy the skill lane held for THIS chat (core.skill_package.hold_package).
+            from core.skill_package import held_package
+
+            held = held_package(session, attachment_id)
+            if held is None:
+                return None, "", "that attachment is not one this chat holds (or it has expired; attach it again)"
+            return held[0], held[1] or "package.zip", ""
+        record, raw = found
+        return raw, str(record.get("name") or "package.zip"), ""
+    raw_path = str(arguments.get("path") or "").strip()
+    if not raw_path:
+        return None, "", "attach the skill zip or give its path"
+    path = Path(raw_path).expanduser()
+    try:
+        if not path.is_file() or path.is_symlink():
+            return None, "", f"no regular file at {raw_path}"
+        if path.stat().st_size > MAX_PACKAGE_BYTES:
+            return None, "", f"{path.name} is larger than a skill package may be ({MAX_PACKAGE_BYTES} bytes)"
+        return path.read_bytes(), path.name, ""
+    except OSError as exc:
+        return None, "", f"{type(exc).__name__}: could not read {path.name}"
+
+
+def _skill_rollback(arguments: dict[str, Any], source_context: dict[str, Any] | None = None) -> RuntimeExecutionResult:
     from core.skill_tools import rollback_skill, skill_history
 
+    keys = _skill_scope_keys(source_context)
     name = str(arguments.get("skill") or arguments.get("path") or "")
     raw_version = arguments.get("version")
     try:
@@ -7604,9 +7786,9 @@ def _skill_rollback(arguments: dict[str, Any]) -> RuntimeExecutionResult:
             {"status": "invalid_arguments", "reason": "version must be a number"},
             response="I need the version number to roll back to.",
         )
-    result = rollback_skill(name, version=version)
+    result = rollback_skill(name, version=version, keys=keys)
     if result.get("status") == "ok":
-        history = skill_history(name)
+        history = skill_history(name, keys)
         return _skill_result(
             "skill.rollback",
             result,

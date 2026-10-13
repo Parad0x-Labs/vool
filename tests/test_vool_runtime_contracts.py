@@ -1028,6 +1028,10 @@ def test_agentic_build_request_routes_to_the_model_builder_not_a_fake_brief(make
     # Point the builder's model call at an unreachable host so this stays a fast, deterministic
     # ROUTING assertion (no dependency on a live local model on the test machine).
     monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:1")
+    # The unpinned build lane runs only under an enabled local-model policy; a host that disables
+    # local models (VOOL_LOCAL_MODELS_ENABLED=0) answered builder_local_lane_disabled instead. Pin the
+    # policy on so this stays the routing assertion it is meant to be.
+    monkeypatch.setenv("VOOL_LOCAL_MODELS_ENABLED", "1")
     agent = make_agent()
     result = agent.run_once(
         "build a web scraper service in this workspace and write the files",
