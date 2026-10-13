@@ -115,8 +115,14 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         ),
     ),
     # -- wallet (propose/read only; approval is never a tool) ----------------
-    # a decimal amount ("0.0005 SOL", "0.001 ETH") is not a sentence boundary; the native coins of every pilot row count
-    ("wallet.propose", "wallet", re.compile(r"\b(?:pay|send|transfer|prepare|propose)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:lamports?|sol|eth|bnb|usdc)\b(?:[^.?!]|\.(?=\d)){0,60}?\bto\b", re.I)),
+    # a decimal amount ("0.0005 SOL", "0.001 ETH") is not a sentence boundary; the native coins of every pilot row count.
+    # The recipient may also be a bare address with no "to" ("pay 0x... 1 USDC on base"): then an exact amount must
+    # stand before the coin, so an address and a coin name alone are not a payment
+    ("wallet.propose", "wallet", re.compile(
+        r"\b(?:pay|send|transfer|prepare|propose)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:lamports?|sol|eth|bnb|usdc)\b(?:[^.?!]|\.(?=\d)){0,60}?\bto\b"
+        r"|\b(?:pay|send|transfer)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})\b(?:[^.?!]|\.(?=\d)){0,60}?\b\d[\d,]*(?:\.\d+)?\s*(?:lamports?|sol|eth|bnb|usdc)\b"
+        r"|\b(?:pay|send|transfer)\b(?:[^.?!]|\.(?=\d)){0,60}?\b\d[\d,]*(?:\.\d+)?\s*(?:lamports?|sol|eth|bnb|usdc)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})\b",
+        re.I)),
     # -- contacts (the saved people and services; resolution itself happens inside each consumer) -----------
     # possession or the address-book name, never a bare mention: "contact card"/"Contacts are stored locally"
     # is prose about contacts, not a demand on them (the design-review boundary this base pins)
