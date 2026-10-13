@@ -1922,6 +1922,7 @@ function widgetCompanionPet(stack) {
     stack.appendChild(el('div', 'empty', 'The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.'));
     return;
   }
+  stack.appendChild(el('div', 'subtle', 'Drag the pet out of the chat window to put it on your desktop. These buttons bring it back, hide it or find it again.'));
   const bar = el('div', 'inline');
   const said = el('span', 'subtle', '');
   // No "Move to desktop" here: the pet goes to the desktop by being dragged out of the window.
