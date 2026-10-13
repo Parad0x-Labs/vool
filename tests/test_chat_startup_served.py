@@ -96,14 +96,17 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                 page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(daemon.base_url)
                            else route.abort())
                 for generation in range(2):
+                    # Boundary check plus failure-time capture: an exited daemon fails as
+                    # its exit status with server evidence, and a failed navigation carries
+                    # the daemon's status and redacted server evidence on its own exception.
                     if generation:
-                        # The daemon's death must fail as daemon death (with its server
-                        # evidence), never as an unattributable browser error.
                         daemon.assert_running(context=f"reload generation {generation}")
-                        page.reload(wait_until="domcontentloaded")
+                        with daemon.evidence_on_failure(f"reload generation {generation}"):
+                            page.reload(wait_until="domcontentloaded")
                     else:
                         daemon.assert_running(context="initial browser navigation")
-                        page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+                        with daemon.evidence_on_failure("initial browser navigation"):
+                            page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
                     page.wait_for_selector("#input", timeout=5000)
                     provider.reset()
                     page.locator("#input").fill("Hi")
@@ -218,11 +221,12 @@ def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeyp
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(daemon.base_url)
                            else route.abort())
-                # The 2026-10-02 corrected gate lost this daemon between certify and goto
-                # (rc unknown, server log dead with the home, page saw ERR_CONNECTION_REFUSED).
-                # The boundary check makes the next occurrence name itself.
+                # Boundary check plus failure-time capture: an exited daemon fails as its
+                # exit status with server evidence; a failed navigation carries the daemon's
+                # status and redacted server evidence on its own exception.
                 daemon.assert_running(context="initial browser navigation")
-                page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+                with daemon.evidence_on_failure("initial browser navigation"):
+                    page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
                 page.wait_for_selector("#input", timeout=5000)
                 # Instrument the queue door at its seam: claim #1 (the greeting turn's
                 # post-release pump) is answered empty only AFTER the next enqueue has been
@@ -279,12 +283,13 @@ def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeyp
                 page.wait_for_function("view.run && view.run.released", timeout=5000)
                 session_id = page.evaluate("displayedChat")
                 deadline = time.monotonic() + 5
-                while True:
-                    with urlopen(daemon.base_url + "/api/chat/queue?session=" + session_id, timeout=3) as response:
-                        queue_state = json.load(response)
-                    if not queue_state.get("queue") or time.monotonic() >= deadline:
-                        break
-                    time.sleep(0.1)
+                with daemon.evidence_on_failure("drained-queue read"):
+                    while True:
+                        with urlopen(daemon.base_url + "/api/chat/queue?session=" + session_id, timeout=3) as response:
+                            queue_state = json.load(response)
+                        if not queue_state.get("queue") or time.monotonic() >= deadline:
+                            break
+                        time.sleep(0.1)
                 assert queue_state.get("queue") == [], queue_state
                 assert not errors, errors
             finally:
