@@ -18,4 +18,4 @@ def pin_fixture_host_memory(monkeypatch, available_gb: float = 64.0) -> None:
         "core.system_resources.snapshot",
         lambda **_kwargs: fixture_host_snapshot(available_gb),
     )
-    monkeypatch.setattr("core.resource_governor.resident_models", lambda: [])
+    monkeypatch.setattr("core.resource_governor.resident_models", lambda **_kwargs: [])

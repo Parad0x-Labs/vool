@@ -14,7 +14,7 @@ def configure_fixture_host(available_gb: float) -> None:
     from core import resource_governor, system_resources
 
     system_resources.snapshot = lambda **_kwargs: fixture_host_snapshot(available_gb)
-    resource_governor.resident_models = lambda: []
+    resource_governor.resident_models = lambda **_kwargs: []
 
 
 def main() -> int:
