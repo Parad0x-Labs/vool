@@ -573,8 +573,6 @@ _VN_ENGINE_JS = r"""// ---------------------------------------------------------
 // Sprite engine. States map to semantic sheet keys; loop states cycle, one-shot
 // states advance once and hold their final frame (companion_render contract).
 const VN_POS_KEY = "vool_ninja_pos_v1";
-const VN_STATE_TIMING = { idle: 160, starting: 150, thinking: 140, tool: 110, waiting: 200, approval: 120, retry: 140 };
-const VN_ONE_SHOT = { success: 1, failure: 1, cancelled: 1 };
 // The caption's state-fallback word resolves through the page's i18n catalog (VOOLT, defined by
 // the chat page's bootstrap before fragments load); the uppercase state name is the honest
 // fallback when no bundle ships. The rotating/fixed PHRASE vocabulary stays English this
@@ -1391,9 +1389,11 @@ function vnBindDrag(el) {
       // Released hard against a window edge with the native bridge present: hand the
       // sprite to its desktop window instead of pinning it to the inside of the glass.
       const vwNow = window.innerWidth || 1200, vhNow = window.innerHeight || 800;
-      const atEdge = finalPos[0] <= 2 || finalPos[1] <= 2
-        || finalPos[0] + VN_SIZE >= vwNow - 2 || finalPos[1] + VN_SIZE >= vhNow - 2;
-      if (atEdge && vnNativeCompanionApi()) { vnDetachDesktop(false); return; }
+      // Judged on the RELEASE POINTER, never on finalPos: vnClampFree holds finalPos
+      // VN_EDGE_INSET inside every edge, so a finalPos test could never fire.
+      const atEdge = Number.isFinite(ev.clientX) && Number.isFinite(ev.clientY) &&
+        (ev.clientX <= 8 || ev.clientY <= 8 || ev.clientX >= vwNow - 8 || ev.clientY >= vhNow - 8);
+      if (atEdge && vnNativeCompanionApi()) { vnDetachDesktop(false, true); return; }
       vnPos.mode = "free"; vnPos.x = finalPos[0]; vnPos.y = finalPos[1];
       vnPersistPos();
       vnApplyPos();
@@ -1597,11 +1597,11 @@ async function vnHideDesktopPet() {
   if (api && api.hide_companion) { try { await api.hide_companion(); return; } catch (e) { /* fall through to the in-app hide */ } }
   vnHide(true);
 }
-async function vnDetachDesktop(silent) {
+async function vnDetachDesktop(silent, atPointer=false) {
   const api = vnNativeCompanionApi();
   if (!api) {
     vnDesktopActive = false;
-    if (vnPos.mode === "desktop") vnPos.mode = vnPos.previousMode || "docked";
+    if (!silent && vnPos.mode === "desktop") vnPos.mode = vnPos.previousMode || "docked";
     vnPersistPos(); vnApplyPos();
     if (!silent) vnNotify("Desktop companion needs the native VOOL app window.");
     return false;
@@ -1609,7 +1609,7 @@ async function vnDetachDesktop(silent) {
   const chatId = (typeof displayedChat !== "undefined" && displayedChat) ? displayedChat : vnLastChat;
   const pres = vnResolve(VN_VIEWS.get(String(chatId||"")));
   try {
-    const result = await api.detach_companion(vnDesktopPayload(pres,vnSpriteState(pres)));
+    const result = await api.detach_companion({...vnDesktopPayload(pres,vnSpriteState(pres)),at_pointer:atPointer});
     if (!result || result.ok !== true) throw new Error((result&&result.error)||"unavailable");
     if (vnPos.mode !== "desktop") vnPos.previousMode = vnPos.mode === "free" ? "free" : "docked";
     vnPos.mode = "desktop"; vnDesktopActive = true; vnDesktopSignature = "";

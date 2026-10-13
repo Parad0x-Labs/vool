@@ -871,10 +871,16 @@ class _WindowApi:
                 # one drag must hold through blur/focus and restart. The controller marshals this
                 # off the main thread; see PetWindowController._report_settled.
                 self._pet.on_position_settled = lambda _origin: self._remember_pet_position()
-                adopted = self._pet.adopt(clean.get("desktop_position"))
+                position = clean.get("desktop_position")
+                if isinstance(payload, dict) and payload.get("at_pointer") is True:
+                    position = pet_native.cursor_position()
+                adopted = self._pet.adopt(position)
                 _log(f"desktop companion window created (frameless, transparent, {adopted})")
             elif self._pet is not None and self._pet.available:
-                self._pet.show()
+                if isinstance(payload, dict) and payload.get("at_pointer") is True:
+                    self._pet.adopt(pet_native.cursor_position())
+                else:
+                    self._pet.show()
             else:
                 self._companion_window.show()
             self.sync_companion(clean)
@@ -1303,6 +1309,7 @@ def _install_native_frame_authority() -> None:
         from installer.bundle.native_frame_authority import install_macos_frame_authority
 
         install_macos_frame_authority()
+        pet_native.install_nonactivating_pet_host()
 
 
 class NativeWebKitProfileError(RuntimeError):
