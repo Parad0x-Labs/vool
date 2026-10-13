@@ -50,21 +50,24 @@ GENERAL_CAPS = ["summarize", "classify", "format", "extract", "structured_json",
 PROBE = "hard-capability-probe"
 
 # Result-carry cases. Each command's real output holds a marker that appears nowhere in the
-# operator's request, the command's arguments or the workspace path, so it can reach a later
-# provider payload or the shipped answer only by the command having run and its sealed result
-# having been carried forward. Two different commands over two different data shapes.
+# operator's request or the command's arguments: echo joins its arguments with ONE space, and
+# printf assembles its format, so the marker can reach a later provider payload or the shipped
+# answer only by the command having run and its sealed result having been carried forward. Both
+# use the model-routed "run the command" wording (a file read is served by a deterministic fast
+# path with no model, so it cannot exercise selection).
 CARRY_CASES = {
-    "read": {
-        "command": "cat ledger/carry-note.txt",
-        "marker": "ledger-total-4817-teal",
-        "answer": "The note says",
+    "echo": {
+        "command": "echo ledger    4817-teal",
+        "marker": "ledger 4817-teal",
+        "answer": "The command printed",
     },
-    "list": {
-        "command": "ls inbox",
-        "marker": "invoice-7c2e-quartz.pdf",
-        "answer": "The folder holds",
+    "printf": {
+        "command": "printf %s-%s-%s invoice 7c2e quartz",
+        "marker": "invoice-7c2e-quartz",
+        "answer": "The command output is",
     },
 }
+
 
 SEED = '''
 import sys
@@ -162,10 +165,6 @@ def served(tmp_path_factory):
     # refuses a command whose preimage it cannot scan.
     workspace = home.parent / "workspace"
     workspace.mkdir()
-    (workspace / "ledger").mkdir()
-    (workspace / "ledger" / "carry-note.txt").write_text(f"{CARRY_CASES['read']['marker']}\n", encoding="utf-8")
-    (workspace / "inbox").mkdir()
-    (workspace / "inbox" / CARRY_CASES["list"]["marker"]).write_text("scanned invoice\n", encoding="utf-8")
     local = ScriptedProvider({}, default="Plain scripted answer.", reply_fn=_reply)
     cloud = ScriptedProvider({}, default="cloud reply")
     daemon = ServedDaemon(
@@ -377,7 +376,7 @@ def test_served_tool_result_is_carried_forward_and_grounds_the_answer(served, ca
     assert len(executed) == 1, diag
     assert executed[0]["details"].get("arguments") == {"command": case["command"]}, executed[0]
     assert executed[0]["details"].get("ok") is True, executed[0]
-    assert case["marker"] in json.dumps(executed[0]["details"]), executed[0]
+    assert case["marker"] not in json.dumps(executed[0]["details"].get("arguments")), executed[0]
 
     # The result came from the run: absent from the round that chose the command, present in a
     # message of the next round's payload to the same model.
@@ -395,7 +394,7 @@ def test_served_tool_result_is_carried_forward_and_grounds_the_answer(served, ca
 def test_served_incapable_routes_never_run_the_command_or_see_its_result(served) -> None:
     """Zero forbidden execution: with only a tool-incapable model, in Auto and pinned, the
     command never runs, its output never reaches any provider, and no answer claims it."""
-    case = CARRY_CASES["read"]
+    case = CARRY_CASES["echo"]
     _seed(served, [(REASONING, REASONING_CAPS)])
     results = {}
     for session, model in (("hc-carry-none-auto", "vool"), ("hc-carry-none-pin", REASONING)):
