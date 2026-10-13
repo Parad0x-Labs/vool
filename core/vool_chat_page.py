@@ -7288,7 +7288,7 @@ async function runTurn(text, queueItemId, opts) {
   let userMsgEl = null, userHistoryIndex = -1;
   if (!opts.resend) {
     const sentAt = new Date().toISOString();
-    userMsgEl = isDisplayed(chatId) ? addMsg('user', text, sentAt, null, turnAttachments) : null;
+    if (isDisplayed(chatId)) userMsgEl = addMsg('user', text, sentAt, null, turnAttachments);
     recordUserMessage(chatId, text, sentAt, turnAttachments);
     userHistoryIndex = owner.history.length - 1;
     // A chat already private marks the message as it leaves; a message that turns private on is
