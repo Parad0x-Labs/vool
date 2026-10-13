@@ -922,7 +922,14 @@ def set_boundary(key: str, value: bool, *, expect_revision: int | None = None) -
             current = load_state()
             if current is None:
                 current = _seed_locked()
-            _require_mututable(current)
+            # Web lookups is also a plain Settings switch (Privacy & Permissions > Web lookups),
+            # so a home that predates the tour (``not_applicable``) may flip it without taking
+            # the tour. That write touches ONLY the owning policy: the pact file is left exactly
+            # as it is (LP6), and the local-only veto below applies unchanged. Every other
+            # boundary key stays refused there.
+            settings_only = clean_key == BOUNDARY_KEY_WEB and current.get("state") == STATE_NOT_APPLICABLE
+            if not settings_only:
+                _require_mututable(current)
             # CAS VALIDITY FIRST — a stale request is refused before ANY authority
             # is touched (policy composite, wallet freeze, memory pause, web lookups).
             if expect_revision is not None and int(expect_revision) != int(current.get("revision", 0)):
@@ -1015,7 +1022,7 @@ def set_boundary(key: str, value: bool, *, expect_revision: int | None = None) -
                 return data
 
             try:
-                next_data = _publish(_apply)
+                next_data = current if settings_only else _publish(_apply)
             except Exception as exc:
                 # publication failure AFTER authority effects: truthful partial naming
                 # the applied authority effect and the failed pact publication, with

@@ -288,6 +288,16 @@ def _settings_groups() -> list[dict]:
                     effect=EFFECT_NEXT_TURN,
                     keywords="thinking reasoning slow think first chain of thought",
                 ),
+                _row(
+                    id="show_answer_details",
+                    label="Show answer details",
+                    help="Adds a small line under each answer saying which model or tool made it.",
+                    kind="toggle",
+                    read={"url": PREFS, "field": "show_answer_details"},
+                    write={"url": PREFS, "field": "show_answer_details", "type": "bool"},
+                    scope=SCOPE_GLOBAL,
+                    keywords="answer details model tool provenance source footer which model made it",
+                ),
             ],
         },
         {
@@ -347,7 +357,7 @@ def _settings_groups() -> list[dict]:
                     help=(
                         "When you ask something that needs a lookup, VOOL may search the web to "
                         "answer. Off by default: nothing goes online for lookups until you switch "
-                        "this on. The command line can also allow it with an environment variable."
+                        "this on."
                     ),
                     read={"url": WEB_LOOKUPS_READ},
                     keywords="web search lookups online internet browse network access fallback allow",
@@ -4207,7 +4217,7 @@ function widgetWebLookups(stack) {
   sw.type = 'button';
   sw.setAttribute('role', 'switch');
   sw.setAttribute('aria-checked', on ? 'true' : 'false');
-  sw.setAttribute('aria-label', 'Web lookups');
+  sw.setAttribute('aria-label', T('settings.row.web_lookups.label', 'Web lookups'));
   if (localOnly) sw.disabled = true;
   line.appendChild(sw);
   stack.appendChild(line);
@@ -4218,36 +4228,52 @@ function widgetWebLookups(stack) {
   stack.appendChild(st);
 
   sw.addEventListener('click', async () => {
+    if (sw.disabled) return;
+    /* The target is decided from the authority's last read, not from the value at render time. */
+    const now = state.sources[WEB_LOOKUPS_URL] || {};
+    const want = !(!!now.allow_web_fallback && !now.local_only_mode);
+    sw.disabled = true;
     st.className = 'state saving'; st.textContent = 'Saving…';
     try {
       const r = await fetch('/api/onboarding/pact/boundary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'web_lookups', value: !on }),
+        body: JSON.stringify({ key: 'web_lookups', value: want }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || j.ok === false) {
+        /* Refused or failed: say it in plain words (never a raw error code), then re-read the
+           authority so the switch shows what is really in effect -- a partial or failed write
+           must not leave the switch claiming a state VOOL is not in. */
         const code = String((j && j.error) || '');
         const why = code === 'invalid_transition'
-          ? tfmt('settings.row.web_lookups.local_only_note', 'Local-only mode is on. Turn it off first.')
-          : code === 'not_applicable_readonly'
-            ? tfmt('settings.row.web_lookups.tour_note', 'This machine is not part of the tour yet. Choose Show me around once, then try again.')
-            : (String((j && (j.error || j.detail)) || '') || ('HTTP ' + r.status));
+          ? T('settings.row.web_lookups.local_only_note', 'Local-only mode is on. Turn it off first.')
+          : T('settings.row.web_lookups.retry_note', 'VOOL could not change this right now. Try again in a moment.');
+        if (await readSource(WEB_LOOKUPS_URL)) {
+          const live = state.sources[WEB_LOOKUPS_URL] || {};
+          sw.setAttribute('aria-checked', (!!live.allow_web_fallback && !live.local_only_mode) ? 'true' : 'false');
+          sw.disabled = !!live.local_only_mode;
+        } else {
+          sw.disabled = false;
+        }
         st.className = 'state failed'; st.textContent = 'Not saved — ' + why;
         return;
       }
       /* Read back from the authority rather than trusting the 200. */
       const ok = await readSource(WEB_LOOKUPS_URL);
       const back = ok ? state.sources[WEB_LOOKUPS_URL] : null;
-      if (!back || !!back.allow_web_fallback !== !on) {
+      if (!back || !!back.allow_web_fallback !== want) {
+        if (back) sw.setAttribute('aria-checked', (!!back.allow_web_fallback && !back.local_only_mode) ? 'true' : 'false');
+        sw.disabled = !!(back && back.local_only_mode);
         st.className = 'state stale';
-        st.textContent = 'Sent, but VOOL reports ' + JSON.stringify(back ? !!back.allow_web_fallback : null) + '.';
-        renderPane();
+        st.textContent = 'Sent, but VOOL could not confirm it. Reopen Settings to check.';
         return;
       }
+      sw.setAttribute('aria-checked', want ? 'true' : 'false');
+      sw.disabled = false;
       st.className = 'state saved'; st.textContent = 'Saved';
       setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
-      renderPane();
     } catch (e) {
+      sw.disabled = false;
       st.className = 'state failed'; st.textContent = 'Not saved — VOOL did not answer.';
     }
   });

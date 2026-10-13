@@ -112,3 +112,40 @@ def test_an_unreadable_preference_file_counts_as_off(fresh_home, quiet_router) -
     finalized = _finalize(_smalltalk_turn())
 
     assert finalized["response"] == "Hi! How can I help?"
+
+
+def test_the_settings_row_turns_the_line_on_and_off_through_the_real_doors(fresh_home, quiet_router) -> None:
+    """The General > Show answer details row: its own read/write binding, served routes, real gate."""
+    import json
+
+    from core.vool_settings_page import settings_groups
+    from core.web.api.runtime import RuntimeServices
+    from core.web.api.service import dispatch_get, dispatch_post
+
+    general = next(group for group in settings_groups() if group["id"] == "general")
+    ids = [row["id"] for row in general["rows"]]
+    assert ids.index("show_answer_details") == ids.index("deep_reasoning") + 1
+    row = general["rows"][ids.index("show_answer_details")]
+    url, field = row["write"]["url"], row["write"]["field"]
+    assert (row["read"]["url"], row["read"]["field"]) == (url, field)
+
+    def _set(value: bool) -> None:
+        response = dispatch_post(
+            path=url, body={field: value}, headers={"Content-Type": "application/json"},
+            runtime=RuntimeServices(display_name="VOOL"), model_name="vool", workspace_root_provider=lambda: None,
+        )
+        assert response.status == 200, response.body
+        read = dispatch_get(path=row["read"]["url"], query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool")
+        assert read.status == 200 and json.loads(read.body)[field] is value
+
+    read = dispatch_get(path=row["read"]["url"], query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool")
+    assert json.loads(read.body)[field] is False
+
+    _set(True)
+    finalized = _finalize(_smalltalk_turn())
+    assert finalized["response"].endswith(f"`tool | smalltalk_fast_path | no model | build {VOOL_VERSION}`")
+
+    _set(False)
+    finalized = _finalize(_smalltalk_turn())
+    assert finalized["response"] == "Hi! How can I help?"
+    assert finalized["answer_provenance"]["answer_source"] == "deterministic"
