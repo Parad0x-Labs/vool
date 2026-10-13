@@ -122,6 +122,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("wallet_usepod_operations", "digest_version", "INTEGER NOT NULL DEFAULT 1"),
     ("wallet_usepod_operations", "payment_kind", "TEXT NOT NULL DEFAULT 'unknown'"),
     ("wallet_transfers", "fee_fork", "TEXT NOT NULL DEFAULT ''"),
+    # this wallet's own signature over a pay-kit payment's message: the key the observer finds a sponsored payment by,
+    # whose id is the resource's fee payer's signature and unknown until the chain proves it ('' = not a pay-kit row)
+    ("wallet_transfers", "payer_signature", "TEXT NOT NULL DEFAULT ''"),
     ("wallet_x402_bindings", "resource_method", "TEXT NOT NULL DEFAULT 'GET'"),
     ("wallet_x402_bindings", "facilitator_id", "TEXT NOT NULL DEFAULT ''"),
     ("wallet_x402_bindings", "eip712_name", "TEXT NOT NULL DEFAULT ''"),
@@ -150,6 +153,9 @@ _ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("wallet_spend_ledger", "settled_at", "REAL NOT NULL DEFAULT 0"),
     # PA Contacts: the recipient snapshot a proposal was resolved to ('' = none named)
     ("wallet_proposals", "recipient_json", "TEXT NOT NULL DEFAULT ''"),
+    # an x402 SDK payment's EIP-3009 authorization: {kind, token, from_block} at the claim, plus its nonce and window
+    # once signed. Such a row takes no account nonce ('' = not an authorization row)
+    ("wallet_transfers", "authorization_json", "TEXT NOT NULL DEFAULT ''"),
 )
 
 #: Statements that depend on added columns: they run after ``_ensure_columns`` on every connection, so an upgraded

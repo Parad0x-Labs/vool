@@ -1871,9 +1871,13 @@
     "private.saving_again": "Buradan itibaren yeniden kaydediliyor",
     "private.banner_short": "Özel",
     "private.end_short": "Yeniden kaydet",
-    "private.reload_note": "Bu sohbet özel. Özel mesajlar kaydedilmez, bu yüzden yeniden yüklemeden sonra burada görünmezler."
+    "private.reload_note": "Bu sohbet özel. Özel mesajlar kaydedilmez, bu yüzden yeniden yüklemeden sonra burada görünmezler.",
+    "fault.wallet_payment_channel_off.message": "Bu ödeme kapalı bir ödeme kanalından geçiyor, bu yüzden hiçbir şey imzalanmadı veya gönderilmedi. Kanalı Ayarlar, Kripto, Ödeme kanalları'ndan açın, sonra tekrar deneyin.",
+    "fault.wallet_x402_sdk_unavailable.action": "Bir Crypto Pilot cüzdanından Base'deki x402 tekliflerini ödemek için VOOL'un isteğe bağlı x402 ekini kurun; cüzdan her durumda kendi imzalayıcısını, harcama tavanlarını ve onayını korur.",
+    "fault.wallet_payment_channel_off.action": "Bir ödeme kanalını Kripto ayarlarında yalnızca ödemelerin onun üzerinden yapılmasını istiyorsanız açın; tavan ve sizin onayınız her kanalda geçerlidir.",
+    "fault.wallet_x402_sdk_unavailable.message": "Bu yapı x402 Foundation SDK üzerinden Base'deki x402 tekliflerini ödeyemez: isteğe bağlı x402 eki bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Cüzdanın diğer her işlevi onsuz çalışır; kurulunca tekrar deneyin."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

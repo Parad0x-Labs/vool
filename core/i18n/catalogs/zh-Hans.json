@@ -1871,9 +1871,13 @@
     "private.saving_again": "从这里开始重新保存",
     "private.banner_short": "私密",
     "private.end_short": "重新保存",
-    "private.reload_note": "此聊天为私密聊天。私密消息不会保存，因此重新加载后不会显示在这里。"
+    "private.reload_note": "此聊天为私密聊天。私密消息不会保存，因此重新加载后不会显示在这里。",
+    "fault.wallet_payment_channel_off.message": "这笔付款经过一个已关闭的支付通道，因此没有签名或发送任何内容。请在设置、加密、支付通道中打开该通道后重试。",
+    "fault.wallet_x402_sdk_unavailable.action": "安装 VOOL 的可选 x402 扩展，即可从 Crypto Pilot 钱包支付 Base 上的 x402 报价；无论如何，钱包都保留自己的签名者、支出上限和审批。",
+    "fault.wallet_payment_channel_off.action": "只有在希望通过某个支付通道付款时，才在加密设置中打开它；上限和你的批准在每个通道上都适用。",
+    "fault.wallet_x402_sdk_unavailable.message": "此构建无法通过 x402 Foundation SDK 支付 Base 上的 x402 报价：这台机器上没有安装可选的 x402 扩展。没有签名或发送任何内容。钱包的其他所有功能没有它也能工作；安装之后请重试。"
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

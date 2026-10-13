@@ -1871,9 +1871,13 @@
     "private.saving_again": "여기서부터 다시 저장됩니다",
     "private.banner_short": "비공개",
     "private.end_short": "다시 저장",
-    "private.reload_note": "이 채팅은 비공개입니다. 비공개 메시지는 저장되지 않으므로 새로고침하면 여기에 표시되지 않습니다."
+    "private.reload_note": "이 채팅은 비공개입니다. 비공개 메시지는 저장되지 않으므로 새로고침하면 여기에 표시되지 않습니다.",
+    "fault.wallet_payment_channel_off.message": "그 결제는 꺼져 있는 결제 채널을 거치므로, 서명하거나 보낸 것이 없습니다. 설정, 암호화폐, 결제 채널에서 채널을 켠 뒤 다시 시도하세요.",
+    "fault.wallet_x402_sdk_unavailable.action": "Crypto Pilot 지갑에서 Base의 x402 제안을 결제하려면 VOOL의 선택적 x402 추가 요소를 설치하세요; 어느 경우든 지갑은 자체 서명자, 지출 상한, 승인을 유지합니다.",
+    "fault.wallet_payment_channel_off.action": "그 채널로 결제하려는 경우에만 암호화폐 설정에서 결제 채널을 켜세요; 한도와 사용자 승인은 모든 채널에 적용됩니다.",
+    "fault.wallet_x402_sdk_unavailable.message": "이 빌드는 x402 Foundation SDK를 통해 Base의 x402 제안을 결제할 수 없습니다: 선택적 x402 추가 요소가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. 지갑의 다른 모든 기능은 없이도 작동합니다; 설치한 뒤 다시 시도하세요."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

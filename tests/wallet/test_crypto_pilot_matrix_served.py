@@ -34,11 +34,13 @@ ROWS = [
     ("eip155:11155111", "ethereum", "ETH", "0.002", "eip1559", 11155111, "https://sepolia.etherscan.io/tx/", "TESTNET"),
     ("eip155:97", "bnb", "BNB", "0.003", "bsc", 97, "https://testnet.bscscan.com/tx/", "TESTNET"),
     ("eip155:46630", "robinhood", "ETH", "0.004", "arbitrum", 46630, "https://explorer.testnet.chain.robinhood.com/tx/", "TESTNET"),
+    ("eip155:421614", "arbitrum", "ETH", "0.005", "arbitrum", 421614, "https://sepolia.arbiscan.io/tx/", "TESTNET"),
     ("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "solana", "SOL", "0.0006", "svm", MAINNET_GENESIS, "https://solscan.io/tx/", "MAINNET"),
     ("eip155:8453", "base", "ETH", "0.0011", "op_stack", 8453, "https://basescan.org/tx/", "MAINNET"),
     ("eip155:1", "ethereum", "ETH", "0.0021", "eip1559", 1, "https://etherscan.io/tx/", "MAINNET"),
     ("eip155:56", "bnb", "BNB", "0.0031", "bsc", 56, "https://bscscan.com/tx/", "MAINNET"),
     ("eip155:4663", "robinhood", "ETH", "0.0041", "arbitrum", 4663, "https://robinhoodchain.blockscout.com/tx/", "MAINNET"),
+    ("eip155:42161", "arbitrum", "ETH", "0.0051", "arbitrum", 42161, "https://arbiscan.io/tx/", "MAINNET"),
 ]
 
 
@@ -167,11 +169,11 @@ def test_every_row_sends_once_and_settles_with_its_own_explorer_link_in_both_env
     status, switched = _door(daemon, "/api/wallet/environment", {"environment": "testnet"})
     assert status == 200, switched
     results = {}
-    for row in ROWS[:5]:
+    for row in ROWS[:6]:
         results[row[0]] = _drive_row(daemon, chains, provider, row, session=f"matrix-{row[1]}-testnet")
     status, switched = _door(daemon, "/api/wallet/environment", {"environment": "mainnet"})
     assert status == 200, switched
-    for row in ROWS[5:]:
+    for row in ROWS[6:]:
         results[row[0]] = _drive_row(daemon, chains, provider, row, session=f"matrix-{row[1]}-mainnet")
     # every record kept, each on its own row, whatever the environment shows now
     listed = {t["proposal_id"]: t for t in _get(daemon, "/api/wallet/transfers?limit=50")["transfers"]}

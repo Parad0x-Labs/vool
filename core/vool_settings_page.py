@@ -806,7 +806,7 @@ def _settings_groups() -> list[dict]:
                     kind="toggle",
                     read={"url": PREFS, "field": "wallet_enabled"},
                     write={"url": PREFS, "field": "wallet_enabled", "type": "bool"},
-                    keywords=["wallet", "crypto", "pilot", "enable", "solana", "base", "ethereum", "bnb", "robinhood"],
+                    keywords=["wallet", "crypto", "pilot", "enable", "solana", "base", "ethereum", "bnb", "robinhood", "arbitrum"],
                 ),
                 _row(
                     id="wallet_safety",
@@ -827,7 +827,7 @@ def _settings_groups() -> list[dict]:
                     ),
                     kind="custom",
                     widget="crypto",
-                    keywords=["wallet", "crypto", "payment", "payments", "solana", "base", "ethereum", "bnb", "robinhood", "pin", "backup", "receipt", "testnet", "devnet", "mainnet", "developer"],
+                    keywords=["wallet", "crypto", "payment", "payments", "solana", "base", "ethereum", "bnb", "robinhood", "arbitrum", "pin", "backup", "receipt", "testnet", "devnet", "mainnet", "developer"],
                 ),
                 _row(
                     id="wallet_legacy",

@@ -33,7 +33,7 @@ def _proposal(proposals, lifecycle, wallet_id, amount=1000, **kw):
 
 
 def test_signing_request_carries_exact_bytes_for_both_transports_and_no_key_material(wallet_env, ext):
-    from core.vool_wallet import b58decode
+    from core.vool_wallet import b58decode, b58encode
     from core.wallet import custody, external_signing, lifecycle, proposals
 
     profile = _external_wallet(custody, ext)
@@ -46,7 +46,13 @@ def test_signing_request_carries_exact_bytes_for_both_transports_and_no_key_mate
     assert message in tx and len(tx) == 1 + 64 + len(message)  # one zero signature slot + the exact message
     assert request["transports"]["phantom_injected"] == {"method": "signTransaction", "params": {"message": request["message_b58"]}}
     assert request["transports"]["walletconnect"] == {"method": "solana_signTransaction", "params": {"transaction": request["unsigned_transaction_b64"]}}
-    assert not any(k in json.dumps(request).lower() for k in ("seed", "secret", "private", "phrase", "pin"))
+    dumped = json.dumps(request)
+    secret = ext._key.private_bytes_raw()
+    assert not any(form in dumped for form in (b58encode(secret), base64.b64encode(secret).decode("ascii"), secret.hex()))  # the signer's key, in any spelling
+    words = dumped
+    for public in (request["message_b64"], request["message_b58"], request["unsigned_transaction_b64"], request["public_key"]):
+        words = words.replace(public, "")  # the exact public bytes pinned above: random base64/base58 spells "pin" about 1 time in 40
+    assert not any(k in words.lower() for k in ("seed", "secret", "private", "phrase", "pin"))
     assert proposals.get_proposal(p.proposal_id).state == proposals.STATE_AWAITING_SIGNATURE
     stored = external_signing.get_signing_request(request["request_id"])
     assert stored["state"] == external_signing.STATE_OPEN

@@ -1871,9 +1871,13 @@
     "private.saving_again": "يتم الحفظ مجددًا من هنا",
     "private.banner_short": "خاصة",
     "private.end_short": "احفظ مجددًا",
-    "private.reload_note": "هذه المحادثة خاصة. الرسائل الخاصة لا تُحفظ، لذلك لا تظهر هنا بعد إعادة التحميل."
+    "private.reload_note": "هذه المحادثة خاصة. الرسائل الخاصة لا تُحفظ، لذلك لا تظهر هنا بعد إعادة التحميل.",
+    "fault.wallet_payment_channel_off.message": "تمر تلك الدفعة عبر قناة دفع متوقفة، فلم يوقَّع أو يُرسل شيء. شغّل القناة في الإعدادات، عملات مشفرة، قنوات الدفع، ثم أعد المحاولة.",
+    "fault.wallet_x402_sdk_unavailable.action": "ثبّت الإضافة الاختيارية x402 لـ VOOL لدفع عروض x402 على Base من محفظة Crypto Pilot؛ تحتفظ المحفظة بموقّعها وحدود إنفاقها وموافقتها في كل الأحوال.",
+    "fault.wallet_payment_channel_off.action": "شغّل قناة دفع في إعدادات العملات المشفرة فقط إن أردت أن تتم الدفعات عبرها؛ الحد الأقصى وموافقتك يسريان على كل قناة.",
+    "fault.wallet_x402_sdk_unavailable.message": "لا يستطيع هذا الإصدار دفع عروض x402 على Base عبر x402 Foundation SDK: الإضافة الاختيارية x402 غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. كل وظائف المحفظة الأخرى تعمل بدونها؛ بعد تثبيتها أعد المحاولة."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

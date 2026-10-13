@@ -22,15 +22,17 @@ DECLARED_NETWORKS = (
     "eip155:11155111",  # Ethereum Sepolia
     "eip155:97",  # BNB Smart Chain testnet
     "eip155:46630",  # Robinhood Chain Testnet
+    "eip155:421614",  # Arbitrum Sepolia
     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",  # Solana mainnet
     "eip155:4663",  # Robinhood Chain
     "eip155:8453",  # Base
     "eip155:1",  # Ethereum
     "eip155:56",  # BNB Smart Chain
+    "eip155:42161",  # Arbitrum One
 )
 
 #: Declared Mainnet rows: under Test networks, every effect on them refuses on the environment.
-OTHER_ENVIRONMENT_ROWS = ("eip155:1", "eip155:8453", "eip155:56", "eip155:4663", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+OTHER_ENVIRONMENT_ROWS = ("eip155:1", "eip155:8453", "eip155:56", "eip155:4663", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "eip155:42161")
 
 UNDECLARED_ATTEMPTS = (
     "solana:5eykt4UsFv8P8NJdTREpYojv6fgkHiE7W",  # a wrong Solana mainnet genesis prefix
@@ -82,7 +84,7 @@ def test_a1_allowed_networks_are_exactly_the_declared_rows_of_both_environments(
     from core.wallet import chains, config
 
     assert tuple(config.ALLOWED_NETWORKS) == DECLARED_NETWORKS
-    assert [chains.resolve_network(n).environment for n in DECLARED_NETWORKS] == ["testnet"] * 5 + ["mainnet"] * 5
+    assert [chains.resolve_network(n).environment for n in DECLARED_NETWORKS] == ["testnet"] * 6 + ["mainnet"] * 6
 
 
 def test_a2_disabled_wallet_creates_no_artifacts_and_no_network(monkeypatch, wallet_off):

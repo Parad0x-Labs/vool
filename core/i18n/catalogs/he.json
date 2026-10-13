@@ -1871,9 +1871,13 @@
     "private.saving_again": "השמירה חוזרת מכאן",
     "private.banner_short": "פרטי",
     "private.end_short": "שמור שוב",
-    "private.reload_note": "הצ'אט הזה פרטי. הודעות פרטיות לא נשמרות, ולכן הן לא מופיעות כאן אחרי טעינה מחדש."
+    "private.reload_note": "הצ'אט הזה פרטי. הודעות פרטיות לא נשמרות, ולכן הן לא מופיעות כאן אחרי טעינה מחדש.",
+    "fault.wallet_payment_channel_off.message": "התשלום הזה עובר דרך ערוץ תשלום כבוי, ולכן לא נחתם ולא נשלח דבר. הפעילו את הערוץ בהגדרות, קריפטו, ערוצי תשלום, ואז נסו שוב.",
+    "fault.wallet_x402_sdk_unavailable.action": "התקינו את התוספת האופציונלית x402 של VOOL כדי לשלם הצעות x402 ב-Base מארנק Crypto Pilot; הארנק שומר בכל מקרה על החותם שלו, תקרות ההוצאה והאישור.",
+    "fault.wallet_payment_channel_off.action": "הפעילו ערוץ תשלום בהגדרות הקריפטו רק אם אתם רוצים שתשלומים יעברו דרכו; התקרה והאישור שלכם חלים על כל ערוץ.",
+    "fault.wallet_x402_sdk_unavailable.message": "גרסה זו אינה יכולה לשלם הצעות x402 ב-Base דרך x402 Foundation SDK: התוספת האופציונלית x402 אינה מותקנת במכונה זו. לא נחתם ולא נשלח דבר. כל שאר פונקציות הארנק עובדות בלעדיה; לאחר התקנתה נסו שוב."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

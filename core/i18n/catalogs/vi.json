@@ -1871,9 +1871,13 @@
     "private.saving_again": "Lưu lại từ đây",
     "private.banner_short": "Riêng tư",
     "private.end_short": "Lưu lại",
-    "private.reload_note": "Cuộc trò chuyện này là riêng tư. Tin nhắn riêng tư không được lưu nên sẽ không hiện ở đây sau khi tải lại."
+    "private.reload_note": "Cuộc trò chuyện này là riêng tư. Tin nhắn riêng tư không được lưu nên sẽ không hiện ở đây sau khi tải lại.",
+    "fault.wallet_payment_channel_off.message": "Khoản thanh toán đó đi qua một kênh thanh toán đang tắt, nên chưa ký hay gửi gì. Bật kênh trong Cài đặt, Tiền điện tử, Kênh thanh toán, rồi thử lại.",
+    "fault.wallet_x402_sdk_unavailable.action": "Cài phần bổ sung tùy chọn x402 của VOOL để trả các đề nghị x402 trên Base từ ví Crypto Pilot; dù thế nào ví vẫn giữ bộ ký riêng, trần chi tiêu và bước phê duyệt của mình.",
+    "fault.wallet_payment_channel_off.action": "Chỉ bật một kênh thanh toán trong cài đặt Tiền điện tử nếu bạn muốn thanh toán qua kênh đó; trần chi tiêu và sự chấp thuận của bạn áp dụng trên mọi kênh.",
+    "fault.wallet_x402_sdk_unavailable.message": "Bản dựng này không trả được các đề nghị x402 trên Base qua x402 Foundation SDK: phần bổ sung tùy chọn x402 chưa cài trên máy này. Chưa ký hay gửi gì. Mọi chức năng ví khác chạy không cần nó; sau khi cài, thử lại."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

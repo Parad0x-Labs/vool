@@ -272,9 +272,6 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         raise _fault("wallet_not_found", proposal_id=str(proposal_id)[:64], source_context=source_context)
     if not transfers.is_pilot_transfer(proposal):
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="not_a_pilot_transfer", source_context=source_context)
-    if str(proposal.origin) in proposals.PAYKIT_ORIGINS:
-        # a pay-kit payment reaches its resource only through pay-kit: a plain transfer to its payee buys nothing
-        raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="paykit_pilot_lane_not_supported", source_context=source_context)
     if proposal.state not in transfers.OPEN_PROPOSAL_STATES:
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason=f"proposal_state_{proposal.state}", source_context=source_context)
     spec = environment.require_active(proposal.network, source_context=source_context)
@@ -284,7 +281,12 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
     native = chains.native_asset(spec.network)
     from core.wallet import svm_tokens
 
-    token_payment = spec.is_svm and proposal.origin in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE) and svm_tokens.is_token_transfer(spec.network, proposal.asset)
+    paykit = _paykit_block(proposal, spec, source_context=source_context)
+    sdk = _x402_sdk_block(proposal, spec, source_context=source_context)
+    token_payment = spec.is_svm and proposal.origin in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE, *proposals.PAYKIT_ORIGINS) and svm_tokens.is_token_transfer(spec.network, proposal.asset)
+    if sdk is not None:
+        # an EIP-3009 authorization the site's facilitator submits: the token is quoted, this wallet pays no network fee
+        return _mint_authorization_quote(spec, proposal, profile, sdk=sdk, source_context=source_context)
     if not token_payment and str(proposal.asset).upper() not in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}:
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="native_coin_transfers_only", source_context=source_context)
     if proposal.origin == proposals.ORIGIN_USEPOD:
@@ -305,11 +307,16 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         # payment's quote (nobody volunteers to pay fees through a separate card)
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="dna_fee_collection_rides_its_payment", source_context=source_context)
     if token_payment:
-        return _mint_token_quote(spec, proposal, profile, source_context=source_context)
+        return _mint_token_quote(spec, proposal, profile, paykit=paykit, source_context=source_context)
     presentation = environment.presentation(spec)
     from core.wallet import lifecycle
 
     specific = _solana_quote(spec, proposal, profile.public_key, source_context=source_context) if spec.is_svm else _evm_quote(spec, proposal, profile.public_key, source_context=source_context)
+    if paykit is not None:
+        # the network fee of a pay-kit payment is the binding's: the resource's fee payer pays it (0 here), or this
+        # wallet pays at most the fee bound while the proposal was prepared
+        fee = int(paykit["payer_fee_max_minor"])
+        specific = {**specific, "fee_estimate_minor": fee, "fee_max_minor": fee, "fee_parts": {} if paykit["sponsored"] else {"base_minor": fee}}
     now = _now()
     amount = int(proposal.amount_minor)
     held = _held_elsewhere(profile.wallet_id, spec.network, proposal.proposal_id, asset=native.symbol)
@@ -337,6 +344,8 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         "recipient_fingerprint": str(recipient.get("fingerprint") or ""), "recipient_verification": str(recipient.get("verification") or ""),
         "recipient_warning": str(recipient.get("warning") or ""),
     }
+    if paykit is not None:
+        fields["paykit"] = paykit
     # the sheet renders these strings verbatim: one formatting authority, no money arithmetic in the page
     for name in ("balance", "fee_estimate", "fee_max", "max_total", "estimated_after", "minimum_after"):
         fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), native.decimals)
@@ -385,7 +394,134 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
     return {"quote_id": quote_id, "proposal_id": proposal.proposal_id, "digest": digest, "state": STATE_OPEN, "fields": fields}
 
 
-def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *, source_context: dict[str, Any] | None) -> dict[str, Any]:
+def _paykit_block(proposal: Any, spec: chains.ChainIdentity, *, source_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A pay-kit payment's facts for its Crypto Pilot quote (``paykit_x402.pilot_quote_block``), or None for any other
+    origin. Refused typed before any chain read: pay-kit not installed, a payment parked on no request, a fee this
+    wallet pays that was never bound, and an MPP challenge the Pilot lane cannot pay."""
+    if str(proposal.origin) not in proposals.PAYKIT_ORIGINS:
+        return None
+    from core.wallet import paykit_mpp, paykit_x402
+    from core.wallet import x402 as wallet_x402
+
+    paykit_x402.require_available(source_context=source_context)
+    binding = paykit_x402.binding_for(proposal.proposal_id)
+    if binding is None or not spec.is_svm:
+        raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="paykit_binding_missing", source_context=source_context)
+    if int(binding.get("version") or 0) == wallet_x402.BINDING_VERSION_PAYKIT_MPP:
+        paykit_mpp.refuse_unpayable_on_pilot(binding, source_context=source_context)
+    block = paykit_x402.pilot_quote_block(binding, proposal)
+    if not block["sponsored"] and int(block["payer_fee_max_minor"]) <= 0:
+        raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="paykit_payer_fee_unbound", source_context=source_context)
+    return block
+
+
+def _x402_sdk_block(proposal: Any, spec: chains.ChainIdentity, *, source_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    """An x402 SDK payment's facts for its Crypto Pilot quote (``x402_sdk.pilot_quote_block``), or None for any other
+    origin. Refused typed before any chain read: the SDK not installed, a payment parked on no request."""
+    if str(proposal.origin) != proposals.ORIGIN_X402_SDK:
+        return None
+    from core.wallet import x402_sdk
+
+    x402_sdk.require_available(source_context=source_context)
+    binding = x402_sdk.binding_for(proposal.proposal_id)
+    if binding is None or not spec.is_evm:
+        raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="x402_sdk_binding_missing", source_context=source_context)
+    return x402_sdk.pilot_quote_block(binding, proposal)
+
+
+class _EvmReads:
+    """The quote's EVM reads in the shape ``core.wallet.x402_sdk``'s readers take (``_call``), through :func:`_evm_rpc`."""
+
+    def __init__(self, spec: chains.ChainIdentity, url: str, *, source_context: dict[str, Any] | None) -> None:
+        self.spec, self.url, self.source_context = spec, url, source_context
+
+    def _call(self, method: str, params: list[Any]) -> Any:
+        return _evm_rpc(self.spec, self.url, method, params, source_context=self.source_context)
+
+
+def _mint_authorization_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *, sdk: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any]:
+    """An x402 SDK payment on an EVM row: the principal is quoted, held and shown in the registry's EIP-3009 token, read
+    from the token's own ``balanceOf`` with what other in-flight transfers already hold of it subtracted. The site's
+    facilitator submits the authorization and pays the gas, so this wallet's network fee is 0 and its native balance
+    is not needed."""
+    from core.wallet import evm, x402_sdk
+
+    evm.require_evm_dependencies("authorization_quote", source_context=source_context)
+    native = chains.native_asset(spec.network)
+    token = x402_sdk.eip3009_asset(spec.network, str(sdk.get("token") or ""))
+    if token is None or token.symbol != str(proposal.asset):
+        raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="x402_sdk_token_not_registered", source_context=source_context)
+    cues = _check_evm_recipient(spec, proposal.destination, source_context=source_context)
+    url = chains.network_rpc_url(spec.network)
+    reads = _EvmReads(spec, url, source_context=source_context)
+    _prove(spec, url, lambda method: reads._call(method, []), source_context=source_context)
+    try:
+        block_number = int(str((reads._call("eth_getBlockByNumber", ["latest", False]) or {})["number"]), 16)
+        balance = x402_sdk.token_balance(reads, token=token.address, owner=profile.public_key, block=hex(block_number))
+    except WalletFault:
+        raise
+    except Exception as exc:
+        raise _fault("wallet_quote_unavailable", network=spec.network, reason=f"token_balance_unreadable:{type(exc).__name__}", source_context=source_context) from None
+    amount = int(proposal.amount_minor)
+    held_token = _held_elsewhere(profile.wallet_id, spec.network, proposal.proposal_id, asset=token.symbol)
+    spendable = balance - held_token
+    if amount > spendable:
+        raise _fault(
+            "wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="amount_exceeds_spendable_token_balance", shortfall_minor=amount - spendable,
+            shortfall_human=amounts.format_minor(amount - spendable, token.decimals), gas_asset=token.symbol, source_context=source_context,
+        )
+    now = _now()
+    fields: dict[str, Any] = {
+        "proposal_id": proposal.proposal_id, "network": spec.network, "chain_key": spec.chain_key,
+        "chain_label": chains.CHAIN_KEY_LABELS.get(spec.chain_key, spec.display_name), "display_name": spec.display_name,
+        "environment": spec.environment, **environment.presentation(spec), "chain_identity": spec.chain_id,
+        "from_label": profile.label or chains.CHAIN_KEY_LABELS.get(spec.chain_key, spec.display_name), "from_address": profile.public_key,
+        "to_address": proposal.destination, "asset": token.symbol, "display_symbol": token.symbol, "gas_asset": spec.native_display_symbol or native.symbol,
+        "decimals": token.decimals, "fee_decimals": native.decimals, "amount_minor": amount, "amount_human": amounts.format_minor(amount, token.decimals),
+        "fee_model": spec.fee_model, "token_transfer": True, "token_contract": token.address,
+        "balance_observed_at": now, "balance_stale": False, "balance_ref": f"block:{block_number}",
+        "balance_minor": balance, "principal_balance_minor": balance, "held_elsewhere_minor": held_token,
+        # the facilitator pays the gas: this wallet's fee estimate and ceiling are 0, in the gas asset
+        "fee_estimate_minor": 0, "fee_max_minor": 0, "fee_parts": {}, "cues": cues,
+        "max_total_minor": amount, "estimated_after_minor": balance - amount, "minimum_after_minor": spendable - amount,
+        "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
+        "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        "x402sdk": sdk,
+    }
+    for name in ("balance", "principal_balance", "max_total", "estimated_after", "minimum_after"):
+        fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), token.decimals)
+    for name in ("fee_estimate", "fee_max"):
+        fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), native.decimals)
+    gas = fields["gas_asset"]
+    fields["amount_display"] = amounts.display_amount(amount, token.decimals, token.symbol, exact=True)
+    fields["balance_display"] = amounts.display_amount(balance, token.decimals, token.symbol)
+    fields["fee_estimate_display"] = amounts.display_amount(0, native.decimals, gas)
+    fields["fee_max_display"] = amounts.display_amount(0, native.decimals, gas, mode=amounts.ROUND_UP)
+    fields["max_total_display"] = amounts.display_amount(amount, token.decimals, token.symbol, mode=amounts.ROUND_UP)
+    fields["estimated_after_display"] = amounts.display_amount(balance - amount, token.decimals, token.symbol)
+    fields["minimum_after_display"] = amounts.display_amount(spendable - amount, token.decimals, token.symbol, mode=amounts.ROUND_DOWN)
+    fields["fee_asset_differs"] = gas.upper() != token.symbol.upper()
+    from core.wallet import purpose
+
+    fields["purpose"] = purpose.purpose_for(proposal)
+    _attach_fee_and_review(
+        fields, proposal, rpc=None, blockhash="", principal_balance=balance, held_principal=held_token, fee_balance=0, held_native=0, rent_minimum=0,
+        source_context=source_context,
+    )
+    digest = digest_of(fields)
+    quote_id = f"quote-{uuid.uuid4().hex[:20]}"
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        conn.execute("UPDATE wallet_quotes SET state = ? WHERE proposal_id = ? AND state = ?", (STATE_SUPERSEDED, proposal.proposal_id, STATE_OPEN))
+        conn.execute(
+            "INSERT INTO wallet_quotes (quote_id, proposal_id, wallet_id, network, environment, digest, fields_json, state, created_at, expires_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (quote_id, proposal.proposal_id, profile.wallet_id, spec.network, spec.environment, digest, json.dumps(fields, sort_keys=True, default=str), STATE_OPEN, now, fields["expires_at"]),
+        )
+    return {"quote_id": quote_id, "proposal_id": proposal.proposal_id, "digest": digest, "state": STATE_OPEN, "fields": fields}
+
+
+def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *, paykit: dict[str, Any] | None = None, source_context: dict[str, Any] | None) -> dict[str, Any]:
     """A registered token on a Solana row, paid for the UsePod x402 lane: the principal is quoted, held and shown in the
     token, the network fee in the native coin -- two assets, never one sum. Every chain fact comes through
     ``svm_tokens.require_payable`` (mint, recipient token account, spendable token balance, a native balance carrying
@@ -412,6 +548,9 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
     if fee_value is None:
         raise _fault("wallet_quote_unavailable", network=spec.network, reason="fee_unknown_for_message", source_context=source_context)
     fee_minor = int(fee_value)
+    if paykit is not None:
+        # a pay-kit payment's fee is the binding's (0 when the resource's fee payer pays it), never this stand-in message's
+        fee_minor = int(paykit["payer_fee_max_minor"])
     facts = svm_tokens.require_payable(
         rpc, network=spec.network, asset=token.symbol, payer=profile.public_key, recipient_owner=proposal.destination, amount_minor=amount,
         held_token_minor=held_token, fee_max_minor=fee_minor, held_native_minor=held_native, source_context=source_context,
@@ -430,7 +569,7 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
         "balance_observed_at": now, "balance_stale": False, "balance_ref": f"slot:{int((latest.get('context') or {}).get('slot') or 0)}",
         "balance_minor": principal_balance, "principal_balance_minor": principal_balance, "fee_balance_minor": fee_balance,
         "held_elsewhere_minor": held_token, "held_native_elsewhere_minor": held_native,
-        "fee_estimate_minor": fee_minor, "fee_max_minor": fee_minor, "fee_parts": {"base_minor": fee_minor},
+        "fee_estimate_minor": fee_minor, "fee_max_minor": fee_minor, "fee_parts": {} if paykit is not None and paykit["sponsored"] else {"base_minor": fee_minor},
         "rent_minimum_minor": int(facts["rent_minimum_minor"]), "recent_blockhash": blockhash,
         "last_valid_block_height": int(latest["value"].get("lastValidBlockHeight") or 0), "cues": [],
         # the principal ceiling in the token; the fee ceiling is its own field, in the gas asset
@@ -440,6 +579,8 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
         "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
     }
+    if paykit is not None:
+        fields["paykit"] = paykit
     # one formatting authority per asset: token figures in the token's decimals, fee figures in the native coin's
     for name in ("balance", "principal_balance", "max_total", "estimated_after", "minimum_after"):
         fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), token.decimals)

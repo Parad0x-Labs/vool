@@ -1871,9 +1871,13 @@
     "private.saving_again": "Enregistrement repris à partir d'ici",
     "private.banner_short": "Privé",
     "private.end_short": "Réenregistrer",
-    "private.reload_note": "Cette discussion est privée. Les messages privés ne sont pas enregistrés, ils n'apparaissent donc plus après un rechargement."
+    "private.reload_note": "Cette discussion est privée. Les messages privés ne sont pas enregistrés, ils n'apparaissent donc plus après un rechargement.",
+    "fault.wallet_payment_channel_off.message": "Ce paiement passe par un canal de paiement désactivé, donc rien n'a été signé ni envoyé. Activez le canal dans Réglages, Crypto, Canaux de paiement, puis réessayez.",
+    "fault.wallet_x402_sdk_unavailable.action": "Installez l'extra optionnel x402 de VOOL pour payer les offres x402 sur Base depuis un portefeuille Crypto Pilot ; le portefeuille garde dans tous les cas son propre signataire, ses plafonds de dépense et son approbation.",
+    "fault.wallet_payment_channel_off.action": "Activez un canal de paiement dans les réglages Crypto seulement si vous voulez que des paiements passent par lui ; le plafond et votre approbation s'appliquent sur chaque canal.",
+    "fault.wallet_x402_sdk_unavailable.message": "Cette version ne peut pas payer les offres x402 sur Base via le x402 Foundation SDK : l'extra optionnel x402 n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

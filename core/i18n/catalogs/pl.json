@@ -1871,9 +1871,13 @@
     "private.saving_again": "Od tego miejsca znów zapisywane",
     "private.banner_short": "Prywatne",
     "private.end_short": "Zapisuj znowu",
-    "private.reload_note": "Ten czat jest prywatny. Prywatne wiadomości nie są zapisywane, więc po odświeżeniu się tu nie pojawią."
+    "private.reload_note": "Ten czat jest prywatny. Prywatne wiadomości nie są zapisywane, więc po odświeżeniu się tu nie pojawią.",
+    "fault.wallet_payment_channel_off.message": "Ta płatność idzie przez wyłączony kanał płatności, więc nic nie podpisano ani nie wysłano. Włącz kanał w Ustawieniach, Krypto, Kanały płatności, potem spróbuj ponownie.",
+    "fault.wallet_x402_sdk_unavailable.action": "Zainstaluj opcjonalny dodatek x402 VOOL, by opłacać oferty x402 w sieci Base z portfela Crypto Pilot; portfel w każdym przypadku zachowuje własnego sygnatariusza, limity wydatków i zatwierdzanie.",
+    "fault.wallet_payment_channel_off.action": "Włącz kanał płatności w ustawieniach Krypto tylko wtedy, gdy chcesz, by płatności przez niego szły; limit i twoja zgoda obowiązują na każdym kanale.",
+    "fault.wallet_x402_sdk_unavailable.message": "Ta wersja nie potrafi opłacać ofert x402 w sieci Base przez x402 Foundation SDK: na tym komputerze nie ma opcjonalnego dodatku x402. Nic nie podpisano ani nie wysłano. Każda inna funkcja portfela działa bez niego; po zainstalowaniu spróbuj ponownie."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -166,10 +166,13 @@ def test_exactly_one_operator_field_is_malformed_evidence(pilot):
     ("eip155:1", 1, "eip1559", {}),
     ("eip155:56", 56, "bsc", {}),
     ("eip155:4663", 4663, "arbitrum", {"gas_used_for_l1": 1_000}),
+    ("eip155:42161", 42161, "arbitrum", {"gas_used_for_l1": 1_000}),
+    ("eip155:421614", 421614, "arbitrum", {"gas_used_for_l1": 1_000}),
 ])
 def test_rows_without_an_l1_component_settle_exact_from_gas_and_price(pilot, network, chain_id, fee_model, extra):
-    from core.wallet import capabilities, settlement, transfers
+    from core.wallet import capabilities, chains, environment, settlement, transfers
 
+    environment.set_active_environment(chains.resolve_network(network).environment)
     pilot.setattr(capabilities, "PILOT_TRANSFER_READY_ROWS", frozenset({network}))
     chain = ScriptedEvmNativeChain(chain_id=chain_id, fee_model=fee_model, base_fee=2_000_000_000, priority_fee=1_000_000_000, **extra)
     chain.__enter__()

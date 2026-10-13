@@ -72,6 +72,13 @@ evm = [
 pay = [
     "solana-pay-kit==0.10.0; python_version >= '3.11'",
 ]
+# x402 on Base through the x402 Foundation SDK (core/wallet/x402_sdk.py), paid from a Crypto Pilot wallet: the SDK reads
+# the 402 and builds the EIP-3009 authorization; the wallet keeps the cap, the approval, the signature and the receipt.
+# OPTIONAL: without it that lane reports wallet_x402_sdk_unavailable and nothing else changes. Its `evm` extra is
+# needed because the SDK's EVM package imports web3 at import time. Pinned to the release the lane was tested against.
+x402 = [
+    "x402[evm]==2.25.0",
+]
 models = [
     # PyTorch publishes no Intel-macOS wheel since 2.3: torch and the packages that require it
     # are skipped there, and local LoRA training reports itself unavailable.

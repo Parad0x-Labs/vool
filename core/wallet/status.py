@@ -67,6 +67,19 @@ def _pending_row(p: Any) -> dict[str, Any]:
     from core.wallet import purpose
 
     row["purpose"] = purpose.purpose_for(p)
+    from core.wallet import channels
+
+    # the channel this payment goes through: one turned off is refused at approval until it is on again. A choice
+    # that cannot be read is said as unknown (None), never as on, and never empties the list it belongs to
+    channel = channels.for_origin(p.origin)
+    if channel is None:
+        row["payment_channel"] = None
+    else:
+        try:
+            on: bool | None = channels.is_on(channel.channel_id)
+        except Exception:
+            on = None
+        row["payment_channel"] = {"channel_id": channel.channel_id, "label": channel.label, "on": on}
     if p.origin == proposals.ORIGIN_DNA_FEE:
         # a fee collection says what it is: never a transfer the owner or a model asked for
         from core.wallet import dna_fees
@@ -181,6 +194,15 @@ def wallet_status() -> dict[str, Any]:
     return redact_wallet_record(status)
 
 
+def _payment_channels() -> list[dict[str, Any]]:
+    from core.wallet import channels
+
+    try:
+        return channels.status()
+    except Exception as exc:
+        return [{"error": f"unreadable:{type(exc).__name__}"}]
+
+
 def crypto_pilot_status() -> dict[str, Any]:
     """The Crypto Pilot surface: the active network environment and where it came from, every declared row
     with its accounts and typed capabilities. No network I/O, no writes (a derived environment is pinned
@@ -221,6 +243,8 @@ def crypto_pilot_status() -> dict[str, Any]:
         "frozen": frozen,
         "chain_order": list(chains.CHAIN_KEY_ORDER),
         "networks": capabilities.network_rows(active_environment=state.environment, wallets=wallets),
+        # the owner's choice of how paid requests are paid: each channel, on or off, and whether this install can use it
+        "payment_channels": _payment_channels(),
         "credential_policy": {
             "pin": {"min": pilot_custody.PIN_MIN, "max": pilot_custody.PIN_MAX, "text": f"{pilot_custody.PIN_MIN}–{pilot_custody.PIN_MAX} digits"},
             "password": {"min": custody._PASSWORD_MIN, "max": custody._PASSWORD_MAX, "text": f"{custody._PASSWORD_MIN}–{custody._PASSWORD_MAX} characters, not only digits"},

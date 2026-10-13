@@ -53,6 +53,9 @@ class ScriptedRpc:
         #: 'ok' | 'reject' (validated JSON-RPC preflight error) | 'accept_then_500' | 'accept_then_malformed' |
         #: 'accept_then_wrong_id' | 'accept_then_unlisted_error'. `send_ok=False` is the legacy spelling of 'reject'.
         self.send_mode = "ok"
+        #: when set, a sendTransaction the node recorded waits for this event before it answers (a slow node): the
+        #: wallet's side holds the transfer in flight until the test lets the answer go
+        self.send_answer_gate: threading.Event | None = None
         #: answer the transaction's real first signature (base58) rather than the legacy synthetic id
         self.real_signature = False
         self.finalized_slot = 1
@@ -135,6 +138,8 @@ class ScriptedRpc:
                         return
                     with rpc._lock:
                         rpc.sent.append(raw)
+                    if rpc.send_answer_gate is not None:
+                        rpc.send_answer_gate.wait(timeout=60)
                     if mode == "already_processed":
                         # recorded above: the node executed it, then answered the validated duplicate error
                         self._send({"jsonrpc": "2.0", "id": body.get("id"), "error": {"code": -32002, "message": "Transaction simulation failed: This transaction has already been processed", "data": {"err": "AlreadyProcessed", "logs": []}}})
@@ -178,11 +183,31 @@ class ScriptedRpc:
                         entry = {"slot": 2, "confirmations": None if mode == "finalized" else 5, "err": {"InstructionError": [0, "Custom"]} if mode == "err" else None,
                                  "confirmationStatus": {"err": "confirmed"}.get(mode, mode)}
                     asked = [str(sig) for sig in (params[0] if params else [])]
+
+                    def status_of(sig: str) -> Any:
+                        # a transaction that landed and failed carries its execution error in its status, as on a node
+                        if entry is not None and sig in rpc.failed_transactions:
+                            return {**entry, "err": {"InstructionError": [2, "Custom"]}}
+                        return entry
+
                     if rpc.status_keyed:
                         known = rpc.recorded_signatures() | set(rpc.landed)
-                        result = {"context": {"slot": rpc.status_context_slot}, "value": [entry if sig in known else None for sig in asked]}
+                        result = {"context": {"slot": rpc.status_context_slot}, "value": [status_of(sig) if sig in known else None for sig in asked]}
                     else:
-                        result = {"context": {"slot": rpc.status_context_slot}, "value": [entry for _sig in asked] or [entry]}
+                        result = {"context": {"slot": rpc.status_context_slot}, "value": [status_of(sig) for sig in asked] or [entry]}
+                elif method == "getSignaturesForAddress":
+                    # the transactions a resource landed that name this address, newest first, as a node lists them
+                    from solders.transaction import VersionedTransaction
+
+                    address = str(params[0]) if params else ""
+                    options = params[1] if len(params) > 1 and isinstance(params[1], dict) else {}
+                    found = []
+                    for sig, raw in reversed(list(rpc.transactions.items())):
+                        if address in [str(key) for key in VersionedTransaction.from_bytes(raw).message.account_keys]:
+                            failed = sig in rpc.failed_transactions
+                            found.append({"signature": sig, "slot": rpc.status_context_slot, "err": {"InstructionError": [2, "Custom"]} if failed else None,
+                                          "memo": None, "blockTime": None, "confirmationStatus": "confirmed"})
+                    result = found[: int(options.get("limit") or 1000)]
                 elif method == "getBalance":
                     key = str(params[0]) if params else ""
                     result = {"context": {"slot": rpc.slot}, "value": rpc.balances.get(key, rpc.default_balance)}

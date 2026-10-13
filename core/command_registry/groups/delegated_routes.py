@@ -195,6 +195,8 @@ WALLET_ACTIONS: tuple[tuple[str, str, str, str], ...] = (
      "Set the wallet's spend ceilings (per-transaction, daily, destination)"),
     ("wallet.environment.set", "/api/wallet/environment", "mutating",
      "Choose Mainnet or Test networks for new wallet effects; accounts, balances and receipts never move"),
+    ("wallet.channels.set", "/api/wallet/channels", "mutating",
+     "Turn one payment channel (x402 built into VOOL, or x402 or MPP on Solana through Solana pay-kit) on or off; parked payments wait, nothing is signed or sent"),
     ("wallet.setup.create", "/api/wallet/setup/create", "destructive",
      "Create a Crypto Pilot wallet on this device: credential first, then one backup reveal"),
     ("wallet.setup.reveal", "/api/wallet/setup/reveal", "destructive",

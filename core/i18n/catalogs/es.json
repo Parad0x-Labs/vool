@@ -1871,9 +1871,13 @@
     "private.saving_again": "Se vuelve a guardar desde aquí",
     "private.banner_short": "Privado",
     "private.end_short": "Guardar de nuevo",
-    "private.reload_note": "Este chat es privado. Los mensajes privados no se guardan, así que no aparecen aquí al recargar."
+    "private.reload_note": "Este chat es privado. Los mensajes privados no se guardan, así que no aparecen aquí al recargar.",
+    "fault.wallet_payment_channel_off.message": "Ese pago pasa por un canal de pago que está desactivado, así que no se firmó ni se envió nada. Activa el canal en Ajustes, Cripto, Canales de pago, y reintenta.",
+    "fault.wallet_x402_sdk_unavailable.action": "Instala el extra opcional x402 de VOOL para pagar ofertas x402 en Base desde una cartera Crypto Pilot; la cartera conserva su propio firmante, sus techos de gasto y su aprobación en cualquier caso.",
+    "fault.wallet_payment_channel_off.action": "Activa un canal de pago en los ajustes de Cripto solo si quieres que los pagos pasen por él; el tope y tu aprobación se aplican en todos los canales.",
+    "fault.wallet_x402_sdk_unavailable.message": "Esta compilación no puede pagar ofertas x402 en Base mediante el x402 Foundation SDK: el extra opcional x402 no está instalado en esta máquina. No se firmó ni envió nada. Todo lo demás de la cartera funciona sin él; instálalo y reintenta."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

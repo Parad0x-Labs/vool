@@ -1871,9 +1871,13 @@
     "private.saving_again": "Ab hier wird wieder gespeichert",
     "private.banner_short": "Privat",
     "private.end_short": "Wieder speichern",
-    "private.reload_note": "Dieser Chat ist privat. Private Nachrichten werden nicht gespeichert und erscheinen nach dem Neuladen nicht mehr."
+    "private.reload_note": "Dieser Chat ist privat. Private Nachrichten werden nicht gespeichert und erscheinen nach dem Neuladen nicht mehr.",
+    "fault.wallet_payment_channel_off.message": "Diese Zahlung läuft über einen Zahlungskanal, der ausgeschaltet ist, daher wurde nichts signiert oder gesendet. Schalte den Kanal unter Einstellungen, Crypto, Zahlungskanäle ein und versuche es dann erneut.",
+    "fault.wallet_x402_sdk_unavailable.action": "Installiere die optionale Erweiterung x402 von VOOL, um x402-Angebote auf Base aus einer Crypto-Pilot-Wallet zu bezahlen; die Wallet behält in jedem Fall ihren eigenen Signierer, ihre Ausgabengrenzen und ihre Freigabe.",
+    "fault.wallet_payment_channel_off.action": "Schalte einen Zahlungskanal in den Krypto-Einstellungen nur ein, wenn Zahlungen darüber laufen sollen; die Obergrenze und deine Freigabe gelten auf jedem Kanal.",
+    "fault.wallet_x402_sdk_unavailable.message": "Dieser Build kann keine x402-Angebote auf Base über das x402 Foundation SDK bezahlen: Die optionale Erweiterung x402 ist auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Jede andere Wallet-Funktion läuft ohne sie; nach der Installation versuche es erneut."
   },
-  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
+  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

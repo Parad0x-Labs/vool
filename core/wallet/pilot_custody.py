@@ -670,6 +670,26 @@ class PilotSigner:
             raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="signed_fields_mismatch")
         return raw, "0x" + keccak(raw).hex()
 
+    def sign_evm_typed_data(self, typed: dict[str, Any]) -> str:
+        """Sign one EIP-3009 ``TransferWithAuthorization`` (``evm.transfer_with_authorization_typed_data``). The digest
+        signed is the one VOOL computes itself (``evm.typed_data_digest``), and the signer is recovered from the
+        signature over exactly this typed data before it is returned."""
+        if self.closed or self.family != chains.FAMILY_EVM:
+            raise _fault("wallet_signing_unavailable", wallet_id=self.wallet_id, reason="signing_session_closed" if self.closed else "not_an_evm_key")
+        from eth_account import Account
+
+        from core.wallet import evm
+
+        if str(typed.get("primaryType") or "") != "TransferWithAuthorization":
+            raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="typed_data_not_an_authorization")
+        signed = Account.sign_message(evm._signable(typed), private_key=self._secret)
+        if "0x" + bytes(signed.message_hash).hex() != evm.typed_data_digest(typed):
+            raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="typed_data_digest_mismatch")
+        signature = "0x" + bytes(signed.signature).hex()
+        if evm.recover_authorization_signer(typed, signature).lower() != self.public_key.lower():
+            raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="pilot_signer_mismatch")
+        return signature
+
     def close(self) -> None:
         self._secret = b""
         self.closed = True
