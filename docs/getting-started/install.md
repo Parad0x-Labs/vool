@@ -26,8 +26,8 @@ Local models need considerably more memory than the app itself. Sizing guidance 
 
 | Your computer | Download |
 | --- | --- |
-| Mac with Apple Silicon (M1 and later) | [`VOOL-0.7.0-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-macos-arm64.dmg) |
-| Mac with an Intel chip | [`VOOL-0.7.0-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-macos-x86_64.dmg) |
+| Mac with Apple Silicon (M1 and later) | [`VOOL-0.7.0-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-arm64.dmg) |
+| Mac with an Intel chip | [`VOOL-0.7.0-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-x86_64.dmg) |
 | Linux x86_64 (Ubuntu 22.04 / 24.04) | [`vool-0.7.0-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz) |
 
 To find your Mac's chip, open the Apple menu and choose **About This Mac**. "Apple M…"
@@ -96,7 +96,7 @@ installs the Intel builds of every dependency. Two limits are specific to Intel:
   so local answers are several times slower than on Apple silicon. On an 8 GB Mac, use a
   cloud model for chat; on 16 GB, the installer's default small local model works but is slow.
 
-Intel Macs have their own download, `VOOL-0.7.0-macos-x86_64.dmg`. The Apple Silicon
+Intel Macs have their own download, `VOOL-0.7.0-beta-macos-x86_64.dmg`. The Apple Silicon
 download does not run on Intel and says so at launch.
 
 ## Verify a download

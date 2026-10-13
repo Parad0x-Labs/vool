@@ -20,8 +20,8 @@ description: 在 macOS（Apple 芯片或 Intel）或 Linux 上下载并安装 VO
 
 | 你的电脑 | 下载 |
 | --- | --- |
-| Apple 芯片 Mac（M1 或更新） | [`VOOL-0.7.0-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-macos-arm64.dmg) |
-| Intel Mac | [`VOOL-0.7.0-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-macos-x86_64.dmg) |
+| Apple 芯片 Mac（M1 或更新） | [`VOOL-0.7.0-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-arm64.dmg) |
+| Intel Mac | [`VOOL-0.7.0-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-x86_64.dmg) |
 | Linux x86_64 | [`vool-0.7.0-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz) |
 
 不确定是哪种 Mac？点击苹果菜单 → **关于本机**。显示 "Apple M…" 即为 Apple 芯片，显示 "Intel" 即为 Intel。
@@ -47,7 +47,7 @@ bash vool-0.7.0-beta-linux-x86_64/install.sh
 ## 校验下载
 
 ```bash
-shasum -a 256 VOOL-0.7.0-macos-arm64.dmg   # macOS
+shasum -a 256 VOOL-0.7.0-beta-macos-arm64.dmg   # macOS
 sha256sum vool-0.7.0-beta-linux-x86_64.tar.gz   # Linux
 ```
 

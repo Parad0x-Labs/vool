@@ -4,7 +4,7 @@ This is the canonical install and quickstart doc.
 
 The quickest route is the app download from the
 [v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta):
-`VOOL-0.7.0-macos-arm64.dmg` for Apple Silicon Macs, `VOOL-0.7.0-macos-x86_64.dmg` for
+`VOOL-0.7.0-beta-macos-arm64.dmg` for Apple Silicon Macs, `VOOL-0.7.0-beta-macos-x86_64.dmg` for
 Intel Macs (both macOS 14 or newer), and the Linux x86_64 tarball described
 [below](#linux-x86_64-tarball). The macOS first-open steps are in
 [Install](getting-started/install.md#first-open-on-a-mac). The rest of this page covers

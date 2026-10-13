@@ -20,8 +20,8 @@ Visi failai yra [v0.7.0-beta leidime](https://github.com/Parad0x-Labs/vool/relea
 
 | Jūsų kompiuteris | Atsisiųsti |
 | --- | --- |
-| Mac su Apple silicon (M1 ar naujesnis) | [`VOOL-0.7.0-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-macos-arm64.dmg) |
-| Mac su Intel procesoriumi | [`VOOL-0.7.0-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-macos-x86_64.dmg) |
+| Mac su Apple silicon (M1 ar naujesnis) | [`VOOL-0.7.0-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-arm64.dmg) |
+| Mac su Intel procesoriumi | [`VOOL-0.7.0-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-x86_64.dmg) |
 | Linux x86_64 | [`vool-0.7.0-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz) |
 
 Nežinote, koks jūsų Mac? Apple meniu pasirinkite **About This Mac**: „Apple M…" reiškia Apple silicon, „Intel" reiškia Intel.
@@ -47,7 +47,7 @@ bash vool-0.7.0-beta-linux-x86_64/install.sh
 ## Patikrinkite atsisiuntimą
 
 ```bash
-shasum -a 256 VOOL-0.7.0-macos-arm64.dmg        # macOS
+shasum -a 256 VOOL-0.7.0-beta-macos-arm64.dmg        # macOS
 sha256sum vool-0.7.0-beta-linux-x86_64.tar.gz   # Linux
 ```
 

@@ -17,8 +17,8 @@ remains supported on macOS, Linux and Windows; see [Install](../getting-started/
 
 | Download | For |
 | --- | --- |
-| `VOOL-0.7.0-macos-arm64.dmg` | Apple Silicon Macs, macOS 14 or newer |
-| `VOOL-0.7.0-macos-x86_64.dmg` | Intel Macs, macOS 14 or newer |
+| `VOOL-0.7.0-beta-macos-arm64.dmg` | Apple Silicon Macs, macOS 14 or newer |
+| `VOOL-0.7.0-beta-macos-x86_64.dmg` | Intel Macs, macOS 14 or newer |
 | `vool-0.7.0-beta-linux-x86_64.tar.gz` | Linux x86_64, tested on Ubuntu 22.04 and 24.04 |
 
 This repository's release records cover the GitHub channel. Other download channels are

@@ -28,8 +28,8 @@ def test_readme_frontloads_install_and_honest_platform_claims() -> None:
     # steps for the non-notarized Mac app. Source installation stays documented.
     release = "https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/"
     for asset in (
-        "VOOL-0.7.0-macos-arm64.dmg",
-        "VOOL-0.7.0-macos-x86_64.dmg",
+        "VOOL-0.7.0-beta-macos-arm64.dmg",
+        "VOOL-0.7.0-beta-macos-x86_64.dmg",
         "vool-0.7.0-beta-linux-x86_64.tar.gz",
     ):
         assert release + asset in early, asset
