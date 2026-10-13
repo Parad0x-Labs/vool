@@ -113,6 +113,13 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 .mk-tick { position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%; background:var(--ok); color:#fff; font-size:11px; line-height:18px; text-align:center; font-weight:700; }
 .mk-row { display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--mk-border); border-radius:8px; padding:8px 10px; background:var(--panel); position:relative; }
 .mk-row b { font-size:11px; }
+.mk-select { position:relative; min-width:120px; border:1px solid var(--mk-border); border-radius:6px; padding:4px 8px; background:var(--bg); font-size:10px; }
+.mk-select::after { content:"\25BE"; position:absolute; right:6px; top:3px; color:var(--muted); }
+.mk-sel-a { opacity:0; position:absolute; left:8px; top:4px; }
+.mk-sel-b { opacity:1; }
+.mk-menu { position:absolute; right:10px; top:38px; width:150px; background:var(--panel); border:1px solid var(--mk-border); border-radius:8px; padding:4px; font-size:10px; z-index:4; opacity:0; visibility:hidden; box-shadow:0 6px 18px var(--shadow); }
+.mk-menu div { padding:4px 6px; border-radius:5px; }
+.mk-menu .pick { background:var(--accent-soft); }
 .mk-saved { color:var(--ok); font-size:10px; font-weight:700; opacity:1; }
 .mk-field { display:flex; align-items:center; gap:8px; }
 .mk-input { flex:1 1 auto; border:1px solid var(--mk-border); border-radius:6px; padding:5px 8px; background:var(--bg); font-size:11px; min-height:24px; display:flex; align-items:center; }
@@ -129,7 +136,8 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 
 /* Timelines: 6 s per loop including the hold on the final state; base styles ARE the final frame. */
 .mock[data-step] .cursor, .mock[data-step] .cursor::after, .mock[data-step] .mk-choice.on, .mock[data-step] .mk-tick,
-.mock[data-step] .mk-plus, .mock[data-step] .mk-dialog, .mock[data-step] .mk-proj, .mock[data-step] .mk-saved,
+.mock[data-step] .mk-plus, .mock[data-step] .mk-dialog, .mock[data-step] .mk-proj, .mock[data-step] .mk-select,
+.mock[data-step] .mk-menu, .mock[data-step] .mk-sel-a, .mock[data-step] .mk-sel-b, .mock[data-step] .mk-saved,
 .mock[data-step] .mk-typed, .mock[data-step] .mk-caret, .mock[data-step] .mk-save { animation-duration:6s; animation-iteration-count:infinite; animation-timing-function:ease-in-out; }
 .mock.paused * , .mock.paused .cursor::after { animation-play-state:paused !important; }
 
@@ -157,14 +165,18 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 .mock[data-step="folder"] .mk-dialog { animation-name:dialog-in; }
 .mock[data-step="folder"] .mk-proj { animation-name:proj-in; }
 
-/* permissions: the pointer clicks the first of the three cards, a tick appears, then "Saved" */
-.mock[data-step="permissions"] .mk-choice b { font-size:10px; }
-.mock[data-step="permissions"] .cursor { animation-name:cur-thinking; }
-.mock[data-step="permissions"] .cursor::after { animation-name:click; }
-.mock[data-step="permissions"] .mk-choice.on { animation-name:pick-on; }
-.mock[data-step="permissions"] .mk-tick { animation-name:tick-in; }
-.mock[data-step="permissions"] .mk-saved { animation-name:saved-in; }
+/* permissions */
+@keyframes cur-perm { 0% { left:82%; top:86%; } 24%,34% { left:70%; top:38%; } 54%,100% { left:64%; top:66%; } }
+@keyframes menu-in { 0%,31% { opacity:0; visibility:hidden; } 35%,60% { opacity:1; visibility:visible; } 64%,100% { opacity:0; visibility:hidden; } }
+@keyframes sel-a { 0%,62% { opacity:1; } 66%,100% { opacity:0; } }
+@keyframes sel-b { 0%,62% { opacity:0; } 66%,100% { opacity:1; } }
 @keyframes saved-in { 0%,70% { opacity:0; } 76%,100% { opacity:1; } }
+.mock[data-step="permissions"] .cursor { animation-name:cur-perm; }
+.mock[data-step="permissions"] .cursor::after { animation-name:click, click2; animation-duration:6s, 6s; }
+.mock[data-step="permissions"] .mk-menu { animation-name:menu-in; }
+.mock[data-step="permissions"] .mk-sel-a { animation-name:sel-a; }
+.mock[data-step="permissions"] .mk-sel-b { animation-name:sel-b; }
+.mock[data-step="permissions"] .mk-saved { animation-name:saved-in; }
 
 /* name */
 @keyframes cur-name { 0% { left:82%; top:86%; } 22%,50% { left:40%; top:50%; } 64%,100% { left:76%; top:50%; } }
@@ -403,12 +415,7 @@ function mockFor(id) {
 function mockBody(id) {
   const local = esc(T('setup.thinking.local_title', 'On my Mac'));
   if (id === 'thinking') return '<div class="mk-choices"><div class="mk-choice on"><b>' + local + '</b><span>' + M('private_free', 'Private. Free.') + '</span><span class="mk-tick">&#10003;</span></div><div class="mk-choice"><b>' + M('online', 'Online') + '</b><span>' + M('needs_key', 'Smarter. Needs a key.') + '</span></div></div>';
-  // The same three cards as the real control below, in the same order; the pointer picks the first.
-  if (id === 'permissions') return '<div class="mk-choices">'
-    + '<div class="mk-choice on"><b>' + esc(AUTONOMY[0].title) + '</b><span class="mk-tick">&#10003;</span></div>'
-    + '<div class="mk-choice"><b>' + esc(AUTONOMY[1].title) + '</b></div>'
-    + '<div class="mk-choice"><b>' + esc(AUTONOMY[2].title) + '</b></div></div>'
-    + '<span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
+  if (id === 'permissions') return '<div class="mk-row"><b>' + esc(T('setup.step.permissions.title', 'What may it do alone?')) + '</b><span class="mk-select"><span class="mk-sel-a">' + esc(AUTONOMY[2].title) + '</span><span class="mk-sel-b">' + esc(AUTONOMY[0].title) + '</span></span><div class="mk-menu"><div>' + esc(AUTONOMY[2].title) + '</div><div>' + esc(AUTONOMY[1].title) + '</div><div class="pick">' + esc(AUTONOMY[0].title) + '</div></div></div><span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
   if (id === 'name') return '<div class="mk-field"><span class="mk-input"><span class="mk-typed">' + M('name', 'Sam') + '</span><span class="mk-caret"></span></span><span class="mk-save">' + M('save', 'Save') + '</span></div><span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
   return '<div class="mk-row"><b>' + M('pick_folder', 'Pick a folder') + '</b></div>';
 }
@@ -488,7 +495,7 @@ function renderSummary() {
   $('#dots').querySelectorAll('.dot.current').forEach((d) => d.classList.remove('current'));
   $('#stepTitle').textContent = T('setup.summary.title', 'Almost there');
   $('#stepSentence').textContent = snap
-    ? fmt(T('setup.summary.sentence', '{done} of {total} steps are done. VOOL works now; you can finish the rest whenever you like.'), { done: snap.done_count || 0, total: snap.total || STEPS.length })
+    ? fmt(T('setup.summary.sentence', 'Done: {done} of {total} steps. You can finish the rest now, or later.'), { done: snap.done_count || 0, total: snap.total || STEPS.length })
     : OFFLINE();
   $('#mock').hidden = true;
   $('.example-bar').hidden = true;
@@ -539,7 +546,7 @@ function controlThinking(host, step) {
   local.addEventListener('click', async () => {
     if (noLocalModel()) {
       // Nothing is posted: the choice cannot answer on this computer, and the step would not tick.
-      setNote('failed', fmt(T('setup.thinking.local_needs_model', '“{local}” needs a private model on this computer first. Nothing was changed.'), { local: localTitle }));
+      setNote('info', fmt(T('setup.thinking.local_needs_model', '“{local}” needs a private model on this computer first. Nothing was changed.'), { local: localTitle }));
       return;
     }
     local.disabled = true;
