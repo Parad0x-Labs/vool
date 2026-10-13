@@ -579,6 +579,27 @@ def _start_parent_death_watch(server: Any) -> None:
     threading.Thread(target=_watch, name="vool-parent-watch", daemon=True).start()
 
 
+def _arm_fatal_signal_diagnostics() -> bool:
+    """Arm faulthandler's fatal-signal handlers and VERIFY they armed.
+
+    ``faulthandler.enable`` can refuse or fail; assuming success would silently drop the
+    diagnostic. Arming is reported through its verified truth (``is_enabled``), and a
+    failed arming is logged, never raised: these handlers are diagnostics, and boot never
+    depends on them.
+    """
+    import faulthandler
+
+    try:
+        faulthandler.enable(all_threads=True)
+    except Exception:
+        logger.warning("fatal-signal diagnostics could not arm:", exc_info=True)
+        return False
+    if not faulthandler.is_enabled():
+        logger.warning("fatal-signal diagnostics report disabled after arming")
+        return False
+    return True
+
+
 def main() -> int:
     # Diagnosability law (F46): a served turn spent a measured ~97 s idle between
     # task_classified and model_routing — no events, no model call, no network — and the
@@ -589,15 +610,10 @@ def main() -> int:
     import signal
 
     faulthandler.register(signal.SIGUSR1, all_threads=True, file=sys.stderr)
-    # Silent-death witness (2026-10-02 corrected gate): a served test's daemon lost its
-    # listener mid-run with no trace anywhere -- stdout logging had been routed into the
-    # disposable home's file, that home died with the test, and the only native record of
-    # the session is a python3.12 child lost to a take_gil SIGSEGV under the same load.
-    # The fatal-signal handlers put every thread's Python stack on stderr the moment
-    # SIGSEGV/SIGBUS/SIGABRT/SIGFPE/SIGILL lands, so the next native death names its
-    # frames instead of vanishing. It witnesses; it never recovers or retries.
-    with contextlib.suppress(Exception):
-        faulthandler.enable(all_threads=True)
+    # Fatal-signal diagnostics: the handlers dump every thread's Python stack to stderr
+    # the moment SIGSEGV/SIGBUS/SIGABRT/SIGFPE/SIGILL lands, so a native fault names its
+    # frames instead of vanishing. Verified arming -- never assumed.
+    _arm_fatal_signal_diagnostics()
     # C15: the ONE bounded unattended preflight, before any bootstrap can reach an OS
     # credential API. A scratch/synthetic home gets non-interactive storage pinned; the
     # operator's established home is recorded, never rewritten.
