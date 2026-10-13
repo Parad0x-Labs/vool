@@ -309,7 +309,11 @@ function paintNote() {
 function setNote(kind, text) {
   view.notes[current().id] = text ? { kind: kind, text: text } : null;
   paintNote();
-  if (text) live(text);
+  if (text) {
+    live(text);
+    // The message sits under the control: bring it on screen so a short window still shows it.
+    try { $('#stepNote').scrollIntoView({ block: 'nearest' }); } catch (e) {}
+  }
 }
 function clearFailNote() { const n = view.notes[current().id]; if (n && n.kind === 'failed') setNote('', ''); }
 // Why a write did not land, in words: an offline VOOL, a backend sentence, or a calm retry line for a bare code.
