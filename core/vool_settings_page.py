@@ -1924,8 +1924,9 @@ function widgetCompanionPet(stack) {
   }
   const bar = el('div', 'inline');
   const said = el('span', 'subtle', '');
+  // No "Move to desktop" here: the pet goes to the desktop by being dragged out of the window.
+  // These stay as rescue controls for a pet that is already out there.
   const actions = [
-    ['Move to desktop', 'detach_companion', 'The pet is on the desktop.'],
     ['Return to app', 'attach_companion', 'The pet is back in VOOL.'],
     ['Hide pet', 'hide_companion', 'The pet is hidden. Chat and the runtime keep running.'],
     ['Reset position', 'reset_companion_position', 'The pet is back on the main display.'],
