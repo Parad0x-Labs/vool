@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "취소했습니다. 아무것도 저장되지 않았습니다.",
     "xsetup.title": "X (구 Twitter)",
     "xsetup.entry_note": "X는 여러 키를 사용합니다. 안내 설정이 무엇을 어디에 붙여 넣을지 알려 주고 한 번의 읽기로 확인합니다.",
-    "xsetup.open": "X 연결"
+    "xsetup.open": "X 연결",
+    "addons.registry_tab": "스킬 코덱스",
+    "addons.registry_title": "제작자가 만든 스킬과 플러그인",
+    "addons.registry_intro": "제작자가 만든 것입니다. VOOL은 커뮤니티 스킬을 만들거나 보증하지 않으며, 자동 검사가 놓치는 부분이 있을 수 있습니다. 패키지를 내려받아 확인한 뒤 설치하고 활성화할지 선택하세요.",
+    "addons.native_authority": "스킬은 지침을 제공합니다. VOOL의 기본 규칙, 소유자 설정, 지출 한도, 통화 처리, 권한과 승인 요구 사항이 항상 우선합니다.",
+    "addons.registry_evidence": "정확한 파일, 권한과 출처",
+    "addons.registry_install_only": "활성화하지 않고 설치",
+    "addons.registry_enable": "설치하고 활성화",
+    "addons.registry_refresh": "스킬 코덱스 탐색",
+    "addons.registry_network": "이 버튼은 공개 레지스트리를 요청합니다. 계정, 채팅, 로컬 파일이나 공급자 키는 전송하지 않습니다.",
+    "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
+    "addons.registry_inspect": "확인용으로 다운로드"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

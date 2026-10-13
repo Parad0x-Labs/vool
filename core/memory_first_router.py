@@ -445,6 +445,9 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
         provider_id = str(getattr(manifest, "provider_id", "") or "")
         model_id = str(getattr(manifest, "model_name", "") or "")
         cost_class = reported_cost_class(manifest)
+        from core.model_pricing import cached_prompt_tokens
+
+        cached_tokens = cached_prompt_tokens(usage)
         usage_meter.record_usage(
             provider_id=provider_id,
             model_id=model_id,
@@ -454,6 +457,7 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
             usd_actual=usd_actual,
             prompt_tokens_reported=prompt_tokens_reported,
             output_tokens_reported=output_tokens_reported,
+            cached_prompt_tokens=cached_tokens,
         )
         summary = {
             "provider_id": provider_id,
@@ -464,6 +468,7 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
             "usd_actual": usd_actual,
             "prompt_tokens_reported": prompt_tokens_reported,
             "output_tokens_reported": output_tokens_reported,
+            "cached_prompt_tokens": cached_tokens,
         }
         if cost_class == "paid_cloud":
             # The priced figure a surface can render: the same number the spend ledger settles
@@ -1499,6 +1504,8 @@ class MemoryFirstRouter:
         # Activity token/cost totals. Recorded here from the SAME normalized fields the decision
         # itself uses, so "what the decision says happened" and "what the ledger recorded" cannot
         # independently drift.
+        from core.model_pricing import cached_prompt_tokens as _cached_prompt_tokens
+
         cost_class = {
             "free": usage_meter.COST_FREE_CLOUD,
             "promotional": usage_meter.COST_FREE_CLOUD,
@@ -1513,6 +1520,7 @@ class MemoryFirstRouter:
             usd_actual=float(result.actual_usd or 0.0) if result.actual_usd else None,
             prompt_tokens_reported=normalized.usage_input_reported,
             output_tokens_reported=normalized.usage_output_reported,
+            cached_prompt_tokens=_cached_prompt_tokens(getattr(result.response, "usage", None)),
         )
         selected_evidence = getattr(result.response, "admitted_request_evidence", None)
         if not isinstance(selected_evidence, dict):

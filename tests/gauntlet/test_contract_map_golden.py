@@ -152,9 +152,17 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'set.save': ('creative_state', 'none'),
     'set.use': ('read_only', 'none'),
     'skill.create': ('workspace_write', 'runtime_policy'),
+    # Skill sharing (2026-10-05, core/skill_package.py): export writes a zip of a skill the
+    # operator made, import and pack only STAGE (nothing loads until skill.install), so they are
+    # workspace writes like skill.create; remove takes a skill out of the loader's tree, an
+    # activation-class change gated exactly like install and rollback.
+    'skill.export': ('workspace_write', 'runtime_policy'),
+    'skill.import': ('workspace_write', 'runtime_policy'),
     'skill.inspect': ('read_only', 'none'),
     'skill.install': ('runtime_capability_change', 'explicit_user_opt_in'),
     'skill.list': ('read_only', 'none'),
+    'skill.pack': ('workspace_write', 'runtime_policy'),
+    'skill.remove': ('runtime_capability_change', 'explicit_user_opt_in'),
     'skill.rollback': ('runtime_capability_change', 'explicit_user_opt_in'),
     'skill.validate': ('read_only', 'none'),
     'video.generate': ('media_generation', 'runtime_policy'),
@@ -258,6 +266,8 @@ EXPECTED_EXPLICIT_OPT_IN = {
     "repo.push",
     "repo.push.authorize",
     "skill.install",
+    # Turning a skill off changes what future turns load, the same class as install/rollback.
+    "skill.remove",
     "skill.rollback",
     "wallet.spend",
     "web0.publish",
@@ -331,8 +341,10 @@ def test_contract_map_and_list_agree():
     # 146 -> 159: the operator calendar/notes vertical declared 2026-09-15 (ten reads, two
     # writes, and the two invitation-sending calendar mutations at network_publish) plus the
     # code.task/contacts/profile/repo/skill contracts that landed unpinned with their lanes.
-    # 170 -> 171: web.chain_lookup, the read-only chain-data lookup (Helius/Alchemy/Solscan/Etherscan).
-    assert len(contract_map) == len(GOLDEN_TIERS) == 171
+    # 170 -> 174: skill sharing (2026-10-05) -- skill.export, skill.import, skill.pack (staging
+    # writes) and skill.remove (activation-class, explicit opt-in).
+    # 174 -> 175: web.chain_lookup, the read-only chain-data lookup (Helius/Alchemy/Solscan/Etherscan).
+    assert len(contract_map) == len(GOLDEN_TIERS) == 175
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

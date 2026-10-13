@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "रद्द किया गया। कुछ भी सहेजा नहीं गया।",
     "xsetup.title": "X (पहले Twitter)",
     "xsetup.entry_note": "X कई कुंजियों का उपयोग करता है। निर्देशित सेटअप बताता है कि क्या कहाँ पेस्ट करना है और एक बार पढ़कर उन्हें जाँचता है।",
-    "xsetup.open": "X कनेक्ट करें"
+    "xsetup.open": "X कनेक्ट करें",
+    "addons.registry_tab": "कौशल कोडेक्स",
+    "addons.registry_title": "अपने निर्माताओं के कौशल और प्लगइन",
+    "addons.registry_intro": "इन्हें इनके निर्माताओं ने बनाया है। VOOL समुदाय के कौशल न लिखता है न उनकी ज़िम्मेदारी लेता है, और स्वचालित जाँच से कुछ बातें छूट सकती हैं। जाँच के लिए पैकेज डाउनलोड करें, फिर उसे स्थापित और सक्षम करने का निर्णय लें।",
+    "addons.native_authority": "कौशल निर्देश देते हैं। VOOL के मूल नियम, मालिक की सेटिंग, खर्च सीमाएँ, मुद्रा प्रबंधन, अनुमतियाँ और स्वीकृति की आवश्यकताएँ हमेशा प्राथमिक होती हैं।",
+    "addons.registry_evidence": "सटीक फ़ाइलें, अनुमतियाँ और स्रोत",
+    "addons.registry_install_only": "सक्षम किए बिना स्थापित करें",
+    "addons.registry_enable": "स्थापित और सक्षम करें",
+    "addons.registry_refresh": "कौशल कोडेक्स ब्राउज़ करें",
+    "addons.registry_network": "यह बटन सार्वजनिक रजिस्ट्री से अनुरोध करता है। खाते, चैट, स्थानीय फ़ाइलें या प्रदाता की कुंजियाँ नहीं भेजी जातीं।",
+    "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
+    "addons.registry_inspect": "जाँच के लिए डाउनलोड करें"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

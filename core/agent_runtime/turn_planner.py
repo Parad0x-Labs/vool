@@ -340,6 +340,15 @@ def plan_turn(
         return []
     if recall_question_needs_no_planner(text):
         return []
+    # A SKILL-authoring request is the same shape: one request whose clauses are the skill's spec.
+    # Measured live 2026-10-05: "create a skill for this project that writes release notes from a
+    # list of merged changes, grouped under Added, Changed and Fixed, one line per change" was split
+    # in two, the skill lane answered one half and a model answered "grouped under ..." on its own,
+    # so the reply carried a skill result glued to an unrelated formatting answer.
+    from core.agent_runtime.fast_paths_skill import is_skill_authoring_request
+
+    if is_skill_authoring_request(text):
+        return []
     try:
         raw = ask_model(PLANNER_SYSTEM_PROMPT, str(text or "").strip())
     except Exception:
