@@ -356,6 +356,7 @@ _RECONCILE_NAMES: tuple[tuple[str, str], ...] = (
     ("llm.cloud.cloudflare", "Cloudflare"),
     ("llm.cloud.generic", "Custom OpenAI-compatible"),
     ("llm.cloud.custom_base_url", "Custom base URL"),
+    ("x.api.default", "X (Twitter)"),
 )
 
 
@@ -375,6 +376,16 @@ def _search_reconcile_names() -> tuple[tuple[str, str], ...]:
         return ()
 
 
+def _chain_reconcile_names() -> tuple[tuple[str, str], ...]:
+    """Chain-data API slots to re-index, from ``core.chain_providers`` for the same reason."""
+    try:
+        from core.chain_providers import CHAIN_PROVIDERS
+
+        return tuple((cfg.credential_slot, cfg.label) for cfg in CHAIN_PROVIDERS.values())
+    except Exception:
+        return ()
+
+
 def _reconcile_index_with_keychain() -> None:
     """Re-index keychain credentials this runtime owns but has no sidecar entry for.
 
@@ -387,7 +398,7 @@ def _reconcile_index_with_keychain() -> None:
     known = _meta_load()
 
     def _reconcile_all() -> None:
-        for name, label in (*_RECONCILE_NAMES, *_search_reconcile_names()):
+        for name, label in (*_RECONCILE_NAMES, *_search_reconcile_names(), *_chain_reconcile_names()):
             if name in known:
                 continue
             try:

@@ -326,20 +326,7 @@ class _RoutingServed:
             self.remote.__enter__()
         try:
             self.daemon.start(timeout=300)
-            seed_in_home(
-                self.home,
-                _SEED.format(
-                    root=REPO_ROOT,
-                    local_base=self.local.base_url,
-                    paid_base=self.paid.base_url,
-                    remote_base=(self.remote.base_url if self.remote else ""),
-                    timeout=self._timeout,
-                    free_a=FREE_A,
-                    free_b=FREE_B,
-                    paid=PAID,
-                    remote_mid=REMOTE_MID,
-                ),
-            )
+            self._seed_catalog()
             self.local.calls.clear()
             self.paid.calls.clear()
             if self.remote is not None:
@@ -348,6 +335,22 @@ class _RoutingServed:
             self.__exit__(None, None, None)
             raise
         return self
+
+    def _seed_catalog(self) -> None:
+        seed_in_home(
+            self.home,
+            _SEED.format(
+                root=REPO_ROOT,
+                local_base=self.local.base_url,
+                paid_base=self.paid.base_url,
+                remote_base=(self.remote.base_url if self.remote else ""),
+                timeout=self._timeout,
+                free_a=FREE_A,
+                free_b=FREE_B,
+                paid=PAID,
+                remote_mid=REMOTE_MID,
+            ),
+        )
 
     def __exit__(self, *exc) -> None:
         self.daemon.stop()
@@ -416,6 +419,9 @@ class _RoutingServed:
         self.daemon.home = self.home
         self.daemon.log_path = self.home / "daemon.log"
         self.daemon.start(timeout=300)
+        # Startup can register installed host models. Restore this fixture’s
+        # counting-provider catalog without touching persisted chat/routing rules.
+        self._seed_catalog()
         self.local.calls.clear()
         self.paid.calls.clear()
         if self.remote is not None:

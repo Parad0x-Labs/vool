@@ -1,5 +1,5 @@
 {
-  "intent_count": 131,
+  "intent_count": 132,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -104,6 +104,7 @@
     "skill.list",
     "skill.rollback",
     "skill.validate",
+    "web.chain_lookup",
     "web.fetch",
     "web.research",
     "web.search",
@@ -133,7 +134,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 131,
+  "native_definition_count": 132,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -9993,6 +9994,139 @@
             "manual": "allow",
             "plan": "allow",
             "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "web.chain_lookup": {
+      "arguments": [
+        "address",
+        "chain",
+        "limit",
+        "provider",
+        "query",
+        "token",
+        "tx"
+      ],
+      "description": "Look up public blockchain data with the operator's own chain-data API keys (Helius, Alchemy, Solscan, Etherscan): a wallet's native balance, its token balances, its recent transactions, a token's info, a token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain or Robinhood Chain. Read-only: nothing is signed or sent. Use it for any question about an on-chain address, token or transaction instead of answering from memory; without a key it says which key to add.",
+      "native_name": "web__chain_lookup",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "description": "str: wallet address (balance, tokens, history)",
+            "type": "string"
+          },
+          "chain": {
+            "description": "str: solana | ethereum | base | bnb | robinhood (optional for a Solana address)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "int (optional, 1-25): how many rows for lists",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "provider": {
+            "description": "str (optional): helius | alchemy | solscan | etherscan",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "query": {
+            "description": "str: balance | tokens | history | token_info | holders | transaction",
+            "type": "string"
+          },
+          "token": {
+            "description": "str: token mint or contract address (token_info, holders)",
+            "type": "string"
+          },
+          "tx": {
+            "description": "str: transaction signature or hash (transaction)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "chain",
+          "address",
+          "token",
+          "tx",
+          "provider",
+          "limit"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
           }
         }
       },

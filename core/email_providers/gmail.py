@@ -73,6 +73,40 @@ def _b64url_decode(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + padding)
 
 
+def _first_part_text(part: dict[str, Any], mime_type: str) -> str | None:
+    """The decoded text of the first non-attachment ``mime_type`` part, depth first, or None.
+
+    Gmail nests parts (multipart/mixed holding multipart/alternative holding text/plain is
+    how any mail with an attachment arrives), so only reading the top level loses the body."""
+    if part.get("filename"):
+        return None
+    data = (part.get("body") or {}).get("data")
+    if str(part.get("mimeType") or "").lower() == mime_type and data:
+        return _b64url_decode(str(data)).decode("utf-8", "replace")
+    for child in part.get("parts") or []:
+        found = _first_part_text(child, mime_type)
+        if found is not None:
+            return found
+    return None
+
+
+def _payload_body(payload: dict[str, Any]) -> str:
+    """The message text the IMAP reader would give (core.email_tools._body_text): text/plain
+    preferred, an HTML-only message reduced to its visible text, else the single-part body."""
+    plain = _first_part_text(payload, "text/plain")
+    if plain is not None:
+        return plain.strip()
+    html = _first_part_text(payload, "text/html")
+    if html is not None:
+        import re
+
+        return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip()
+    data = (payload.get("body") or {}).get("data")
+    if data and not payload.get("filename"):
+        return _b64url_decode(str(data)).decode("utf-8", "replace").strip()
+    return ""
+
+
 class GmailAdapter:
     provider = "gmail"
     capabilities = ProviderCapability(search=True, open_message=True, open_thread=True, send_threaded=True)
@@ -195,16 +229,7 @@ class GmailAdapter:
 
     def _entry_from_full(self, data: dict[str, Any]) -> dict[str, str]:
         headers = {h["name"].lower(): h["value"] for h in data.get("payload", {}).get("headers", [])}
-        body_bytes = b""
-        payload = data.get("payload") or {}
-        if str(payload.get("mimeType") or "").startswith("multipart/"):
-            for part in payload.get("parts") or []:
-                if part.get("mimeType") == "text/plain" and part.get("body", {}).get("data"):
-                    body_bytes = _b64url_decode(str(part["body"]["data"]))
-                    break
-        elif payload.get("body", {}).get("data"):
-            body_bytes = _b64url_decode(str(payload["body"]["data"]))
-        parsed = email_lib.message_from_bytes(b"Content-Type: text/plain\r\n\r\n" + body_bytes)
+        body = _payload_body(data.get("payload") or {})
         return {
             "message_id": str(headers.get("message-id") or data.get("id") or ""),
             "from": str(headers.get("from") or ""),
@@ -212,7 +237,7 @@ class GmailAdapter:
             "subject": str(headers.get("subject") or ""),
             "date": str(headers.get("date") or ""),
             "snippet": str(data.get("snippet") or ""),
-            "body": body_bytes.decode("utf-8", "replace") if body_bytes else str(parsed.get_payload()),
+            "body": body,
             "in_reply_to": str(headers.get("in-reply-to") or ""),
             "references": str(headers.get("references") or ""),
             "provider_id": str(data.get("id") or ""),

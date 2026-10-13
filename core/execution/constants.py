@@ -250,6 +250,75 @@ def recalls_the_users_own_history(text: str) -> bool:
     return _CONVERSATION_RECALL_RE.search(ask) is not None or users_own_past_is_asked(ask)
 
 
+# Asking what was said, in forms the shared pattern above leaves to `users_own_past_is_asked` ("did i
+# tell you", "did we talk about") or does not read at all ("what do you know about me"). Kept out of
+# `_CONVERSATION_RECALL_RE` so the host gate above reads exactly what it read before.
+_ASKS_WHAT_WAS_SAID_RE = re.compile(
+    r"\bdid\s+(?:i|we)\s+(?:ever\s+|already\s+|once\s+)?(?:tell|say|mention|share|discuss|talk|recommend|"
+    r"bring\s+up|write|send|show|give|ask)\b"
+    r"|\b(?:have|had)\s+(?:i|we)\s+(?:ever\s+|already\s+)?(?:told\s+(?:you|u)|said|mentioned|shared)\b"
+    r"|\b(?:what|anything)\s+do\s+(?:you|u)\s+(?:know|remember|recall)\s+about\s+(?:me|us)\b",
+    re.IGNORECASE,
+)
+# A clause that sends the recall to the web is a lookup, whatever it recalls.
+_NAMES_A_WEB_SOURCE_RE = re.compile(
+    r"\b(?:the\s+web|web\s*search|internet|online|google|bing|duckduckgo)\b", re.IGNORECASE
+)
+# "I said what's the weather in Oslo": the user repeating a request, not asking what they said.
+_RESTATED_REQUEST_LEAD_RE = re.compile(
+    r"^(?:no|nope|again|but|ok|okay|like)?[\s,]*(?:i|we)\s+(?:(?:just|already)\s+)?"
+    r"(?:said|asked|meant|told\s+(?:you|u))\s*[,:]?\s*(?:to\s+)?"
+    r"(?=(?:what|whats|what's|which|where|when|how|who|is|are|will|can|could|tell|show|give|list|"
+    r"check|find|look|search|get|fetch)\b)",
+    re.IGNORECASE,
+)
+# A second ask joined to the first inside one clause: "... about Oslo and what's the weather there".
+_JOINED_ASK_SPLIT_RE = re.compile(
+    r"\s+(?:and|also|plus|then|but)\s+(?=(?:what|whats|what's|which|where|when|how|who|is|are|will|"
+    r"can|could|tell|show|give|list|check|find|look|search|get|fetch)\b)",
+    re.IGNORECASE,
+)
+
+
+def conversation_recall_remainder(text: str) -> tuple[str, ...] | None:
+    """The other asks in a message that asks what was said in this conversation, or None.
+
+    None when no clause recalls the conversation. Otherwise the ask clauses that do not, which the
+    caller reads with its own recognizer: "what did i tell you about oslo?" leaves nothing, so no live
+    lane has anything to fetch; "you said it would rain in oslo, is it raining there now?" leaves the
+    second ask, and a lane that would serve it alone still serves the turn. A clause that names the
+    web, or that restates a request ("i said, what's the weather"), is never a recall.
+
+    Measured 2026-10-06 on 9adff83 with pack 2 applied: "What did I tell you about the latest
+    Bitcoin news?" was classified research and answered from the live web lane; "What did I tell you
+    about the weather at my wedding?" shipped "Weather in My Wedding: no current conditions found."
+    """
+    lowered = " ".join(str(text or "").strip().lower().split())
+    if not lowered:
+        return None
+    clauses = [
+        piece.strip()
+        for part in _CLAUSE_SPLIT_RE.split(lowered)
+        for piece in _JOINED_ASK_SPLIT_RE.split(part)
+        if piece.strip()
+    ]
+    recalled = False
+    remaining: list[str] = []
+    for clause in clauses:
+        restated = _RESTATED_REQUEST_LEAD_RE.sub("", clause, count=1)
+        if restated != clause:
+            remaining.append(restated)
+            continue
+        if (
+            _CONVERSATION_RECALL_RE.search(clause) or _ASKS_WHAT_WAS_SAID_RE.search(clause)
+        ) and not _NAMES_A_WEB_SOURCE_RE.search(clause):
+            recalled = True
+            continue
+        if clause.endswith("?") or _INTERROGATIVE_OPENER_RE.match(clause) or _IMPERATIVE_ASK_RE.match(clause):
+            remaining.append(clause)
+    return tuple(remaining) if recalled else None
+
+
 # A device the sentence itself marks as NOT this host: another kind of device ("my phone", "her
 # tablet"), another person's ("my son's laptop"), or one of several the user owns ("my new laptop",
 # "my work pc"). The host is "this machine"; a qualifier that picks one device out of the user's

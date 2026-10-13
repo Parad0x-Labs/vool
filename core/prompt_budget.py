@@ -8,7 +8,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
-from core.internal_message_schema import is_turn_directives_message
+from core.internal_message_schema import TURN_DIRECTIVES_HEADER, is_turn_directives_message
 
 # Per-message chat-template cost. Measured at 5 tokens/message for qwen2.5's template
 # (<|im_start|>role\n ... <|im_end|>\n), taken as the slope between a 10- and a 50-message
@@ -361,18 +361,30 @@ def fit_messages_to_context_window(
         "dropped_memory": dropped_memory,
         "retrieval_present": retrieval_present,
         "grounding_dropped": grounding_dropped,
-        "system_prompt_preserved": _system_prompt_preserved(fitted, protected_system_prompt),
+        "system_prompt_preserved": _system_prompt_preserved(
+            fitted, protected_system_prompt, memory_prefix=memory_prefix
+        ),
         "status": (
             "trimmed"
             if (dropped_retrieved or dropped_history or dropped_summary or dropped_memory)
             else "fit"
         ),
     }
-    if estimated_after > available or not telemetry["system_prompt_preserved"]:
+    over_budget = estimated_after > available
+    if over_budget or not telemetry["system_prompt_preserved"]:
         telemetry["status"] = "rejected"
+        telemetry["rejection_reason"] = (
+            "context_window_exceeded" if over_budget else "protected_instructions_missing"
+        )
+        detail = (
+            f"protected system prompt and current turn require an estimated {estimated_after} tokens, "
+            f"but only {available} are available"
+            if over_budget
+            else "protected system instructions are missing from the provider messages "
+            f"(estimated prompt {estimated_after} tokens, available {available})"
+        )
         raise PromptBudgetExceededError(
-            "prompt_budget_exceeded: protected system prompt and current turn require "
-            f"{estimated_after} tokens, but only {available} are available "
+            f"prompt_budget_exceeded: {detail} "
             f"(num_ctx={context_window}, output_reserve={output_reserve})",
             telemetry=telemetry,
         )
@@ -500,7 +512,12 @@ def _oldest_history_indices(
     return ()
 
 
-def _system_prompt_preserved(messages: list[dict[str, Any]], protected_system_prompt: str) -> bool:
+def _system_prompt_preserved(
+    messages: list[dict[str, Any]],
+    protected_system_prompt: str,
+    *,
+    memory_prefix: str = "",
+) -> bool:
     # Compare stripped: the memory prefix merge strips the prompt before embedding it, so an
     # exact match against surrounding whitespace would reject a prompt that is in fact intact.
     protected = protected_system_prompt.strip()
@@ -509,7 +526,37 @@ def _system_prompt_preserved(messages: list[dict[str, Any]], protected_system_pr
     primary_system_index = _primary_system_index(messages)
     if primary_system_index is None:
         return False
-    return protected in _message_text(messages[primary_system_index].get("content"))
+    primary = _instruction_message_text(messages[primary_system_index], memory_prefix=memory_prefix)
+    if protected in primary:
+        return True
+    # The request builder keeps the leading instructions cache-stable and appends
+    # request-specific guidance to the protected turn-directives message. Its
+    # system_prompt field is still the combined primary + additions. Require
+    # BOTH exact pieces on the wire, in their instruction roles; history or
+    # retrieved evidence containing the same words cannot satisfy protection.
+    primary = primary.strip()
+    if not primary or not protected.startswith(primary + "\n\n"):
+        return False
+    additions = protected[len(primary):].strip()
+    return any(
+        is_turn_directives_message(message)
+        and additions in _instruction_message_text(message, memory_prefix=memory_prefix)
+        for message in messages[primary_system_index + 1:]
+    )
+
+
+def _instruction_message_text(message: dict[str, Any], *, memory_prefix: str) -> str:
+    """Instruction body only: canonical recalled evidence grants no authority."""
+    text = _message_text(message.get("content"))
+    if not memory_prefix:
+        return text
+    if is_turn_directives_message(message):
+        body = text[len(TURN_DIRECTIVES_HEADER):].lstrip("\n")
+        body = body.removeprefix(f"{memory_prefix}\n\n---\n\n")
+        return f"{TURN_DIRECTIVES_HEADER}\n{body}"
+    if text == memory_prefix:
+        return ""
+    return text.removeprefix(f"{memory_prefix}\n\n---\n\n")
 
 
 __all__ = [
