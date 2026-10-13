@@ -98,7 +98,7 @@ def _get(app, path: str):
 
 
 def _dispatch_chat(body: dict[str, Any]):
-    from tests.test_goal_served_workflow import _Resp, _asgi
+    from tests.test_goal_served_workflow import _asgi, _Resp
 
     status, resp_body = _asgi(_shared_app(), "POST", "/api/chat", {"session_id": SESSION, "stream": True, **body})
     return _Resp(status, resp_body)
@@ -252,7 +252,7 @@ def test_card_resume_and_retry_spawn_workers_with_the_real_runtime() -> None:
         goal = _wait_step_not_running(goal_id)
         assert goal["state"] == "paused", goal["last_reason"]
 
-        from apps.vool_api_server import create_app  # noqa: F401
+        from apps.vool_api_server import create_app
         from core.web.api.runtime import RuntimeServices
 
         app_runtime = _shared_app().state.runtime
@@ -271,8 +271,8 @@ def test_card_resume_and_retry_spawn_workers_with_the_real_runtime() -> None:
 
 
 def test_retry_resolves_the_pending_approval_server_side_and_applies_it_once() -> None:
-    from core.mode_permission_policy import register_external_approval
     from core.goal_workflow import active_worker
+    from core.mode_permission_policy import register_external_approval, resolve_approval
 
     agent = _AppendAgent()
     agent.gate_first_step = True
@@ -308,6 +308,9 @@ def test_retry_resolves_the_pending_approval_server_side_and_applies_it_once() -
 
         save_goal(goal)
 
+        status, preview = _post(_APP, "/api/goal/retry", {"session_id": _canonical(goal_id), "goal_id": goal_id})
+        assert status == 409 and preview["approval"]["approval_id"] == approval_id
+        assert resolve_approval(approval_id, decision="allow", scope="once") is not None
         status, payload = _post(_APP, "/api/goal/retry", {"session_id": _canonical(goal_id), "goal_id": goal_id})
         assert status == 200 and payload["ok"] is True, payload
         assert "pending_approval_token" not in payload, "raw approval secrets never ride the response"
@@ -366,7 +369,8 @@ def test_revise_midflight_preserves_completed_work_and_keeps_one_worker() -> Non
         assert response.status == 200
         goal_id = _goal_ids()[0]
         agent.wait_until_calls(2)
-        from core.goal_workflow import active_worker, load_goal as _load
+        from core.goal_workflow import active_worker
+        from core.goal_workflow import load_goal as _load
 
         old_worker = active_worker(goal_id)
         assert old_worker is not None
@@ -377,8 +381,16 @@ def test_revise_midflight_preserves_completed_work_and_keeps_one_worker() -> Non
         assert goal["plan"]["steps"][0]["state"] == "completed"
         # Step two was never dispatched (the pause landed during step one's turn).
         assert goal["plan"]["steps"][1]["state"] == "pending"
-        _post(_APP, "/api/goal/resume", {"session_id": _canonical(goal_id), "goal_id": goal_id})
-        goal = _wait_terminal_or_holding(goal_id)
+        status, resumed = _post(_APP, "/api/goal/resume", {"session_id": _canonical(goal_id), "goal_id": goal_id})
+        assert status == 200 and resumed["ok"]
+        # Resume can be queued while the cancelled turn is still settling. Its old
+        # paused snapshot is not the resumed goal's final outcome.
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            goal = load_goal(goal_id)
+            if goal["state"] in {"completed", "failed", "cancelled", "blocked"}:
+                break
+            time.sleep(0.05)
         assert goal["state"] == "completed", goal["last_reason"]
 
     # A genuinely active revise: fresh goal, hold step one mid-flight, revise while the

@@ -11,9 +11,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from storage.db import configure_default_db_path
-from storage.migrations import run_migrations
-
 from core.goal_executor import (
     _classify_turn_outcome,
     retry_waiting_step,
@@ -40,6 +37,8 @@ from core.goal_workflow import (
     save_goal,
 )
 from core.task_event_model import build_task_event
+from storage.db import configure_default_db_path
+from storage.migrations import run_migrations
 
 
 class GoalWorkflowTestBase(unittest.TestCase):
@@ -361,17 +360,11 @@ class ControlSemanticsTests(GoalWorkflowTestBase):
         # claiming a token was used.
         outcome = retry_waiting_step(goal["goal_id"])
         self.assertEqual(outcome["ok"], False)
-        self.assertIn("no pending approval", outcome["error"])
-        # A resolved token (supplied by the served layer from the approval authority)
-        # arms exactly this step for one dispatch.
+        self.assertIn("no approved action", outcome["error"])
+        # An arbitrary string is not an approval from the existing authority.
         outcome = retry_waiting_step(goal["goal_id"], approval_token="tok-123")
-        self.assertTrue(outcome["ok"])
-        self.assertEqual(outcome["pending_step_id"], "s1")
-        self.assertEqual(outcome["pending_approval_token"], "tok-123")
-        retried = load_goal(goal["goal_id"])
-        assert retried is not None
-        self.assertEqual(retried["state"], "running")
-        self.assertEqual(retried["plan"]["steps"][0]["state"], "pending")
+        self.assertFalse(outcome["ok"])
+        self.assertEqual(load_goal(goal["goal_id"])["state"], "waiting_approval")
 
     def test_worker_token_armed_for_one_step_one_use(self) -> None:
         from core.goal_workflow import _GoalWorker

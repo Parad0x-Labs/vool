@@ -196,7 +196,11 @@ def render_goal_progress_fragment() -> str:
       var body = Object.assign({session_id: chatId, goal_id: view.goal_id}, extra||{});
       return fetch('/api/goal/'+action, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
         .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, d: d}; }); })
-        .then(function(res){ if (res.d && res.d.goal) consume(res.d.goal); else schedulePoll(0); })
+        .then(function(res){
+          if (res.d && res.d.goal) applyView(res.d.goal, body.session_id); else schedulePoll(0);
+          if (res.d && res.d.approval && window.VoolPageActions) window.VoolPageActions.reviewGoalApproval(res.d.goal, res.d.approval);
+          else if (!res.ok && res.d && res.d.error && window.VoolPageActions) window.VoolPageActions.toast(res.d.error);
+        })
         .catch(function(){ schedulePoll(1500); });
     }
     if (view.state === 'running' || view.state === 'planning' || view.state === 'queued') btn(t('goal.pause','Pause'), false, function(){ post('pause'); });

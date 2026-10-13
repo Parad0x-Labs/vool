@@ -46,7 +46,8 @@ import re
 import threading
 import time
 import uuid
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 GOAL_EVENT_TYPE = "goal_updated"
 
@@ -252,11 +253,14 @@ def save_goal(goal: dict[str, Any], *, expected_epoch: int | None = None) -> Non
     """
     conn = _conn()
     _ensure_table(conn)
+    conn.execute("BEGIN IMMEDIATE")
     if expected_epoch is not None:
         row = conn.execute(
             "SELECT worker_epoch FROM chat_goals WHERE goal_id = ?", (str(goal.get("goal_id") or ""),)
         ).fetchone()
         if row is not None and int(row[0] or 0) != int(expected_epoch):
+            conn.rollback()
+            conn.close()
             raise WorkerFencedError(
                 f"goal {goal.get('goal_id')} moved to epoch {row[0]}; worker holds epoch {expected_epoch}"
             )
@@ -271,6 +275,7 @@ def save_goal(goal: dict[str, Any], *, expected_epoch: int | None = None) -> Non
         values,
     )
     conn.commit()
+    conn.close()
 
 
 def load_goal(goal_id: str) -> dict[str, Any] | None:
@@ -366,6 +371,7 @@ def build_plan(steps_input: list[dict[str, Any]], *, provenance: str) -> dict[st
                 {
                     "tool": str(verify_raw.get("tool") or "").strip(),
                     "path_contains": str(verify_raw.get("path_contains") or "").strip(),
+                    **({"answer_contains": str(verify_raw["answer_contains"]).strip()} if verify_raw.get("answer_contains") else {}),
                 },
                 ensure_ascii=False,
             )
@@ -383,8 +389,7 @@ def build_plan(steps_input: list[dict[str, Any]], *, provenance: str) -> dict[st
             }
         )
     known = set(ids)
-    by_id = {step["id"]: step for step in cleaned}
-    for raw, step in zip(steps_input, cleaned):
+    for raw, step in zip(steps_input, cleaned, strict=True):
         deps = _clean_depends(raw.get("depends_on") or raw.get("depends"), known)
         if step["id"] in deps:
             raise ValueError("a plan step cannot depend on itself")
@@ -392,7 +397,7 @@ def build_plan(steps_input: list[dict[str, Any]], *, provenance: str) -> dict[st
     # Acyclicity: Kahn's algorithm over the declared edges.
     indegree = {step_id: 0 for step_id in ids}
     for step in cleaned:
-        for dep in step["depends_on"]:
+        for _dep in step["depends_on"]:
             indegree[step["id"]] += 1
     ready = [step_id for step_id, count in indegree.items() if count == 0]
     seen = 0
@@ -540,6 +545,7 @@ class _GoalWorker:
         self.session_id = str(session_id)
         self.epoch = int(epoch)
         self.pause_requested = threading.Event()
+        self.resume_requested = threading.Event()
         self.stop_requested = threading.Event()
         # Revise fencing: stop-like (no new dispatch) but the settled outcome NEVER writes
         # goal-level state — the successor owns the goal; only the step's own settled truth
@@ -610,13 +616,16 @@ def active_worker(goal_id: str) -> _GoalWorker | None:
 def claim_worker_epoch(goal_id: str) -> int:
     """Atomically claim the NEXT worker epoch for this goal and return it. The durable
     increment is what fences an overtaken worker's writes (save_goal expected_epoch)."""
-    goal = load_goal(goal_id)
-    if goal is None:
-        return 0
-    epoch = int(goal.get("worker_epoch") or 0) + 1
-    goal["worker_epoch"] = epoch
-    save_goal(goal)
-    return epoch
+    conn = _conn()
+    try:
+        _ensure_table(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("UPDATE chat_goals SET worker_epoch = COALESCE(worker_epoch, 0) + 1 WHERE goal_id = ?", (str(goal_id),))
+        row = conn.execute("SELECT worker_epoch FROM chat_goals WHERE goal_id = ?", (str(goal_id),)).fetchone()
+        conn.commit()
+        return int(row[0]) if row else 0
+    finally:
+        conn.close()
 
 
 def request_pause(goal_id: str) -> dict[str, Any]:
@@ -707,6 +716,12 @@ def request_resume(goal_id: str, *, source_context: dict[str, Any] | None = None
         return {"ok": False, "error": f"goal already {state}"}
     if state not in ("paused", "interrupted", "blocked"):
         return {"ok": True, "state": state, "already": True}
+    worker = active_worker(goal_id)
+    if worker is not None and worker.pause_requested.is_set() and not worker.finished.is_set():
+        # Keep accounting the cancelled turn. Its owner will launch one successor only
+        # after settlement; an immediate Resume must not orphan or overlap the workers.
+        worker.resume_requested.set()
+        return {"ok": True, "state": state, "settling": True}
     now = time.time()
     if goal.get("paused_at"):
         paused_at = float(goal.get("paused_at") or 0.0)
@@ -789,6 +804,7 @@ def request_revise(goal_id: str, new_objective: str, *, source: str = "chat") ->
         "provenance": f"revised:{source}",
         "history": history[-5:],
         "carried_steps": carried,
+        "dispatches": int(previous_plan.get("dispatches") or 0),
     }
     goal["objective"] = clean_objective
     goal["state"] = "queued"

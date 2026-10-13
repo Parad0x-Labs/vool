@@ -17,12 +17,18 @@ from __future__ import annotations
 
 import json
 import threading
+from collections.abc import Iterator
+from contextlib import suppress
 from datetime import datetime, timezone
-from typing import Any, Iterator
+from typing import Any
 
 from core.goal_executor import execute_goal, retry_waiting_step
 from core.goal_workflow import (
+    _LOCK as _WORKER_REGISTRY_LOCK,
+)
+from core.goal_workflow import (
     TERMINAL_GOAL_STATES,
+    _GoalWorker,
     active_worker,
     claim_worker_epoch,
     goal_public_view,
@@ -30,15 +36,13 @@ from core.goal_workflow import (
     load_goal,
     load_latest_goal_for_session,
     new_goal_id,
-    parse_goal_command,
+    register_worker,
     request_pause,
     request_resume,
     request_revise,
     request_stop,
     save_goal,
     unregister_worker,
-    _GoalWorker,
-    register_worker,
 )
 
 
@@ -84,14 +88,14 @@ def spawn_goal_worker(
     by save_goal and its late unregister cannot touch the successor. ``runtime`` is the LIVE
     daemon services handle — execution resolves through it, never a fabricated stand-in."""
     goal_id = str(goal.get("goal_id") or "")
-    if active_worker(goal_id) is not None:
-        return None
-    epoch = claim_worker_epoch(goal_id) if fresh_epoch else int(goal.get("worker_epoch") or 0)
-    worker = _GoalWorker(goal_id, goal.get("session_id") or "", epoch=epoch)
-    register_worker(worker)
-    if arm is not None:
-        # Applied BEFORE the thread starts: the worker's first dispatch already sees it.
-        arm(worker)
+    with _WORKER_REGISTRY_LOCK:
+        if active_worker(goal_id) is not None:
+            return None
+        epoch = claim_worker_epoch(goal_id) if fresh_epoch else int(goal.get("worker_epoch") or 0)
+        worker = _GoalWorker(goal_id, goal.get("session_id") or "", epoch=epoch)
+        register_worker(worker)
+        if arm is not None:
+            arm(worker)
     thread = threading.Thread(
         target=_run_worker,
         args=(runtime, worker, goal_id, dict(base_context or {}), str(model or "")),
@@ -119,9 +123,18 @@ def _run_worker(runtime, worker: _GoalWorker, goal_id: str, base_context: dict[s
             goal["ended_at"] = _time.time()
             goal["updated_at"] = _time.time()
             goal["last_reason"] = "goal worker failed; see server log"
-            save_goal(goal)
+            from core.goal_workflow import WorkerFencedError
+            with suppress(WorkerFencedError):
+                save_goal(goal, expected_epoch=worker.epoch)
     finally:
         unregister_worker(goal_id, worker)
+        if worker.resume_requested.is_set() and not worker.stop_requested.is_set() and not worker.fence_requested.is_set():
+            fresh = load_goal(goal_id)
+            if fresh is not None and fresh.get("state") in ("paused", "interrupted"):
+                outcome = request_resume(goal_id)
+                if outcome.get("ok"):
+                    fresh = load_goal(goal_id)
+                    spawn_goal_worker(runtime, fresh, base_context=base_context, model=model)
 
 
 def serve_goal_ambiguous_note(
@@ -157,7 +170,7 @@ def _commit_goal_transcript(session_id: str, user_text: str, reply_text: str, so
 
     context = dict(source_context or {})
     context.pop("transcript_commit_boundary", None)
-    try:
+    with suppress(Exception):
         append_conversation_event(
             session_id=session_id,
             user_input=str(user_text),
@@ -166,8 +179,6 @@ def _commit_goal_transcript(session_id: str, user_text: str, reply_text: str, so
             response_class="goal_control",
             persist_now=True,
         )
-    except Exception:
-        pass  # transcript is best-effort for a control reply; the goal record is authoritative
 
 
 def serve_goal_ingress(
@@ -223,7 +234,7 @@ def serve_goal_ingress(
             outcome = request_stop(goal.get("goal_id") or "")
         else:
             outcome = request_resume(goal.get("goal_id") or "")
-            if outcome.get("ok") and not outcome.get("already"):
+            if outcome.get("ok") and not outcome.get("already") and not outcome.get("settling"):
                 fresh = load_goal(goal.get("goal_id") or "")
                 if fresh is not None and str(fresh.get("state")) not in TERMINAL_GOAL_STATES:
                     spawn_goal_worker(runtime, fresh, base_context=source_context, model=model_name)
@@ -376,7 +387,7 @@ def goal_control(action: str, body: dict[str, Any], session_id: str, *, runtime=
         outcome = request_stop(goal_id)
     elif action == "resume":
         outcome = request_resume(goal_id)
-        if outcome.get("ok") and not outcome.get("already"):
+        if outcome.get("ok") and not outcome.get("already") and not outcome.get("settling"):
             fresh = load_goal(goal_id)
             if fresh is not None and str(fresh.get("state")) not in TERMINAL_GOAL_STATES:
                 spawn_goal_worker(runtime, fresh, base_context=_rebuild_exec_context(fresh), model=str(fresh.get("model") or ""))

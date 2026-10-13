@@ -30,16 +30,15 @@ from core.goal_workflow import (
     MAX_GOAL_TURNS,
     MAX_STEP_ATTEMPTS,
     WorkerFencedError,
+    active_worker,
     build_plan,
     completed_step_count,
+    derived_single_step_plan,
     emit_goal_event,
     load_goal,
-    new_step_id,
     parse_planner_answer,
-    derived_single_step_plan,
     save_goal,
     unregister_worker,
-    active_worker,
 )
 
 #: Keys dropped from the ingressing turn's context before a step turn reuses it. Stream
@@ -93,7 +92,7 @@ def step_source_context(base_context: dict[str, Any] | None, *, goal: dict[str, 
 def _step_prompt(goal: dict[str, Any], step: dict[str, Any], *, index: int, total: int, repair: bool) -> str:
     objective = str(goal.get("objective") or "").strip()
     lines = [
-        f"You are executing one step of an explicit goal in this chat.",
+        "You are executing one step of an explicit goal in this chat.",
         f"Goal: {objective}",
         f"Step {index} of {total}: {step.get('title')}",
         "Handle this step as an ordinary tool-supported request; do not treat it as a project build.",
@@ -315,13 +314,20 @@ def run_planner_turn(runtime, goal: dict[str, Any], base_context: dict[str, Any]
         base_context, goal=goal, step={"id": "planning"}, attempt=0, turn_id=turn_id
     )
     context["project_permissions"] = dict(_planning_deny())
-    register_turn(str(session_id or goal.get("session_id") or ""), turn_id)
+    context["cancel_event"] = register_turn(str(session_id or goal.get("session_id") or ""), turn_id)
+    worker = active_worker(str(goal.get("goal_id") or ""))
+    if worker is not None:
+        worker.set_current_turn(turn_id)
+        if _paused_or_stopped(worker):
+            context["cancel_event"].set()
     try:
         result = run_agent(runtime, prompt, session_id=str(session_id or goal.get("session_id") or ""), source_context=context) or {}
     except Exception as exc:
         return None, f"planner turn failed: {str(exc)[:200]}"
     finally:
         unregister_turn(str(session_id or goal.get("session_id") or ""), turn_id)
+        if worker is not None:
+            worker.set_current_turn("")
     answer = str(result.get("response") or result.get("content") or "")
     steps = parse_planner_answer(answer)
     if steps is None:
@@ -338,21 +344,16 @@ def reconcile_interrupted_step(goal: dict[str, Any], step: dict[str, Any]) -> No
     fresh dispatch cannot duplicate anything)."""
     turn_id = str(step.get("turn_id") or "")
     session_id = str(goal.get("session_id") or "")
-    if _verify_of(step) and turn_id:
+    if turn_id:
         events = _step_events(session_id, turn_id)
-        holds, reason = verification_holds(step, events)
-        if holds:
+        holds, _reason = verification_holds(step, events)
+        if _verify_of(step) and holds:
             step["state"] = "completed"
             step["reason"] = "effect already committed before the interruption"
             return
-        expected_tool = str(_verify_of(step).get("tool") or "")
-        ran = [
-            event
-            for event in events
-            if str(event.get("event_type") or "") in ("tool_executed", "tool_failed")
-            and (not expected_tool or str(event.get("tool_name") or "") == expected_tool)
-        ]
-        if ran:
+        activity = [event for event in events if str(event.get("event_type") or "") in
+                    ("tool_started", "tool_executed", "tool_failed")]
+        if activity:
             step["state"] = "blocked"
             step["reason"] = "unresolved settlement: the interrupted turn's effect needs reconciliation before any re-dispatch"
             return
@@ -380,7 +381,7 @@ def execute_goal(
     stop can never orphan an in-flight effect. Total dispatches are bounded
     (``MAX_GOAL_TURNS``); every durable write is epoch-fenced.
     """
-    from core.live_turns import register_turn, request_cancel, unregister_turn
+    from core.live_turns import register_turn, unregister_turn
 
     goal = load_goal(goal_id)
     if goal is None or str(goal.get("state")) in ("completed", "failed", "cancelled"):
@@ -408,7 +409,7 @@ def execute_goal(
         current = load_goal(goal_id) or {}
         return int(current.get("worker_epoch") or 0) != epoch
 
-    total_dispatches = 0
+    total_dispatches = int((goal.get("plan") or {}).get("dispatches") or 0)
 
     try:
         if not goal.get("started_at"):
@@ -422,6 +423,12 @@ def execute_goal(
         steps = plan.get("steps") if isinstance(plan.get("steps"), list) else []
         carried_steps = plan.get("carried_steps") if isinstance(plan.get("carried_steps"), list) else []
         if not steps:
+            if total_dispatches >= MAX_GOAL_TURNS:
+                _save("blocked", f"dispatch budget exhausted after {total_dispatches} turns")
+                return
+            total_dispatches += 1
+            plan["dispatches"] = total_dispatches
+            goal["plan"] = plan
             _save("planning", "deriving the plan")
             _emit("Goal planning: deriving steps")
             if _fenced():
@@ -456,14 +463,37 @@ def execute_goal(
             if prior_history:
                 new_plan["history"] = prior_history
             if carried_steps:
-                existing_ids = {step["id"] for step in new_plan["steps"]}
-                for carried in carried_steps:
-                    if carried.get("id") not in existing_ids:
-                        new_plan["steps"].insert(0, dict(carried))
+                # Completed receipts survive planner-local ID reuse. Only an exact work
+                # contract match is fulfilled by old work; different work gets a fresh ID.
+                retained = [dict(item) for item in carried_steps]
+                def contract(item):
+                    return (item.get("title"), item.get("details") or "", item.get("verify") or "")
+                occupied = {item["id"] for item in retained}
+                remap = {}
+                pending = []
+                for incoming in new_plan["steps"]:
+                    match = next((item for item in retained if contract(item) == contract(incoming)), None)
+                    old_id = incoming["id"]
+                    if match is not None:
+                        remap[old_id] = match["id"]
+                        continue
+                    new_id = old_id
+                    suffix = 1
+                    while new_id in occupied:
+                        new_id = f"{old_id}-r{new_plan['revision']}-{suffix}"
+                        suffix += 1
+                    incoming["id"] = new_id
+                    remap[old_id] = new_id
+                    occupied.add(new_id)
+                    pending.append(incoming)
+                for incoming in pending:
+                    incoming["depends_on"] = [remap.get(dep, dep) for dep in incoming.get("depends_on", [])]
+                new_plan["steps"] = retained + pending
+            new_plan["dispatches"] = total_dispatches
             goal["plan"] = new_plan
             goal["revision"] = new_plan["revision"]
             _save("running", planner_error or "")
-            _emit("Plan ready" if not planner_error else planner_error)
+            _emit(planner_error if planner_error else "Plan ready")
 
         # ---- Execution loop -------------------------------------------------
         while True:
@@ -507,8 +537,9 @@ def execute_goal(
                     _emit("Goal completed")
                 else:
                     unresolved = [s for s in steps if s.get("state") in ("failed", "blocked")]
-                    goal["state"] = "failed"
-                    goal["ended_at"] = now
+                    held = any(s.get("state") == "blocked" for s in unresolved)
+                    goal["state"] = "blocked" if held else "failed"
+                    goal["ended_at"] = None if held else now
                     goal["updated_at"] = now
                     goal["last_reason"] = (
                         f"step {unresolved[0].get('id')} {unresolved[0].get('state')}: {unresolved[0].get('reason') or 'unresolved'}"
@@ -521,8 +552,8 @@ def execute_goal(
 
             if total_dispatches >= MAX_GOAL_TURNS:
                 now = time.time()
-                goal["state"] = "failed"
-                goal["ended_at"] = now
+                goal["state"] = "blocked"
+                goal["ended_at"] = None
                 goal["last_reason"] = f"dispatch budget exhausted after {total_dispatches} turns"
                 save_goal(goal, expected_epoch=epoch)
                 _emit("Goal failed: dispatch budget exhausted")
@@ -533,24 +564,28 @@ def execute_goal(
             step["attempts"] = attempt
             step["state"] = "running"
             step["reason"] = ""
-            step_turn_id = f"{goal_id}:{step.get('id')}:a{attempt}"
+            approval_token = worker.take_approval_token(str(step.get("id"))) if worker is not None else ""
+            # The ordinary approval owner binds the exact call to its ORIGINAL task.
+            step_turn_id = str(step.get("turn_id") or "") if approval_token else ""
+            step_turn_id = step_turn_id or f"{goal_id}:{step.get('id')}:a{attempt}"
             step["turn_id"] = step_turn_id
             goal["current_step_id"] = str(step.get("id"))
             goal["state"] = "running"
             goal["updated_at"] = time.time()
-            save_goal(goal, expected_epoch=epoch)
             total_dispatches += 1
+            plan["dispatches"] = total_dispatches
+            save_goal(goal, expected_epoch=epoch)
             index = steps.index(step) + 1
             _emit(f"Step started: {step.get('title')}")
 
             repair = attempt > 1
             prompt = _step_prompt(goal, step, index=index, total=len(steps), repair=repair)
-            approval_token = worker.take_approval_token(str(step.get("id"))) if worker is not None else ""
             context = step_source_context(
                 base_context, goal=goal, step=step, attempt=attempt, turn_id=step_turn_id,
                 approval_token=approval_token,
             )
             cancel_event = register_turn(session_id, step_turn_id)
+            context["cancel_event"] = cancel_event
             if worker is not None:
                 worker.set_current_turn(step_turn_id)
             from core.web.api.runtime import run_agent
@@ -571,15 +606,14 @@ def execute_goal(
             holds, verify_reason = verification_holds(step, events, answer=answer_text)
             if state == "completed" and not holds:
                 state, reason = "failed", verify_reason
-            if state == "interrupted" and holds:
+            if state == "interrupted" and _verify_of(step) and holds:
                 # The in-flight turn was cancelled AFTER its declared effect verifiably
                 # committed: the step is completed by its own evidence — recording
                 # interrupted here would invite a replay that duplicates a real effect.
                 state, reason = "completed", ""
             if state == "waiting_approval":
-                approval_id = _latest_approval_id(session_id, step_turn_id)
-                if approval_id:
-                    step["approval_id"] = approval_id
+                # Approval previews stay in their canonical ledger, referenced by turn.
+                step.pop("approval_id", None)
             step["state"] = state
             step["reason"] = reason
             step["answer_excerpt"] = str(result.get("response") or result.get("content") or "")[:500]
@@ -604,6 +638,12 @@ def execute_goal(
                 if _paused_or_stopped(worker):
                     return
                 continue
+            fresh = load_goal(goal_id) or goal
+            if str(fresh.get("state")) in ("paused", "cancelled"):
+                for key in ("state", "paused_at", "paused_seconds", "ended_at", "last_reason"):
+                    goal[key] = fresh.get(key)
+                save_goal(goal, expected_epoch=epoch)
+                return
             if state == "waiting_approval":
                 goal["state"] = "waiting_approval"
                 save_goal(goal, expected_epoch=epoch)
@@ -681,7 +721,7 @@ def _paused_or_stopped(worker) -> bool:
 
 def _latest_approval_id(session_id: str, turn_id: str) -> str:
     """The approval the step's OWN turn minted, from the durable ledger events."""
-    for event in _step_events(session_id, turn_id):
+    for event in reversed(_step_events(session_id, turn_id)):
         approval = event.get("approval") if isinstance(event.get("approval"), dict) else {}
         approval_id = str(approval.get("approval_id") or event.get("approval_id") or "").strip()
         if approval_id:
@@ -709,7 +749,7 @@ def retry_waiting_step(goal_id: str, *, approval_token: str = "") -> dict[str, A
     same approval the step's turn minted, bound to the exact action and arguments by the
     existing consult); it is armed on the worker and applied ONCE to the waiting step's next
     dispatch. Refuses honestly when the goal is not in a holding state or the recorded
-    approval is not currently pending.
+    approval has not been explicitly approved.
     """
     goal = load_goal(goal_id)
     if goal is None:
@@ -725,23 +765,34 @@ def retry_waiting_step(goal_id: str, *, approval_token: str = "") -> dict[str, A
             break
     if waiting is None:
         return {"ok": False, "error": "no waiting step to resume"}
-    approval_id = str(waiting.get("approval_id") or "").strip()
+    approval_id = _latest_approval_id(str(goal.get("session_id") or ""), str(waiting.get("turn_id") or "")) or str(waiting.get("approval_id") or "").strip()
     token = str(approval_token or "").strip()
     resolved = ""
     if approval_id:
         from core.mode_permission_policy import pending_approval_record
 
-        record = pending_approval_record(str(goal.get("session_id") or ""), approval_id)
+        record = pending_approval_record(str(goal.get("session_id") or ""), approval_id, include_approved=True)
         if record is None:
             return {
                 "ok": False,
-                "error": "the recorded approval is no longer pending (expired, used, or resolved); resume the step fresh with /goal resume",
+                "error": "the recorded approval is unavailable (expired, denied, consumed, or foreign)",
             }
+        if str(record.get("task_id") or "") != str(waiting.get("turn_id") or ""):
+            return {"ok": False, "error": "the approval belongs to a different step attempt"}
+        if record.get("status") == "pending":
+            preview_keys = ("approval_id", "task_id", "intent", "action", "affected_resources",
+                            "expected_side_effects", "reversible", "scope_options", "diff_preview",
+                            "planned_actions", "planned_action_count", "planned_action_label", "excluded_actions")
+            return {"ok": False, "error": "review the exact action before resuming", "approval":
+                    {key: record[key] for key in preview_keys if key in record}}
         resolved = str(record.get("approval_id") or "")
+        if token and token != resolved:
+            return {"ok": False, "error": "the supplied approval does not match this step"}
     if not token and resolved:
         token = resolved
-    if not token:
-        return {"ok": False, "error": "no pending approval is recorded for this step; run /goal resume to re-dispatch it"}
+    if not token or not resolved:
+        return {"ok": False, "error": "no approved action is recorded for this step"}
+    waiting.pop("approval_id", None)
     waiting["state"] = "pending"
     waiting["reason"] = ""
     goal["state"] = "running"

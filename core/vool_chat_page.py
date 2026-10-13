@@ -11220,6 +11220,7 @@ function showPermBar(chatId, ev) {
   // A different request means the server did not match the token still in hand: it is spent now.
   if (owner.approvalToken && owner.approvalToken !== a.approval_id) releaseApprovalTokenFor(chatId);
   owner.pendingApproval = a;
+  owner.goalApproval = null;
   // Painting the single permission bar is display work: only the chat on screen may drive it.
   if (!permBarEl || !isDisplayed(chatId)) return;
   permMsgEl.textContent = a.action || ev.summary || pageT('permissions.needs_approval_default', 'VOOL needs approval for one exact action.');
@@ -11313,10 +11314,21 @@ function resumeApprovedTurn(chatId) {
 async function resolvePermission(decision, scope) {
   const chatId = displayedChat;
   const owner = chatState(chatId);
+  const goalApproval = owner.goalApproval;
   const approval = owner.pendingApproval; if (!approval || !approval.approval_id) { toast(pageT('permissions.approval_gone', 'This approval is no longer available.')); return; }
   try {
     const data = await postMode({ op: 'resolve_approval', approval_id: approval.approval_id, decision: decision, scope: scope || 'once' });
-    hidePermBar(); owner.pendingApproval = null;
+    hidePermBar(); owner.pendingApproval = null; owner.goalApproval = null;
+    if (goalApproval) {
+      if (decision === 'allow') {
+        const response = await fetch('/api/goal/retry', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({session_id:chatId, goal_id:goalApproval.goal_id})});
+        const resumed = await response.json();
+        if (!response.ok || !resumed.ok) throw new Error(resumed.error || pageT('permissions.approval_gone', 'This approval is no longer available.'));
+        if (window.VoolGoalCard) window.VoolGoalCard.refresh();
+      } else toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
+      return;
+    }
     if (decision === 'allow') {
       setApprovalToken(chatId, approval.approval_id); owner.resumeApprovedTurn = true;
       owner.approvalResumeTurnId = (owner.run && owner.run.turnId) || approval.task_id || '';
@@ -11723,6 +11735,13 @@ window.VoolPageActions = Object.freeze({
   focusComposer: () => { if (inputEl) inputEl.focus(); },
   toast: (text) => toast(String(text == null ? '' : text)),
   displayedChat: () => displayedChat,
+  reviewGoalApproval: (goal, approval) => {
+    if (!goal || String(goal.session_id || '') !== displayedChat || goal.state !== 'waiting_approval') return;
+    const step = (goal.steps || []).find((item) => item.id === goal.current_step_id);
+    if (!step || step.turn_id !== approval.task_id) return;
+    showPermBar(displayedChat, {approval:approval});
+    chatState(displayedChat).goalApproval = {goal_id:goal.goal_id};
+  },
   chatLog: () => logEl,
   // Close EVERY composer while a council owns the machine's model pin, and hand them back
   // when it does not. The caller passes what the SERVER said; the page decides what
