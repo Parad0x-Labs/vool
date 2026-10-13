@@ -454,6 +454,39 @@ def _handle_chain_test(inp, ctx):
     return HandlerOk(data=payload, summary=f"Chain-data key probe: {inp.provider}")
 
 
+@dataclass(frozen=True)
+class XSetupInput:
+    action: str
+    bearer_token: str = ""
+    credentials: dict | None = None
+    session_id: str = ""
+
+
+def _handle_x_setup(inp, ctx):
+    from core.x_setup import handle
+
+    body: dict[str, Any] = {"action": inp.action}
+    if inp.bearer_token:
+        body["bearer_token"] = inp.bearer_token
+    if inp.credentials is not None:
+        body["credentials"] = inp.credentials
+    if inp.session_id:
+        body["session_id"] = inp.session_id
+    status, payload = handle(body)
+    if status == 200:
+        return HandlerOk(data=payload, summary=f"X setup: {inp.action}")
+    return _legacy_fault("usage", f"X setup refused: {payload.get('state', 'invalid')}", status, payload)
+
+
+def _probe_x_setup_state(context: dict) -> tuple[bool, str]:
+    try:
+        import core.x_setup  # noqa: F401
+
+        return True, ""
+    except Exception as exc:
+        return False, f"X setup unavailable: {exc}"
+
+
 def _probe_chain_state(context: dict) -> tuple[bool, str]:
     try:
         from core.chain_providers import CHAIN_PROVIDERS
@@ -677,6 +710,7 @@ def register(reg) -> None:
     reg.add_group(GroupSpec(group_id="settings", description="operator settings: preferences and credential slots"))
     reg.add_group(GroupSpec(group_id="search", description="search provider configuration and probes"))
     reg.add_group(GroupSpec(group_id="chain", description="chain-data provider key probes"))
+    reg.add_group(GroupSpec(group_id="x", description="X (Twitter) connection setup and read-only checks"))
     reg.add_group(GroupSpec(group_id="memory", description="persistent memory records"))
     reg.add_group(GroupSpec(group_id="status", description="the one health+defaults read"))
     reg.add_group(GroupSpec(group_id="capabilities", description="model-facing capability truth (the capability graph is the model authority; this is its operator read)"))
@@ -947,6 +981,24 @@ def register(reg) -> None:
             ),
             handler=Handler("core.command_registry.groups.convergence:_handle_chain_test"),
             availability=Availability("core.command_registry.groups.convergence:_probe_chain_state"),
+            exit_codes=(0, 2, 20),
+        )
+    )
+
+    reg.add(
+        CommandSpec(
+            command_id="x.setup",
+            group="x",
+            description="Check, save, test or remove the X (Twitter) keys; read-only checks, never posts",
+            input_schema=XSetupInput,
+            effects="idempotent_write",
+            capabilities=frozenset({"settings.x_connection"}),
+            permission=ApprovalGate(
+                kind="x.setup",
+                verifier="core.command_registry.groups.convergence:_gate_operator_approval",
+            ),
+            handler=Handler("core.command_registry.groups.convergence:_handle_x_setup"),
+            availability=Availability("core.command_registry.groups.convergence:_probe_x_setup_state"),
             exit_codes=(0, 2, 20),
         )
     )

@@ -2717,6 +2717,13 @@
       "registry_command_id": "wallet.x402.retry",
       "surface": "http"
     },
+    "http:POST:/api/x/setup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/x/setup",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "x.setup",
+      "surface": "http"
+    },
     "http:POST:/gate/unlock": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /gate/unlock",
@@ -2959,7 +2966,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 287,
-    "GENERATED_ADAPTER": 126,
+    "GENERATED_ADAPTER": 127,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

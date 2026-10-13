@@ -2074,6 +2074,7 @@ const KEY_FAMILIES = [
   { id: 'search.web.', title: 'Web search', blurb: 'Used for live lookups. Built-in keyless search remains available.' },
   { id: 'security.', title: 'Security scans', blurb: 'Optional add-on checks. Scans use your provider allowance.' },
   { id: 'chain.data.', title: 'Blockchain data', blurb: 'Used for read-only chain lookups in any chat. Never used to sign or pay.' },
+  { id: 'x.api.', title: 'X (Twitter)', blurb: 'Your X app keys, checked with a read-only request. VOOL does not post with them.' },
 ];
 
 /* The same store also holds keys the RUNTIME minted for itself. blackbox.cas.keys is the
@@ -2149,8 +2150,8 @@ function widgetKeys(stack) {
           testBtn.disabled = true; st.textContent = tfmt('keys.asking_test', 'Testing — asking {label} whether it accepts this key…', { label: providerLabel });
           try {
             if (fam === 'security.' && !confirm(T('keys.eyebrow_confirm', 'Check Eyebrow with one version request? No add-on is scanned.'))) { testBtn.disabled = false; st.textContent = ''; return; }
-            const url = fam === 'security.' ? '/api/addons' : fam === 'search.web.' ? '/api/search/test' : fam === 'chain.data.' ? '/api/chain/test' : '/api/cloud/test';
-            const payload = fam === 'security.' ? {action:'test_key'} : {provider:providerId};
+            const url = fam === 'security.' ? '/api/addons' : fam === 'search.web.' ? '/api/search/test' : fam === 'chain.data.' ? '/api/chain/test' : fam === 'x.api.' ? '/api/x/setup' : '/api/cloud/test';
+            const payload = fam === 'security.' ? {action:'test_key'} : fam === 'x.api.' ? {action:'test'} : {provider:providerId};
             const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const j = await r.json().catch(() => ({}));
             st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : tfmt('keys.check_failed', 'Check failed — {message}', { message: (j.message || j.error || r.status) })) : keyTestMessage(providerLabel, j);
@@ -2162,7 +2163,7 @@ function widgetKeys(stack) {
           if (!confirm(tfmt('keys.remove_confirm', 'Remove the stored key “{name}”?\n\nIt is deleted from this machine. Nothing is sent anywhere. VOOL falls back to running without it.', { name: (c.label || c.name) }))) return;
           rm.disabled = true; st.textContent = T('keys.removing', 'Removing…');
           try {
-            const r = await fetch(fam === 'security.' ? '/api/addons' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : { name: c.name, delete: true }) });
+            const r = await fetch(fam === 'security.' ? '/api/addons' : fam === 'x.api.' ? '/api/x/setup' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : fam === 'x.api.' ? {action:'remove'} : { name: c.name, delete: true }) });
             const j = await r.json().catch(() => null);
             if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
             await readSource('/api/settings/credentials');
@@ -2459,6 +2460,14 @@ function widgetKeys(stack) {
   stack.appendChild(st);
   stack.appendChild(el('div', 'subtle', T('keys.autodetect_note', 'Leave the provider on Auto-detect: VOOL recognises keys with a documented prefix on this machine and asks you to choose when it cannot tell. Saving asks that one service once whether it accepts the key, and only a verified key is stored. A stored key is never displayed again.')));
   stack.appendChild(el('div', 'subtle', T('keys.checks_note', 'Checks use one selected provider request. Search checks may use credits; Eyebrow checks its version without scanning an add-on.')));
+  /* X has more than one key, so it gets a guided setup instead of the single paste field. */
+  const xRow = el('div', 'inline x-setup-entry');
+  xRow.appendChild(el('span', 'row-label', T('xsetup.title', 'X (Twitter)')));
+  xRow.appendChild(el('span', 'subtle', T('xsetup.entry_note', 'X uses several keys. The guided setup says what to paste where and checks them with one read.')));
+  const xBtn = el('button', 'btn x-setup-open', T('xsetup.open', 'Connect X')); xBtn.type = 'button';
+  xBtn.addEventListener('click', () => openXSetupDialog(async () => { await readSource('/api/settings/credentials'); renderPane(); }));
+  xRow.appendChild(xBtn);
+  stack.appendChild(xRow);
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
      deletes it. Nothing here can touch a verified binding. */
@@ -2540,6 +2549,118 @@ function openKeySetupDialog(row, onAdd) {
   dlg.appendChild(actions);
   dlg.addEventListener('close', () => dlg.remove());
   document.body.appendChild(dlg);
+  if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+}
+/* Guided X (Twitter) setup. Two ways in: the app's Bearer Token (public reads) or the four keys of
+   the user's own X app (their account). Each is checked with one read-only X request before it is
+   saved (core/x_setup.py); the account path shows which account X names and saves only on confirm.
+   Nothing here posts to X, and no key is ever shown back. */
+function openXSetupDialog(onSaved) {
+  document.querySelector('dialog.x-setup-dialog')?.remove();
+  const dlg = document.createElement('dialog'); dlg.className = 'key-setup-dialog x-setup-dialog';
+  dlg.setAttribute('aria-label', T('xsetup.dialog_title', 'Connect X'));
+  const body = el('div', 'stack');
+  const note = el('p', 'subtle x-setup-state'); note.setAttribute('role', 'status');
+  let pendingSession = '';
+  const call = async (payload) => {
+    const r = await fetch('/api/x/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok && j.ok !== false, j: j };
+  };
+  const secretField = (label) => {
+    const wrap = el('label', 'stack');
+    wrap.appendChild(el('span', null, label));
+    const input = el('input', 'inp'); input.type = 'password'; input.autocomplete = 'off'; input.spellcheck = false;
+    input.setAttribute('aria-label', label); wrap.appendChild(input);
+    return { wrap: wrap, input: input };
+  };
+  const steps = (items) => { const ol = document.createElement('ol'); ol.className = 'key-setup-steps-list'; items.forEach(t => ol.appendChild(el('li', null, t))); return ol; };
+  const choose = () => {
+    body.replaceChildren(); note.textContent = '';
+    body.appendChild(el('p', null, T('xsetup.choose', 'How would you like to connect?')));
+    const pub = el('button', 'btn', T('xsetup.choose_public', 'Research public posts (Bearer Token)')); pub.type = 'button';
+    pub.addEventListener('click', bearerStep);
+    const own = el('button', 'btn', T('xsetup.choose_keys', 'I have my keys (my X account)')); own.type = 'button';
+    own.addEventListener('click', keysStep);
+    const row = el('div', 'inline'); row.appendChild(pub); row.appendChild(own); body.appendChild(row);
+    body.appendChild(el('p', 'subtle', T('xsetup.no_posting', 'VOOL only reads with these keys. Posting to X is not part of this version.')));
+  };
+  const bearerStep = () => {
+    body.replaceChildren(); note.textContent = '';
+    body.appendChild(el('h4', null, T('xsetup.public_title', 'Public posts · Bearer Token')));
+    body.appendChild(steps([
+      T('xsetup.public_step1', 'Open developer.x.com and sign in with your X account.'),
+      T('xsetup.public_step2', 'Open your app → Keys and tokens.'),
+      T('xsetup.public_step3', 'Under Bearer Token, choose Generate (or Regenerate) and copy it.'),
+      T('xsetup.public_step4', 'Paste it below. VOOL asks X for one public profile to check it, then saves it.'),
+    ]));
+    const f = secretField(T('xsetup.bearer_label', 'Bearer Token')); body.appendChild(f.wrap);
+    const save = el('button', 'btn primary x-setup-save-bearer', T('xsetup.check_save', 'Check and save')); save.type = 'button';
+    save.addEventListener('click', async () => {
+      save.disabled = true; note.textContent = T('xsetup.checking', 'Asking X once whether it accepts this…');
+      try {
+        const res = await call({ action: 'save_bearer', bearer_token: f.input.value });
+        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (res.ok) { f.input.value = ''; if (onSaved) await onSaved(); }
+      } catch (e) { note.textContent = T('xsetup.failed', 'X setup failed. Nothing was saved.'); }
+      save.disabled = false;
+    });
+    const back = el('button', 'btn', T('xsetup.back', 'Back')); back.type = 'button'; back.addEventListener('click', choose);
+    const row = el('div', 'inline'); row.appendChild(save); row.appendChild(back); body.appendChild(row);
+  };
+  const keysStep = () => {
+    body.replaceChildren(); note.textContent = '';
+    body.appendChild(el('h4', null, T('xsetup.keys_title', 'My X account · four keys')));
+    body.appendChild(el('p', 'subtle', T('xsetup.keys_where', 'All four are on developer.x.com → your app → Keys and tokens.')));
+    body.appendChild(el('div', 'row-label', T('xsetup.step1', 'Step 1 · Consumer keys')));
+    body.appendChild(el('p', 'subtle', T('xsetup.step1_help', 'Under Consumer Keys, choose Regenerate if you no longer have them, then copy the API Key and the API Key Secret.')));
+    const ck = secretField(T('xsetup.consumer_key', 'Consumer Key (API Key)')); const cs = secretField(T('xsetup.consumer_secret', 'Consumer Key Secret (API Key Secret)'));
+    body.appendChild(ck.wrap); body.appendChild(cs.wrap);
+    body.appendChild(el('div', 'row-label', T('xsetup.step2', 'Step 2 · Access tokens')));
+    body.appendChild(el('p', 'subtle', T('xsetup.step2_help', 'Under Access Token and Secret, choose Generate. They are made for the X account you are signed in with. Read permission is enough.')));
+    const at = secretField(T('xsetup.access_token', 'Access Token')); const as = secretField(T('xsetup.access_secret', 'Access Token Secret'));
+    body.appendChild(at.wrap); body.appendChild(as.wrap);
+    const confirmRow = el('div', 'inline'); confirmRow.hidden = true;
+    const check = el('button', 'btn primary x-setup-check', T('xsetup.check_account', 'Check my X account')); check.type = 'button';
+    check.addEventListener('click', async () => {
+      check.disabled = true; confirmRow.hidden = true; note.textContent = T('xsetup.checking', 'Asking X once whether it accepts this…');
+      try {
+        const res = await call({ action: 'keys_check', credentials: { api_key: ck.input.value, api_secret: cs.input.value, access_token: at.input.value, access_token_secret: as.input.value } });
+        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (res.ok && res.j.session_id) {
+          pendingSession = res.j.session_id;
+          [ck, cs, at, as].forEach(f => { f.input.value = ''; });
+          confirmRow.hidden = false;
+        }
+      } catch (e) { note.textContent = T('xsetup.failed', 'X setup failed. Nothing was saved.'); }
+      check.disabled = false;
+    });
+    body.appendChild(el('div', 'row-label', T('xsetup.step3', 'Step 3 · Confirm')));
+    const keep = el('button', 'btn primary x-setup-confirm', T('xsetup.save_account', 'Save this X account')); keep.type = 'button';
+    keep.addEventListener('click', async () => {
+      keep.disabled = true;
+      try {
+        const res = await call({ action: 'keys_save', session_id: pendingSession });
+        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (res.ok) { pendingSession = ''; confirmRow.hidden = true; if (onSaved) await onSaved(); }
+      } catch (e) { note.textContent = T('xsetup.failed', 'X setup failed. Nothing was saved.'); }
+      keep.disabled = false;
+    });
+    const drop = el('button', 'btn', T('xsetup.cancel', 'Cancel')); drop.type = 'button';
+    drop.addEventListener('click', async () => { if (pendingSession) await call({ action: 'keys_cancel', session_id: pendingSession }).catch(() => null); pendingSession = ''; confirmRow.hidden = true; note.textContent = T('xsetup.cancelled', 'Cancelled. Nothing was saved.'); });
+    confirmRow.appendChild(keep); confirmRow.appendChild(drop);
+    const back = el('button', 'btn', T('xsetup.back', 'Back')); back.type = 'button'; back.addEventListener('click', choose);
+    const row = el('div', 'inline'); row.appendChild(check); row.appendChild(back);
+    body.appendChild(row); body.appendChild(confirmRow);
+  };
+  dlg.appendChild(el('h3', null, T('xsetup.dialog_title', 'Connect X')));
+  dlg.appendChild(body); dlg.appendChild(note);
+  const close = el('button', 'btn', T('keyguide.setup_close', 'Close')); close.type = 'button';
+  close.addEventListener('click', () => dlg.close());
+  const actions = el('div', 'inline'); actions.appendChild(close); dlg.appendChild(actions);
+  dlg.addEventListener('close', () => { if (pendingSession) call({ action: 'keys_cancel', session_id: pendingSession }).catch(() => null); dlg.remove(); });
+  document.body.appendChild(dlg);
+  choose();
   if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
 }
 function widgetProviderGuide(host) {

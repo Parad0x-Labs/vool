@@ -5033,6 +5033,43 @@ def _dispatch_post_inner(
         _ct_status, _ct_payload = _cr_forward("chain.test", {"provider": _cp.strip().lower()})
         return apply_runtime_headers(json_response(_ct_status, _ct_payload), runtime)
 
+    if normalized_path == "/api/x/setup":
+        # Guided X (Twitter) connection from Settings: check, save, test or remove the user's own X
+        # keys. Every check is a read (core/x_setup.py); nothing here posts to X. Owner-local and
+        # same-origin only; the response never carries key material.
+        import json as _json
+
+        from core.web.api.runtime import host_header_allowed
+
+        def _x_setup_header(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        if not is_loopback_host(client_host) or _x_setup_header("sec-fetch-site").lower() == "cross-site":
+            return apply_runtime_headers(json_response(403, {"error": "X setup is only available inside this VOOL app"}), runtime)
+        content_type = _x_setup_header("content-type").lower()
+        if content_type and "json" not in content_type:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _x_setup_header("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        try:
+            if len(_json.dumps(body)) > 65536:
+                return apply_runtime_headers(json_response(413, {"error": "request body too large"}), runtime)
+        except (TypeError, ValueError):
+            return apply_runtime_headers(json_response(400, {"error": "unserializable body"}), runtime)
+        unknown = set(body.keys()) - {"action", "bearer_token", "credentials", "session_id"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        if not isinstance(body.get("action"), str):
+            return apply_runtime_headers(json_response(400, {"error": "missing action"}), runtime)
+        from core.command_registry.legacy import forward as _cr_forward
+
+        _xs_status, _xs_payload = _cr_forward("x.setup", dict(body), client_host=client_host)
+        return apply_runtime_headers(json_response(_xs_status, _xs_payload), runtime)
+
     if normalized_path == "/api/search/detect":
         # Which provider does this pasted key belong to? Prefix-only, entirely local: nothing is
         # stored and no network call is made, so the UI can label the key the moment it is pasted.

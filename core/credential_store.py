@@ -356,6 +356,7 @@ _RECONCILE_NAMES: tuple[tuple[str, str], ...] = (
     ("llm.cloud.cloudflare", "Cloudflare"),
     ("llm.cloud.generic", "Custom OpenAI-compatible"),
     ("llm.cloud.custom_base_url", "Custom base URL"),
+    ("x.api.default", "X (Twitter)"),
 )
 
 
