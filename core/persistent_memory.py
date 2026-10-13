@@ -278,6 +278,11 @@ _FORGET_TARGET_RE = re.compile(
     r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
     re.IGNORECASE,
 )
+_FORGET_TOLD_YOU_ABOUT_RE = re.compile(
+    r"^(?:what|everything|anything|all)\s+(?:that\s+)?i(?:'ve|\s+have)?\s+"
+    r"(?:told\s+you|said(?:\s+to\s+you)?|shared(?:\s+with\s+you)?|gave\s+you)\s+about\s+(?=\S)",
+    re.IGNORECASE,
+)
 _REFERENTIAL_FORGET_RE = re.compile(
     r"^(?:the\s+)?(?:old\s+|previous\s+|exact\s+)?"
     r"(?:(?:[a-z0-9][a-z0-9_-]*\s+){0,4})?"
@@ -542,6 +547,9 @@ def _forget_target_without_preservation_clause(raw_target: str) -> str:
 def _normalize_forget_target(raw_target: str) -> str:
     """Extract the value from natural forget wording without broad deletion."""
     target = _forget_target_without_preservation_clause(raw_target)
+    # "Forget what I told you about Ilona's favourite tree" names "Ilona's favourite tree"; the
+    # lead-in is how people say it, not part of anything they stored.
+    target = _FORGET_TOLD_YOU_ABOUT_RE.sub("", target, count=1)
     match = _FORGET_TARGET_RE.fullmatch(target)
     if match:
         target = match.group("value")
