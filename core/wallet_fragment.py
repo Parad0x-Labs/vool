@@ -225,7 +225,7 @@ function bindPhantomEvents(){
   });
 }
 function evmProvider(){ return (window.ethereum && typeof window.ethereum.request === 'function') ? window.ethereum : null; }
-var EVM_CHAIN_NAMES = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet' };
+var EVM_CHAIN_NAMES = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet', 'eip155:46630': 'Robinhood Chain Testnet', 'eip155:4663': 'Robinhood Chain', 'eip155:8453': 'Base', 'eip155:1': 'Ethereum', 'eip155:56': 'BNB Smart Chain' };
 function evmChainLabel(caip2){ return EVM_CHAIN_NAMES[caip2] || caip2; }
 function isEvmNetwork(network){ return String(network || '').indexOf('eip155:') === 0; }
 function answer_result(v){ return v && typeof v === 'object' ? v.result : null; }
@@ -233,7 +233,7 @@ function answer_result(v){ return v && typeof v === 'object' ? v.result : null; 
 // ---- settings section ------------------------------------------------------------------------
 var sec = null, statusEl = null, msgEl = null, lastStatus = null;
 function setMsg(text, isErr){ if (!msgEl) return; msgEl.textContent = text || ''; msgEl.className = 'vw-msg' + (isErr ? ' err' : ''); }
-var CHAIN_LABELS = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet', 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'Solana Devnet' };
+var CHAIN_LABELS = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet', 'eip155:46630': 'Robinhood Chain Testnet', 'eip155:4663': 'Robinhood Chain', 'eip155:8453': 'Base', 'eip155:1': 'Ethereum', 'eip155:56': 'BNB Smart Chain', 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'Solana Devnet', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'Solana' };
 function chainLabel(caip2){ return CHAIN_LABELS[caip2] || caip2; }
 var MODE_LABELS = { watch_only: 'watch-only (observe and propose; cannot sign)', pocket_sealed: 'VOOL Wallet (key sealed on this device, approved by you at payment)', external_signer: 'external wallet (signing stays in your wallet)' };
 function maskedLine(label, value, id){
@@ -298,21 +298,21 @@ function renderStatus(){
       appendReceipts(statusEl);
       return st;
     }
-    statusEl.appendChild(el('div', 'vw-line', 'crypto is optional: turn it off any time in Settings → Crypto; nothing is deleted.'));
+    statusEl.appendChild(el('div', 'vw-line', 'Crypto is optional. Turn it off any time in Settings → Crypto; nothing is deleted.'));
     var offBtn = el('button', 'vw-toggle', 'turn off'); offBtn.type = 'button'; offBtn.id = 'vwOffBtn';
     offBtn.addEventListener('click', function(){ setWalletEnabled(false); });
     statusEl.appendChild(offBtn);
     var head = el('div', 'vw-line');
     head.appendChild(document.createTextNode('custody: ' + (MODE_LABELS[st.custody_mode] || st.custody_mode || 'none — no wallet yet (watch-only is the recommended start)')));
-    var mainnetBadge = el('span', 'vw-badge' + (st.mainnet_enabled ? '' : ' testnet'), st.mainnet_enabled ? 'MAINNET ENABLED' : 'testnet only');
+    var mainnetBadge = el('span', 'vw-badge' + (st.mainnet_enabled ? '' : ' testnet'), st.mainnet_enabled ? 'real money on' : 'testnet only');
     head.appendChild(mainnetBadge);
     statusEl.appendChild(head);
     (st.soft_warnings || []).forEach(function(w){ var note = el('div', 'vw-line vw-soft-warning', (w && w.text) || ''); note.setAttribute('role', 'note'); statusEl.appendChild(note); });
     if (st.public_key) statusEl.appendChild(maskedLine('public key', st.public_key, 'vwPubKey'));
-    statusEl.appendChild(el('div', 'vw-line', 'pending approvals: ' + (st.pending_approvals || 0) + ' · signing preference: ' + (st.signing_preference || '') + ' · x402 cap (minor): ' + (st.x402_cap_minor != null ? st.x402_cap_minor : '')));
+    statusEl.appendChild(el('div', 'vw-line', 'Waiting for your approval: ' + (st.pending_approvals || 0) + ' · Signs with: ' + (MODE_LABELS[st.signing_preference] || st.signing_preference || 'not chosen') + ' · Most one paid web request may cost: ' + (st.x402_cap_minor != null ? st.x402_cap_minor + ' (in the coin’s smallest units)' : 'not set')));
     if (st.custody_mode === 'pocket_sealed' && st.wallet_id) statusEl.appendChild(exportControls(st));
     var lim = st.limits || {};
-    if (lim.per_tx_minor) { var limLine = el('div', 'vw-line', 'limits (minor units): per tx ' + lim.per_tx_minor + ', daily ' + lim.daily_minor + ', per destination/day ' + lim.per_destination_daily_minor); limLine.id = 'vwLimitsLine'; statusEl.appendChild(limLine); }
+    if (lim.per_tx_minor) { var limLine = el('div', 'vw-line', 'Limits, in the coin’s smallest units: per payment ' + lim.per_tx_minor + ', per day ' + lim.daily_minor + ', per recipient per day ' + lim.per_destination_daily_minor); limLine.id = 'vwLimitsLine'; statusEl.appendChild(limLine); }
     var fees = st.dna_fees || null;
     if (fees && fees.policy) {
       var feeLine = el('div', 'vw-line'); feeLine.id = 'vwDnaFeesLine';
@@ -579,13 +579,13 @@ function buildSection(){
   var phrase = el('input'); phrase.type = 'text'; phrase.id = 'vwPhrase'; phrase.autocomplete = 'off'; phrase.placeholder = 'confirmation phrase'; form.appendChild(phrase);
   form.appendChild(el('label', null, 'How you approve payments'));
   var method = el('select', 'vw-chain'); method.id = 'vwApprovalMethod';
-  [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)'], ['device', 'Touch ID or my Mac password']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; method.appendChild(opt); });
+  [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)'], ['device', 'My computer’s own sign-in (such as Touch ID)']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; method.appendChild(opt); });
   form.appendChild(method);
   var pinLabel = el('label', null, 'PIN (4–8 digits)'); form.appendChild(pinLabel);
   var pin = el('input'); pin.type = 'password'; pin.id = 'vwPin'; pin.autocomplete = 'new-password'; pin.inputMode = 'numeric'; form.appendChild(pin);
   var pwLabel = el('label', null, 'Wallet password (10+ characters)'); pwLabel.hidden = true; form.appendChild(pwLabel);
   var pw = el('input'); pw.type = 'password'; pw.id = 'vwPassword'; pw.autocomplete = 'new-password'; pw.hidden = true; form.appendChild(pw);
-  var devNote = el('div', 'vw-line', 'Every payment and every export will ask for Touch ID or your Mac password. Nothing is stored behind a PIN.'); devNote.hidden = true; form.appendChild(devNote);
+  var devNote = el('div', 'vw-line', 'Every payment and every export will ask for your computer’s own sign-in (such as Touch ID). Nothing is stored behind a PIN.'); devNote.hidden = true; form.appendChild(devNote);
   method.addEventListener('change', function(){ var m = method.value; pinLabel.hidden = pin.hidden = (m !== 'pin'); pwLabel.hidden = pw.hidden = (m !== 'password'); devNote.hidden = (m !== 'device'); });
   var submit = el('button', 'vw-btn primary', 'Create'); submit.id = 'vwCreateSubmit'; submit.type = 'button'; form.appendChild(submit);
   sec.appendChild(form);
@@ -595,9 +595,9 @@ function buildSection(){
   var rphrase = el('input'); rphrase.type = 'password'; rphrase.id = 'vwRestorePhrase'; rphrase.autocomplete = 'off'; rform.appendChild(rphrase);
   rform.appendChild(el('label', null, 'How you approve payments'));
   var rmethod = el('select', 'vw-chain'); rmethod.id = 'vwRestoreMethod';
-  [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)'], ['device', 'Touch ID or my Mac password']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; rmethod.appendChild(opt); });
+  [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)'], ['device', 'My computer’s own sign-in (such as Touch ID)']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; rmethod.appendChild(opt); });
   rform.appendChild(rmethod);
-  rform.appendChild(el('label', null, 'New PIN or password (none for Touch ID)'));
+  rform.appendChild(el('label', null, 'New PIN or password (none for your computer’s own sign-in)'));
   var rpin = el('input'); rpin.type = 'password'; rpin.id = 'vwRestorePin'; rpin.autocomplete = 'new-password'; rform.appendChild(rpin);
   var rsubmit = el('button', 'vw-btn primary', 'Restore'); rsubmit.id = 'vwRestoreSubmit'; rsubmit.type = 'button'; rform.appendChild(rsubmit);
   sec.appendChild(rform);
