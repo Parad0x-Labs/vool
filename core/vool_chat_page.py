@@ -8684,7 +8684,7 @@ function initComposerControls() {
       e.stopPropagation();
       const requested = it.getAttribute('data-mode'); closePops(null);
       if (requested === 'bypass_permissions') { openBypassModal(); return; }
-      try { await setModeController(requested); } catch (err) { toast('Mode was not changed: ' + err.message); }
+      try { await setModeController(requested); } catch (err) { toast(pageTF('mode.change_failed', 'Mode was not changed: {error}', { error: err.message })); }
     });
   });
   const modeItems = Array.from(document.querySelectorAll('#modePop .pop-item'));
@@ -8983,8 +8983,8 @@ function cloudSelectionId(provider, id) {
 }
 function buildCloudPicker() {
   const box = document.createElement('div'); box.className = 'cloud-picker cloud-dyn';
-  const label = document.createElement('label'); label.textContent = 'Provider';
-  const select = document.createElement('select'); select.setAttribute('aria-label', 'Model provider');
+  const label = document.createElement('label'); label.textContent = pageT('keys.provider_aria', 'Provider');
+  const select = document.createElement('select'); select.setAttribute('aria-label', pageT('keys.model_provider_aria', 'Model provider'));
   cloudProviderRows.forEach((p) => {
     const option = document.createElement('option'); option.value = p.id; option.textContent = p.label || p.id;
     select.appendChild(option);
@@ -9304,15 +9304,15 @@ async function performCloudModelSwitch(id, name, rowEl, provider) {
       const priceRose = code === 'price_above_accepted';
       if (classifiedPaid || costUnclassified || pricingIndeterminate || priceRose) {
         const reasonText = classifiedPaid
-          ? 'The server classified this model as PAID.'
+          ? pageT('model.reason_paid_classified', 'The server classified this model as PAID.')
           : costUnclassified
-            ? 'The server could not verify what this model costs.'
+            ? pageT('model.reason_cost_unknown', 'The server could not verify what this model costs.')
             : priceRose
-              ? 'The catalog now lists this model ABOVE the price you accepted earlier.'
-              : "This model's published pricing is indeterminate on the server.";
+              ? pageT('model.reason_price_rose', 'The catalog now lists this model ABOVE the price you accepted earlier.')
+              : pageT('model.reason_indeterminate', "This model's published pricing is indeterminate on the server.");
         const gateOk = window.VoolPriceGate
           ? await window.VoolPriceGate.review({ kind: 'pin', id: cloudSelectionId(provider, id), provider: provider, label: name || id, code: code, accepted: j.accepted || null, current: j.current || null })
-          : window.confirm(reasonText + ' Pin "' + id + '" and allow spend on the pinned lane? Spend caps still apply. This covers this switch only.');
+          : window.confirm(reasonText + pageTF('model.pin_confirm_suffix', ' Pin "{id}" and allow spend on the pinned lane? Spend caps still apply. This covers this switch only.', { id: id }));
         if (gateOk) {
           paidDecision = gateOk;
           if (!stillCurrent()) return false;
@@ -9361,7 +9361,7 @@ async function switchAutoFreeModel(id, selectEl) {
       return true;
     }
   } catch (e) {}
-  if (selectEl) { selectEl.value = autoFreeModel; selectEl.title = 'Could not change Auto fallback.'; }
+  if (selectEl) { selectEl.value = autoFreeModel; selectEl.title = pageT('model.auto_fallback_failed', 'Could not change Auto fallback.'); }
   return false;
 }
 
@@ -9391,7 +9391,7 @@ function makeCloudRow(m) {
     switching = true; it.disabled = true;
     delete it.dataset.selectionError;
     const previousHint = kind.textContent;
-    kind.textContent = 'Checking model and price…';
+    kind.textContent = pageT('model.checking', 'Checking model and price…');
     it.setAttribute('aria-busy', 'true');
     try {
     // The switch first asks the server to classify this exact provider/model, then
@@ -9413,7 +9413,7 @@ function makeCloudRow(m) {
 
 function buildCloudToolbar(onPricesChange) {
   const bar = document.createElement('div'); bar.className = 'pop-order cloud-toolbar';
-  const lab = document.createElement('span'); lab.textContent = 'Sort'; bar.appendChild(lab);
+  const lab = document.createElement('span'); lab.textContent = pageT('addons.sort', 'Sort'); bar.appendChild(lab);
   const sel = document.createElement('select');
   Object.keys(CLOUD_ORDER_LABELS).forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = CLOUD_ORDER_LABELS[k]; if (k === cloudOrder) o.selected = true; sel.appendChild(o); });
   sel.addEventListener('click', (e) => e.stopPropagation());
@@ -9430,16 +9430,16 @@ function buildCloudToolbar(onPricesChange) {
 
 function buildAutoFallbackControl(freeModels) {
   const bar = document.createElement('div'); bar.className = 'pop-order cloud-toolbar auto-fallback';
-  const lab = document.createElement('label'); lab.textContent = 'Auto fallback';
+  const lab = document.createElement('label'); lab.textContent = pageT('model.auto_fallback_label', 'Auto fallback');
   const sel = document.createElement('select');
-  const best = document.createElement('option'); best.value = 'auto'; best.textContent = 'Best verified free'; sel.appendChild(best);
+  const best = document.createElement('option'); best.value = 'auto'; best.textContent = pageT('model.auto_best_free', 'Best verified free'); sel.appendChild(best);
   freeModels.forEach((m) => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.name || m.id; sel.appendChild(o); });
   sel.value = autoFreeModel;
   if (sel.value !== autoFreeModel) { autoFreeModel = 'auto'; sel.value = 'auto'; }
   sel.addEventListener('click', (e) => e.stopPropagation());
   sel.addEventListener('change', async (e) => { e.stopPropagation(); const previous = autoFreeModel; if (!(await switchAutoFreeModel(sel.value, sel))) sel.value = previous; });
   lab.appendChild(sel); bar.appendChild(lab);
-  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = 'used only by VOOL Auto; never paid'; bar.appendChild(hint);
+  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = pageT('model.auto_hint', 'used only by VOOL Auto; never paid'); bar.appendChild(hint);
   return bar;
 }
 
@@ -9487,7 +9487,7 @@ async function renderCloudModels() {
     row.className = 'pop-group cloud-dyn cloud-empty';
     const msg = document.createElement('span'); msg.className = 'pi-hint';
     const refreshInfo = data && typeof data.refresh === 'object' && data.refresh ? data.refresh : null;
-    if (fetchError) msg.textContent = 'Could not load the model catalog: ' + fetchError;
+    if (fetchError) msg.textContent = pageTF('model.catalog_load_failed', 'Could not load the model catalog: {error}', { error: fetchError });
     else if (refreshInfo && refreshInfo.ok === false) msg.textContent = 'Model catalog refresh failed' + (refreshInfo.error ? ': ' + refreshInfo.error : '') + '.';
     else msg.textContent = 'No model catalog loaded yet. The connection test checks your key, not the catalog.';
     row.appendChild(msg);
