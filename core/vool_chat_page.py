@@ -3473,9 +3473,14 @@ async function openSession(id) {
   reflectPermBar();
   document.body.classList.remove('sidebar-open');
   loadSessions();
-  refreshQueue();
+  refreshQueue(id);
   await loadRecoveredLedger(); await loadActivityHistory(); renderPanel();
   inputEl.focus();
+  // Opening a chat is itself a wakeup for its queue: items another tab left pending (or that
+  // a closed page never pumped) execute now, without a second manual send -- the open is the
+  // user asking for this chat, ahead of the heartbeat's slower sweep. The pump's own slot
+  // discipline makes this a no-op while a turn already runs in the chat.
+  if (!isChatBusy(id)) pumpQueue(id);
 }
 
 function newChat() {
@@ -7258,12 +7263,38 @@ async function runTurn(text, queueItemId, opts) {
       let refusal = null;
       try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
       if (refusal && refusal.error === 'chat_turn_active') {
-        // The slot-check raced a real turn start (two tabs sending in the same instant, or a
-        // turn that began between the check and this POST). Nothing executed -- the server
+        const owner = ownerOf(run);
+        if (run.queueItemId) {
+          // A CLAIMED message refused before execution: the item is already the queue's row.
+          // Return the ORIGINAL to its pending FIFO position through the queue's
+          // ownership-checked release -- same identity, same position, no duplicate row. A
+          // pump (this page's release pump, another tab's, or the heartbeat) claims it again
+          // once the chat's current turn frees the slot.
+          const released = await queueOp('release', chatId, { queue_item_id: run.queueItemId });
+          if (released && released.released) {
+            run.text = 'Queued \u2014 waiting for this chat\u2019s current turn to finish.';
+            if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+            if (run.textEl) run.textEl.textContent = run.text;
+            finishRun(run, 'cancelled', 'Returned to the queue behind the chat\u2019s active turn');
+            releaseComposer(run);
+            refreshQueue(chatId);
+            return;
+          }
+          // The release was refused (another dispatch consumed this claim) or the door
+          // failed. The row keeps its in_flight record -- restart recovery's owner -- and
+          // the turn ends failed with the honest state. Never a duplicate, never a loss.
+          run.text = 'This message was claimed but could not start, and could not be returned to the queue. It stays recorded; restart VOOL to recover it.';
+          if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+          if (run.textEl) run.textEl.textContent = run.text;
+          finishRun(run, 'failed', 'The claimed message could not start or return to the queue');
+          releaseComposer(run);
+          return;
+        }
+        // A DIRECT send refused on the race (two tabs sending in the same instant, or a turn
+        // that began between the check and this POST). Nothing executed -- the server
         // refused before spending anything -- so the message goes to the SAME durable queue
         // the busy-branch uses, idempotent under this run's turn id, and runs once the
         // active turn frees the chat's slot.
-        const owner = ownerOf(run);
         const extra = { text: text, idempotency_key: 'reroute-' + (run.turnId || ('t-' + Date.now())) };
         if (run.attachments && run.attachments.length) {
           extra.attachments = run.attachments.map((a) => String(a.id));

@@ -94,17 +94,47 @@ def _wait_for(predicate, timeout: float, what: str):
 @pytest.fixture
 def two_tabs(tmp_path, monkeypatch):
     """A certified daemon with a gated provider, plus two pages opened on the SAME chat."""
+    yield from _two_tabs_with(tmp_path, monkeypatch, {})
+
+
+@pytest.fixture
+def two_tabs_hold_m2(tmp_path, monkeypatch):
+    """The rig with M2's provider call held open (M1 answers immediately)."""
+    yield from _two_tabs_with(tmp_path, monkeypatch, {}, hold_texts=(M2,))
+
+
+@pytest.fixture
+def two_tabs_hold_both(tmp_path, monkeypatch):
+    """The rig with BOTH M1 and M2 held at the provider (for simultaneous-send races)."""
+    yield from _two_tabs_with(tmp_path, monkeypatch, {}, hold_texts=(M1, M2))
+
+
+@pytest.fixture
+def two_tabs_short_lease(tmp_path, monkeypatch):
+    """The rig with a one-second admission lease, so the abandoned-claim window is reachable
+    deterministically through real timing."""
+    yield from _two_tabs_with(tmp_path, monkeypatch, {"VOOL_ADMISSION_LEASE_SECONDS": "1"})
+
+
+def _two_tabs_with(tmp_path, monkeypatch, daemon_env, hold_texts=(M1,)):
+    """The two-tab rig with extra daemon environment (e.g. a short admission lease, which
+    makes the abandoned-claim window reachable deterministically) and a configurable set of
+    messages whose provider calls are held open for the duration of the test."""
     answers = {M1: M1_ANSWER, M2: M2_ANSWER, M3: M3_ANSWER}
     # VOOL_RAW_OLLAMA_API_URL fences the daemon off the operator's real Ollama (core/ollama_endpoint.py
     # records this exact hazard): pointed at a dead port, the auto lane's ollama attempt fails fast
     # and the fallback ladder advances to this rig's scripted provider deterministically --
     # otherwise the test would silently run on whatever local model the machine happens to have up.
     # The `with` block is the provider's real lifecycle: its HTTP server only serves inside it.
-    with _GatedProvider(answers, hold_texts={M1}) as provider:
+    with _GatedProvider(answers, hold_texts=set(hold_texts)) as provider:
         daemon = rig.ServedDaemon(
             tmp_path / "home",
             provider=provider,
-            env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback", "VOOL_RAW_OLLAMA_API_URL": "http://127.0.0.1:1"},
+            env_extra={
+                "VOOL_INSTALL_PROFILE": "hybrid-fallback",
+                "VOOL_RAW_OLLAMA_API_URL": "http://127.0.0.1:1",
+                **daemon_env,
+            },
         )
         daemon.start(timeout=60)
         try:
@@ -604,4 +634,258 @@ def test_a_send_that_races_a_turn_start_is_rerouted_by_the_server(two_tabs):
         if m.get("role") == "assistant" and M2_ANSWER in str(m.get("content") or "")
     ]
     assert len(answered) == 1, f"rerouted message answered {len(answered)} times"
+    assert not errors, errors
+
+
+# ---- correction lane: atomic admission + claimed-message refusal (review 2026-09-30) --------
+
+
+def test_two_claims_from_two_tabs_admit_one_message_at_a_time(two_tabs_hold_m2):
+    """The review's first failure through the real served door: two queued messages, claims
+    from two tabs inside the claim-to-start window (both pages' pumps frozen so neither
+    dispatches yet). The session's admission must let ONE tab hold ONE in_flight row; the
+    other claim is refused. Releasing the winner's pump then dispatches the first message
+    (consuming its own claim) and holds it at its provider -- the second message must not
+    execute until the first completes, then runs exactly once. Queue drains; FIFO holds."""
+    provider, daemon, tab_a, tab_b, session_id, errors = two_tabs_hold_m2
+
+    def calls_for(message):
+        return [call for call in provider.generation_calls() if message in str(call.get("text") or "")]
+
+    _prime_chat(daemon, tab_a, session_id)
+    # Freeze both pages' pump scheduling so both claims sit in the claim-to-start window.
+    for tab in (tab_a, tab_b):
+        tab.evaluate("() => { window.savedPump = pumpQueue; pumpQueue = async function() {}; }")
+    enqueued = tab_a.evaluate(
+        "async ([sid, m2, m3]) => { const a = await queueOp('enqueue', sid, {text: m2});"
+        " const b = await queueOp('enqueue', sid, {text: m3}); return {first: a.item, second: b.item}; }",
+        [session_id, M2, M3],
+    )
+
+    first_claim = tab_a.evaluate("async ([sid]) => (await queueOp('claim', sid, {})).item", [session_id])
+    second_claim = tab_b.evaluate("async ([sid]) => (await queueOp('claim', sid, {})).item", [session_id])
+    assert first_claim and first_claim["queue_item_id"] == enqueued["first"]["queue_item_id"]
+    assert second_claim is None, (
+        "two tabs held different in_flight rows before either turn started: "
+        f"{first_claim['queue_item_id']} and {second_claim and second_claim['queue_item_id']}"
+    )
+    assert _queue_state(daemon, session_id).get("turn_active") is True  # the claim holds the slot
+
+    # The winner dispatches its claim through the page's real turn path (the pump that
+    # claimed in-product would call this same runTurn; the frozen-pump idiom isolates the
+    # dispatch): the POST consumes its own admission and is held at its provider. The later
+    # message must not execute meanwhile.
+    tab_a.evaluate(
+        "([sid, text, qid]) => { runTurn(text, qid, {chatId: sid}); }",
+        [session_id, M2, first_claim["queue_item_id"]],
+    )
+    _wait_for(lambda: len(_turns_for(provider, M2)) >= 1, 45, "the first queued message never reached the provider")
+    time.sleep(1.0)
+    assert not _turns_for(provider, M3), "the second message executed while the first held the chat's slot"
+    assert len(_turns_for(provider, M2)) == 1
+
+    # Restore both pages' real pumps (the freeze isolated the claim window; the in-product
+    # wakeups -- the dispatching page's release pump, the other tab's, the heartbeat -- must
+    # be live again for the second message).
+    for tab in (tab_a, tab_b):
+        tab.evaluate("() => { pumpQueue = window.savedPump; }")
+    provider.release(M2)  # the first message completes; only then may the second run
+    _wait_for(lambda: len(_turns_for(provider, M3)) >= 1, 45, "the second queued message never executed")
+    time.sleep(0.5)
+    assert len(_turns_for(provider, M2)) == 1 and len(_turns_for(provider, M3)) == 1, (
+        f"messages did not execute exactly once: m2={len(_turns_for(provider, M2))} m3={len(_turns_for(provider, M3))}"
+    )
+    _wait_for(lambda: _queue_state(daemon, session_id).get("queue") == [], 20, "the queue never drained")
+    assert not errors, errors
+
+
+def test_simultaneous_direct_sends_admit_exactly_one_turn(two_tabs_hold_both):
+    """The review's source-level finding through the real door: two tabs POST direct turns in
+    the same instant (both slot reads answered by the wrapper seam with the stale FREE the
+    real race produces). The atomic admission must let exactly ONE turn execute; the other
+    POST receives the typed 409 and its message reroutes into the queue, executing once
+    after the blocker completes. One provider execution per message; queue drains."""
+    provider, daemon, tab_a, tab_b, session_id, errors = two_tabs_hold_both
+
+    def calls_for(message):
+        return [call for call in provider.generation_calls() if message in str(call.get("text") or "")]
+
+    _prime_chat(daemon, tab_a, session_id)
+    # Both tabs read the slot as free exactly once (the value the real race returns when the
+    # reads precede either POST) and then send -- the server is the only arbiter left.
+    for tab in (tab_a, tab_b):
+        tab.evaluate("""() => {
+            const original = chatSlotBusyOnServer;
+            let staleReadsLeft = 1;
+            chatSlotBusyOnServer = async function(chatId) {
+                if (staleReadsLeft > 0) { staleReadsLeft -= 1; return false; }
+                return original(chatId);
+            };
+        }""")
+    tab_a.locator("#input").fill(M1)
+    tab_b.locator("#input").fill(M2)
+    tab_a.locator("#send").click()
+    tab_b.locator("#send").click()
+
+    # Exactly one of the two messages executes (held at its provider); the other was refused
+    # and rerouted into the durable queue as ONE new row.
+    _wait_for(
+        lambda: len(calls_for(M1)) + len(calls_for(M2)) >= 1, 45, "neither simultaneous send reached the provider"
+    )
+    time.sleep(2.0)  # a second admitted turn would surface as the other message executing
+    executed = [m for m in (M1, M2) if calls_for(m)]
+    assert len(executed) == 1, f"both simultaneous sends executed: {[m[:20] for m in executed]}"
+    refused_text = M2 if executed[0] == M1 else M1
+    rows = _wait_for(
+        lambda: (
+            [i for i in _queue_state(daemon, session_id).get("queue") or [] if i.get("status") == "pending"] or None
+        ),
+        20,
+        "the refused send never rerouted into the queue",
+    )
+    assert len(rows) == 1 and rows[0]["payload"]["text"] == refused_text, rows
+    assert not calls_for(refused_text), "the refused turn reached the provider anyway"
+
+    provider.release(executed[0])
+    _wait_for(lambda: len(calls_for(refused_text)) >= 1, 45, "the refused message never executed after the blocker")
+    provider.release(refused_text)
+    time.sleep(0.5)
+    assert len(calls_for(refused_text)) == 1, "the refused message executed more than once"
+    _wait_for(lambda: _queue_state(daemon, session_id).get("queue") == [], 20, "the queue never drained")
+    assert not errors, errors
+
+
+def test_a_refused_claimed_message_returns_as_the_original_row(two_tabs_short_lease):
+    """The review's second failure through the real door. With a one-second admission lease,
+    the abandoned-claim window is reachable deterministically: tab B claims M2 and does not
+    dispatch; the lease lapses; tab A starts a genuinely held turn; tab B's real runTurn for
+    the claimed item receives the typed 409 and must return the ORIGINAL row (same id, seq 1,
+    pending) through the ownership-checked release -- no duplicate row, no reordering. After
+    the blocker completes, M2 then M3 execute exactly once, in order, and the queue drains."""
+    provider, daemon, tab_a, tab_b, session_id, errors = two_tabs_short_lease
+
+    def calls_for(message):
+        return [call for call in provider.generation_calls() if message in str(call.get("text") or "")]
+
+    _prime_chat(daemon, tab_a, session_id)
+    tab_b.evaluate("() => { window.savedPump = pumpQueue; pumpQueue = async function() {}; }")
+    original = tab_b.evaluate(
+        "async ([sid, m2, m3]) => { const a = await queueOp('enqueue', sid, {text: m2});"
+        " await queueOp('enqueue', sid, {text: m3}); return {enqueued: a.item, claimed: (await queueOp('claim', sid, {})).item}; }",
+        [session_id, M2, M3],
+    )
+    assert original["claimed"]["queue_item_id"] == original["enqueued"]["queue_item_id"]
+    time.sleep(1.6)  # the abandoned claim's admission lease (1s) lapses: the chat is free
+
+    # Another tab takes the slot with a real, provider-held turn.
+    tab_a.locator("#input").fill(M1)
+    tab_a.locator("#send").click()
+    _wait_for(lambda: len(calls_for(M1)) >= 1, 30, "the blocker turn never reached the provider")
+
+    # The claimed message's real dispatch is refused and must return as the ORIGINAL row.
+    tab_b.evaluate(
+        "async ([sid, text, qid]) => { await runTurn(text, qid, {chatId: sid}); }",
+        [session_id, M2, original["claimed"]["queue_item_id"]],
+    )
+    state = _queue_state(daemon, session_id)
+    rows = {(r["seq"], r["status"]): r for r in state["queue"]}
+    original_row = next(r for r in state["queue"] if r["queue_item_id"] == original["claimed"]["queue_item_id"])
+    assert original_row["status"] == "pending", f"409 stranded the original in_flight: {state['queue']}"
+    assert original_row["seq"] == 1, original_row
+    assert len(state["queue"]) == 2, f"409 created an extra queue row: {state['queue']}"
+    assert [r["payload"]["text"] for r in sorted(state["queue"], key=lambda r: r["seq"])] == [M2, M3]
+    assert not _turns_for(provider, M2), "the refused claimed message executed anyway"
+
+    tab_b.evaluate("() => { pumpQueue = window.savedPump; }")  # the real wakeups come back
+    provider.release(M1)
+    _wait_for(lambda: len(_turns_for(provider, M2)) == 1, 45, "the original M2 never executed after the blocker")
+    _wait_for(lambda: len(_turns_for(provider, M3)) == 1, 45, "M3 never executed after M2")
+    time.sleep(0.5)
+    assert len(_turns_for(provider, M2)) == 1 and len(_turns_for(provider, M3)) == 1
+    _wait_for(lambda: _queue_state(daemon, session_id).get("queue") == [], 20, "the queue never drained")
+    # FIFO held: M2's answer is in the history exactly once, M3's after it.
+    messages = _history_rows(daemon, session_id)
+    answers = [str(m.get("content") or "") for m in messages if m.get("role") == "assistant"]
+    assert any(M2_ANSWER in a for a in answers), answers[-3:]
+    assert any(M3_ANSWER in a for a in answers), answers[-3:]
+    assert not errors, errors
+
+
+def _turns_for(provider, message):
+    """Provider calls whose LAST user message is exactly `message` -- the turn dispatched FOR
+    that message, never a later turn that merely carries it in prompt history."""
+    wanted = message.strip()
+    turns = []
+    for call in provider.generation_calls():
+        messages = call.get("messages") or []
+        last_user = ""
+        for entry in reversed(messages):
+            if isinstance(entry, dict) and entry.get("role") == "user":
+                last_user = str(entry.get("content") or "").strip()
+                break
+        if last_user == wanted:
+            turns.append(call)
+    return turns
+
+
+def _history_rows(daemon, session_id):
+    with urlopen(daemon.base_url + "/api/chat/history?session=" + session_id, timeout=3) as response:
+        return json.load(response).get("messages") or []
+
+
+def test_opening_a_chat_pumps_its_pending_queue(two_tabs):
+    """The handover's corrected statement, proven: OPENING a chat (the sidebar click through
+    openSession) is itself a wakeup for that chat's queue -- a message another tab left
+    pending executes on the open, without waiting for the heartbeat's slower sweep."""
+    provider, daemon, tab_a, tab_b, session_id, errors = two_tabs
+
+    def calls_for(message):
+        return [call for call in provider.generation_calls() if message in str(call.get("text") or "")]
+
+    _prime_chat(daemon, tab_a, session_id)
+    # A third page on the same chat queues M2 behind tab A's held turn, then closes.
+    tab_c = tab_a.context.new_page()
+    tab_c.on("pageerror", lambda error: errors.append(str(error)))
+    tab_c.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+    tab_c.wait_for_selector("#input", timeout=5000)
+    _wait_for(
+        lambda: tab_c.evaluate("displayedChat") == session_id, 10, "the third page never settled on the same chat"
+    )
+    tab_a.locator("#input").fill(M1)
+    tab_a.locator("#send").click()
+    _wait_for(lambda: len(calls_for(M1)) >= 1, 30, "the held turn never reached the provider")
+    tab_c.locator("#input").fill(M2)
+    tab_c.locator("#send").click()
+    _wait_for(
+        lambda: [i for i in _queue_state(daemon, session_id).get("queue") or [] if i.get("status") == "pending"],
+        15,
+        "M2 never queued",
+    )
+
+    # The turn-owning tab and the enqueueing tab both close; the worker finishes server-side.
+    tab_c.close()
+    tab_a.close()
+    provider.release(M1)
+    _wait_for(
+        lambda: not _queue_state(daemon, session_id).get("turn_active"), 45, "the closed tab's worker never finished"
+    )
+
+    # Tab B sits on a DIFFERENT chat with no knowledge of the pending item (its heartbeat
+    # sweep has nothing to pump); opening the target chat through the sidebar must pump.
+    tab_b.locator("#newChat").click()
+    other = tab_b.evaluate("displayedChat")
+    assert other != session_id
+    tab_b.evaluate("lastQueueItemsByChat.delete(displayedChat)")  # no stale knowledge of either chat
+    # Neutralize the heartbeat sweep (page instrumentation, the frozen tests' own idiom): the
+    # OPEN must be the only wakeup left, so the execution proof lands on openSession's pump.
+    tab_b.evaluate("() => { window.savedSweep = pumpKnownQueuedChats; pumpKnownQueuedChats = function() {}; }")
+    assert not calls_for(M2)
+    clicked = time.monotonic()
+    # Two chats exist; the current one's row is `.active` -- the target chat is the other row,
+    # and its title click is the real open action (openSession).
+    tab_b.locator(".session:not(.active) .s-title").first.click(timeout=5000)
+    _wait_for(lambda: len(calls_for(M2)) >= 1, 6, "opening the chat never pumped its pending message")
+    elapsed = time.monotonic() - clicked
+    assert elapsed < 4.0, f"the open did not pump (took {elapsed:.1f}s -- the heartbeat's sweep, not the open)"
+    _wait_for(lambda: _queue_state(daemon, session_id).get("queue") == [], 20, "the queue never drained")
     assert not errors, errors

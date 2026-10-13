@@ -4869,7 +4869,21 @@ def _dispatch_post_inner(
                 return apply_runtime_headers(json_response(400, {"error": "cancel requires queue_item_id"}), runtime)
             cancelled = cancel_queue_item(qid, session_id=q_session)
             return apply_runtime_headers(json_response(200, {"cancelled": cancelled}), runtime)
-        return apply_runtime_headers(json_response(400, {"error": "op must be one of enqueue|claim|complete|cancel"}), runtime)
+        if op == "release":
+            # Return a CLAIMED, still-unstarted message to its pending FIFO position. The
+            # owning operation for a claimed dispatch refused before execution (the typed
+            # chat_turn_active 409): the ORIGINAL row keeps its identity, payload and queue
+            # position -- answered None when this caller does not own the claim.
+            from core.runtime_continuity import release_claimed_queue_item
+
+            qid = str(body.get("queue_item_id") or "").strip()
+            if not qid:
+                return apply_runtime_headers(json_response(400, {"error": "release requires queue_item_id"}), runtime)
+            released = release_claimed_queue_item(qid, session_id=q_session)
+            return apply_runtime_headers(
+                json_response(200, {"released": released is not None, "item": released}), runtime
+            )
+        return apply_runtime_headers(json_response(400, {"error": "op must be one of enqueue|claim|complete|cancel|release"}), runtime)
 
     if normalized_path == "/api/settings/credentials":
         # GENERATED_ADAPTER: settings.credentials.set owns the action; the verbatim
@@ -7068,12 +7082,17 @@ def _dispatch_post_inner(
         # at every moment (stopping work must never wait for an idle chat), and non-owner-local
         # callers keep their existing remote API semantics -- the queue door they would need is
         # loopback-only anyway. Checked before anything is spent (attachments, modes, gates).
+        # The precheck is claim-aware: a queued dispatch presenting its OWN claim's
+        # queue_item_id passes (the atomic gate below consumes the claim) -- a session's
+        # reservation must never reject the very dispatch it was taken for.
         from core.vool_agent_brake import is_brake_command
 
         if owner_local and not is_brake_command(user_text):
-            from core.runtime_continuity import chat_turn_active as _chat_turn_active
+            from core.runtime_continuity import chat_admission_free_for
 
-            if _chat_turn_active(session_id):
+            if not chat_admission_free_for(
+                session_id, queue_item_id=str(body.get("queue_item_id") or "").strip()[:200]
+            ):
                 return apply_runtime_headers(
                     json_response(
                         409,
@@ -7286,11 +7305,44 @@ def _dispatch_post_inner(
         if operating_mode is not None:
             source_context["bypass_token"] = str(body.get("bypass_token") or "").strip()
         source_context["runtime_session_id"] = session_id
+        # ---- Atomic admission: the session's one ordinary-turn slot, taken here -----------
+        # The earlier read-only 409 is a fast fail; THIS is the law. It closes the two windows
+        # the live-turn registry cannot see (a claim not yet dispatched, an accepted POST not
+        # yet pulled): admit_chat_turn atomically refuses a session whose slot is taken and
+        # lets a queued dispatch consume its OWN claim by presenting the claim's queue_item_id
+        # (any other presenter is refused). Placement matters: after the typed mode gates,
+        # before attachments are spent -- the two refusal paths below this line each release
+        # the admission they took, and the dispatch lanes hand it to the worker's lifetime
+        # (released at its unregister) or, when the client never pulls the stream, by the
+        # reservation's bounded lease.
+        from core.runtime_continuity import admit_chat_turn
+
+        _admit_turn_id = str(body.get("turn_id") or "").strip()[:80]
+        _admission = admit_chat_turn(
+            session_id,
+            _admit_turn_id,
+            queue_item_id=str(body.get("queue_item_id") or "").strip()[:200],
+        )
+        if not _admission.get("admitted"):
+            return apply_runtime_headers(
+                json_response(
+                    409,
+                    {
+                        "error": "chat_turn_active",
+                        "detail": "This chat is already running a turn. The message was not started.",
+                    },
+                ),
+                runtime,
+            )
         # ---- Attachments: spend what THIS chat staged, on THIS turn, and hand it over as bounded
         # evidence. The ids are the only thing a client may name; the bytes, the kinds and the
         # text all come from the authority. A client-stamped turn id or delivery record is a forgery
         # and is dropped before anything is read.
         from core import chat_attachments as _chat_attachments
+        from core.runtime_continuity import release_chat_turn_admission as _release_admission
+
+        def _release_turn_admission() -> None:
+            _release_admission(session_id, _admit_turn_id)
 
         source_context.pop("attachment_turn_id", None)
         source_context.pop("attachment_delivery", None)
@@ -7318,6 +7370,7 @@ def _dispatch_post_inner(
                     details={"code": exc.code},
                     turn_id=_attachment_turn,
                 )
+                _release_turn_admission()  # refused before dispatch: the slot was never used
                 return apply_runtime_headers(
                     json_response(422, {"error": "attachment_rejected", "code": exc.code, "message": exc.message}),
                     runtime,
@@ -7432,6 +7485,10 @@ def _dispatch_post_inner(
         # not topic matchers, and stay; every other message now reaches the ordinary lanes.
         grounded_result = update_result
         if grounded_result is not None:
+            # The grounded lane (brake/update exact commands and their instant answers) is not
+            # an ordinary turn and never registers a worker: release the admission this request
+            # took so the chat's slot is free the moment it answers.
+            _release_turn_admission()
             result = apply_exact_response_control(dict(grounded_result), user_text)
             # A7 product decision (X-FAST closure): a route that emits semantic
             # assistant answer bytes to the user MUST converge through A2
@@ -7584,10 +7641,12 @@ def _dispatch_post_inner(
             # the daemon log recorded nothing, so the flake looked environmental for a day.
             # The traceback is operator-side only; the client still gets the safe text.
             logging.getLogger("vool.api").exception("served chat turn failed (session=%s)", session_id)
+            _release_turn_admission()  # the turn is over, however it ended: free the slot
             return apply_runtime_headers(json_response(500, {"error": safe_error_text(exc)}), runtime)
         finally:
             if _buf_cancel_turn:
                 _buf_unregister_turn(session_id, _buf_cancel_turn)
+                _release_turn_admission()  # the buffered lane's admission ends with its registration
             # The buffered lane's turn is over here, answered or failed: release its attachments.
             if _attachment_turn:
                 _release_turn_attachments(session_id, _attachment_turn)
