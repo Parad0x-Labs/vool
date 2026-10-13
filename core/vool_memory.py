@@ -974,8 +974,10 @@ class VoolMemory:
                     semantic[node.node_id] = sem
 
         lexical = {nid: v for nid, v in (bm25 or {}).items() if v > 0.0}
-        sem_rank = _rank_map(semantic)
-        lex_rank = _rank_map(lexical)
+        # newest first on a tie, as the recency law ranks a restatement above the value it replaced
+        tie_order = {node.node_id: (-float(node.timestamp or 0.0), str(node.content or "")) for node in nodes}
+        sem_rank = _rank_map(semantic, tie_order)
+        lex_rank = _rank_map(lexical, tie_order)
         max_fused = (self._W_LEXICAL + self._W_SEMANTIC) / (self._RRF_K + 1)
 
         scored: list[tuple[MemoryNode, float, str]] = []
@@ -3095,9 +3097,12 @@ def _backends_comparable(a: str, b: str) -> bool:
     return str(a or "").strip() == str(b or "").strip()
 
 
-def _rank_map(scores: dict[str, float]) -> dict[str, int]:
-    """Dense rank (0 = best) over a score dict; deterministic ties by node id."""
-    ordered = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
+def _rank_map(scores: dict[str, float], tie_order: dict[str, tuple[float, str]] | None = None) -> dict[str, int]:
+    """Dense rank (0 = best) over a score dict. Equal scores break by *tie_order* (newest first, then content),
+    then node id. A node id hashes its ingest wall-clock, so ties broken by id alone ordered the same history
+    differently on every ingest (tests/test_rank_ties_follow_insertion_order.py)."""
+    tie_order = tie_order or {}
+    ordered = sorted(scores.items(), key=lambda kv: (-kv[1], *tie_order.get(kv[0], (0.0, "")), kv[0]))
     return {nid: rank for rank, (nid, _value) in enumerate(ordered)}
 
 
