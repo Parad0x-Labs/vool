@@ -887,6 +887,9 @@ class _WindowApi:
             return {"ok": True, "mode": "desktop"}
         except Exception as exc:
             _log(f"desktop companion unavailable ({exc!r})")
+            # A window created before the failure must not stay up beside the in-app pet.
+            with contextlib.suppress(Exception):
+                self._hide_pet_window()
             return {"ok": False, "error": type(exc).__name__}
 
     def sync_companion(self, payload: object = None) -> dict:

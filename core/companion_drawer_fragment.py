@@ -25,6 +25,9 @@ _DRAWER_CSS = """
 .vcd-seg button{flex:1;padding:5px;border-radius:6px;font-size:12px;color:var(--muted,#9aa1af);background:none;border:none;cursor:pointer}
 .vcd-seg button.vcd-on{background:var(--panel,#161a21);color:var(--ink,#e8eaf0)}
 .vcd-seg button:disabled{opacity:.45;cursor:default}
+.vcd-preview{display:flex;justify-content:center;align-items:center;background:var(--field,#1d2129);
+  border:1px solid var(--border,#262b35);border-radius:10px;padding:10px;margin-bottom:14px}
+.vcd-preview canvas{width:120px;height:120px;image-rendering:pixelated}
 .vcd-note{font-size:11px;color:var(--muted,#9aa1af);margin-top:12px;line-height:1.5}
 .vcd-card{display:flex;gap:10px;align-items:center;background:var(--field,#1d2129);border:1px solid var(--border,#262b35);
   border-radius:9px;padding:8px 10px;margin-bottom:6px;width:100%;cursor:pointer;color:var(--ink,#e8eaf0);text-align:left;font:inherit;font-size:12.5px}
@@ -43,6 +46,7 @@ if (window.VoolCompanionDrawer) return;
 
 var drawer = null;
 var returnFocus = null;
+var previewFrame = null, previewStart = 0;
 
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){
@@ -59,7 +63,10 @@ function petTab(){
   try { pos = JSON.parse(localStorage.getItem('vool_ninja_pos_v1') || '{}') || {}; } catch (e) {}
   var active = pos.personality || 'spark';
   var activePack = pos.pack || 'default';
-  var html = '<div class="vcd-field"><label>Pet</label><div class="vcd-seg" id="vcdPetOnOff">' +
+  /* The drawer covers the right side of the window, where the docked pet lives, so the
+     choice is previewed HERE, live, instead of on a pet the drawer hides. */
+  var html = '<div class="vcd-preview"><canvas id="vcdPreview" width="48" height="48" role="img" aria-label="Pet preview"></canvas></div>' +
+    '<div class="vcd-field"><label>Pet</label><div class="vcd-seg" id="vcdPetOnOff">' +
     '<button type="button" data-pet="on"' + (pos.hidden ? '' : ' class="vcd-on"') + '>On</button>' +
     '<button type="button" data-pet="off"' + (pos.hidden ? ' class="vcd-on"' : '') + '>Off</button></div></div>' +
     '<div class="vcd-field"><label>Character</label>';
@@ -83,6 +90,36 @@ function renderTab(){
   var body = drawer.querySelector('.vcd-body');
   body.innerHTML = petTab();
   wireTab(body);
+  startPreview();
+}
+
+function stopPreview(){
+  if (previewFrame != null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(previewFrame);
+  previewFrame = null;
+}
+function paintPreview(now){
+  previewFrame = null;
+  var canvas = drawer && isOpen() ? drawer.querySelector('#vcdPreview') : null;
+  var world = window.VoolCompanionWorld || null;
+  if (!canvas || !world || !world.draw || !canvas.getContext) return;
+  var pos = {};
+  try { pos = JSON.parse(localStorage.getItem('vool_ninja_pos_v1') || '{}') || {}; } catch (e) {}
+  var reduced = pos.motion === 'reduced' || (pos.motion !== 'allow' && window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var elapsed = Math.max(0, (Number(now) || 0) - previewStart);
+  var character = pos.personality || 'spark';
+  var frame = world.frameAt ? world.frameAt(character, 'idle', elapsed, !!reduced) : 0;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.imageSmoothingEnabled = false;
+  world.draw(ctx, 'idle', frame, {character: character, pack: pos.pack || 'default', ground: false,
+    reduced: !!reduced, elapsed: elapsed});
+  if (typeof requestAnimationFrame === 'function') previewFrame = requestAnimationFrame(paintPreview);
+}
+function startPreview(){
+  stopPreview();
+  previewStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  paintPreview(previewStart);
 }
 
 function wireTab(body){
@@ -145,6 +182,7 @@ function openDrawer(){
   return true;
 }
 function closeDrawer(){
+  stopPreview();
   if (drawer) { drawer.classList.remove('vcd-show'); drawer.hidden = true; }
   if (returnFocus && returnFocus.isConnected) returnFocus.focus();
 }
