@@ -58,7 +58,7 @@ uninstall are in the [install guide](../INSTALL.md#linux-x86_64-tarball).
 
 ### After install
 
-Before a local model can answer, open **Settings → Local models** and press **Certify** for it once. It runs a short check on your machine; a clearer prompt for it comes in 0.7.1.
+Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. It runs a short check on your machine; a clearer prompt for it comes in 0.7.1.
 
 Nothing goes online on a fresh install until you turn it on. Update checks stay off until
 you allow them. Updates are signed and checked before they install, and you can roll one
@@ -97,6 +97,8 @@ installs the Intel builds of every dependency. Two limits are specific to Intel:
 * **Local models run on the CPU only.** Local model runners have no GPU acceleration for Intel graphics,
   so local answers are several times slower than on Apple silicon. On an 8 GB Mac, use a
   cloud model for chat; on 16 GB, the installer's default small local model works but is slow.
+
+On Intel Macs, local models run on the CPU and may be too slow to pass the one-time Certify check or to answer in time, so use a cloud model there for now. We tested the Intel build under Rosetta on an Apple Silicon Mac, not yet on an Intel Mac.
 
 Intel Macs have their own download, `VOOL-0.7.0-beta-macos-x86_64.dmg`. The Apple Silicon
 download does not run on Intel and says so at launch.

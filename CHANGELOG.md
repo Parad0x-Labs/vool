@@ -91,7 +91,8 @@ Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
 - X is drafting plus guided read-only setup; trending is hidden.
 - The macOS apps are not notarized.
 - No in-app update is offered for 0.7.0 itself; one-press updates start with 0.7.1.
-- Before a local model can answer, open Settings > **Local models** and press **Certify** for it once. A clearer prompt comes in 0.7.1.
+- Before a local model can answer, open Settings > Models & Providers > **Local models** and press **Certify** for it once. A clearer prompt comes in 0.7.1.
+- On Intel Macs, local models run on the CPU and may be too slow to pass the one-time Certify check or to answer in time, so use a cloud model there for now. We tested the Intel build under Rosetta on an Apple Silicon Mac, not yet on an Intel Mac.
 - Saying "don't record this" does not stop a chat from being saved yet. Ask VOOL to forget it afterwards.
 - Dragging the pet out of the VOOL window does not move it to the desktop. Use right-click > **Move to desktop**, or the button in Settings. A fix is planned for 0.7.1.
 

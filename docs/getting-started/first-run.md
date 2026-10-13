@@ -16,7 +16,7 @@ anywhere during setup.
 3. **The mode indicator appears.** It reads `LOCAL` or `CLOUD` and reflects the model
    currently selected.
 4. **Certify a local model once.** Before a local model can answer, open
-   **Settings → Local models** and press **Certify** for it. This runs a short check on
+   **Settings → Models & Providers → Local models** and press **Certify** for it. This runs a short check on
    your machine. In 0.7.0 VOOL does not prompt you for this; a clearer prompt comes in 0.7.1.
 
 ## What VOOL does not do at first run

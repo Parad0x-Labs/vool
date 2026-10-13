@@ -22,7 +22,7 @@ model and the mode indicator changes to `LOCAL`.
 
 ## Certify it once
 
-A local model writes answers only after it is certified. Open **Settings → Local models**,
+A local model writes answers only after it is certified. Open **Settings → Models & Providers → Local models**,
 register the model, then choose **Certify**. Certifying runs a short tool check on your
 machine; nothing is downloaded and nobody is contacted. Until a model passes, VOOL does not
 let it write final answers.

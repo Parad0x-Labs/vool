@@ -26,6 +26,8 @@ Visi failai yra [v0.7.0-beta leidime](https://github.com/Parad0x-Labs/vool/relea
 
 Nežinote, koks jūsų Mac? Apple meniu pasirinkite **About This Mac**: „Apple M…" reiškia Apple silicon, „Intel" reiškia Intel.
 
+Intel Mac kompiuteriuose vietiniai modeliai veikia tik procesoriuje ir gali būti per lėti, kad praeitų vienkartinį Certify patikrinimą ar spėtų atsakyti laiku, todėl kol kas ten naudokite debesų modelį. Intel versiją išbandėme per Rosetta Apple silicon kompiuteryje, Intel Mac kompiuteryje dar ne.
+
 ## Pirmas atidarymas macOS
 
 1. Atidarykite DMG ir nutempkite **VOOL** į `Applications`.
@@ -36,7 +38,7 @@ macOS 14 sistemoje taip pat galite spustelėti VOOL laikydami Control ir pasirin
 
 ## Vietiniai modeliai
 
-Prieš naudodami vietinį modelį, atidarykite **Settings → Local models** ir vieną kartą paspauskite **Certify**. 0.7.0 versija apie tai nepraneša; aiškesnis raginimas bus 0.7.1 versijoje.
+Prieš naudodami vietinį modelį, atidarykite **Settings → Models & Providers → Local models** ir vieną kartą paspauskite **Certify**. 0.7.0 versija apie tai nepraneša; aiškesnis raginimas bus 0.7.1 versijoje.
 
 ## Linux
 

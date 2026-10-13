@@ -26,6 +26,8 @@ description: 在 macOS（Apple 芯片或 Intel）或 Linux 上下载并安装 VO
 
 不确定是哪种 Mac？点击苹果菜单 → **关于本机**。显示 "Apple M…" 即为 Apple 芯片，显示 "Intel" 即为 Intel。
 
+在 Intel Mac 上，本地模型只在 CPU 上运行，可能太慢，无法通过一次性的 Certify 检查或及时回答，因此目前请在 Intel Mac 上使用云端模型。Intel 版本是在 Apple 芯片 Mac 上通过 Rosetta 测试的，尚未在 Intel Mac 上测试。
+
 ## macOS 首次打开
 
 1. 打开 DMG，将 **VOOL** 拖入 `Applications`。
@@ -36,7 +38,7 @@ description: 在 macOS（Apple 芯片或 Intel）或 Linux 上下载并安装 VO
 
 ## 本地模型
 
-使用本地模型前，请打开**设置 → Local models**，为该模型点击一次 **Certify**（认证）。0.7.0 不会主动提示这一步；0.7.1 将提供更清晰的提示。
+使用本地模型前，请打开**设置 → Models & Providers → Local models**，为该模型点击一次 **Certify**（认证）。0.7.0 不会主动提示这一步；0.7.1 将提供更清晰的提示。
 
 ## Linux
 
