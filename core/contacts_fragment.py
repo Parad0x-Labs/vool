@@ -130,9 +130,9 @@ _JS = r"""
     var modal = el('div', 'modal vc-modal'); modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', 'vcTitle');
     var head = el('div', 'modal-head'); var title = el('span', null, CT('contacts.title', 'Contacts')); title.id = 'vcTitle'; head.appendChild(title);
     var headActions = el('div', 'vc-head-actions');
-    var protectBtn = button(CT('contacts.protection', 'Protection'), '', function() { renderProtection(); }); protectBtn.id = 'vcProtect'; headActions.appendChild(protectBtn);
-    var importBtn = button(CT('contacts.import', 'Import'), '', function() { renderImport(); }); importBtn.id = 'vcImport'; headActions.appendChild(importBtn);
-    var add = button(CT('contacts.add', 'Add contact'), 'vc-primary', function() { renderForm(null); }); add.id = 'vcAdd'; headActions.appendChild(add);
+    var protectBtn = button(CT('contacts.protection', 'Protection'), '', function() { say(''); renderProtection(); }); protectBtn.id = 'vcProtect'; headActions.appendChild(protectBtn);
+    var importBtn = button(CT('contacts.import', 'Import'), '', function() { say(''); renderImport(); }); importBtn.id = 'vcImport'; headActions.appendChild(importBtn);
+    var add = button(CT('contacts.add', 'Add contact'), 'vc-primary', function() { say(''); renderForm(null); }); add.id = 'vcAdd'; headActions.appendChild(add);
     var x = el('button', 'modal-x', '×'); x.type = 'button'; x.setAttribute('aria-label', CT('contacts.close_aria', 'Close contacts')); x.addEventListener('click', close); headActions.appendChild(x);
     head.appendChild(headActions); modal.appendChild(head);
     modal.appendChild(el('p', 'set-help vc-help', CT('contacts.help', 'People and services you save once. Email drafts, payment proposals and invitations use the exact entry you pick; nothing here sends or pays. Changing a saved contact asks for your PIN or password.')));
@@ -192,7 +192,11 @@ _JS = r"""
   function renderEmptyDetail() {
     if (!detailEl) return;
     state.view = ''; detailEl.textContent = '';
-    detailEl.appendChild(el('div', 'vc-empty', state.contacts.length ? CT('contacts.choose_hint', 'Choose a contact to see every saved entry.') : CT('contacts.empty', 'No contacts yet. Add one here, or ask VOOL in chat to save someone.')));
+    if (state.contacts.length) { detailEl.appendChild(el('div', 'vc-empty', CT('contacts.choose_hint', 'Choose a contact to see every saved entry.'))); return; }
+    // The list already says nothing is saved: this side offers the next step instead of saying it twice.
+    var start = el('div', 'vc-empty');
+    start.appendChild(button(CT('contacts.add', 'Add contact'), 'vc-primary', function() { say(''); renderForm(null); }));
+    detailEl.appendChild(start);
   }
 
   function renderList() {
@@ -303,7 +307,7 @@ _JS = r"""
     if (!(contact.endpoints || []).length) list.appendChild(el('div', 'vc-empty', CT('contacts.no_entries', 'No entries saved.')));
     detailEl.appendChild(list);
     var bar = el('div', 'vc-actions');
-    bar.appendChild(button('Edit', '', function() { renderForm(contact); }));
+    bar.appendChild(button('Edit', '', function() { say(''); renderForm(contact); }));
     bar.appendChild(button('Delete contact', 'vc-danger', function() { confirmDelete(contact); }));
     detailEl.appendChild(bar);
   }
@@ -337,6 +341,13 @@ _JS = r"""
     if (e) kind.disabled = true;
     var value = field(cell(), 'Address or identity', 'input', e ? e.value : '', 'vcValue' + rowSeq);
     value.spellcheck = false; value.autocomplete = 'off';
+    var valueNote = el('div', 'vc-note vc-warn'); valueNote.hidden = true; value.parentNode.appendChild(valueNote);
+    var checkValue = function() {
+      var v = value.value.trim();
+      var bad = kind.value === 'email' && v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+      valueNote.textContent = bad ? 'That doesn’t look like an email address.' : ''; valueNote.hidden = !bad;
+    };
+    value.addEventListener('blur', checkValue); value.addEventListener('input', function() { if (!valueNote.hidden) checkValue(); });
     var label = field(cell(), 'Label (work, personal, …)', 'input', e ? e.label : '', 'vcLabel' + rowSeq);
     var networkCell = cell();
     var networks = (options.networks || []).map(function(n) { return [n.network, n.display_name + (n.environment === 'testnet' ? ' (test network)' : '')]; });
@@ -350,7 +361,7 @@ _JS = r"""
       networkCell.hidden = kind.value !== 'wallet';
       channelCell.hidden = kind.value !== 'messaging'; accountCell.hidden = kind.value !== 'messaging';
     };
-    kind.addEventListener('change', sync); sync();
+    kind.addEventListener('change', function() { sync(); checkValue(); }); sync();
     row.appendChild(grid);
     var remove = button(e ? 'Remove this entry' : 'Discard', 'vc-danger', function() {
       if (!e) { row.remove(); return; }
@@ -382,7 +393,14 @@ _JS = r"""
     var existing = contact ? (contact.endpoints || []) : [];
     existing.forEach(function(e) { rows.appendChild(endpointRow(e)); });
     if (!existing.length) rows.appendChild(endpointRow(null));
-    var addEntry = button('Add an entry', '', function() { var r = endpointRow(null); rows.appendChild(r); });
+    // "Discard" on the only entry would leave a form with no entries: show it only once there are two.
+    var syncDiscard = function() {
+      var only = rows.children.length <= 1;
+      Array.prototype.forEach.call(rows.children, function(r) { if (!r.dataset.endpointId) { var d = r.querySelector('.vc-danger'); if (d) d.style.display = only ? 'none' : ''; } });
+    };
+    rows.addEventListener('click', function() { setTimeout(syncDiscard, 0); });
+    syncDiscard();
+    var addEntry = button('Add an entry', '', function() { var r = endpointRow(null); rows.appendChild(r); syncDiscard(); });
     form.appendChild(addEntry);
     var err = el('div', 'vc-status'); err.setAttribute('role', 'alert'); form.appendChild(err);
     var bar = el('div', 'vc-actions');
@@ -556,8 +574,8 @@ _JS = r"""
     var bar = el('div', 'vc-actions');
     var cancel = button('Cancel this change', 'vc-danger', function() { cancelOperation(op); }); cancel.id = 'vcCancelChange';
     if (!cred.enrolled) {
-      form.appendChild(el('div', 'vc-note vc-warn', 'Set up a PIN or password first (' + (cred.setup_path || 'Protection') + '). Until then this change waits and nothing is changed.'));
-      bar.appendChild(button('Set up protection', '', function() { renderProtection(); })); bar.appendChild(cancel); form.appendChild(bar);
+      form.appendChild(el('div', 'vc-note vc-warn', 'Set up a PIN or password first with the button below. Until then this change waits and nothing is changed.'));
+      bar.appendChild(button('Set up protection', '', function() { say(''); renderProtection(); })); bar.appendChild(cancel); form.appendChild(bar);
       return form;
     }
     var pin = secretField(form, cred.kind === 'password' ? 'Your password' : 'Your PIN', 'vcPin', cred.kind !== 'password');
@@ -646,6 +664,8 @@ _JS = r"""
     var recovery = mode === 'Reset' ? field(form, 'Recovery code', 'input', '', 'vcRecoveryInput') : null;
     if (recovery) { recovery.autocomplete = 'off'; recovery.spellcheck = false; }
     var pair = secretPair(form, mode === 'Enroll' ? 'New PIN or password' : 'New PIN or password', 'vcNewSecret' + mode, false);
+    var digits = cred.pin_digits || [6, 12], chars = cred.password_chars || [10, 128];
+    form.appendChild(el('div', 'vc-note', 'A PIN is ' + digits[0] + ' to ' + digits[1] + ' digits, and not one repeated digit or a run such as 123456. A password is ' + chars[0] + ' to ' + chars[1] + ' characters.'));
     var err = el('div', 'vc-status'); err.setAttribute('role', 'alert'); form.appendChild(err);
     var go = el('button', 'vc-btn' + (mode === 'Reset' ? '' : ' vc-primary'), mode === 'Enroll' ? 'Set up' : mode === 'Change' ? 'Change' : 'Reset'); go.type = 'submit'; go.id = 'vcProtectGo' + mode;
     var bar = el('div', 'vc-ep-actions'); bar.appendChild(go); form.appendChild(bar);
@@ -655,7 +675,7 @@ _JS = r"""
       pair[0].value = ''; pair[1].value = ''; if (current) current.value = ''; if (recovery) recovery.value = '';
       if (!first || first !== second) { err.textContent = 'The two entries are not the same; nothing changed.'; err.className = 'vc-status vc-bad'; return; }
       go.disabled = true;
-      err.textContent = 'This Mac asks you to confirm it is you in its own window.';
+      err.textContent = 'Your computer now asks you to confirm it is you, in its own window.';
       var body = {kind: kind.value};
       var url = '/api/contacts/credential/enroll';
       if (mode === 'Enroll') body.secret = first;
@@ -665,6 +685,10 @@ _JS = r"""
       first = ''; second = ''; now = ''; code = ''; body = null;
       sent.then(function(res) {
         go.disabled = false;
+        if (!res.ok && res.body && res.body.reason === 'consent_unavailable') {
+          err.textContent = 'This computer could not show its own sign-in window to confirm it is you, so a PIN or password cannot be set here. Nothing changed.';
+          err.className = 'vc-status vc-bad'; return;
+        }
         if (!res.ok) { err.textContent = why(res, 'Nothing changed.') + attemptsText(res.body); err.className = 'vc-status vc-bad'; return; }
         err.textContent = '';
         say(mode === 'Enroll' ? 'Protection is set up.' : mode === 'Change' ? 'Changed.' : 'Reset.');
@@ -680,7 +704,7 @@ _JS = r"""
     detailEl.textContent = '';
     var panel = el('div', 'vc-import'); panel.id = 'vcProtection';
     panel.appendChild(el('h3', 'vc-title', 'Protection'));
-    panel.appendChild(el('div', 'vc-note', 'A PIN or password protects every change to a saved contact, every deletion, and every new name that is the same as or looks like a saved one. Adding someone new does not need it. It never approves a payment, an email or an invitation. Setting, changing or resetting it asks this Mac to confirm it is you in its own window.'));
+    panel.appendChild(el('div', 'vc-note', 'A PIN or password protects every change to a saved contact, every deletion, and every new name that is the same as or looks like a saved one. Adding someone new does not need it. It never approves a payment, an email or an invitation. Setting, changing or resetting it asks your computer to confirm it is you, in its own window.'));
     detailEl.appendChild(panel);
     return request('GET', '/api/contacts/credential').then(function(res) {
       var cred = res.ok ? res.body : {}; state.credential = cred;
