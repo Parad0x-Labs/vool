@@ -92,3 +92,11 @@ def test_the_first_list_of_a_message_still_starts_at_one(render) -> None:
     html = render("Intro.\n\n1. Only step")
     assert '<ol class="chat-list"><li>Only step</li></ol>' in html
     assert "start=" not in html
+
+
+def test_two_lists_the_model_numbered_itself_stay_separate(render) -> None:
+    """Ordinary markdown: two complete lists, each numbered 1, 2 by the model and introduced
+    by its own label paragraph, are two lists. Only "1." written on every item continues."""
+    html = render("**Linux:**\n1. a\n2. b\n\n**Mac:**\n1. c\n2. d")
+    assert html.count('<ol class="chat-list">') == 2
+    assert "start=" not in html

@@ -3843,7 +3843,8 @@ function renderRichText(el, text) {
   // `contStart` is the message-level continuation: when the model restarts at "1." after an
   // earlier ordered list in the same message, the new list continues from there instead of
   // reading "1." again. The return's `resumeAt` says what the NEXT such list should continue at
-  // (start + item count, because item numbers render positionally).
+  // (start + item count, because item numbers render positionally), and is 0 unless every item
+  // of this list was written "1." (lazy numbering).
   const parseList = (start, contStart) => {
     const first = listItemAt(lines[start]);
     const base = first.indent;
@@ -3851,10 +3852,12 @@ function renderRichText(el, text) {
     const nested = (it) => it && it.indent > base + 1;
     const blankRunEnd = (from) => { let k = from; while (k < lines.length && !lines[k].trim()) k += 1; return k; };
     const items = [];
+    let allOnes = true;
     let j = start;
     while (j < lines.length) {
       const it = listItemAt(lines[j]);
       if (!sameList(it)) break;
+      if (it.num !== 1) allOnes = false;
       const parts = [it.text];
       let inner = '';
       j += 1;
@@ -3877,7 +3880,9 @@ function renderRichText(el, text) {
       : 1;
     const startAttr = first.ordered && startValue !== 1 ? ' start="' + startValue + '"' : '';
     const html = '<' + tag + ' class="chat-list"' + startAttr + '>' + items.join('') + '</' + tag + '>';
-    return { html: html, next: j, resumeAt: first.ordered ? startValue + items.length : 0 };
+    // Only a list written "1." on every item hands its count on: a list the model numbered
+    // 1, 2, 3 itself is complete, and a later "1." after it is a new list, not a continuation.
+    return { html: html, next: j, resumeAt: first.ordered && allOnes ? startValue + items.length : 0 };
   };
 
   // What an ordered list restarted at "1." should continue from (0 = nothing to continue).
