@@ -39,8 +39,31 @@ CERTIFY_MAX_CALLS = 5
 CPU_ONLY_FACTOR = 4.0
 
 
+# The runtime's own wordings for a turn whose model gave no answer (core/agent_runtime/memory_runtime.py).
+# A reply like that carries no fact either, so an absence check must never read it as a PASS.
+MODEL_FAILURE_WORDS = (
+    "usable reply",
+    "usable answer",
+    "usable model response",
+    "failed before producing",
+    "timed out before producing",
+    "could not reach its local runtime",
+)
+
+
 class SmokeFailure(RuntimeError):
     pass
+
+
+def failed_model_calls(value: object) -> int:
+    """The largest failed_model_calls count anywhere in a chat answer's provenance."""
+    if isinstance(value, dict):
+        own = value.get("failed_model_calls")
+        found = own if isinstance(own, int) else 0
+        return max([found] + [failed_model_calls(item) for item in value.values()])
+    if isinstance(value, list):
+        return max([0] + [failed_model_calls(item) for item in value])
+    return 0
 
 
 def request(origin: str, path: str, body: dict | None = None, timeout: float = 30) -> dict:
@@ -68,6 +91,7 @@ class Run:
     def __init__(self, scratch: Path) -> None:
         self.scratch = scratch
         self.steps: list[dict] = []
+        self.last_answer: dict = {}
 
     def record(self, name: str, ok: bool, detail: object, fatal: bool = True) -> None:
         self.steps.append({"step": name, "ok": ok, "detail": detail})
@@ -105,6 +129,7 @@ class Run:
         }
         start = time.monotonic()
         answer = request(origin, "/api/chat", body, timeout=timeout)
+        self.last_answer = answer
         seconds = round(time.monotonic() - start, 1)
         (self.scratch / f"chat-{name}.json").write_text(
             json.dumps({"request": body, "seconds": seconds, "answer": answer}, indent=2) + "\n"
@@ -279,8 +304,12 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
             return MARKER not in json.dumps(entries).lower(), forgot[:300]
 
         def recall_after_forget():
+            # A pass needs a real answer that lacks the fact: a model failure also lacks it.
             after = run.chat(origin, "recall-after-forget", QUESTION, model, chat_timeout)
-            return MARKER not in after.lower(), after[:300]
+            failed = failed_model_calls(run.last_answer)
+            no_answer = failed > 0 or any(words in after.lower() for words in MODEL_FAILURE_WORDS)
+            detail = after[:300] if not no_answer else f"no model answer (failed calls {failed}): {after[:300]}"
+            return MARKER not in after.lower() and not no_answer, detail
 
         run.check("plain reply", plain)
         run.check("remember stored the fact", remember)
