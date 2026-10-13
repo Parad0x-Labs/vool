@@ -18,6 +18,7 @@ _unattended_preflight("pytest-conftest")
 _PRISTINE_POPEN_INIT = subprocess.Popen.__init__
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -545,10 +546,26 @@ def fence_spawned_daemons_from_live_ollama():
     # price tests on the owner's Mac). Set, not setdefault: a launcher that copies os.environ would
     # otherwise hand the daemon the developer's or CI's real proxy. VOOL_ALLOW_LIVE_NETWORK_TESTS=1
     # opts out for deliberate live acceptance runs.
+    # Routing journeys advertise their counting stubs on this host's LAN
+    # interface to exercise remote-provider classification. They are still
+    # local test servers; the dead proxy must fence internet destinations
+    # without swallowing those sockets. Exempt exact host addresses, never a
+    # LAN range or an operator-provided proxy bypass.
+    _local_stub_hosts = ["127.0.0.1", "localhost", "::1"]
+    if sys.platform == "darwin":
+        for interface in ("en0", "en1", "en2", "en3"):
+            # Unattended children intentionally omit /usr/sbin from PATH.
+            probe = subprocess.run(
+                ["/usr/sbin/ipconfig", "getifaddr", interface], capture_output=True, text=True, timeout=5
+            )
+            address = probe.stdout.strip()
+            if probe.returncode == 0 and address:
+                _local_stub_hosts.append(address)
+    _local_proxy_bypass = ",".join(_local_stub_hosts)
     _child_network_fence = {
         "HTTPS_PROXY": _dead, "https_proxy": _dead, "HTTP_PROXY": _dead, "http_proxy": _dead,
         "ALL_PROXY": _dead, "all_proxy": _dead,
-        "NO_PROXY": "127.0.0.1,localhost,::1", "no_proxy": "127.0.0.1,localhost,::1",
+        "NO_PROXY": _local_proxy_bypass, "no_proxy": _local_proxy_bypass,
     }
     _fence_child_network = os.environ.get("VOOL_ALLOW_LIVE_NETWORK_TESTS") != "1"
 

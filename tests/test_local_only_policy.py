@@ -110,9 +110,8 @@ class WebOptInPolicyTests(unittest.TestCase):
     def tearDown(self) -> None:
         policy_engine._POLICY_CACHE = self._old_cache
 
-    def test_web_is_on_by_default(self) -> None:
-        # No override env set: web is on after a fresh policy load, so live-data
-        # questions (weather, prices, news) get a real answer out of the box.
+    def test_web_is_off_on_a_fresh_install(self) -> None:
+        # No saved policy or explicit override may silently enable fresh web access.
         with mock.patch.dict("os.environ", {}, clear=False) as env:
             env.pop("VOOL_ENABLE_WEB", None)
             env.pop("VOOL_ALLOW_WEB", None)
@@ -120,10 +119,10 @@ class WebOptInPolicyTests(unittest.TestCase):
             env.pop("VOOL_NO_WEB", None)
             policy_engine._POLICY_CACHE = None
             policy_engine.load(force_reload=True)
-            self.assertTrue(policy_engine.allow_web_fallback())
+            self.assertFalse(policy_engine.allow_web_fallback())
 
-    def test_web_default_value_in_code_default_policy_is_on(self) -> None:
-        self.assertTrue(policy_engine._DEFAULT_POLICY["system"]["allow_web_fallback"])
+    def test_web_default_value_in_code_requires_opt_in(self) -> None:
+        self.assertFalse(policy_engine._DEFAULT_POLICY["system"]["allow_web_fallback"])
 
     def test_vool_enable_web_env_turns_web_on(self) -> None:
         with mock.patch.dict("os.environ", {"VOOL_ENABLE_WEB": "1"}, clear=False):

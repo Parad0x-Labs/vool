@@ -186,6 +186,7 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'wallet.status': ('read_only', 'none'),
     'web.fetch': ('read_only', 'none'),
     'web.research': ('read_only', 'none'),
+    'web.chain_lookup': ('read_only', 'none'),  # read-only chain data with the user's own provider key
     'web.search': ('read_only', 'none'),
     'web0.add_block': ('builder_state', 'none'),
     'web0.add_gated_section': ('builder_state', 'none'),
@@ -330,7 +331,8 @@ def test_contract_map_and_list_agree():
     # 146 -> 159: the operator calendar/notes vertical declared 2026-09-15 (ten reads, two
     # writes, and the two invitation-sending calendar mutations at network_publish) plus the
     # code.task/contacts/profile/repo/skill contracts that landed unpinned with their lanes.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 170
+    # 170 -> 171: web.chain_lookup, the read-only chain-data lookup (Helius/Alchemy/Solscan/Etherscan).
+    assert len(contract_map) == len(GOLDEN_TIERS) == 171
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

@@ -12,7 +12,13 @@ import json
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+#: Draft schema versions this build reads. Version 1 drafts (before machine specs, health and
+#: answer reports) load with those sections empty; nothing is migrated on disk.
+READABLE_SCHEMA_VERSIONS = frozenset({1, 2})
+REPORT_KINDS = frozenset({"bug", "wrong_answer"})
+#: Why an answer was wrong -- the reasons a user picks from, in this order.
+ANSWER_REASONS = ("wrong", "outdated", "not_what_i_asked", "unsafe", "other")
 REPORT_ID_PATTERN = r"br_[0-9a-f]{12}"
 
 
@@ -269,11 +275,134 @@ class ConsentManifest:
         )
 
 
+def _string_map(data: Any, *, where: str, max_items: int = 24) -> dict[str, str]:
+    if data is None:
+        return {}
+    if not isinstance(data, dict) or len(data) > max_items:
+        raise ValueError(f"{where} must be a small object of strings")
+    return {str(k): str(v) for k, v in data.items()}
+
+
+@dataclass(frozen=True)
+class AnswerAction:
+    """One recorded action of the reported turn: what ran and whether it worked. No arguments."""
+
+    name: str
+    kind: str
+    status: str
+    ok: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "kind": self.kind, "status": self.status, "ok": self.ok}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AnswerAction:
+        _require_keys(data, {"name", "kind", "status", "ok"}, where="answer action")
+        return cls(name=str(data["name"]), kind=str(data["kind"]), status=str(data["status"]), ok=bool(data["ok"]))
+
+
+@dataclass(frozen=True)
+class AnswerReceipt:
+    """The reported turn's own records, read from the stores that own them (never inferred).
+
+    ``unknown`` means the record was not there; it is never filled with a guess."""
+
+    record_state: str
+    state_reasons: tuple[str, ...]
+    model: str
+    provider: str
+    actions: tuple[AnswerAction, ...]
+    sources_count: str
+    tokens: str
+    elapsed_ms: str
+    integrity_ok: str
+    witness_consistent: str
+    fault_codes: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "record_state": self.record_state,
+            "state_reasons": list(self.state_reasons),
+            "model": self.model,
+            "provider": self.provider,
+            "actions": [a.to_dict() for a in self.actions],
+            "sources_count": self.sources_count,
+            "tokens": self.tokens,
+            "elapsed_ms": self.elapsed_ms,
+            "integrity_ok": self.integrity_ok,
+            "witness_consistent": self.witness_consistent,
+            "fault_codes": list(self.fault_codes),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AnswerReceipt:
+        _require_keys(
+            data,
+            {
+                "record_state", "state_reasons", "model", "provider", "actions", "sources_count",
+                "tokens", "elapsed_ms", "integrity_ok", "witness_consistent", "fault_codes",
+            },
+            where="answer receipt",
+        )
+        return cls(
+            record_state=str(data["record_state"]),
+            state_reasons=tuple(str(x) for x in data["state_reasons"]),
+            model=str(data["model"]),
+            provider=str(data["provider"]),
+            actions=tuple(AnswerAction.from_dict(a) for a in data["actions"]),
+            sources_count=str(data["sources_count"]),
+            tokens=str(data["tokens"]),
+            elapsed_ms=str(data["elapsed_ms"]),
+            integrity_ok=str(data["integrity_ok"]),
+            witness_consistent=str(data["witness_consistent"]),
+            fault_codes=tuple(str(x) for x in data["fault_codes"]),
+        )
+
+
+@dataclass(frozen=True)
+class AnswerEvidence:
+    """What a wrong-answer report carries from the conversation -- and nothing else.
+
+    ``excerpt`` is the part of the answer the user selected (or the whole answer when they
+    reported the message), redacted and capped. ``question`` is the user's own message for
+    that turn and is EMPTY unless the user ticked "include my question". No other turn, no
+    memory and no file ever enters a report."""
+
+    reason: str
+    excerpt: str
+    excerpt_source: str  # selection | whole_answer
+    question: str
+    receipt: AnswerReceipt | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "reason": self.reason,
+            "excerpt": self.excerpt,
+            "excerpt_source": self.excerpt_source,
+            "question": self.question,
+            "receipt": self.receipt.to_dict() if self.receipt is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AnswerEvidence:
+        _require_keys(data, {"reason", "excerpt", "excerpt_source", "question", "receipt"}, where="answer")
+        receipt = data["receipt"]
+        return cls(
+            reason=str(data["reason"]),
+            excerpt=str(data["excerpt"]),
+            excerpt_source=str(data["excerpt_source"]),
+            question=str(data["question"]),
+            receipt=AnswerReceipt.from_dict(receipt) if receipt is not None else None,
+        )
+
+
 _DRAFT_KEYS = {
     "report_id", "created_at", "schema_version", "environment", "title", "category",
     "expected", "actual", "repro_steps", "error", "components", "logs", "flags_snapshot",
     "attachments", "fingerprint", "redaction_summary", "destination_repo", "consent",
     "state", "last_error", "last_issue_url",
+    # schema 2
+    "kind", "machine", "health", "answer", "local_ref",
 }
 
 
@@ -300,6 +429,13 @@ class BugReportDraft:
     state: str = "draft"  # draft | submitted
     last_error: str = ""
     last_issue_url: str = ""
+    kind: str = "bug"  # bug | wrong_answer
+    machine: dict[str, str] = field(default_factory=dict)
+    health: dict[str, str] = field(default_factory=dict)
+    answer: AnswerEvidence | None = None
+    #: Local-only pointers back to the reported chat turn (session id, request id), so "My
+    #: reports" can name what was reported. NEVER rendered into the outbound payload.
+    local_ref: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -324,13 +460,22 @@ class BugReportDraft:
             "state": self.state,
             "last_error": self.last_error,
             "last_issue_url": self.last_issue_url,
+            "kind": self.kind,
+            "machine": dict(self.machine),
+            "health": dict(self.health),
+            "answer": self.answer.to_dict() if self.answer is not None else None,
+            "local_ref": dict(self.local_ref),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BugReportDraft:
         _require_keys(data, _DRAFT_KEYS, where="draft")
-        if data["schema_version"] != SCHEMA_VERSION:
+        if data["schema_version"] not in READABLE_SCHEMA_VERSIONS:
             raise ValueError(f"unsupported draft schema_version: {data['schema_version']!r}")
+        kind = str(data.get("kind", "bug"))
+        if kind not in REPORT_KINDS:
+            raise ValueError(f"unknown report kind: {kind!r}")
+        answer = data.get("answer")
         consent = data["consent"]
         return cls(
             report_id=str(data["report_id"]),
@@ -354,6 +499,11 @@ class BugReportDraft:
             state=str(data["state"]),
             last_error=str(data["last_error"]),
             last_issue_url=str(data["last_issue_url"]),
+            kind=kind,
+            machine=_string_map(data.get("machine"), where="machine"),
+            health=_string_map(data.get("health"), where="health"),
+            answer=AnswerEvidence.from_dict(answer) if answer is not None else None,
+            local_ref=_string_map(data.get("local_ref"), where="local_ref", max_items=4),
         )
 
     def with_updates(self, **changes: Any) -> BugReportDraft:
@@ -419,7 +569,13 @@ class SanitizedMaterial:
 
 
 __all__ = [
+    "ANSWER_REASONS",
+    "READABLE_SCHEMA_VERSIONS",
+    "REPORT_KINDS",
     "SCHEMA_VERSION",
+    "AnswerAction",
+    "AnswerEvidence",
+    "AnswerReceipt",
     "ApprovalMismatchError",
     "ApprovalRequiredError",
     "AttachmentPlan",

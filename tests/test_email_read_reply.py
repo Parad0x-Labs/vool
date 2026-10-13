@@ -40,7 +40,13 @@ def _raw(frm: str, subj: str, body: str, mid: str) -> bytes:
 
 def _fake_imap(monkeypatch, messages: dict) -> None:
     class FakeIMAP:
-        def __init__(self, host, port):
+        def __init__(self, host, port, ssl_context=None, timeout=None):
+            # The real IMAP4_SSL signature: the production call must hand over a verifying
+            # context and a bounded timeout, never imaplib's unverified default.
+            import ssl as _ssl
+
+            assert ssl_context is not None and ssl_context.verify_mode == _ssl.CERT_REQUIRED
+            assert ssl_context.check_hostname and timeout
             self.host, self.port = host, port
 
         def __enter__(self):

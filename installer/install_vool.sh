@@ -7,7 +7,9 @@ VENV_DIR="${PROJECT_ROOT}/.venv"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 # NULLA -> VOOL compatibility: an existing pre-rename runtime home is reused, never duplicated.
 if [ -z "${VOOL_HOME_DEFAULT:-}" ]; then
-  if [ -d "$HOME/.nulla_runtime" ] && [ ! -d "$HOME/.vool_runtime" ]; then
+  if [[ -n "${VOOL_HOME:-${NULLA_HOME:-}}" ]]; then
+    VOOL_HOME_DEFAULT="${VOOL_HOME:-${NULLA_HOME}}"
+  elif [ -d "$HOME/.nulla_runtime" ] && [ ! -d "$HOME/.vool_runtime" ]; then
     VOOL_HOME_DEFAULT="$HOME/.nulla_runtime"
   else
     VOOL_HOME_DEFAULT="$HOME/.vool_runtime"
@@ -842,9 +844,12 @@ export WEB_SEARCH_PROVIDER_ORDER="${WEB_PROVIDER_ORDER}"
 export SEARXNG_URL="\${SEARXNG_URL:-${XSEARCH_URL}}"
 export VOOL_PUBLIC_HIVE_SSH_KEY_PATH="\${VOOL_PUBLIC_HIVE_SSH_KEY_PATH:-${PUBLIC_HIVE_SSH_KEY_PATH}}"
 export VOOL_PUBLIC_HIVE_WATCH_HOST="\${VOOL_PUBLIC_HIVE_WATCH_HOST:-${PUBLIC_HIVE_WATCH_HOST}}"
-"\${VENV_PY}" -m ops.ensure_public_hive_auth --project-root "\${PROJECT_ROOT}" --watch-host "\${VOOL_PUBLIC_HIVE_WATCH_HOST}" >/tmp/vool_public_hive_auth.log 2>&1 || true
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  bash "${PROJECT_ROOT}/scripts/xsearch_up.sh" >/tmp/vool_xsearch.log 2>&1 || true
+mkdir -p "\${VOOL_HOME}/logs"
+if "\${VENV_PY}" -c 'import sys; from core.runtime_guard import automatic_launch_network_allowed; sys.exit(0 if automatic_launch_network_allowed("outbound") else 1)'; then
+  "\${VENV_PY}" -m ops.ensure_public_hive_auth --project-root "\${PROJECT_ROOT}" --watch-host "\${VOOL_PUBLIC_HIVE_WATCH_HOST}" >"\${VOOL_HOME}/logs/public-hive-auth.log" 2>&1 || true
+fi
+if "\${VENV_PY}" -c 'import sys; from core.runtime_guard import automatic_launch_network_allowed; sys.exit(0 if automatic_launch_network_allowed("web") else 1)' && command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  bash "${PROJECT_ROOT}/scripts/xsearch_up.sh" >"\${VOOL_HOME}/logs/xsearch.log" 2>&1 || true
 fi
 EOF
 }
@@ -865,6 +870,9 @@ VENV_PY="$(bash "${VENV_RESOLVER}")"
 cd "${PROJECT_ROOT}"
 LAUNCHER_HEAD
   cat >>"${target_path}" <<EOF
+if [[ -z "\${VOOL_HOME:-}" && -n "\${NULLA_HOME:-}" ]]; then
+  export VOOL_HOME="\${NULLA_HOME}"
+fi
 export VOOL_HOME="\${VOOL_HOME:-${runtime_home}}"
 # VOOL_WORKSPACE_ROOT is deliberately NOT defaulted here: pinning it made every packaged
 # run resolve the unbound chat workspace to the hidden internal directory, silently
@@ -1225,7 +1233,12 @@ open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
-    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >/tmp/vool_api_server.log 2>&1 &
+    STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+    [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+    [[ -n "${LOG_DIR}" ]] || exit 1
+    mkdir -p "${LOG_DIR}"
+    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
   else
     echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
     exit 1
@@ -1257,7 +1270,12 @@ open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
-    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >/tmp/vool_api_server.log 2>&1 &
+    STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+    [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+    [[ -n "${LOG_DIR}" ]] || exit 1
+    mkdir -p "${LOG_DIR}"
+    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
   else
     echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
     exit 1

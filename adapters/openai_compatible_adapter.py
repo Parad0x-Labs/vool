@@ -33,6 +33,7 @@ from core.normalized_provider_result import (
 )
 from core.prompt_budget import PromptBudgetExceededError, fit_messages_to_context_window
 from core.prompt_debug import dump_outbound_prompt
+from core.provider_http import is_loopback_url
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
     seal_provider_invocation,
@@ -570,10 +571,13 @@ class OpenAICompatibleAdapter(ModelAdapter):
         governor reclaims other idle models, raising here turns "the whole Mac swap-freezes" into
         an ordinary failed call the routing fallback machinery already knows how to degrade.
         """
+        base_url = _native_ollama_base_url(str(self.manifest.runtime_config.get("base_url") or ""))
+        if not is_loopback_url(base_url):
+            return
         try:
             from core.resource_governor import plan_model_load
 
-            decision = plan_model_load(str(self.manifest.model_name or ""))
+            decision = plan_model_load(str(self.manifest.model_name or ""), base_url=base_url)
         except Exception:
             return
         if decision.ok:

@@ -1,8 +1,7 @@
 """A labelled SYNTHETIC free tool-selection lane for the served tool-flow tests. Tests only.
 
-The runtime's own policy (core/paid_call_reservation.py: "internal_tool_intent_call") keeps an
-explicit PAID pin off the turn's internal tool-selection rounds; those rounds need a free lane.
-This service is that lane: a loopback OpenAI-compatible endpoint whose reply is a deterministic
+An UNPINNED turn's tool-selection rounds run on a free lane (an explicit paid pin runs its own
+rounds since 2026-10-05). This service is that free lane: a loopback OpenAI-compatible endpoint whose reply is a deterministic
 function of the request that arrived -- a native tool call naming an OFFERED tool on the first
 round, a plain completion once the tool result is in the context, or a scripted fault (an
 unregistered tool name, malformed arguments JSON) for the refusal cases. It records every request

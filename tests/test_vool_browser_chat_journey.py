@@ -314,6 +314,7 @@ def journey(tmp_path: Path):
     world = JourneyWorld()
     world.__enter__()
     env = {
+        "VOOL_ENABLE_WEB": "1",
         "PLAYWRIGHT_ENABLED": "1",
         "VOOL_BROWSER_SCRATCH_ROOT": str(scratch),
         "VOOL_ALWAYS_ON_CATALOG": "1",
@@ -489,6 +490,7 @@ def test_served_auto_mode_runs_a_full_journey_and_a_restart_keeps_the_lane(journ
                 """
             ),
             env_extra={
+                "VOOL_ENABLE_WEB": "1",
                 "PLAYWRIGHT_ENABLED": "1",
                 "VOOL_BROWSER_SCRATCH_ROOT": str(scratch),
             },
