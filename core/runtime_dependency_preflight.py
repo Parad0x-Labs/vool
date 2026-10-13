@@ -109,7 +109,9 @@ def assert_served_import_conformance(*, timeout: float = 180.0) -> ImportConform
     indeterminate environment failure — the gate fails CLOSED either way.
     """
     try:
-        with tempfile.TemporaryDirectory(prefix="vool-import-preflight-") as scratch:
+        from core.runtime_paths import runtime_temp_dir
+
+        with tempfile.TemporaryDirectory(prefix="vool-import-preflight-", dir=runtime_temp_dir()) as scratch:
             # Probe the interpreter AS CURRENTLY CONFIGURED: if this process
             # runs with site initialization disabled (``-S``), the child must
             # too — the conformance question is about the runtime environment

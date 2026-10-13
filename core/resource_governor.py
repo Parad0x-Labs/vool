@@ -26,6 +26,7 @@ import urllib.request
 from dataclasses import dataclass, field
 
 from core import system_resources as sr
+from core.provider_http import is_loopback_url, urlopen
 
 # A full SDXL render (model ~4.9 GB + VAE/CLIP + activations) — conservative so we reclaim/ask rather
 # than freeze. Overridable for other pipelines.
@@ -46,8 +47,12 @@ RENDER_TIERS: tuple[dict, ...] = (
 )
 from core.ollama_endpoint import ollama_base_url as _ollama_base_url
 
-_OLLAMA_BASE = _ollama_base_url().rstrip("/")
 _COMFYUI_PORT = os.environ.get("VOOL_COMFYUI_PORT", "8188")
+
+
+def _local_ollama_base(base_url: str | None = None) -> str:
+    selected = str(base_url or _ollama_base_url()).rstrip("/")
+    return selected if is_loopback_url(selected) else ""
 
 
 @dataclass
@@ -76,15 +81,18 @@ def unload_idle_ollama() -> float:
     # a stray keep_alive=0 here would unload models belonging to some OTHER enabled process.
     from core.local_model_policy import local_models_enabled
 
+    target = _local_ollama_base()
+    if not target:
+        return 0.0
     if not local_models_enabled():
         return 0.0
-    loaded = sr._ollama_loaded_bytes()
+    loaded = sr._ollama_loaded_bytes(base_url=target)
     if loaded <= 0:
         return 0.0
     models: list[str] = []
     with contextlib.suppress(OSError, ValueError):
-        req = urllib.request.Request(f"{_OLLAMA_BASE}/api/ps", headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
+        req = urllib.request.Request(f"{target}/api/ps", headers={"Accept": "application/json"})
+        with urlopen(req, timeout=1.5) as resp:
             data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
         models = [str(m.get("name") or m.get("model") or "") for m in (data.get("models") or [])]
     freed_any = False
@@ -92,10 +100,10 @@ def unload_idle_ollama() -> float:
         payload = json.dumps({"model": name, "keep_alive": 0}).encode("utf-8")
         with contextlib.suppress(OSError, ValueError):
             req = urllib.request.Request(
-                f"{_OLLAMA_BASE}/api/generate", data=payload,
+                f"{target}/api/generate", data=payload,
                 headers={"Content-Type": "application/json"}, method="POST",
             )
-            urllib.request.urlopen(req, timeout=4.0).read()
+            urlopen(req, timeout=4.0).read()
             freed_any = True
     return (loaded / (1024.0 ** 3)) if freed_any else 0.0
 
@@ -203,16 +211,19 @@ def reclaim_if_pressured() -> list[str]:
 _LOAD_SAFETY_FLOOR_GB = float(os.environ.get("VOOL_MODEL_LOAD_FLOOR_GB", "1.5") or 1.5)
 
 
-def resident_models() -> list[dict]:
+def resident_models(*, base_url: str | None = None) -> list[dict]:
     """What Ollama is holding in memory right now: [{name, size_gb}], best-effort ([] on error)."""
     from core.local_model_policy import local_models_enabled
 
+    target = _local_ollama_base(base_url)
+    if not target:
+        return []
     if not local_models_enabled():
         return []
     rows: list[dict] = []
     with contextlib.suppress(OSError, ValueError):
-        req = urllib.request.Request(f"{_OLLAMA_BASE}/api/ps", headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
+        req = urllib.request.Request(f"{target}/api/ps", headers={"Accept": "application/json"})
+        with urlopen(req, timeout=2.0) as resp:
             data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
         for m in data.get("models") or []:
             name = str(m.get("name") or m.get("model") or "").strip()
@@ -223,8 +234,11 @@ def resident_models() -> list[dict]:
     return rows
 
 
-def estimated_model_gb(model_name: str) -> float:
+def estimated_model_gb(model_name: str, *, base_url: str | None = None) -> float:
     """Expected in-memory footprint for a model, 0.0 when unknown (unknown never gates)."""
+    target = _local_ollama_base(base_url)
+    if not target:
+        return 0.0
     try:
         from core.local_model_bundles import model_storage_gb
 
@@ -238,8 +252,8 @@ def estimated_model_gb(model_name: str) -> float:
     if not local_models_enabled():
         return 0.0  # no discovery probe under a disabled policy; unknown never gates
     with contextlib.suppress(OSError, ValueError):  # fall back to the installed-tag disk size
-        req = urllib.request.Request(f"{_OLLAMA_BASE}/api/tags", headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
+        req = urllib.request.Request(f"{target}/api/tags", headers={"Accept": "application/json"})
+        with urlopen(req, timeout=2.0) as resp:
             data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
         for m in data.get("models") or []:
             if str(m.get("name") or "").strip() == str(model_name).strip():
@@ -247,10 +261,13 @@ def estimated_model_gb(model_name: str) -> float:
     return 0.0
 
 
-def _unload_models(names: list[str]) -> list[str]:
+def _unload_models(names: list[str], *, base_url: str | None = None) -> list[str]:
     """Ask Ollama to unload specific models (keep_alive=0). Returns the names that were signaled."""
     from core.local_model_policy import local_models_enabled
 
+    target = _local_ollama_base(base_url)
+    if not target:
+        return []
     if not local_models_enabled():
         return []
     done: list[str] = []
@@ -258,10 +275,10 @@ def _unload_models(names: list[str]) -> list[str]:
         payload = json.dumps({"model": name, "keep_alive": 0}).encode("utf-8")
         with contextlib.suppress(OSError, ValueError):
             req = urllib.request.Request(
-                f"{_OLLAMA_BASE}/api/generate", data=payload,
+                f"{target}/api/generate", data=payload,
                 headers={"Content-Type": "application/json"}, method="POST",
             )
-            urllib.request.urlopen(req, timeout=4.0).read()
+            urlopen(req, timeout=4.0).read()
             done.append(name)
     return done
 
@@ -271,7 +288,7 @@ def reclaim_model(model_name: str) -> bool:
     return bool(_unload_models([str(model_name or "").strip()]))
 
 
-def plan_model_load(model_name: str) -> GovernorDecision:
+def plan_model_load(model_name: str, *, base_url: str | None = None) -> GovernorDecision:
     """Gate a chat-model load the way renders are gated: fit, reclaim, or refuse — never a freeze.
 
     * Already resident -> ok (serving a loaded model costs no new RAM; never gate it).
@@ -281,12 +298,18 @@ def plan_model_load(model_name: str) -> GovernorDecision:
     * Still no room -> ok=False; the caller degrades (smaller model / cloud lane) instead of
       swap-thrashing the machine.
     """
+    target = _local_ollama_base(base_url)
+    if not target:
+        # A remote model consumes remote RAM; this Mac neither senses nor
+        # reclaims that host. Explicit inference retains its own route owner.
+        return GovernorDecision(ok=True)
+    target_options = {"base_url": target} if base_url is not None else {}
     name = str(model_name or "").strip()
-    snap = sr.snapshot(force=True)
-    residents = resident_models()
+    snap = sr.snapshot(force=True, **target_options)
+    residents = resident_models(**target_options)
     if any(r["name"] == name for r in residents):
         return GovernorDecision(ok=True, usable_before_gb=snap.available_ram_gb, usable_after_gb=snap.available_ram_gb)
-    need = estimated_model_gb(name)
+    need = estimated_model_gb(name, **target_options)
     decision = GovernorDecision(
         ok=True, footprint_gb=need,
         usable_before_gb=snap.available_ram_gb, usable_after_gb=snap.available_ram_gb,
@@ -297,12 +320,12 @@ def plan_model_load(model_name: str) -> GovernorDecision:
         return decision
     others = [r["name"] for r in residents if r["name"] != name]
     if others:
-        freed = _unload_models(others)
+        freed = _unload_models(others, **target_options)
         if freed:
             decision.actions.append(
                 "unloaded " + ", ".join(freed) + " to make room (each reloads on its next use)"
             )
-            snap = sr.snapshot(force=True)
+            snap = sr.snapshot(force=True, **target_options)
     decision.usable_after_gb = snap.available_ram_gb
     decision.ok = snap.available_ram_gb >= need + _LOAD_SAFETY_FLOOR_GB
     return decision

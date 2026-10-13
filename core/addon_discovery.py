@@ -20,8 +20,7 @@ _REF = re.compile(r"[0-9a-f]{40}\Z")
 _CACHE = OrderedDict()
 _LOCK = threading.RLock()
 _SLOTS = threading.BoundedSemaphore(2)
-_ECOSYSTEMS = {'nousresearch/hermes-agent':'Hermes', 'openclaw/openclaw':'OpenClaw',
-               'vercel-labs/agent-skills':'Vercel', 'obra/superpowers':'Superpowers'}
+_ECOSYSTEMS = {'vercel-labs/agent-skills':'Vercel', 'obra/superpowers':'Superpowers'}
 
 
 def repository_name(value: str) -> str:

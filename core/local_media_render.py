@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from core.runtime_paths import user_runtime_default
+from core.runtime_paths import active_vool_home, runtime_auxiliary_path
 
 # The local-render skill's runtime script is resolved at call time from the CONFIGURED plugins
 # tree (see local_render_script) — a fixed ~/Desktop/Vool-skills-plugins default missed every
@@ -29,8 +29,8 @@ _COMFY_SERVER = os.environ.get("VOOL_COMFY_SERVER", "127.0.0.1:8188")
 _RENDER_TIMEOUT = float(os.environ.get("VOOL_RENDER_TIMEOUT", "600"))
 # Where the on-device image engine (ComfyUI) is installed, so VOOL can start it herself when an image
 # is asked for and it isn't running. Overridable for a non-standard install.
-_COMFY_HOME = os.environ.get("VOOL_COMFY_HOME", str(Path.home() / ".vool_video_lab" / "repos" / "ComfyUI"))
-_COMFY_PYTHON = os.environ.get("VOOL_COMFY_PYTHON", str(Path.home() / ".vool_video_lab" / "envs" / "comfyui" / "bin" / "python"))
+_COMFY_HOME = os.environ.get("VOOL_COMFY_HOME", "")
+_COMFY_PYTHON = os.environ.get("VOOL_COMFY_PYTHON", "")
 # How long a CHAT TURN waits for the engine to bind its port; separate from the per-render wait above.
 #
 # This was 180s, which is longer than a turn survives -- the turn was cut off before the honest
@@ -68,12 +68,15 @@ def ensure_comfyui(*, ready_timeout: float | None = None, low_memory: str = "") 
     from core.local_service_autostart import LocalService, ensure_service
 
     port = (_COMFY_SERVER.rsplit(":", 1)[-1] or "8188").strip()
-    log_home = Path(os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME") or user_runtime_default())
+    log_home = active_vool_home()
+    lab = runtime_auxiliary_path("media-lab", legacy=Path.home() / ".vool_video_lab")
+    comfy_home = _COMFY_HOME or str(lab / "repos" / "ComfyUI")
+    comfy_python = _COMFY_PYTHON or str(lab / "envs" / "comfyui" / "bin" / "python")
     desired = low_memory if low_memory in {"lowvram", "novram"} else ""
     extra = {"lowvram": ["--lowvram"], "novram": ["--novram"]}.get(desired, [])
 
     def _preflight() -> str | None:
-        if not Path(_COMFY_PYTHON).exists() or not (Path(_COMFY_HOME) / "main.py").exists():
+        if not Path(comfy_python).exists() or not (Path(comfy_home) / "main.py").exists():
             return "The on-device image engine (ComfyUI) isn't installed on this machine."
         return None
 
@@ -89,8 +92,8 @@ def ensure_comfyui(*, ready_timeout: float | None = None, low_memory: str = "") 
     service = LocalService(
         name="ComfyUI",
         reachable=lambda: comfyui_reachable(),
-        argv=[_COMFY_PYTHON, "main.py", "--port", str(port), "--disable-all-custom-nodes", *extra],
-        cwd=_COMFY_HOME,
+        argv=[comfy_python, "main.py", "--port", str(port), "--disable-all-custom-nodes", *extra],
+        cwd=comfy_home,
         env={"PYTORCH_ENABLE_MPS_FALLBACK": "1"},
         ready_timeout=float(ready_timeout if ready_timeout is not None else _COMFY_START_TIMEOUT),
         log_path=str(log_home / "logs" / "comfyui.log"),

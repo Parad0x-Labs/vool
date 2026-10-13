@@ -7,6 +7,7 @@ the runtime. No request data is placed in argv, environment or temporary files.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import os
 import queue
@@ -14,6 +15,9 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from contextlib import suppress
 from pathlib import Path
 
@@ -23,6 +27,33 @@ from requests import exceptions as exceptions
 
 _MAX_BODY = 64 * 1024 * 1024
 _MAX_FRAME = 128 * 1024
+
+
+def is_loopback_url(url):
+    try:
+        parsed = urllib.parse.urlparse(str(url))
+        host = str(parsed.hostname or "").lower()
+        if parsed.scheme not in {"http", "https"}:
+            return False
+        if host == "localhost":
+            return True
+        return ipaddress.ip_address(host).is_loopback
+    except (TypeError, ValueError):
+        return False
+
+
+class _RefuseLoopbackRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, "loopback provider redirect refused", headers, fp)
+
+
+def urlopen(request, *, timeout):
+    """Loopback means a direct local socket, with no ambient proxy or redirects."""
+    url = getattr(request, "full_url", request)
+    if is_loopback_url(url):
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _RefuseLoopbackRedirect())
+        return opener.open(request, timeout=timeout)
+    return urllib.request.urlopen(request, timeout=timeout)
 
 
 class _Transfer:
@@ -106,7 +137,11 @@ class _Transfer:
                 continue
             if frame.get("type") == "error":
                 error = frame.get("class")
-                cls = exceptions.Timeout if error in {"Timeout", "ReadTimeout", "ConnectTimeout"} else exceptions.ConnectionError
+                cls = (
+                    exceptions.Timeout if error in {"Timeout", "ReadTimeout", "ConnectTimeout"}
+                    else exceptions.TooManyRedirects if error == "TooManyRedirects"
+                    else exceptions.ConnectionError
+                )
                 raise cls("provider HTTP worker failed: " + str(error))
             if frame.get("type") == "eof":
                 if time.monotonic() >= self.deadline or self.process.poll() == 124:
@@ -145,6 +180,12 @@ class _Response(_requests.Response):
         return self._content
 
     def iter_content(self, chunk_size=1, decode_unicode=False):
+        if self._content_consumed:
+            if isinstance(self._content, bool):
+                raise exceptions.StreamConsumedError()
+            iterator = _requests.utils.iter_slices(self._content, chunk_size)
+            return _requests.utils.stream_decode_response_unicode(iterator, self) if decode_unicode else iterator
+
         def chunks():
             total = 0
             try:
@@ -207,12 +248,23 @@ def _worker():
         options = invocation["options"]
         if isinstance(options.get("timeout"), list):
             options["timeout"] = tuple(options["timeout"])
-        with _requests.request(invocation["method"], invocation["url"], stream=True, **options) as response:
-            emit({"type": "response", "status": response.status_code,
-                  "headers": dict(response.headers), "url": response.url})
-            for chunk in response.iter_content(chunk_size=512):
-                emit({"type": "chunk", "data": base64.b64encode(chunk).decode("ascii")})
-            emit({"type": "done"})
+        loopback = is_loopback_url(invocation["url"])
+        return_redirect = options.get("allow_redirects") is False
+        # Each transfer owns its session. A local invocation never changes the
+        # proxy/redirect behavior of a later explicitly authorized cloud call.
+        with _requests.Session() as session:
+            if loopback:
+                session.trust_env = False
+                options.pop("proxies", None)
+                options["allow_redirects"] = False
+            with session.request(invocation["method"], invocation["url"], stream=True, **options) as response:
+                if loopback and response.is_redirect and not return_redirect:
+                    raise exceptions.TooManyRedirects("loopback provider redirect refused")
+                emit({"type": "response", "status": response.status_code,
+                      "headers": dict(response.headers), "url": response.url})
+                for chunk in response.iter_content(chunk_size=512):
+                    emit({"type": "chunk", "data": base64.b64encode(chunk).decode("ascii")})
+                emit({"type": "done"})
     except Exception as exc:
         emit({"type": "error", "class": type(exc).__name__})
     finally:

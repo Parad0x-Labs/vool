@@ -107,7 +107,8 @@ def test_mac_rejects_incompatible_build_before_python(tmp_path: Path, host: str,
         shim.chmod(0o755)
     marker = tmp_path / "python-reached"
     env = {**os.environ, "HOME": str(tmp_path / "home"), "PATH": f"{shims}:/usr/bin:/bin",
-           "VOOL_TEST_MARKER": str(marker)}
+           "VOOL_TEST_MARKER": str(marker),
+           "VOOL_HOME": str(tmp_path / "home/Library/Application Support/VOOL/runtime")}
     done = subprocess.run(["bash", str(launcher)], env=env, capture_output=True, text=True, timeout=15)
     assert marker.exists() is accepted
     assert (done.returncode == 0) is accepted

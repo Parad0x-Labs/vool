@@ -167,9 +167,11 @@ def _imap_connect(creds: dict[str, Any]) -> imaplib.IMAP4:
     host = str(creds.get("host") or "")
     port = int(creds.get("port") or 993)
     security = _security_of(creds, host)
+    # imaplib's default context for implicit TLS is unverified (no certificate or host check),
+    # so the context is always the verifying default, exactly as the SMTP transport uses.
     if security == "ssl":
-        return imaplib.IMAP4_SSL(host, port)
-    client = imaplib.IMAP4(host, port)
+        return imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context(), timeout=30)
+    client = imaplib.IMAP4(host, port, timeout=30)
     if security == "starttls":
         client.starttls(ssl.create_default_context())
     return client

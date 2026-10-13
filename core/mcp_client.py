@@ -22,7 +22,6 @@ import json
 import queue
 import re
 import subprocess
-import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
@@ -173,7 +172,9 @@ class MCPStdioClient:
             # `name` defaults to the command, which may be an absolute path; a raw join would
             # REPLACE the scratch root with it. Slug it.
             slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(self.name or "server")).strip("_") or "server"
-            work_dir = Path(tempfile.gettempdir()) / "vool-mcp-scratch" / slug[-80:]
+            from core.runtime_paths import runtime_child_scratch_root
+
+            work_dir = runtime_child_scratch_root("mcp") / slug[-80:]
         with contextlib.suppress(OSError):
             work_dir.mkdir(parents=True, exist_ok=True)
         try:

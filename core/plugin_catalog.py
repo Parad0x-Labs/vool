@@ -15,7 +15,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from core.runtime_paths import user_runtime_default
+from core.runtime_paths import active_vool_home, runtime_home_is_isolated, vool_env
 
 _DEFAULT_PLUGINS_DIR = Path.home() / "Desktop" / "Vool-skills-plugins"
 # The pre-rename installation folder (NULLA -> VOOL, 2026-09). An existing installation there is
@@ -38,17 +38,19 @@ def _desktop_plugins_dirs() -> tuple[Path, Path]:
 
 
 def configured_plugins_root() -> Path:
-    """The ONE configured external plugins root: explicit override, else current, else legacy.
+    """The ONE configured external plugins root, isolated with custom runtime profiles.
 
     Resolution order, deterministic:
       1. ``VOOL_PLUGINS_DIR`` when set (tests, operators, isolated installs) -- used as-is;
-      2. ``~/Desktop/Vool-skills-plugins`` when it carries a ``plugins/`` tree;
-      3. ``~/Desktop/Nulla-skills-plugins`` when only the legacy folder carries one (reuse);
-      4. otherwise the current-named folder, as the write target a first install creates.
+      2. a custom profile's ``<home>/plugins``; ambient Desktop packs are never inspected;
+      3. conventional installed homes reuse the current Desktop tree, then the legacy one;
+      4. otherwise the current-named Desktop folder is a default install's write target.
     """
-    override = str(os.environ.get("VOOL_PLUGINS_DIR") or "").strip()
+    override = str(vool_env("PLUGINS_DIR") or "").strip()
     if override:
         return Path(override).expanduser()
+    if runtime_home_is_isolated():
+        return active_vool_home() / "plugins"
     current, legacy = _desktop_plugins_dirs()
     if (current / "plugins").is_dir():
         return current
@@ -95,8 +97,7 @@ def bundled_plugin_dirs() -> tuple[Path, ...]:
 
 
 def _enabled_store_path() -> Path:
-    home = Path(os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME") or user_runtime_default())
-    return home / "config" / "plugins_enabled.json"
+    return active_vool_home() / "config" / "plugins_enabled.json"
 
 
 def _disabled_ids() -> set[str]:

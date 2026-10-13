@@ -86,6 +86,13 @@ class RequiredToolsNotOfferedError(RuntimeError):
 
 
 def _live_data_classification(text: str) -> tuple[bool, bool, tuple[str, ...]] | None:
+    from tools.web.coin_index import cached_index_only
+
+    with cached_index_only():
+        return _live_data_classification_cached(text)
+
+
+def _live_data_classification_cached(text: str) -> tuple[bool, bool, tuple[str, ...]] | None:
     """Whether this GROUNDED request is specifically a live-data (price/weather) lookup.
 
     Returns `(multipart, parallel_preferred, allowed_toolsets)`, or `None` when the request is
