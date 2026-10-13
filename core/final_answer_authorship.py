@@ -264,8 +264,8 @@ class AuthorshipDecision:
             )
         remedy = (
             "What would make this answerable: run the local model tool certification for that "
-            "model, pick a certified model, or ask something this runtime can look up, compute "
-            "or read for you."
+            "model (Settings → Models & Providers → Local models → Certify), pick a certified "
+            "model, or ask something this runtime can look up, compute or read for you."
         )
         if _local_author_not_running(author):
             # Certifying a model that is not running cannot help; name the fix that can.
