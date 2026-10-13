@@ -444,6 +444,8 @@ stage_self_contained() {
   # and answer a typed wallet_dependency_unavailable refusal when any is missing. The bundle
   # ships them so the artifact's Base/Ethereum journeys are capability-real, not refusals;
   # the packaging test fails the build if this list drops them again.
+  # The x402 Foundation SDK (the optional `x402` extra, with web3 at the lock's version) lets a Crypto Pilot wallet pay
+  # x402 offers in USDC on Base (core/wallet/x402_sdk.py); without it that payment channel refuses typed.
   # bash-3.2-safe: an empty array under set -u is "unbound" unless guarded
   # --python-platform pins wheel selection to the target. A host cache holding the other
   # architecture's wheels cannot contaminate the bundle: an arm64 CPython that loads an
@@ -466,6 +468,7 @@ stage_self_contained() {
       "starlette>=1.3.1,<2.0" "uvicorn>=0.30,<1.0" solders "pywebview==6.2.1" "pypdf==6.19.0" "xlrd==2.0.2" "reportlab==5.0.1" "markdown-it-py==4.2.0" \
       zstandard \
       "eth-abi>=6.0" "eth-utils>=6.0" "eth-account>=0.13" \
+      "x402[evm]==2.25.0" "web3==8.0.0" \
     || die "lean dependency install failed"
 
   # Deterministic bytecode for the embedded runtime: wipe any install-time caches, then compile
