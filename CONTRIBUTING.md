@@ -1,11 +1,11 @@
 # Contributing to VOOL
 
-Thanks for helping build a local-first agent runtime. This guide is the shortest honest
+Thanks for helping build a local-first agent runtime. This guide is the shortest accurate
 path to a merged PR.
 
 ## Read this first
 
-- [README.md](README.md) for what VOOL is and the platform honesty rules.
+- [README.md](README.md) for what VOOL is and what each platform supports.
 - [docs/REPO_MAP.md](docs/REPO_MAP.md) for where things live.
 - [docs/RUNTIME_ARCHITECTURE_CONTRACT.md](docs/RUNTIME_ARCHITECTURE_CONTRACT.md) for the
   request flow and the authorities that own each boundary.
@@ -42,7 +42,7 @@ generated runtime data, credentials, personal paths or local environment setting
 - Bug fixes and documentation improvements
 - Installer and launcher improvements
 - Test coverage (especially semantic-family coverage for repairs)
-- Platform-clarity improvements (honest capability reporting)
+- Platform-clarity improvements (accurate capability reporting)
 
 ## Out of scope for external PRs
 

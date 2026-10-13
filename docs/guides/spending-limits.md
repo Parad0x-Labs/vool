@@ -25,7 +25,6 @@ For paid calls, VOOL reserves money against caps before every call:
 | Per call | A single call's projected cost ceiling. |
 | Per task | The most one task may spend across its calls. |
 | Daily / monthly | Whole-period ceilings on paid usage. |
-| Daily call count | A cap on the NUMBER of paid calls, independent of dollars. |
 
 A call that would cross a cap is refused before it is sent. The refusal names the cap that
 refused it (`per_task_spend_cap_exceeded` and its siblings) and the wording is deliberately
@@ -54,6 +53,9 @@ twice. Resume is the one supported path.
 
 ## Automatic wallet payments (x402)
 
+In 0.7.0, x402 for websites works on test networks only. The exception is the pay-per-call
+option in the model marketplace in Settings, which pays from the Solana Mainnet wallet, one
+approval per call within these caps, and has not yet been tested on a real chain.
 Wallet-paid resources (see [Wallet](../guides/wallet.md)) carry their own automatic-payment
 cap. A resource asking for more than the cap is simply not paid; you can raise the cap
 deliberately or pay the resource through an explicit proposal with your approval.

@@ -10,7 +10,7 @@ description: Keyboard shortcuts.
 | --- | --- |
 | New session | `⌘ N` |
 | Command palette | `⌘ K` |
-| Switch model | `⌘ ⇧ M` |
-| Toggle workspace panel | `⌘ B` |
+| Switch model | `⌘ M` |
+| Toggle workspace panel | `⌘ J` |
 | Stop the current run | `Esc` |
 | Settings | `⌘ ,` |

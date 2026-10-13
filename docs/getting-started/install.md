@@ -1,17 +1,13 @@
 ---
-description: How to install the VOOL AI assistant from source on macOS, Windows or Linux, including system requirements and how to verify a future packaged download.
+description: How to install the VOOL AI assistant on macOS (Apple Silicon or Intel) or Linux from the release downloads, or from source on macOS, Windows or Linux, including system requirements and how to verify a download.
 ---
 
 # Install
 
-The release supported by this repository is **from source** with the bootstrap script;
-nothing is published on the [releases page](https://github.com/Parad0x-Labs/vool/releases)
-beyond a private owner-review draft. A macOS disk image is separately downloadable from
-the project website, `vool.dev` — that channel is not built or verified from this
-repository's release records, so if you use it, verify its sidecar checksum first (see
-[Verify a download](#verify-a-download)) and treat its provenance as unverified beyond
-that checksum. See [Release status](../trust/release-status.md) for the authoritative
-state of artifacts, signing and updates on every channel.
+VOOL 0.7.0-beta has app downloads for Apple Silicon Macs, Intel Macs and Linux x86_64 on
+the [v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta).
+You can also install from source with the bootstrap script on macOS, Linux or Windows.
+See [Release status](../trust/release-status.md) for signing and update details.
 
 ## Requirements
 
@@ -25,6 +21,48 @@ state of artifacts, signing and updates on every channel.
 
 Local models need considerably more memory than the app itself. Sizing guidance is in
 [Run a local model](../guides/local-models.md).
+
+## Download the app
+
+| Your computer | Download |
+| --- | --- |
+| Mac with Apple Silicon (M1 and later) | [`VOOL-0.7.0-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-arm64.dmg) |
+| Mac with an Intel chip | [`VOOL-0.7.0-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-x86_64.dmg) |
+| Linux x86_64 (Ubuntu 22.04 / 24.04) | [`vool-0.7.0-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz) |
+
+To find your Mac's chip, open the Apple menu and choose **About This Mac**. "Apple M…"
+means Apple Silicon; "Intel" means Intel. The Apple Silicon app does not run on an Intel
+Mac, and says so when you open it.
+
+Check the download's SHA-256 before you open it (see [Verify a download](#verify-a-download)).
+
+### First open on a Mac
+
+The beta app is not notarized by Apple yet, so macOS asks you to confirm the first time
+you open it. This is expected and happens once.
+
+1. Open the DMG and drag **VOOL** into **Applications**.
+2. Double-click VOOL. macOS says it cannot check the app for malicious software. Click
+   **Done** (or **Cancel**).
+3. Open **System Settings → Privacy & Security**. Scroll down to the message about VOOL
+   and click **Open Anyway**. Enter your password to confirm.
+
+On macOS 14 Sonoma you can instead Control-click VOOL in Applications, choose **Open**,
+then click **Open** again.
+
+### Linux
+
+Download the tarball and its `.sha256` file, check it, then run the bundled installer.
+No sudo or system Python is needed. The full steps, the install locations and how to
+uninstall are in the [install guide](../INSTALL.md#linux-x86_64-tarball).
+
+### After install
+
+Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. It runs a short check on your machine; a clearer prompt for it comes in 0.7.1.
+
+Nothing goes online on a fresh install until you turn it on. Update checks stay off until
+you allow them. Updates are signed and checked before they install, and you can roll one
+back; the first update offered this way will be 0.7.1. Crypto features are off by default.
 
 ## Install from source
 
@@ -49,36 +87,26 @@ a connection.
 
 ## Intel Macs
 
-VOOL installs from source on Intel Macs running macOS 14 or newer (for example a 2020
-13-inch MacBook Pro). The installer detects the Intel CPU and installs the Intel builds of
-every dependency. Three limits are specific to Intel:
+VOOL runs on Intel Macs with macOS 14 or newer (for example a 2020 13-inch MacBook Pro),
+from the Intel download or from source. The source installer detects the Intel CPU and
+installs the Intel builds of every dependency. Two limits are specific to Intel:
 
 * **No local model training.** PyTorch has published no Intel macOS build since 2.3, so
   the installer skips it and LoRA training reports itself unavailable. Chat, memory,
   tools and cloud models are unaffected.
-* **Local models run on the CPU only.** Ollama has no GPU acceleration for Intel graphics,
+* **Local models run on the CPU only.** Local model runners have no GPU acceleration for Intel graphics,
   so local answers are several times slower than on Apple silicon. On an 8 GB Mac, use a
   cloud model for chat; on 16 GB, the installer's default small local model works but is slow.
 
-A packaged Intel app needs its own `--arch x86_64` build; the Apple silicon download does
-not run on Intel and says so at launch.
+On Intel Macs, local models run on the CPU and may be too slow to pass the one-time Certify check or to answer in time, so use a cloud model there for now. We tested the Intel build under Rosetta on an Apple Silicon Mac, not yet on an Intel Mac.
 
-## Packaged builds
-
-No GitHub release is published (only a private owner-review draft), and no Windows or
-Linux artifact exists on any verified channel. If you download the macOS DMG from
-`vool.dev`:
-
-* Verify its checksum against the `.sha256` file published beside it — a mismatch means
-  a corrupted or tampered download: delete the file and download it again.
-* The beta build is ad-hoc signed and not notarized. macOS Gatekeeper will refuse a first
-  launch: **System Settings → Privacy & Security → Open Anyway** after verifying the
-  checksum.
-* Do not expect automatic updates: no update feed is configured for beta artifacts.
+Intel Macs have their own download, `VOOL-0.7.0-beta-macos-x86_64.dmg`. The Apple Silicon
+download does not run on Intel and says so at launch.
 
 ## Verify a download
 
-When a packaged artifact is published, verify it before running:
+Each download on the release has a SHA-256 checksum next to it. Verify the file before
+opening it:
 
 ```bash
 shasum -a 256 <downloaded-artifact>    # macOS

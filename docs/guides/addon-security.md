@@ -1,19 +1,19 @@
 # Discover skills and Eyebrow checks
 
-Skills and Plugins has three views: **Installed**, **Discover**, and **Security integrations**. Discover starts with two public, pinned standalone instruction skills. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
+The Add-ons page has four tabs: **Browse**, **Skill Codex**, **My add-ons** and **Security**. Browse lists the reviewed catalogue add-ons and can look up a public GitHub repository at a pinned revision. Skill Codex browsing is not open yet in this release. Search ignores case and common separators; category and sort controls narrow the list. Source, licence, revision and requirements are visible before downloading.
 
 ## First use
 
-1. Save an Eyebrow API key in Security integrations, also available under Settings → API Keys. The existing credential store owns the key. Saving does not test the connection or scan anything; Test contacts Eyebrow explicitly.
-2. In Discover, choose a skill and approve downloading its public content and sending that content to Eyebrow. This consumes the service's scan allowance according to your plan. No automatic retries occur.
+1. Save an Eyebrow API key in the Security tab, also available under Settings → API Keys. The existing credential store owns the key. Saving does not test the connection or scan anything; Test contacts Eyebrow explicitly.
+2. In Browse, choose a skill and approve downloading its public content and sending that content to Eyebrow. This consumes the service's scan allowance according to your plan. No automatic retries occur.
 3. Read the returned report. A successful HTTP response alone is not a clean result. This initial catalogue permits installation only with a complete `pass` report, no findings and no policy violations. Reject discards the staged download without installing it.
 4. Accept installation separately. VOOL preserves the licence, installs through its existing plugin lifecycle, verifies the exact reviewed package and enables the skill. Existing permissions still govern every action it might suggest.
 
-A scan is a vendor's assessment of specific bytes, not a guarantee of safety, compatibility or answer quality. Catalogue inclusion is not certification of the publisher. The Anthropic brand guide is explicitly for Anthropic's visual identity, not VOOL's brand.
+A scan is a vendor's assessment of specific bytes, not a guarantee of safety, compatibility or answer quality. Catalogue inclusion is not certification of the publisher.
 
 ## Boundaries
 
-Only shipped catalogue entries are accepted: fixed public GitHub revisions, SHA-256-pinned skill and licence files. There is no arbitrary URL, private repository, archive extraction, install script or executable/MCP plugin importer in this version. Only the standalone SKILL.md is sent to Eyebrow; local chats, workspace files, credentials and licence contents are not submitted for scanning.
+Content comes only from public GitHub repositories at a fixed 40-character revision, with SHA-256-pinned skill and licence files. There is no private repository, archive extraction, install script or executable/MCP plugin importer in this version. Only the standalone SKILL.md is sent to Eyebrow; local chats, workspace files, credentials and licence contents are not submitted for scanning.
 
 Downloads remain inert until review and acceptance. Locally authenticated receipts bind the report to the pinned content. Installation refuses expired reviews (24 hours), modified staged files and existing target directories. The runtime checks lifecycle state and reviewed bytes before adding a managed skill to model context. Added files, symlinks or changed content make it unavailable. Guidance is inserted whole or explicitly recorded as omitted for insufficient prompt budget; the scanned instructions are not silently truncated.
 

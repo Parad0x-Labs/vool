@@ -18,8 +18,9 @@ Naming a file or a symbol gives the runtime a starting point:
 
 ## Review before applying
 
-Edits are proposed as diffs and applied only when you accept them. Commit before a large
-change so the diff is easy to read and easy to undo.
+In Manual mode, every edit asks first. In Auto mode, everyday edits and commands can run
+automatically and show in the activity record, while deletes and overwrites still ask. Commit
+before a large change so the diff is easy to read and easy to undo.
 
 ## Local or cloud
 
