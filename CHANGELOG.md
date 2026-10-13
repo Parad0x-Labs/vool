@@ -91,6 +91,7 @@ Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
 - X is drafting plus guided read-only setup; trending is hidden.
 - The macOS apps are not notarized.
 - No in-app update is offered for 0.7.0 itself; one-press updates start with 0.7.1.
+- Before a local model can answer, open Settings > **Local models** and press **Certify** for it once. A clearer prompt comes in 0.7.1.
 - Dragging the pet out of the VOOL window does not move it to the desktop. Use right-click > **Move to desktop**, or the button in Settings. A fix is planned for 0.7.1.
 
 ## [0.6.0-beta] — 2026-09-19

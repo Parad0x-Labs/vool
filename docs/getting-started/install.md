@@ -58,6 +58,8 @@ uninstall are in the [install guide](../INSTALL.md#linux-x86_64-tarball).
 
 ### After install
 
+Before a local model can answer, open **Settings → Local models** and press **Certify** for it once. It runs a short check on your machine; a clearer prompt for it comes in 0.7.1.
+
 Nothing goes online on a fresh install until you turn it on. Update checks stay off until
 you allow them. Updates are signed and checked before they install, and you can roll one
 back; the first update offered this way will be 0.7.1. Crypto features are off by default.

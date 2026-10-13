@@ -58,11 +58,11 @@ Each download has a SHA-256 checksum on the release page. Check it before you op
 
 1. Open the DMG and drag **VOOL** into Applications.
 2. Double-click VOOL. macOS says it can't check the app; click **Done** (or **Cancel**).
-3. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to VOOL. Confirm with your password.
-
-On macOS 14 you can also Control-click VOOL, choose **Open**, then **Open** again. You only do this once.
+3. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to VOOL. Confirm with your password. (On macOS 14 you can instead Control-click VOOL and choose **Open**.) You only do this once.
 
 **Linux.** Unpack the tarball and run its installer; no sudo is needed. Full steps are in the [install guide](docs/INSTALL.md#linux-x86_64-tarball).
+
+**Using a local model?** Before a local model can answer, open **Settings → Local models** and press **Certify** for it once. This runs a short check on your machine; a clearer prompt for it comes in 0.7.1.
 
 Nothing goes online on a fresh install until you turn it on. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
 

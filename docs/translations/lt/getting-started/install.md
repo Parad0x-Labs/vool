@@ -34,6 +34,10 @@ Nežinote, koks jūsų Mac? Apple meniu pasirinkite **About This Mac**: „Apple
 
 macOS 14 sistemoje taip pat galite spustelėti VOOL laikydami Control ir pasirinkti **Open**. Tai reikia padaryti tik kartą.
 
+## Vietiniai modeliai
+
+Prieš naudodami vietinį modelį, atidarykite **Settings → Local models** ir vieną kartą paspauskite **Certify**. 0.7.0 versija apie tai nepraneša; aiškesnis raginimas bus 0.7.1 versijoje.
+
 ## Linux
 
 Atsisiųskite archyvą ir jo `.sha256` failą, patikrinkite ir paleiskite pridėtą diegimo programą. Sudo nereikia:

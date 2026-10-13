@@ -34,6 +34,10 @@ description: 在 macOS（Apple 芯片或 Intel）或 Linux 上下载并安装 VO
 
 在 macOS 14 上，也可以按住 Control 点按 VOOL，选择**打开**。只需操作一次。
 
+## 本地模型
+
+使用本地模型前，请打开**设置 → Local models**，为该模型点击一次 **Certify**（认证）。0.7.0 不会主动提示这一步；0.7.1 将提供更清晰的提示。
+
 ## Linux
 
 下载 tarball 及其 `.sha256` 文件，校验后运行自带的安装程序，无需 sudo：
