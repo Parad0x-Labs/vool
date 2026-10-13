@@ -6,8 +6,10 @@ description: How VOOL updates itself, what happens to your data, and version com
 
 ## How updates work
 
-VOOL checks for updates in the background and **never takes the running app down**. When an
-update is ready you choose to install it; the installer is gesture-gated.
+Update checks are off on a fresh install. Press **Check for updates** to allow them; after
+that VOOL checks in the background and **never takes the running app down**. When an update
+is ready you choose to install it; the installer is gesture-gated. VOOL 0.7.0 is installed
+by download, and the first update offered this way will be 0.7.1.
 
 Every update runs a verified pipeline with automatic rollback:
 

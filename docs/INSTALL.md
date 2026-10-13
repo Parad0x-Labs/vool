@@ -2,6 +2,14 @@
 
 This is the canonical install and quickstart doc.
 
+The quickest route is the app download from the
+[v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta):
+`VOOL-0.7.0-macos-arm64.dmg` for Apple Silicon Macs, `VOOL-0.7.0-macos-x86_64.dmg` for
+Intel Macs (both macOS 14 or newer), and the Linux x86_64 tarball described
+[below](#linux-x86_64-tarball). The macOS first-open steps are in
+[Install](getting-started/install.md#first-open-on-a-mac). The rest of this page covers
+source installs and the Linux tarball in detail.
+
 macOS / Linux source installs are pinned to `v0.7.0-beta`. Development on `main` is an explicit opt-in with `--ref main` and a matching script URL.
 
 ## Fast Path
@@ -109,10 +117,9 @@ bash Install_And_Run_VOOL.sh
 
 ## Linux x86_64 tarball
 
-The v0.7 packaging workflow prepares `vool-0.7.0-beta-linux-x86_64.tar.gz`.
-Use this route only when that asset and its `.sha256` sidecar actually exist
-on the [v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta).
-An unrun workflow or a private draft is not a published download.
+Download `vool-0.7.0-beta-linux-x86_64.tar.gz` and its `.sha256` sidecar from the
+[v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta),
+check it, and run the bundled installer:
 
 ```bash
 curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz

@@ -36,8 +36,9 @@ handles your files, your memory, and your keys.
   be read back after the fact.
 
 {% hint style="warning" %}
-VOOL for macOS is out as a beta for Apple silicon. Beta installers are unsigned and the
-macOS build is not notarized — macOS will ask you to confirm on first launch. See
+VOOL 0.7.0-beta is out for Apple Silicon Macs, Intel Macs and Linux x86_64. The Mac apps
+are not notarized yet, so macOS asks you to confirm the first time you open one; the
+[Install](getting-started/install.md#first-open-on-a-mac) page shows how. See
 [Release status](trust/release-status.md) before installing.
 {% endhint %}
 
